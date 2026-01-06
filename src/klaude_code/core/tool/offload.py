@@ -203,9 +203,7 @@ class HeadTailOffloadStrategy(OffloadStrategy):
         # ON_THRESHOLD: offload only when truncating
         return needs_truncation
 
-    def _truncate_by_lines(
-        self, output: str, lines: list[str], offloaded_path: str | None
-    ) -> tuple[str, int]:
+    def _truncate_by_lines(self, output: str, lines: list[str], offloaded_path: str | None) -> tuple[str, int]:
         """Truncate by lines. Returns (truncated_output, hidden_lines)."""
         total_lines = len(lines)
         hidden_lines = total_lines - self.head_lines - self.tail_lines
@@ -216,7 +214,7 @@ class HeadTailOffloadStrategy(OffloadStrategy):
             header = (
                 f"<system-reminder>Output truncated due to length. "
                 f"Showing first {self.head_lines} and last {self.tail_lines} lines of {total_lines} lines. "
-                f"Full output saved to: {offloaded_path}. </system-reminder>\n\n"
+                f"Full output saved to: {offloaded_path} </system-reminder>\n\n"
             )
         else:
             header = (
@@ -228,9 +226,7 @@ class HeadTailOffloadStrategy(OffloadStrategy):
         truncated_output = f"{header}{head}\n\n<...{hidden_lines} lines omitted...>\n\n{tail}"
         return truncated_output, hidden_lines
 
-    def _truncate_by_chars(
-        self, output: str, offloaded_path: str | None
-    ) -> tuple[str, int]:
+    def _truncate_by_chars(self, output: str, offloaded_path: str | None) -> tuple[str, int]:
         """Truncate by characters. Returns (truncated_output, hidden_chars)."""
         original_length = len(output)
         hidden_chars = original_length - self.head_chars - self.tail_chars
@@ -241,7 +237,7 @@ class HeadTailOffloadStrategy(OffloadStrategy):
             header = (
                 f"<system-reminder>Output truncated due to length. "
                 f"Showing first {self.head_chars} and last {self.tail_chars} chars of {original_length} chars. "
-                f"Full output saved to: {offloaded_path}. </system-reminder>\n\n"
+                f"Full output saved to: {offloaded_path} </system-reminder>\n\n"
             )
         else:
             header = (

@@ -1,5 +1,4 @@
 import json
-from collections.abc import AsyncGenerator
 from typing import override
 
 import anthropic
@@ -17,13 +16,13 @@ from klaude_code.const import (
     LLM_HTTP_TIMEOUT_READ,
     LLM_HTTP_TIMEOUT_TOTAL,
 )
-from klaude_code.llm.anthropic.client import build_payload, parse_anthropic_stream
-from klaude_code.llm.client import LLMClientABC
+from klaude_code.llm.anthropic.client import AnthropicLLMStream, build_payload
+from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
-from klaude_code.llm.usage import MetadataTracker, error_stream_items
+from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import llm_param, message
+from klaude_code.protocol import llm_param
 
 _CLAUDE_OAUTH_REQUIRED_BETAS: tuple[str, ...] = (
     ANTHROPIC_BETA_OAUTH,
@@ -71,7 +70,7 @@ class ClaudeClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
         self._ensure_valid_token()
         param = apply_config_defaults(param, self.get_llm_config())
 
@@ -91,15 +90,12 @@ class ClaudeClient(LLMClientABC):
             debug_type=DebugType.LLM_PAYLOAD,
         )
 
-        stream = self.client.beta.messages.create(
-            **payload,
-            extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
-        )
-
         try:
-            async for item in parse_anthropic_stream(stream, param, metadata_tracker):
-                yield item
+            stream = self.client.beta.messages.create(
+                **payload,
+                extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
+            )
+            return AnthropicLLMStream(stream, param=param, metadata_tracker=metadata_tracker)
         except (APIError, httpx.HTTPError) as e:
             error_message = f"{e.__class__.__name__} {e!s}"
-            for item in error_stream_items(metadata_tracker, error=error_message):
-                yield item
+            return error_llm_stream(metadata_tracker, error=error_message)

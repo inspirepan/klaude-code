@@ -1,8 +1,10 @@
 import time
+from collections.abc import AsyncGenerator
 
 import openai.types
 
 from klaude_code.const import THROUGHPUT_MIN_DURATION_SEC
+from klaude_code.llm.client import LLMStreamABC
 from klaude_code.protocol import llm_param, message, model
 
 
@@ -112,6 +114,34 @@ def error_stream_items(
         message.StreamErrorItem(error=error),
         message.AssistantMessage(parts=[], response_id=response_id, usage=metadata),
     ]
+
+
+class ErrorLLMStream(LLMStreamABC):
+    """LLMStream implementation for error scenarios."""
+
+    def __init__(self, items: list[message.LLMStreamItem]) -> None:
+        self._items = list(items)
+
+    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
+        for item in self._items:
+            yield item
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        return None
+
+
+def error_llm_stream(
+    metadata_tracker: MetadataTracker,
+    *,
+    error: str,
+    response_id: str | None = None,
+) -> ErrorLLMStream:
+    """Create an LLMStream that yields error items."""
+    items = error_stream_items(metadata_tracker, error=error, response_id=response_id)
+    return ErrorLLMStream(items)
 
 
 def convert_usage(

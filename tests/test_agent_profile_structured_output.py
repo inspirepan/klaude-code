@@ -4,8 +4,20 @@ from collections.abc import AsyncGenerator
 
 from klaude_code.core.agent_profile import STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT, DefaultModelProfileProvider
 from klaude_code.llm import LLMClientABC
-from klaude_code.protocol import llm_param, tools
-from klaude_code.protocol.message import LLMStreamItem
+from klaude_code.llm.client import LLMStreamABC
+from klaude_code.protocol import llm_param, message, tools
+
+
+class DummyLLMStream(LLMStreamABC):
+    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
+        if False:  # pragma: no cover
+            yield message.AssistantMessage(parts=[], response_id=None)
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        return None
 
 
 class DummyLLMClient(LLMClientABC):
@@ -13,11 +25,9 @@ class DummyLLMClient(LLMClientABC):
     def create(cls, config: llm_param.LLMConfigParameter) -> LLMClientABC:
         return cls(config)
 
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
         del param
-        if False:  # pragma: no cover
-            yield None  # type: ignore[misc]
-        return
+        return DummyLLMStream()
 
 
 def test_default_profile_provider_injects_report_back_on_output_schema() -> None:

@@ -1,5 +1,4 @@
 import json
-from collections.abc import AsyncGenerator
 from typing import Any, cast, override
 
 import httpx
@@ -14,16 +13,16 @@ from klaude_code.const import (
     LLM_HTTP_TIMEOUT_TOTAL,
     OPENROUTER_BASE_URL,
 )
-from klaude_code.llm.client import LLMClientABC
+from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_tool_schema
-from klaude_code.llm.openai_compatible.stream import parse_chat_completions_stream
+from klaude_code.llm.openai_compatible.stream import OpenAILLMStream
 from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude_model
 from klaude_code.llm.openrouter.reasoning import ReasoningStreamHandler
 from klaude_code.llm.registry import register
-from klaude_code.llm.usage import MetadataTracker
+from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, is_debug_enabled, log_debug
-from klaude_code.protocol import llm_param, message
+from klaude_code.protocol import llm_param
 
 
 def build_payload(
@@ -103,7 +102,7 @@ class OpenRouterClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
@@ -111,9 +110,7 @@ class OpenRouterClient(LLMClientABC):
         try:
             payload, extra_body, extra_headers = build_payload(param)
         except (ValueError, OSError) as e:
-            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
-            yield message.AssistantMessage(parts=[], response_id=None, usage=metadata_tracker.finalize())
-            return
+            return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")
 
         log_debug(
             json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
@@ -128,9 +125,7 @@ class OpenRouterClient(LLMClientABC):
                 extra_headers=extra_headers,
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
-            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
-            yield message.AssistantMessage(parts=[], response_id=None, usage=metadata_tracker.finalize())
-            return
+            return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")
 
         reasoning_handler = ReasoningStreamHandler(
             param_model=str(param.model_id),
@@ -144,11 +139,10 @@ class OpenRouterClient(LLMClientABC):
                 debug_type=DebugType.LLM_STREAM,
             )
 
-        async for item in parse_chat_completions_stream(
+        return OpenAILLMStream(
             stream,
             param=param,
             metadata_tracker=metadata_tracker,
             reasoning_handler=reasoning_handler,
             on_event=on_event,
-        ):
-            yield item
+        )

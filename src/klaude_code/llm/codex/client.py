@@ -1,7 +1,6 @@
 """Codex LLM client using ChatGPT subscription via OAuth."""
 
 import json
-from collections.abc import AsyncGenerator
 from typing import override
 
 import httpx
@@ -19,14 +18,14 @@ from klaude_code.const import (
     LLM_HTTP_TIMEOUT_READ,
     LLM_HTTP_TIMEOUT_TOTAL,
 )
-from klaude_code.llm.client import LLMClientABC
+from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
-from klaude_code.llm.responses.client import parse_responses_stream
+from klaude_code.llm.responses.client import ResponsesLLMStream
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
-from klaude_code.llm.usage import MetadataTracker, error_stream_items
+from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import llm_param, message
+from klaude_code.protocol import llm_param
 
 
 def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsStreaming:
@@ -118,7 +117,7 @@ class CodexClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
         # Ensure token is valid before API call
         self._ensure_valid_token()
 
@@ -147,9 +146,6 @@ class CodexClient(LLMClientABC):
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
             error_message = f"{e.__class__.__name__} {e!s}"
-            for item in error_stream_items(metadata_tracker, error=error_message):
-                yield item
-            return
+            return error_llm_stream(metadata_tracker, error=error_message)
 
-        async for item in parse_responses_stream(stream, param, metadata_tracker):
-            yield item
+        return ResponsesLLMStream(stream, param=param, metadata_tracker=metadata_tracker)

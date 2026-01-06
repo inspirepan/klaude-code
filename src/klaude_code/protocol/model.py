@@ -230,12 +230,7 @@ class SessionStatusUIExtra(BaseModel):
 
 
 MultiUIExtraItem = (
-    DiffUIExtra
-    | TodoListUIExtra
-    | SessionIdUIExtra
-    | MermaidLinkUIExtra
-    | MarkdownDocUIExtra
-    | SessionStatusUIExtra
+    DiffUIExtra | TodoListUIExtra | SessionIdUIExtra | MermaidLinkUIExtra | MarkdownDocUIExtra | SessionStatusUIExtra
 )
 
 

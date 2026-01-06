@@ -9,11 +9,12 @@ from openai.types import responses
 from openai.types.responses.response_create_params import ResponseCreateParamsStreaming
 
 from klaude_code.const import LLM_HTTP_TIMEOUT_CONNECT, LLM_HTTP_TIMEOUT_READ, LLM_HTTP_TIMEOUT_TOTAL
-from klaude_code.llm.client import LLMClientABC
+from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.input_common import apply_config_defaults
+from klaude_code.llm.partial_message import degrade_thinking_to_text
 from klaude_code.llm.registry import register
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
-from klaude_code.llm.usage import MetadataTracker, error_stream_items
+from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message, model
 
@@ -56,46 +57,79 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsStre
     return payload
 
 
+class ResponsesStreamStateManager:
+    """Manages streaming state for Responses API and provides partial message access."""
+
+    def __init__(self, model_id: str) -> None:
+        self.model_id = model_id
+        self.response_id: str | None = None
+        self.stage: Literal["waiting", "thinking", "assistant", "tool"] = "waiting"
+        self.accumulated_thinking: list[str] = []
+        self.accumulated_text: list[str] = []
+        self.pending_signature: str | None = None
+        self.assistant_parts: list[message.Part] = []
+        self.stop_reason: model.StopReason | None = None
+
+    def flush_thinking(self) -> None:
+        """Flush accumulated thinking content into parts."""
+        if self.accumulated_thinking:
+            self.assistant_parts.append(
+                message.ThinkingTextPart(
+                    text="".join(self.accumulated_thinking),
+                    model_id=self.model_id,
+                )
+            )
+            self.accumulated_thinking.clear()
+        if self.pending_signature:
+            self.assistant_parts.append(
+                message.ThinkingSignaturePart(
+                    signature=self.pending_signature,
+                    model_id=self.model_id,
+                    format="openai_reasoning",
+                )
+            )
+            self.pending_signature = None
+
+    def flush_text(self) -> None:
+        """Flush accumulated text content into parts."""
+        if not self.accumulated_text:
+            return
+        self.assistant_parts.append(message.TextPart(text="".join(self.accumulated_text)))
+        self.accumulated_text.clear()
+
+    def flush_all(self) -> list[message.Part]:
+        """Flush all accumulated content and return parts."""
+        self.flush_thinking()
+        self.flush_text()
+        return list(self.assistant_parts)
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        """Build a partial AssistantMessage from accumulated state."""
+        parts = self.flush_all()
+        filtered_parts: list[message.Part] = []
+        for part in parts:
+            if isinstance(part, message.ToolCallPart):
+                continue
+            filtered_parts.append(part)
+
+        filtered_parts = degrade_thinking_to_text(filtered_parts)
+        if not filtered_parts:
+            return None
+        return message.AssistantMessage(
+            parts=filtered_parts,
+            response_id=self.response_id,
+            stop_reason="aborted",
+        )
+
+
 async def parse_responses_stream(
     stream: "AsyncStream[ResponseStreamEvent]",
+    *,
+    state: ResponsesStreamStateManager,
     param: llm_param.LLMCallParameter,
     metadata_tracker: MetadataTracker,
 ) -> AsyncGenerator[message.LLMStreamItem]:
     """Parse OpenAI Responses API stream events into stream items."""
-    response_id: str | None = None
-    stage: Literal["waiting", "thinking", "assistant", "tool"] = "waiting"
-
-    accumulated_thinking: list[str] = []
-    accumulated_text: list[str] = []
-    pending_signature: str | None = None
-    assistant_parts: list[message.Part] = []
-    stop_reason: model.StopReason | None = None
-
-    def flush_thinking() -> None:
-        nonlocal pending_signature
-        if accumulated_thinking:
-            assistant_parts.append(
-                message.ThinkingTextPart(
-                    text="".join(accumulated_thinking),
-                    model_id=str(param.model_id),
-                )
-            )
-            accumulated_thinking.clear()
-        if pending_signature:
-            assistant_parts.append(
-                message.ThinkingSignaturePart(
-                    signature=pending_signature,
-                    model_id=str(param.model_id),
-                    format="openai_reasoning",
-                )
-            )
-            pending_signature = None
-
-    def flush_text() -> None:
-        if not accumulated_text:
-            return
-        assistant_parts.append(message.TextPart(text="".join(accumulated_text)))
-        accumulated_text.clear()
 
     def map_stop_reason(status: str | None, reason: str | None) -> model.StopReason | None:
         if reason:
@@ -122,31 +156,31 @@ async def parse_responses_stream(
             )
             match event:
                 case responses.ResponseCreatedEvent() as event:
-                    response_id = event.response.id
+                    state.response_id = event.response.id
                 case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
                     if event.delta:
                         metadata_tracker.record_token()
-                        if stage == "assistant":
-                            flush_text()
-                        stage = "thinking"
-                        accumulated_thinking.append(event.delta)
-                        yield message.ThinkingTextDelta(content=event.delta, response_id=response_id)
+                        if state.stage == "assistant":
+                            state.flush_text()
+                        state.stage = "thinking"
+                        state.accumulated_thinking.append(event.delta)
+                        yield message.ThinkingTextDelta(content=event.delta, response_id=state.response_id)
                 case responses.ResponseReasoningSummaryTextDoneEvent() as event:
-                    if event.text and not accumulated_thinking:
-                        accumulated_thinking.append(event.text)
+                    if event.text and not state.accumulated_thinking:
+                        state.accumulated_thinking.append(event.text)
                 case responses.ResponseTextDeltaEvent() as event:
                     if event.delta:
                         metadata_tracker.record_token()
-                        if stage == "thinking":
-                            flush_thinking()
-                        stage = "assistant"
-                        accumulated_text.append(event.delta)
-                        yield message.AssistantTextDelta(content=event.delta, response_id=response_id)
+                        if state.stage == "thinking":
+                            state.flush_thinking()
+                        state.stage = "assistant"
+                        state.accumulated_text.append(event.delta)
+                        yield message.AssistantTextDelta(content=event.delta, response_id=state.response_id)
                 case responses.ResponseOutputItemAddedEvent() as event:
                     if isinstance(event.item, responses.ResponseFunctionToolCall):
                         metadata_tracker.record_token()
                         yield message.ToolCallStartDelta(
-                            response_id=response_id,
+                            response_id=state.response_id,
                             call_id=event.item.call_id,
                             name=event.item.name,
                         )
@@ -154,9 +188,9 @@ async def parse_responses_stream(
                     match event.item:
                         case responses.ResponseReasoningItem() as item:
                             if item.encrypted_content:
-                                pending_signature = item.encrypted_content
+                                state.pending_signature = item.encrypted_content
                         case responses.ResponseOutputMessage() as item:
-                            if not accumulated_text:
+                            if not state.accumulated_text:
                                 text_content = "\n".join(
                                     [
                                         part.text
@@ -165,13 +199,13 @@ async def parse_responses_stream(
                                     ]
                                 )
                                 if text_content:
-                                    accumulated_text.append(text_content)
+                                    state.accumulated_text.append(text_content)
                         case responses.ResponseFunctionToolCall() as item:
                             metadata_tracker.record_token()
-                            flush_thinking()
-                            flush_text()
-                            stage = "tool"
-                            assistant_parts.append(
+                            state.flush_thinking()
+                            state.flush_text()
+                            state.stage = "tool"
+                            state.assistant_parts.append(
                                 message.ToolCallPart(
                                     call_id=item.call_id,
                                     id=item.id,
@@ -198,8 +232,8 @@ async def parse_responses_stream(
                             )
                         )
                     metadata_tracker.set_model_name(str(param.model_id))
-                    metadata_tracker.set_response_id(response_id)
-                    stop_reason = map_stop_reason(event.response.status, error_reason)
+                    metadata_tracker.set_response_id(state.response_id)
+                    state.stop_reason = map_stop_reason(event.response.status, error_reason)
                     if event.response.status != "completed":
                         error_message = f"LLM response finished with status '{event.response.status}'"
                         if error_reason:
@@ -221,16 +255,51 @@ async def parse_responses_stream(
     except (openai.OpenAIError, httpx.HTTPError) as e:
         yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
 
-    flush_thinking()
-    flush_text()
-    metadata_tracker.set_response_id(response_id)
+    parts = state.flush_all()
+    metadata_tracker.set_response_id(state.response_id)
     metadata = metadata_tracker.finalize()
     yield message.AssistantMessage(
-        parts=assistant_parts,
-        response_id=response_id,
+        parts=parts,
+        response_id=state.response_id,
         usage=metadata,
-        stop_reason=stop_reason,
+        stop_reason=state.stop_reason,
     )
+
+
+class ResponsesLLMStream(LLMStreamABC):
+    """LLMStream implementation for Responses API clients."""
+
+    def __init__(
+        self,
+        stream: "AsyncStream[ResponseStreamEvent]",
+        *,
+        param: llm_param.LLMCallParameter,
+        metadata_tracker: MetadataTracker,
+    ) -> None:
+        self._stream = stream
+        self._param = param
+        self._metadata_tracker = metadata_tracker
+        self._state = ResponsesStreamStateManager(str(param.model_id))
+        self._completed = False
+
+    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
+        async for item in parse_responses_stream(
+            self._stream,
+            state=self._state,
+            param=self._param,
+            metadata_tracker=self._metadata_tracker,
+        ):
+            if isinstance(item, message.AssistantMessage):
+                self._completed = True
+            yield item
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        if self._completed:
+            return None
+        return self._state.get_partial_message()
 
 
 @register(llm_param.LLMClientProtocol.RESPONSES)
@@ -264,7 +333,7 @@ class ResponsesClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
@@ -283,9 +352,6 @@ class ResponsesClient(LLMClientABC):
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
             error_message = f"{e.__class__.__name__} {e!s}"
-            for item in error_stream_items(metadata_tracker, error=error_message):
-                yield item
-            return
+            return error_llm_stream(metadata_tracker, error=error_message)
 
-        async for item in parse_responses_stream(stream, param, metadata_tracker):
-            yield item
+        return ResponsesLLMStream(stream, param=param, metadata_tracker=metadata_tracker)

@@ -4,7 +4,7 @@ This module provides reusable primitives for OpenAI-compatible providers:
 
 - ``StreamStateManager``: accumulates assistant content and tool calls.
 - ``ReasoningHandlerABC``: provider-specific reasoning extraction + buffering.
-- ``parse_chat_completions_stream``: shared stream loop that emits stream/history items.
+- ``OpenAILLMStream``: LLMStream implementation for OpenAI-compatible clients.
 
 OpenRouter uses the same OpenAI Chat Completions API surface but differs in
 how reasoning is represented (``reasoning_details`` vs ``reasoning_content``).
@@ -24,8 +24,10 @@ import pydantic
 from openai import AsyncStream
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
+from klaude_code.llm.client import LLMStreamABC
 from klaude_code.llm.image import save_assistant_image
 from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
+from klaude_code.llm.partial_message import degrade_thinking_to_text
 from klaude_code.llm.usage import MetadataTracker, convert_usage
 from klaude_code.protocol import llm_param, message, model
 
@@ -92,6 +94,23 @@ class StreamStateManager:
         if self.stage == "tool":
             self.flush_tool_calls()
         return list(self.parts)
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        """Build a partial AssistantMessage from accumulated state.
+
+        Flushes all accumulated content (reasoning, assistant text, tool calls)
+        and returns the message. Returns None if no content has been accumulated.
+        """
+        self.flush_reasoning()
+        self.flush_assistant()
+        parts = degrade_thinking_to_text(list(self.parts))
+        if not parts:
+            return None
+        return message.AssistantMessage(
+            parts=parts,
+            response_id=self.response_id,
+            stop_reason="aborted",
+        )
 
 
 @dataclass(slots=True)
@@ -168,6 +187,7 @@ def _map_finish_reason(reason: str) -> model.StopReason | None:
 async def parse_chat_completions_stream(
     stream: AsyncStream[ChatCompletionChunk],
     *,
+    state: StreamStateManager,
     param: llm_param.LLMCallParameter,
     metadata_tracker: MetadataTracker,
     reasoning_handler: ReasoningHandlerABC,
@@ -176,12 +196,9 @@ async def parse_chat_completions_stream(
     """Parse OpenAI Chat Completions stream into stream items.
 
     This is shared by OpenAI-compatible and OpenRouter clients.
+    The state parameter allows external access to accumulated content
+    for cancellation scenarios.
     """
-
-    state = StreamStateManager(
-        param_model=str(param.model_id),
-        reasoning_flusher=reasoning_handler.flush,
-    )
 
     def _extract_image_url(image_obj: object) -> str | None:
         image_url = getattr(image_obj, "image_url", None)
@@ -323,3 +340,48 @@ async def parse_chat_completions_stream(
         usage=metadata,
         stop_reason=state.stop_reason,
     )
+
+
+class OpenAILLMStream(LLMStreamABC):
+    """LLMStream implementation for OpenAI-compatible clients."""
+
+    def __init__(
+        self,
+        stream: AsyncStream[ChatCompletionChunk],
+        *,
+        param: llm_param.LLMCallParameter,
+        metadata_tracker: MetadataTracker,
+        reasoning_handler: ReasoningHandlerABC,
+        on_event: Callable[[object], None] | None = None,
+    ) -> None:
+        self._stream = stream
+        self._param = param
+        self._metadata_tracker = metadata_tracker
+        self._reasoning_handler = reasoning_handler
+        self._on_event = on_event
+        self._state = StreamStateManager(
+            param_model=str(param.model_id),
+            reasoning_flusher=reasoning_handler.flush,
+        )
+        self._completed = False
+
+    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
+        async for item in parse_chat_completions_stream(
+            self._stream,
+            state=self._state,
+            param=self._param,
+            metadata_tracker=self._metadata_tracker,
+            reasoning_handler=self._reasoning_handler,
+            on_event=self._on_event,
+        ):
+            if isinstance(item, message.AssistantMessage):
+                self._completed = True
+            yield item
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        if self._completed:
+            return None
+        return self._state.get_partial_message()

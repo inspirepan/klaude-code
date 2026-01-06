@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from klaude_code.const import INTERRUPT_MARKER, SUPPORTED_IMAGE_SIZES
+from klaude_code.const import SUPPORTED_IMAGE_SIZES
 from klaude_code.core.tool import ToolABC
 from klaude_code.core.tool.context import SubAgentResumeClaims, ToolContext
 
@@ -20,6 +20,7 @@ from klaude_code.core.tool.tool_runner import (
     ToolExecutorEvent,
 )
 from klaude_code.llm import LLMClientABC
+from klaude_code.llm.client import LLMStreamABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, llm_param, message, model, tools
 
@@ -104,8 +105,7 @@ class TurnExecutor:
         self._context = context
         self._tool_executor: ToolExecutor | None = None
         self._turn_result: TurnResult | None = None
-        self._assistant_delta_buffer: list[str] = []
-        self._assistant_response_id: str | None = None
+        self._llm_stream: LLMStreamABC | None = None
 
     @property
     def report_back_result(self) -> str | None:
@@ -147,7 +147,7 @@ class TurnExecutor:
     def cancel(self) -> list[events.Event]:
         """Cancel running tools and return any resulting events."""
         ui_events: list[events.Event] = []
-        self._persist_partial_assistant_on_cancel()
+        self._persist_partial_message_on_cancel()
         if self._tool_executor is not None:
             for exec_event in self._tool_executor.cancel():
                 for ui_event in build_events_from_tool_executor_event(self._context.session_ctx.session_id, exec_event):
@@ -237,147 +237,144 @@ class TurnExecutor:
             if image_config.model_dump(exclude_none=True):
                 call_param.image_config = image_config
 
-        async for delta in ctx.llm_client.call(call_param):
-            log_debug(
-                f"[{delta.__class__.__name__}]",
-                delta.model_dump_json(exclude_none=True),
-                style="green",
-                debug_type=DebugType.RESPONSE,
-            )
-            match delta:
-                case message.ThinkingTextDelta() as delta:
-                    if not thinking_active:
-                        thinking_active = True
-                        yield events.ThinkingStartEvent(
-                            response_id=delta.response_id,
-                            session_id=session_ctx.session_id,
-                        )
-                    yield events.ThinkingDeltaEvent(
-                        content=delta.content,
-                        response_id=delta.response_id,
-                        session_id=session_ctx.session_id,
-                    )
-                case message.AssistantTextDelta() as delta:
-                    if thinking_active:
-                        thinking_active = False
-                        yield events.ThinkingEndEvent(
-                            response_id=delta.response_id,
-                            session_id=session_ctx.session_id,
-                        )
-                    if not assistant_text_active:
-                        assistant_text_active = True
-                        yield events.AssistantTextStartEvent(
-                            response_id=delta.response_id,
-                            session_id=session_ctx.session_id,
-                        )
-                    if delta.response_id:
-                        self._assistant_response_id = delta.response_id
-                    self._assistant_delta_buffer.append(delta.content)
-                    yield events.AssistantTextDeltaEvent(
-                        content=delta.content,
-                        response_id=delta.response_id,
-                        session_id=session_ctx.session_id,
-                    )
-                case message.AssistantImageDelta() as delta:
-                    if thinking_active:
-                        thinking_active = False
-                        yield events.ThinkingEndEvent(
-                            response_id=delta.response_id,
-                            session_id=session_ctx.session_id,
-                        )
-                    yield events.AssistantImageDeltaEvent(
-                        file_path=delta.file_path,
-                        response_id=delta.response_id,
-                        session_id=session_ctx.session_id,
-                    )
-                case message.AssistantMessage() as msg:
-                    if msg.response_id is None and self._assistant_response_id:
-                        msg.response_id = self._assistant_response_id
-                    if thinking_active:
-                        thinking_active = False
-                        yield events.ThinkingEndEvent(
-                            response_id=msg.response_id,
-                            session_id=session_ctx.session_id,
-                        )
-                    if assistant_text_active:
-                        assistant_text_active = False
-                        yield events.AssistantTextEndEvent(
-                            response_id=msg.response_id,
-                            session_id=session_ctx.session_id,
-                        )
-                    turn_result.assistant_message = msg
-                    for part in msg.parts:
-                        if isinstance(part, message.ToolCallPart):
-                            turn_result.tool_calls.append(
-                                ToolCallRequest(
-                                    response_id=msg.response_id,
-                                    call_id=part.call_id,
-                                    tool_name=part.tool_name,
-                                    arguments_json=part.arguments_json,
-                                )
+        self._llm_stream = await ctx.llm_client.call(call_param)
+        try:
+            async for delta in self._llm_stream:
+                log_debug(
+                    f"[{delta.__class__.__name__}]",
+                    delta.model_dump_json(exclude_none=True),
+                    style="green",
+                    debug_type=DebugType.RESPONSE,
+                )
+                match delta:
+                    case message.ThinkingTextDelta() as delta:
+                        if not thinking_active:
+                            thinking_active = True
+                            yield events.ThinkingStartEvent(
+                                response_id=delta.response_id,
+                                session_id=session_ctx.session_id,
                             )
-                    if msg.stop_reason != "aborted":
-                        thinking_text = "".join(
-                            part.text for part in msg.parts if isinstance(part, message.ThinkingTextPart)
+                        yield events.ThinkingDeltaEvent(
+                            content=delta.content,
+                            response_id=delta.response_id,
+                            session_id=session_ctx.session_id,
                         )
-                        yield events.ResponseCompleteEvent(
-                            content=message.join_text_parts(msg.parts),
+                    case message.AssistantTextDelta() as delta:
+                        if thinking_active:
+                            thinking_active = False
+                            yield events.ThinkingEndEvent(
+                                response_id=delta.response_id,
+                                session_id=session_ctx.session_id,
+                            )
+                        if not assistant_text_active:
+                            assistant_text_active = True
+                            yield events.AssistantTextStartEvent(
+                                response_id=delta.response_id,
+                                session_id=session_ctx.session_id,
+                            )
+                        yield events.AssistantTextDeltaEvent(
+                            content=delta.content,
+                            response_id=delta.response_id,
+                            session_id=session_ctx.session_id,
+                        )
+                    case message.AssistantImageDelta() as delta:
+                        if thinking_active:
+                            thinking_active = False
+                            yield events.ThinkingEndEvent(
+                                response_id=delta.response_id,
+                                session_id=session_ctx.session_id,
+                            )
+                        yield events.AssistantImageDeltaEvent(
+                            file_path=delta.file_path,
+                            response_id=delta.response_id,
+                            session_id=session_ctx.session_id,
+                        )
+                    case message.AssistantMessage() as msg:
+                        if thinking_active:
+                            thinking_active = False
+                            yield events.ThinkingEndEvent(
+                                response_id=msg.response_id,
+                                session_id=session_ctx.session_id,
+                            )
+                        if assistant_text_active:
+                            assistant_text_active = False
+                            yield events.AssistantTextEndEvent(
+                                response_id=msg.response_id,
+                                session_id=session_ctx.session_id,
+                            )
+                        turn_result.assistant_message = msg
+                        for part in msg.parts:
+                            if isinstance(part, message.ToolCallPart):
+                                turn_result.tool_calls.append(
+                                    ToolCallRequest(
+                                        response_id=msg.response_id,
+                                        call_id=part.call_id,
+                                        tool_name=part.tool_name,
+                                        arguments_json=part.arguments_json,
+                                    )
+                                )
+                        if msg.stop_reason != "aborted":
+                            thinking_text = "".join(
+                                part.text for part in msg.parts if isinstance(part, message.ThinkingTextPart)
+                            )
+                            yield events.ResponseCompleteEvent(
+                                content=message.join_text_parts(msg.parts),
+                                response_id=msg.response_id,
+                                session_id=session_ctx.session_id,
+                                thinking_text=thinking_text or None,
+                            )
+                        if msg.stop_reason == "aborted":
+                            yield events.InterruptEvent(session_id=session_ctx.session_id)
+                        if msg.usage:
+                            metadata = msg.usage
+                            if metadata.response_id is None:
+                                metadata.response_id = msg.response_id
+                            if not metadata.model_name:
+                                metadata.model_name = ctx.llm_client.model_name
+                            if metadata.provider is None:
+                                metadata.provider = ctx.llm_client.get_llm_config().provider_name or None
+                            yield events.UsageEvent(
+                                session_id=session_ctx.session_id,
+                                usage=metadata,
+                            )
+                    case message.StreamErrorItem() as msg:
+                        turn_result.stream_error = msg
+                        log_debug(
+                            "[StreamError]",
+                            msg.error,
+                            style="red",
+                            debug_type=DebugType.RESPONSE,
+                        )
+                    case message.ToolCallStartDelta() as msg:
+                        if thinking_active:
+                            thinking_active = False
+                            yield events.ThinkingEndEvent(
+                                response_id=msg.response_id,
+                                session_id=session_ctx.session_id,
+                            )
+                        if assistant_text_active:
+                            assistant_text_active = False
+                            yield events.AssistantTextEndEvent(
+                                response_id=msg.response_id,
+                                session_id=session_ctx.session_id,
+                            )
+                        yield events.ToolCallStartEvent(
+                            session_id=session_ctx.session_id,
                             response_id=msg.response_id,
-                            session_id=session_ctx.session_id,
-                            thinking_text=thinking_text or None,
+                            tool_call_id=msg.call_id,
+                            tool_name=msg.name,
+                            model_id=ctx.llm_client.model_name,
                         )
-                    if msg.stop_reason == "aborted":
-                        yield events.InterruptEvent(session_id=session_ctx.session_id)
-                    if msg.usage:
-                        metadata = msg.usage
-                        if metadata.response_id is None:
-                            metadata.response_id = msg.response_id
-                        if not metadata.model_name:
-                            metadata.model_name = ctx.llm_client.model_name
-                        if metadata.provider is None:
-                            metadata.provider = ctx.llm_client.get_llm_config().provider_name or None
-                        yield events.UsageEvent(
-                            session_id=session_ctx.session_id,
-                            usage=metadata,
-                        )
-                case message.StreamErrorItem() as msg:
-                    turn_result.stream_error = msg
-                    log_debug(
-                        "[StreamError]",
-                        msg.error,
-                        style="red",
-                        debug_type=DebugType.RESPONSE,
-                    )
-                case message.ToolCallStartDelta() as msg:
-                    if thinking_active:
-                        thinking_active = False
-                        yield events.ThinkingEndEvent(
-                            response_id=msg.response_id,
-                            session_id=session_ctx.session_id,
-                        )
-                    if assistant_text_active:
-                        assistant_text_active = False
-                        yield events.AssistantTextEndEvent(
-                            response_id=msg.response_id,
-                            session_id=session_ctx.session_id,
-                        )
-                    yield events.ToolCallStartEvent(
-                        session_id=session_ctx.session_id,
-                        response_id=msg.response_id,
-                        tool_call_id=msg.call_id,
-                        tool_name=msg.name,
-                        model_id=ctx.llm_client.model_name,
-                    )
-                case _:
-                    continue
+                    case _:
+                        continue
+        finally:
+            self._llm_stream = None
 
     def _append_success_history(self, turn_result: TurnResult) -> None:
         """Persist successful turn artifacts to conversation history."""
         session_ctx = self._context.session_ctx
         if turn_result.assistant_message:
             session_ctx.append_history([turn_result.assistant_message])
-        self._assistant_delta_buffer.clear()
-        self._assistant_response_id = None
 
     async def _run_tool_executor(self, tool_calls: list[ToolCallRequest]) -> AsyncGenerator[events.Event]:
         """Run tools for the turn and translate executor events to UI events."""
@@ -405,23 +402,15 @@ class TurnExecutor:
         finally:
             self._tool_executor = None
 
-    def _persist_partial_assistant_on_cancel(self) -> None:
-        """Persist streamed assistant text when a turn is interrupted.
+    def _persist_partial_message_on_cancel(self) -> None:
+        """Persist accumulated message when a turn is interrupted.
 
-        Reasoning and tool calls are intentionally discarded on interrupt; only
-        the assistant message text collected so far is saved so it appears in
-        subsequent history/context.
+        Retrieves the partial message from the LLM stream, including both
+        thinking and assistant text accumulated so far.
         """
-
-        if not self._assistant_delta_buffer:
+        if self._llm_stream is None:
             return
-        partial_text = "".join(self._assistant_delta_buffer) + INTERRUPT_MARKER
-        if not partial_text:
+        partial_message = self._llm_stream.get_partial_message()
+        if partial_message is None:
             return
-        partial_message = message.AssistantMessage(
-            parts=message.text_parts_from_str(partial_text),
-            response_id=self._assistant_response_id,
-            stop_reason="aborted",
-        )
         self._context.session_ctx.append_history([partial_message])
-        self._assistant_delta_buffer.clear()

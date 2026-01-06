@@ -47,7 +47,6 @@ THROUGHPUT_MIN_DURATION_SEC = 0.15  # Minimum duration (seconds) for throughput 
 INITIAL_RETRY_DELAY_S = 1.0  # Initial delay before retrying a failed turn (seconds)
 MAX_RETRY_DELAY_S = 30.0  # Maximum delay between retries (seconds)
 CANCEL_OUTPUT = "[Request interrupted by user for tool use]"  # Message shown when tool call is cancelled
-INTERRUPT_MARKER = " <system>interrupted by user</system>"  # Marker appended when assistant is interrupted
 EMPTY_TOOL_OUTPUT_MESSAGE = (
     "<system-reminder>Tool ran without output or errors</system-reminder>"  # Tool output placeholder
 )

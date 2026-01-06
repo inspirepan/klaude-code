@@ -31,10 +31,11 @@ from klaude_code.const import (
     LLM_HTTP_TIMEOUT_TOTAL,
 )
 from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input, convert_tool_schema
-from klaude_code.llm.client import LLMClientABC
+from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.input_common import apply_config_defaults
+from klaude_code.llm.partial_message import degrade_thinking_to_text
 from klaude_code.llm.registry import register
-from klaude_code.llm.usage import MetadataTracker, error_stream_items
+from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message, model
 
@@ -52,6 +53,94 @@ def _map_anthropic_stop_reason(reason: str) -> model.StopReason | None:
         "aborted": "aborted",
     }
     return mapping.get(reason)
+
+
+class AnthropicStreamStateManager:
+    """Manages streaming state for Anthropic API responses.
+
+    Accumulates thinking, content, and tool call parts during streaming
+    to support partial message retrieval on cancellation.
+    """
+
+    def __init__(self, model_id: str) -> None:
+        self.model_id = model_id
+        self.accumulated_thinking: list[str] = []
+        self.accumulated_content: list[str] = []
+        self.parts: list[message.Part] = []
+        self.response_id: str | None = None
+        self.pending_signature: str | None = None
+        self.stop_reason: model.StopReason | None = None
+
+        # Tool call state
+        self.current_tool_name: str | None = None
+        self.current_tool_call_id: str | None = None
+        self.current_tool_inputs: list[str] | None = None
+
+        # Token tracking
+        self.input_token: int = 0
+        self.cached_token: int = 0
+
+    def flush_thinking(self) -> None:
+        """Flush accumulated thinking content into parts."""
+        if not self.accumulated_thinking:
+            return
+        full_thinking = "".join(self.accumulated_thinking)
+        self.parts.append(message.ThinkingTextPart(text=full_thinking, model_id=self.model_id))
+        if self.pending_signature:
+            self.parts.append(
+                message.ThinkingSignaturePart(
+                    signature=self.pending_signature,
+                    model_id=self.model_id,
+                    format="anthropic",
+                )
+            )
+        self.accumulated_thinking.clear()
+        self.pending_signature = None
+
+    def flush_content(self) -> None:
+        """Flush accumulated content into parts."""
+        if not self.accumulated_content:
+            return
+        self.parts.append(message.TextPart(text="".join(self.accumulated_content)))
+        self.accumulated_content.clear()
+
+    def flush_tool_call(self) -> None:
+        """Flush current tool call into parts."""
+        if self.current_tool_name and self.current_tool_call_id:
+            self.parts.append(
+                message.ToolCallPart(
+                    call_id=self.current_tool_call_id,
+                    tool_name=self.current_tool_name,
+                    arguments_json="".join(self.current_tool_inputs) if self.current_tool_inputs else "",
+                )
+            )
+        self.current_tool_name = None
+        self.current_tool_call_id = None
+        self.current_tool_inputs = None
+
+    def flush_all(self) -> list[message.Part]:
+        """Flush all accumulated content in order and return parts."""
+        self.flush_thinking()
+        self.flush_content()
+        self.flush_tool_call()
+        return list(self.parts)
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        """Build a partial AssistantMessage from accumulated state.
+
+        Flushes all accumulated content and returns the message with
+        stop_reason="aborted". Returns None if no content has been accumulated.
+        """
+        self.flush_thinking()
+        self.flush_content()
+        parts = degrade_thinking_to_text(list(self.parts))
+        if not parts:
+            return None
+        return message.AssistantMessage(
+            parts=parts,
+            response_id=self.response_id,
+            stop_reason="aborted",
+        )
 
 
 def build_payload(
@@ -113,22 +202,13 @@ async def parse_anthropic_stream(
     stream: Any,
     param: llm_param.LLMCallParameter,
     metadata_tracker: MetadataTracker,
+    state: AnthropicStreamStateManager,
 ) -> AsyncGenerator[message.LLMStreamItem]:
-    """Parse Anthropic beta messages stream and yield stream items."""
-    accumulated_thinking: list[str] = []
-    accumulated_content: list[str] = []
-    parts: list[message.Part] = []
-    response_id: str | None = None
-    stop_reason: model.StopReason | None = None
-    pending_signature: str | None = None
+    """Parse Anthropic beta messages stream and yield stream items.
 
-    current_tool_name: str | None = None
-    current_tool_call_id: str | None = None
-    current_tool_inputs: list[str] | None = None
-
-    input_token = 0
-    cached_token = 0
-
+    The state parameter allows external access to accumulated content
+    for cancellation scenarios.
+    """
     async for event in await stream:
         log_debug(
             f"[{event.type}]",
@@ -138,34 +218,33 @@ async def parse_anthropic_stream(
         )
         match event:
             case BetaRawMessageStartEvent() as event:
-                response_id = event.message.id
-                cached_token = event.message.usage.cache_read_input_tokens or 0
-                input_token = event.message.usage.input_tokens
+                state.response_id = event.message.id
+                state.cached_token = event.message.usage.cache_read_input_tokens or 0
+                state.input_token = event.message.usage.input_tokens
             case BetaRawContentBlockDeltaEvent() as event:
                 match event.delta:
                     case BetaThinkingDelta() as delta:
                         if delta.thinking:
                             metadata_tracker.record_token()
-                        accumulated_thinking.append(delta.thinking)
-                        yield message.ThinkingTextDelta(
-                            content=delta.thinking,
-                            response_id=response_id,
-                        )
+                            state.accumulated_thinking.append(delta.thinking)
+                            yield message.ThinkingTextDelta(
+                                content=delta.thinking,
+                                response_id=state.response_id,
+                            )
                     case BetaSignatureDelta() as delta:
-                        pending_signature = delta.signature
+                        state.pending_signature = delta.signature
                     case BetaTextDelta() as delta:
                         if delta.text:
                             metadata_tracker.record_token()
-                        accumulated_content.append(delta.text)
-                        yield message.AssistantTextDelta(
-                            content=delta.text,
-                            response_id=response_id,
-                        )
+                            state.accumulated_content.append(delta.text)
+                            yield message.AssistantTextDelta(
+                                content=delta.text,
+                                response_id=state.response_id,
+                            )
                     case BetaInputJSONDelta() as delta:
-                        if current_tool_inputs is not None:
-                            if delta.partial_json:
-                                metadata_tracker.record_token()
-                            current_tool_inputs.append(delta.partial_json)
+                        if state.current_tool_inputs is not None and delta.partial_json:
+                            metadata_tracker.record_token()
+                            state.current_tool_inputs.append(delta.partial_json)
                     case _:
                         pass
             case BetaRawContentBlockStartEvent() as event:
@@ -173,72 +252,90 @@ async def parse_anthropic_stream(
                     case BetaToolUseBlock() as block:
                         metadata_tracker.record_token()
                         yield message.ToolCallStartDelta(
-                            response_id=response_id,
+                            response_id=state.response_id,
                             call_id=block.id,
                             name=block.name,
                         )
-                        current_tool_name = block.name
-                        current_tool_call_id = block.id
-                        current_tool_inputs = []
+                        state.current_tool_name = block.name
+                        state.current_tool_call_id = block.id
+                        state.current_tool_inputs = []
                     case _:
                         pass
             case BetaRawContentBlockStopEvent():
-                if accumulated_thinking:
+                if state.accumulated_thinking:
                     metadata_tracker.record_token()
-                    full_thinking = "".join(accumulated_thinking)
-                    parts.append(message.ThinkingTextPart(text=full_thinking, model_id=str(param.model_id)))
-                    if pending_signature:
-                        parts.append(
-                            message.ThinkingSignaturePart(
-                                signature=pending_signature,
-                                model_id=str(param.model_id),
-                                format="anthropic",
-                            )
-                        )
-                    accumulated_thinking.clear()
-                    pending_signature = None
-                if accumulated_content:
+                    state.flush_thinking()
+                if state.accumulated_content:
                     metadata_tracker.record_token()
-                    parts.append(message.TextPart(text="".join(accumulated_content)))
-                    accumulated_content.clear()
-                if current_tool_name and current_tool_call_id:
+                    state.flush_content()
+                if state.current_tool_name and state.current_tool_call_id:
                     metadata_tracker.record_token()
-                    parts.append(
-                        message.ToolCallPart(
-                            call_id=current_tool_call_id,
-                            tool_name=current_tool_name,
-                            arguments_json="".join(current_tool_inputs) if current_tool_inputs else "",
-                        )
-                    )
-                    current_tool_name = None
-                    current_tool_call_id = None
-                    current_tool_inputs = None
+                    state.flush_tool_call()
             case BetaRawMessageDeltaEvent() as event:
                 metadata_tracker.set_usage(
                     model.Usage(
-                        input_tokens=input_token + cached_token,
+                        input_tokens=state.input_token + state.cached_token,
                         output_tokens=event.usage.output_tokens,
-                        cached_tokens=cached_token,
-                        context_size=input_token + cached_token + event.usage.output_tokens,
+                        cached_tokens=state.cached_token,
+                        context_size=state.input_token + state.cached_token + event.usage.output_tokens,
                         context_limit=param.context_limit,
                         max_tokens=param.max_tokens,
                     )
                 )
                 metadata_tracker.set_model_name(str(param.model_id))
-                metadata_tracker.set_response_id(response_id)
+                metadata_tracker.set_response_id(state.response_id)
                 raw_stop_reason = getattr(event, "stop_reason", None)
                 if isinstance(raw_stop_reason, str):
-                    stop_reason = _map_anthropic_stop_reason(raw_stop_reason)
+                    state.stop_reason = _map_anthropic_stop_reason(raw_stop_reason)
             case _:
                 pass
 
+    parts = state.flush_all()
+    if parts:
+        metadata_tracker.record_token()
     metadata = metadata_tracker.finalize()
     yield message.AssistantMessage(
         parts=parts,
-        response_id=response_id,
+        response_id=state.response_id,
         usage=metadata,
-        stop_reason=stop_reason,
+        stop_reason=state.stop_reason,
     )
+
+
+class AnthropicLLMStream(LLMStreamABC):
+    """LLMStream implementation for Anthropic-compatible clients."""
+
+    def __init__(
+        self,
+        stream: Any,
+        *,
+        param: llm_param.LLMCallParameter,
+        metadata_tracker: MetadataTracker,
+    ) -> None:
+        self._stream = stream
+        self._param = param
+        self._metadata_tracker = metadata_tracker
+        self._state = AnthropicStreamStateManager(model_id=str(param.model_id))
+        self._completed = False
+
+    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
+        async for item in parse_anthropic_stream(
+            self._stream,
+            self._param,
+            self._metadata_tracker,
+            self._state,
+        ):
+            if isinstance(item, message.AssistantMessage):
+                self._completed = True
+            yield item
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        if self._completed:
+            return None
+        return self._state.get_partial_message()
 
 
 @register(llm_param.LLMClientProtocol.ANTHROPIC)
@@ -269,7 +366,7 @@ class AnthropicClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
@@ -282,15 +379,12 @@ class AnthropicClient(LLMClientABC):
             debug_type=DebugType.LLM_PAYLOAD,
         )
 
-        stream = self.client.beta.messages.create(
-            **payload,
-            extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
-        )
-
         try:
-            async for item in parse_anthropic_stream(stream, param, metadata_tracker):
-                yield item
+            stream = self.client.beta.messages.create(
+                **payload,
+                extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
+            )
+            return AnthropicLLMStream(stream, param=param, metadata_tracker=metadata_tracker)
         except (APIError, httpx.HTTPError) as e:
             error_message = f"{e.__class__.__name__} {e!s}"
-            for item in error_stream_items(metadata_tracker, error=error_message):
-                yield item
+            return error_llm_stream(metadata_tracker, error=error_message)
