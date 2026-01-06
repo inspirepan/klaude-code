@@ -25,13 +25,34 @@ provider_list:
   protocol: responses
   api_key: ${OPENAI_API_KEY}
   model_list:
-  - model_name: gpt-5.2
+  - model_name: gpt-5.2-high
     model_id: gpt-5.2
     max_tokens: 128000
     context_limit: 400000
     verbosity: high
     thinking:
       reasoning_effort: high
+    cost: {input: 1.75, output: 14, cache_read: 0.17}
+  - model_name: gpt-5.2-medium
+    model_id: gpt-5.2
+    context_limit: 400000
+    verbosity: high
+    thinking:
+      reasoning_effort: medium
+    cost: {input: 1.75, output: 14, cache_read: 0.17}
+  - model_name: gpt-5.2-low
+    model_id: gpt-5.2
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: low
+    cost: {input: 1.75, output: 14, cache_read: 0.17}
+  - model_name: gpt-5.2-fast
+    model_id: gpt-5.2
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: none
     cost: {input: 1.75, output: 14, cache_read: 0.17}
 - provider_name: openrouter
   protocol: openrouter
@@ -44,7 +65,7 @@ provider_list:
     thinking:
       reasoning_effort: medium
     cost: {input: 1.25, output: 10, cache_read: 0.13}
-  - model_name: gpt-5.2
+  - model_name: gpt-5.2-high
     model_id: openai/gpt-5.2
     max_tokens: 128000
     context_limit: 400000
