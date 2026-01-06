@@ -75,7 +75,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
 
     if skill_groups:
         panel_content.append_text(Text("\n\n", style=ThemeKey.WELCOME_INFO))
-        panel_content.append_text(Text("skills", style=ThemeKey.WELCOME_INFO))
+        panel_content.append_text(Text("skills", style=ThemeKey.WELCOME_HIGHLIGHT))
 
         label_width = len("[project]")
 

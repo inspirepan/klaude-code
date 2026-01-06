@@ -55,15 +55,15 @@ def _render_task_metadata_block(
         token_text.append("↑", style=ThemeKey.METADATA_DIM)
         token_text.append(format_number(metadata.usage.input_tokens), style=ThemeKey.METADATA)
         if metadata.usage.cached_tokens > 0:
-            token_text.append("  ◎", style=ThemeKey.METADATA_DIM)
+            token_text.append(" ◎", style=ThemeKey.METADATA_DIM)
             token_text.append(format_number(metadata.usage.cached_tokens), style=ThemeKey.METADATA)
-        token_text.append("  ↓", style=ThemeKey.METADATA_DIM)
+        token_text.append(" ↓", style=ThemeKey.METADATA_DIM)
         token_text.append(format_number(metadata.usage.output_tokens), style=ThemeKey.METADATA)
         if metadata.usage.reasoning_tokens > 0:
-            token_text.append("  ∿", style=ThemeKey.METADATA_DIM)
+            token_text.append(" ∿", style=ThemeKey.METADATA_DIM)
             token_text.append(format_number(metadata.usage.reasoning_tokens), style=ThemeKey.METADATA)
         if metadata.usage.image_tokens > 0:
-            token_text.append("  ⌗ ", style=ThemeKey.METADATA_DIM)
+            token_text.append(" ⌗ ", style=ThemeKey.METADATA_DIM)
             token_text.append(format_number(metadata.usage.image_tokens), style=ThemeKey.METADATA)
         parts.append(token_text)
 
@@ -130,8 +130,8 @@ def _render_task_metadata_block(
         )
 
     if parts:
-        content.append_text(Text("  ", style=ThemeKey.METADATA_DIM))
-        content.append_text(Text("  ", style=ThemeKey.METADATA_DIM).join(parts))
+        content.append_text(Text(" ", style=ThemeKey.METADATA_DIM))
+        content.append_text(Text(" ", style=ThemeKey.METADATA_DIM).join(parts))
 
     grid.add_row(mark, content)
     return grid if not is_sub_agent else Padding(grid, (0, 0, 0, 2))

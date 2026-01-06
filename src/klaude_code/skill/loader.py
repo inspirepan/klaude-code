@@ -223,6 +223,7 @@ class SkillLoader:
                 f"""<skill>
 <name>{skill.name}</name>
 <description>{skill.description}</description>
+<scope>{skill.location}</scope>
 <location>{skill.skill_path}</location>
 </skill>"""
             )

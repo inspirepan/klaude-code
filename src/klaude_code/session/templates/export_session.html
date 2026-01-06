@@ -1036,6 +1036,19 @@
       .expandable.expanded {
         cursor: auto;
       }
+
+      .expandable-output {
+        /* Default fallback; per-block override comes from inline style in export.py */
+        --preview-max-lines: 8;
+      }
+      .expandable-output .preview-text {
+        line-height: 1.45;
+      }
+      .expandable-output:not(.expanded) .preview-text {
+        max-height: calc(var(--preview-max-lines) * 1.45em);
+        overflow: hidden;
+      }
+
       .expandable .full-text {
         display: none;
       }

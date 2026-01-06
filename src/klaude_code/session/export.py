@@ -19,7 +19,7 @@ from klaude_code.protocol.sub_agent import is_sub_agent_tool
 if TYPE_CHECKING:
     from klaude_code.session.session import Session
 
-_TOOL_OUTPUT_PREVIEW_LINES: Final[int] = 12
+_TOOL_OUTPUT_PREVIEW_LINES: Final[int] = 8
 _MAX_FILENAME_MESSAGE_LEN: Final[int] = 50
 _IMAGE_MAX_DISPLAY_WIDTH: Final[int] = 600
 
@@ -489,9 +489,9 @@ def _render_text_block(text: str) -> str:
     full = "\n".join(escaped_lines)
 
     return (
-        f'<div class="expandable-output expandable">'
+        f'<div class="expandable-output expandable" style="--preview-max-lines: {_TOOL_OUTPUT_PREVIEW_LINES};">'
         f'<div class="preview-text" style="white-space: pre-wrap; font-family: var(--font-mono);">{preview}</div>'
-        f'<div class="expand-hint expand-text">click to expand full output ({len(lines)} lines)</div>'
+        f'<div class="expand-hint expand-text">click to expand full output ({len(lines)} lines; showing first {_TOOL_OUTPUT_PREVIEW_LINES})</div>'
         f'<div class="full-text" style="white-space: pre-wrap; font-family: var(--font-mono);">{full}</div>'
         f'<div class="collapse-hint">click to collapse</div>'
         f"</div>"

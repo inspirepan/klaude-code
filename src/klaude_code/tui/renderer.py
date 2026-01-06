@@ -488,7 +488,6 @@ class TUICommandRenderer:
                             continue
                         self.display_tool_call_result(e)
                     case events.TaskMetadataEvent() as e:
-                        self.print()
                         self.print(c_metadata.render_task_metadata(e))
                         self.print()
                     case events.InterruptEvent():
