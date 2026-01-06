@@ -18,8 +18,25 @@ from prompt_toolkit.layout import ConditionalContainer, Float, FloatContainer, H
 from prompt_toolkit.layout.containers import Container, ScrollOffsets
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.styles import Style, merge_styles
+from prompt_toolkit.styles.base import BaseStyle
 
 from klaude_code.ui.common import format_model_params
+
+DEFAULT_PICKER_STYLE = Style(
+    [
+        ("pointer", "ansigreen"),
+        ("highlighted", "ansigreen"),
+        ("msg", ""),
+        ("meta", "fg:ansibrightblack"),
+        ("text", "ansibrightblack"),
+        ("question", "bold"),
+        ("search_prefix", "ansibrightblack"),
+        # Search filter colors at the bottom (currently unused by selector, but
+        # kept for consistency with picker style defaults).
+        ("search_success", "noinherit fg:ansigreen"),
+        ("search_none", "noinherit fg:ansired"),
+    ]
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,15 +76,24 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
         provider = str(getattr(m, "provider", ""))
         grouped.setdefault(provider, []).append(m)
 
+    # Calculate max header width for alignment
+    max_header_len = max(len(f"{p.upper()} ({len(ms)})") for p, ms in grouped.items())
+
     items: list[SelectItem[str]] = []
     model_idx = 0
+    separator_base_len = 40
     for provider, provider_models in grouped.items():
-        count_str = f"({len(provider_models)})"
+        provider_text = provider.lower()
+        count_text = f"({len(provider_models)})"
+        header_len = len(provider_text) + 1 + len(count_text)
+        separator_len = separator_base_len + max_header_len - header_len
+        separator = "─" * separator_len
         items.append(
             SelectItem(
                 title=[
-                    ("class:meta bold ansiblue", provider.upper() + " "),
-                    ("class:meta ansibrightblack", count_str),
+                    ("class:meta ansiyellow", provider_text + " "),
+                    ("class:meta ansibrightblack", count_text + " "),
+                    ("class:meta ansibrightblack dim", separator),
                     ("class:meta", "\n"),
                 ],
                 value=None,
@@ -80,19 +106,25 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
             model_idx += 1
             model_id_str = m.model_id or "N/A"
             display_name = m.model_name
-            first_line_prefix = f"{display_name:<{max_model_name_length}} → "
+            first_line_prefix = f"{display_name:<{max_model_name_length}}"
             meta_parts = format_model_params(m)
             meta_str = " · ".join(meta_parts) if meta_parts else ""
-            title = [
+            title: list[tuple[str, str]] = [
                 ("class:meta", f"{model_idx:>{num_width}}. "),
-                ("class:msg", first_line_prefix),
+                ("class:msg bold", first_line_prefix),
+                ("class:msg dim", " → "),
                 # Keep provider/model_id styling attribute-based (dim/bold) so that
                 # the selector's highlight color can still override uniformly.
-                ("class:msg", provider),
-                ("class:msg dim", "/"),
-                ("class:msg bold", model_id_str),
-                ("class:meta", f"  {meta_str}\n" if meta_str else "\n"),
+                ("class:msg ansiblue", model_id_str),
+                ("class:msg dim", " · "),
+                ("class:msg ansibrightblack", provider),
             ]
+
+            if meta_str:
+                title.append(("class:msg dim", " · "))
+                title.append(("class:meta", meta_str))
+
+            title.append(("class:meta", "\n"))
             search_text = f"{m.selector} {m.model_name} {model_id_str} {provider}"
             items.append(SelectItem(title=title, value=m.selector, search_text=search_text))
 
@@ -401,7 +433,7 @@ def select_one[T](
     message: str,
     items: list[SelectItem[T]],
     pointer: str = "→",
-    style: Style | None = None,
+    style: BaseStyle | None = None,
     use_search_filter: bool = True,
     initial_value: T | None = None,
     search_placeholder: str = "type to search",

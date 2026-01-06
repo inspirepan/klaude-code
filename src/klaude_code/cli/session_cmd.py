@@ -9,9 +9,7 @@ from klaude_code.session import Session
 def _session_confirm(sessions: list[Session.SessionMetaBrief], message: str) -> bool:
     """Show session list and confirm deletion using prompt_toolkit."""
 
-    from prompt_toolkit.styles import Style
-
-    from klaude_code.tui.terminal.selector import SelectItem, select_one
+    from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, select_one
 
     def _fmt(ts: float) -> str:
         try:
@@ -37,14 +35,7 @@ def _session_confirm(sessions: list[Session.SessionMetaBrief], message: str) -> 
         message=message,
         items=items,
         pointer="→",
-        style=Style(
-            [
-                ("question", "bold"),
-                ("pointer", "ansigreen"),
-                ("highlighted", "ansigreen"),
-                ("text", ""),
-            ]
-        ),
+        style=DEFAULT_PICKER_STYLE,
         use_search_filter=False,
     )
     return bool(result)

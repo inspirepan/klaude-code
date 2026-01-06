@@ -1,27 +1,11 @@
 import asyncio
 
-from prompt_toolkit.styles import Style
-
 from klaude_code.log import log
 from klaude_code.protocol import commands, events, message, op
 from klaude_code.session.selector import build_session_select_options, format_user_messages_display
-from klaude_code.tui.terminal.selector import SelectItem, select_one
+from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, select_one
 
 from .command_abc import Agent, CommandABC, CommandResult
-
-SESSION_SELECT_STYLE = Style(
-    [
-        ("msg", "fg:ansibrightblack"),
-        ("meta", ""),
-        ("pointer", "bold fg:ansigreen"),
-        ("highlighted", "fg:ansigreen"),
-        ("search_prefix", "fg:ansibrightblack"),
-        ("search_success", "noinherit fg:ansigreen"),
-        ("search_none", "noinherit fg:ansired"),
-        ("question", "bold"),
-        ("text", ""),
-    ]
-)
 
 
 def select_session_sync() -> str | None:
@@ -62,7 +46,7 @@ def select_session_sync() -> str | None:
             message="Select a session to resume:",
             items=items,
             pointer="→",
-            style=SESSION_SELECT_STYLE,
+            style=DEFAULT_PICKER_STYLE,
         )
     except KeyboardInterrupt:
         return None

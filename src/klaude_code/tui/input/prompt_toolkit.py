@@ -315,9 +315,11 @@ class PromptToolkitInput(InputProviderABC):
                     "msg": "",
                     "meta": "fg:ansibrightblack",
                     "frame.border": "fg:ansibrightblack dim",
-                    "search_prefix": "fg:ansibrightblack",
+                    "search_prefix": "ansibrightblack",
                     "search_placeholder": "fg:ansibrightblack italic",
                     "search_input": "",
+                    "search_success": "noinherit fg:ansigreen",
+                    "search_none": "noinherit fg:ansired",
                     # Empty bottom-toolbar style
                     "bottom-toolbar": "bg:default fg:default noreverse",
                     "bottom-toolbar.text": "bg:default fg:default noreverse",

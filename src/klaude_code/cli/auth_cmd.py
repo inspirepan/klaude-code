@@ -4,20 +4,9 @@ import datetime
 import webbrowser
 
 import typer
-from prompt_toolkit.styles import Style
 
 from klaude_code.log import log
-from klaude_code.tui.terminal.selector import SelectItem, select_one
-
-_SELECT_STYLE = Style(
-    [
-        ("instruction", "ansibrightblack"),
-        ("pointer", "ansigreen"),
-        ("highlighted", "ansigreen"),
-        ("text", "ansibrightblack"),
-        ("question", "bold"),
-    ]
-)
+from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, select_one
 
 
 def _select_provider() -> str | None:
@@ -30,7 +19,7 @@ def _select_provider() -> str | None:
         message="Select provider to login:",
         items=items,
         pointer="→",
-        style=_SELECT_STYLE,
+        style=DEFAULT_PICKER_STYLE,
         use_search_filter=False,
     )
 

@@ -1,22 +1,10 @@
 import asyncio
 
-from prompt_toolkit.styles import Style
-
 from klaude_code.config.thinking import get_thinking_picker_data, parse_thinking_value
 from klaude_code.protocol import commands, events, llm_param, message, op
-from klaude_code.tui.terminal.selector import SelectItem, select_one
+from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, select_one
 
 from .command_abc import Agent, CommandABC, CommandResult
-
-SELECT_STYLE = Style(
-    [
-        ("instruction", "ansibrightblack"),
-        ("pointer", "ansigreen"),
-        ("highlighted", "ansigreen"),
-        ("text", "ansibrightblack"),
-        ("question", "bold"),
-    ]
-)
 
 
 def _select_thinking_sync(config: llm_param.LLMConfigParameter) -> llm_param.Thinking | None:
@@ -35,7 +23,7 @@ def _select_thinking_sync(config: llm_param.LLMConfigParameter) -> llm_param.Thi
             message=data.message,
             items=items,
             pointer="→",
-            style=SELECT_STYLE,
+            style=DEFAULT_PICKER_STYLE,
             use_search_filter=False,
         )
         if result is None:

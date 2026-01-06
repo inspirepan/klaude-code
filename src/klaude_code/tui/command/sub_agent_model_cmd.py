@@ -4,26 +4,12 @@ from __future__ import annotations
 
 import asyncio
 
-from prompt_toolkit.styles import Style
-
 from klaude_code.config.config import load_config
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper, SubAgentModelInfo
 from klaude_code.protocol import commands, events, message, op
-from klaude_code.tui.terminal.selector import SelectItem, build_model_select_items, select_one
+from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, build_model_select_items, select_one
 
 from .command_abc import Agent, CommandABC, CommandResult
-
-SELECT_STYLE = Style(
-    [
-        ("instruction", "ansibrightblack"),
-        ("pointer", "ansigreen"),
-        ("highlighted", "ansigreen"),
-        ("text", "ansibrightblack"),
-        ("question", "bold"),
-        ("meta", "fg:ansibrightblack"),
-        ("msg", ""),
-    ]
-)
 
 USE_DEFAULT_BEHAVIOR = "__default__"
 
@@ -69,8 +55,8 @@ def _select_sub_agent_sync(
         result = select_one(
             message="Select sub-agent to configure:",
             items=items,
-            pointer="->",
-            style=SELECT_STYLE,
+            pointer="→",
+            style=DEFAULT_PICKER_STYLE,
             use_search_filter=False,
         )
         return result if isinstance(result, str) else None
@@ -103,8 +89,8 @@ def _select_model_for_sub_agent_sync(
         result = select_one(
             message=f"Select model for {sub_agent_type}:",
             items=all_items,
-            pointer="->",
-            style=SELECT_STYLE,
+            pointer="→",
+            style=DEFAULT_PICKER_STYLE,
             use_search_filter=True,
         )
         return result if isinstance(result, str) else None

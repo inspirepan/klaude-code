@@ -72,9 +72,7 @@ def select_model_interactive(
         return ModelSelectResult(status=ModelSelectStatus.NON_TTY)
 
     # Interactive selection
-    from prompt_toolkit.styles import Style
-
-    from klaude_code.tui.terminal.selector import build_model_select_items, select_one
+    from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, build_model_select_items, select_one
 
     names = [m.selector for m in result.filtered_models]
 
@@ -100,20 +98,7 @@ def select_model_interactive(
             pointer="→",
             use_search_filter=True,
             initial_value=initial_value,
-            style=Style(
-                [
-                    ("pointer", "ansigreen"),
-                    ("highlighted", "ansigreen"),
-                    ("msg", ""),
-                    ("meta", "fg:ansibrightblack"),
-                    ("text", "ansibrightblack"),
-                    ("question", "bold"),
-                    ("search_prefix", "ansibrightblack"),
-                    # search filter colors at the bottom
-                    ("search_success", "noinherit fg:ansigreen"),
-                    ("search_none", "noinherit fg:ansired"),
-                ]
-            ),
+            style=DEFAULT_PICKER_STYLE,
         )
         if isinstance(selected, str) and selected in names:
             return ModelSelectResult(status=ModelSelectStatus.SELECTED, model=selected)

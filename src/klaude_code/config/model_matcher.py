@@ -102,6 +102,7 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
             )
 
         # Normalized matching (e.g. gpt52 == gpt-5.2, gpt52 in gpt-5.2-2025-...)
+        # Only match selector/model_name exactly; model_id is checked via substring match below
         preferred_norm = _normalize_model_key(preferred)
         normalized_matches: list[ModelEntry] = []
         if preferred_norm:
@@ -110,7 +111,6 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
                 for m in models
                 if preferred_norm == _normalize_model_key(m.selector)
                 or preferred_norm == _normalize_model_key(m.model_name)
-                or preferred_norm == _normalize_model_key(m.model_id or "")
             ]
             if len(normalized_matches) == 1:
                 return ModelMatchResult(

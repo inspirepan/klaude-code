@@ -3,26 +3,23 @@ import sys
 from dataclasses import dataclass
 from typing import Literal
 
-from prompt_toolkit.styles import Style
+from prompt_toolkit.styles import Style, merge_styles
 
 from klaude_code.protocol import commands, events, message, model
 from klaude_code.tui.input.clipboard import copy_to_clipboard
-from klaude_code.tui.terminal.selector import SelectItem, select_one
+from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, select_one
 
 from .command_abc import Agent, CommandABC, CommandResult
 
-FORK_SELECT_STYLE = Style(
+FORK_SELECT_STYLE = merge_styles(
     [
-        ("msg", ""),
-        ("meta", "fg:ansibrightblack"),
-        ("separator", "fg:ansibrightblack"),
-        ("assistant", "fg:ansiblue"),
-        ("pointer", "bold fg:ansigreen"),
-        ("search_prefix", "fg:ansibrightblack"),
-        ("search_success", "noinherit fg:ansigreen"),
-        ("search_none", "noinherit fg:ansired"),
-        ("question", "bold"),
-        ("text", ""),
+        DEFAULT_PICKER_STYLE,
+        Style(
+            [
+                ("separator", "fg:ansibrightblack"),
+                ("assistant", "fg:ansiblue"),
+            ]
+        ),
     ]
 )
 
