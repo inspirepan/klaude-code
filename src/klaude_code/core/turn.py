@@ -339,12 +339,6 @@ class TurnExecutor:
                             )
                     case message.StreamErrorItem() as msg:
                         turn_result.stream_error = msg
-                        log_debug(
-                            "[StreamError]",
-                            msg.error,
-                            style="red",
-                            debug_type=DebugType.RESPONSE,
-                        )
                     case message.ToolCallStartDelta() as msg:
                         if thinking_active:
                             thinking_active = False

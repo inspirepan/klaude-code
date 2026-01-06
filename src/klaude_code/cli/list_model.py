@@ -288,6 +288,14 @@ def _build_models_table(
             name = Text.assemble((prefix, ThemeKey.LINES), (model.model_name, "dim"))
             model_id = Text(model.model_id or "", style="dim")
             params = Text("(unavailable)", style="dim")
+        elif model.disabled:
+            name = Text.assemble(
+                (prefix, ThemeKey.LINES),
+                (model.model_name, "dim strike"),
+                (" (disabled)", "dim"),
+            )
+            model_id = Text(model.model_id or "", style="dim")
+            params = Text(" · ").join(_get_model_params_display(model))
         else:
             # Build role tags for this model
             roles: list[str] = []

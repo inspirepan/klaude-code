@@ -48,9 +48,9 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
     """
     config = load_config()
 
-    # Only show models from providers with valid API keys
+    # Only show models from providers with valid API keys, exclude disabled models
     models: list[ModelEntry] = sorted(
-        config.iter_model_entries(only_available=True),
+        config.iter_model_entries(only_available=True, include_disabled=False),
         key=lambda m: (m.provider.lower(), m.model_name.lower()),
     )
 

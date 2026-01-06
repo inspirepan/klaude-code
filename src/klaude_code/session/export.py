@@ -954,7 +954,9 @@ def _build_messages_html(
 
         return "\n".join(full_parts)
 
-    def _choose_compact_assistants(task_events: list[message.HistoryEvent]) -> tuple[list[message.AssistantMessage], bool]:
+    def _choose_compact_assistants(
+        task_events: list[message.HistoryEvent],
+    ) -> tuple[list[message.AssistantMessage], bool]:
         # Mermaid exception: show last consecutive assistant messages + Mermaid diagram result.
         tail: list[message.AssistantMessage] = []
 

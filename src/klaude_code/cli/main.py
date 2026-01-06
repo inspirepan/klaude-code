@@ -192,7 +192,7 @@ def main_callback(
                 if raw_model:
                     matches = [
                         m.selector
-                        for m in cfg.iter_model_entries()
+                        for m in cfg.iter_model_entries(only_available=True, include_disabled=False)
                         if (m.model_id or "").strip().lower() == raw_model.lower()
                     ]
                     if len(matches) == 1:

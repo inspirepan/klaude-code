@@ -89,7 +89,5 @@ class ToolContext:
     def with_record_sub_agent_session_id(self, callback: Callable[[str], None] | None) -> ToolContext:
         return replace(self, record_sub_agent_session_id=callback)
 
-    def with_register_sub_agent_metadata_getter(
-        self, callback: Callable[[GetMetadataFn], None] | None
-    ) -> ToolContext:
+    def with_register_sub_agent_metadata_getter(self, callback: Callable[[GetMetadataFn], None] | None) -> ToolContext:
         return replace(self, register_sub_agent_metadata_getter=callback)

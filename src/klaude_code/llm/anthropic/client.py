@@ -282,8 +282,6 @@ async def parse_anthropic_stream(
                         max_tokens=param.max_tokens,
                     )
                 )
-                metadata_tracker.set_model_name(str(param.model_id))
-                metadata_tracker.set_response_id(state.response_id)
                 raw_stop_reason = getattr(event, "stop_reason", None)
                 if isinstance(raw_stop_reason, str):
                     state.stop_reason = _map_anthropic_stop_reason(raw_stop_reason)
@@ -293,6 +291,8 @@ async def parse_anthropic_stream(
     parts = state.flush_all()
     if parts:
         metadata_tracker.record_token()
+    metadata_tracker.set_model_name(str(param.model_id))
+    metadata_tracker.set_response_id(state.response_id)
     metadata = metadata_tracker.finalize()
     yield message.AssistantMessage(
         parts=parts,
@@ -322,15 +322,27 @@ class AnthropicLLMStream(LLMStreamABC):
         return self._iterate()
 
     async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
-        async for item in parse_anthropic_stream(
-            self._stream,
-            self._param,
-            self._metadata_tracker,
-            self._state,
-        ):
-            if isinstance(item, message.AssistantMessage):
-                self._completed = True
-            yield item
+        try:
+            async for item in parse_anthropic_stream(
+                self._stream,
+                self._param,
+                self._metadata_tracker,
+                self._state,
+            ):
+                if isinstance(item, message.AssistantMessage):
+                    self._completed = True
+                yield item
+        except (anthropic.AnthropicError, httpx.HTTPError) as e:
+            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            self._metadata_tracker.set_model_name(str(self._param.model_id))
+            self._metadata_tracker.set_response_id(self._state.response_id)
+            metadata = self._metadata_tracker.finalize()
+            yield message.AssistantMessage(
+                parts=[],
+                response_id=self._state.response_id,
+                usage=metadata,
+                stop_reason="error",
+            )
 
     def get_partial_message(self) -> message.AssistantMessage | None:
         if self._completed:

@@ -180,7 +180,7 @@ class SubAgentModelHelper:
         - Returns all available models
         """
         profile = get_sub_agent_profile(sub_agent_type)
-        all_models = self._config.iter_model_entries(only_available=True)
+        all_models = self._config.iter_model_entries(only_available=True, include_disabled=False)
 
         if profile.availability_requirement == AVAILABILITY_IMAGE_MODEL:
             return [m for m in all_models if m.modalities and "image" in m.modalities]

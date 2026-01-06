@@ -332,11 +332,12 @@ class Config(BaseModel):
 
         raise ValueError(f"Unknown model: {model_name}")
 
-    def iter_model_entries(self, only_available: bool = False) -> list[ModelEntry]:
+    def iter_model_entries(self, only_available: bool = False, include_disabled: bool = True) -> list[ModelEntry]:
         """Return all model entries with their provider names.
 
         Args:
             only_available: If True, only return models from providers with valid API keys.
+            include_disabled: If False, exclude models with disabled=True.
         """
         return [
             ModelEntry(
@@ -347,25 +348,26 @@ class Config(BaseModel):
             for provider in self.provider_list
             if not only_available or not provider.is_api_key_missing()
             for model in provider.model_list
+            if include_disabled or not model.disabled
         ]
 
     def has_available_image_model(self) -> bool:
         """Check if any image generation model is available."""
-        for entry in self.iter_model_entries(only_available=True):
+        for entry in self.iter_model_entries(only_available=True, include_disabled=False):
             if entry.modalities and "image" in entry.modalities:
                 return True
         return False
 
     def get_first_available_nano_banana_model(self) -> str | None:
         """Get the first available nano-banana model, or None."""
-        for entry in self.iter_model_entries(only_available=True):
+        for entry in self.iter_model_entries(only_available=True, include_disabled=False):
             if "nano-banana" in entry.model_name:
                 return entry.model_name
         return None
 
     def get_first_available_image_model(self) -> str | None:
         """Get the first available image generation model, or None."""
-        for entry in self.iter_model_entries(only_available=True):
+        for entry in self.iter_model_entries(only_available=True, include_disabled=False):
             if entry.modalities and "image" in entry.modalities:
                 return entry.model_name
         return None
@@ -435,11 +437,26 @@ def _get_builtin_config() -> Config:
     return Config(provider_list=providers, sub_agent_models=sub_agent_models)
 
 
+def _merge_model(builtin: ModelConfig, user: ModelConfig) -> ModelConfig:
+    """Merge user model config with builtin model config.
+
+    Strategy: user values take precedence if explicitly set (not default).
+    This allows users to override specific fields (e.g., disabled=true)
+    without losing other builtin settings (e.g., model_id, max_tokens).
+    """
+    merged_data = builtin.model_dump()
+    user_data = user.model_dump(exclude_defaults=True, exclude={"model_name"})
+    for key, value in user_data.items():
+        if value is not None:
+            merged_data[key] = value
+    return ModelConfig.model_validate(merged_data)
+
+
 def _merge_provider(builtin: ProviderConfig, user: UserProviderConfig) -> ProviderConfig:
     """Merge user provider config with builtin provider config.
 
     Strategy:
-    - model_list: merge by model_name, user models override builtin models with same name
+    - model_list: merge by model_name, user model fields override builtin fields
     - Other fields (api_key, base_url, etc.): user config takes precedence if set
     """
     # Merge model_list: builtin first, then user overrides/appends
@@ -447,7 +464,12 @@ def _merge_provider(builtin: ProviderConfig, user: UserProviderConfig) -> Provid
     for m in builtin.model_list:
         merged_models[m.model_name] = m
     for m in user.model_list:
-        merged_models[m.model_name] = m
+        if m.model_name in merged_models:
+            # Merge with builtin model
+            merged_models[m.model_name] = _merge_model(merged_models[m.model_name], m)
+        else:
+            # New model from user
+            merged_models[m.model_name] = m
 
     # For other fields, use user values if explicitly set, otherwise use builtin
     # We check if user explicitly provided a value by comparing to defaults
@@ -578,7 +600,8 @@ def _load_config_cached() -> Config:
 def load_config() -> Config:
     """Load config from disk (builtin + user merged).
 
-    Always returns a valid Config. Use config.iter_model_entries(only_available=True)
+    Always returns a valid Config. Use
+    ``config.iter_model_entries(only_available=True, include_disabled=False)``
     to check if any models are actually usable.
     """
     try:
