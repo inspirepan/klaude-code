@@ -57,7 +57,7 @@ class WriteTool(ToolABC):
         if is_directory(file_path):
             return message.ToolResultMessage(
                 status="error",
-                output_text="<tool_use_error>Illegal operation on a directory. write</tool_use_error>",
+                output_text="<tool_use_error>Illegal operation on a directory: write</tool_use_error>",
             )
 
         file_tracker = context.file_tracker

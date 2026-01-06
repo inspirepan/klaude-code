@@ -183,14 +183,14 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
         box=ASCII_HORIZONAL,
     )
 
-    table.add_column("Date", style="cyan", no_wrap=True)
-    table.add_column("Model", no_wrap=True)
-    table.add_column("Input", justify="right", no_wrap=True)
-    table.add_column("Output", justify="right", no_wrap=True)
-    table.add_column("Cache", justify="right", no_wrap=True)
-    table.add_column("Total", justify="right", no_wrap=True)
-    table.add_column("USD", justify="right", no_wrap=True)
-    table.add_column("CNY", justify="right", no_wrap=True)
+    table.add_column("Date", style="cyan")
+    table.add_column("Model", overflow="ellipsis")
+    table.add_column("Input", justify="right")
+    table.add_column("Output", justify="right")
+    table.add_column("Cache", justify="right")
+    table.add_column("Total", justify="right")
+    table.add_column("USD", justify="right")
+    table.add_column("CNY", justify="right")
 
     # Sort dates
     sorted_dates = sorted(daily_stats.keys())
@@ -222,7 +222,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
 
             table.add_row(
                 format_date_display(date_str) if first_row else "",
-                f"- {model_name}",
+                f"{model_name}",
                 format_tokens(stats.input_tokens),
                 format_tokens(stats.output_tokens),
                 format_tokens(stats.cached_tokens),
@@ -276,7 +276,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
         usd_str, cny_str = format_cost_dual(stats.cost_usd, stats.cost_cny)
         table.add_row(
             "",
-            f"- {model_name}",
+            f"{model_name}",
             format_tokens(stats.input_tokens),
             format_tokens(stats.output_tokens),
             format_tokens(stats.cached_tokens),

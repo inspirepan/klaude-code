@@ -98,7 +98,7 @@ class EditTool(ToolABC):
         if is_directory(file_path):
             return message.ToolResultMessage(
                 status="error",
-                output_text="<tool_use_error>Illegal operation on a directory. edit</tool_use_error>",
+                output_text="<tool_use_error>Illegal operation on a directory: edit</tool_use_error>",
             )
 
         if args.old_string == "":

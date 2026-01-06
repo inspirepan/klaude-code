@@ -85,7 +85,7 @@ class TestReadTool(BaseTempDirTest):
         self.assertEqual(res.status, "error")
         self.assertEqual(
             res.output_text,
-            "<tool_use_error>Illegal operation on a directory. read</tool_use_error>",
+            "<tool_use_error>Illegal operation on a directory: read</tool_use_error>",
         )
 
     def test_read_file_not_exist(self):
@@ -529,7 +529,7 @@ class TestEditTool(BaseTempDirTest):
         self.assertEqual(res.status, "error")
         self.assertEqual(
             res.output_text,
-            "<tool_use_error>Illegal operation on a directory. edit</tool_use_error>",
+            "<tool_use_error>Illegal operation on a directory: edit</tool_use_error>",
         )
 
     def test_edit_mtime_mismatch(self):

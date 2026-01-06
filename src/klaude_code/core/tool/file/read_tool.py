@@ -210,7 +210,7 @@ class ReadTool(ToolABC):
         if is_directory(file_path):
             return message.ToolResultMessage(
                 status="error",
-                output_text="<tool_use_error>Illegal operation on a directory. read</tool_use_error>",
+                output_text="<tool_use_error>Illegal operation on a directory: read</tool_use_error>",
             )
         if not file_exists(file_path):
             return message.ToolResultMessage(
@@ -308,7 +308,7 @@ class ReadTool(ToolABC):
         except IsADirectoryError:
             return message.ToolResultMessage(
                 status="error",
-                output_text="<tool_use_error>Illegal operation on a directory. read</tool_use_error>",
+                output_text="<tool_use_error>Illegal operation on a directory: read</tool_use_error>",
             )
 
         if offset > max(read_result.total_lines, 0):
