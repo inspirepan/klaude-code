@@ -96,7 +96,6 @@ provider_list:
   - model_name: opus
     model_id: anthropic/claude-4.5-opus
     context_limit: 200000
-    verbosity: high
     thinking:
       type: enabled
       budget_tokens: 2048
@@ -222,7 +221,6 @@ provider_list:
   - model_name: opus
     model_id: claude-opus-4-5-20251101
     context_limit: 200000
-    verbosity: high
     thinking:
       type: enabled
       budget_tokens: 2048

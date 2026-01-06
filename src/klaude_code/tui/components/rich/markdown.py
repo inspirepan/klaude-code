@@ -290,6 +290,14 @@ class MarkdownStream:
 
         stable_source = "".join(lines[:stable_line])
         live_source = "".join(lines[stable_line:])
+
+        # If the "stable" prefix is only whitespace and we haven't stabilized any
+        # non-whitespace content yet, keep everything in the live buffer.
+        #
+        # This avoids cases where marks/indentation should apply to the first
+        # visible line, but would be suppressed because stable_line > 0.
+        if min_stable_line == 0 and stable_source.strip() == "":
+            return "", text, 0
         return stable_source, live_source, stable_line
 
     def render_ansi(self, text: str, *, apply_mark: bool) -> str:
