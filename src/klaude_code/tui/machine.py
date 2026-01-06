@@ -66,17 +66,6 @@ FAST_TOOLS: frozenset[str] = frozenset(
 )
 
 
-def _should_skip_tool_activity(tool_name: str, model_id: str | None) -> bool:
-    """Check if tool activity should be skipped for non-streaming models."""
-    if model_id is None:
-        return False
-    if tool_name not in FAST_TOOLS:
-        return False
-    # Gemini and Grok models don't stream tool JSON at fine granularity
-    model_lower = model_id.lower()
-    return "gemini" in model_lower or "grok" in model_lower
-
-
 @dataclass
 class SubAgentThinkingHeaderState:
     buffer: str = ""
@@ -257,7 +246,7 @@ class SpinnerStatusState:
         base_status = self._reasoning_status or self._todo_status
 
         if base_status:
-            # Default "Reasoning ..." uses normal style; custom headers use bold italic
+            # Default "Thinking ..." uses normal style; custom headers use bold italic
             is_default_reasoning = base_status == STATUS_THINKING_TEXT
             status_style = ThemeKey.STATUS_TEXT if is_default_reasoning else ThemeKey.STATUS_TEXT_BOLD_ITALIC
             if activity_text:
@@ -300,6 +289,7 @@ class _SessionState:
     session_id: str
     sub_agent_state: model.SubAgentState | None = None
     sub_agent_thinking_header: SubAgentThinkingHeaderState | None = None
+    model_id: str | None = None
     assistant_stream_active: bool = False
     thinking_stream_active: bool = False
     assistant_char_count: int = 0
@@ -312,6 +302,23 @@ class _SessionState:
     @property
     def should_show_sub_agent_thinking_header(self) -> bool:
         return bool(self.sub_agent_state and self.sub_agent_state.sub_agent_type == "ImageGen")
+
+    @property
+    def should_extract_reasoning_header(self) -> bool:
+        """Gemini and GPT-5 models use markdown bold headers in thinking."""
+        if self.model_id is None:
+            return False
+        model_lower = self.model_id.lower()
+        return "gemini" in model_lower or "gpt-5" in model_lower
+
+    def should_skip_tool_activity(self, tool_name: str) -> bool:
+        """Check if tool activity should be skipped for non-streaming models."""
+        if self.model_id is None:
+            return False
+        if tool_name not in FAST_TOOLS:
+            return False
+        model_lower = self.model_id.lower()
+        return "gemini" in model_lower or "grok" in model_lower
 
 
 class DisplayStateMachine:
@@ -380,6 +387,7 @@ class DisplayStateMachine:
 
             case events.TaskStartEvent() as e:
                 s.sub_agent_state = e.sub_agent_state
+                s.model_id = e.model_id
                 if not s.is_sub_agent:
                     self._set_primary_if_needed(e.session_id)
                     cmds.append(TaskClockStart())
@@ -412,6 +420,7 @@ class DisplayStateMachine:
                 if not self._is_primary(e.session_id):
                     return []
                 s.thinking_stream_active = True
+                s.thinking_tail = ""
                 # Ensure the status reflects that reasoning has started even
                 # before we receive any deltas (or a bold header).
                 self._spinner.set_reasoning_status(STATUS_THINKING_TEXT)
@@ -435,11 +444,13 @@ class DisplayStateMachine:
                 cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
 
                 # Update reasoning status for spinner (based on bounded tail).
-                s.thinking_tail = (s.thinking_tail + e.content)[-8192:]
-                header = extract_last_bold_header(normalize_thinking_content(s.thinking_tail))
-                if header:
-                    self._spinner.set_reasoning_status(header)
-                    cmds.extend(self._spinner_update_commands())
+                # Only extract headers for models that use markdown bold headers in thinking.
+                if s.should_extract_reasoning_header:
+                    s.thinking_tail = (s.thinking_tail + e.content)[-8192:]
+                    header = extract_last_bold_header(normalize_thinking_content(s.thinking_tail))
+                    if header:
+                        self._spinner.set_reasoning_status(header)
+                        cmds.extend(self._spinner_update_commands())
 
                 return cmds
 
@@ -528,7 +539,7 @@ class DisplayStateMachine:
 
                 # Skip activity state for fast tools on non-streaming models (e.g., Gemini)
                 # to avoid flash-and-disappear effect
-                if not _should_skip_tool_activity(e.tool_name, e.model_id):
+                if not s.should_skip_tool_activity(e.tool_name):
                     tool_active_form = get_tool_active_form(e.tool_name)
                     if is_sub_agent_tool(e.tool_name):
                         self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)

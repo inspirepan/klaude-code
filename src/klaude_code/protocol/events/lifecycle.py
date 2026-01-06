@@ -7,6 +7,7 @@ from .base import Event
 
 class TaskStartEvent(Event):
     sub_agent_state: model.SubAgentState | None = None
+    model_id: str | None = None
 
 
 class TaskFinishEvent(Event):

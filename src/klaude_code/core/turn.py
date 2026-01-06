@@ -363,7 +363,6 @@ class TurnExecutor:
                             response_id=msg.response_id,
                             tool_call_id=msg.call_id,
                             tool_name=msg.name,
-                            model_id=ctx.llm_client.model_name,
                         )
                     case _:
                         continue

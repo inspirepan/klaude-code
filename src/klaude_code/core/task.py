@@ -217,6 +217,7 @@ class TaskExecutor:
         yield events.TaskStartEvent(
             session_id=session_ctx.session_id,
             sub_agent_state=ctx.sub_agent_state,
+            model_id=ctx.profile.llm_client.get_llm_config().model_id,
         )
         del user_input  # Persisted by the operation handler before launching the task.
 
