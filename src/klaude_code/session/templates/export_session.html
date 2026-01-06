@@ -202,6 +202,86 @@
         display: block;
       }
 
+      /* Task: one user message + full agent run */
+      .task {
+        margin-bottom: 24px;
+      }
+
+      .task:last-child {
+        margin-bottom: 0;
+      }
+
+      /* Task steps: fold intermediate events by default */
+      details.task-steps {
+        margin: 6px 0 0 0;
+        background: transparent;
+      }
+
+      details.task-steps > summary {
+        list-style: none;
+        user-select: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        color: var(--text-dim);
+        font-family: var(--font-mono);
+        font-size: var(--font-size-xs);
+        line-height: 1.2;
+        transition: color 0.2s, border-color 0.2s, background 0.2s;
+      }
+
+      details.task-steps > summary::-webkit-details-marker {
+        display: none;
+      }
+
+      details.task-steps > summary::before {
+        content: "▶";
+        font-size: 0.8em;
+        color: var(--accent);
+        transform: translateY(-0.05em);
+        transition: transform 0.2s;
+      }
+
+      details.task-steps[open] > summary {
+        color: var(--accent);
+        border-color: var(--accent);
+        background: var(--accent-dim);
+      }
+
+      details.task-steps[open] > summary::before {
+        transform: rotate(90deg) translateY(-0.05em);
+      }
+
+      details.task-steps > summary:hover {
+        color: var(--text);
+        border-color: var(--accent);
+      }
+
+      details.task-steps > .task-steps-content {
+        margin-top: 12px;
+        padding: 0 0 0 18px;
+        margin-left: 10px;
+        border-left: 2px solid var(--border);
+      }
+
+      /* When expanded, hide compact final answer to avoid duplication */
+      .task details.task-steps[open] ~ .task-final {
+        display: none;
+      }
+
+      .task-final {
+        margin-top: 12px;
+      }
+
+      .task-mermaid-result {
+        margin: 12px 0;
+      }
+
       .message-group {
         display: flex;
         flex-direction: column;
@@ -1436,6 +1516,21 @@
         el.textContent = el.textContent.trim();
       });
 
+      // Task steps toggle label
+      document.querySelectorAll("details.task-steps").forEach((details) => {
+        const summary = details.querySelector("summary");
+        const count = details.getAttribute("data-step-count");
+        if (!summary || !count) return;
+
+        const setLabel = () => {
+          summary.textContent =
+            (details.open ? "Hide" : "Show") + " " + count + " steps";
+        };
+
+        setLabel();
+        details.addEventListener("toggle", setLabel);
+      });
+
       // Process markdown for collapsible sections
       // foldH2: if true, H2 headers start collapsed; otherwise all headers start open
       function structureMarkdown(root, foldH2 = false) {
@@ -1822,70 +1917,44 @@
           });
         }
 
-        // 2. Messages and Tools
+        // 2. Tasks (User + final Assistant)
         const stream = document.querySelector(".message-stream");
         if (stream) {
-          // Use a Walker to find top-level relevant items if structure is complex
-          // But assuming flat children of message-stream based on CSS
-          Array.from(stream.children).forEach((child) => {
-            let label = null;
-            let idPrefix = "section";
-
-            if (child.classList.contains("message-group")) {
-              const roleLabel = child.querySelector(".role-label");
-              if (roleLabel) {
-                if (roleLabel.classList.contains("user")) {
-                  userCount++;
-                  label = `USER $$$${userCount}`;
-                  idPrefix = "user";
-                } else if (roleLabel.classList.contains("assistant")) {
-                  assistantCount++;
-                  label = `ASSISTANT $$$${assistantCount}`;
-                  idPrefix = "assistant";
-                } else {
-                  label = roleLabel.textContent.trim();
-                }
-              }
-            } else if (child.classList.contains("tool-call")) {
-              const toolName = child.querySelector(".tool-name");
-              if (toolName) {
-                label = toolName.textContent.trim();
-                idPrefix = "tool";
-
-                // Try to extract description for Sub Agents
-                try {
-                  const argsContent = child.querySelector(".tool-args-content");
-                  if (argsContent) {
-                    const argsText = argsContent.textContent.trim();
-                    if (argsText.startsWith("{")) {
-                      const args = JSON.parse(argsText);
-                      if (
-                        args &&
-                        typeof args.description === "string" &&
-                        args.description.trim()
-                      ) {
-                        let desc = args.description.trim();
-                        if (desc.length > 30) {
-                          desc = desc.substring(0, 30) + "…";
-                        }
-                        label = label + " - " + desc;
-                      }
-                    }
-                  }
-                } catch (e) {
-                  // Ignore JSON parse errors
-                }
-              } else {
-                label = "Tool";
+          Array.from(stream.querySelectorAll(":scope > .task")).forEach((task) => {
+            const userBlock = task.querySelector(":scope > .message-group");
+            if (userBlock) {
+              const roleLabel = userBlock.querySelector(".role-label");
+              if (roleLabel && roleLabel.classList.contains("user")) {
+                userCount++;
+                userBlock.id =
+                  userBlock.id || "user-" + Math.random().toString(36).substr(2, 9);
+                sections.push({
+                  id: userBlock.id,
+                  label: "USER " + userCount,
+                  el: userBlock,
+                });
               }
             }
 
-            if (label) {
-              child.id =
-                child.id ||
-                `$$$${idPrefix}-$$$${Math.random().toString(36).substr(2, 9)}`;
-              sections.push({ id: child.id, label: label, el: child });
-            }
+            const finalContainer = task.querySelector(":scope > .task-final");
+            if (!finalContainer) return;
+
+            Array.from(finalContainer.querySelectorAll(":scope > .message-group")).forEach(
+              (child) => {
+                const roleLabel = child.querySelector(".role-label");
+                if (!roleLabel || !roleLabel.classList.contains("assistant")) return;
+
+                assistantCount++;
+                child.id =
+                  child.id ||
+                  "assistant-" + Math.random().toString(36).substr(2, 9);
+                sections.push({
+                  id: child.id,
+                  label: "ASSISTANT " + assistantCount,
+                  el: child,
+                });
+              }
+            );
           });
         }
 
