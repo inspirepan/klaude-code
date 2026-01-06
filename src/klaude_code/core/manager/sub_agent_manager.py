@@ -138,6 +138,7 @@ class SubAgentManager:
                 # Capture TaskMetadataEvent for metadata propagation
                 elif isinstance(event, events.TaskMetadataEvent):
                     task_metadata = event.metadata.main_agent
+                    task_metadata.description = state.sub_agent_desc or None
                 await self.emit_event(event)
 
             # Ensure the sub-agent session is persisted before returning its id for resume.

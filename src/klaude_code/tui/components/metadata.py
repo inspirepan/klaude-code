@@ -34,12 +34,16 @@ def _render_task_metadata_block(
     # First column: mark only
     mark = Text("└", style=ThemeKey.METADATA_DIM) if is_sub_agent else Text("◆", style=ThemeKey.METADATA)
 
-    # Second column: model@provider / tokens / cost / …
+    # Second column: model@provider description / tokens / cost / …
     content = Text()
     content.append_text(Text(metadata.model_name, style=ThemeKey.METADATA_BOLD))
     if metadata.provider is not None:
         content.append_text(Text("@", style=ThemeKey.METADATA)).append_text(
             Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA)
+        )
+    if metadata.description:
+        content.append_text(Text(" ", style=ThemeKey.METADATA)).append_text(
+            Text(metadata.description, style=ThemeKey.METADATA_DIM)
         )
 
     # All info parts (tokens, cost, context, etc.)
