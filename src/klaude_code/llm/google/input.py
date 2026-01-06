@@ -11,7 +11,7 @@ from typing import Any
 from google.genai import types
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
-from klaude_code.llm.image import parse_data_url
+from klaude_code.llm.image import assistant_image_to_data_url, parse_data_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
     attach_developer_messages,
@@ -108,51 +108,49 @@ def _tool_messages_to_contents(
     return contents
 
 
+def _decode_thought_signature(sig: str | None) -> bytes | None:
+    """Decode base64 thought signature to bytes."""
+    if not sig:
+        return None
+    try:
+        return b64decode(sig)
+    except (BinasciiError, ValueError):
+        return None
+
+
 def _assistant_message_to_content(msg: message.AssistantMessage, model_name: str | None) -> types.Content | None:
     parts: list[types.Part] = []
     native_thinking_parts, degraded_thinking_texts = split_thinking_parts(msg, model_name)
     native_thinking_ids = {id(part) for part in native_thinking_parts}
-    pending_thought_text: str | None = None
-    pending_thought_signature: str | None = None
-
-    def flush_thought() -> None:
-        nonlocal pending_thought_text, pending_thought_signature
-        if pending_thought_text is None and pending_thought_signature is None:
-            return
-
-        signature_bytes: bytes | None = None
-        if pending_thought_signature:
-            try:
-                signature_bytes = b64decode(pending_thought_signature)
-            except (BinasciiError, ValueError):
-                signature_bytes = None
-
-        parts.append(
-            types.Part(
-                text=pending_thought_text or "",
-                thought=True,
-                thought_signature=signature_bytes,
-            )
-        )
-        pending_thought_text = None
-        pending_thought_signature = None
 
     for part in msg.parts:
         if isinstance(part, message.ThinkingTextPart):
             if id(part) not in native_thinking_ids:
                 continue
-            pending_thought_text = part.text
-            continue
-        if isinstance(part, message.ThinkingSignaturePart):
+            parts.append(types.Part(text=part.text, thought=True))
+
+        elif isinstance(part, message.ThinkingSignaturePart):
             if id(part) not in native_thinking_ids:
                 continue
-            if part.signature and (part.format or "").startswith("google"):
-                pending_thought_signature = part.signature
-            continue
+            if not part.signature or part.format != "google":
+                continue
+            # Attach signature to the previous part
+            if parts:
+                sig_bytes = _decode_thought_signature(part.signature)
+                if sig_bytes:
+                    last_part = parts[-1]
+                    parts[-1] = types.Part(
+                        text=last_part.text,
+                        thought=last_part.thought,
+                        function_call=last_part.function_call,
+                        inline_data=last_part.inline_data,
+                        file_data=last_part.file_data,
+                        thought_signature=sig_bytes,
+                    )
 
-        flush_thought()
-        if isinstance(part, message.TextPart):
+        elif isinstance(part, message.TextPart):
             parts.append(types.Part(text=part.text))
+
         elif isinstance(part, message.ToolCallPart):
             args: dict[str, Any]
             if part.arguments_json:
@@ -162,9 +160,19 @@ def _assistant_message_to_content(msg: message.AssistantMessage, model_name: str
                     args = {"_raw": part.arguments_json}
             else:
                 args = {}
-            parts.append(types.Part(function_call=types.FunctionCall(id=part.call_id, name=part.tool_name, args=args)))
+            parts.append(
+                types.Part(
+                    function_call=types.FunctionCall(id=part.call_id, name=part.tool_name, args=args),
+                )
+            )
 
-    flush_thought()
+        elif isinstance(part, message.ImageFilePart):
+            # Convert saved image back to inline_data for multi-turn
+            try:
+                data_url = assistant_image_to_data_url(part)
+                parts.append(_image_part_to_part(message.ImageURLPart(url=data_url)))
+            except (ValueError, FileNotFoundError):
+                pass  # Skip if image cannot be loaded
 
     if degraded_thinking_texts:
         parts.insert(0, types.Part(text="<thinking>\n" + "\n".join(degraded_thinking_texts) + "\n</thinking>"))

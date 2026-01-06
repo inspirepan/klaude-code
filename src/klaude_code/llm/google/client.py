@@ -4,31 +4,63 @@
 # pyright: reportAttributeAccessIssue=false
 
 import json
+from base64 import b64encode
 from collections.abc import AsyncGenerator, AsyncIterator
-from typing import Any, Literal, cast, override
+from typing import Any, cast, override
 from uuid import uuid4
 
 import httpx
 from google.genai import Client
 from google.genai.errors import APIError, ClientError, ServerError
 from google.genai.types import (
+    ContentListUnion,
     FunctionCallingConfig,
     FunctionCallingConfigMode,
     GenerateContentConfig,
+    GenerateContentResponse,
+    GenerateContentResponseUsageMetadata,
     HttpOptions,
+    PartialArg,
     ThinkingConfig,
+    ThinkingLevel,
     ToolConfig,
-    UsageMetadata,
 )
 
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.google.input import convert_history_to_contents, convert_tool_schema
+from klaude_code.llm.image import save_assistant_image
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.partial_message import degrade_thinking_to_text
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
-from klaude_code.log import DebugType, log_debug
+from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param, message, model
+
+# Unified format for Google thought signatures
+GOOGLE_THOUGHT_SIGNATURE_FORMAT = "google"
+
+# Synthetic signature for image parts that need one but don't have it.
+# See: https://ai.google.dev/gemini-api/docs/thought-signatures
+SYNTHETIC_THOUGHT_SIGNATURE = b"skip_thought_signature_validator"
+
+
+def support_thinking(model_id: str | None) -> bool:
+    return bool(model_id) and ("gemini-3" in model_id or "gemini-2.5-pro" in model_id)
+
+
+def convert_gemini_thinking_level(reasoning_effort: str | None) -> ThinkingLevel | None:
+    """Convert reasoning_effort to Gemini ThinkingLevel."""
+    if reasoning_effort is None:
+        return None
+    mapping: dict[str, ThinkingLevel] = {
+        "xhigh": ThinkingLevel.HIGH,
+        "high": ThinkingLevel.HIGH,
+        "medium": ThinkingLevel.MEDIUM,
+        "low": ThinkingLevel.LOW,
+        "minimal": ThinkingLevel.MINIMAL,
+        "none": ThinkingLevel.MINIMAL,
+    }
+    return mapping.get(reasoning_effort)
 
 
 def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
@@ -39,17 +71,20 @@ def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
         tool_config = ToolConfig(
             function_calling_config=FunctionCallingConfig(
                 mode=FunctionCallingConfigMode.AUTO,
-                # Gemini streams tool args; keep this enabled to maximize fidelity.
-                stream_function_call_arguments=True,
             )
         )
 
     thinking_config: ThinkingConfig | None = None
-    if param.thinking and param.thinking.type == "enabled":
-        thinking_config = ThinkingConfig(
+    if support_thinking(param.model_id):
+        thinking_config: ThinkingConfig | None = ThinkingConfig(
             include_thoughts=True,
-            thinking_budget=param.thinking.budget_tokens,
         )
+
+        if param.thinking:
+            if param.thinking.budget_tokens:
+                thinking_config.thinking_budget = param.thinking.budget_tokens
+            if param.thinking.reasoning_effort:
+                thinking_config.thinking_level = convert_gemini_thinking_level(param.thinking.reasoning_effort)
 
     return GenerateContentConfig(
         system_instruction=param.system,
@@ -62,7 +97,7 @@ def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
 
 
 def _usage_from_metadata(
-    usage: UsageMetadata | None,
+    usage: GenerateContentResponseUsageMetadata | None,
     *,
     context_limit: int | None,
     max_tokens: int | None,
@@ -72,8 +107,15 @@ def _usage_from_metadata(
 
     cached = usage.cached_content_token_count or 0
     prompt = usage.prompt_token_count or 0
-    response = usage.response_token_count or 0
+    response = usage.candidates_token_count or 0
     thoughts = usage.thoughts_token_count or 0
+
+    # Extract image tokens from candidates_tokens_details
+    image_tokens = 0
+    if usage.candidates_tokens_details:
+        for detail in usage.candidates_tokens_details:
+            if detail.modality and detail.modality.name == "IMAGE" and detail.token_count:
+                image_tokens += detail.token_count
 
     total = usage.total_token_count
     if total is None:
@@ -84,35 +126,43 @@ def _usage_from_metadata(
         cached_tokens=cached,
         output_tokens=response + thoughts,
         reasoning_tokens=thoughts,
+        image_tokens=image_tokens,
         context_size=total,
         context_limit=context_limit,
         max_tokens=max_tokens,
     )
 
 
-def _partial_arg_value(partial: Any) -> Any:
-    if getattr(partial, "string_value", None) is not None:
+def _partial_arg_value(partial: PartialArg) -> str | float | bool | None:
+    if partial.string_value is not None:
         return partial.string_value
-    if getattr(partial, "number_value", None) is not None:
+    if partial.number_value is not None:
         return partial.number_value
-    if getattr(partial, "bool_value", None) is not None:
+    if partial.bool_value is not None:
         return partial.bool_value
-    if getattr(partial, "null_value", None) is not None:
-        return None
     return None
 
 
-def _merge_partial_args(dst: dict[str, Any], partial_args: list[Any] | None) -> None:
+def _merge_partial_args(dst: dict[str, Any], partial_args: list[PartialArg] | None) -> None:
     if not partial_args:
         return
     for partial in partial_args:
-        json_path = getattr(partial, "json_path", None)
-        if not isinstance(json_path, str) or not json_path.startswith("$."):
+        json_path = partial.json_path
+        if not json_path or not json_path.startswith("$."):
             continue
         key = json_path[2:]
         if not key or any(ch in key for ch in "[]"):
             continue
         dst[key] = _partial_arg_value(partial)
+
+
+def _encode_thought_signature(sig: bytes | str | None) -> str | None:
+    """Encode thought signature bytes to base64 string."""
+    if sig is None:
+        return None
+    if isinstance(sig, bytes):
+        return b64encode(sig).decode("ascii")
+    return sig
 
 
 def _map_finish_reason(reason: str) -> model.StopReason | None:
@@ -139,55 +189,66 @@ def _map_finish_reason(reason: str) -> model.StopReason | None:
 class GoogleStreamStateManager:
     """Manages streaming state for Google LLM responses.
 
-    Accumulates thinking content, assistant text, and tool calls during streaming
-    to support get_partial_message() for cancellation scenarios.
+    Accumulates parts directly during streaming to support get_partial_message()
+    for cancellation scenarios. Merges consecutive text parts of the same type.
     """
 
     def __init__(self, param_model: str) -> None:
         self.param_model = param_model
-        self.accumulated_thoughts: list[str] = []
-        self.accumulated_text: list[str] = []
-        self.thought_signature: str | None = None
         self.assistant_parts: list[message.Part] = []
         self.response_id: str | None = None
         self.stop_reason: model.StopReason | None = None
 
-    def flush_thinking(self) -> None:
-        """Flush accumulated thinking content into assistant_parts."""
-        if self.accumulated_thoughts:
-            self.assistant_parts.append(
-                message.ThinkingTextPart(
-                    text="".join(self.accumulated_thoughts),
+    def append_thinking_text(self, text: str) -> None:
+        """Append thinking text, merging with previous ThinkingTextPart if possible."""
+        if self.assistant_parts:
+            last = self.assistant_parts[-1]
+            if isinstance(last, message.ThinkingTextPart):
+                self.assistant_parts[-1] = message.ThinkingTextPart(
+                    text=last.text + text,
                     model_id=self.param_model,
                 )
-            )
-            self.accumulated_thoughts.clear()
-        if self.thought_signature:
-            self.assistant_parts.append(
-                message.ThinkingSignaturePart(
-                    signature=self.thought_signature,
-                    model_id=self.param_model,
-                    format="google_thought_signature",
-                )
-            )
-            self.thought_signature = None
+                return
+        self.assistant_parts.append(message.ThinkingTextPart(text=text, model_id=self.param_model))
 
-    def flush_text(self) -> None:
-        """Flush accumulated text content into assistant_parts."""
-        if not self.accumulated_text:
-            return
-        self.assistant_parts.append(message.TextPart(text="".join(self.accumulated_text)))
-        self.accumulated_text.clear()
+    def append_text(self, text: str) -> None:
+        """Append text, merging with previous TextPart if possible."""
+        if self.assistant_parts:
+            last = self.assistant_parts[-1]
+            if isinstance(last, message.TextPart):
+                self.assistant_parts[-1] = message.TextPart(text=last.text + text)
+                return
+        self.assistant_parts.append(message.TextPart(text=text))
+
+    def append_thinking_signature(self, signature: str) -> None:
+        """Append a ThinkingSignaturePart after the current part."""
+        self.assistant_parts.append(
+            message.ThinkingSignaturePart(
+                signature=signature,
+                model_id=self.param_model,
+                format=GOOGLE_THOUGHT_SIGNATURE_FORMAT,
+            )
+        )
+
+    def append_image(self, image_part: message.ImageFilePart) -> None:
+        """Append an ImageFilePart."""
+        self.assistant_parts.append(image_part)
+
+    def append_tool_call(self, call_id: str, name: str, arguments_json: str) -> None:
+        """Append a ToolCallPart."""
+        self.assistant_parts.append(
+            message.ToolCallPart(
+                call_id=call_id,
+                tool_name=name,
+                arguments_json=arguments_json,
+            )
+        )
 
     def get_partial_message(self) -> message.AssistantMessage | None:
         """Build a partial AssistantMessage from accumulated state.
 
-        Flushes all accumulated content and returns the message.
         Returns None if no content has been accumulated yet.
         """
-        self.flush_thinking()
-        self.flush_text()
-
         filtered_parts: list[message.Part] = []
         for part in self.assistant_parts:
             if isinstance(part, message.ToolCallPart):
@@ -206,135 +267,160 @@ class GoogleStreamStateManager:
 
 
 async def parse_google_stream(
-    stream: AsyncIterator[Any],
+    stream: AsyncIterator[GenerateContentResponse],
     param: llm_param.LLMCallParameter,
     metadata_tracker: MetadataTracker,
     state: GoogleStreamStateManager,
 ) -> AsyncGenerator[message.LLMStreamItem]:
-    stage: Literal["waiting", "thinking", "assistant", "tool"] = "waiting"
-
     # Track tool calls where args arrive as partial updates.
     partial_args_by_call: dict[str, dict[str, Any]] = {}
-    started_tool_calls: dict[str, str] = {}  # call_id -> name
+    started_tool_calls: dict[str, tuple[str, bytes | None]] = {}  # call_id -> (name, thought_signature)
     started_tool_items: set[str] = set()
     completed_tool_items: set[str] = set()
 
-    last_usage_metadata: UsageMetadata | None = None
+    # Track image index for unique filenames
+    image_index = 0
+
+    last_usage_metadata: GenerateContentResponseUsageMetadata | None = None
 
     async for chunk in stream:
         log_debug(
-            chunk.model_dump_json(exclude_none=True),
-            style="blue",
-            debug_type=DebugType.LLM_STREAM,
+            debug_json(chunk.model_dump(exclude_none=True)), style="blue", debug_type=DebugType.LLM_STREAM
         )
 
         if state.response_id is None:
-            state.response_id = getattr(chunk, "response_id", None) or uuid4().hex
+            state.response_id = chunk.response_id or uuid4().hex
 
-        if getattr(chunk, "usage_metadata", None) is not None:
+        if chunk.usage_metadata is not None:
             last_usage_metadata = chunk.usage_metadata
 
-        candidates = getattr(chunk, "candidates", None) or []
+        candidates = chunk.candidates or []
         candidate0 = candidates[0] if candidates else None
-        finish_reason = getattr(candidate0, "finish_reason", None) if candidate0 else None
+        finish_reason = candidate0.finish_reason if candidate0 else None
         if finish_reason is not None:
-            if isinstance(finish_reason, str):
-                reason_value = finish_reason
-            else:
-                reason_value = getattr(finish_reason, "name", None) or str(finish_reason)
-            state.stop_reason = _map_finish_reason(reason_value)
-        content = getattr(candidate0, "content", None) if candidate0 else None
-        content_parts = getattr(content, "parts", None) if content else None
+            state.stop_reason = _map_finish_reason(finish_reason.name)
+        content = candidate0.content if candidate0 else None
+        content_parts = content.parts if content else None
         if not content_parts:
             continue
 
         for part in content_parts:
-            if getattr(part, "text", None) is not None:
+            # Handle text parts (both thought and regular text)
+            if part.text is not None:
                 text = part.text
                 if not text:
                     continue
                 metadata_tracker.record_token()
-                if getattr(part, "thought", False) is True:
-                    if stage == "assistant":
-                        state.flush_text()
-                    stage = "thinking"
-                    state.accumulated_thoughts.append(text)
-                    if getattr(part, "thought_signature", None):
-                        state.thought_signature = part.thought_signature
+
+                if part.thought is True:
+                    # Thinking text - append and merge with previous ThinkingTextPart
+                    state.append_thinking_text(text)
+                    # Add ThinkingSignaturePart after thinking text if present
+                    if part.thought_signature:
+                        encoded_sig = _encode_thought_signature(part.thought_signature)
+                        if encoded_sig:
+                            state.append_thinking_signature(encoded_sig)
                     yield message.ThinkingTextDelta(content=text, response_id=state.response_id)
                 else:
-                    if stage == "thinking":
-                        state.flush_thinking()
-                    stage = "assistant"
-                    state.accumulated_text.append(text)
+                    # Regular text - append and merge with previous TextPart
+                    state.append_text(text)
+                    # Regular text parts can also have thought_signature
+                    if part.thought_signature:
+                        encoded_sig = _encode_thought_signature(part.thought_signature)
+                        if encoded_sig:
+                            state.append_thinking_signature(encoded_sig)
                     yield message.AssistantTextDelta(content=text, response_id=state.response_id)
 
-            function_call = getattr(part, "function_call", None)
+            # Handle inline_data (image generation responses)
+            inline_data = part.inline_data
+            if inline_data is not None and inline_data.data:
+                # Thought images (interim images produced during thinking) do not
+                # carry thought signatures and must not be treated as response
+                # images for multi-turn history.
+                if part.thought is True:
+                    continue
+                mime_type = inline_data.mime_type or "image/png"
+                encoded_data = b64encode(inline_data.data).decode("ascii")
+                data_url = f"data:{mime_type};base64,{encoded_data}"
+                try:
+                    image_part = save_assistant_image(
+                        data_url=data_url,
+                        session_id=param.session_id,
+                        response_id=state.response_id,
+                        image_index=image_index,
+                    )
+                    image_index += 1
+                    state.append_image(image_part)
+                    # Add ThinkingSignaturePart after image if present, or synthetic signature for thinking models
+                    if part.thought_signature:
+                        encoded_sig = _encode_thought_signature(part.thought_signature)
+                        if encoded_sig:
+                            state.append_thinking_signature(encoded_sig)
+                    elif support_thinking(param.model_id):
+                        encoded_sig = _encode_thought_signature(SYNTHETIC_THOUGHT_SIGNATURE)
+                        if encoded_sig:
+                            state.append_thinking_signature(encoded_sig)
+                    yield message.AssistantImageDelta(
+                        response_id=state.response_id,
+                        file_path=image_part.file_path,
+                    )
+                except ValueError:
+                    pass  # Skip invalid images
+
+            # Handle function calls
+            function_call = part.function_call
             if function_call is None:
                 continue
 
             metadata_tracker.record_token()
-            call_id = getattr(function_call, "id", None) or uuid4().hex
-            name = getattr(function_call, "name", None) or ""
-            started_tool_calls.setdefault(call_id, name)
+            call_id = function_call.id or uuid4().hex
+            name = function_call.name or ""
+
+            # Capture thought_signature from the part (required for tools in thinking models)
+            thought_signature = part.thought_signature
+
+            # Store name and thought_signature for later use (partial args / flush)
+            if call_id not in started_tool_calls or (thought_signature and started_tool_calls[call_id][1] is None):
+                started_tool_calls[call_id] = (name, thought_signature)
 
             if call_id not in started_tool_items:
                 started_tool_items.add(call_id)
                 yield message.ToolCallStartDelta(response_id=state.response_id, call_id=call_id, name=name)
 
-            args_obj = getattr(function_call, "args", None)
+            args_obj = function_call.args
             if args_obj is not None:
-                if stage == "thinking":
-                    state.flush_thinking()
-                if stage == "assistant":
-                    state.flush_text()
-                stage = "tool"
-                state.assistant_parts.append(
-                    message.ToolCallPart(
-                        call_id=call_id,
-                        tool_name=name,
-                        arguments_json=json.dumps(args_obj, ensure_ascii=False),
-                    )
-                )
+                # Add ToolCallPart, then ThinkingSignaturePart after it
+                state.append_tool_call(call_id, name, json.dumps(args_obj, ensure_ascii=False))
+                encoded_sig = _encode_thought_signature(thought_signature)
+                if encoded_sig:
+                    state.append_thinking_signature(encoded_sig)
                 completed_tool_items.add(call_id)
                 continue
 
-            partial_args = getattr(function_call, "partial_args", None)
+            partial_args = function_call.partial_args
             if partial_args is not None:
                 acc = partial_args_by_call.setdefault(call_id, {})
                 _merge_partial_args(acc, partial_args)
 
-            will_continue = getattr(function_call, "will_continue", None)
+            will_continue = function_call.will_continue
             if will_continue is False and call_id in partial_args_by_call and call_id not in completed_tool_items:
-                if stage == "thinking":
-                    state.flush_thinking()
-                if stage == "assistant":
-                    state.flush_text()
-                stage = "tool"
-                state.assistant_parts.append(
-                    message.ToolCallPart(
-                        call_id=call_id,
-                        tool_name=name,
-                        arguments_json=json.dumps(partial_args_by_call[call_id], ensure_ascii=False),
-                    )
-                )
+                # Add ToolCallPart, then ThinkingSignaturePart after it
+                state.append_tool_call(call_id, name, json.dumps(partial_args_by_call[call_id], ensure_ascii=False))
+                stored_sig = started_tool_calls.get(call_id, (name, None))[1]
+                encoded_stored_sig = _encode_thought_signature(stored_sig)
+                if encoded_stored_sig:
+                    state.append_thinking_signature(encoded_stored_sig)
                 completed_tool_items.add(call_id)
 
     # Flush any pending tool calls that never produced args.
-    for call_id, name in started_tool_calls.items():
+    for call_id, (name, stored_sig) in started_tool_calls.items():
         if call_id in completed_tool_items:
             continue
         args = partial_args_by_call.get(call_id, {})
-        state.assistant_parts.append(
-            message.ToolCallPart(
-                call_id=call_id,
-                tool_name=name,
-                arguments_json=json.dumps(args, ensure_ascii=False),
-            )
-        )
-
-    state.flush_thinking()
-    state.flush_text()
+        state.append_tool_call(call_id, name, json.dumps(args, ensure_ascii=False))
+        encoded_stored_sig = _encode_thought_signature(stored_sig)
+        if encoded_stored_sig:
+            state.append_thinking_signature(encoded_stored_sig)
 
     usage = _usage_from_metadata(last_usage_metadata, context_limit=param.context_limit, max_tokens=param.max_tokens)
     if usage is not None:
@@ -355,7 +441,7 @@ class GoogleLLMStream(LLMStreamABC):
 
     def __init__(
         self,
-        stream: AsyncIterator[Any],
+        stream: AsyncIterator[GenerateContentResponse],
         *,
         param: llm_param.LLMCallParameter,
         metadata_tracker: MetadataTracker,
@@ -419,13 +505,12 @@ class GoogleClient(LLMClientABC):
         config = _build_config(param)
 
         log_debug(
-            json.dumps(
+            debug_json(
                 {
                     "model": str(param.model_id),
                     "contents": [c.model_dump(exclude_none=True) for c in contents],
                     "config": config.model_dump(exclude_none=True),
-                },
-                ensure_ascii=False,
+                }
             ),
             style="yellow",
             debug_type=DebugType.LLM_PAYLOAD,
@@ -434,7 +519,7 @@ class GoogleClient(LLMClientABC):
         try:
             stream = await self.client.aio.models.generate_content_stream(
                 model=str(param.model_id),
-                contents=cast(Any, contents),
+                contents=cast(ContentListUnion, contents),
                 config=config,
             )
         except (APIError, ClientError, ServerError, httpx.HTTPError) as e:

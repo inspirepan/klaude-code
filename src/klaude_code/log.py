@@ -1,8 +1,10 @@
 import gzip
+import json
 import logging
 import os
 import shutil
 import subprocess
+from base64 import b64encode
 from collections.abc import Iterable
 from datetime import datetime, timedelta
 from enum import Enum
@@ -316,3 +318,57 @@ def _trash_path(path: Path) -> None:
         )
     except FileNotFoundError:
         path.unlink(missing_ok=True)
+
+
+# Debug JSON serialization utilities
+_DEBUG_TRUNCATE_PREFIX_CHARS = 96
+
+# Keys whose values should be truncated (e.g., signatures, large payloads)
+_TRUNCATE_KEYS = {"thought_signature", "thoughtSignature"}
+
+
+def _truncate_debug_str(value: str, *, prefix_chars: int = _DEBUG_TRUNCATE_PREFIX_CHARS) -> str:
+    if len(value) <= prefix_chars:
+        return value
+    return f"{value[:prefix_chars]}...(truncated,len={len(value)})"
+
+
+def _sanitize_debug_value(value: object) -> object:
+    if isinstance(value, (bytes, bytearray)):
+        encoded = b64encode(bytes(value)).decode("ascii")
+        return _truncate_debug_str(encoded)
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return [_sanitize_debug_value(v) for v in value]
+    if isinstance(value, dict):
+        return _sanitize_debug_dict(value)  # type: ignore[arg-type]
+    return value
+
+
+def _sanitize_debug_dict(obj: dict[object, object]) -> dict[object, object]:
+    sanitized: dict[object, object] = {}
+    for k, v in obj.items():
+        if k in _TRUNCATE_KEYS:
+            if isinstance(v, str):
+                sanitized[k] = _truncate_debug_str(v)
+            else:
+                sanitized[k] = _sanitize_debug_value(v)
+            continue
+        sanitized[k] = _sanitize_debug_value(v)
+
+    # Truncate inline image payloads (data field with mime_type indicates image blob)
+    if "data" in sanitized and ("mime_type" in sanitized or "mimeType" in sanitized):
+        data = sanitized.get("data")
+        if isinstance(data, str):
+            sanitized["data"] = _truncate_debug_str(data)
+        elif isinstance(data, (bytes, bytearray)):
+            encoded = b64encode(bytes(data)).decode("ascii")
+            sanitized["data"] = _truncate_debug_str(encoded)
+
+    return sanitized
+
+
+def debug_json(value: object) -> str:
+    """Serialize a value to JSON for debug logging, truncating large payloads."""
+    return json.dumps(_sanitize_debug_value(value), ensure_ascii=False)

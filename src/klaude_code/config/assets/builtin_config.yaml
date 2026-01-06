@@ -186,10 +186,14 @@ provider_list:
   - model_name: gemini-pro
     model_id: gemini-3-pro-preview
     context_limit: 1048576
+    thinking:
+      reasoning_effort: high
     cost: {input: 2, output: 12, cache_read: 0.2}
   - model_name: gemini-flash
     model_id: gemini-3-flash-preview
     context_limit: 1048576
+    thinking:
+      reasoning_effort: medium
     cost: {input: 0.5, output: 3, cache_read: 0.05}
   - model_name: nano-banana-pro
     model_id: gemini-3-pro-image-preview
