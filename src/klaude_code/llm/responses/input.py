@@ -116,7 +116,7 @@ def convert_history_to_input(
             case message.ToolResultMessage():
                 items.append(_build_tool_result_item(msg, attachment))
             case message.AssistantMessage():
-                assistant_text_parts: list[responses.ResponseInputContentParam] = []
+                assistant_text_parts: list[responses.ResponseOutputTextParam] = []
                 pending_thinking_text: str | None = None
                 pending_signature: str | None = None
                 native_thinking_parts, degraded_for_message = split_thinking_parts(msg, model_name)
@@ -164,8 +164,8 @@ def convert_history_to_input(
                     if isinstance(part, message.TextPart):
                         assistant_text_parts.append(
                             cast(
-                                responses.ResponseInputContentParam,
-                                {"type": "input_text", "text": part.text},
+                                responses.ResponseOutputTextParam,
+                                {"type": "output_text", "text": part.text},
                             )
                         )
                     elif isinstance(part, message.ToolCallPart):
