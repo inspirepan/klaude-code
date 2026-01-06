@@ -578,9 +578,9 @@ class TUICommandRenderer:
     def display_error(self, event: events.ErrorEvent) -> None:
         if event.session_id:
             with self.session_print_context(event.session_id):
-                self.print(c_errors.render_error(truncate_middle(event.error_message)))
+                self.print(c_errors.render_error(Text(event.error_message)))
         else:
-            self.print(c_errors.render_error(truncate_middle(event.error_message)))
+            self.print(c_errors.render_error(Text(event.error_message)))
 
     # ---------------------------------------------------------------------
     # Notifications
