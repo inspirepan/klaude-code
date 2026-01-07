@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-01-07
+
+### Added
+
+- update at file completer padding (`8af048e2`)
+- add API key storage in klaude-auth.json with provider selection (`291cbe42`)
+- add image_config support to Google client (`09223a97`)
+- add provider aggregation to cost command (`064047da`)
+
+### Changed
+
+- simplify commands and improve help text (`abc45f0e`)
+- merge events submodules into single events.py file (`78bee03e`)
+- stream replay via state machine (`82694424`)
+
+### Fixed
+
+- group usage stats by provider with tree structure (`7853e1af`)
+- fix partial item order (`95d919bc`)
 ## [2.5.3] - 2026-01-07
 
 ### Added
@@ -1285,7 +1304,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.5.3...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/inspirepan/klaude-code/compare/v2.5.3...v2.6.0
 [2.5.3]: https://github.com/inspirepan/klaude-code/compare/v2.5.2...v2.5.3
 [2.5.2]: https://github.com/inspirepan/klaude-code/compare/v2.5.1...v2.5.2
 [2.5.0]: https://github.com/inspirepan/klaude-code/compare/v2.4.2...v2.5.0
