@@ -13,13 +13,46 @@ from klaude_code.session import Session
 from klaude_code.tui.command.resume_cmd import select_session_sync
 from klaude_code.ui.terminal.title import update_terminal_title
 
-ENV_HELP = """\
-Environment Variables:
+ENV_HELP_LINES = [
+    "Environment Variables:",
+    "",
+    "Provider API keys (built-in config):",
+    "  ANTHROPIC_API_KEY             Anthropic API key",
+    "  OPENAI_API_KEY                OpenAI API key",
+    "  OPENROUTER_API_KEY            OpenRouter API key",
+    "  GOOGLE_API_KEY                Google API key (Gemini)",
+    "  DEEPSEEK_API_KEY              DeepSeek API key",
+    "  MOONSHOT_API_KEY              Moonshot API key (Kimi)",
+    "",
+    "AWS credentials (Bedrock):",
+    "  AWS_ACCESS_KEY_ID             AWS access key id",
+    "  AWS_SECRET_ACCESS_KEY         AWS secret access key",
+    "  AWS_REGION                    AWS region",
+    "",
+    "Tool limits (Read):",
+    "  KLAUDE_READ_GLOBAL_LINE_CAP    Max lines to read (default: 2000)",
+    "  KLAUDE_READ_MAX_CHARS          Max total chars to read (default: 50000)",
+    "  KLAUDE_READ_MAX_IMAGE_BYTES    Max image bytes to read (default: 4MB)",
+    "  KLAUDE_IMAGE_OUTPUT_MAX_BYTES  Max decoded image bytes (default: 64MB)",
+    "",
+    "Notifications / testing:",
+    "  KLAUDE_NOTIFY                 Set to 0/off/false/disable(d) to disable task notifications",
+    "  KLAUDE_TEST_SIGNAL            In tmux, emit `tmux wait-for -S <channel>` on task completion",
+    "  TMUX                          Auto-detected; required for KLAUDE_TEST_SIGNAL",
+    "",
+    "Editor / terminal integration:",
+    "  EDITOR                        Preferred editor for `klaude config`",
+    "  TERM                          Terminal identification (auto-detected)",
+    "  TERM_PROGRAM                  Terminal identification (auto-detected)",
+    "  WT_SESSION                    Terminal hint (auto-detected)",
+    "  VTE_VERSION                   Terminal hint (auto-detected)",
+    "  GHOSTTY_RESOURCES_DIR         Ghostty detection (auto-detected)",
+    "",
+    "Compatibility:",
+    "  ANTHROPIC_AUTH_TOKEN          Reserved by anthropic SDK; temporarily unset during client init",
+]
 
-  KLAUDE_READ_GLOBAL_LINE_CAP  Max lines to read (default: 2000)
-
-  KLAUDE_READ_MAX_CHARS        Max total chars to read (default: 50000)
-"""
+ENV_HELP = "\n\n".join(ENV_HELP_LINES)
 
 app = typer.Typer(
     add_completion=False,

@@ -157,7 +157,7 @@ MARKDOWN_RIGHT_MARGIN = 2  # Right margin (columns) for markdown rendering
 STATUS_HINT_TEXT = " (esc to interrupt)"  # Status hint text shown after spinner
 
 # Spinner status texts
-STATUS_WAITING_TEXT = "Connecting …"
+STATUS_WAITING_TEXT = "Loading …"
 STATUS_THINKING_TEXT = "Thinking …"
 STATUS_COMPOSING_TEXT = "Composing"
 
