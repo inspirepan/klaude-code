@@ -12,6 +12,12 @@ from klaude_code.auth.codex import (
     CodexTokenExpiredError,
     CodexTokenManager,
 )
+from klaude_code.auth.env import (
+    delete_auth_env,
+    get_auth_env,
+    list_auth_env,
+    set_auth_env,
+)
 
 __all__ = [
     "CodexAuthError",
@@ -21,4 +27,8 @@ __all__ = [
     "CodexOAuthError",
     "CodexTokenExpiredError",
     "CodexTokenManager",
+    "delete_auth_env",
+    "get_auth_env",
+    "list_auth_env",
+    "set_auth_env",
 ]

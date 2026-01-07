@@ -8,8 +8,9 @@ from typing import Any, cast
 import yaml
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
+from klaude_code.auth.env import get_auth_env
 from klaude_code.config.builtin_config import (
-    SUPPORTED_API_KEY_ENVS,
+    SUPPORTED_API_KEYS,
     get_builtin_provider_configs,
     get_builtin_sub_agent_models,
 )
@@ -26,7 +27,8 @@ def parse_env_var_syntax(value: str | None) -> tuple[str | None, str | None]:
 
     Returns:
         A tuple of (env_var_name, resolved_value).
-        - If value uses ${ENV_VAR} syntax: (env_var_name, os.environ.get(env_var_name))
+        - If value uses ${ENV_VAR} syntax: (env_var_name, resolved_value)
+          Priority: os.environ > klaude-auth.json env section
         - If value is a plain string: (None, value)
         - If value is None: (None, None)
     """
@@ -36,7 +38,9 @@ def parse_env_var_syntax(value: str | None) -> tuple[str | None, str | None]:
     match = _ENV_VAR_PATTERN.match(value)
     if match:
         env_var_name = match.group(1)
-        return env_var_name, os.environ.get(env_var_name)
+        # Priority: real env var > auth.json env section
+        resolved = os.environ.get(env_var_name) or get_auth_env(env_var_name)
+        return env_var_name, resolved
 
     return None, value
 
@@ -613,17 +617,23 @@ def load_config() -> Config:
 
 def print_no_available_models_hint() -> None:
     """Print helpful message when no models are available due to missing API keys."""
-    log("No available models. Please set one of the following environment variables:", style="yellow")
+    log("No available models. Configure an API key using one of these methods:", style="yellow")
     log("")
-    for env_var in SUPPORTED_API_KEY_ENVS:
-        current_value = os.environ.get(env_var)
+    log("Option 1: Use klaude auth login", style="bold")
+    # Use first word of name for brevity
+    names = [k.name.split()[0].lower() for k in SUPPORTED_API_KEYS]
+    log(f"  klaude auth login <provider>  (providers: {', '.join(names)})", style="dim")
+    log("")
+    log("Option 2: Set environment variables", style="bold")
+    max_len = max(len(k.env_var) for k in SUPPORTED_API_KEYS)
+    for key_info in SUPPORTED_API_KEYS:
+        current_value = os.environ.get(key_info.env_var) or get_auth_env(key_info.env_var)
         if current_value:
-            log(f"  {env_var} = (set)", style="green")
+            log(f"  {key_info.env_var:<{max_len}}  (set)", style="green")
         else:
-            log(f"  export {env_var}=<your-api-key>", style="dim")
+            log(f"  {key_info.env_var:<{max_len}}  {key_info.description}", style="dim")
     log("")
     log(f"Or add custom providers in: {config_path}", style="dim")
-    log(f"See example config: {example_config_path}", style="dim")
 
 
 # Expose cache control for tests and callers that need to invalidate the cache.

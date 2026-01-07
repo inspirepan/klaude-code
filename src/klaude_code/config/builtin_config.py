@@ -5,6 +5,7 @@ environment variables (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.) without
 manually configuring providers.
 """
 
+from dataclasses import dataclass
 from functools import lru_cache
 from importlib import resources
 from typing import TYPE_CHECKING, Any
@@ -14,15 +15,28 @@ import yaml
 if TYPE_CHECKING:
     from klaude_code.config.config import ProviderConfig
 
-# All supported API key environment variables
-SUPPORTED_API_KEY_ENVS = [
-    "ANTHROPIC_API_KEY",
-    "GOOGLE_API_KEY",
-    "OPENAI_API_KEY",
-    "OPENROUTER_API_KEY",
-    "DEEPSEEK_API_KEY",
-    "MOONSHOT_API_KEY",
-]
+
+@dataclass(frozen=True)
+class ApiKeyInfo:
+    """Information about a supported API key."""
+
+    env_var: str
+    name: str
+    description: str
+
+
+# All supported API keys with their metadata
+SUPPORTED_API_KEYS: tuple[ApiKeyInfo, ...] = (
+    ApiKeyInfo("ANTHROPIC_API_KEY", "Anthropic", "Anthropic API key"),
+    ApiKeyInfo("OPENAI_API_KEY", "OpenAI", "OpenAI API key"),
+    ApiKeyInfo("OPENROUTER_API_KEY", "OpenRouter", "OpenRouter API key"),
+    ApiKeyInfo("GOOGLE_API_KEY", "Google Gemini", "Google API key (Gemini)"),
+    ApiKeyInfo("DEEPSEEK_API_KEY", "DeepSeek", "DeepSeek API key"),
+    ApiKeyInfo("MOONSHOT_API_KEY", "Moonshot Kimi", "Moonshot API key (Kimi)"),
+)
+
+# For backwards compatibility
+SUPPORTED_API_KEY_ENVS = [k.env_var for k in SUPPORTED_API_KEYS]
 
 
 @lru_cache(maxsize=1)

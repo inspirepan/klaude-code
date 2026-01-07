@@ -11,10 +11,30 @@ from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, 
 
 def _select_provider() -> str | None:
     """Display provider selection menu and return selected provider."""
+    from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
+
     items: list[SelectItem[str]] = [
-        SelectItem(title=[("class:text", "Claude Max/Pro Subscription\n")], value="claude", search_text="claude"),
-        SelectItem(title=[("class:text", "ChatGPT Codex Subscription\n")], value="codex", search_text="codex"),
+        SelectItem(
+            title=[("", "Claude Max/Pro Subscription "), ("ansibrightblack", "[OAuth]\n")],
+            value="claude",
+            search_text="claude",
+        ),
+        SelectItem(
+            title=[("", "ChatGPT Codex Subscription "), ("ansibrightblack", "[OAuth]\n")],
+            value="codex",
+            search_text="codex",
+        ),
     ]
+    # Add API key options
+    for key_info in SUPPORTED_API_KEYS:
+        items.append(
+            SelectItem(
+                title=[("", f"{key_info.name} "), ("ansibrightblack", "[API key]\n")],
+                value=key_info.env_var,
+                search_text=key_info.env_var,
+            )
+        )
+
     return select_one(
         message="Select provider to login:",
         items=items,
@@ -24,10 +44,41 @@ def _select_provider() -> str | None:
     )
 
 
+def _configure_api_key(env_var: str) -> None:
+    """Configure a specific API key."""
+    import os
+
+    from klaude_code.auth.env import get_auth_env, set_auth_env
+
+    # Check if already configured
+    current_value = os.environ.get(env_var) or get_auth_env(env_var)
+    if current_value:
+        masked = current_value[:8] + "..." if len(current_value) > 8 else "***"
+        log(f"Current {env_var}: {masked}")
+        if not typer.confirm("Do you want to update it?"):
+            return
+
+    api_key = typer.prompt(f"Enter {env_var}", hide_input=True)
+    if not api_key.strip():
+        log(("Error: API key cannot be empty", "red"))
+        raise typer.Exit(1)
+
+    set_auth_env(env_var, api_key.strip())
+    log((f"{env_var} saved successfully!", "green"))
+
+
+def _build_provider_help() -> str:
+    from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
+
+    # Use first word of name for brevity (e.g., "google" instead of "google gemini")
+    names = ["codex", "claude"] + [k.name.split()[0].lower() for k in SUPPORTED_API_KEYS]
+    return f"Provider name ({', '.join(names)})"
+
+
 def login_command(
-    provider: str | None = typer.Argument(None, help="Provider to login (codex|claude)"),
+    provider: str | None = typer.Argument(None, help=_build_provider_help()),
 ) -> None:
-    """Login to a provider using OAuth."""
+    """Login to a provider or configure API keys."""
     if provider is None:
         provider = _select_provider()
         if provider is None:
@@ -99,8 +150,27 @@ def login_command(
                 log((f"Login failed: {e}", "red"))
                 raise typer.Exit(1) from None
         case _:
-            log((f"Error: Unknown provider '{provider}'. Supported: codex, claude", "red"))
-            raise typer.Exit(1)
+            from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
+
+            # Match by env var (e.g., OPENAI_API_KEY) or name (e.g., openai, google)
+            env_var: str | None = None
+            provider_lower = provider.lower()
+            provider_upper = provider.upper()
+            for key_info in SUPPORTED_API_KEYS:
+                name_lower = key_info.name.lower()
+                # Exact match or starts with (for "google" -> "google gemini")
+                if key_info.env_var == provider_upper or name_lower == provider_lower:
+                    env_var = key_info.env_var
+                    break
+                if name_lower.startswith(provider_lower) or provider_lower in name_lower.split():
+                    env_var = key_info.env_var
+                    break
+
+            if env_var:
+                _configure_api_key(env_var)
+            else:
+                log((f"Error: Unknown provider '{provider}'", "red"))
+                raise typer.Exit(1)
 
 
 def logout_command(
@@ -139,7 +209,14 @@ def logout_command(
 
 def register_auth_commands(app: typer.Typer) -> None:
     """Register auth commands to the given Typer app."""
-    auth_app = typer.Typer(help="Login/logout")
+    auth_app = typer.Typer(help="Login/logout", invoke_without_command=True)
+
+    @auth_app.callback()
+    def auth_callback(ctx: typer.Context) -> None:
+        """Authentication commands for managing provider logins."""
+        if ctx.invoked_subcommand is None:
+            typer.echo(ctx.get_help())
+
     auth_app.command("login")(login_command)
     auth_app.command("logout")(logout_command)
     app.add_typer(auth_app, name="auth")

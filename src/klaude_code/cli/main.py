@@ -12,25 +12,33 @@ from klaude_code.session import Session
 from klaude_code.tui.command.resume_cmd import select_session_sync
 from klaude_code.ui.terminal.title import update_terminal_title
 
-ENV_HELP_LINES = [
-    "Environment Variables:",
-    "",
-    "Provider API keys (built-in config):",
-    "  ANTHROPIC_API_KEY             Anthropic API key",
-    "  OPENAI_API_KEY                OpenAI API key",
-    "  OPENROUTER_API_KEY            OpenRouter API key",
-    "  GOOGLE_API_KEY                Google API key (Gemini)",
-    "  DEEPSEEK_API_KEY              DeepSeek API key",
-    "  MOONSHOT_API_KEY              Moonshot API key (Kimi)",
-    "",
-    "Tool limits (Read):",
-    "  KLAUDE_READ_GLOBAL_LINE_CAP    Max lines to read (default: 2000)",
-    "  KLAUDE_READ_MAX_CHARS          Max total chars to read (default: 50000)",
-    "  KLAUDE_READ_MAX_IMAGE_BYTES    Max image bytes to read (default: 4MB)",
-    "  KLAUDE_IMAGE_OUTPUT_MAX_BYTES  Max decoded image bytes (default: 64MB)",
-]
 
-ENV_HELP = "\n\n".join(ENV_HELP_LINES)
+def _build_env_help() -> str:
+    from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
+
+    lines = [
+        "Environment Variables:",
+        "",
+        "Provider API keys (built-in config):",
+    ]
+    # Calculate max env_var length for alignment
+    max_len = max(len(k.env_var) for k in SUPPORTED_API_KEYS)
+    for k in SUPPORTED_API_KEYS:
+        lines.append(f"  {k.env_var:<{max_len}}  {k.description}")
+    lines.extend(
+        [
+            "",
+            "Tool limits (Read):",
+            "  KLAUDE_READ_GLOBAL_LINE_CAP    Max lines to read (default: 2000)",
+            "  KLAUDE_READ_MAX_CHARS          Max total chars to read (default: 50000)",
+            "  KLAUDE_READ_MAX_IMAGE_BYTES    Max image bytes to read (default: 4MB)",
+            "  KLAUDE_IMAGE_OUTPUT_MAX_BYTES  Max decoded image bytes (default: 64MB)",
+        ]
+    )
+    return "\n\n".join(lines)
+
+
+ENV_HELP = _build_env_help()
 
 app = typer.Typer(
     add_completion=False,

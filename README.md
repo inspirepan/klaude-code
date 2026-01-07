@@ -100,20 +100,30 @@ klaude list
 
 Models from providers without a valid API key are shown as dimmed/unavailable.
 
-#### OAuth Login
+#### Authentication
 
-For subscription-based providers (Claude Pro/Max, ChatGPT Pro), use the auth command:
+Use the auth command to configure API keys or login to subscription-based providers:
 
 ```bash
 # Interactive provider selection
 klaude auth login
 
-# Or specify provider directly
-klaude auth login claude   # Claude Pro/Max subscription
-klaude auth login codex    # ChatGPT Pro subscription
+# Configure API keys
+klaude auth login anthropic   # Set ANTHROPIC_API_KEY
+klaude auth login openai      # Set OPENAI_API_KEY
+klaude auth login google      # Set GOOGLE_API_KEY
+klaude auth login openrouter  # Set OPENROUTER_API_KEY
+klaude auth login deepseek    # Set DEEPSEEK_API_KEY
+klaude auth login moonshot    # Set MOONSHOT_API_KEY
+
+# OAuth login for subscription-based providers
+klaude auth login claude      # Claude Pro/Max subscription
+klaude auth login codex       # ChatGPT Pro subscription
 ```
 
-To logout:
+API keys are stored in `~/.klaude/klaude-auth.json` and used as fallback when environment variables are not set.
+
+To logout from OAuth providers:
 
 ```bash
 klaude auth logout claude
