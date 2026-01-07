@@ -160,7 +160,7 @@ class ActivityState:
             if self._sub_agent_tool_calls:
                 _append_counts(self._sub_agent_tool_calls)
                 if self._tool_calls:
-                    activity_text.append(" , ")
+                    activity_text.append(", ")
 
             if self._tool_calls:
                 _append_counts(self._tool_calls)
