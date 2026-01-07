@@ -35,14 +35,14 @@ def version_command() -> None:
     _print_version()
 
 
-def update_command(
+def upgrade_command(
     check: bool = typer.Option(
         False,
         "--check",
-        help="Check for updates and exit without upgrading",
+        help="Check only, don't upgrade",
     ),
 ) -> None:
-    """Upgrade klaude-code when installed via `uv tool`."""
+    """Upgrade to latest version"""
 
     info = check_for_updates_blocking()
 
@@ -79,9 +79,9 @@ def update_command(
     log("Update complete. Please re-run `klaude` to use the new version.")
 
 
-def register_self_update_commands(app: typer.Typer) -> None:
+def register_self_upgrade_commands(app: typer.Typer) -> None:
     """Register self-update and version subcommands to the given Typer app."""
 
-    app.command("update")(update_command)
-    app.command("upgrade", help="Alias for `klaude update`.")(update_command)
-    app.command("version", help="Alias for `klaude --version`.")(version_command)
+    app.command("upgrade")(upgrade_command)
+    app.command("update", hidden=True)(upgrade_command)
+    app.command("version", hidden=True)(version_command)

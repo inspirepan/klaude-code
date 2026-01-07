@@ -30,13 +30,10 @@ To update:
 uv tool upgrade klaude-code
 ```
 
-Or use the built-in alias command:
+Or use the built-in command:
 
 ```bash
-klaude update
 klaude upgrade
-klaude --version
-
 ```
 
 ## Usage
@@ -105,22 +102,22 @@ Models from providers without a valid API key are shown as dimmed/unavailable.
 
 #### OAuth Login
 
-For subscription-based providers (Claude Pro/Max, ChatGPT Pro), use the login command:
+For subscription-based providers (Claude Pro/Max, ChatGPT Pro), use the auth command:
 
 ```bash
 # Interactive provider selection
-klaude login
+klaude auth login
 
 # Or specify provider directly
-klaude login claude   # Claude Pro/Max subscription
-klaude login codex    # ChatGPT Pro subscription
+klaude auth login claude   # Claude Pro/Max subscription
+klaude auth login codex    # ChatGPT Pro subscription
 ```
 
 To logout:
 
 ```bash
-klaude logout claude
-klaude logout codex
+klaude auth logout claude
+klaude auth logout codex
 ```
 
 #### Custom Configuration
@@ -130,7 +127,7 @@ User config file: `~/.klaude/klaude-config.yaml`
 Open in editor:
 
 ```bash
-klaude config
+klaude conf
 ```
 
 ##### Model Configuration
@@ -184,21 +181,6 @@ List configured providers and models:
 
 ```bash
 klaude list
-```
-
-### Session Management
-
-Clean up sessions with few messages:
-
-```bash
-# Remove sessions with fewer than 5 messages (default)
-klaude session clean
-
-# Remove sessions with fewer than 10 messages
-klaude session clean --min 10
-
-# Remove all sessions for the current project
-klaude session clean-all
 ```
 
 ### Cost Tracking

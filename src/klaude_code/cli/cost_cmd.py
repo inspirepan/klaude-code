@@ -352,7 +352,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
 def cost_command(
     days: int | None = typer.Option(None, "--days", "-d", help="Limit to last N days"),
 ) -> None:
-    """Display aggregated usage statistics across all sessions."""
+    """Show usage stats"""
     daily_stats = aggregate_all_sessions()
 
     if not daily_stats:

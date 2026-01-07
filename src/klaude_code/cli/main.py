@@ -7,8 +7,7 @@ from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.cost_cmd import register_cost_commands
 from klaude_code.cli.debug import DEBUG_FILTER_HELP, prepare_debug_logging
-from klaude_code.cli.self_update import register_self_update_commands, version_option_callback
-from klaude_code.cli.session_cmd import register_session_commands
+from klaude_code.cli.self_update import register_self_upgrade_commands, version_option_callback
 from klaude_code.session import Session
 from klaude_code.tui.command.resume_cmd import select_session_sync
 from klaude_code.ui.terminal.title import update_terminal_title
@@ -24,32 +23,11 @@ ENV_HELP_LINES = [
     "  DEEPSEEK_API_KEY              DeepSeek API key",
     "  MOONSHOT_API_KEY              Moonshot API key (Kimi)",
     "",
-    "AWS credentials (Bedrock):",
-    "  AWS_ACCESS_KEY_ID             AWS access key id",
-    "  AWS_SECRET_ACCESS_KEY         AWS secret access key",
-    "  AWS_REGION                    AWS region",
-    "",
     "Tool limits (Read):",
     "  KLAUDE_READ_GLOBAL_LINE_CAP    Max lines to read (default: 2000)",
     "  KLAUDE_READ_MAX_CHARS          Max total chars to read (default: 50000)",
     "  KLAUDE_READ_MAX_IMAGE_BYTES    Max image bytes to read (default: 4MB)",
     "  KLAUDE_IMAGE_OUTPUT_MAX_BYTES  Max decoded image bytes (default: 64MB)",
-    "",
-    "Notifications / testing:",
-    "  KLAUDE_NOTIFY                 Set to 0/off/false/disable(d) to disable task notifications",
-    "  KLAUDE_TEST_SIGNAL            In tmux, emit `tmux wait-for -S <channel>` on task completion",
-    "  TMUX                          Auto-detected; required for KLAUDE_TEST_SIGNAL",
-    "",
-    "Editor / terminal integration:",
-    "  EDITOR                        Preferred editor for `klaude config`",
-    "  TERM                          Terminal identification (auto-detected)",
-    "  TERM_PROGRAM                  Terminal identification (auto-detected)",
-    "  WT_SESSION                    Terminal hint (auto-detected)",
-    "  VTE_VERSION                   Terminal hint (auto-detected)",
-    "  GHOSTTY_RESOURCES_DIR         Ghostty detection (auto-detected)",
-    "",
-    "Compatibility:",
-    "  ANTHROPIC_AUTH_TOKEN          Reserved by anthropic SDK; temporarily unset during client init",
 ]
 
 ENV_HELP = "\n\n".join(ENV_HELP_LINES)
@@ -60,55 +38,51 @@ app = typer.Typer(
     no_args_is_help=False,
     rich_markup_mode="rich",
     epilog=ENV_HELP,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 
 # Register subcommands from modules
-register_session_commands(app)
 register_auth_commands(app)
 register_config_commands(app)
 register_cost_commands(app)
+register_self_upgrade_commands(app)
 
-register_self_update_commands(app)
+
+@app.command("help", hidden=True)
+def help_command(ctx: typer.Context) -> None:
+    """Show help message."""
+    print(ctx.parent.get_help() if ctx.parent else ctx.get_help())
 
 
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,
-    version: bool = typer.Option(
-        False,
-        "--version",
-        "-V",
-        "-v",
-        help="Show version and exit",
-        callback=version_option_callback,
-        is_eager=True,
-    ),
     model: str | None = typer.Option(
         None,
         "--model",
         "-m",
-        help="Override model config name (uses main model by default)",
+        help="Select model by name",
         rich_help_panel="LLM",
     ),
-    continue_: bool = typer.Option(False, "--continue", "-c", help="Continue from latest session"),
-    resume: bool = typer.Option(False, "--resume", "-r", help="Select a session to resume for this project"),
+    continue_: bool = typer.Option(False, "--continue", "-c", help="Resume latest session"),
+    resume: bool = typer.Option(False, "--resume", "-r", help="Pick a session to resume"),
     resume_by_id: str | None = typer.Option(
         None,
         "--resume-by-id",
-        help="Resume a session by its ID (must exist)",
+        help="Resume session by ID",
     ),
     select_model: bool = typer.Option(
         False,
         "--select-model",
         "-s",
-        help="Interactively choose a model at startup",
+        help="Choose model interactively",
         rich_help_panel="LLM",
     ),
     debug: bool = typer.Option(
         False,
         "--debug",
         "-d",
-        help="Enable debug mode",
+        help="Enable debug logging",
         rich_help_panel="Debug",
     ),
     debug_filter: str | None = typer.Option(
@@ -120,13 +94,22 @@ def main_callback(
     vanilla: bool = typer.Option(
         False,
         "--vanilla",
-        help="Vanilla mode exposes the model's raw API behavior: it provides only minimal tools (Bash, Read, Write & Edit) and omits system prompts and reminders.",
+        help="Minimal mode: basic tools only, no system prompts",
     ),
     banana: bool = typer.Option(
         False,
         "--banana",
-        help="Image generation mode with Nano Banana",
+        help="Image generation mode",
         rich_help_panel="LLM",
+    ),
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-V",
+        "-v",
+        help="Show version and exit",
+        callback=version_option_callback,
+        is_eager=True,
     ),
 ) -> None:
     # Only run interactive mode when no subcommand is invoked

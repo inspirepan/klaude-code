@@ -30,13 +30,12 @@ def _render_task_metadata_block(
     currency = metadata.usage.currency if metadata.usage else "USD"
     currency_symbol = "¥" if currency == "CNY" else "$"
 
-    # Second column: model@provider description / tokens / cost / …
+    # Second column: provider/model description / tokens / cost / …
     content = Text()
-    content.append_text(Text(metadata.model_name, style=ThemeKey.METADATA_BOLD))
     if metadata.provider is not None:
-        content.append_text(Text("@", style=ThemeKey.METADATA)).append_text(
-            Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA)
-        )
+        content.append_text(Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA))
+        content.append_text(Text("/", style=ThemeKey.METADATA_DIM))
+    content.append_text(Text(metadata.model_name, style=ThemeKey.METADATA_BOLD))
     if metadata.description:
         content.append_text(Text(" ", style=ThemeKey.METADATA)).append_text(
             Text(metadata.description, style=ThemeKey.METADATA_ITALIC)

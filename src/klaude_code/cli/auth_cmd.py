@@ -139,5 +139,7 @@ def logout_command(
 
 def register_auth_commands(app: typer.Typer) -> None:
     """Register auth commands to the given Typer app."""
-    app.command("login")(login_command)
-    app.command("logout")(logout_command)
+    auth_app = typer.Typer(help="Login/logout")
+    auth_app.command("login")(login_command)
+    auth_app.command("logout")(logout_command)
+    app.add_typer(auth_app, name="auth")
