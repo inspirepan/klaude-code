@@ -1,5 +1,4 @@
 from rich.console import Group, RenderableType
-from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code.const import DEFAULT_MAX_TOKENS
@@ -12,14 +11,14 @@ from klaude_code.ui.common import format_number
 def _render_task_metadata_block(
     metadata: model.TaskMetadata,
     *,
-    is_sub_agent: bool = False,
+    mark: Text,
     show_context_and_time: bool = True,
 ) -> RenderableType:
     """Render a single TaskMetadata block.
 
     Args:
         metadata: The TaskMetadata to render.
-        is_sub_agent: Whether this is a sub-agent block.
+        mark: The mark to display in the first column.
         show_context_and_time: Whether to show context usage percent and time.
 
     Returns:
@@ -31,9 +30,6 @@ def _render_task_metadata_block(
     currency = metadata.usage.currency if metadata.usage else "USD"
     currency_symbol = "¥" if currency == "CNY" else "$"
 
-    # First column: mark only
-    mark = Text("└", style=ThemeKey.METADATA_DIM) if is_sub_agent else Text("✓", style=ThemeKey.METADATA)
-
     # Second column: model@provider description / tokens / cost / …
     content = Text()
     content.append_text(Text(metadata.model_name, style=ThemeKey.METADATA_BOLD))
@@ -43,7 +39,7 @@ def _render_task_metadata_block(
         )
     if metadata.description:
         content.append_text(Text(" ", style=ThemeKey.METADATA)).append_text(
-            Text(metadata.description, style=ThemeKey.METADATA_DIM)
+            Text(metadata.description, style=ThemeKey.METADATA_ITALIC)
         )
 
     # All info parts (tokens, cost, context, etc.)
@@ -134,7 +130,7 @@ def _render_task_metadata_block(
         content.append_text(Text(" ", style=ThemeKey.METADATA_DIM).join(parts))
 
     grid.add_row(mark, content)
-    return grid if not is_sub_agent else Padding(grid, (0, 0, 0, 2))
+    return grid
 
 
 def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
@@ -144,16 +140,20 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     if e.cancelled:
         renderables.append(Text())
 
-    renderables.append(
-        _render_task_metadata_block(e.metadata.main_agent, is_sub_agent=False, show_context_and_time=True)
-    )
+    has_sub_agents = len(e.metadata.sub_agent_task_metadata) > 0
+    # Use an extra space for the main agent mark to align with two-character marks (├─, └─)
+    main_mark_text = "✓"
+    main_mark = Text(main_mark_text, style=ThemeKey.METADATA)
+
+    renderables.append(_render_task_metadata_block(e.metadata.main_agent, mark=main_mark, show_context_and_time=True))
 
     # Render each sub-agent metadata block
     for meta in e.metadata.sub_agent_task_metadata:
-        renderables.append(_render_task_metadata_block(meta, is_sub_agent=True, show_context_and_time=True))
+        sub_mark = Text("  └", style=ThemeKey.METADATA_DIM)
+        renderables.append(_render_task_metadata_block(meta, mark=sub_mark, show_context_and_time=True))
 
     # Add total cost line when there are sub-agents
-    if e.metadata.sub_agent_task_metadata:
+    if has_sub_agents:
         total_cost = 0.0
         currency = "USD"
         # Sum up costs from main agent and all sub-agents
@@ -166,12 +166,13 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
 
         currency_symbol = "¥" if currency == "CNY" else "$"
         total_line = Text.assemble(
-            ("Σ ", ThemeKey.METADATA_DIM),
+            ("  └", ThemeKey.METADATA_DIM),
+            (" Σ ", ThemeKey.METADATA_DIM),
             ("total ", ThemeKey.METADATA_DIM),
             (currency_symbol, ThemeKey.METADATA_DIM),
             (f"{total_cost:.4f}", ThemeKey.METADATA_DIM),
         )
 
-        renderables.append(Padding(total_line, (0, 0, 0, 2)))
+        renderables.append(total_line)
 
     return Group(*renderables)

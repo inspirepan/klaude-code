@@ -133,6 +133,7 @@ class ThemeKey(str, Enum):
     METADATA = "metadata"
     METADATA_DIM = "metadata.dim"
     METADATA_BOLD = "metadata.bold"
+    METADATA_ITALIC = "metadata.italic"
     # SPINNER_STATUS
     STATUS_SPINNER = "spinner.status"
     STATUS_TEXT = "spinner.status.text"
@@ -259,6 +260,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.METADATA.value: palette.lavender,
                 ThemeKey.METADATA_DIM.value: "dim " + palette.lavender,
                 ThemeKey.METADATA_BOLD.value: "bold " + palette.lavender,
+                ThemeKey.METADATA_ITALIC.value: "italic " + palette.lavender,
                 # STATUS
                 ThemeKey.STATUS_SPINNER.value: palette.blue,
                 ThemeKey.STATUS_TEXT.value: palette.blue,
