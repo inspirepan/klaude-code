@@ -304,24 +304,57 @@ class Session(BaseModel):
                 yield events.TurnStartEvent(session_id=self.id)
             match it:
                 case message.AssistantMessage() as am:
-                    content = message.join_text_parts(am.parts)
-                    images = [part for part in am.parts if isinstance(part, message.ImageFilePart)]
-                    last_assistant_content = message.format_saved_images(images, content)
-                    thinking_text = "".join(
-                        part.text for part in am.parts if isinstance(part, message.ThinkingTextPart)
-                    )
-                    for image in images:
-                        yield events.AssistantImageDeltaEvent(
-                            file_path=image.file_path,
-                            response_id=am.response_id,
-                            session_id=self.id,
-                        )
-                    yield events.ResponseCompleteEvent(
-                        thinking_text=thinking_text or None,
-                        content=content,
-                        response_id=am.response_id,
-                        session_id=self.id,
-                    )
+                    all_images = [part for part in am.parts if isinstance(part, message.ImageFilePart)]
+                    full_content = message.join_text_parts(am.parts)
+                    last_assistant_content = message.format_saved_images(all_images, full_content)
+
+                    # Reconstruct streaming boundaries from saved parts.
+                    # This allows replay to reuse the same TUI state machine as live events.
+                    thinking_open = False
+                    assistant_open = False
+
+                    for part in am.parts:
+                        if isinstance(part, message.ThinkingTextPart):
+                            if assistant_open:
+                                assistant_open = False
+                                yield events.AssistantTextEndEvent(response_id=am.response_id, session_id=self.id)
+                            if not thinking_open:
+                                thinking_open = True
+                                yield events.ThinkingStartEvent(response_id=am.response_id, session_id=self.id)
+                            if part.text:
+                                yield events.ThinkingDeltaEvent(
+                                    content=part.text,
+                                    response_id=am.response_id,
+                                    session_id=self.id,
+                                )
+                            continue
+
+                        if thinking_open:
+                            thinking_open = False
+                            yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id)
+
+                        if isinstance(part, message.TextPart):
+                            if not assistant_open:
+                                assistant_open = True
+                                yield events.AssistantTextStartEvent(response_id=am.response_id, session_id=self.id)
+                            if part.text:
+                                yield events.AssistantTextDeltaEvent(
+                                    content=part.text,
+                                    response_id=am.response_id,
+                                    session_id=self.id,
+                                )
+                        elif isinstance(part, message.ImageFilePart):
+                            yield events.AssistantImageDeltaEvent(
+                                file_path=part.file_path,
+                                response_id=am.response_id,
+                                session_id=self.id,
+                            )
+
+                    if thinking_open:
+                        yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id)
+                    if assistant_open:
+                        yield events.AssistantTextEndEvent(response_id=am.response_id, session_id=self.id)
+
                     for part in am.parts:
                         if not isinstance(part, message.ToolCallPart):
                             continue

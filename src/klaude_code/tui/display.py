@@ -30,8 +30,18 @@ class TUIDisplay(DisplayABC):
 
     @override
     async def consume_event(self, event: events.Event) -> None:
+        if isinstance(event, events.ReplayHistoryEvent):
+            await self._renderer.execute(self._machine.begin_replay())
+            for item in event.events:
+                commands = self._machine.transition_replay(item)
+                if commands:
+                    await self._renderer.execute(commands)
+            await self._renderer.execute(self._machine.end_replay())
+            return
+
         commands = self._machine.transition(event)
-        await self._renderer.execute(commands)
+        if commands:
+            await self._renderer.execute(commands)
 
     @override
     async def start(self) -> None:

@@ -6,7 +6,15 @@ from klaude_code.protocol import llm_param
 from klaude_code.protocol.events.chat import DeveloperMessageEvent, UserMessageEvent
 from klaude_code.protocol.events.lifecycle import TaskFinishEvent, TaskStartEvent, TurnStartEvent
 from klaude_code.protocol.events.metadata import TaskMetadataEvent
-from klaude_code.protocol.events.streaming import AssistantImageDeltaEvent, ResponseCompleteEvent
+from klaude_code.protocol.events.streaming import (
+    AssistantImageDeltaEvent,
+    AssistantTextDeltaEvent,
+    AssistantTextEndEvent,
+    AssistantTextStartEvent,
+    ThinkingDeltaEvent,
+    ThinkingEndEvent,
+    ThinkingStartEvent,
+)
 from klaude_code.protocol.events.tools import ToolCallEvent, ToolResultEvent
 
 from .base import Event
@@ -38,8 +46,13 @@ type ReplayEventUnion = (
     TaskStartEvent
     | TaskFinishEvent
     | TurnStartEvent
+    | ThinkingStartEvent
+    | ThinkingDeltaEvent
+    | ThinkingEndEvent
+    | AssistantTextStartEvent
+    | AssistantTextDeltaEvent
+    | AssistantTextEndEvent
     | AssistantImageDeltaEvent
-    | ResponseCompleteEvent
     | ToolCallEvent
     | ToolResultEvent
     | UserMessageEvent

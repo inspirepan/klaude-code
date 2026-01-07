@@ -14,11 +14,6 @@ class RenderCommand:
 
 
 @dataclass(frozen=True, slots=True)
-class RenderReplayHistory(RenderCommand):
-    event: events.ReplayHistoryEvent
-
-
-@dataclass(frozen=True, slots=True)
 class RenderWelcome(RenderCommand):
     event: events.WelcomeEvent
 

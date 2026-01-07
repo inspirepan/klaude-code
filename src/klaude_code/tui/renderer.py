@@ -35,7 +35,6 @@ from klaude_code.tui.commands import (
     RenderDeveloperMessage,
     RenderError,
     RenderInterrupt,
-    RenderReplayHistory,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
@@ -437,66 +436,9 @@ class TUICommandRenderer:
             Text.assemble(
                 (c_thinking.THINKING_MESSAGE_MARK, ThemeKey.THINKING),
                 " ",
-                (stripped, ThemeKey.THINKING_BOLD),
+                (stripped, ThemeKey.THINKING),
             )
         )
-
-    async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
-        tool_call_dict: dict[str, events.ToolCallEvent] = {}
-        self.print()
-        for event in history_events.events:
-            event_session_id = getattr(event, "session_id", history_events.session_id)
-            is_sub_agent = self.is_sub_agent_session(event_session_id)
-
-            with self.session_print_context(event_session_id):
-                match event:
-                    case events.TaskStartEvent() as e:
-                        self.display_task_start(e)
-                    case events.TurnStartEvent():
-                        self.print()
-                    case events.AssistantImageDeltaEvent() as e:
-                        self.display_image(e.file_path)
-                    case events.ResponseCompleteEvent() as e:
-                        if is_sub_agent:
-                            if self._should_display_sub_agent_thinking_header(event_session_id) and e.thinking_text:
-                                header = c_thinking.extract_last_bold_header(
-                                    c_thinking.normalize_thinking_content(e.thinking_text)
-                                )
-                                if header:
-                                    self.display_thinking_header(header)
-                            continue
-                        if e.thinking_text:
-                            self.display_thinking(e.thinking_text)
-                        renderable = c_assistant.render_assistant_message(e.content, code_theme=self.themes.code_theme)
-                        if renderable is not None:
-                            self.print(renderable)
-                            self.print()
-                    case events.DeveloperMessageEvent() as e:
-                        self.display_developer_message(e)
-                    case events.UserMessageEvent() as e:
-                        if is_sub_agent:
-                            continue
-                        self.print(c_user_input.render_user_input(e.content))
-                    case events.ToolCallEvent() as e:
-                        tool_call_dict[e.tool_call_id] = e
-                    case events.ToolResultEvent() as e:
-                        tool_call_event = tool_call_dict.get(e.tool_call_id)
-                        if tool_call_event is not None:
-                            self.display_tool_call(tool_call_event)
-                        tool_call_dict.pop(e.tool_call_id, None)
-                        if is_sub_agent:
-                            continue
-                        self.display_tool_call_result(e)
-                    case events.TaskMetadataEvent() as e:
-                        self.print(c_metadata.render_task_metadata(e))
-                        self.print()
-                    case events.InterruptEvent():
-                        self.print()
-                        self.print(c_user_input.render_interrupt())
-                    case events.ErrorEvent() as e:
-                        self.display_error(e)
-                    case events.TaskFinishEvent() as e:
-                        self.display_task_finish(e)
 
     def display_developer_message(self, e: events.DeveloperMessageEvent) -> None:
         if not c_developer.need_render_developer_message(e):
@@ -615,9 +557,6 @@ class TUICommandRenderer:
     async def execute(self, commands: list[RenderCommand]) -> None:
         for cmd in commands:
             match cmd:
-                case RenderReplayHistory(event=event):
-                    await self.replay_history(event)
-                    self.spinner_stop()
                 case RenderWelcome(event=event):
                     self.display_welcome(event)
                 case RenderUserMessage(event=event):

@@ -19,6 +19,7 @@ from klaude_code.tui.commands import (
     EmitTmuxSignal,
     EndAssistantStream,
     EndThinkingStream,
+    PrintBlankLine,
     PrintRuleLine,
     RenderAssistantImage,
     RenderCommand,
@@ -26,7 +27,6 @@ from klaude_code.tui.commands import (
     RenderDeveloperMessage,
     RenderError,
     RenderInterrupt,
-    RenderReplayHistory,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
@@ -382,16 +382,25 @@ class DisplayStateMachine:
         self._spinner.set_toast_status(None)
         return self._spinner_update_commands()
 
+    def begin_replay(self) -> list[RenderCommand]:
+        self._spinner.reset()
+        return [SpinnerStop(), PrintBlankLine()]
+
+    def end_replay(self) -> list[RenderCommand]:
+        return [SpinnerStop()]
+
+    def transition_replay(self, event: events.Event) -> list[RenderCommand]:
+        return self._transition(event, is_replay=True)
+
     def transition(self, event: events.Event) -> list[RenderCommand]:
+        return self._transition(event, is_replay=False)
+
+    def _transition(self, event: events.Event, *, is_replay: bool) -> list[RenderCommand]:
         session_id = getattr(event, "session_id", "__app__")
         s = self._session(session_id)
         cmds: list[RenderCommand] = []
 
         match event:
-            case events.ReplayHistoryEvent() as e:
-                cmds.append(RenderReplayHistory(e))
-                cmds.append(SpinnerStop())
-                return cmds
 
             case events.WelcomeEvent() as e:
                 cmds.append(RenderWelcome(e))
@@ -408,13 +417,16 @@ class DisplayStateMachine:
                 s.model_id = e.model_id
                 if not s.is_sub_agent:
                     self._set_primary_if_needed(e.session_id)
-                    cmds.append(TaskClockStart())
+                    if not is_replay:
+                        cmds.append(TaskClockStart())
                 else:
                     s.sub_agent_thinking_header = SubAgentThinkingHeaderState()
 
-                cmds.append(SpinnerStart())
+                if not is_replay:
+                    cmds.append(SpinnerStart())
                 cmds.append(RenderTaskStart(e))
-                cmds.extend(self._spinner_update_commands())
+                if not is_replay:
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.DeveloperMessageEvent() as e:
@@ -427,9 +439,10 @@ class DisplayStateMachine:
 
             case events.TurnStartEvent() as e:
                 cmds.append(RenderTurnStart(e))
-                self._spinner.clear_for_new_turn()
-                self._spinner.set_reasoning_status(None)
-                cmds.extend(self._spinner_update_commands())
+                if not is_replay:
+                    self._spinner.clear_for_new_turn()
+                    self._spinner.set_reasoning_status(None)
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.ThinkingStartEvent() as e:
@@ -441,9 +454,11 @@ class DisplayStateMachine:
                 s.thinking_tail = ""
                 # Ensure the status reflects that reasoning has started even
                 # before we receive any deltas (or a bold header).
-                self._spinner.set_reasoning_status(STATUS_THINKING_TEXT)
+                if not is_replay:
+                    self._spinner.set_reasoning_status(STATUS_THINKING_TEXT)
                 cmds.append(StartThinkingStream(session_id=e.session_id))
-                cmds.extend(self._spinner_update_commands())
+                if not is_replay:
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.ThinkingDeltaEvent() as e:
@@ -463,7 +478,7 @@ class DisplayStateMachine:
 
                 # Update reasoning status for spinner (based on bounded tail).
                 # Only extract headers for models that use markdown bold headers in thinking.
-                if s.should_extract_reasoning_header:
+                if not is_replay and s.should_extract_reasoning_header:
                     s.thinking_tail = (s.thinking_tail + e.content)[-8192:]
                     header = extract_last_bold_header(normalize_thinking_content(s.thinking_tail))
                     if header:
@@ -478,26 +493,31 @@ class DisplayStateMachine:
                 if not self._is_primary(e.session_id):
                     return []
                 s.thinking_stream_active = False
-                self._spinner.clear_default_reasoning_status()
+                if not is_replay:
+                    self._spinner.clear_default_reasoning_status()
                 cmds.append(EndThinkingStream(session_id=e.session_id))
-                cmds.append(SpinnerStart())
-                cmds.extend(self._spinner_update_commands())
+                if not is_replay:
+                    cmds.append(SpinnerStart())
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.AssistantTextStartEvent() as e:
                 if s.is_sub_agent:
-                    self._spinner.set_composing(True)
-                    cmds.extend(self._spinner_update_commands())
+                    if not is_replay:
+                        self._spinner.set_composing(True)
+                        cmds.extend(self._spinner_update_commands())
                     return cmds
                 if not self._is_primary(e.session_id):
                     return []
 
                 s.assistant_stream_active = True
                 s.assistant_char_count = 0
-                self._spinner.set_composing(True)
-                self._spinner.clear_tool_calls()
+                if not is_replay:
+                    self._spinner.set_composing(True)
+                    self._spinner.clear_tool_calls()
                 cmds.append(StartAssistantStream(session_id=e.session_id))
-                cmds.extend(self._spinner_update_commands())
+                if not is_replay:
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.AssistantTextDeltaEvent() as e:
@@ -507,24 +527,29 @@ class DisplayStateMachine:
                     return []
 
                 s.assistant_char_count += len(e.content)
-                self._spinner.set_buffer_length(s.assistant_char_count)
+                if not is_replay:
+                    self._spinner.set_buffer_length(s.assistant_char_count)
                 cmds.append(AppendAssistant(session_id=e.session_id, content=e.content))
-                cmds.extend(self._spinner_update_commands())
+                if not is_replay:
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.AssistantTextEndEvent() as e:
                 if s.is_sub_agent:
-                    self._spinner.set_composing(False)
-                    cmds.extend(self._spinner_update_commands())
+                    if not is_replay:
+                        self._spinner.set_composing(False)
+                        cmds.extend(self._spinner_update_commands())
                     return cmds
                 if not self._is_primary(e.session_id):
                     return []
 
                 s.assistant_stream_active = False
-                self._spinner.set_composing(False)
+                if not is_replay:
+                    self._spinner.set_composing(False)
                 cmds.append(EndAssistantStream(session_id=e.session_id))
-                cmds.append(SpinnerStart())
-                cmds.extend(self._spinner_update_commands())
+                if not is_replay:
+                    cmds.append(SpinnerStart())
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.AssistantImageDeltaEvent() as e:
@@ -536,9 +561,10 @@ class DisplayStateMachine:
                     return []
                 if not self._is_primary(e.session_id):
                     return []
-                self._spinner.set_composing(False)
-                cmds.append(SpinnerStart())
-                cmds.extend(self._spinner_update_commands())
+                if not is_replay:
+                    self._spinner.set_composing(False)
+                    cmds.append(SpinnerStart())
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.ToolCallStartEvent() as e:
@@ -553,18 +579,20 @@ class DisplayStateMachine:
                         primary.thinking_stream_active = False
                         cmds.append(EndThinkingStream(session_id=primary.session_id))
 
-                self._spinner.set_composing(False)
+                if not is_replay:
+                    self._spinner.set_composing(False)
 
                 # Skip activity state for fast tools on non-streaming models (e.g., Gemini)
                 # to avoid flash-and-disappear effect
-                if not s.should_skip_tool_activity(e.tool_name):
+                if not is_replay and not s.should_skip_tool_activity(e.tool_name):
                     tool_active_form = get_tool_active_form(e.tool_name)
                     if is_sub_agent_tool(e.tool_name):
                         self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
                     else:
                         self._spinner.add_tool_call(tool_active_form)
 
-                cmds.extend(self._spinner_update_commands())
+                if not is_replay:
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.ToolCallEvent() as e:
@@ -583,7 +611,7 @@ class DisplayStateMachine:
                 return cmds
 
             case events.ToolResultEvent() as e:
-                if is_sub_agent_tool(e.tool_name):
+                if not is_replay and is_sub_agent_tool(e.tool_name):
                     self._spinner.finish_sub_agent_tool_call(e.tool_call_id, get_tool_active_form(e.tool_name))
                     cmds.extend(self._spinner_update_commands())
 
@@ -601,9 +629,10 @@ class DisplayStateMachine:
 
             case events.TodoChangeEvent() as e:
                 todo_text = _extract_active_form_text(e)
-                self._spinner.set_todo_status(todo_text)
-                self._spinner.clear_for_new_turn()
-                cmds.extend(self._spinner_update_commands())
+                if not is_replay:
+                    self._spinner.set_todo_status(todo_text)
+                    self._spinner.clear_for_new_turn()
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.UsageEvent() as e:
@@ -613,7 +642,7 @@ class DisplayStateMachine:
                 if not self._is_primary(e.session_id):
                     return []
                 context_percent = e.usage.context_usage_percent
-                if context_percent is not None:
+                if not is_replay and context_percent is not None:
                     self._spinner.set_context_percent(context_percent)
                     cmds.extend(self._spinner_update_commands())
                 return cmds
@@ -624,37 +653,43 @@ class DisplayStateMachine:
             case events.TaskFinishEvent() as e:
                 cmds.append(RenderTaskFinish(e))
                 if not s.is_sub_agent:
-                    cmds.append(TaskClockClear())
-                    self._spinner.reset()
-                    cmds.append(SpinnerStop())
-                    cmds.append(PrintRuleLine())
-                    cmds.append(EmitTmuxSignal())
+                    if not is_replay:
+                        cmds.append(TaskClockClear())
+                        self._spinner.reset()
+                        cmds.append(SpinnerStop())
+                        cmds.append(PrintRuleLine())
+                        cmds.append(EmitTmuxSignal())
                 else:
                     s.sub_agent_thinking_header = None
                 return cmds
 
             case events.InterruptEvent() as e:
-                self._spinner.reset()
-                cmds.append(SpinnerStop())
+                if not is_replay:
+                    self._spinner.reset()
+                    cmds.append(SpinnerStop())
                 cmds.append(EndThinkingStream(session_id=e.session_id))
                 cmds.append(EndAssistantStream(session_id=e.session_id))
-                cmds.append(TaskClockClear())
+                if not is_replay:
+                    cmds.append(TaskClockClear())
                 cmds.append(RenderInterrupt(session_id=e.session_id))
                 return cmds
 
             case events.ErrorEvent() as e:
-                cmds.append(EmitOsc94Error())
+                if not is_replay:
+                    cmds.append(EmitOsc94Error())
                 cmds.append(RenderError(e))
-                if not e.can_retry:
+                if not is_replay and not e.can_retry:
                     self._spinner.reset()
                     cmds.append(SpinnerStop())
-                cmds.extend(self._spinner_update_commands())
+                if not is_replay:
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.EndEvent():
-                self._spinner.reset()
-                cmds.append(SpinnerStop())
-                cmds.append(TaskClockClear())
+                if not is_replay:
+                    self._spinner.reset()
+                    cmds.append(SpinnerStop())
+                    cmds.append(TaskClockClear())
                 return cmds
 
             case _:
