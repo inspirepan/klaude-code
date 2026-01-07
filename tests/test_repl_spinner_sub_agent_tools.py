@@ -37,3 +37,21 @@ def test_sub_agent_tool_calls_decrement_by_tool_call_id() -> None:
     assert activity is not None
     assert "Exploring" in activity.plain
     assert "x 2" not in activity.plain
+
+
+def test_todo_status_takes_priority_over_default_thinking() -> None:
+    state = SpinnerStatusState()
+    state.set_todo_status("Write tests")
+    state.set_reasoning_status("Thinking …")
+
+    status = state.get_status()
+    assert status.plain == "Write tests"
+
+
+def test_custom_reasoning_is_shown_as_activity_when_todo_present() -> None:
+    state = SpinnerStatusState()
+    state.set_todo_status("Implement feature")
+    state.set_reasoning_status("Plan")
+
+    status = state.get_status()
+    assert status.plain == "Implement feature | Plan"

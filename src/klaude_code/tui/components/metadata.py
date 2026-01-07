@@ -32,7 +32,7 @@ def _render_task_metadata_block(
     currency_symbol = "¥" if currency == "CNY" else "$"
 
     # First column: mark only
-    mark = Text("└", style=ThemeKey.METADATA_DIM) if is_sub_agent else Text("◆", style=ThemeKey.METADATA)
+    mark = Text("└", style=ThemeKey.METADATA_DIM) if is_sub_agent else Text("✓", style=ThemeKey.METADATA)
 
     # Second column: model@provider description / tokens / cost / …
     content = Text()
@@ -63,7 +63,7 @@ def _render_task_metadata_block(
             token_text.append(" ∿", style=ThemeKey.METADATA_DIM)
             token_text.append(format_number(metadata.usage.reasoning_tokens), style=ThemeKey.METADATA)
         if metadata.usage.image_tokens > 0:
-            token_text.append(" ⌗ ", style=ThemeKey.METADATA_DIM)
+            token_text.append(" ⊡", style=ThemeKey.METADATA_DIM)
             token_text.append(format_number(metadata.usage.image_tokens), style=ThemeKey.METADATA)
         parts.append(token_text)
 

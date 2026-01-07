@@ -243,7 +243,24 @@ class SpinnerStatusState:
             return Text(self._toast_status, style=ThemeKey.STATUS_TOAST)
 
         activity_text = self._activity.get_activity_text()
-        base_status = self._reasoning_status or self._todo_status
+        todo_status = self._todo_status
+        reasoning_status = self._reasoning_status
+
+        if todo_status is not None:
+            base_status = todo_status
+            extra_reasoning = None if reasoning_status in (None, STATUS_THINKING_TEXT) else reasoning_status
+        else:
+            base_status = reasoning_status
+            extra_reasoning = None
+
+        if extra_reasoning is not None:
+            if activity_text is None:
+                activity_text = Text(extra_reasoning, style=ThemeKey.STATUS_TEXT_BOLD_ITALIC)
+            else:
+                prefixed = Text(extra_reasoning, style=ThemeKey.STATUS_TEXT_BOLD_ITALIC)
+                prefixed.append(" , ")
+                prefixed.append_text(activity_text)
+                activity_text = prefixed
 
         if base_status:
             # Default "Thinking ..." uses normal style; custom headers use bold italic
@@ -306,6 +323,7 @@ class _SessionState:
     @property
     def should_extract_reasoning_header(self) -> bool:
         """Gemini and GPT-5 models use markdown bold headers in thinking."""
+        return False  # Temporarily disabled for all models
         if self.model_id is None:
             return False
         model_lower = self.model_id.lower()
