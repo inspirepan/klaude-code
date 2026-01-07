@@ -313,11 +313,13 @@ class _AtFilesCompleter(Completer):
             if not suggestions:
                 return []  # type: ignore[reportUnknownVariableType]
             start_position = token_start_in_input - len(text_before)
-            for s in suggestions[: self._max_results]:
+            suggestions_to_show = suggestions[: self._max_results]
+            align_width = self._display_align_width(suggestions_to_show)
+            for s in suggestions_to_show:
                 yield Completion(
                     text=self._format_completion_text(s, is_quoted=is_quoted),
                     start_position=start_position,
-                    display=self._format_display_label(s, 0),
+                    display=self._format_display_label(s, align_width),
                     display_meta=s,
                 )
             return []  # type: ignore[reportUnknownVariableType]
@@ -329,12 +331,14 @@ class _AtFilesCompleter(Completer):
 
         # Prepare Completion objects. Replace from the '@' character.
         start_position = token_start_in_input - len(text_before)  # negative
-        for s in suggestions[: self._max_results]:
+        suggestions_to_show = suggestions[: self._max_results]
+        align_width = self._display_align_width(suggestions_to_show)
+        for s in suggestions_to_show:
             # Insert formatted text (with quoting when needed) so that subsequent typing does not keep triggering
             yield Completion(
                 text=self._format_completion_text(s, is_quoted=is_quoted),
                 start_position=start_position,
-                display=self._format_display_label(s, 0),
+                display=self._format_display_label(s, align_width),
                 display_meta=s,
             )
 
@@ -543,9 +547,9 @@ class _AtFilesCompleter(Completer):
         Keep this unstyled so that the completion menu's selection style can
         fully override the selected row.
         """
-
-        _ = align_width
-        return self._display_name(suggestion)
+        name = self._display_name(suggestion)
+        # Pad to align_width + extra padding for visual separation from meta
+        return name.ljust(align_width + 6)
 
     def _display_align_width(self, suggestions: list[str]) -> int:
         """Calculate alignment width for display labels."""

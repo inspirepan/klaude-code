@@ -81,7 +81,7 @@ def test_at_files_completer_preserves_dotfile_prefix(monkeypatch: pytest.MonkeyP
 
 
 def test_at_files_completer_formats_display_labels() -> None:
-    """Display labels show basename (with trailing slash for directories)."""
+    """Display labels show basename (with trailing slash for directories), padded for alignment."""
 
     completer = _AtFilesCompleter()  # pyright: ignore[reportPrivateUsage]
 
@@ -91,12 +91,18 @@ def test_at_files_completer_formats_display_labels() -> None:
         "pyproject.toml",
     ]
 
+    # Calculate align_width as the completer does
+    align_width = completer._display_align_width(suggestions)  # pyright: ignore[reportPrivateUsage]
+
     labels = [
-        completer._format_display_label(suggestion, 0)  # pyright: ignore[reportPrivateUsage]
+        completer._format_display_label(suggestion, align_width)  # pyright: ignore[reportPrivateUsage]
         for suggestion in suggestions
     ]
 
-    # Labels show only the basename (with trailing slash for directories)
-    assert labels[0] == "completers.py"
-    assert labels[1] == "docs/"
-    assert labels[2] == "pyproject.toml"
+    # Labels show basename (with trailing slash for directories), stripped of padding
+    assert labels[0].strip() == "completers.py"
+    assert labels[1].strip() == "docs/"
+    assert labels[2].strip() == "pyproject.toml"
+
+    # All labels should have the same length (aligned)
+    assert len(labels[0]) == len(labels[1]) == len(labels[2])
