@@ -401,7 +401,6 @@ class DisplayStateMachine:
         cmds: list[RenderCommand] = []
 
         match event:
-
             case events.WelcomeEvent() as e:
                 cmds.append(RenderWelcome(e))
                 return cmds

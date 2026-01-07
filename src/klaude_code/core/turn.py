@@ -185,6 +185,7 @@ class TurnExecutor:
 
         if self._turn_result.stream_error is not None:
             # Save accumulated content for potential prefill on retry (only for supported protocols)
+            session_ctx.append_history([self._turn_result.stream_error])
             protocol = ctx.llm_client.get_llm_config().protocol
             supports_prefill = protocol.value in _PREFILL_SUPPORTED_PROTOCOLS
             if (
@@ -196,7 +197,6 @@ class TurnExecutor:
                 session_ctx.append_history([self._turn_result.assistant_message])
                 # Add continuation prompt to avoid Anthropic thinking block requirement
                 session_ctx.append_history([message.UserMessage(parts=[message.TextPart(text="continue")])])
-            session_ctx.append_history([self._turn_result.stream_error])
             yield events.TurnEndEvent(session_id=session_ctx.session_id)
             raise TurnError(self._turn_result.stream_error.error)
 
