@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+import pydantic
 import typer
 from rich.box import Box
 from rich.console import Console
@@ -119,6 +120,7 @@ def extract_task_metadata_from_events(events_path: Path) -> list[tuple[str, mode
     """Extract TaskMetadataItem entries from events.jsonl with their dates.
 
     Returns list of (date_str, TaskMetadataItem) tuples.
+    Skips lines that fail pydantic validation.
     """
     results: list[tuple[str, model.TaskMetadataItem]] = []
     try:
@@ -127,7 +129,10 @@ def extract_task_metadata_from_events(events_path: Path) -> list[tuple[str, mode
         return results
 
     for line in content.splitlines():
-        item = decode_jsonl_line(line)
+        try:
+            item = decode_jsonl_line(line)
+        except pydantic.ValidationError:
+            continue
         if isinstance(item, model.TaskMetadataItem):
             date_str = item.created_at.strftime("%Y-%m-%d")
             results.append((date_str, item))
@@ -199,58 +204,111 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
     # Sort dates
     sorted_dates = sorted(daily_stats.keys())
 
-    # Track global totals by model
-    global_by_model: dict[str, ModelUsageStats] = {}
+    # Track global totals by (model, provider)
+    global_by_model: dict[tuple[str, str], ModelUsageStats] = {}
 
     def sort_by_cost(stats: ModelUsageStats) -> tuple[float, float]:
         """Sort key: USD desc, then CNY desc."""
         return (-stats.cost_usd, -stats.cost_cny)
 
-    for date_str in sorted_dates:
-        day = daily_stats[date_str]
-        sorted_models = [s.model_name for s in sorted(day.by_model.values(), key=sort_by_cost)]
+    def render_by_provider(
+        models: dict[str, ModelUsageStats],
+        date_label: str = "",
+        show_subtotal: bool = True,
+    ) -> None:
+        """Render models grouped by provider with tree structure."""
+        # Group models by provider
+        models_by_provider: dict[str, list[ModelUsageStats]] = {}
+        provider_totals: dict[str, ModelUsageStats] = {}
+        for stats in models.values():
+            provider_key = stats.provider or "(unknown)"
+            if provider_key not in models_by_provider:
+                models_by_provider[provider_key] = []
+                provider_totals[provider_key] = ModelUsageStats(model_name=provider_key, provider=provider_key)
+            models_by_provider[provider_key].append(stats)
+            provider_totals[provider_key].input_tokens += stats.input_tokens
+            provider_totals[provider_key].output_tokens += stats.output_tokens
+            provider_totals[provider_key].cached_tokens += stats.cached_tokens
+            provider_totals[provider_key].cost_usd += stats.cost_usd
+            provider_totals[provider_key].cost_cny += stats.cost_cny
+
+        # Sort providers by cost, and models within each provider by cost
+        sorted_providers = sorted(provider_totals.keys(), key=lambda p: sort_by_cost(provider_totals[p]))
+        for provider_key in models_by_provider:
+            models_by_provider[provider_key].sort(key=sort_by_cost)
 
         first_row = True
-        for model_name in sorted_models:
-            stats = day.by_model[model_name]
-            usd_str, cny_str = format_cost_dual(stats.cost_usd, stats.cost_cny)
+        for provider_key in sorted_providers:
+            provider_stats = provider_totals[provider_key]
+            provider_models = models_by_provider[provider_key]
 
-            # Accumulate to global totals
-            if model_name not in global_by_model:
-                global_by_model[model_name] = ModelUsageStats(model_name=model_name, provider=stats.provider)
-            elif not global_by_model[model_name].provider and stats.provider:
-                global_by_model[model_name].provider = stats.provider
-            global_by_model[model_name].input_tokens += stats.input_tokens
-            global_by_model[model_name].output_tokens += stats.output_tokens
-            global_by_model[model_name].cached_tokens += stats.cached_tokens
-            global_by_model[model_name].cost_usd += stats.cost_usd
-            global_by_model[model_name].cost_cny += stats.cost_cny
-
+            # Provider row (bold)
+            usd_str, cny_str = format_cost_dual(provider_stats.cost_usd, provider_stats.cost_cny)
             table.add_row(
-                format_date_display(date_str) if first_row else "",
-                f"{model_name}",
-                format_tokens(stats.input_tokens),
-                format_tokens(stats.output_tokens),
-                format_tokens(stats.cached_tokens),
-                format_tokens(stats.total_tokens),
-                usd_str,
-                cny_str,
+                date_label if first_row else "",
+                f"[bold]{provider_key}[/bold]",
+                f"[bold]{format_tokens(provider_stats.input_tokens)}[/bold]",
+                f"[bold]{format_tokens(provider_stats.output_tokens)}[/bold]",
+                f"[bold]{format_tokens(provider_stats.cached_tokens)}[/bold]",
+                f"[bold]{format_tokens(provider_stats.total_tokens)}[/bold]",
+                f"[bold]{usd_str}[/bold]",
+                f"[bold]{cny_str}[/bold]",
             )
             first_row = False
 
-        # Add subtotal row for this day
-        subtotal = day.get_subtotal()
-        usd_str, cny_str = format_cost_dual(subtotal.cost_usd, subtotal.cost_cny)
-        table.add_row(
-            "",
-            "[cyan]  (subtotal)[/cyan]",
-            f"[cyan]{format_tokens(subtotal.input_tokens)}[/cyan]",
-            f"[cyan]{format_tokens(subtotal.output_tokens)}[/cyan]",
-            f"[cyan]{format_tokens(subtotal.cached_tokens)}[/cyan]",
-            f"[cyan]{format_tokens(subtotal.total_tokens)}[/cyan]",
-            f"[cyan]{usd_str}[/cyan]",
-            f"[cyan]{cny_str}[/cyan]",
-        )
+            # Model rows with tree prefix
+            for i, stats in enumerate(provider_models):
+                is_last = i == len(provider_models) - 1
+                prefix = " └─ " if is_last else " ├─ "
+                usd_str, cny_str = format_cost_dual(stats.cost_usd, stats.cost_cny)
+                table.add_row(
+                    "",
+                    f"[bright_black dim]{prefix}[/bright_black dim]{stats.model_name}",
+                    format_tokens(stats.input_tokens),
+                    format_tokens(stats.output_tokens),
+                    format_tokens(stats.cached_tokens),
+                    format_tokens(stats.total_tokens),
+                    usd_str,
+                    cny_str,
+                )
+
+        # Add subtotal row
+        if show_subtotal:
+            subtotal = ModelUsageStats(model_name="(subtotal)")
+            for stats in models.values():
+                subtotal.input_tokens += stats.input_tokens
+                subtotal.output_tokens += stats.output_tokens
+                subtotal.cached_tokens += stats.cached_tokens
+                subtotal.cost_usd += stats.cost_usd
+                subtotal.cost_cny += stats.cost_cny
+            usd_str, cny_str = format_cost_dual(subtotal.cost_usd, subtotal.cost_cny)
+            table.add_row(
+                "",
+                "[bold](subtotal)[/bold]",
+                f"[bold]{format_tokens(subtotal.input_tokens)}[/bold]",
+                f"[bold]{format_tokens(subtotal.output_tokens)}[/bold]",
+                f"[bold]{format_tokens(subtotal.cached_tokens)}[/bold]",
+                f"[bold]{format_tokens(subtotal.total_tokens)}[/bold]",
+                f"[bold]{usd_str}[/bold]",
+                f"[bold]{cny_str}[/bold]",
+            )
+
+    for date_str in sorted_dates:
+        day = daily_stats[date_str]
+
+        # Accumulate to global totals by (model, provider)
+        for model_name, stats in day.by_model.items():
+            model_key = (model_name, stats.provider or "")
+            if model_key not in global_by_model:
+                global_by_model[model_key] = ModelUsageStats(model_name=model_name, provider=stats.provider)
+            global_by_model[model_key].input_tokens += stats.input_tokens
+            global_by_model[model_key].output_tokens += stats.output_tokens
+            global_by_model[model_key].cached_tokens += stats.cached_tokens
+            global_by_model[model_key].cost_usd += stats.cost_usd
+            global_by_model[model_key].cost_cny += stats.cost_cny
+
+        # Render this day's data grouped by provider
+        render_by_provider(day.by_model, date_label=format_date_display(date_str))
 
         # Add separator between days
         if date_str != sorted_dates[-1]:
@@ -270,27 +328,62 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
     else:
         total_label = "[bold]Total[/bold]"
 
-    # Add per-model totals
-    sorted_global_models = [s.model_name for s in sorted(global_by_model.values(), key=sort_by_cost)]
-    first_total_row = True
-    for model_name in sorted_global_models:
-        # Add empty row before first model to align with Total date range
-        if first_total_row:
-            table.add_row(total_label, "", "", "", "", "", "", "")
-            first_total_row = False
-        stats = global_by_model[model_name]
-        usd_str, cny_str = format_cost_dual(stats.cost_usd, stats.cost_cny)
+    # Group models by provider
+    models_by_provider: dict[str, list[ModelUsageStats]] = {}
+    provider_totals: dict[str, ModelUsageStats] = {}
+    for stats in global_by_model.values():
+        provider_key = stats.provider or "(unknown)"
+        if provider_key not in models_by_provider:
+            models_by_provider[provider_key] = []
+            provider_totals[provider_key] = ModelUsageStats(model_name=provider_key, provider=provider_key)
+        models_by_provider[provider_key].append(stats)
+        provider_totals[provider_key].input_tokens += stats.input_tokens
+        provider_totals[provider_key].output_tokens += stats.output_tokens
+        provider_totals[provider_key].cached_tokens += stats.cached_tokens
+        provider_totals[provider_key].cost_usd += stats.cost_usd
+        provider_totals[provider_key].cost_cny += stats.cost_cny
+
+    # Sort providers by cost, and models within each provider by cost
+    sorted_providers = sorted(provider_totals.keys(), key=lambda p: sort_by_cost(provider_totals[p]))
+    for provider_key in models_by_provider:
+        models_by_provider[provider_key].sort(key=sort_by_cost)
+
+    # Add total label row
+    table.add_row(total_label, "", "", "", "", "", "", "")
+
+    # Render each provider with its models
+    for provider_key in sorted_providers:
+        provider_stats = provider_totals[provider_key]
+        models = models_by_provider[provider_key]
+
+        # Provider row (bold)
+        usd_str, cny_str = format_cost_dual(provider_stats.cost_usd, provider_stats.cost_cny)
         table.add_row(
             "",
-            f"{model_name}",
-            format_tokens(stats.input_tokens),
-            format_tokens(stats.output_tokens),
-            format_tokens(stats.cached_tokens),
-            format_tokens(stats.total_tokens),
-            usd_str,
-            cny_str,
+            f"[bold]{provider_key}[/bold]",
+            f"[bold]{format_tokens(provider_stats.input_tokens)}[/bold]",
+            f"[bold]{format_tokens(provider_stats.output_tokens)}[/bold]",
+            f"[bold]{format_tokens(provider_stats.cached_tokens)}[/bold]",
+            f"[bold]{format_tokens(provider_stats.total_tokens)}[/bold]",
+            f"[bold]{usd_str}[/bold]",
+            f"[bold]{cny_str}[/bold]",
         )
-        first_total_row = False
+
+        # Model rows with tree prefix
+        for i, stats in enumerate(models):
+            is_last = i == len(models) - 1
+            prefix = " └─ " if is_last else " ├─ "
+            usd_str, cny_str = format_cost_dual(stats.cost_usd, stats.cost_cny)
+            table.add_row(
+                "",
+                f"[bright_black dim]{prefix}[/bright_black dim]{stats.model_name}",
+                format_tokens(stats.input_tokens),
+                format_tokens(stats.output_tokens),
+                format_tokens(stats.cached_tokens),
+                format_tokens(stats.total_tokens),
+                usd_str,
+                cny_str,
+            )
 
     # Add grand total row
     grand_total = ModelUsageStats(model_name="(total)")
@@ -304,7 +397,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
     usd_str, cny_str = format_cost_dual(grand_total.cost_usd, grand_total.cost_cny)
     table.add_row(
         "",
-        "[bold]  (total)[/bold]",
+        "[bold](total)[/bold]",
         f"[bold]{format_tokens(grand_total.input_tokens)}[/bold]",
         f"[bold]{format_tokens(grand_total.output_tokens)}[/bold]",
         f"[bold]{format_tokens(grand_total.cached_tokens)}[/bold]",
@@ -312,39 +405,6 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
         f"[bold]{usd_str}[/bold]",
         f"[bold]{cny_str}[/bold]",
     )
-
-    # Aggregate by provider
-    global_by_provider: dict[str, ModelUsageStats] = {}
-    for stats in global_by_model.values():
-        provider_key = stats.provider or "(unknown)"
-        if provider_key not in global_by_provider:
-            global_by_provider[provider_key] = ModelUsageStats(model_name=provider_key, provider=provider_key)
-        global_by_provider[provider_key].input_tokens += stats.input_tokens
-        global_by_provider[provider_key].output_tokens += stats.output_tokens
-        global_by_provider[provider_key].cached_tokens += stats.cached_tokens
-        global_by_provider[provider_key].cost_usd += stats.cost_usd
-        global_by_provider[provider_key].cost_cny += stats.cost_cny
-
-    # Add provider section if there are multiple providers or one known provider
-    has_known_providers = any(p != "(unknown)" for p in global_by_provider)
-    if len(global_by_provider) > 1 or has_known_providers:
-        table.add_section()
-        sorted_providers = [s.model_name for s in sorted(global_by_provider.values(), key=sort_by_cost)]
-        first_provider_row = True
-        for provider_name in sorted_providers:
-            stats = global_by_provider[provider_name]
-            usd_str, cny_str = format_cost_dual(stats.cost_usd, stats.cost_cny)
-            table.add_row(
-                "[bold]By Provider[/bold]" if first_provider_row else "",
-                provider_name,
-                format_tokens(stats.input_tokens),
-                format_tokens(stats.output_tokens),
-                format_tokens(stats.cached_tokens),
-                format_tokens(stats.total_tokens),
-                usd_str,
-                cny_str,
-            )
-            first_provider_row = False
 
     return table
 
