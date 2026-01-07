@@ -66,10 +66,6 @@ IMAGE_GEN_PARAMETERS: dict[str, Any] = {
                     "enum": ["1K", "2K", "4K"],
                     "description": "Output size for Nano Banana Pro (must use uppercase K).",
                 },
-                "extra": {
-                    "type": "object",
-                    "description": "Provider/model-specific extra parameters (future-proofing).",
-                },
             },
             "additionalProperties": False,
         },

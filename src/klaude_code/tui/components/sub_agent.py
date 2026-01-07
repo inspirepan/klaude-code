@@ -135,6 +135,7 @@ def build_sub_agent_state_from_tool_call(e: events.ToolCallEvent) -> model.SubAg
     description = profile.name
     prompt = ""
     output_schema: dict[str, Any] | None = None
+    generation: dict[str, Any] | None = None
     resume: str | None = None
     if e.arguments:
         try:
@@ -155,10 +156,15 @@ def build_sub_agent_state_from_tool_call(e: events.ToolCallEvent) -> model.SubAg
             schema_value = payload.get(profile.output_schema_arg)
             if isinstance(schema_value, dict):
                 output_schema = cast(dict[str, Any], schema_value)
+        # Extract generation config for ImageGen
+        generation_value = payload.get("generation")
+        if isinstance(generation_value, dict):
+            generation = cast(dict[str, Any], generation_value)
     return model.SubAgentState(
         sub_agent_type=profile.name,
         sub_agent_desc=description,
         sub_agent_prompt=prompt,
         resume=resume,
         output_schema=output_schema,
+        generation=generation,
     )

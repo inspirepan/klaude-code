@@ -25,6 +25,9 @@ from google.genai.types import (
     ThinkingLevel,
     ToolConfig,
 )
+from google.genai.types import (
+    ImageConfig as GoogleImageConfig,
+)
 
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.google.input import convert_history_to_contents, convert_tool_schema
@@ -91,6 +94,14 @@ def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
             if param.thinking.reasoning_effort:
                 thinking_config.thinking_level = convert_gemini_thinking_level(param.thinking.reasoning_effort)
 
+    # ImageGen per-call overrides
+    image_config: GoogleImageConfig | None = None
+    if param.image_config is not None:
+        image_config = GoogleImageConfig(
+            aspect_ratio=param.image_config.aspect_ratio,
+            image_size=param.image_config.image_size,
+        )
+
     return GenerateContentConfig(
         system_instruction=param.system,
         temperature=param.temperature,
@@ -98,6 +109,7 @@ def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
         tools=cast(Any, tool_list) if tool_list else None,
         tool_config=tool_config,
         thinking_config=thinking_config,
+        image_config=image_config,
     )
 
 

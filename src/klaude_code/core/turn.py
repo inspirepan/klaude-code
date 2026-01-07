@@ -25,10 +25,12 @@ from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, llm_param, message, model, tools
 
 # Protocols that support prefill (continuing from partial assistant message)
-_PREFILL_SUPPORTED_PROTOCOLS = frozenset({
-    "anthropic",
-    "claude_oauth",
-})
+_PREFILL_SUPPORTED_PROTOCOLS = frozenset(
+    {
+        "anthropic",
+        "claude_oauth",
+    }
+)
 
 
 class TurnError(Exception):
@@ -249,9 +251,6 @@ class TurnExecutor:
             image_size = generation.get("image_size")
             if image_size in SUPPORTED_IMAGE_SIZES:
                 image_config.image_size = image_size
-            extra = generation.get("extra")
-            if isinstance(extra, dict) and extra:
-                image_config.extra = extra
             if image_config.model_dump(exclude_none=True):
                 call_param.image_config = image_config
 
