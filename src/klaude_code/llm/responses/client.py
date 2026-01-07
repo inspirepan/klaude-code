@@ -1,6 +1,6 @@
 import json
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, Literal, override
+from typing import TYPE_CHECKING, override
 
 import httpx
 import openai
@@ -58,56 +58,81 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsStre
 
 
 class ResponsesStreamStateManager:
-    """Manages streaming state for Responses API and provides partial message access."""
+    """Manages streaming state for Responses API and provides partial message access.
+
+    Accumulates parts directly during streaming to support get_partial_message()
+    for cancellation scenarios. Merges consecutive text parts of the same type.
+    Each reasoning summary is kept as a separate ThinkingTextPart.
+    """
 
     def __init__(self, model_id: str) -> None:
         self.model_id = model_id
         self.response_id: str | None = None
-        self.stage: Literal["waiting", "thinking", "assistant", "tool"] = "waiting"
-        self.accumulated_thinking: list[str] = []
-        self.accumulated_text: list[str] = []
-        self.pending_signature: str | None = None
         self.assistant_parts: list[message.Part] = []
         self.stop_reason: model.StopReason | None = None
+        self._new_thinking_part: bool = True  # Start fresh for first thinking part
+        self._summary_count: int = 0  # Track number of summary parts seen
 
-    def flush_thinking(self) -> None:
-        """Flush accumulated thinking content into parts."""
-        if self.accumulated_thinking:
-            self.assistant_parts.append(
-                message.ThinkingTextPart(
-                    text="".join(self.accumulated_thinking),
+    def start_new_thinking_part(self) -> bool:
+        """Mark that the next thinking text should create a new ThinkingTextPart.
+
+        Returns True if this is not the first summary part (needs separator).
+        """
+        self._new_thinking_part = True
+        needs_separator = self._summary_count > 0
+        self._summary_count += 1
+        return needs_separator
+
+    def append_thinking_text(self, text: str) -> None:
+        """Append thinking text, merging with previous ThinkingTextPart if in same summary."""
+        if not self._new_thinking_part and self.assistant_parts:
+            last = self.assistant_parts[-1]
+            if isinstance(last, message.ThinkingTextPart):
+                self.assistant_parts[-1] = message.ThinkingTextPart(
+                    text=last.text + text,
                     model_id=self.model_id,
                 )
-            )
-            self.accumulated_thinking.clear()
-        if self.pending_signature:
-            self.assistant_parts.append(
-                message.ThinkingSignaturePart(
-                    signature=self.pending_signature,
-                    model_id=self.model_id,
-                    format="openai_reasoning",
-                )
-            )
-            self.pending_signature = None
+                return
+        self.assistant_parts.append(message.ThinkingTextPart(text=text, model_id=self.model_id))
+        self._new_thinking_part = False
 
-    def flush_text(self) -> None:
-        """Flush accumulated text content into parts."""
-        if not self.accumulated_text:
-            return
-        self.assistant_parts.append(message.TextPart(text="".join(self.accumulated_text)))
-        self.accumulated_text.clear()
+    def append_text(self, text: str) -> None:
+        """Append text, merging with previous TextPart if possible."""
+        if self.assistant_parts:
+            last = self.assistant_parts[-1]
+            if isinstance(last, message.TextPart):
+                self.assistant_parts[-1] = message.TextPart(text=last.text + text)
+                return
+        self.assistant_parts.append(message.TextPart(text=text))
 
-    def flush_all(self) -> list[message.Part]:
-        """Flush all accumulated content and return parts."""
-        self.flush_thinking()
-        self.flush_text()
-        return list(self.assistant_parts)
+    def append_thinking_signature(self, signature: str) -> None:
+        """Append a ThinkingSignaturePart after the current part."""
+        self.assistant_parts.append(
+            message.ThinkingSignaturePart(
+                signature=signature,
+                model_id=self.model_id,
+                format="openai-responses",
+            )
+        )
+
+    def append_tool_call(self, call_id: str, item_id: str | None, name: str, arguments_json: str) -> None:
+        """Append a ToolCallPart."""
+        self.assistant_parts.append(
+            message.ToolCallPart(
+                call_id=call_id,
+                id=item_id,
+                tool_name=name,
+                arguments_json=arguments_json,
+            )
+        )
 
     def get_partial_message(self) -> message.AssistantMessage | None:
-        """Build a partial AssistantMessage from accumulated state."""
-        parts = self.flush_all()
+        """Build a partial AssistantMessage from accumulated state.
+
+        Returns None if no content has been accumulated yet.
+        """
         filtered_parts: list[message.Part] = []
-        for part in parts:
+        for part in self.assistant_parts:
             if isinstance(part, message.ToolCallPart):
                 continue
             filtered_parts.append(part)
@@ -157,24 +182,28 @@ async def parse_responses_stream(
             match event:
                 case responses.ResponseCreatedEvent() as event:
                     state.response_id = event.response.id
+                case responses.ResponseReasoningSummaryPartAddedEvent():
+                    # New reasoning summary part started, ensure it becomes a new ThinkingTextPart
+                    needs_separator = state.start_new_thinking_part()
+                    if needs_separator:
+                        # Add blank lines between summary parts for visual separation
+                        yield message.ThinkingTextDelta(content="  \n  \n", response_id=state.response_id)
                 case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
                     if event.delta:
                         metadata_tracker.record_token()
-                        if state.stage == "assistant":
-                            state.flush_text()
-                        state.stage = "thinking"
-                        state.accumulated_thinking.append(event.delta)
+                        state.append_thinking_text(event.delta)
                         yield message.ThinkingTextDelta(content=event.delta, response_id=state.response_id)
                 case responses.ResponseReasoningSummaryTextDoneEvent() as event:
-                    if event.text and not state.accumulated_thinking:
-                        state.accumulated_thinking.append(event.text)
+                    # Fallback: if no delta was received but done has full text, use it
+                    if event.text:
+                        # Check if we already have content for this summary by seeing if last part matches
+                        last_part = state.assistant_parts[-1] if state.assistant_parts else None
+                        if not isinstance(last_part, message.ThinkingTextPart) or not last_part.text:
+                            state.append_thinking_text(event.text)
                 case responses.ResponseTextDeltaEvent() as event:
                     if event.delta:
                         metadata_tracker.record_token()
-                        if state.stage == "thinking":
-                            state.flush_thinking()
-                        state.stage = "assistant"
-                        state.accumulated_text.append(event.delta)
+                        state.append_text(event.delta)
                         yield message.AssistantTextDelta(content=event.delta, response_id=state.response_id)
                 case responses.ResponseOutputItemAddedEvent() as event:
                     if isinstance(event.item, responses.ResponseFunctionToolCall):
@@ -188,30 +217,23 @@ async def parse_responses_stream(
                     match event.item:
                         case responses.ResponseReasoningItem() as item:
                             if item.encrypted_content:
-                                state.pending_signature = item.encrypted_content
+                                state.append_thinking_signature(item.encrypted_content)
                         case responses.ResponseOutputMessage() as item:
-                            if not state.accumulated_text:
+                            # Fallback: if no text delta was received, extract from final message
+                            has_text = any(isinstance(p, message.TextPart) for p in state.assistant_parts)
+                            if not has_text:
                                 text_content = "\n".join(
-                                    [
-                                        part.text
-                                        for part in item.content
-                                        if isinstance(part, responses.ResponseOutputText)
-                                    ]
+                                    part.text for part in item.content if isinstance(part, responses.ResponseOutputText)
                                 )
                                 if text_content:
-                                    state.accumulated_text.append(text_content)
+                                    state.append_text(text_content)
                         case responses.ResponseFunctionToolCall() as item:
                             metadata_tracker.record_token()
-                            state.flush_thinking()
-                            state.flush_text()
-                            state.stage = "tool"
-                            state.assistant_parts.append(
-                                message.ToolCallPart(
-                                    call_id=item.call_id,
-                                    id=item.id,
-                                    tool_name=item.name,
-                                    arguments_json=item.arguments.strip(),
-                                )
+                            state.append_tool_call(
+                                call_id=item.call_id,
+                                item_id=item.id,
+                                name=item.name,
+                                arguments_json=item.arguments.strip(),
                             )
                         case _:
                             pass
@@ -255,11 +277,10 @@ async def parse_responses_stream(
     except (openai.OpenAIError, httpx.HTTPError) as e:
         yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
 
-    parts = state.flush_all()
     metadata_tracker.set_response_id(state.response_id)
     metadata = metadata_tracker.finalize()
     yield message.AssistantMessage(
-        parts=parts,
+        parts=state.assistant_parts,
         response_id=state.response_id,
         usage=metadata,
         stop_reason=state.stop_reason,
