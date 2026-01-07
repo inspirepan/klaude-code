@@ -109,19 +109,34 @@ def _tool_blocks_to_message(blocks: list[BetaToolResultBlockParam]) -> BetaMessa
 def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str | None) -> BetaMessageParam:
     content: list[BetaContentBlockParam] = []
     current_thinking_content: str | None = None
-    native_thinking_parts, degraded_thinking_texts = split_thinking_parts(msg, model_name)
+    native_thinking_parts, _ = split_thinking_parts(msg, model_name)
     native_thinking_ids = {id(part) for part in native_thinking_parts}
 
-    def _flush_thinking() -> None:
+    def _degraded_thinking_block(text: str) -> BetaTextBlockParam | None:
+        stripped = text.strip()
+        if not stripped:
+            return None
+        return cast(
+            BetaTextBlockParam,
+            {
+                "type": "text",
+                "text": f"<thinking>\n{stripped}\n</thinking>",
+            },
+        )
+
+    def _flush_thinking_as_text_block() -> None:
         nonlocal current_thinking_content
         if current_thinking_content is None:
             return
-        degraded_thinking_texts.append(current_thinking_content)
+        if block := _degraded_thinking_block(current_thinking_content):
+            content.append(block)
         current_thinking_content = None
 
     for part in msg.parts:
         if isinstance(part, message.ThinkingTextPart):
             if id(part) not in native_thinking_ids:
+                if block := _degraded_thinking_block(part.text):
+                    content.append(block)
                 continue
             current_thinking_content = part.text
             continue
@@ -142,7 +157,7 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
                 current_thinking_content = None
             continue
 
-        _flush_thinking()
+        _flush_thinking_as_text_block()
         if isinstance(part, message.TextPart):
             content.append(cast(BetaTextBlockParam, {"type": "text", "text": part.text}))
         elif isinstance(part, message.ToolCallPart):
@@ -166,11 +181,7 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
                 )
             )
 
-    _flush_thinking()
-
-    if degraded_thinking_texts:
-        degraded_text = "<thinking>\n" + "\n".join(degraded_thinking_texts) + "\n</thinking>"
-        content.insert(0, cast(BetaTextBlockParam, {"type": "text", "text": degraded_text}))
+    _flush_thinking_as_text_block()
 
     return {"role": "assistant", "content": content}
 

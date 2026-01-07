@@ -6,6 +6,7 @@ import shutil
 import subprocess
 from base64 import b64encode
 from collections.abc import Iterable
+from typing import cast
 from datetime import datetime, timedelta
 from enum import Enum
 from logging.handlers import RotatingFileHandler
@@ -340,7 +341,7 @@ def _sanitize_debug_value(value: object) -> object:
     if isinstance(value, str):
         return value
     if isinstance(value, list):
-        return [_sanitize_debug_value(v) for v in value]
+        return [_sanitize_debug_value(v) for v in cast(list[object], value)]
     if isinstance(value, dict):
         return _sanitize_debug_dict(value)  # type: ignore[arg-type]
     return value

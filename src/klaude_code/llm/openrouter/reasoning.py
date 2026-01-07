@@ -30,7 +30,6 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
         self._response_id = response_id
 
         self._reasoning_id: str | None = None
-        self._accumulated_reasoning: list[str] = []
 
     def set_response_id(self, response_id: str | None) -> None:
         """Update the response identifier used for emitted items."""
@@ -62,44 +61,20 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
 
         if detail.type == "reasoning.encrypted":
             self._reasoning_id = detail.id
-            # Flush accumulated text before encrypted content
-            items.extend(self._flush_text())
             if signature_part := self._build_signature_part(detail.data, detail):
                 items.append(signature_part)
             return items
 
         if detail.type in ("reasoning.text", "reasoning.summary"):
             self._reasoning_id = detail.id
-            # Accumulate text
-            text = detail.text if detail.type == "reasoning.text" else detail.summary
-            if text:
-                self._accumulated_reasoning.append(text)
-            # Flush on signature (encrypted content)
-            if detail.signature:
-                items.extend(self._flush_text())
-                if signature_part := self._build_signature_part(detail.signature, detail):
-                    items.append(signature_part)
+            # Signature (Anthropic-style) can arrive alongside text/summary.
+            if detail.signature and (signature_part := self._build_signature_part(detail.signature, detail)):
+                items.append(signature_part)
 
         return items
 
     def flush(self) -> list[message.Part]:
-        """Flush buffered reasoning text on finalize."""
-        return self._flush_text()
-
-    def _flush_text(self) -> list[message.Part]:
-        """Flush accumulated reasoning text as a single part."""
-        if not self._accumulated_reasoning:
-            return []
-        item = self._build_text_part("".join(self._accumulated_reasoning))
-        self._accumulated_reasoning = []
-        return [item]
-
-    def _build_text_part(self, content: str) -> message.ThinkingTextPart:
-        return message.ThinkingTextPart(
-            id=self._reasoning_id,
-            text=content,
-            model_id=self._param_model,
-        )
+        return []
 
     def _build_signature_part(
         self,

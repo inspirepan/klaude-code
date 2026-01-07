@@ -64,11 +64,10 @@ class AnthropicStreamStateManager:
 
     def __init__(self, model_id: str) -> None:
         self.model_id = model_id
-        self.accumulated_thinking: list[str] = []
-        self.accumulated_content: list[str] = []
-        self.parts: list[message.Part] = []
+        self.assistant_parts: list[message.Part] = []
         self.response_id: str | None = None
-        self.pending_signature: str | None = None
+        self._pending_signature: str | None = None
+        self._pending_signature_thinking_index: int | None = None
         self.stop_reason: model.StopReason | None = None
 
         # Tool call state
@@ -80,34 +79,79 @@ class AnthropicStreamStateManager:
         self.input_token: int = 0
         self.cached_token: int = 0
 
-    def flush_thinking(self) -> None:
-        """Flush accumulated thinking content into parts."""
-        if not self.accumulated_thinking:
+    def append_thinking_text(self, text: str) -> None:
+        """Append thinking text, merging with the previous ThinkingTextPart when possible."""
+        if not text:
             return
-        full_thinking = "".join(self.accumulated_thinking)
-        self.parts.append(message.ThinkingTextPart(text=full_thinking, model_id=self.model_id))
-        if self.pending_signature:
-            self.parts.append(
-                message.ThinkingSignaturePart(
-                    signature=self.pending_signature,
-                    model_id=self.model_id,
-                    format="anthropic",
-                )
-            )
-        self.accumulated_thinking.clear()
-        self.pending_signature = None
 
-    def flush_content(self) -> None:
-        """Flush accumulated content into parts."""
-        if not self.accumulated_content:
+        if self.assistant_parts:
+            last = self.assistant_parts[-1]
+            if isinstance(last, message.ThinkingTextPart):
+                self.assistant_parts[-1] = message.ThinkingTextPart(
+                    text=last.text + text,
+                    model_id=self.model_id,
+                )
+                self._pending_signature_thinking_index = len(self.assistant_parts) - 1
+                return
+
+        self.assistant_parts.append(message.ThinkingTextPart(text=text, model_id=self.model_id))
+        self._pending_signature_thinking_index = len(self.assistant_parts) - 1
+
+    def append_text(self, text: str) -> None:
+        """Append assistant text, merging with the previous TextPart when possible."""
+        if not text:
             return
-        self.parts.append(message.TextPart(text="".join(self.accumulated_content)))
-        self.accumulated_content.clear()
+
+        if self.assistant_parts:
+            last = self.assistant_parts[-1]
+            if isinstance(last, message.TextPart):
+                self.assistant_parts[-1] = message.TextPart(text=last.text + text)
+                return
+        self.assistant_parts.append(message.TextPart(text=text))
+
+    def set_pending_signature(self, signature: str) -> None:
+        if signature:
+            self._pending_signature = signature
+
+    def flush_pending_signature(self) -> None:
+        """Attach any pending signature to the most recent thinking segment.
+
+        Anthropic's signature is semantically tied to its thinking content. The
+        signature delta may arrive slightly after thinking text, so we insert the
+        signature part adjacent to the thinking part it signs.
+        """
+
+        if not self._pending_signature:
+            return
+        if self._pending_signature_thinking_index is None:
+            # No thinking part seen for this signature; drop it.
+            self._pending_signature = None
+            return
+
+        insert_at = self._pending_signature_thinking_index + 1
+        # Avoid inserting duplicates if flush is called multiple times.
+        if insert_at < len(self.assistant_parts) and isinstance(
+            self.assistant_parts[insert_at], message.ThinkingSignaturePart
+        ):
+            self._pending_signature = None
+            return
+
+        self.assistant_parts.insert(
+            insert_at,
+            message.ThinkingSignaturePart(
+                signature=self._pending_signature,
+                model_id=self.model_id,
+                format="anthropic",
+            ),
+        )
+
+        self._pending_signature = None
+        self._pending_signature_thinking_index = None
 
     def flush_tool_call(self) -> None:
         """Flush current tool call into parts."""
         if self.current_tool_name and self.current_tool_call_id:
-            self.parts.append(
+            self.assistant_parts.append(
                 message.ToolCallPart(
                     call_id=self.current_tool_call_id,
                     tool_name=self.current_tool_name,
@@ -119,11 +163,10 @@ class AnthropicStreamStateManager:
         self.current_tool_inputs = None
 
     def flush_all(self) -> list[message.Part]:
-        """Flush all accumulated content in order and return parts."""
-        self.flush_thinking()
-        self.flush_content()
+        """Flush all pending content in order and return parts."""
+        self.flush_pending_signature()
         self.flush_tool_call()
-        return list(self.parts)
+        return list(self.assistant_parts)
 
     def get_partial_message(self) -> message.AssistantMessage | None:
         """Build a partial AssistantMessage from accumulated state.
@@ -131,9 +174,13 @@ class AnthropicStreamStateManager:
         Flushes all accumulated content and returns the message with
         stop_reason="aborted". Returns None if no content has been accumulated.
         """
-        self.flush_thinking()
-        self.flush_content()
-        parts = degrade_thinking_to_text(list(self.parts))
+        filtered_parts: list[message.Part] = []
+        for part in self.assistant_parts:
+            if isinstance(part, message.ToolCallPart):
+                continue
+            filtered_parts.append(part)
+
+        parts = degrade_thinking_to_text(filtered_parts)
         if not parts:
             return None
         return message.AssistantMessage(
@@ -226,17 +273,18 @@ async def parse_anthropic_stream(
                     case BetaThinkingDelta() as delta:
                         if delta.thinking:
                             metadata_tracker.record_token()
-                            state.accumulated_thinking.append(delta.thinking)
+                            state.append_thinking_text(delta.thinking)
                             yield message.ThinkingTextDelta(
                                 content=delta.thinking,
                                 response_id=state.response_id,
                             )
                     case BetaSignatureDelta() as delta:
-                        state.pending_signature = delta.signature
+                        state.set_pending_signature(delta.signature)
                     case BetaTextDelta() as delta:
                         if delta.text:
                             metadata_tracker.record_token()
-                            state.accumulated_content.append(delta.text)
+                            state.flush_pending_signature()
+                            state.append_text(delta.text)
                             yield message.AssistantTextDelta(
                                 content=delta.text,
                                 response_id=state.response_id,
@@ -251,6 +299,7 @@ async def parse_anthropic_stream(
                 match event.content_block:
                     case BetaToolUseBlock() as block:
                         metadata_tracker.record_token()
+                        state.flush_pending_signature()
                         yield message.ToolCallStartDelta(
                             response_id=state.response_id,
                             call_id=block.id,
@@ -262,12 +311,7 @@ async def parse_anthropic_stream(
                     case _:
                         pass
             case BetaRawContentBlockStopEvent():
-                if state.accumulated_thinking:
-                    metadata_tracker.record_token()
-                    state.flush_thinking()
-                if state.accumulated_content:
-                    metadata_tracker.record_token()
-                    state.flush_content()
+                state.flush_pending_signature()
                 if state.current_tool_name and state.current_tool_call_id:
                     metadata_tracker.record_token()
                     state.flush_tool_call()

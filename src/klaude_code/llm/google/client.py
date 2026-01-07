@@ -284,9 +284,7 @@ async def parse_google_stream(
     last_usage_metadata: GenerateContentResponseUsageMetadata | None = None
 
     async for chunk in stream:
-        log_debug(
-            debug_json(chunk.model_dump(exclude_none=True)), style="blue", debug_type=DebugType.LLM_STREAM
-        )
+        log_debug(debug_json(chunk.model_dump(exclude_none=True)), style="blue", debug_type=DebugType.LLM_STREAM)
 
         if state.response_id is None:
             state.response_id = chunk.response_id or uuid4().hex

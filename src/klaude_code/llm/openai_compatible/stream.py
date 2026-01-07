@@ -2,8 +2,8 @@
 
 This module provides reusable primitives for OpenAI-compatible providers:
 
-- ``StreamStateManager``: accumulates assistant content and tool calls.
-- ``ReasoningHandlerABC``: provider-specific reasoning extraction + buffering.
+- ``StreamStateManager``: accumulates assistant parts in stream order.
+- ``ReasoningHandlerABC``: provider-specific reasoning extraction.
 - ``OpenAILLMStream``: LLMStream implementation for OpenAI-compatible clients.
 
 OpenRouter uses the same OpenAI Chat Completions API surface but differs in
@@ -15,7 +15,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import httpx
 import openai
@@ -26,84 +26,117 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.llm.image import save_assistant_image
-from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
+from klaude_code.llm.openai_compatible.tool_call_accumulator import normalize_tool_name
 from klaude_code.llm.partial_message import degrade_thinking_to_text
 from klaude_code.llm.usage import MetadataTracker, convert_usage
 from klaude_code.protocol import llm_param, message, model
 
-StreamStage = Literal["waiting", "reasoning", "assistant", "tool"]
-
 
 class StreamStateManager:
-    """Manages streaming state and provides flush operations for accumulated content.
+    """Manages streaming state and accumulates parts in stream order.
 
-    This class encapsulates the common state management logic used by both
-    OpenAI-compatible and OpenRouter clients, reducing code duplication.
+    The persisted AssistantMessage is built directly from ``assistant_parts``.
+    ``get_partial_message()`` returns a best-effort message on cancellation.
     """
 
     def __init__(
         self,
         param_model: str,
         response_id: str | None = None,
-        reasoning_flusher: Callable[[], list[message.Part]] | None = None,
     ):
         self.param_model = param_model
         self.response_id = response_id
-        self.stage: StreamStage = "waiting"
-        self.accumulated_content: list[str] = []
-        self.accumulated_images: list[message.ImageFilePart] = []
-        self.accumulated_tool_calls: ToolCallAccumulatorABC = BasicToolCallAccumulator()
-        self.emitted_tool_start_indices: set[int] = set()
-        self._reasoning_flusher = reasoning_flusher
-        self.parts: list[message.Part] = []
+        self.assistant_parts: list[message.Part] = []
+        self._image_index: int = 0
+        self._tool_part_index_by_tc_index: dict[int, int] = {}
+        self._emitted_tool_start_indices: set[int] = set()
         self.stop_reason: model.StopReason | None = None
 
     def set_response_id(self, response_id: str) -> None:
         """Set the response ID once received from the stream."""
         self.response_id = response_id
-        self.accumulated_tool_calls.set_response_id(response_id)
 
-    def flush_reasoning(self) -> None:
-        """Flush accumulated reasoning content into parts."""
-        if self._reasoning_flusher is not None:
-            self.parts.extend(self._reasoning_flusher())
-
-    def flush_assistant(self) -> None:
-        """Flush accumulated assistant content into parts."""
-        if not self.accumulated_content and not self.accumulated_images:
+    def append_thinking_text(self, text: str) -> None:
+        """Append thinking text, merging with the previous ThinkingTextPart when possible."""
+        if not text:
             return
-        if self.accumulated_content:
-            self.parts.append(message.TextPart(text="".join(self.accumulated_content)))
-        if self.accumulated_images:
-            self.parts.extend(self.accumulated_images)
-        self.accumulated_content = []
-        self.accumulated_images = []
-        return
+        if self.assistant_parts:
+            last = self.assistant_parts[-1]
+            if isinstance(last, message.ThinkingTextPart):
+                self.assistant_parts[-1] = message.ThinkingTextPart(
+                    text=last.text + text,
+                    model_id=self.param_model,
+                )
+                return
+        self.assistant_parts.append(message.ThinkingTextPart(text=text, model_id=self.param_model))
 
-    def flush_tool_calls(self) -> None:
-        """Flush accumulated tool calls into parts."""
-        items = self.accumulated_tool_calls.get()
-        if items:
-            self.parts.extend(items)
-            self.accumulated_tool_calls.reset()
+    def append_text(self, text: str) -> None:
+        """Append assistant text, merging with the previous TextPart when possible."""
+        if not text:
+            return
+        if self.assistant_parts:
+            last = self.assistant_parts[-1]
+            if isinstance(last, message.TextPart):
+                self.assistant_parts[-1] = message.TextPart(text=last.text + text)
+                return
+        self.assistant_parts.append(message.TextPart(text=text))
 
-    def flush_all(self) -> list[message.Part]:
-        """Flush all accumulated content in order: reasoning, assistant, tool calls."""
-        self.flush_reasoning()
-        self.flush_assistant()
-        if self.stage == "tool":
-            self.flush_tool_calls()
-        return list(self.parts)
+    def append_image(self, image_part: message.ImageFilePart) -> None:
+        self.assistant_parts.append(image_part)
+        self._image_index += 1
+
+    def upsert_tool_call(self, *, tc_index: int, call_id: str | None, name: str | None, arguments: str | None) -> None:
+        """Insert a ToolCallPart at first sight and keep updating its fields.
+
+        Chat Completions streams tool call fields incrementally (name/id first,
+        then argument fragments). We keep the ToolCallPart in-place to preserve
+        stream order in the persisted AssistantMessage.
+        """
+
+        part_index = self._tool_part_index_by_tc_index.get(tc_index)
+        if part_index is None:
+            tool_part = message.ToolCallPart(
+                call_id=call_id or "",
+                tool_name=normalize_tool_name(name or ""),
+                arguments_json=arguments or "",
+            )
+            self.assistant_parts.append(tool_part)
+            self._tool_part_index_by_tc_index[tc_index] = len(self.assistant_parts) - 1
+            return
+
+        existing = self.assistant_parts[part_index]
+        if not isinstance(existing, message.ToolCallPart):
+            return
+
+        if call_id and not existing.call_id:
+            existing.call_id = call_id
+        if name and not existing.tool_name:
+            existing.tool_name = normalize_tool_name(name)
+        if arguments:
+            existing.arguments_json += arguments
+
+    def mark_tool_start_emitted(self, tc_index: int) -> bool:
+        """Return True if this is the first time we emit ToolCallStartDelta for this index."""
+        if tc_index in self._emitted_tool_start_indices:
+            return False
+        self._emitted_tool_start_indices.add(tc_index)
+        return True
+
+    def next_image_index(self) -> int:
+        return self._image_index
 
     def get_partial_message(self) -> message.AssistantMessage | None:
         """Build a partial AssistantMessage from accumulated state.
 
-        Flushes all accumulated content (reasoning, assistant text, tool calls)
-        and returns the message. Returns None if no content has been accumulated.
+        Filters out tool calls and degrades thinking content for safety.
+        Returns None if no content has been accumulated.
         """
-        self.flush_reasoning()
-        self.flush_assistant()
-        parts = degrade_thinking_to_text(list(self.parts))
+        filtered_parts: list[message.Part] = []
+        for part in self.assistant_parts:
+            if isinstance(part, message.ToolCallPart):
+                continue
+            filtered_parts.append(part)
+        parts = degrade_thinking_to_text(filtered_parts)
         if not parts:
             return None
         return message.AssistantMessage(
@@ -148,7 +181,6 @@ class DefaultReasoningHandler(ReasoningHandlerABC):
     ) -> None:
         self._param_model = param_model
         self._response_id = response_id
-        self._accumulated: list[str] = []
 
     def set_response_id(self, response_id: str | None) -> None:
         self._response_id = response_id
@@ -158,18 +190,10 @@ class DefaultReasoningHandler(ReasoningHandlerABC):
         if not reasoning_content:
             return ReasoningDeltaResult(handled=False, outputs=[])
         text = str(reasoning_content)
-        self._accumulated.append(text)
         return ReasoningDeltaResult(handled=True, outputs=[text])
 
     def flush(self) -> list[message.Part]:
-        if not self._accumulated:
-            return []
-        item = message.ThinkingTextPart(
-            text="".join(self._accumulated),
-            model_id=self._param_model,
-        )
-        self._accumulated = []
-        return [item]
+        return []
 
 
 def _map_finish_reason(reason: str) -> model.StopReason | None:
@@ -254,26 +278,21 @@ async def parse_chat_completions_stream(
             # Reasoning
             reasoning_result = reasoning_handler.on_delta(delta)
             if reasoning_result.handled:
-                state.stage = "reasoning"
                 for output in reasoning_result.outputs:
                     if isinstance(output, str):
                         if not output:
                             continue
                         metadata_tracker.record_token()
+                        state.append_thinking_text(output)
                         yield message.ThinkingTextDelta(content=output, response_id=state.response_id)
                     else:
-                        state.parts.append(output)
+                        state.assistant_parts.append(output)
 
             # Assistant
             images = getattr(delta, "images", None)
             if isinstance(images, list) and images:
                 images_list = cast(list[object], images)
                 metadata_tracker.record_token()
-                if state.stage == "reasoning":
-                    state.flush_reasoning()
-                elif state.stage == "tool":
-                    state.flush_tool_calls()
-                state.stage = "assistant"
                 for image_obj in images_list:
                     url = _extract_image_url(image_obj)
                     if not url:
@@ -286,50 +305,57 @@ async def parse_chat_completions_stream(
                             data_url=url,
                             session_id=param.session_id,
                             response_id=state.response_id,
-                            image_index=len(state.accumulated_images),
+                            image_index=state.next_image_index(),
                         )
                     except ValueError as exc:
                         yield message.StreamErrorItem(error=str(exc))
                         return
-                    state.accumulated_images.append(assistant_image)
+                    state.append_image(assistant_image)
                     yield message.AssistantImageDelta(
                         response_id=state.response_id, file_path=assistant_image.file_path
                     )
 
-            if (content := getattr(delta, "content", None)) and (state.stage == "assistant" or str(content).strip()):
+            content_str = str(content) if (content := getattr(delta, "content", None)) is not None else ""
+
+            if content_str and (
+                (state.assistant_parts and isinstance(state.assistant_parts[-1], message.TextPart))
+                or content_str.strip()
+            ):
                 metadata_tracker.record_token()
-                if state.stage == "reasoning":
-                    state.flush_reasoning()
-                elif state.stage == "tool":
-                    state.flush_tool_calls()
-                state.stage = "assistant"
-                state.accumulated_content.append(str(content))
+                state.append_text(content_str)
                 yield message.AssistantTextDelta(
-                    content=str(content),
+                    content=content_str,
                     response_id=state.response_id,
                 )
 
             # Tool
             if (tool_calls := getattr(delta, "tool_calls", None)) and len(tool_calls) > 0:
                 metadata_tracker.record_token()
-                if state.stage == "reasoning":
-                    state.flush_reasoning()
-                elif state.stage == "assistant":
-                    state.flush_assistant()
-                state.stage = "tool"
                 for tc in tool_calls:
-                    if tc.index not in state.emitted_tool_start_indices and tc.function and tc.function.name:
-                        state.emitted_tool_start_indices.add(tc.index)
+                    tc_index = getattr(tc, "index", None)
+                    if not isinstance(tc_index, int):
+                        continue
+                    fn = getattr(tc, "function", None)
+                    fn_name = getattr(fn, "name", None) if fn is not None else None
+                    fn_args = getattr(fn, "arguments", None) if fn is not None else None
+                    tc_id = getattr(tc, "id", None)
+
+                    if fn_name and state.mark_tool_start_emitted(tc_index):
                         yield message.ToolCallStartDelta(
                             response_id=state.response_id,
-                            call_id=tc.id or "",
-                            name=tc.function.name,
+                            call_id=str(tc_id or ""),
+                            name=str(fn_name),
                         )
-                state.accumulated_tool_calls.add(tool_calls)
+                    state.upsert_tool_call(
+                        tc_index=tc_index,
+                        call_id=str(tc_id) if isinstance(tc_id, str) else None,
+                        name=str(fn_name) if isinstance(fn_name, str) else None,
+                        arguments=str(fn_args) if isinstance(fn_args, str) else None,
+                    )
     except (openai.OpenAIError, httpx.HTTPError) as e:
         yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
 
-    parts = state.flush_all()
+    parts = list(state.assistant_parts)
     if parts:
         metadata_tracker.record_token()
     metadata_tracker.set_response_id(state.response_id)
@@ -361,7 +387,6 @@ class OpenAILLMStream(LLMStreamABC):
         self._on_event = on_event
         self._state = StreamStateManager(
             param_model=str(param.model_id),
-            reasoning_flusher=reasoning_handler.flush,
         )
         self._completed = False
 
