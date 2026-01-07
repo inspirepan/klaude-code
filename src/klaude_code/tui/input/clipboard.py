@@ -17,8 +17,6 @@ import uuid
 from base64 import b64encode
 from pathlib import Path
 
-from PIL import Image, ImageGrab
-
 from klaude_code.protocol.message import ImageURLPart
 
 # Directory for storing clipboard images
@@ -26,6 +24,99 @@ CLIPBOARD_IMAGES_DIR = Path.home() / ".klaude" / "clipboard" / "images"
 
 # Pattern to match [Image #N] tags in user input
 _IMAGE_TAG_RE = re.compile(r"\[Image #(\d+)\]")
+
+
+def _grab_clipboard_image_macos(dest_path: Path) -> bool:
+    """Grab image from clipboard on macOS using pngpaste or osascript (JXA)."""
+    # Try pngpaste first (faster, if installed)
+    if shutil.which("pngpaste"):
+        try:
+            result = subprocess.run(
+                ["pngpaste", str(dest_path)],
+                capture_output=True,
+            )
+            return result.returncode == 0 and dest_path.exists() and dest_path.stat().st_size > 0
+        except OSError:
+            pass
+
+    # Fallback to osascript with JXA (JavaScript for Automation)
+    script = f'''
+ObjC.import("AppKit");
+var pb = $.NSPasteboard.generalPasteboard;
+var pngData = pb.dataForType($.NSPasteboardTypePNG);
+if (pngData.isNil()) {{
+    var tiffData = pb.dataForType($.NSPasteboardTypeTIFF);
+    if (tiffData.isNil()) {{
+        "false";
+    }} else {{
+        var bitmapRep = $.NSBitmapImageRep.imageRepWithData(tiffData);
+        pngData = bitmapRep.representationUsingTypeProperties($.NSBitmapImageFileTypePNG, $());
+    }}
+}}
+if (!pngData.isNil()) {{
+    pngData.writeToFileAtomically("{dest_path}", true);
+    "true";
+}} else {{
+    "false";
+}}
+'''
+    try:
+        result = subprocess.run(
+            ["osascript", "-l", "JavaScript", "-e", script],
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode == 0 and "true" in result.stdout and dest_path.exists() and dest_path.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def _grab_clipboard_image_linux(dest_path: Path) -> bool:
+    """Grab image from clipboard on Linux using xclip."""
+    if not shutil.which("xclip"):
+        return False
+    try:
+        result = subprocess.run(
+            ["xclip", "-selection", "clipboard", "-t", "image/png", "-o"],
+            capture_output=True,
+        )
+        if result.returncode == 0 and result.stdout:
+            dest_path.write_bytes(result.stdout)
+            return True
+    except OSError:
+        pass
+    return False
+
+
+def _grab_clipboard_image_windows(dest_path: Path) -> bool:
+    """Grab image from clipboard on Windows using PowerShell."""
+    script = f'''
+    Add-Type -AssemblyName System.Windows.Forms
+    $img = [System.Windows.Forms.Clipboard]::GetImage()
+    if ($img -ne $null) {{
+        $img.Save("{dest_path}", [System.Drawing.Imaging.ImageFormat]::Png)
+        Write-Output "ok"
+    }}
+    '''
+    try:
+        result = subprocess.run(
+            ["powershell", "-Command", script],
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode == 0 and "ok" in result.stdout and dest_path.exists()
+    except OSError:
+        return False
+
+
+def _grab_clipboard_image(dest_path: Path) -> bool:
+    """Grab image from clipboard and save to dest_path. Returns True on success."""
+    if sys.platform == "darwin":
+        return _grab_clipboard_image_macos(dest_path)
+    elif sys.platform == "win32":
+        return _grab_clipboard_image_windows(dest_path)
+    else:
+        return _grab_clipboard_image_linux(dest_path)
 
 
 class ClipboardCaptureState:
@@ -39,21 +130,16 @@ class ClipboardCaptureState:
     def capture_from_clipboard(self) -> str | None:
         """Capture image from clipboard, save to disk, and return a tag like [Image #N]."""
         try:
-            clipboard_data = ImageGrab.grabclipboard()
-        except OSError:
-            return None
-        if not isinstance(clipboard_data, Image.Image):
-            return None
-        try:
             self._images_dir.mkdir(parents=True, exist_ok=True)
         except OSError:
             return None
+
         filename = f"clipboard_{uuid.uuid4().hex[:8]}.png"
         path = self._images_dir / filename
-        try:
-            clipboard_data.save(path, "PNG")
-        except OSError:
+
+        if not _grab_clipboard_image(path):
             return None
+
         tag = f"[Image #{self._counter}]"
         self._counter += 1
         self._pending[tag] = str(path)

@@ -7,7 +7,7 @@ name = "klaude-code"
 version = "2.6.0"
 description = "Minimal code agent CLI"
 readme = "README.md"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.13"
 dependencies = [
     "anthropic>=0.66.0",
     "chardet>=5.2.0",
@@ -16,12 +16,10 @@ dependencies = [
     "google-genai>=1.56.0",
     "markdown-it-py>=4.0.0",
     "openai>=1.102.0",
-    "pillow>=9.1,<11.0",
     "prompt-toolkit>=3.0.52",
     "pydantic>=2.11.7",
     "pyyaml>=6.0.2",
     "rich>=14.1.0",
-    "term-image>=0.7.2",
     "trafilatura>=2.0.0",
     "typer>=0.17.3",
 ]
