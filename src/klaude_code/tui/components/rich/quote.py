@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING, Any, Self
 
+from rich.cells import cell_len
 from rich.console import Console, ConsoleOptions, RenderResult
+from rich.measure import Measurement
 from rich.segment import Segment
 from rich.style import Style
 
@@ -16,10 +18,20 @@ class Quote:
         self.prefix = prefix
         self.style = style
 
+    def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
+        prefix_width = cell_len(self.prefix)
+        available_width = max(1, options.max_width - prefix_width)
+        content_measurement = Measurement.get(console, options.update(width=available_width), self.content)
+
+        minimum = min(options.max_width, content_measurement.minimum + prefix_width)
+        maximum = min(options.max_width, content_measurement.maximum + prefix_width)
+        return Measurement(minimum, maximum)
+
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         # Reduce width to leave space for prefix
-        prefix_width = len(self.prefix)
-        render_options = options.update(width=options.max_width - prefix_width)
+        prefix_width = cell_len(self.prefix)
+        available_width = max(1, options.max_width - prefix_width)
+        render_options = options.update(width=available_width)
 
         # Get style
         quote_style = console.get_style(self.style) if isinstance(self.style, str) else self.style
@@ -29,7 +41,9 @@ class Quote:
         new_line = Segment("\n")
 
         # Render content as lines
-        lines = console.render_lines(self.content, render_options)
+        # Avoid padding to full width.
+        # Trailing spaces can cause terminals to reflow wrapped lines on resize.
+        lines = console.render_lines(self.content, render_options, pad=False)
 
         for line in lines:
             yield prefix_segment
@@ -56,6 +70,19 @@ class TreeQuote:
         self.prefix_last = prefix_last
         self.style = style
         self.style_first = style_first
+
+    def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
+        prefix_width = max(
+            cell_len(self.prefix_middle),
+            cell_len(self.prefix_last),
+            cell_len(self.prefix_first) if self.prefix_first is not None else 0,
+        )
+        available_width = max(1, options.max_width - prefix_width)
+        content_measurement = Measurement.get(console, options.update(width=available_width), self.content)
+
+        minimum = min(options.max_width, content_measurement.minimum + prefix_width)
+        maximum = min(options.max_width, content_measurement.maximum + prefix_width)
+        return Measurement(minimum, maximum)
 
     @classmethod
     def for_tool_call(cls, content: "RenderableType", *, mark: str, style: str, style_first: str) -> Self:
@@ -85,17 +112,18 @@ class TreeQuote:
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         # Reduce width to leave space for prefix
         prefix_width = max(
-            len(self.prefix_middle),
-            len(self.prefix_last),
-            len(self.prefix_first) if self.prefix_first is not None else 0,
+            cell_len(self.prefix_middle),
+            cell_len(self.prefix_last),
+            cell_len(self.prefix_first) if self.prefix_first is not None else 0,
         )
-        render_options = options.update(width=options.max_width - prefix_width)
+        available_width = max(1, options.max_width - prefix_width)
+        render_options = options.update(width=available_width)
 
         quote_style = console.get_style(self.style) if isinstance(self.style, str) else self.style
         first_style = console.get_style(self.style_first) if isinstance(self.style_first, str) else self.style_first
 
         new_line = Segment("\n")
-        lines = console.render_lines(self.content, render_options)
+        lines = console.render_lines(self.content, render_options, pad=False)
         line_count = len(lines)
 
         for idx, line in enumerate(lines):

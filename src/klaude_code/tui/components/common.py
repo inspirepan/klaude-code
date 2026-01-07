@@ -40,7 +40,7 @@ def truncate_middle(
         remaining = max(0, len(truncated_lines))
         return Text(f"  … (more {remaining} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED)
 
-    lines = text.split("\n")
+    lines = [line for line in text.split("\n") if line.strip()]
     truncated_lines = 0
     head_lines: list[str] = []
     tail_lines: list[str] = []
