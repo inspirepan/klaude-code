@@ -125,18 +125,21 @@ class StreamStateManager:
     def next_image_index(self) -> int:
         return self._image_index
 
+    def get_partial_parts(self) -> list[message.Part]:
+        """Get accumulated parts excluding tool calls, with thinking degraded.
+
+        Filters out ToolCallPart and applies degrade_thinking_to_text.
+        """
+        filtered_parts: list[message.Part] = [p for p in self.assistant_parts if not isinstance(p, message.ToolCallPart)]
+        return degrade_thinking_to_text(filtered_parts)
+
     def get_partial_message(self) -> message.AssistantMessage | None:
         """Build a partial AssistantMessage from accumulated state.
 
         Filters out tool calls and degrades thinking content for safety.
         Returns None if no content has been accumulated.
         """
-        filtered_parts: list[message.Part] = []
-        for part in self.assistant_parts:
-            if isinstance(part, message.ToolCallPart):
-                continue
-            filtered_parts.append(part)
-        parts = degrade_thinking_to_text(filtered_parts)
+        parts = self.get_partial_parts()
         if not parts:
             return None
         return message.AssistantMessage(
@@ -354,8 +357,10 @@ async def parse_chat_completions_stream(
                     )
     except (openai.OpenAIError, httpx.HTTPError) as e:
         yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+        state.stop_reason = "error"
 
-    parts = list(state.assistant_parts)
+    # On error, use partial parts (excluding incomplete tool calls) for potential prefill on retry
+    parts = state.get_partial_parts() if state.stop_reason == "error" else list(state.assistant_parts)
     if parts:
         metadata_tracker.record_token()
     metadata_tracker.set_response_id(state.response_id)

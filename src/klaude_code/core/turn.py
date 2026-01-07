@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from klaude_code.const import SUPPORTED_IMAGE_SIZES
+from klaude_code.const import RETRY_PRESERVE_PARTIAL_MESSAGE, SUPPORTED_IMAGE_SIZES
 from klaude_code.core.tool import ToolABC
 from klaude_code.core.tool.context import SubAgentResumeClaims, ToolContext
 
@@ -23,6 +23,12 @@ from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, llm_param, message, model, tools
+
+# Protocols that support prefill (continuing from partial assistant message)
+_PREFILL_SUPPORTED_PROTOCOLS = frozenset({
+    "anthropic",
+    "claude_oauth",
+})
 
 
 class TurnError(Exception):
@@ -176,6 +182,18 @@ class TurnExecutor:
             yield event
 
         if self._turn_result.stream_error is not None:
+            # Save accumulated content for potential prefill on retry (only for supported protocols)
+            protocol = ctx.llm_client.get_llm_config().protocol
+            supports_prefill = protocol.value in _PREFILL_SUPPORTED_PROTOCOLS
+            if (
+                RETRY_PRESERVE_PARTIAL_MESSAGE
+                and supports_prefill
+                and self._turn_result.assistant_message is not None
+                and self._turn_result.assistant_message.parts
+            ):
+                session_ctx.append_history([self._turn_result.assistant_message])
+                # Add continuation prompt to avoid Anthropic thinking block requirement
+                session_ctx.append_history([message.UserMessage(parts=[message.TextPart(text="continue")])])
             session_ctx.append_history([self._turn_result.stream_error])
             yield events.TurnEndEvent(session_id=session_ctx.session_id)
             raise TurnError(self._turn_result.stream_error.error)

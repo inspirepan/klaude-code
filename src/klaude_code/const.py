@@ -27,6 +27,7 @@ def _get_int_env(name: str, default: int) -> int:
 # =============================================================================
 
 MAX_FAILED_TURN_RETRIES = 10  # Maximum retry attempts for failed turns
+RETRY_PRESERVE_PARTIAL_MESSAGE = True  # Preserve partial message on stream error for retry prefill
 LLM_HTTP_TIMEOUT_TOTAL = 300.0  # HTTP timeout for LLM API requests (seconds)
 LLM_HTTP_TIMEOUT_CONNECT = 15.0  # HTTP connect timeout (seconds)
 LLM_HTTP_TIMEOUT_READ = 285.0  # HTTP read timeout (seconds)

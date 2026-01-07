@@ -244,23 +244,24 @@ class GoogleStreamStateManager:
             )
         )
 
+    def get_partial_parts(self) -> list[message.Part]:
+        """Get accumulated parts excluding tool calls, with thinking degraded.
+
+        Filters out ToolCallPart and applies degrade_thinking_to_text.
+        """
+        filtered_parts: list[message.Part] = [p for p in self.assistant_parts if not isinstance(p, message.ToolCallPart)]
+        return degrade_thinking_to_text(filtered_parts)
+
     def get_partial_message(self) -> message.AssistantMessage | None:
         """Build a partial AssistantMessage from accumulated state.
 
         Returns None if no content has been accumulated yet.
         """
-        filtered_parts: list[message.Part] = []
-        for part in self.assistant_parts:
-            if isinstance(part, message.ToolCallPart):
-                continue
-            filtered_parts.append(part)
-
-        filtered_parts = degrade_thinking_to_text(filtered_parts)
-
-        if not filtered_parts:
+        parts = self.get_partial_parts()
+        if not parts:
             return None
         return message.AssistantMessage(
-            parts=filtered_parts,
+            parts=parts,
             response_id=self.response_id,
             stop_reason="aborted",
         )
@@ -467,7 +468,14 @@ class GoogleLLMStream(LLMStreamABC):
                 yield item
         except (APIError, ClientError, ServerError, httpx.HTTPError) as e:
             yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
-            yield message.AssistantMessage(parts=[], response_id=None, usage=self._metadata_tracker.finalize())
+            # Use accumulated parts for potential prefill on retry
+            self._metadata_tracker.set_response_id(self._state.response_id)
+            yield message.AssistantMessage(
+                parts=self._state.get_partial_parts(),
+                response_id=self._state.response_id,
+                usage=self._metadata_tracker.finalize(),
+                stop_reason="error",
+            )
 
     def get_partial_message(self) -> message.AssistantMessage | None:
         if self._completed:

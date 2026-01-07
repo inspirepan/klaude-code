@@ -168,19 +168,21 @@ class AnthropicStreamStateManager:
         self.flush_tool_call()
         return list(self.assistant_parts)
 
+    def get_partial_parts(self) -> list[message.Part]:
+        """Get accumulated parts excluding tool calls, with thinking degraded.
+
+        Filters out ToolCallPart and applies degrade_thinking_to_text.
+        """
+        filtered_parts: list[message.Part] = [p for p in self.assistant_parts if not isinstance(p, message.ToolCallPart)]
+        return degrade_thinking_to_text(filtered_parts)
+
     def get_partial_message(self) -> message.AssistantMessage | None:
         """Build a partial AssistantMessage from accumulated state.
 
         Flushes all accumulated content and returns the message with
         stop_reason="aborted". Returns None if no content has been accumulated.
         """
-        filtered_parts: list[message.Part] = []
-        for part in self.assistant_parts:
-            if isinstance(part, message.ToolCallPart):
-                continue
-            filtered_parts.append(part)
-
-        parts = degrade_thinking_to_text(filtered_parts)
+        parts = self.get_partial_parts()
         if not parts:
             return None
         return message.AssistantMessage(
@@ -381,8 +383,10 @@ class AnthropicLLMStream(LLMStreamABC):
             self._metadata_tracker.set_model_name(str(self._param.model_id))
             self._metadata_tracker.set_response_id(self._state.response_id)
             metadata = self._metadata_tracker.finalize()
+            # Use accumulated parts for potential prefill on retry
+            self._state.flush_all()
             yield message.AssistantMessage(
-                parts=[],
+                parts=self._state.get_partial_parts(),
                 response_id=self._state.response_id,
                 usage=metadata,
                 stop_reason="error",

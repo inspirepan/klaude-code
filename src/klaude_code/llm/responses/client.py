@@ -126,22 +126,24 @@ class ResponsesStreamStateManager:
             )
         )
 
+    def get_partial_parts(self) -> list[message.Part]:
+        """Get accumulated parts excluding tool calls, with thinking degraded.
+
+        Filters out ToolCallPart and applies degrade_thinking_to_text.
+        """
+        filtered_parts: list[message.Part] = [p for p in self.assistant_parts if not isinstance(p, message.ToolCallPart)]
+        return degrade_thinking_to_text(filtered_parts)
+
     def get_partial_message(self) -> message.AssistantMessage | None:
         """Build a partial AssistantMessage from accumulated state.
 
         Returns None if no content has been accumulated yet.
         """
-        filtered_parts: list[message.Part] = []
-        for part in self.assistant_parts:
-            if isinstance(part, message.ToolCallPart):
-                continue
-            filtered_parts.append(part)
-
-        filtered_parts = degrade_thinking_to_text(filtered_parts)
-        if not filtered_parts:
+        parts = self.get_partial_parts()
+        if not parts:
             return None
         return message.AssistantMessage(
-            parts=filtered_parts,
+            parts=parts,
             response_id=self.response_id,
             stop_reason="aborted",
         )
@@ -276,11 +278,14 @@ async def parse_responses_stream(
                     )
     except (openai.OpenAIError, httpx.HTTPError) as e:
         yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+        state.stop_reason = "error"
 
     metadata_tracker.set_response_id(state.response_id)
     metadata = metadata_tracker.finalize()
+    # On error, use partial parts (excluding incomplete tool calls) for potential prefill on retry
+    parts = state.get_partial_parts() if state.stop_reason == "error" else list(state.assistant_parts)
     yield message.AssistantMessage(
-        parts=state.assistant_parts,
+        parts=parts,
         response_id=state.response_id,
         usage=metadata,
         stop_reason=state.stop_reason,
