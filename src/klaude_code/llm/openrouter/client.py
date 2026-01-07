@@ -145,4 +145,5 @@ class OpenRouterClient(LLMClientABC):
             metadata_tracker=metadata_tracker,
             reasoning_handler=reasoning_handler,
             on_event=on_event,
+            provider_prefix="openrouter/",
         )

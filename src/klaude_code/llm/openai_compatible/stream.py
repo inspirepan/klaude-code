@@ -199,6 +199,7 @@ async def parse_chat_completions_stream(
     metadata_tracker: MetadataTracker,
     reasoning_handler: ReasoningHandlerABC,
     on_event: Callable[[object], None] | None = None,
+    provider_prefix: str = "",
 ) -> AsyncGenerator[message.LLMStreamItem]:
     """Parse OpenAI Chat Completions stream into stream items.
 
@@ -235,7 +236,7 @@ async def parse_chat_completions_stream(
             if event_model := getattr(event, "model", None):
                 metadata_tracker.set_model_name(str(event_model))
             if provider := getattr(event, "provider", None):
-                metadata_tracker.set_provider(str(provider))
+                metadata_tracker.set_provider(f"{provider_prefix}{provider}")
 
             choices = cast(Any, getattr(event, "choices", None))
             if not choices:
@@ -364,12 +365,14 @@ class OpenAILLMStream(LLMStreamABC):
         metadata_tracker: MetadataTracker,
         reasoning_handler: ReasoningHandlerABC,
         on_event: Callable[[object], None] | None = None,
+        provider_prefix: str = "",
     ) -> None:
         self._stream = stream
         self._param = param
         self._metadata_tracker = metadata_tracker
         self._reasoning_handler = reasoning_handler
         self._on_event = on_event
+        self._provider_prefix = provider_prefix
         self._state = StreamStateManager(
             param_model=str(param.model_id),
         )
@@ -386,6 +389,7 @@ class OpenAILLMStream(LLMStreamABC):
             metadata_tracker=self._metadata_tracker,
             reasoning_handler=self._reasoning_handler,
             on_event=self._on_event,
+            provider_prefix=self._provider_prefix,
         ):
             if isinstance(item, message.AssistantMessage):
                 self._completed = True

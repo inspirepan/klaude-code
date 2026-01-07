@@ -22,6 +22,7 @@ class ModelUsageStats:
     """Aggregated usage stats for a single model."""
 
     model_name: str
+    provider: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
     cached_tokens: int = 0
@@ -57,8 +58,11 @@ class DailyStats:
             return
 
         model_key = meta.model_name
+        provider = meta.provider or meta.usage.provider or ""
         if model_key not in self.by_model:
-            self.by_model[model_key] = ModelUsageStats(model_name=model_key)
+            self.by_model[model_key] = ModelUsageStats(model_name=model_key, provider=provider)
+        elif not self.by_model[model_key].provider and provider:
+            self.by_model[model_key].provider = provider
 
         self.by_model[model_key].add_usage(meta.usage)
 
@@ -213,7 +217,9 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
 
             # Accumulate to global totals
             if model_name not in global_by_model:
-                global_by_model[model_name] = ModelUsageStats(model_name=model_name)
+                global_by_model[model_name] = ModelUsageStats(model_name=model_name, provider=stats.provider)
+            elif not global_by_model[model_name].provider and stats.provider:
+                global_by_model[model_name].provider = stats.provider
             global_by_model[model_name].input_tokens += stats.input_tokens
             global_by_model[model_name].output_tokens += stats.output_tokens
             global_by_model[model_name].cached_tokens += stats.cached_tokens
@@ -306,6 +312,39 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
         f"[bold]{usd_str}[/bold]",
         f"[bold]{cny_str}[/bold]",
     )
+
+    # Aggregate by provider
+    global_by_provider: dict[str, ModelUsageStats] = {}
+    for stats in global_by_model.values():
+        provider_key = stats.provider or "(unknown)"
+        if provider_key not in global_by_provider:
+            global_by_provider[provider_key] = ModelUsageStats(model_name=provider_key, provider=provider_key)
+        global_by_provider[provider_key].input_tokens += stats.input_tokens
+        global_by_provider[provider_key].output_tokens += stats.output_tokens
+        global_by_provider[provider_key].cached_tokens += stats.cached_tokens
+        global_by_provider[provider_key].cost_usd += stats.cost_usd
+        global_by_provider[provider_key].cost_cny += stats.cost_cny
+
+    # Add provider section if there are multiple providers or one known provider
+    has_known_providers = any(p != "(unknown)" for p in global_by_provider)
+    if len(global_by_provider) > 1 or has_known_providers:
+        table.add_section()
+        sorted_providers = [s.model_name for s in sorted(global_by_provider.values(), key=sort_by_cost)]
+        first_provider_row = True
+        for provider_name in sorted_providers:
+            stats = global_by_provider[provider_name]
+            usd_str, cny_str = format_cost_dual(stats.cost_usd, stats.cost_cny)
+            table.add_row(
+                "[bold]By Provider[/bold]" if first_provider_row else "",
+                provider_name,
+                format_tokens(stats.input_tokens),
+                format_tokens(stats.output_tokens),
+                format_tokens(stats.cached_tokens),
+                format_tokens(stats.total_tokens),
+                usd_str,
+                cny_str,
+            )
+            first_provider_row = False
 
     return table
 
