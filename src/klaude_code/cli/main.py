@@ -1,7 +1,10 @@
 import asyncio
 import sys
+from collections.abc import Sequence
+from typing import Any
 
 import typer
+from typer.core import TyperGroup
 
 from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
@@ -40,7 +43,88 @@ def _build_env_help() -> str:
 
 ENV_HELP = _build_env_help()
 
+
+def _looks_like_flag(token: str) -> bool:
+    return token.startswith("-") and token != "-"
+
+
+def _preprocess_cli_args(args: list[str]) -> list[str]:
+    """Rewrite CLI args to support optional values for selected options.
+
+    Supported rewrites:
+    - --model / -m with no value -> --model-select
+    - --resume / -r with value -> --resume-by-id <value>
+    """
+
+    rewritten: list[str] = []
+    i = 0
+    while i < len(args):
+        token = args[i]
+
+        if token in {"--model", "-m"}:
+            next_token = args[i + 1] if i + 1 < len(args) else None
+            if next_token is None or next_token == "--" or _looks_like_flag(next_token):
+                rewritten.append("--model-select")
+                i += 1
+                continue
+            rewritten.append(token)
+            i += 1
+            continue
+
+        if token.startswith("--model="):
+            value = token.split("=", 1)[1]
+            if value == "":
+                rewritten.append("--model-select")
+            else:
+                rewritten.append(token)
+            i += 1
+            continue
+
+        if token in {"--resume", "-r"}:
+            next_token = args[i + 1] if i + 1 < len(args) else None
+            if next_token is not None and next_token != "--" and not _looks_like_flag(next_token):
+                rewritten.extend(["--resume-by-id", next_token])
+                i += 2
+                continue
+            rewritten.append(token)
+            i += 1
+            continue
+
+        if token.startswith("--resume="):
+            value = token.split("=", 1)[1]
+            rewritten.extend(["--resume-by-id", value])
+            i += 1
+            continue
+
+        rewritten.append(token)
+        i += 1
+
+    return rewritten
+
+
+class _PreprocessingTyperGroup(TyperGroup):
+    def main(
+        self,
+        args: Sequence[str] | None = None,
+        prog_name: str | None = None,
+        complete_var: str | None = None,
+        standalone_mode: bool = True,
+        windows_expand_args: bool = True,
+        **extra: Any,
+    ) -> Any:
+        click_args = _preprocess_cli_args(list(args) if args is not None else sys.argv[1:])
+        return super().main(
+            args=click_args,
+            prog_name=prog_name,
+            complete_var=complete_var,
+            standalone_mode=standalone_mode,
+            windows_expand_args=windows_expand_args,
+            **extra,
+        )
+
+
 app = typer.Typer(
+    cls=_PreprocessingTyperGroup,
     add_completion=False,
     pretty_exceptions_enable=False,
     no_args_is_help=False,
@@ -69,21 +153,27 @@ def main_callback(
         None,
         "--model",
         "-m",
-        help="Select model by name",
+        help="Select model by name; use --model with no value to choose interactively",
         rich_help_panel="LLM",
     ),
     continue_: bool = typer.Option(False, "--continue", "-c", help="Resume latest session"),
-    resume: bool = typer.Option(False, "--resume", "-r", help="Pick a session to resume"),
+    resume: bool = typer.Option(
+        False,
+        "--resume",
+        "-r",
+        help="Resume a session; use --resume <id> to resume directly, or --resume to pick interactively",
+    ),
     resume_by_id: str | None = typer.Option(
         None,
         "--resume-by-id",
         help="Resume session by ID",
+        hidden=True,
     ),
     select_model: bool = typer.Option(
         False,
-        "--select-model",
-        "-s",
-        help="Choose model interactively",
+        "--model-select",
+        help="Choose model interactively (same as --model with no value)",
+        hidden=True,
         rich_help_panel="LLM",
     ),
     debug: bool = typer.Option(
@@ -107,7 +197,7 @@ def main_callback(
     banana: bool = typer.Option(
         False,
         "--banana",
-        help="Image generation mode",
+        help="Image generation mode (alias for --model banana)",
         rich_help_panel="LLM",
     ),
     version: bool = typer.Option(
@@ -130,11 +220,11 @@ def main_callback(
 
         resume_by_id_value = resume_by_id.strip() if resume_by_id is not None else None
         if resume_by_id_value == "":
-            log(("Error: --resume-by-id cannot be empty", "red"))
+            log(("Error: --resume <id> cannot be empty", "red"))
             raise typer.Exit(2)
 
         if resume_by_id_value is not None and (resume or continue_):
-            log(("Error: --resume-by-id cannot be combined with --resume/--continue", "red"))
+            log(("Error: --resume <id> cannot be combined with --continue or interactive --resume", "red"))
             raise typer.Exit(2)
 
         if resume_by_id_value is not None and not Session.exists(resume_by_id_value):

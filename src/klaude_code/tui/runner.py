@@ -312,4 +312,4 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             active_session_id = components.executor.context.current_session_id()
             if active_session_id and Session.exists(active_session_id):
                 log(f"Session ID: {active_session_id}")
-                log(f"Resume with: klaude --resume-by-id {active_session_id}")
+                log(f"Resume with: klaude --resume {active_session_id}")

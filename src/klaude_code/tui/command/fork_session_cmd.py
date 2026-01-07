@@ -194,7 +194,7 @@ class ForkSessionCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Fork the current session and show a resume-by-id command"
+        return "Fork the current session and show a resume command"
 
     @property
     def is_interactive(self) -> bool:
@@ -220,7 +220,7 @@ class ForkSessionCommand(CommandABC):
             new_session = agent.session.fork()
             await new_session.wait_for_flush()
 
-            resume_cmd = f"klaude --resume-by-id {new_session.id}"
+            resume_cmd = f"klaude --resume {new_session.id}"
             copy_to_clipboard(resume_cmd)
 
             event = events.CommandOutputEvent(
@@ -249,7 +249,7 @@ class ForkSessionCommand(CommandABC):
         # Build result message
         fork_description = "entire conversation" if selected == -1 else f"up to message index {selected}"
 
-        resume_cmd = f"klaude --resume-by-id {new_session.id}"
+        resume_cmd = f"klaude --resume {new_session.id}"
         copy_to_clipboard(resume_cmd)
 
         event = events.CommandOutputEvent(

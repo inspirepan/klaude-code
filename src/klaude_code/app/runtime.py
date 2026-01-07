@@ -178,6 +178,6 @@ async def handle_keyboard_interrupt(executor: Executor) -> None:
     log("Bye!")
     session_id = executor.context.current_session_id()
     if session_id and Session.exists(session_id):
-        log(("Resume with:", "dim"), (f"klaude --resume-by-id {session_id}", "green"))
+        log(("Resume with:", "dim"), (f"klaude --resume {session_id}", "green"))
     with contextlib.suppress(Exception):
         await executor.submit(op.InterruptOperation(target_session_id=None))

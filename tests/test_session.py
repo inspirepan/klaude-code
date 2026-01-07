@@ -1065,7 +1065,7 @@ class TestSessionExists:
         arun(_test())
 
 
-class TestCliResumeById:
+class TestCliResume:
     def test_errors_when_session_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -1074,12 +1074,12 @@ class TestCliResumeById:
         from klaude_code.cli.main import app
 
         def _should_not_run(*_args: object, **_kwargs: object) -> None:
-            raise AssertionError("interactive runtime should not start when --resume-by-id is invalid")
+            raise AssertionError("interactive runtime should not start when --resume <id> is invalid")
 
         monkeypatch.setattr("klaude_code.cli.main.asyncio.run", _should_not_run)
 
         runner = CliRunner()
-        result = runner.invoke(app, ["--resume-by-id", "missing-session-id"])
+        result = runner.invoke(app, ["--resume", "missing-session-id"])
         assert result.exit_code == 2
         assert "not found" in result.output
 
@@ -1096,7 +1096,7 @@ class TestCliResumeById:
         monkeypatch.setattr("klaude_code.cli.main.asyncio.run", _should_not_run)
 
         runner = CliRunner()
-        result = runner.invoke(app, ["--resume-by-id", "any", "--continue"])
+        result = runner.invoke(app, ["--resume", "any", "--continue"])
         assert result.exit_code == 2
         assert "cannot be combined" in result.output
 

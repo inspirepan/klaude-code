@@ -39,20 +39,22 @@ klaude upgrade
 ## Usage
 
 ```bash
-klaude [--model <name>] [--select-model]
+klaude [--model [<name>]] [--continue] [--resume [<id>]]
 ```
 
 **Options:**
-- `--model`/`-m`: Preferred model name (exact match picks immediately; otherwise opens the interactive selector filtered by this value).
-- `--select-model`/`-s`: Open the interactive model selector at startup (shows all models unless `--model` is also provided).
+- `--model`/`-m`: Choose a model.
+  - `--model` (no value): opens the interactive selector.
+  - `--model <value>`: resolves `<value>` to a single model; if it can't, it opens the interactive selector filtered by `<value>`.
 - `--continue`/`-c`: Resume the most recent session.
-- `--resume`/`-r`: Select a session to resume for this project.
-- `--resume-by-id <id>`: Resume a session by its ID directly.
+- `--resume`/`-r`: Resume a session.
+  - `--resume` (no value): select a session to resume for this project.
+  - `--resume <id>`: resume a session by its ID directly.
 - `--vanilla`: Minimal mode with only basic tools (Bash, Read, Edit, Write) and no system prompts.
 
 **Model selection behavior:**
 - Default: uses `main_model` from config.
-- `--select-model`: always prompts you to pick.
+- `--model` (no value): always prompts you to pick.
 - `--model <value>`: tries to resolve `<value>` to a single model; if it can't, it prompts with a filtered list (and falls back to showing all models if there are no matches).
 
 **Debug Options:**
