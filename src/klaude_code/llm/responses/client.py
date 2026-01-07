@@ -11,9 +11,14 @@ from openai.types.responses.response_create_params import ResponseCreateParamsSt
 from klaude_code.const import LLM_HTTP_TIMEOUT_CONNECT, LLM_HTTP_TIMEOUT_READ, LLM_HTTP_TIMEOUT_TOTAL
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.input_common import apply_config_defaults
-from klaude_code.llm.partial_message import degrade_thinking_to_text
 from klaude_code.llm.registry import register
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
+from klaude_code.llm.stream_parts import (
+    append_text_part,
+    append_thinking_text_part,
+    build_partial_message,
+    build_partial_parts,
+)
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message, model
@@ -85,25 +90,20 @@ class ResponsesStreamStateManager:
 
     def append_thinking_text(self, text: str) -> None:
         """Append thinking text, merging with previous ThinkingTextPart if in same summary."""
-        if not self._new_thinking_part and self.assistant_parts:
-            last = self.assistant_parts[-1]
-            if isinstance(last, message.ThinkingTextPart):
-                self.assistant_parts[-1] = message.ThinkingTextPart(
-                    text=last.text + text,
-                    model_id=self.model_id,
-                )
-                return
-        self.assistant_parts.append(message.ThinkingTextPart(text=text, model_id=self.model_id))
-        self._new_thinking_part = False
+        if (
+            append_thinking_text_part(
+                self.assistant_parts,
+                text,
+                model_id=self.model_id,
+                force_new=self._new_thinking_part,
+            )
+            is not None
+        ):
+            self._new_thinking_part = False
 
     def append_text(self, text: str) -> None:
         """Append text, merging with previous TextPart if possible."""
-        if self.assistant_parts:
-            last = self.assistant_parts[-1]
-            if isinstance(last, message.TextPart):
-                self.assistant_parts[-1] = message.TextPart(text=last.text + text)
-                return
-        self.assistant_parts.append(message.TextPart(text=text))
+        append_text_part(self.assistant_parts, text)
 
     def append_thinking_signature(self, signature: str) -> None:
         """Append a ThinkingSignaturePart after the current part."""
@@ -131,22 +131,14 @@ class ResponsesStreamStateManager:
 
         Filters out ToolCallPart and applies degrade_thinking_to_text.
         """
-        filtered_parts: list[message.Part] = [p for p in self.assistant_parts if not isinstance(p, message.ToolCallPart)]
-        return degrade_thinking_to_text(filtered_parts)
+        return build_partial_parts(self.assistant_parts)
 
     def get_partial_message(self) -> message.AssistantMessage | None:
         """Build a partial AssistantMessage from accumulated state.
 
         Returns None if no content has been accumulated yet.
         """
-        parts = self.get_partial_parts()
-        if not parts:
-            return None
-        return message.AssistantMessage(
-            parts=parts,
-            response_id=self.response_id,
-            stop_reason="aborted",
-        )
+        return build_partial_message(self.assistant_parts, response_id=self.response_id)
 
 
 async def parse_responses_stream(

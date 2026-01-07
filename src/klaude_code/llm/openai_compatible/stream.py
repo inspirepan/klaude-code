@@ -27,7 +27,12 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.llm.image import save_assistant_image
 from klaude_code.llm.openai_compatible.tool_call_accumulator import normalize_tool_name
-from klaude_code.llm.partial_message import degrade_thinking_to_text
+from klaude_code.llm.stream_parts import (
+    append_text_part,
+    append_thinking_text_part,
+    build_partial_message,
+    build_partial_parts,
+)
 from klaude_code.llm.usage import MetadataTracker, convert_usage
 from klaude_code.protocol import llm_param, message, model
 
@@ -58,28 +63,11 @@ class StreamStateManager:
 
     def append_thinking_text(self, text: str) -> None:
         """Append thinking text, merging with the previous ThinkingTextPart when possible."""
-        if not text:
-            return
-        if self.assistant_parts:
-            last = self.assistant_parts[-1]
-            if isinstance(last, message.ThinkingTextPart):
-                self.assistant_parts[-1] = message.ThinkingTextPart(
-                    text=last.text + text,
-                    model_id=self.param_model,
-                )
-                return
-        self.assistant_parts.append(message.ThinkingTextPart(text=text, model_id=self.param_model))
+        append_thinking_text_part(self.assistant_parts, text, model_id=self.param_model)
 
     def append_text(self, text: str) -> None:
         """Append assistant text, merging with the previous TextPart when possible."""
-        if not text:
-            return
-        if self.assistant_parts:
-            last = self.assistant_parts[-1]
-            if isinstance(last, message.TextPart):
-                self.assistant_parts[-1] = message.TextPart(text=last.text + text)
-                return
-        self.assistant_parts.append(message.TextPart(text=text))
+        append_text_part(self.assistant_parts, text)
 
     def append_image(self, image_part: message.ImageFilePart) -> None:
         self.assistant_parts.append(image_part)
@@ -130,8 +118,7 @@ class StreamStateManager:
 
         Filters out ToolCallPart and applies degrade_thinking_to_text.
         """
-        filtered_parts: list[message.Part] = [p for p in self.assistant_parts if not isinstance(p, message.ToolCallPart)]
-        return degrade_thinking_to_text(filtered_parts)
+        return build_partial_parts(self.assistant_parts)
 
     def get_partial_message(self) -> message.AssistantMessage | None:
         """Build a partial AssistantMessage from accumulated state.
@@ -139,14 +126,7 @@ class StreamStateManager:
         Filters out tool calls and degrades thinking content for safety.
         Returns None if no content has been accumulated.
         """
-        parts = self.get_partial_parts()
-        if not parts:
-            return None
-        return message.AssistantMessage(
-            parts=parts,
-            response_id=self.response_id,
-            stop_reason="aborted",
-        )
+        return build_partial_message(self.assistant_parts, response_id=self.response_id)
 
 
 @dataclass(slots=True)
