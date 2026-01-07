@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.3] - 2026-01-07
+
+### Added
+
+- preserve partial content on stream error for retry prefill (`bb9c05df`)
+- fix google gemini protocol support (`77aafaa5`)
+- update model selector style with provider group (`5f4b2253`)
+- add gpt-5.2 openai builtin config (`8633c893`)
+
+### Changed
+
+- update metadata style (`91110460`)
+- centralize stream part helpers (`c6c92ae1`)
+- refactor Anthropic & Chat Completion API client to accumulating-parts style && fix summary part spacing (`2d160706`)
+- refactor responses API client to accumulating-parts style && fix summary part spacing (`d39d73fc`)
+- unify picker styles and improve model display (`261f2c96`)
+
+### Fixed
+
+- correct quote width measurement (`54ecc6df`)
+- update spinner status line style (`e8706c89`)
+- fixed responses API degrade other model's thinking text logic & update builtin openai reasoning summary level (`721b8ab4`)
+- show full error traceback (`98e266d6`)
+- fix responses API output_text (`6763846e`)
+- update cost command wrap logic (`08a427ad`)
+
+### Other
+
+- update --help ENV vars (`c19d1347`)
+- fix lint (`b5d2f30c`)
 ## [2.5.2] - 2026-01-06
 
 ### Added
@@ -1255,7 +1285,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.5.2...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.5.3...HEAD
+[2.5.3]: https://github.com/inspirepan/klaude-code/compare/v2.5.2...v2.5.3
 [2.5.2]: https://github.com/inspirepan/klaude-code/compare/v2.5.1...v2.5.2
 [2.5.0]: https://github.com/inspirepan/klaude-code/compare/v2.4.2...v2.5.0
 [2.4.2]: https://github.com/inspirepan/klaude-code/compare/v2.4.1...v2.4.2
