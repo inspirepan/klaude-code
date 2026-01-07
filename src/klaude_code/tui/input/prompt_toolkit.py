@@ -36,9 +36,15 @@ from klaude_code.protocol import llm_param
 from klaude_code.protocol.commands import CommandInfo
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
-from klaude_code.tui.input.clipboard import capture_clipboard_tag, copy_to_clipboard, extract_images_from_text
+from klaude_code.tui.input.clipboard import (
+    capture_clipboard_tag,
+    copy_to_clipboard,
+    extract_images_from_text,
+)
 from klaude_code.tui.input.completers import AT_TOKEN_PATTERN, create_repl_completer
+from klaude_code.tui.input.drag_drop import convert_dropped_text
 from klaude_code.tui.input.key_bindings import create_key_bindings
+from klaude_code.tui.input.paste import expand_paste_markers
 from klaude_code.tui.terminal.color import is_light_terminal_background
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 from klaude_code.ui.core.input import InputProviderABC
@@ -668,6 +674,12 @@ class PromptToolkitInput(InputProviderABC):
             if self._post_prompt is not None:
                 with contextlib.suppress(Exception):
                     self._post_prompt()
+
+            # Expand folded paste markers back into the original content.
+            line = expand_paste_markers(line)
+
+            # Convert drag-and-drop file:// URIs that may have bypassed bracketed paste.
+            line = convert_dropped_text(line, cwd=Path.cwd())
 
             # Extract images referenced in the input text
             images = extract_images_from_text(line)

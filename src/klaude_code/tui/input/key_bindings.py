@@ -9,6 +9,7 @@ from __future__ import annotations
 import contextlib
 import re
 from collections.abc import Callable
+from pathlib import Path
 from typing import cast
 
 from prompt_toolkit.application.current import get_app
@@ -17,6 +18,10 @@ from prompt_toolkit.filters import Always, Condition, Filter
 from prompt_toolkit.filters.app import has_completions
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
+from prompt_toolkit.keys import Keys
+
+from klaude_code.tui.input.drag_drop import convert_dropped_text
+from klaude_code.tui.input.paste import expand_paste_markers, store_paste
 
 
 def create_key_bindings(
@@ -31,7 +36,7 @@ def create_key_bindings(
     """Create REPL key bindings with injected dependencies.
 
     Args:
-        capture_clipboard_tag: Callable to capture clipboard image and return tag
+        capture_clipboard_tag: Callable to capture clipboard image and return `[image ...]` marker
         copy_to_clipboard: Callable to copy text to system clipboard
         at_token_pattern: Pattern to match @token for completion refresh
 
@@ -233,11 +238,50 @@ def create_key_bindings(
 
     @kb.add("c-v", filter=enabled)
     def _(event: KeyPressEvent) -> None:
-        """Paste image from clipboard as [Image #N]."""
-        tag = capture_clipboard_tag()
-        if tag:
+        """Paste image from clipboard as an `[image ...]` marker."""
+        marker = capture_clipboard_tag()
+        if marker:
             with contextlib.suppress(Exception):
-                event.current_buffer.insert_text(tag)  # pyright: ignore[reportUnknownMemberType]
+                event.current_buffer.insert_text(marker)  # pyright: ignore[reportUnknownMemberType]
+
+    @kb.add(Keys.BracketedPaste, filter=enabled)
+    def _(event: KeyPressEvent) -> None:
+        """Handle bracketed paste.
+
+        - Large multi-line pastes are folded into a marker: `[paste #N ...]`.
+        - Otherwise, try to convert dropped file URLs/paths into @ tokens or `[image ...]` markers.
+        """
+
+        data = getattr(event, "data", "")
+        if not isinstance(data, str) or not data:
+            return
+
+        pasted_lines = data.splitlines()
+        line_count = max(1, len(pasted_lines))
+        total_chars = len(data)
+
+        should_fold = line_count > 10 or total_chars > 1000
+        if should_fold:
+            marker = store_paste(data)
+            if marker and not marker.endswith((" ", "\t", "\n")):
+                marker += " "
+            with contextlib.suppress(Exception):
+                event.current_buffer.insert_text(marker)  # pyright: ignore[reportUnknownMemberType]
+            return
+
+        converted = convert_dropped_text(data, cwd=Path.cwd())
+        if converted != data and converted and not converted.endswith((" ", "\t", "\n")):
+            converted += " "
+
+        buf = event.current_buffer
+        try:
+            if buf.selection_state:  # type: ignore[reportUnknownMemberType]
+                buf.cut_selection()  # type: ignore[reportUnknownMemberType]
+        except Exception:
+            pass
+
+        with contextlib.suppress(Exception):
+            buf.insert_text(converted)  # type: ignore[reportUnknownMemberType]
 
     @kb.add("enter", filter=enabled)
     def _(event: KeyPressEvent) -> None:
@@ -261,6 +305,21 @@ def create_key_bindings(
         # the buffer, and Enter/Tab inserts the selected option.
         if not _should_submit_instead_of_accepting_completion(buf) and _accept_current_completion(buf):
             return
+
+        # Before submitting, expand any folded paste markers so that:
+        # - the actual request contains the full pasted content
+        # - prompt_toolkit history stores the expanded content
+        # Also convert any remaining file:// drops that bypassed bracketed paste.
+        try:
+            current_text = buf.text  # type: ignore[reportUnknownMemberType]
+        except Exception:
+            current_text = ""
+        prepared = expand_paste_markers(current_text)
+        prepared = convert_dropped_text(prepared, cwd=Path.cwd())
+        if prepared != current_text:
+            with contextlib.suppress(Exception):
+                buf.text = prepared  # type: ignore[reportUnknownMemberType]
+                buf.cursor_position = len(prepared)  # type: ignore[reportUnknownMemberType]
 
         # If the entire buffer is whitespace-only, insert a newline rather than submitting.
         if len(buf.text.strip()) == 0:  # type: ignore

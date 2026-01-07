@@ -7,6 +7,7 @@ that were previously scattered across the codebase.
 from __future__ import annotations
 
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -115,7 +116,7 @@ TOOL_OUTPUT_DISPLAY_TAIL = 10000  # Characters to show from the end of truncated
 TOOL_OUTPUT_MAX_LINES = 2000  # Maximum lines for tool output before truncation
 TOOL_OUTPUT_DISPLAY_HEAD_LINES = 1000  # Lines to show from the beginning of truncated output
 TOOL_OUTPUT_DISPLAY_TAIL_LINES = 1000  # Lines to show from the end of truncated output
-TOOL_OUTPUT_TRUNCATION_DIR = "/tmp"  # Directory for saving full truncated output
+TOOL_OUTPUT_TRUNCATION_DIR = tempfile.gettempdir()  # Directory for saving full truncated output
 
 
 # =============================================================================
