@@ -578,4 +578,14 @@ def create_key_bindings(
             with contextlib.suppress(Exception):
                 open_thinking_picker()
 
+    @kb.add("escape", "up", filter=enabled & ~has_completions)
+    def _(event: KeyPressEvent) -> None:
+        """Option+Up switches to previous history entry."""
+        event.current_buffer.history_backward()
+
+    @kb.add("escape", "down", filter=enabled & ~has_completions)
+    def _(event: KeyPressEvent) -> None:
+        """Option+Down switches to next history entry."""
+        event.current_buffer.history_forward()
+
     return kb
