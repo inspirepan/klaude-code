@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     from klaude_code.config.config import Config
 
+from klaude_code.auth.codex.exceptions import CodexUnsupportedModelError
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
 from klaude_code.core.reminders import (
     at_file_reader_reminder,
@@ -53,13 +54,10 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
 }
 
 
-# Mapping from logical prompt keys to resource file paths under the core/prompt directory.
-PROMPT_FILES: dict[str, str] = {
-    "main_codex": "prompts/prompt-codex.md",
-    "main_gpt_5_1_codex_max": "prompts/prompt-codex-gpt-5-1-codex-max.md",
-    "main_gpt_5_2_codex": "prompts/prompt-codex-gpt-5-2-codex.md",
-    "main": "prompts/prompt-claude-code.md",
-    "main_gemini": "prompts/prompt-gemini.md",  # https://ai.google.dev/gemini-api/docs/prompting-strategies?hl=zh-cn#agentic-si-template
+# Prompts for codex_oauth protocol - must be used exactly as-is without any additions.
+CODEX_OAUTH_PROMPTS: dict[str, str] = {
+    "gpt-5.2-codex": "prompts/prompt-codex-gpt-5-2-codex.md",
+    "gpt-5.2": "prompts/prompt-codex-gpt-5-2.md",
 }
 
 
@@ -93,31 +91,20 @@ def _load_prompt_by_path(prompt_path: str) -> str:
     return files(__package__).joinpath(prompt_path).read_text(encoding="utf-8").strip()
 
 
-def _load_base_prompt(file_key: str) -> str:
-    """Load and cache the base prompt content from file."""
-
-    try:
-        prompt_path = PROMPT_FILES[file_key]
-    except KeyError as exc:
-        raise ValueError(f"Unknown prompt key: {file_key}") from exc
-
-    return _load_prompt_by_path(prompt_path)
-
-
-def _get_file_key(model_name: str, protocol: llm_param.LLMClientProtocol) -> str:
-    """Determine which prompt file to use based on model."""
+def _load_prompt_by_model(model_name: str) -> str:
+    """Load base prompt content based on model name."""
 
     match model_name:
         case name if "gpt-5.2-codex" in name:
-            return "main_gpt_5_2_codex"
-        case name if "gpt-5.1-codex-max" in name:
-            return "main_gpt_5_1_codex_max"
+            return _load_prompt_by_path("prompts/prompt-codex-gpt-5-2-codex.md")
+        case name if "gpt-5.2" in name:
+            return _load_prompt_by_path("prompts/prompt-codex-gpt-5-2.md")
         case name if "gpt-5" in name:
-            return "main_codex"
+            return _load_prompt_by_path("prompts/prompt-codex.md")
         case name if "gemini" in name:
-            return "main_gemini"
+            return _load_prompt_by_path("prompts/prompt-gemini.md")
         case _:
-            return "main"
+            return _load_prompt_by_path("prompts/prompt-claude-code.md")
 
 
 def _build_env_info(model_name: str) -> str:
@@ -175,16 +162,18 @@ def load_system_prompt(
 ) -> str:
     """Get system prompt content for the given model and sub-agent type."""
 
+    # For codex_oauth protocol, use exact prompts without any additions.
+    if protocol == llm_param.LLMClientProtocol.CODEX_OAUTH:
+        for model_key, prompt_path in CODEX_OAUTH_PROMPTS.items():
+            if model_key in model_name:
+                return _load_prompt_by_path(prompt_path)
+        raise CodexUnsupportedModelError(f"codex_oauth protocol does not support model: {model_name}")
+
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)
         base_prompt = _load_prompt_by_path(profile.prompt_file)
     else:
-        file_key = _get_file_key(model_name, protocol)
-        base_prompt = _load_base_prompt(file_key)
-
-    if protocol == llm_param.LLMClientProtocol.CODEX_OAUTH:
-        # Do not append environment info or skills info for Codex protocol.
-        return base_prompt
+        base_prompt = _load_prompt_by_model(model_name)
 
     skills_prompt = ""
     sub_agent_prompt = ""

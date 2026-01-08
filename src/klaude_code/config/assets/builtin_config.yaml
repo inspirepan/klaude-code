@@ -260,3 +260,12 @@ provider_list:
     context_limit: 400000
     max_tokens: 128000
     cost: {input: 1.75, output: 14, cache_read: 0.17}
+  - model_name: gpt-5.2
+    model_id: gpt-5.2
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: high
+    thinking:
+      reasoning_effort: high
+      reasoning_summary: detailed
+    cost: {input: 1.75, output: 14, cache_read: 0.17}

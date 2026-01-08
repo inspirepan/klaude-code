@@ -196,7 +196,9 @@ class TurnExecutor:
             ):
                 session_ctx.append_history([self._turn_result.assistant_message])
                 # Add continuation prompt to avoid Anthropic thinking block requirement
-                session_ctx.append_history([message.UserMessage(parts=[message.TextPart(text="<system>continue</system>")])])
+                session_ctx.append_history(
+                    [message.UserMessage(parts=[message.TextPart(text="<system>continue</system>")])]
+                )
             yield events.TurnEndEvent(session_id=session_ctx.session_id)
             raise TurnError(self._turn_result.stream_error.error)
 

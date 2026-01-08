@@ -15,3 +15,7 @@ class CodexTokenExpiredError(CodexAuthError):
 
 class CodexOAuthError(CodexAuthError):
     """OAuth flow failed."""
+
+
+class CodexUnsupportedModelError(CodexAuthError):
+    """Model is not supported by codex_oauth protocol."""
