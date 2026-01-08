@@ -30,3 +30,15 @@ User Input (keyboard/paste/drag)
 | `images.py` | Image handling: marker syntax, Ctrl+V capture, `extract_images_from_text()` |
 | `paste.py` | `[paste #N ...]` fold/expand for large pastes |
 | `completers.py` | `@`/`/`/`$` completion providers |
+
+## Special Syntax Features (`@file`, `$skill`)
+
+These features span three modules that must stay in sync:
+
+| Stage | Module | Responsibility |
+|-------|--------|----------------|
+| Input | `completers.py` | Autocomplete paths/skills as user types |
+| Display | `components/user_input.py` | Highlight syntax in rendered messages |
+| Action | `core/reminders.py` | Inject file content / load skill for LLM |
+
+When adding or modifying syntax (e.g., new prefix like `#tag`), update all three.

@@ -209,22 +209,21 @@ class SkillLoader:
         """Get list of all loaded skill names"""
         return list(self.loaded_skills.keys())
 
-    def get_skills_xml(self) -> str:
-        """Generate Level 1 metadata in XML format for tool description
+    def get_skills_yaml(self) -> str:
+        """Generate skill metadata in YAML format for system prompt.
 
         Returns:
-            XML string with all skill metadata
+            YAML string with all skill metadata
         """
-        xml_parts: list[str] = []
-        # Prefer showing higher-priority skills first (project > user > system).
+        yaml_parts: list[str] = []
         location_order = {"project": 0, "user": 1, "system": 2}
         for skill in sorted(self.loaded_skills.values(), key=lambda s: location_order.get(s.location, 3)):
-            xml_parts.append(
-                f"""<skill>
-<name>{skill.name}</name>
-<description>{skill.description}</description>
-<scope>{skill.location}</scope>
-<location>{skill.skill_path}</location>
-</skill>"""
+            # Escape description for YAML (handle multi-line and special chars)
+            desc = skill.description.replace("\n", " ").strip()
+            yaml_parts.append(
+                f"- name: {skill.name}\n"
+                f"  description: {desc}\n"
+                f"  scope: {skill.location}\n"
+                f"  location: {skill.skill_path}"
             )
-        return "\n".join(xml_parts)
+        return "\n".join(yaml_parts)

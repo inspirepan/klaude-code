@@ -17,8 +17,8 @@ from klaude_code.skill import get_skill
 # Match @ preceded by whitespace, start of line, or → (ReadTool line number arrow)
 AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>\S+))')
 
-# Match $skill or ¥skill at the beginning of the first line
-SKILL_PATTERN = re.compile(r"^[$¥](?P<skill>\S+)")
+# Match $skill or ¥skill inline (at start of line or after whitespace)
+SKILL_PATTERN = re.compile(r"(?:^|\s)[$¥](?P<skill>\S+)")
 
 
 def get_last_new_user_input(session: Session) -> str | None:
@@ -79,14 +79,13 @@ def get_at_patterns_with_source(session: Session) -> list[AtPatternSource]:
 
 
 def get_skill_from_user_input(session: Session) -> str | None:
-    """Get $skill reference from the first line of last user input."""
+    """Get $skill reference from last user input (first match wins)."""
     for item in reversed(session.conversation_history):
         if isinstance(item, message.ToolResultMessage):
             return None
         if isinstance(item, message.UserMessage):
             content = message.join_text_parts(item.parts)
-            first_line = content.split("\n", 1)[0]
-            m = SKILL_PATTERN.match(first_line)
+            m = SKILL_PATTERN.search(content)
             if m:
                 return m.group("skill")
             return None

@@ -38,7 +38,8 @@ from klaude_code.protocol.commands import CommandInfo
 AT_TOKEN_PATTERN = re.compile(r'(^|\s)@(?P<frag>"[^"]*"|[^\s]*)$')
 
 # Pattern to match $skill or ¥skill token for skill completion (used by key bindings).
-SKILL_TOKEN_PATTERN = re.compile(r"^[$¥](?P<frag>\S*)$")
+# Supports inline matching: after whitespace or at start of line.
+SKILL_TOKEN_PATTERN = re.compile(r"(^|\s)[$¥](?P<frag>\S*)$")
 
 
 def create_repl_completer(
@@ -130,10 +131,10 @@ class _SlashCommandCompleter(Completer):
 
 
 class _SkillCompleter(Completer):
-    """Complete skill names at the beginning of the first line.
+    """Complete skill names with $ or ¥ prefix.
 
     Behavior:
-    - Only triggers when cursor is on first line and text matches $ or ¥…
+    - Triggers when cursor is after $ or ¥ (at start of line or after whitespace)
     - Shows available skills with descriptions
     - Inserts trailing space after completion
     """
@@ -145,19 +146,16 @@ class _SkillCompleter(Completer):
         document: Document,
         complete_event,  # type: ignore[override]
     ) -> Iterable[Completion]:
-        # Only complete on first line
-        if document.cursor_position_row != 0:
-            return
-
         text_before = document.current_line_before_cursor
         m = self._SKILL_TOKEN_RE.search(text_before)
         if not m:
             return
 
         frag = m.group("frag").lower()
-        # Get the prefix character ($ or ¥)
-        prefix_char = text_before[0]
-        token_start = len(text_before) - len(f"{prefix_char}{m.group('frag')}")
+        # Calculate token start: the match includes optional leading whitespace
+        # The actual token is $frag or ¥frag (1 char prefix + frag)
+        token_len = 1 + len(m.group("frag"))  # $ or ¥ + frag
+        token_start = len(text_before) - token_len
         start_position = token_start - len(text_before)  # negative offset
 
         # Get available skills from SkillTool
@@ -204,8 +202,6 @@ class _SkillCompleter(Completer):
 
     def is_skill_context(self, document: Document) -> bool:
         """Check if current context is a skill completion."""
-        if document.cursor_position_row != 0:
-            return False
         text_before = document.current_line_before_cursor
         return bool(self._SKILL_TOKEN_RE.search(text_before))
 
@@ -228,8 +224,8 @@ class _ComboCompleter(Completer):
             yield from self._slash_completer.get_completions(document, complete_event)
             return
 
-        # Try skill completion (only on first line with $ prefix)
-        if document.cursor_position_row == 0 and self._skill_completer.is_skill_context(document):
+        # Try skill completion (with $ or ¥ prefix)
+        if self._skill_completer.is_skill_context(document):
             yield from self._skill_completer.get_completions(document, complete_event)
             return
 
