@@ -434,7 +434,7 @@ class PromptToolkitInput(InputProviderABC):
                 original_height_int = original_height_value if isinstance(original_height_value, int) else None
 
                 if picker_open or completion_open:
-                    target_rows = 20 if picker_open else 14
+                    target_rows = 24 if picker_open else 14
 
                     # Cap to the current terminal size.
                     # Leave a small buffer to avoid triggering "Window too small".
@@ -531,7 +531,7 @@ class PromptToolkitInput(InputProviderABC):
             return [], None
 
         items: list[SelectItem[str]] = [
-            SelectItem(title=[("class:text", opt.label + "\n")], value=opt.value, search_text=opt.label)
+            SelectItem(title=[("class:msg", opt.label + "\n")], value=opt.value, search_text=opt.label)
             for opt in data.options
         ]
         return items, data.current_value

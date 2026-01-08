@@ -79,7 +79,11 @@ def select_model_interactive(
     try:
         items = build_model_select_items(result.filtered_models)
 
-        message = f"Select a model (filtered by '{result.filter_hint}'):" if result.filter_hint else "Select a model:"
+        total_count = len(result.filtered_models)
+        if result.filter_hint:
+            message = f"Select a model ({total_count}, filtered by '{result.filter_hint}'):"
+        else:
+            message = f"Select a model ({total_count}):"
 
         initial_value = config.main_model
         if isinstance(initial_value, str) and initial_value and "@" not in initial_value:

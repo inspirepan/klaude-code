@@ -257,10 +257,11 @@ provider_list:
     model_id: gpt-5.2-codex
     thinking:
       reasoning_effort: medium
+      reasoning_summary: auto
     context_limit: 400000
     max_tokens: 128000
     cost: {input: 1.75, output: 14, cache_read: 0.17}
-  - model_name: gpt-5.2
+  - model_name: gpt-5.2-high
     model_id: gpt-5.2
     max_tokens: 128000
     context_limit: 400000

@@ -574,7 +574,10 @@ def select_one[T](
     )
     list_window = Window(
         FormattedTextControl(get_choices_tokens),
-        scroll_offsets=ScrollOffsets(top=0, bottom=2),
+        # Keep 1 line of context above the cursor so non-selectable header rows
+        # (e.g. provider group labels) remain visible when wrapping back to the
+        # first selectable item in a scrolled list.
+        scroll_offsets=ScrollOffsets(top=1, bottom=2),
         allow_scroll_beyond_bottom=True,
         dont_extend_height=Always(),
         always_hide_cursor=Always(),
@@ -796,6 +799,7 @@ class SelectOverlay[T]:
             dont_extend_height=Always(),
             always_hide_cursor=Always(),
         )
+
         def get_list_height() -> int:
             # Dynamic height: min of configured height and available terminal space
             # Overhead: header(1) + spacer(1) + search(1) + frame borders(2) + prompt area(3)
@@ -803,15 +807,35 @@ class SelectOverlay[T]:
             try:
                 terminal_height = get_app().output.get_size().rows
                 available = max(3, terminal_height - overhead)
-                return min(self._list_height, available)
+                cap = min(self._list_height, available)
             except Exception:
-                return self._list_height
+                cap = self._list_height
+
+            # Shrink list height when content is shorter than the configured cap.
+            # This is especially helpful for small pickers (e.g. thinking level)
+            # where a fixed list_height would otherwise render extra blank rows.
+            indices, _ = self._get_visible_indices()
+            if not indices:
+                return max(1, cap)
+
+            visible_lines = 0
+            for idx in indices:
+                item = self._items[idx]
+                newlines = sum(text.count("\n") for _style, text in item.title)
+                visible_lines += max(1, newlines)
+                if visible_lines >= cap:
+                    break
+
+            return max(1, min(cap, visible_lines))
 
         list_window = Window(
             FormattedTextControl(get_choices_tokens),
             height=get_list_height,
-            scroll_offsets=ScrollOffsets(top=0, bottom=2),
-            allow_scroll_beyond_bottom=True,
+            # See select_one(): keep header rows visible when wrapping.
+            # For embedded overlays, avoid reserving extra blank lines near the
+            # bottom when the list height is tight (e.g. short pickers).
+            scroll_offsets=ScrollOffsets(top=1, bottom=0),
+            allow_scroll_beyond_bottom=False,
             dont_extend_height=Always(),
             always_hide_cursor=Always(),
         )

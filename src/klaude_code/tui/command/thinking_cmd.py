@@ -14,7 +14,7 @@ def _select_thinking_sync(config: llm_param.LLMConfigParameter) -> llm_param.Thi
         return None
 
     items: list[SelectItem[str]] = [
-        SelectItem(title=[("class:text", opt.label + "\n")], value=opt.value, search_text=opt.label)
+        SelectItem(title=[("class:msg", opt.label + "\n")], value=opt.value, search_text=opt.label)
         for opt in data.options
     ]
 
