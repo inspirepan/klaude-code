@@ -125,24 +125,44 @@ class ClaudeOAuth:
             expires_at=int(time.time()) + int(expires_in),
         )
 
-    def refresh(self) -> ClaudeAuthState:
-        """Refresh the access token using refresh token."""
-        state = self.token_manager.get_state()
-        if state is None:
-            raise ClaudeNotLoggedInError("Not logged in to Claude. Run 'klaude login claude' first.")
-
+    def _do_refresh_request(self, refresh_token: str) -> httpx.Response:
+        """Send token refresh request to OAuth server."""
         payload = {
             "grant_type": "refresh_token",
             "client_id": CLIENT_ID,
-            "refresh_token": state.refresh_token,
+            "refresh_token": refresh_token,
         }
-
         with httpx.Client() as client:
-            response = client.post(
+            return client.post(
                 TOKEN_URL,
                 json=payload,
                 headers={"Content-Type": "application/json"},
             )
+
+    def refresh(self) -> ClaudeAuthState:
+        """Refresh the access token using refresh token.
+
+        Handles concurrent refresh race conditions by retrying with freshly loaded token
+        if the first attempt fails with invalid_grant error.
+        """
+        state = self.token_manager.get_state()
+        if state is None:
+            raise ClaudeNotLoggedInError("Not logged in to Claude. Run 'klaude login claude' first.")
+
+        response = self._do_refresh_request(state.refresh_token)
+
+        # Handle race condition: another process may have refreshed the token already
+        if response.status_code != 200 and "invalid_grant" in response.text:
+            # Reload token from file (another process may have updated it)
+            self.token_manager.clear_cached_state()
+            fresh_state = self.token_manager.load()
+            if fresh_state and fresh_state.refresh_token != state.refresh_token:
+                # Token was updated by another process
+                if not fresh_state.is_expired():
+                    # New token is still valid, use it directly
+                    return fresh_state
+                # New token expired, try refreshing with the new refresh_token
+                response = self._do_refresh_request(fresh_state.refresh_token)
 
         if response.status_code != 200:
             raise ClaudeAuthError(f"Token refresh failed: {response.text}")

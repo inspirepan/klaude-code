@@ -95,3 +95,7 @@ class BaseTokenManager[T: BaseAuthState](ABC):
         if self._state is None:
             self._state = self.load()
         return self._state
+
+    def clear_cached_state(self) -> None:
+        """Clear in-memory cached state to force reload from file on next access."""
+        self._state = None
