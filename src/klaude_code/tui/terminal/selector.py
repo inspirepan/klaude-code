@@ -81,13 +81,13 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
 
     items: list[SelectItem[str]] = []
     model_idx = 0
-    separator_base_len = 40
+    separator_base_len = 80
     for provider, provider_models in grouped.items():
         provider_text = provider.lower()
         count_text = f"({len(provider_models)})"
         header_len = len(provider_text) + 1 + len(count_text)
         separator_len = separator_base_len + max_header_len - header_len
-        separator = "─" * separator_len
+        separator = "-" * separator_len
         items.append(
             SelectItem(
                 title=[
