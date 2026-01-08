@@ -162,3 +162,9 @@ class TaskClockStart(RenderCommand):
 @dataclass(frozen=True, slots=True)
 class TaskClockClear(RenderCommand):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class RenderCompactionSummary(RenderCommand):
+    summary: str
+    kept_items_brief: tuple[tuple[str, int, str], ...] = ()  # (item_type, count, preview)

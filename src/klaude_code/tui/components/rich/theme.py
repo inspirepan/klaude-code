@@ -178,6 +178,8 @@ class ThemeKey(str, Enum):
     # THINKING
     THINKING = "thinking"
     THINKING_BOLD = "thinking.bold"
+    # COMPACTION
+    COMPACTION_SUMMARY = "compaction.summary"
     # TODO_ITEM
     TODO_EXPLANATION = "todo.explanation"
     TODO_PENDING_MARK = "todo.pending.mark"
@@ -296,6 +298,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 # THINKING
                 ThemeKey.THINKING.value: "italic " + palette.grey2,
                 ThemeKey.THINKING_BOLD.value: "bold italic " + palette.grey1,
+                # COMPACTION
+                ThemeKey.COMPACTION_SUMMARY.value: "italic " + palette.grey1,
                 # TODO_ITEM
                 ThemeKey.TODO_EXPLANATION.value: palette.grey1 + " italic",
                 ThemeKey.TODO_PENDING_MARK.value: "bold " + palette.grey1,

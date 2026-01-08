@@ -6,6 +6,7 @@ from rich.text import Text
 
 from klaude_code.const import (
     SIGINT_DOUBLE_PRESS_EXIT_TEXT,
+    STATUS_COMPACTING_TEXT,
     STATUS_COMPOSING_TEXT,
     STATUS_DEFAULT_TEXT,
     STATUS_SHOW_BUFFER_LENGTH,
@@ -24,6 +25,7 @@ from klaude_code.tui.commands import (
     RenderAssistantImage,
     RenderCommand,
     RenderCommandOutput,
+    RenderCompactionSummary,
     RenderDeveloperMessage,
     RenderError,
     RenderInterrupt,
@@ -311,6 +313,7 @@ class _SessionState:
     thinking_stream_active: bool = False
     assistant_char_count: int = 0
     thinking_tail: str = ""
+    task_active: bool = False
 
     @property
     def is_sub_agent(self) -> bool:
@@ -414,6 +417,7 @@ class DisplayStateMachine:
             case events.TaskStartEvent() as e:
                 s.sub_agent_state = e.sub_agent_state
                 s.model_id = e.model_id
+                s.task_active = True
                 if not s.is_sub_agent:
                     self._set_primary_if_needed(e.session_id)
                     if not is_replay:
@@ -426,6 +430,27 @@ class DisplayStateMachine:
                 cmds.append(RenderTaskStart(e))
                 if not is_replay:
                     cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.CompactionStartEvent():
+                if not is_replay:
+                    self._spinner.set_reasoning_status(STATUS_COMPACTING_TEXT)
+                    if not s.task_active:
+                        cmds.append(SpinnerStart())
+                    cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.CompactionEndEvent() as e:
+                if not is_replay:
+                    self._spinner.set_reasoning_status(None)
+                    if not s.task_active:
+                        cmds.append(SpinnerStop())
+                    cmds.extend(self._spinner_update_commands())
+                if e.summary and not e.aborted:
+                    kept_brief = tuple(
+                        (item.item_type, item.count, item.preview) for item in e.kept_items_brief
+                    )
+                    cmds.append(RenderCompactionSummary(summary=e.summary, kept_items_brief=kept_brief))
                 return cmds
 
             case events.DeveloperMessageEvent() as e:
@@ -650,6 +675,7 @@ class DisplayStateMachine:
                 return []
 
             case events.TaskFinishEvent() as e:
+                s.task_active = False
                 cmds.append(RenderTaskFinish(e))
                 if not s.is_sub_agent:
                     if not is_replay:
@@ -666,6 +692,7 @@ class DisplayStateMachine:
                 if not is_replay:
                     self._spinner.reset()
                     cmds.append(SpinnerStop())
+                s.task_active = False
                 cmds.append(EndThinkingStream(session_id=e.session_id))
                 cmds.append(EndAssistantStream(session_id=e.session_id))
                 if not is_replay:

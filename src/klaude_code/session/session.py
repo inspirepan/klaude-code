@@ -228,6 +228,30 @@ class Session(BaseModel):
         )
         self._store.append_and_flush(session_id=self.id, items=items, meta=meta)
 
+    def get_llm_history(self) -> list[message.HistoryEvent]:
+        """Return the LLM-facing history view with compaction summary injected."""
+        history = self.conversation_history
+        last_compaction: message.CompactionEntry | None = None
+        for item in reversed(history):
+            if isinstance(item, message.CompactionEntry):
+                last_compaction = item
+                break
+        if last_compaction is None:
+            return [it for it in history if not isinstance(it, message.CompactionEntry)]
+
+        summary_message = message.UserMessage(parts=[message.TextPart(text=last_compaction.summary)])
+        kept = [it for it in history[last_compaction.first_kept_index :] if not isinstance(it, message.CompactionEntry)]
+
+        # Guard against old/bad persisted compaction boundaries that start with tool results.
+        # Tool results must not appear without their corresponding assistant tool call.
+        if kept and isinstance(kept[0], message.ToolResultMessage):
+            first_non_tool = 0
+            while first_non_tool < len(kept) and isinstance(kept[first_non_tool], message.ToolResultMessage):
+                first_non_tool += 1
+            kept = kept[first_non_tool:]
+
+        return [summary_message, *kept]
+
     def fork(self, *, new_id: str | None = None, until_index: int | None = None) -> Session:
         """Create a new session as a fork of the current session.
 
@@ -399,6 +423,18 @@ class Session(BaseModel):
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm)
                 case message.StreamErrorItem() as se:
                     yield events.ErrorEvent(error_message=se.error, can_retry=False, session_id=self.id)
+                case message.CompactionEntry() as ce:
+                    yield events.CompactionStartEvent(session_id=self.id, reason="threshold")
+                    yield events.CompactionEndEvent(
+                        session_id=self.id,
+                        reason="threshold",
+                        aborted=False,
+                        will_retry=False,
+                        tokens_before=ce.tokens_before,
+                        kept_from_index=ce.first_kept_index,
+                        summary=ce.summary,
+                        kept_items_brief=ce.kept_items_brief,
+                    )
                 case message.SystemMessage():
                     pass
             prev_item = it

@@ -19,6 +19,7 @@ class LLMClients:
 
     main: LLMClientABC
     sub_clients: dict[SubAgentType, LLMClientABC] = dataclass_field(default_factory=_default_sub_clients)
+    compact: LLMClientABC | None = None
 
     def get_client(self, sub_agent_type: SubAgentType | None = None) -> LLMClientABC:
         """Return client for a sub-agent type or the main client."""
@@ -26,3 +27,7 @@ class LLMClients:
         if sub_agent_type is None:
             return self.main
         return self.sub_clients.get(sub_agent_type) or self.main
+
+    def get_compact_client(self) -> LLMClientABC:
+        """Return compact client if configured, otherwise main client."""
+        return self.compact or self.main

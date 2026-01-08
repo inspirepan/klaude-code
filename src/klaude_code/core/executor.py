@@ -18,6 +18,7 @@ from klaude_code.config import load_config
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
 from klaude_code.core.agent import Agent
 from klaude_code.core.agent_profile import DefaultModelProfileProvider, ModelProfileProvider
+from klaude_code.core.compaction import CompactionReason, run_compaction
 from klaude_code.core.loaded_skills import get_loaded_skill_names_by_location
 from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.llm.registry import create_llm_client
@@ -127,7 +128,11 @@ class AgentRuntime:
             self._llm_clients.main.get_llm_config().thinking = session.model_thinking
 
         profile = self._model_profile_provider.build_profile(self._llm_clients.main)
-        agent = Agent(session=session, profile=profile)
+        agent = Agent(
+            session=session,
+            profile=profile,
+            compact_llm_client=self._llm_clients.compact,
+        )
 
         async for evt in agent.replay_history():
             await self._emit_event(evt)
@@ -174,6 +179,21 @@ class AgentRuntime:
         )
         self._task_manager.register(operation.id, task, operation.session_id)
 
+    async def compact_session(self, operation: op.CompactSessionOperation) -> None:
+        agent = await self.ensure_agent(operation.session_id)
+
+        if self._task_manager.cancel_tasks_for_sessions({operation.session_id}):
+            await self.interrupt(operation.session_id)
+
+        existing_active = self._task_manager.get(operation.id)
+        if existing_active is not None and not existing_active.task.done():
+            raise RuntimeError(f"Active task already registered for operation {operation.id}")
+
+        task: asyncio.Task[None] = asyncio.create_task(
+            self._run_compaction_task(agent, operation, operation.id, operation.session_id)
+        )
+        self._task_manager.register(operation.id, task, operation.session_id)
+
     async def clear_session(self, session_id: str) -> None:
         agent = await self.ensure_agent(session_id)
         new_session = Session.create(work_dir=agent.session.work_dir)
@@ -208,7 +228,11 @@ class AgentRuntime:
             self._llm_clients.main.get_llm_config().thinking = target_session.model_thinking
 
         profile = self._model_profile_provider.build_profile(self._llm_clients.main)
-        agent = Agent(session=target_session, profile=profile)
+        agent = Agent(
+            session=target_session,
+            profile=profile,
+            compact_llm_client=self._llm_clients.compact,
+        )
 
         async for evt in agent.replay_history():
             await self._emit_event(evt)
@@ -320,6 +344,80 @@ class AgentRuntime:
                 debug_type=DebugType.EXECUTION,
             )
 
+    async def _run_compaction_task(
+        self,
+        agent: Agent,
+        operation: op.CompactSessionOperation,
+        task_id: str,
+        session_id: str,
+    ) -> None:
+        cancel_event = asyncio.Event()
+        reason = operation.reason
+        try:
+            await self._emit_event(events.CompactionStartEvent(session_id=session_id, reason=reason))
+            log_debug(f"[Compact:{reason}] start", debug_type=DebugType.RESPONSE)
+            compact_client = self._llm_clients.get_compact_client()
+            result = await run_compaction(
+                session=agent.session,
+                reason=CompactionReason(reason),
+                focus=operation.focus,
+                llm_client=compact_client,
+                llm_config=compact_client.get_llm_config(),
+                cancel=cancel_event,
+            )
+            log_debug(f"[Compact:{reason}] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
+            agent.session.append_history([result.to_entry()])
+            await self._emit_event(
+                events.CompactionEndEvent(
+                    session_id=session_id,
+                    reason=reason,
+                    aborted=False,
+                    will_retry=operation.will_retry,
+                    tokens_before=result.tokens_before,
+                    kept_from_index=result.first_kept_index,
+                    summary=result.summary,
+                    kept_items_brief=result.kept_items_brief,
+                )
+            )
+        except asyncio.CancelledError:
+            cancel_event.set()
+            await self._emit_event(
+                events.CompactionEndEvent(
+                    session_id=session_id,
+                    reason=reason,
+                    aborted=True,
+                    will_retry=operation.will_retry,
+                )
+            )
+            raise
+        except Exception as exc:
+            import traceback
+
+            log_debug(
+                f"[Compact:{reason}] error",
+                str(exc.__class__.__name__),
+                str(exc),
+                traceback.format_exc(),
+                debug_type=DebugType.RESPONSE,
+            )
+            await self._emit_event(
+                events.CompactionEndEvent(
+                    session_id=session_id,
+                    reason=reason,
+                    aborted=True,
+                    will_retry=operation.will_retry,
+                )
+            )
+            await self._emit_event(
+                events.ErrorEvent(
+                    error_message=f"Compaction failed: {exc!s}",
+                    can_retry=False,
+                    session_id=session_id,
+                )
+            )
+        finally:
+            self._task_manager.remove(task_id)
+
     def _get_active_agent(self, session_id: str) -> Agent | None:
         agent = self._agent
         if agent is None:
@@ -426,6 +524,9 @@ class ExecutorContext:
 
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._agent_runtime.run_agent(operation)
+
+    async def handle_compact_session(self, operation: op.CompactSessionOperation) -> None:
+        await self._agent_runtime.compact_session(operation)
 
     async def handle_change_model(self, operation: op.ChangeModelOperation) -> None:
         agent = await self._agent_runtime.ensure_agent(operation.session_id)

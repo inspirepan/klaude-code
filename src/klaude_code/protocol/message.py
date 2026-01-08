@@ -63,6 +63,28 @@ class StreamErrorItem(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class CompactionDetails(BaseModel):
+    read_files: list[str] = Field(default_factory=list)
+    modified_files: list[str] = Field(default_factory=list)
+
+
+class KeptItemBrief(BaseModel):
+    """Brief info about a kept (non-compacted) message item."""
+
+    item_type: str  # "User", "Assistant", "Read", "Edit", "Bash", etc.
+    count: int = 1
+    preview: str = ""  # Short preview text
+
+
+class CompactionEntry(BaseModel):
+    summary: str
+    first_kept_index: int
+    tokens_before: int | None = None
+    details: CompactionDetails | None = None
+    kept_items_brief: list[KeptItemBrief] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 # Part types
 
 
@@ -173,7 +195,7 @@ class ToolResultMessage(MessageBase):
 
 Message = SystemMessage | DeveloperMessage | UserMessage | AssistantMessage | ToolResultMessage
 
-HistoryEvent = Message | StreamErrorItem | TaskMetadataItem
+HistoryEvent = Message | StreamErrorItem | TaskMetadataItem | CompactionEntry
 
 StreamItem = AssistantTextDelta | AssistantImageDelta | ThinkingTextDelta | ToolCallStartDelta
 

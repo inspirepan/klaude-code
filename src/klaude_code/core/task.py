@@ -7,11 +7,19 @@ from dataclasses import dataclass
 
 from klaude_code.const import INITIAL_RETRY_DELAY_S, MAX_FAILED_TURN_RETRIES, MAX_RETRY_DELAY_S
 from klaude_code.core.agent_profile import AgentProfile, Reminder
+from klaude_code.core.compaction import (
+    CompactionReason,
+    is_context_overflow,
+    run_compaction,
+    should_compact_threshold,
+)
 from klaude_code.core.tool import FileTracker, TodoContext, ToolABC
 from klaude_code.core.tool.context import RunSubtask
 from klaude_code.core.turn import TurnError, TurnExecutionContext, TurnExecutor
+from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, model
+from klaude_code.session.session import Session
 
 
 class MetadataAccumulator:
@@ -148,12 +156,15 @@ class SessionContext:
 class TaskExecutionContext:
     """Execution context required to run a task."""
 
+    session: Session
     session_ctx: SessionContext
     profile: AgentProfile
     tool_registry: dict[str, type[ToolABC]]
     # For reminder processing - needs access to session
     process_reminder: Callable[[Reminder], AsyncGenerator[events.DeveloperMessageEvent]]
     sub_agent_state: model.SubAgentState | None
+    # LLM client for compaction (uses main if not set)
+    compact_llm_client: LLMClientABC | None = None
 
 
 class TaskExecutor:
@@ -231,6 +242,66 @@ class TaskExecutor:
                 async for event in ctx.process_reminder(reminder):
                     yield event
 
+            # Threshold-based compaction before starting a new turn.
+            # This matters for multi-turn tool loops where no new user input occurs.
+            if ctx.sub_agent_state is None and should_compact_threshold(
+                session=ctx.session,
+                config=None,
+                llm_config=profile.llm_client.get_llm_config(),
+            ):
+                log_debug("[Compact] start", debug_type=DebugType.RESPONSE)
+                yield events.CompactionStartEvent(
+                    session_id=session_ctx.session_id,
+                    reason=CompactionReason.THRESHOLD.value,
+                )
+                try:
+                    compact_client = ctx.compact_llm_client or profile.llm_client
+                    result = await run_compaction(
+                        session=ctx.session,
+                        reason=CompactionReason.THRESHOLD,
+                        focus=None,
+                        llm_client=compact_client,
+                        llm_config=compact_client.get_llm_config(),
+                    )
+                    log_debug("[Compact] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
+
+                    session_ctx.append_history([result.to_entry()])
+                    yield events.CompactionEndEvent(
+                        session_id=session_ctx.session_id,
+                        reason=CompactionReason.THRESHOLD.value,
+                        aborted=False,
+                        will_retry=False,
+                        tokens_before=result.tokens_before,
+                        kept_from_index=result.first_kept_index,
+                        summary=result.summary,
+                        kept_items_brief=result.kept_items_brief,
+                    )
+                except asyncio.CancelledError:
+                    yield events.CompactionEndEvent(
+                        session_id=session_ctx.session_id,
+                        reason=CompactionReason.THRESHOLD.value,
+                        aborted=True,
+                        will_retry=False,
+                    )
+                    raise
+                except Exception as e:
+                    import traceback
+
+                    # For threshold compaction, failure should not take down the task.
+                    log_debug(
+                        "[Compact] error",
+                        str(e.__class__.__name__),
+                        str(e),
+                        traceback.format_exc(),
+                        debug_type=DebugType.RESPONSE,
+                    )
+                    yield events.CompactionEndEvent(
+                        session_id=session_ctx.session_id,
+                        reason=CompactionReason.THRESHOLD.value,
+                        aborted=True,
+                        will_retry=False,
+                    )
+
             turn_context = TurnExecutionContext(
                 session_ctx=session_ctx,
                 llm_client=profile.llm_client,
@@ -268,6 +339,59 @@ class TaskExecutor:
                     break
                 except TurnError as e:
                     last_error_message = str(e)
+                    if is_context_overflow(last_error_message):
+                        yield events.CompactionStartEvent(
+                            session_id=session_ctx.session_id,
+                            reason=CompactionReason.OVERFLOW.value,
+                        )
+                        try:
+                            log_debug("[Compact:Overflow] start", debug_type=DebugType.RESPONSE)
+                            compact_client = ctx.compact_llm_client or profile.llm_client
+                            result = await run_compaction(
+                                session=ctx.session,
+                                reason=CompactionReason.OVERFLOW,
+                                focus=None,
+                                llm_client=compact_client,
+                                llm_config=compact_client.get_llm_config(),
+                            )
+                            log_debug("[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
+                            session_ctx.append_history([result.to_entry()])
+                            yield events.CompactionEndEvent(
+                                session_id=session_ctx.session_id,
+                                reason=CompactionReason.OVERFLOW.value,
+                                aborted=False,
+                                will_retry=True,
+                                tokens_before=result.tokens_before,
+                                kept_from_index=result.first_kept_index,
+                                summary=result.summary,
+                                kept_items_brief=result.kept_items_brief,
+                            )
+                            continue
+                        except asyncio.CancelledError:
+                            yield events.CompactionEndEvent(
+                                session_id=session_ctx.session_id,
+                                reason=CompactionReason.OVERFLOW.value,
+                                aborted=True,
+                                will_retry=True,
+                            )
+                            raise
+                        except Exception as exc:
+                            import traceback
+
+                            log_debug(
+                                "[Compact:Overflow] error",
+                                str(exc.__class__.__name__),
+                                str(exc),
+                                traceback.format_exc(),
+                                debug_type=DebugType.RESPONSE,
+                            )
+                            last_error_message = f"{last_error_message} (compaction failed: {exc})"
+                            yield events.CompactionEndEvent(
+                                session_id=session_ctx.session_id,
+                                reason=CompactionReason.OVERFLOW.value,
+                                aborted=True,
+                                will_retry=False,
+                            )
                     if attempt < MAX_FAILED_TURN_RETRIES:
                         delay = _retry_delay_seconds(attempt + 1)
                         error_msg = f"Retrying {attempt + 1}/{MAX_FAILED_TURN_RETRIES} in {delay:.1f}s"

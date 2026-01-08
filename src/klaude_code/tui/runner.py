@@ -16,6 +16,7 @@ from klaude_code.app.runtime import (
 )
 from klaude_code.config import load_config
 from klaude_code.const import SIGINT_DOUBLE_PRESS_EXIT_TEXT
+from klaude_code.core.compaction import should_compact_threshold
 from klaude_code.core.executor import Executor
 from klaude_code.log import log
 from klaude_code.protocol import events, llm_param, op
@@ -79,6 +80,19 @@ async def submit_user_input_payload(
     if cmd_result.events:
         for evt in cmd_result.events:
             await executor.context.emit_event(evt)
+
+    if run_ops and should_compact_threshold(
+        session=agent.session,
+        config=None,
+        llm_config=agent.profile.llm_client.get_llm_config(),
+    ):
+        await executor.submit_and_wait(
+            op.CompactSessionOperation(
+                session_id=agent.session.id,
+                reason="threshold",
+                will_retry=False,
+            )
+        )
 
     submitted_ids: list[str] = []
     for operation_item in operations:

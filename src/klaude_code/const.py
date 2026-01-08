@@ -170,6 +170,7 @@ STATUS_HINT_TEXT = " (esc to interrupt)"  # Status hint text shown after spinner
 STATUS_WAITING_TEXT = "Loading …"
 STATUS_THINKING_TEXT = "Thinking …"
 STATUS_COMPOSING_TEXT = "Composing"
+STATUS_COMPACTING_TEXT = "Compacting"
 
 # Backwards-compatible alias for the default spinner status text.
 STATUS_DEFAULT_TEXT = STATUS_WAITING_TEXT

@@ -340,7 +340,7 @@ def main_callback(
         )
 
         if log_path:
-            log(f"Debug log: {log_path}", style="dim")
+            log(f"Debug log: {log_path}", style="red bold")
 
         asyncio.run(
             run_interactive(

@@ -11,8 +11,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 from klaude_code.auth.env import get_auth_env
 from klaude_code.config.builtin_config import (
     SUPPORTED_API_KEYS,
-    get_builtin_provider_configs,
-    get_builtin_sub_agent_models,
+    get_builtin_config,
 )
 from klaude_code.log import log
 from klaude_code.protocol import llm_param
@@ -170,6 +169,7 @@ class UserConfig(BaseModel):
     """User configuration (what gets saved to disk)."""
 
     main_model: str | None = None
+    compact_model: str | None = None
     sub_agent_models: dict[str, str] = Field(default_factory=dict)
     theme: str | None = None
     provider_list: list[UserProviderConfig] = Field(default_factory=lambda: [])
@@ -192,6 +192,7 @@ class Config(BaseModel):
     """Merged configuration (builtin + user) for runtime use."""
 
     main_model: str | None = None
+    compact_model: str | None = None
     sub_agent_models: dict[str, str] = Field(default_factory=dict)
     theme: str | None = None
     provider_list: list[ProviderConfig] = Field(default_factory=lambda: [])
@@ -400,6 +401,7 @@ class Config(BaseModel):
 
         # Sync user-modifiable fields from merged config to user config
         user_config.main_model = self.main_model
+        user_config.compact_model = self.compact_model
         user_config.sub_agent_models = self.sub_agent_models
         user_config.theme = self.theme
         # Note: provider_list is NOT synced - user providers are already in user_config
@@ -418,6 +420,7 @@ def get_example_config() -> UserConfig:
     """Generate example config for user reference (will be commented out)."""
     return UserConfig(
         main_model="opus",
+        compact_model="gemini-flash",
         sub_agent_models={"explore": "haiku", "webagent": "sonnet", "task": "sonnet"},
         provider_list=[
             UserProviderConfig(
@@ -445,11 +448,7 @@ def get_example_config() -> UserConfig:
 
 def _get_builtin_config() -> Config:
     """Load built-in provider configurations."""
-    # Re-validate to ensure compatibility with current ProviderConfig class
-    # (needed for tests that may monkeypatch the class)
-    providers = [ProviderConfig.model_validate(p.model_dump()) for p in get_builtin_provider_configs()]
-    sub_agent_models = get_builtin_sub_agent_models()
-    return Config(provider_list=providers, sub_agent_models=sub_agent_models)
+    return get_builtin_config()
 
 
 def _merge_model(builtin: ModelConfig, user: ModelConfig) -> ModelConfig:
@@ -496,7 +495,7 @@ def _merge_provider(builtin: ProviderConfig, user: UserProviderConfig) -> Provid
         if value is not None:
             merged_data[key] = value
 
-    merged_data["model_list"] = list(merged_models.values())
+    merged_data["model_list"] = [m.model_dump() for m in merged_models.values()]
     return ProviderConfig.model_validate(merged_data)
 
 
@@ -541,11 +540,14 @@ def _merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Co
     # Merge sub_agent_models
     merged_sub_agent_models = {**builtin_config.sub_agent_models, **user_config.sub_agent_models}
 
+    # Re-validate providers to ensure compatibility (tests may monkeypatch the class)
+    revalidated_providers = [ProviderConfig.model_validate(p.model_dump()) for p in merged_providers.values()]
     merged = Config(
         main_model=user_config.main_model or builtin_config.main_model,
+        compact_model=user_config.compact_model or builtin_config.compact_model,
         sub_agent_models=merged_sub_agent_models,
         theme=user_config.theme or builtin_config.theme,
-        provider_list=list(merged_providers.values()),
+        provider_list=revalidated_providers,
     )
     # Keep reference to user config for saving
     merged.set_user_config(user_config)
@@ -602,6 +604,7 @@ def create_example_config() -> bool:
 def _load_config_uncached() -> Config:
     """Load and merge builtin + user config. Always returns a valid Config."""
     builtin_config = _get_builtin_config()
+
     user_config = _load_user_config()
 
     return _merge_configs(user_config, builtin_config)

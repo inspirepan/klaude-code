@@ -32,6 +32,7 @@ from klaude_code.tui.commands import (
     RenderAssistantImage,
     RenderCommand,
     RenderCommandOutput,
+    RenderCompactionSummary,
     RenderDeveloperMessage,
     RenderError,
     RenderInterrupt,
@@ -66,7 +67,7 @@ from klaude_code.tui.components import welcome as c_welcome
 from klaude_code.tui.components.common import truncate_head
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.live import CropAboveLive, SingleLine
-from klaude_code.tui.components.rich.markdown import MarkdownStream, ThinkingMarkdown
+from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.status import BreathingSpinner, ShimmerStatusText
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
@@ -524,6 +525,34 @@ class TUICommandRenderer:
         else:
             self.print(c_errors.render_error(Text(event.error_message)))
 
+    def display_compaction_summary(self, summary: str, kept_items_brief: tuple[tuple[str, int, str], ...] = ()) -> None:
+        stripped = summary.strip()
+        if not stripped:
+            return
+        self.console.print(Rule("Compact", characters="=", style=ThemeKey.COMPACTION_SUMMARY))
+        self.print(stripped, style=ThemeKey.COMPACTION_SUMMARY)
+
+        if kept_items_brief:
+            # Collect tool call counts (skip User/Assistant entries)
+            tool_counts: dict[str, int] = {}
+            for item_type, count, _ in kept_items_brief:
+                if item_type not in ("User", "Assistant"):
+                    tool_counts[item_type] = tool_counts.get(item_type, 0) + count
+
+            if tool_counts:
+                parts: list[str] = []
+                for tool_type, tool_count in tool_counts.items():
+                    if tool_count > 1:
+                        parts.append(f"{tool_type} x {tool_count}")
+                    else:
+                        parts.append(tool_type)
+                line = Text()
+                line.append("  Kept uncompacted: ", style=ThemeKey.COMPACTION_SUMMARY)
+                line.append(", ".join(parts), style=ThemeKey.COMPACTION_SUMMARY)
+                self.print(line)
+
+        self.print()
+
     # ---------------------------------------------------------------------
     # Notifications
     # ---------------------------------------------------------------------
@@ -617,6 +646,8 @@ class TUICommandRenderer:
                     self.display_interrupt()
                 case RenderError(event=event):
                     self.display_error(event)
+                case RenderCompactionSummary(summary=summary, kept_items_brief=kept_items_brief):
+                    self.display_compaction_summary(summary, kept_items_brief)
                 case SpinnerStart():
                     self.spinner_start()
                 case SpinnerStop():

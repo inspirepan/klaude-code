@@ -18,9 +18,11 @@ class Agent:
         self,
         session: Session,
         profile: AgentProfile,
+        compact_llm_client: LLMClientABC | None = None,
     ):
         self.session: Session = session
         self.profile: AgentProfile = profile
+        self.compact_llm_client: LLMClientABC | None = compact_llm_client
         self._current_task: TaskExecutor | None = None
         if not self.session.model_name:
             self.session.model_name = profile.llm_client.model_name
@@ -43,18 +45,20 @@ class Agent:
     ) -> AsyncGenerator[events.Event]:
         session_ctx = SessionContext(
             session_id=self.session.id,
-            get_conversation_history=lambda: self.session.conversation_history,
+            get_conversation_history=self.session.get_llm_history,
             append_history=self.session.append_history,
             file_tracker=self.session.file_tracker,
             todo_context=build_todo_context(self.session),
             run_subtask=run_subtask,
         )
         context = TaskExecutionContext(
+            session=self.session,
             session_ctx=session_ctx,
             profile=self.profile,
             tool_registry=get_registry(),
             process_reminder=self._process_reminder,
             sub_agent_state=self.session.sub_agent_state,
+            compact_llm_client=self.compact_llm_client,
         )
 
         task = TaskExecutor(context)

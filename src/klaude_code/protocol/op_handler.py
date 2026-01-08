@@ -14,6 +14,7 @@ if TYPE_CHECKING:
         ChangeSubAgentModelOperation,
         ChangeThinkingOperation,
         ClearSessionOperation,
+        CompactSessionOperation,
         ExportSessionOperation,
         InitAgentOperation,
         InterruptOperation,
@@ -27,6 +28,10 @@ class OperationHandler(Protocol):
 
     async def handle_run_agent(self, operation: RunAgentOperation) -> None:
         """Handle a run agent operation."""
+        ...
+
+    async def handle_compact_session(self, operation: CompactSessionOperation) -> None:
+        """Handle a compact session operation."""
         ...
 
     async def handle_change_model(self, operation: ChangeModelOperation) -> None:

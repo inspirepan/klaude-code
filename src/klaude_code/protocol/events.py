@@ -14,6 +14,8 @@ __all__ = [
     "AssistantTextEndEvent",
     "AssistantTextStartEvent",
     "CommandOutputEvent",
+    "CompactionEndEvent",
+    "CompactionStartEvent",
     "DeveloperMessageEvent",
     "EndEvent",
     "ErrorEvent",
@@ -81,6 +83,20 @@ class CommandOutputEvent(Event):
 class TaskStartEvent(Event):
     sub_agent_state: model.SubAgentState | None = None
     model_id: str | None = None
+
+
+class CompactionStartEvent(Event):
+    reason: Literal["threshold", "overflow", "manual"]
+
+
+class CompactionEndEvent(Event):
+    reason: Literal["threshold", "overflow", "manual"]
+    aborted: bool = False
+    will_retry: bool = False
+    tokens_before: int | None = None
+    kept_from_index: int | None = None
+    summary: str | None = None
+    kept_items_brief: list[message.KeptItemBrief] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
 
 
 class TaskFinishEvent(Event):
@@ -185,6 +201,8 @@ type ReplayEventUnion = (
     | InterruptEvent
     | DeveloperMessageEvent
     | ErrorEvent
+    | CompactionStartEvent
+    | CompactionEndEvent
 )
 
 

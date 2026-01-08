@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 if TYPE_CHECKING:
-    from klaude_code.config.config import ProviderConfig
+    from klaude_code.config.config import Config
 
 
 @dataclass(frozen=True)
@@ -48,16 +48,10 @@ def _load_builtin_yaml() -> dict[str, Any]:
     return data
 
 
-def get_builtin_provider_configs() -> list["ProviderConfig"]:
-    """Load built-in provider configurations from YAML asset."""
+def get_builtin_config() -> "Config":
+    """Load built-in configuration from YAML asset."""
     # Import here to avoid circular import
-    from klaude_code.config.config import ProviderConfig
+    from klaude_code.config.config import Config
 
     data = _load_builtin_yaml()
-    return [ProviderConfig.model_validate(p) for p in data.get("provider_list", [])]
-
-
-def get_builtin_sub_agent_models() -> dict[str, str]:
-    """Load built-in sub agent model mappings from YAML asset."""
-    data = _load_builtin_yaml()
-    return data.get("sub_agent_models", {})
+    return Config.model_validate(data)

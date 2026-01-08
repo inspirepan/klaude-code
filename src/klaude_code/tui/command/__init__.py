@@ -30,6 +30,7 @@ def ensure_commands_loaded() -> None:
 
     # Import and register commands in display order
     from .clear_cmd import ClearCommand
+    from .compact_cmd import CompactCommand
     from .copy_cmd import CopyCommand
     from .debug_cmd import DebugCommand
     from .export_cmd import ExportCommand
@@ -45,6 +46,7 @@ def ensure_commands_loaded() -> None:
     # Register in desired display order
     register(CopyCommand())
     register(ExportCommand())
+    register(CompactCommand())
     register(RefreshTerminalCommand())
     register(ModelCommand())
     register(SubAgentModelCommand())
@@ -64,6 +66,7 @@ def ensure_commands_loaded() -> None:
 def __getattr__(name: str) -> object:
     _commands_map = {
         "ClearCommand": "clear_cmd",
+        "CompactCommand": "compact_cmd",
         "CopyCommand": "copy_cmd",
         "DebugCommand": "debug_cmd",
         "ExportCommand": "export_cmd",

@@ -8,7 +8,7 @@ that the executor uses to handle different types of requests.
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -24,6 +24,7 @@ class OperationType(Enum):
     """Enumeration of supported operation types."""
 
     RUN_AGENT = "run_agent"
+    COMPACT_SESSION = "compact_session"
     CHANGE_MODEL = "change_model"
     CHANGE_SUB_AGENT_MODEL = "change_sub_agent_model"
     CHANGE_THINKING = "change_thinking"
@@ -55,6 +56,19 @@ class RunAgentOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_run_agent(self)
+
+
+class CompactSessionOperation(Operation):
+    """Operation for compacting a session's conversation history."""
+
+    type: OperationType = OperationType.COMPACT_SESSION
+    session_id: str
+    reason: Literal["threshold", "overflow", "manual"]
+    focus: str | None = None
+    will_retry: bool = False
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_compact_session(self)
 
 
 class ChangeModelOperation(Operation):

@@ -320,6 +320,8 @@ provider_list:
       reasoning_effort: high
       reasoning_summary: detailed
     cost: {input: 1.75, output: 14, cache_read: 0.17}
+
+
 - provider_name: antigravity
   protocol: antigravity
   model_list:
@@ -363,3 +365,6 @@ provider_list:
     model_id: gpt-oss-120b-medium
     context_limit: 131072
     max_tokens: 32768
+
+
+compact_model: gemini-flash
