@@ -331,7 +331,14 @@ def get_theme(theme: str | None = None) -> Themes:
         markdown_theme=Theme(
             styles={
                 "markdown.code": palette.purple,
+                # Render degraded `<thinking>...</thinking>` blocks inside assistant markdown.
+                # This must live in markdown_theme (not just thinking_markdown_theme) because
+                # it is used while rendering assistant output.
+                "markdown.thinking": "italic " + palette.grey2,
+                "markdown.thinking.tag": palette.grey2,
                 "markdown.code.border": palette.grey3,
+                # Used by ThinkingMarkdown when rendering `<thinking>` blocks.
+                "markdown.code.block": palette.grey1,
                 "markdown.h1": "bold reverse",
                 "markdown.h1.border": palette.grey3,
                 "markdown.h2": "bold underline",
@@ -353,6 +360,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.code": palette.grey1 + " italic on " + palette.code_background,
                 "markdown.code.block": palette.grey1,
                 "markdown.code.border": palette.grey3,
+                "markdown.thinking.tag": palette.grey2 + " dim",
                 "markdown.h1": "bold reverse",
                 "markdown.h1.border": palette.grey3,
                 "markdown.h3": "bold " + palette.grey1,

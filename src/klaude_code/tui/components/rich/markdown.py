@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import re
 import time
 from collections.abc import Callable
 from typing import Any, ClassVar
@@ -25,6 +26,63 @@ from klaude_code.const import (
     UI_REFRESH_RATE_FPS,
 )
 from klaude_code.tui.components.rich.code_panel import CodePanel
+
+_THINKING_HTML_BLOCK_RE = re.compile(
+    r"\A\s*<thinking>\s*\n?(?P<body>.*?)(?:\n\s*)?</thinking>\s*\Z",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+
+_HTML_COMMENT_BLOCK_RE = re.compile(r"\A\s*<!--.*?-->\s*\Z", flags=re.DOTALL)
+
+
+class ThinkingHTMLBlock(MarkdownElement):
+    """Render `<thinking>...</thinking>` HTML blocks as Rich Markdown.
+
+    markdown-it-py treats custom tags like `<thinking>` as HTML blocks, and Rich
+    Markdown ignores HTML blocks by default. This element restores visibility by
+    re-parsing the inner content as Markdown and applying a dedicated style.
+
+    Non-thinking HTML blocks (including comment sentinels like `<!-- -->`) render
+    no visible output, matching Rich's default behavior.
+    """
+
+    new_line: ClassVar[bool] = True
+
+    @classmethod
+    def create(cls, markdown: Markdown, token: Token) -> ThinkingHTMLBlock:
+        return cls(content=token.content or "", code_theme=markdown.code_theme)
+
+    def __init__(self, *, content: str, code_theme: str) -> None:
+        self._content = content
+        self._code_theme = code_theme
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        stripped = self._content.strip()
+
+        # Keep HTML comments invisible. MarkdownStream relies on a comment sentinel
+        # (`<!-- -->`) to preserve inter-block spacing in some streaming frames.
+        if _HTML_COMMENT_BLOCK_RE.match(stripped):
+            return
+
+        match = _THINKING_HTML_BLOCK_RE.match(stripped)
+        if match is None:
+            return
+
+        body = match.group("body").strip("\n")
+        if not body.strip():
+            return
+
+        # Render as a single line to avoid the extra blank lines produced by
+        # paragraph/block rendering.
+        collapsed = " ".join(body.split())
+        if not collapsed:
+            return
+
+        text = Text()
+        text.append("<thinking>", style="markdown.thinking.tag")
+        text.append(collapsed, style="markdown.thinking")
+        text.append("</thinking>", style="markdown.thinking.tag")
+        yield text
 
 
 class NoInsetCodeBlock(CodeBlock):
@@ -105,6 +163,7 @@ class NoInsetMarkdown(Markdown):
         "heading_open": LeftHeading,
         "hr": Divider,
         "table_open": MarkdownTable,
+        "html_block": ThinkingHTMLBlock,
     }
 
 
@@ -118,6 +177,7 @@ class ThinkingMarkdown(Markdown):
         "heading_open": LeftHeading,
         "hr": Divider,
         "table_open": MarkdownTable,
+        "html_block": ThinkingHTMLBlock,
     }
 
 

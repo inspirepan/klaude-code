@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import itertools
+import re
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -18,6 +19,8 @@ def _make_stream(*, width: int = 80) -> MarkdownStream:
         {
             "markdown.code.border": "dim",
             "markdown.code.block": "dim",
+            "markdown.thinking": "dim",
+            "markdown.thinking.tag": "dim",
             "markdown.h1": "bold",
             "markdown.h2.border": "dim",
             "markdown.hr": "dim",
@@ -34,6 +37,25 @@ def _render(stream: MarkdownStream, text: str, *, apply_mark: bool) -> str:
 def test_candidate_stable_line_incomplete_fence_is_zero() -> None:
     stream = _make_stream()
     assert stream.compute_candidate_stable_line("```py\nprint(1)\n") == 0
+
+
+def _strip_ansi(s: str) -> str:
+    # Keep this conservative; Text.from_ansi handles most sequences, but we
+    # still remove any remaining CSI sequences for stable substring checks.
+    plain = Text.from_ansi(s).plain
+    return re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", plain)
+
+
+def test_render_ansi_renders_thinking_html_block_body() -> None:
+    stream = _make_stream(width=80)
+    ansi = stream.render_ansi("<thinking>\nthink\n</thinking>\n\nanswer\n", apply_mark=False)
+    plain = _strip_ansi(ansi)
+
+    assert "think" in plain
+    assert "answer" in plain
+    assert "<thinking>" in plain
+    assert "</thinking>" in plain
+    assert "<thinking>think</thinking>" in plain
 
 
 def test_split_source_stabilizes_only_before_last_block() -> None:
