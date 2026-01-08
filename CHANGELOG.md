@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - replace ty with pyright in Makefile (`40c72e73`)
+
 ## [2.6.0] - 2026-01-07
 
 ### Added
@@ -51,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - group usage stats by provider with tree structure (`7853e1af`)
 - fix partial item order (`95d919bc`)
+
 ## [2.5.3] - 2026-01-07
 
 ### Added
@@ -81,6 +83,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - update --help ENV vars (`c19d1347`)
 - fix lint (`b5d2f30c`)
+
 ## [2.5.2] - 2026-01-06
 
 ### Added
@@ -97,6 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - polish export and TUI rendering (`0c142cea`)
+
 ## [2.5.1] - 2026-01-06
 
 ### Changed
@@ -132,6 +136,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - add blank line before metadata when interrupting (`6b5332e6`)
 - collect sub-agent partial metadata on cancellation (`11720d7d`)
+
 ## [2.4.2] - 2026-01-05
 
 ### Added
@@ -141,12 +146,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - skip activity state for fast tools on non-streaming models (`a6a5a8b6`)
+
 ## [2.4.1] - 2026-01-05
 
 ### Changed
 
 - update model picker style (`ae3c3976`)
 - derive sub-agent types from profile tools instead of separate methods (`c19d4821`)
+
 ## [2.4.0] - 2026-01-04
 
 ### Added
@@ -164,6 +171,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - fixing fork command ui and behavior (`0f856c8b`)
 - unify command event emit logic, do not persist command output (`bdf6b456`)
+
 ## [2.3.0] - 2026-01-04
 
 ### Added
@@ -188,6 +196,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - use ty (`81903aa8`)
 - update commit skill (`14b4aa72`)
+
 ## [2.2.0] - 2026-01-04
 
 ### Added
@@ -206,6 +215,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - update README.md (`9c516995`)
 - add commit skill (`7b760989`)
+
 ## [2.1.1] - 2026-01-04
 
 ### Added
@@ -219,6 +229,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - duplicate interrupted event (`78afa968`)
+
 ## [2.1.0] - 2026-01-03
 
 ### Added
@@ -248,6 +259,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - replace dev-docs skill with create-plan skill (`34875646`)
 - add Makefile (`ee1f6ac4`)
+
 ## [2.0.2] - 2026-01-03
 
 ### Added
@@ -266,6 +278,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - use synchronized output (2026) for markdown stream (`dc719829`)
+
 ## [2.0.1] - 2026-01-02
 
 ### Added
@@ -282,6 +295,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - clamp tool output display and update codex pricing (`139a85fa`)
+
 ## [2.0.0] - 2026-01-02
 
 ### Added
@@ -329,6 +343,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - plan for message + part protocol (`0e14c396`)
+
 ## [1.9.0] - 2026-01-01
 
 ### Added
@@ -341,12 +356,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - update list-model style (`2453ad4e`)
 - replace jj-describe with unified commit command (`103747dd`)
 - remove Oracle sub-agent (`829504c7`)
+
 ## [1.8.0] - 2026-01-01
 
 ### Added
 
 - add cost command for aggregated usage statistics (`d55e393f`)
 - add alias support for terminal selector search (`ac52c7be`)
+
 ## [1.7.1] - 2025-12-31
 
 ### Added
@@ -370,6 +387,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add session_id to ErrorEvent for sub-agent color styling (`2a9befb7`)
 - fork session auto copy new command (`865a03eb`)
 - allow git push command (`21dc6e0a`)
+
 ## [1.7.0] - 2025-12-30
 
 ### Added
@@ -384,6 +402,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - fix pytest and ruff check (`e6c575d4`)
+
 ## [1.6.0] - 2025-12-30
 
 ### Added
@@ -402,6 +421,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - change TPS calculation to use full request duration (`39defbdf`)
+
 ## [1.5.0] - 2025-12-29
 
 ### Added
@@ -420,11 +440,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - add number before model list; update /help command (`f09b1053`)
+
 ## [1.4.3] - 2025-12-28
 
 ### Changed
 
 - simplify completion menu styling with arrow indicator (`bb0613ed`)
+
 ## [1.4.2] - 2025-12-28
 
 ### Added
@@ -442,6 +464,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - Merge pull request #1 from inspirepan/codex/update-completer-file-path-display (`1a9138b0`)
+
 ## [1.4.1] - 2025-12-28
 
 ### Changed
@@ -451,6 +474,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - pyright (`790ccf74`)
+
 ## [1.4.0] - 2025-12-28
 
 ### Added
@@ -467,6 +491,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - submit immediately when exact completion candidate is typed (`6da43a31`)
 - change move tool marker to ± (`c44bcfa7`)
+
 ## [1.3.0] - 2025-12-27
 
 ### Added
@@ -479,6 +504,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - add dedicated theme key for mermaid result display (`18128d61`)
 - clarify default model save confirmation text (`9c82e382`)
+
 ## [1.2.30] - 2025-12-27
 
 ### Added
@@ -499,6 +525,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - retry when agent returns empty result (`d8d609ad`)
 - preserve leading whitespace and expand tabs for proper tool result alignment (`5e2049de`)
+
 ## [1.2.29] - 2025-12-25
 
 ### Added
@@ -514,6 +541,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - duplicate turn start item when replay history (`9422613b`)
+
 ## [1.2.28] - 2025-12-25
 
 ### Added
@@ -543,6 +571,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - untrack .vscode/settings.json (`75be5ddb`)
+
 ## [1.2.27] - 2025-12-23
 
 ### Added
@@ -562,6 +591,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - remove docs (`d581cf80`)
+
 ## [1.2.26] - 2025-12-22
 
 ### Added
@@ -580,6 +610,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - gate live markdown streaming behind feature flag (`72ee1a69`)
+
 ## [1.2.25] - 2025-12-22
 
 ### Added
@@ -599,6 +630,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - keep live height monotonic across block transitions (`ac513ba6`)
 - normalize stable/live boundary whitespace in markdown streaming (`fbf753e0`)
 - improve code panel border width calculation and spinner stability (`b7ccb2f4`)
+
 ## [1.2.24] - 2025-12-21
 
 ### Added
@@ -626,6 +658,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - add traceback for error (`e9aec3d2`)
 - detect binary files before reading as text (`3e8eed24`)
+
 ## [1.2.23] - 2025-12-20
 
 ### Added
@@ -657,6 +690,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 -  (`c7206e3`)
+
 ## [1.2.22] - 2025-12-19
 
 ### Added
@@ -683,6 +717,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add type annotation to satisfy pyright strict mode (`56e011f`)
 - exclude hint text from shimmer effect (`120bed0`)
 - update debug log editor (`ae711c8`)
+
 ## [1.2.21] - 2025-12-18
 
 ### Added
@@ -694,6 +729,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - update agents.md & fix pyright (`616e6c3`)
+
 ## [1.2.20] - 2025-12-17
 
 ### Added
@@ -737,6 +773,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Show (empty) indicator for empty working directory in env info (`ef83b7d`)
 - move jj workflow to user claudemd (`c379500`)
 - update AGENTS.md jj workflow (`ca2d078`)
+
 ## [1.2.19] - 2025-12-13
 
 ### Added
@@ -775,6 +812,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add .jj to .gitignore (`8f49725`)
 - switch to jj, update AGENTS.md and SKILL.md (`e32db2d`)
 - remove memory docs (`218b244`)
+
 ## [1.2.18] - 2025-12-12
 
 ### Added
@@ -811,6 +849,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - align test tooling and import layers (`bbf22eb`)
 - misc UI and prompt improvements (`dc8ed57`)
+
 ## [1.2.17] - 2025-12-10
 
 ### Added
@@ -836,6 +875,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - update readme.md (`0122e99`)
+
 ## [1.2.16] - 2025-12-09
 
 ### Added
@@ -871,6 +911,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - add handoff source (`8e4e94c`)
+
 ## [1.2.15] - 2025-12-08
 
 ### Added
@@ -891,6 +932,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - tweak metadata layout and palette (`06a1b07`)
 - tweak metadata layout and palette (`e06ed9d`)
+
 ## [1.2.14] - 2025-12-06
 
 ### Added
@@ -909,6 +951,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - only cache successful config parses (`06ed727`)
 - address pyrefly type checking issues (`13b4c65`)
+
 ## [1.2.13] - 2025-12-05
 
 ### Added
@@ -925,6 +968,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ruff check (`50f1042`)
 - ruff check --fix (`0314923`)
 - format (`3adc227`)
+
 ## [1.2.12] - 2025-12-05
 
 ### Added
@@ -938,6 +982,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - use manual command registration for custom display order (`e18b089`)
 - rename context_token -> context_size (`7087dbc`)
 - use llm sdk's param type hint; remove useless param option (`1f9f207`)
+
 ## [1.2.11] - 2025-12-04
 
 ### Added
@@ -966,6 +1011,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - update agents.md (`53935e5`)
+
 ## [1.2.10] - 2025-12-03
 
 ### Changed
@@ -984,6 +1030,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - remove some pyright ignore (`9a95847`)
+
 ## [1.2.9] - 2025-12-02
 
 ### Added
@@ -1006,6 +1053,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - truncate spinner status text to 30 chars preserving words (`7c31d8c`)
 - guard against redundant derived task metadata state (`6ec2213`)
 - sort keys in JSON output for consistent formatting (`157506f`)
+
 ## [1.2.8] - 2025-12-01
 
 ### Changed
@@ -1018,6 +1066,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - catch API errors during stream creation for proper retry (`8c3bde8`)
 - send conversation headers for better caching (`a5a95b2`)
 - expand error handling to catch all API errors for retry (`8f0c48b`)
+
 ## [1.2.7] - 2025-12-01
 
 ### Added
@@ -1042,6 +1091,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - format (`f04c929`)
+
 ## [1.2.6] - 2025-12-01
 
 ### Changed
@@ -1051,6 +1101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - update font family for improved typography and readability (`ce53f31`)
+
 ## [1.2.5] - 2025-11-30
 
 ### Added
@@ -1071,12 +1122,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - format (`d3521c2`)
 - remove useless bash command check (`a965fa1`)
 - remove useless bash command check (`172cfb4`)
+
 ## [1.2.4] - 2025-11-30
 
 ### Added
 
 - add TOC sidebar navigation to HTML export (`38b2927`)
 - add /status command to display session usage statistics (`93fd5cc`)
+
 ## [1.2.3] - 2025-11-30
 
 ### Added
@@ -1112,6 +1165,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - format (`bab3cae`)
 - format & ruff check (`04227b7`)
+
 ## [1.2.2] - 2025-11-29
 
 ### Added
@@ -1153,6 +1207,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - sort & format (`e04e77e`)
 - migrate pyright config from pyrightconfig.json to pyproject.toml (`5e1ec5b`)
 - format (`fb10ad0`)
+
 ## [1.2.1] - 2025-11-29
 
 ### Added
@@ -1197,6 +1252,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - remove docs (`8b1a9ad`)
 - memories (`2fa1ab3`)
 - clarify memory tool project scope (`8b1016a`)
+
 ## [1.2.0] - 2025-11-27
 
 ### Added
@@ -1220,6 +1276,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - update memory tool mark (`c0a0417`)
 - style welcome metadata prefixes (`e298e3b`)
 - handle text selection when pressing backspace (`c4ad37b`)
+
 ## [1.1.0] - 2025-11-27
 
 ### Added
@@ -1238,6 +1295,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - adjust shimmer and spinner animation timings for consistency (`c6dc386`)
+
 ## [1.0.6] - 2025-11-27
 
 ### Added
@@ -1258,6 +1316,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - Revert "feat(ui): add PaddedStatus wrapper for improved status display" (`63b06af`)
+
 ## [1.0.5] - 2025-11-26
 
 ### Added
@@ -1282,6 +1341,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - format imports (`3beefa9`)
+
 ## [1.0.4] - 2025-11-25
 
 ### Added
@@ -1292,11 +1352,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - adjust welcome panel theme colors and styling (`2477d80`)
 - async version check to avoid blocking status bar (`24ab994`)
+
 ## [1.0.3] - 2025-11-25
 
 ### Fixed
 
 - correct hatch build configuration to include Python files (`1c45516`)
+
 ## [1.0.2] - 2025-11-25
 
 ### Added
@@ -1316,6 +1378,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - switch font to IBM Plex Mono and fix meta value overflow (`70465c1`)
+
 ## [1.0.1] - 2025-11-25
 
 ### Added

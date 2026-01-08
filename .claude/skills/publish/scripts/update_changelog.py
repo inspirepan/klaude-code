@@ -97,7 +97,7 @@ def format_changelog_section(version: str, categories: dict[str, list[tuple[str,
                 lines.append(f"- {description} (`{commit_hash}`)")
             lines.append("")
 
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"
 
 
 def update_changelog(version: str, new_section: str, last_tag: str | None) -> None:
