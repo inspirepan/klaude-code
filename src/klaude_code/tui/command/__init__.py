@@ -40,7 +40,6 @@ def ensure_commands_loaded() -> None:
     from .resume_cmd import ResumeCommand
     from .status_cmd import StatusCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
-    from .terminal_setup_cmd import TerminalSetupCommand
     from .thinking_cmd import ThinkingCommand
 
     # Register in desired display order
@@ -55,7 +54,6 @@ def ensure_commands_loaded() -> None:
     register(StatusCommand())
     register(ResumeCommand())
     register(ExportOnlineCommand())
-    register(TerminalSetupCommand())
     register(DebugCommand())
     register(ClearCommand())
 
@@ -76,7 +74,6 @@ def __getattr__(name: str) -> object:
         "ResumeCommand": "resume_cmd",
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",
-        "TerminalSetupCommand": "terminal_setup_cmd",
         "ThinkingCommand": "thinking_cmd",
     }
     if name in _commands_map:
@@ -91,7 +88,7 @@ __all__ = [
     # Command classes are lazily loaded via __getattr__
     # "ClearCommand", "DiffCommand", "HelpCommand", "ModelCommand",
     # "ExportCommand", "RefreshTerminalCommand", "ReleaseNotesCommand",
-    # "StatusCommand", "TerminalSetupCommand",
+    # "StatusCommand",
     "CommandABC",
     "CommandResult",
     "dispatch_command",

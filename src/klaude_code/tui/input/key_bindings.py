@@ -7,6 +7,7 @@ with dependencies injected to avoid circular imports.
 from __future__ import annotations
 
 import contextlib
+import os
 import re
 import shutil
 import subprocess
@@ -71,6 +72,51 @@ def create_key_bindings(
     """
     kb = KeyBindings()
     enabled = input_enabled if input_enabled is not None else Always()
+
+    term_program = os.environ.get("TERM_PROGRAM", "").lower()
+    swallow_next_control_j = False
+
+    def _data_requests_newline(data: str) -> bool:
+        """Return True when incoming key data should insert a newline.
+
+        Different terminals and editor-integrated terminals can emit different
+        sequences for Shift+Enter/Alt+Enter. We treat these as "insert newline"
+        instead of "submit".
+        """
+
+        if not data:
+            return False
+
+        # Pure LF or LF-prefixed sequences (e.g. when modifiers are encoded).
+        if data == "\n" or (ord(data[0]) == 10 and len(data) > 1):
+            return True
+
+        # Known escape sequences observed in some terminals.
+        if data in {
+            "\x1b\r",  # Alt+Enter (ESC + CR)
+            "\x1b[13;2~",  # Shift+Enter (some terminals)
+            "\x1b[27;2;13~",  # Shift+Enter (xterm "CSI 27" modified keys)
+            "\\\r",  # Backslash+Enter sentinel (some editor terminals)
+        }:
+            return True
+
+        # Any payload that contains both ESC and CR.
+        return len(data) > 1 and "\x1b" in data and "\r" in data
+
+    def _insert_newline(event: KeyPressEvent, *, strip_trailing_backslash: bool = False) -> None:
+        buf = event.current_buffer
+        if strip_trailing_backslash:
+            try:
+                doc = buf.document  # type: ignore[reportUnknownMemberType]
+                if doc.text_before_cursor.endswith("\\"):  # type: ignore[reportUnknownMemberType]
+                    buf.delete_before_cursor()  # type: ignore[reportUnknownMemberType]
+            except Exception:
+                pass
+
+        with contextlib.suppress(Exception):
+            buf.insert_text("\n")  # type: ignore[reportUnknownMemberType]
+        with contextlib.suppress(Exception):
+            event.app.invalidate()  # type: ignore[reportUnknownMemberType]
 
     def _can_move_cursor_visually_within_wrapped_line(delta_visible_y: int) -> bool:
         """Return True when Up/Down should move within a wrapped visual line.
@@ -309,22 +355,40 @@ def create_key_bindings(
         with contextlib.suppress(Exception):
             buf.insert_text(converted)  # type: ignore[reportUnknownMemberType]
 
+    @kb.add("escape", "enter", filter=enabled)
+    def _(event: KeyPressEvent) -> None:
+        """Alt+Enter inserts a newline."""
+
+        _insert_newline(event)
+
+    @kb.add("escape", "[", "1", "3", ";", "2", "~", filter=enabled)
+    def _(event: KeyPressEvent) -> None:
+        """Shift+Enter sequence used by some terminals inserts a newline."""
+
+        _insert_newline(event)
+
     @kb.add("enter", filter=enabled)
     def _(event: KeyPressEvent) -> None:
+        nonlocal swallow_next_control_j
+
         buf = event.current_buffer
         doc = buf.document  # type: ignore
 
-        # If VS Code/Windsurf/Cursor sent a "\\" sentinel before Enter (Shift+Enter mapping),
-        # treat it as a request for a newline instead of submit.
-        # This allows Shift+Enter to insert a newline in our multiline prompt.
-        try:
-            if doc.text_before_cursor.endswith("\\"):  # type: ignore[reportUnknownMemberType]
-                buf.delete_before_cursor()  # remove the sentinel backslash  # type: ignore[reportUnknownMemberType]
-                buf.insert_text("\n")  # type: ignore[reportUnknownMemberType]
-                return
-        except (AttributeError, TypeError):
-            # Fall through to default behavior if anything goes wrong
-            pass
+        data = getattr(event, "data", "")
+        if isinstance(data, str) and _data_requests_newline(data):
+            _insert_newline(event)
+            return
+
+        # VS Code-family terminals often implement Shift+Enter via a "\\" sentinel
+        # before Enter. Only enable this heuristic under TERM_PROGRAM=vscode.
+        if term_program == "vscode":
+            try:
+                if doc.text_before_cursor.endswith("\\"):  # type: ignore[reportUnknownMemberType]
+                    swallow_next_control_j = True
+                    _insert_newline(event, strip_trailing_backslash=True)
+                    return
+            except (AttributeError, TypeError):
+                pass
 
         # When completions are visible, Enter accepts the current selection.
         # This aligns with common TUI completion UX: navigation doesn't modify
@@ -395,6 +459,11 @@ def create_key_bindings(
 
     @kb.add("c-j", filter=enabled)
     def _(event: KeyPressEvent) -> None:
+        nonlocal swallow_next_control_j
+        if swallow_next_control_j:
+            swallow_next_control_j = False
+            return
+
         event.current_buffer.insert_text("\n")  # type: ignore
 
     @kb.add("c", filter=enabled)
