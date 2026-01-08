@@ -410,7 +410,7 @@ class TUICommandRenderer:
                 session_id=e.session_id,
             )
             if image_path is not None:
-                self.display_image(str(image_path), height=None)
+                self.display_image(str(image_path))
 
         renderable = c_tools.render_tool_result(e, code_theme=self.themes.code_theme, session_id=e.session_id)
         if renderable is not None:
@@ -472,7 +472,7 @@ class TUICommandRenderer:
         if not self.is_sub_agent_session(event.session_id):
             self.print()
 
-    def display_image(self, file_path: str, height: int | None = 40) -> None:
+    def display_image(self, file_path: str) -> None:
         # Suspend the Live status bar while emitting raw terminal output.
         had_live = self._bottom_live is not None
         was_spinner_visible = self._spinner_visible
@@ -485,7 +485,7 @@ class TUICommandRenderer:
             self._bottom_live = None
 
         try:
-            print_kitty_image(file_path, height=height, file=self.console.file)
+            print_kitty_image(file_path, file=self.console.file)
         finally:
             if resume_live:
                 if was_spinner_visible:
