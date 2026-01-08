@@ -30,7 +30,8 @@ def test_convert_image_file_uri_to_image_tag(tmp_path: Path) -> None:
     assert out == format_image_marker("x.png")
 
 
-def test_convert_path_list_to_at_tokens(tmp_path: Path) -> None:
+def test_plain_paths_not_converted(tmp_path: Path) -> None:
+    """Plain paths should not be auto-converted to @ tokens."""
     a = tmp_path / "a.txt"
     b = tmp_path / "b.txt"
     a.write_text("a", encoding="utf-8")
@@ -38,7 +39,8 @@ def test_convert_path_list_to_at_tokens(tmp_path: Path) -> None:
 
     pasted = f"{a} {b}"
     out = convert_dropped_text(pasted, cwd=tmp_path)
-    assert out == "@a.txt @b.txt"
+    # Plain paths are returned unchanged
+    assert out == pasted
 
 
 def test_extract_images_from_marker(tmp_path: Path) -> None:

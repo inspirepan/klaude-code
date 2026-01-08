@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import contextlib
 import re
-import shlex
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -132,66 +131,16 @@ def _replace_file_uris(
     return out, changed
 
 
-def _looks_like_path_list(text: str) -> list[str] | None:
-    """Return tokens if text looks like a pure path list, else None."""
-
-    stripped = text.strip()
-    if not stripped:
-        return None
-
-    # Avoid converting when the paste already contains our input syntax.
-    if "@" in stripped or "[image " in stripped:
-        return None
-
-    try:
-        tokens = shlex.split(stripped, posix=True)
-    except ValueError:
-        return None
-
-    if not tokens:
-        return None
-
-    # Heuristic: all tokens must exist on disk.
-    for tok in tokens:
-        p = Path(tok).expanduser()
-        try:
-            if not p.exists():
-                return None
-        except OSError:
-            return None
-
-    return tokens
-
-
 def convert_dropped_text(
     text: str,
     *,
     cwd: Path,
 ) -> str:
-    """Convert drag-and-drop text into @ tokens and/or image markers."""
+    """Convert drag-and-drop file:// URIs into @ tokens and/or image markers.
 
-    out, changed = _replace_file_uris(text, cwd=cwd)
-    if changed:
-        return out
+    Only file:// URIs are converted. Plain paths are not auto-converted to avoid
+    unintended transformations when users paste regular path strings.
+    """
 
-    tokens = _looks_like_path_list(text)
-    if not tokens:
-        return text
-
-    converted: list[str] = []
-    for tok in tokens:
-        p = Path(tok).expanduser()
-        try:
-            is_img = p.exists() and p.is_file() and is_image_file(p)
-        except OSError:
-            is_img = False
-
-        if is_img:
-            converted.append(format_image_marker(_normalize_path_for_at(p, cwd=cwd)))
-            continue
-
-        converted.append(_format_at_token(_normalize_path_for_at(p, cwd=cwd)))
-
-    # Preserve trailing newline if present (common for bracketed paste payloads).
-    suffix = "\n" if text.endswith("\n") else ""
-    return " ".join(converted) + suffix
+    out, _ = _replace_file_uris(text, cwd=cwd)
+    return out
