@@ -371,3 +371,21 @@ def test_markdown_stream_property_frame_equivalence(payload: tuple[str, list[int
         assert stable_ansi.startswith(stable_rendered_prev)
         stable_rendered_prev = stable_ansi
         min_stable_line = stable_line
+
+
+def test_checkbox_list_item_renders_unicode_symbols() -> None:
+    """Checkbox syntax [ ] and [x] should render as Unicode symbols."""
+    stream = _make_stream(width=80)
+
+    md = "- [ ] unchecked\n- [x] checked\n- [X] checked uppercase\n- normal item\n"
+    ansi = stream.render_ansi(md, apply_mark=False)
+    plain = _strip_ansi(ansi)
+
+    assert "\u2610" in plain  # unchecked box
+    assert "\u2611" in plain  # checked box
+    assert "unchecked" in plain
+    assert "checked" in plain
+    assert "normal item" in plain
+    assert "[ ]" not in plain
+    assert "[x]" not in plain
+    assert "[X]" not in plain

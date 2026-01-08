@@ -10,9 +10,11 @@ from typing import Any, ClassVar
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
 from rich import box
+from rich._loop import loop_first
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
-from rich.markdown import CodeBlock, Heading, Markdown, MarkdownElement, TableElement
+from rich.markdown import CodeBlock, Heading, ListItem, Markdown, MarkdownElement, TableElement
 from rich.rule import Rule
+from rich.segment import Segment
 from rich.style import Style, StyleType
 from rich.syntax import Syntax
 from rich.table import Table
@@ -33,6 +35,9 @@ _THINKING_HTML_BLOCK_RE = re.compile(
 )
 
 _HTML_COMMENT_BLOCK_RE = re.compile(r"\A\s*<!--.*?-->\s*\Z", flags=re.DOTALL)
+
+_CHECKBOX_UNCHECKED_RE = re.compile(r"^\[ \]\s*")
+_CHECKBOX_CHECKED_RE = re.compile(r"^\[x\]\s*", re.IGNORECASE)
 
 
 class ThinkingHTMLBlock(MarkdownElement):
@@ -153,6 +158,54 @@ class LeftHeading(Heading):
             yield text
 
 
+class CheckboxListItem(ListItem):
+    """A list item that renders checkbox syntax as Unicode symbols."""
+
+    def render_bullet(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        render_options = options.update(width=options.max_width - 3)
+        lines = console.render_lines(self.elements, render_options, style=self.style)
+        bullet_style = console.get_style("markdown.item.bullet", default="none")
+
+        first_line_text = ""
+        if lines:
+            first_line_text = "".join(seg.text for seg in lines[0] if seg.text)
+
+        unchecked_match = _CHECKBOX_UNCHECKED_RE.match(first_line_text)
+        checked_match = _CHECKBOX_CHECKED_RE.match(first_line_text)
+
+        if unchecked_match:
+            bullet = Segment(" \u2610 ", bullet_style)
+            skip_chars = len(unchecked_match.group(0))
+        elif checked_match:
+            bullet = Segment(" \u2611 ", bullet_style)
+            skip_chars = len(checked_match.group(0))
+        else:
+            bullet = Segment(" \u2022 ", bullet_style)
+            skip_chars = 0
+
+        padding = Segment(" " * 3, bullet_style)
+        new_line = Segment("\n")
+
+        for first, line in loop_first(lines):
+            yield bullet if first else padding
+            if first and skip_chars > 0:
+                chars_skipped = 0
+                for seg in line:
+                    if seg.text and chars_skipped < skip_chars:
+                        remaining = skip_chars - chars_skipped
+                        if len(seg.text) <= remaining:
+                            chars_skipped += len(seg.text)
+                            continue
+                        else:
+                            yield Segment(seg.text[remaining:], seg.style)
+                            chars_skipped = skip_chars
+                    else:
+                        yield seg
+            else:
+                yield from line
+            yield new_line
+
+
 class NoInsetMarkdown(Markdown):
     """Markdown with code blocks that have no padding and left-justified headings."""
 
@@ -164,6 +217,7 @@ class NoInsetMarkdown(Markdown):
         "hr": Divider,
         "table_open": MarkdownTable,
         "html_block": ThinkingHTMLBlock,
+        "list_item_open": CheckboxListItem,
     }
 
 
@@ -178,6 +232,7 @@ class ThinkingMarkdown(Markdown):
         "hr": Divider,
         "table_open": MarkdownTable,
         "html_block": ThinkingHTMLBlock,
+        "list_item_open": CheckboxListItem,
     }
 
 
