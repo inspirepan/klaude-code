@@ -212,7 +212,7 @@ def register_auth_commands(app: typer.Typer) -> None:
     auth_app = typer.Typer(help="Login/logout", invoke_without_command=True)
 
     @auth_app.callback()
-    def auth_callback(ctx: typer.Context) -> None:
+    def auth_callback(ctx: typer.Context) -> None:  # pyright: ignore[reportUnusedFunction]
         """Authentication commands for managing provider logins."""
         if ctx.invoked_subcommand is None:
             typer.echo(ctx.get_help())

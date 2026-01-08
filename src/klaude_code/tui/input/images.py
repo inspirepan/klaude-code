@@ -16,11 +16,11 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import uuid
 from base64 import b64encode
 from pathlib import Path
 
+from klaude_code.const import get_system_temp
 from klaude_code.protocol.message import ImageURLPart
 
 # ---------------------------------------------------------------------------
@@ -62,7 +62,7 @@ def parse_image_marker_path(raw: str) -> str:
 
 
 def _clipboard_images_dir() -> Path:
-    return Path(tempfile.gettempdir())
+    return Path(get_system_temp())
 
 
 def _grab_clipboard_image_macos(dest_path: Path) -> bool:

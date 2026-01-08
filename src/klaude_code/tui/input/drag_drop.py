@@ -33,14 +33,16 @@ def _format_at_token(path_str: str) -> str:
 def _normalize_path_for_at(path: Path, *, cwd: Path) -> str:
     """Return a stable, display-friendly path string for @ references."""
 
+    # Use absolute() instead of resolve() to avoid expanding symlinks.
+    # On macOS, /var -> /private/var, and users expect /var paths to stay as /var.
     try:
-        resolved = path.resolve()
+        resolved = path.absolute()
     except OSError:
         resolved = path
 
     cwd_resolved = cwd
     with contextlib.suppress(OSError):
-        cwd_resolved = cwd.resolve()
+        cwd_resolved = cwd.absolute()
 
     as_dir = False
     try:
