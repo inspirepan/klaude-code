@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-01-08
+
+### Added
+
+- support inline $skill patterns anywhere in input (`c26021fc`)
+- increase model picker overlay height (`1d09aec0`)
+- render thinking HTML blocks in assistant output (`5c7da7c8`)
+- add Tab key binding to confirm selection (`ab6cb568`)
+- support drag-drop file (code & images) (`d90e35bb`)
+- support optional values for --model/--resume (`22dabd8e`)
+
+### Changed
+
+- remove terminal-setup command and handle shift+enter in key bindings (`22206e78`)
+- consolidate image handling into single module (`426707b9`)
+- remove pillow and term-image dependencies (`1fcc96f1`)
+
+### Fixed
+
+- resolve pyright strict mode type errors (`3f567fa7`)
+- remove extra space in status activity text (`abdb3cd7`)
+
+### Other
+
+- replace ty with pyright in Makefile (`40c72e73`)
 ## [2.6.0] - 2026-01-07
 
 ### Added
@@ -1304,7 +1329,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.6.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.7.0...HEAD
+[2.7.0]: https://github.com/inspirepan/klaude-code/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/inspirepan/klaude-code/compare/v2.5.3...v2.6.0
 [2.5.3]: https://github.com/inspirepan/klaude-code/compare/v2.5.2...v2.5.3
 [2.5.2]: https://github.com/inspirepan/klaude-code/compare/v2.5.1...v2.5.2
