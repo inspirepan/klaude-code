@@ -16,6 +16,7 @@ class LLMClientProtocol(Enum):
     BEDROCK = "bedrock"
     CODEX_OAUTH = "codex_oauth"
     GOOGLE = "google"
+    ANTIGRAVITY = "antigravity"
 
 
 class ToolSchema(BaseModel):

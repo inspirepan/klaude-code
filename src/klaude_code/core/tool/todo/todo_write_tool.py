@@ -58,7 +58,7 @@ class TodoWriteTool(ToolABC):
                         "items": {
                             "type": "object",
                             "properties": {
-                                "content": {"type": "string", "minLength": 1},
+                                "content": {"type": "string"},
                                 "status": {
                                     "type": "string",
                                     "enum": ["pending", "in_progress", "completed"],

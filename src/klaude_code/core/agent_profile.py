@@ -60,6 +60,9 @@ CODEX_OAUTH_PROMPTS: dict[str, str] = {
     "gpt-5.2": "prompts/prompt-codex-gpt-5-2.md",
 }
 
+# Prompt for antigravity protocol - used exactly as-is without any additions.
+ANTIGRAVITY_PROMPT_PATH = "prompts/prompt-antigravity.md"
+
 
 STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT = """\
 
@@ -168,6 +171,10 @@ def load_system_prompt(
             if model_key in model_name:
                 return _load_prompt_by_path(prompt_path)
         raise CodexUnsupportedModelError(f"codex_oauth protocol does not support model: {model_name}")
+
+    # For antigravity protocol, use exact prompt without any additions.
+    if protocol == llm_param.LLMClientProtocol.ANTIGRAVITY:
+        return _load_prompt_by_path(ANTIGRAVITY_PROMPT_PATH)
 
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)

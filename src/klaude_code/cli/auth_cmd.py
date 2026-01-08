@@ -24,6 +24,11 @@ def _select_provider() -> str | None:
             value="codex",
             search_text="codex",
         ),
+        SelectItem(
+            title=[("", "Google Antigravity "), ("ansibrightblack", "[OAuth]\n")],
+            value="antigravity",
+            search_text="antigravity",
+        ),
     ]
     # Add API key options
     for key_info in SUPPORTED_API_KEYS:
@@ -71,7 +76,7 @@ def _build_provider_help() -> str:
     from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
 
     # Use first word of name for brevity (e.g., "google" instead of "google gemini")
-    names = ["codex", "claude"] + [k.name.split()[0].lower() for k in SUPPORTED_API_KEYS]
+    names = ["codex", "claude", "antigravity"] + [k.name.split()[0].lower() for k in SUPPORTED_API_KEYS]
     return f"Provider name ({', '.join(names)})"
 
 
@@ -149,6 +154,39 @@ def login_command(
             except Exception as e:
                 log((f"Login failed: {e}", "red"))
                 raise typer.Exit(1) from None
+        case "antigravity":
+            from klaude_code.auth.antigravity.oauth import AntigravityOAuth
+            from klaude_code.auth.antigravity.token_manager import AntigravityTokenManager
+
+            token_manager = AntigravityTokenManager()
+
+            if token_manager.is_logged_in():
+                state = token_manager.get_state()
+                if state and not state.is_expired():
+                    log(("You are already logged in to Antigravity.", "green"))
+                    if state.email:
+                        log(f"  Email: {state.email}")
+                    log(f"  Project ID: {state.project_id}")
+                    expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
+                    log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+                    if not typer.confirm("Do you want to re-login?"):
+                        return
+
+            log("Starting Antigravity OAuth login flow...")
+            log("A browser window will open for authentication.")
+
+            try:
+                oauth = AntigravityOAuth(token_manager)
+                state = oauth.login()
+                log(("Login successful!", "green"))
+                if state.email:
+                    log(f"  Email: {state.email}")
+                log(f"  Project ID: {state.project_id}")
+                expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
+                log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+            except Exception as e:
+                log((f"Login failed: {e}", "red"))
+                raise typer.Exit(1) from None
         case _:
             from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
 
@@ -174,7 +212,7 @@ def login_command(
 
 
 def logout_command(
-    provider: str = typer.Argument("codex", help="Provider to logout (codex|claude)"),
+    provider: str = typer.Argument("codex", help="Provider to logout (codex|claude|antigravity)"),
 ) -> None:
     """Logout from a provider."""
     match provider.lower():
@@ -202,8 +240,20 @@ def logout_command(
             if typer.confirm("Are you sure you want to logout from Claude?"):
                 token_manager.delete()
                 log(("Logged out from Claude.", "green"))
+        case "antigravity":
+            from klaude_code.auth.antigravity.token_manager import AntigravityTokenManager
+
+            token_manager = AntigravityTokenManager()
+
+            if not token_manager.is_logged_in():
+                log("You are not logged in to Antigravity.")
+                return
+
+            if typer.confirm("Are you sure you want to logout from Antigravity?"):
+                token_manager.delete()
+                log(("Logged out from Antigravity.", "green"))
         case _:
-            log((f"Error: Unknown provider '{provider}'. Supported: codex, claude", "red"))
+            log((f"Error: Unknown provider '{provider}'. Supported: codex, claude, antigravity", "red"))
             raise typer.Exit(1)
 
 

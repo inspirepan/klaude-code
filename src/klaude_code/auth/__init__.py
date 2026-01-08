@@ -1,8 +1,17 @@
 """Authentication module.
 
-Currently includes Codex OAuth helpers in ``klaude_code.auth.codex``.
+Includes Codex and Antigravity OAuth helpers.
 """
 
+from klaude_code.auth.antigravity import (
+    AntigravityAuthError,
+    AntigravityAuthState,
+    AntigravityNotLoggedInError,
+    AntigravityOAuth,
+    AntigravityOAuthError,
+    AntigravityTokenExpiredError,
+    AntigravityTokenManager,
+)
 from klaude_code.auth.codex import (
     CodexAuthError,
     CodexAuthState,
@@ -20,6 +29,13 @@ from klaude_code.auth.env import (
 )
 
 __all__ = [
+    "AntigravityAuthError",
+    "AntigravityAuthState",
+    "AntigravityNotLoggedInError",
+    "AntigravityOAuth",
+    "AntigravityOAuthError",
+    "AntigravityTokenExpiredError",
+    "AntigravityTokenManager",
     "CodexAuthError",
     "CodexAuthState",
     "CodexNotLoggedInError",

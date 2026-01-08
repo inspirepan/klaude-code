@@ -121,6 +121,50 @@ def _get_claude_status_rows() -> list[tuple[Text, Text]]:
     return rows
 
 
+def _get_antigravity_status_rows() -> list[tuple[Text, Text]]:
+    """Get Antigravity OAuth login status as (label, value) tuples for table display."""
+    from klaude_code.auth.antigravity.token_manager import AntigravityTokenManager
+
+    rows: list[tuple[Text, Text]] = []
+    token_manager = AntigravityTokenManager()
+    state = token_manager.get_state()
+
+    if state is None:
+        rows.append(
+            (
+                Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
+                Text.assemble(
+                    ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
+                    (" (run 'klaude login antigravity' to authenticate)", "dim"),
+                ),
+            )
+        )
+    elif state.is_expired():
+        rows.append(
+            (
+                Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
+                Text.assemble(
+                    ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
+                    (" (will refresh automatically on use; run 'klaude login antigravity' if refresh fails)", "dim"),
+                ),
+            )
+        )
+    else:
+        expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
+        email_info = f", email: {state.email}" if state.email else ""
+        rows.append(
+            (
+                Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
+                Text.assemble(
+                    ("Logged in", ThemeKey.CONFIG_STATUS_OK),
+                    (f" (project: {state.project_id}{email_info}, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+                ),
+            )
+        )
+
+    return rows
+
+
 def mask_api_key(api_key: str | None) -> str:
     """Mask API key to show only first 6 and last 6 characters with *** in between"""
     if not api_key:
@@ -233,6 +277,9 @@ def _build_provider_info_panel(provider: ProviderConfig, available: bool) -> Quo
             info_table.add_row(label, value)
     if provider.protocol == LLMClientProtocol.CLAUDE_OAUTH:
         for label, value in _get_claude_status_rows():
+            info_table.add_row(label, value)
+    if provider.protocol == LLMClientProtocol.ANTIGRAVITY:
+        for label, value in _get_antigravity_status_rows():
             info_table.add_row(label, value)
 
     return Quote(
