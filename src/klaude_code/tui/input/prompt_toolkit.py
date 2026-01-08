@@ -337,7 +337,7 @@ class PromptToolkitInput(InputProviderABC):
             pointer="→",
             use_search_filter=True,
             search_placeholder="type to search",
-            list_height=10,
+            list_height=20,
             on_select=self._handle_model_selected,
         )
         self._model_picker = model_picker

@@ -796,9 +796,20 @@ class SelectOverlay[T]:
             dont_extend_height=Always(),
             always_hide_cursor=Always(),
         )
+        def get_list_height() -> int:
+            # Dynamic height: min of configured height and available terminal space
+            # Overhead: header(1) + spacer(1) + search(1) + frame borders(2) + prompt area(3)
+            overhead = 8
+            try:
+                terminal_height = get_app().output.get_size().rows
+                available = max(3, terminal_height - overhead)
+                return min(self._list_height, available)
+            except Exception:
+                return self._list_height
+
         list_window = Window(
             FormattedTextControl(get_choices_tokens),
-            height=self._list_height,
+            height=get_list_height,
             scroll_offsets=ScrollOffsets(top=0, bottom=2),
             allow_scroll_beyond_bottom=True,
             dont_extend_height=Always(),
