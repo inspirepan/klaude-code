@@ -389,7 +389,7 @@ def _build_search_container(
     frame: bool = True,
 ) -> tuple[Window, Container]:
     """Build the search input container with placeholder."""
-    placeholder_text = f"{search_placeholder} · ↑↓ to select · esc to quit"
+    placeholder_text = f"{search_placeholder} · ↑↓ to select · enter/tab to confirm · esc to quit"
 
     search_prefix_window = Window(
         FormattedTextControl([("class:search_prefix", "/ ")]),
@@ -508,6 +508,23 @@ def select_one[T](
 
     @kb.add(Keys.Enter, eager=True)
     def _(event: KeyPressEvent) -> None:
+        indices, _ = _filter_items(items, get_filter_text())
+        if not indices:
+            event.app.exit(result=None)
+            return
+
+        nonlocal pointed_at
+        pointed_at = _coerce_pointed_at_to_selectable(items, indices, pointed_at)
+        idx = indices[pointed_at % len(indices)]
+        value = items[idx].value
+        if value is None:
+            event.app.exit(result=None)
+            return
+        event.app.exit(result=value)
+
+    @kb.add(Keys.Tab, eager=True)
+    def _(event: KeyPressEvent) -> None:
+        """Accept the currently pointed item."""
         indices, _ = _filter_items(items, get_filter_text())
         if not indices:
             event.app.exit(result=None)
@@ -681,6 +698,28 @@ class SelectOverlay[T]:
             event.app.invalidate()
 
         @kb.add(Keys.Enter, filter=is_open_filter, eager=True)
+        def _(event: KeyPressEvent) -> None:
+            indices, _ = self._get_visible_indices()
+            if not indices:
+                self.close()
+                return
+
+            self._pointed_at = _coerce_pointed_at_to_selectable(self._items, indices, self._pointed_at)
+            idx = indices[self._pointed_at % len(indices)]
+            value = self._items[idx].value
+            if value is None:
+                self.close()
+                return
+            self.close()
+
+            if self._on_select is None:
+                return
+
+            result = self._on_select(value)
+            if hasattr(result, "__await__"):
+                event.app.create_background_task(cast(Coroutine[Any, Any, None], result))
+
+        @kb.add(Keys.Tab, filter=is_open_filter, eager=True)
         def _(event: KeyPressEvent) -> None:
             indices, _ = self._get_visible_indices()
             if not indices:
