@@ -1,13 +1,18 @@
-"""Clipboard and image handling for REPL input.
+"""Image handling for REPL input.
 
 This module provides:
-- capture_clipboard_tag(): Capture clipboard image and return an `[image ...]` marker
-- extract_images_from_text(): Parse `[image ...]` markers and return ImageURLPart list
-- copy_to_clipboard(): Copy text to system clipboard
+- IMAGE_SUFFIXES: Supported image file extensions
+- IMAGE_MARKER_RE: Regex for [image ...] markers
+- is_image_file(): Check if a path is an image file
+- format_image_marker(): Generate [image path] string
+- parse_image_marker_path(): Parse path from marker
+- capture_clipboard_tag(): Capture clipboard image and return an [image ...] marker
+- extract_images_from_text(): Parse [image ...] markers and return ImageURLPart list
 """
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import sys
@@ -17,12 +22,47 @@ from base64 import b64encode
 from pathlib import Path
 
 from klaude_code.protocol.message import ImageURLPart
-from klaude_code.tui.input.image_markers import IMAGE_MARKER_RE, format_image_marker, parse_image_marker_path
+
+# ---------------------------------------------------------------------------
+# Constants and marker syntax
+# ---------------------------------------------------------------------------
+
+IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
+
+IMAGE_MARKER_RE = re.compile(r'\[image (?P<path>"[^"]+"|[^\]]+)\]')
+
+
+def is_image_file(path: Path) -> bool:
+    """Check if a path points to an image file based on extension."""
+    return path.suffix.lower() in IMAGE_SUFFIXES
+
+
+def format_image_marker(path: str) -> str:
+    """Format a path as an [image ...] marker.
+
+    Paths with whitespace are quoted.
+    """
+    path_str = path.strip()
+    if any(ch.isspace() for ch in path_str):
+        return f'[image "{path_str}"]'
+    return f"[image {path_str}]"
+
+
+def parse_image_marker_path(raw: str) -> str:
+    """Parse the path from an [image ...] marker, removing quotes if present."""
+    s = raw.strip()
+    if len(s) >= 2 and s.startswith('"') and s.endswith('"'):
+        return s[1:-1]
+    return s
+
+
+# ---------------------------------------------------------------------------
+# Clipboard image capture
+# ---------------------------------------------------------------------------
 
 
 def _clipboard_images_dir() -> Path:
     return Path(tempfile.gettempdir())
-
 
 
 def _grab_clipboard_image_macos(dest_path: Path) -> bool:
@@ -65,7 +105,9 @@ if (!pngData.isNil()) {{
             capture_output=True,
             text=True,
         )
-        return result.returncode == 0 and "true" in result.stdout and dest_path.exists() and dest_path.stat().st_size > 0
+        return (
+            result.returncode == 0 and "true" in result.stdout and dest_path.exists() and dest_path.stat().st_size > 0
+        )
     except OSError:
         return False
 
@@ -119,7 +161,7 @@ def _grab_clipboard_image(dest_path: Path) -> bool:
 
 
 def capture_clipboard_tag() -> str | None:
-    """Capture an image from clipboard and return an `[image ...]` marker."""
+    """Capture an image from clipboard and return an [image ...] marker."""
 
     images_dir = _clipboard_images_dir()
     try:
@@ -136,22 +178,9 @@ def capture_clipboard_tag() -> str | None:
     return format_image_marker(str(path))
 
 
-def extract_images_from_text(text: str) -> list[ImageURLPart]:
-    """Extract images referenced by `[image ...]` markers in text."""
-
-    images: list[ImageURLPart] = []
-    for m in IMAGE_MARKER_RE.finditer(text):
-        raw = m.group("path")
-        path_str = parse_image_marker_path(raw)
-        if not path_str:
-            continue
-        p = Path(path_str).expanduser()
-        if not p.is_absolute():
-            p = (Path.cwd() / p).resolve()
-        image_part = _encode_image_file(str(p))
-        if image_part:
-            images.append(image_part)
-    return images
+# ---------------------------------------------------------------------------
+# Image extraction from text
+# ---------------------------------------------------------------------------
 
 
 def _encode_image_file(file_path: str) -> ImageURLPart | None:
@@ -180,26 +209,19 @@ def _encode_image_file(file_path: str) -> ImageURLPart | None:
         return None
 
 
-def copy_to_clipboard(text: str) -> None:
-    """Copy text to system clipboard using platform-specific commands."""
-    try:
-        if sys.platform == "darwin":
-            subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
-        elif sys.platform == "win32":
-            subprocess.run(["clip"], input=text.encode("utf-16"), check=True)
-        else:
-            # Linux: try xclip first, then xsel
-            if shutil.which("xclip"):
-                subprocess.run(
-                    ["xclip", "-selection", "clipboard"],
-                    input=text.encode("utf-8"),
-                    check=True,
-                )
-            elif shutil.which("xsel"):
-                subprocess.run(
-                    ["xsel", "--clipboard", "--input"],
-                    input=text.encode("utf-8"),
-                    check=True,
-                )
-    except (OSError, subprocess.SubprocessError):
-        pass
+def extract_images_from_text(text: str) -> list[ImageURLPart]:
+    """Extract images referenced by [image ...] markers in text."""
+
+    images: list[ImageURLPart] = []
+    for m in IMAGE_MARKER_RE.finditer(text):
+        raw = m.group("path")
+        path_str = parse_image_marker_path(raw)
+        if not path_str:
+            continue
+        p = Path(path_str).expanduser()
+        if not p.is_absolute():
+            p = (Path.cwd() / p).resolve()
+        image_part = _encode_image_file(str(p))
+        if image_part:
+            images.append(image_part)
+    return images

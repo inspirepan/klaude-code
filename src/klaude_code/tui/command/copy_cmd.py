@@ -1,5 +1,5 @@
 from klaude_code.protocol import commands, events, message
-from klaude_code.tui.input.clipboard import copy_to_clipboard
+from klaude_code.tui.input.key_bindings import copy_to_clipboard
 
 from .command_abc import Agent, CommandABC, CommandResult
 

@@ -24,10 +24,9 @@ User Input (keyboard/paste/drag)
 
 | File | Responsibility |
 |------|----------------|
-| `key_bindings.py` | Keyboard/paste event handlers; dispatches to converters |
+| `key_bindings.py` | Keyboard/paste event handlers; dispatches to converters; `copy_to_clipboard()` |
 | `prompt_toolkit.py` | PromptSession setup; `iter_inputs()` submit flow |
 | `drag_drop.py` | `file://` URI and path list to `@`/`[image]` conversion |
-| `clipboard.py` | Ctrl+V image capture; `extract_images_from_text()` |
-| `image_markers.py` | `[image ...]` syntax: regex, format, parse |
+| `images.py` | Image handling: marker syntax, Ctrl+V capture, `extract_images_from_text()` |
 | `paste.py` | `[paste #N ...]` fold/expand for large pastes |
 | `completers.py` | `@`/`/`/`$` completion providers |

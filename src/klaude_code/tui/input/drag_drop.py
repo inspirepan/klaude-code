@@ -17,16 +17,9 @@ import shlex
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from klaude_code.tui.input.image_markers import format_image_marker
+from klaude_code.tui.input.images import format_image_marker, is_image_file
 
 _FILE_URI_RE = re.compile(r"file://\S+")
-
-# Keep in sync with supported image types in core and clipboard.
-_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
-
-
-def is_image_file(path: Path) -> bool:
-    return path.suffix.lower() in _IMAGE_SUFFIXES
 
 
 def _format_at_token(path_str: str) -> str:

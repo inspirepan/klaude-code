@@ -6,7 +6,7 @@ from typing import Literal
 from prompt_toolkit.styles import Style, merge_styles
 
 from klaude_code.protocol import commands, events, message, model
-from klaude_code.tui.input.clipboard import copy_to_clipboard
+from klaude_code.tui.input.key_bindings import copy_to_clipboard
 from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, select_one
 
 from .command_abc import Agent, CommandABC, CommandResult

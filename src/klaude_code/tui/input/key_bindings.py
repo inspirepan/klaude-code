@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import contextlib
 import re
+import shutil
+import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import cast
@@ -24,9 +27,33 @@ from klaude_code.tui.input.drag_drop import convert_dropped_text
 from klaude_code.tui.input.paste import expand_paste_markers, store_paste
 
 
+def copy_to_clipboard(text: str) -> None:
+    """Copy text to system clipboard using platform-specific commands."""
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
+        elif sys.platform == "win32":
+            subprocess.run(["clip"], input=text.encode("utf-16"), check=True)
+        else:
+            # Linux: try xclip first, then xsel
+            if shutil.which("xclip"):
+                subprocess.run(
+                    ["xclip", "-selection", "clipboard"],
+                    input=text.encode("utf-8"),
+                    check=True,
+                )
+            elif shutil.which("xsel"):
+                subprocess.run(
+                    ["xsel", "--clipboard", "--input"],
+                    input=text.encode("utf-8"),
+                    check=True,
+                )
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
 def create_key_bindings(
     capture_clipboard_tag: Callable[[], str | None],
-    copy_to_clipboard: Callable[[str], None],
     at_token_pattern: re.Pattern[str],
     *,
     input_enabled: Filter | None = None,
@@ -36,8 +63,7 @@ def create_key_bindings(
     """Create REPL key bindings with injected dependencies.
 
     Args:
-        capture_clipboard_tag: Callable to capture clipboard image and return `[image ...]` marker
-        copy_to_clipboard: Callable to copy text to system clipboard
+        capture_clipboard_tag: Callable to capture clipboard image and return [image ...] marker
         at_token_pattern: Pattern to match @token for completion refresh
 
     Returns:
@@ -381,7 +407,7 @@ def create_key_bindings(
             selected_text: str = doc.text[start:end]  # type: ignore[reportUnknownMemberType]
 
             if selected_text:
-                copy_to_clipboard(selected_text)  # type: ignore[reportUnknownArgumentType]
+                copy_to_clipboard(selected_text)
             buf.exit_selection()  # type: ignore[reportUnknownMemberType]
         else:
             buf.insert_text("c")  # type: ignore[reportUnknownMemberType]

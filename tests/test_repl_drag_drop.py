@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from klaude_code.tui.input.clipboard import extract_images_from_text
 from klaude_code.tui.input.drag_drop import convert_dropped_text
-from klaude_code.tui.input.image_markers import format_image_marker
+from klaude_code.tui.input.images import extract_images_from_text, format_image_marker
 
 
 def test_convert_file_uri_to_at_token(tmp_path: Path) -> None:

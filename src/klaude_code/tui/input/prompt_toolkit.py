@@ -36,13 +36,12 @@ from klaude_code.protocol import llm_param
 from klaude_code.protocol.commands import CommandInfo
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
-from klaude_code.tui.input.clipboard import (
-    capture_clipboard_tag,
-    copy_to_clipboard,
-    extract_images_from_text,
-)
 from klaude_code.tui.input.completers import AT_TOKEN_PATTERN, create_repl_completer
 from klaude_code.tui.input.drag_drop import convert_dropped_text
+from klaude_code.tui.input.images import (
+    capture_clipboard_tag,
+    extract_images_from_text,
+)
 from klaude_code.tui.input.key_bindings import create_key_bindings
 from klaude_code.tui.input.paste import expand_paste_markers
 from klaude_code.tui.terminal.color import is_light_terminal_background
@@ -277,7 +276,6 @@ class PromptToolkitInput(InputProviderABC):
 
         kb = create_key_bindings(
             capture_clipboard_tag=capture_clipboard_tag,
-            copy_to_clipboard=copy_to_clipboard,
             at_token_pattern=AT_TOKEN_PATTERN,
             input_enabled=input_enabled,
             open_model_picker=self._open_model_picker,
