@@ -263,11 +263,7 @@ def render_write_tool_call(arguments: str) -> RenderableType:
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path", "")
-        # Markdown files show path in result panel, skip here to avoid duplication
-        if file_path.endswith(".md"):
-            details: RenderableType | None = None
-        else:
-            details = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
+        details: RenderableType | None = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
     except json.JSONDecodeError:
         details = Text(
             arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
@@ -292,24 +288,29 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
     details = Text("", ThemeKey.TOOL_PARAM)
 
     if isinstance(patch_content, str):
-        update_count = 0
-        add_count = 0
-        delete_count = 0
+        update_files: list[str] = []
+        add_files: list[str] = []
+        delete_files: list[str] = []
         for line in patch_content.splitlines():
             if line.startswith("*** Update File:"):
-                update_count += 1
+                update_files.append(line[len("*** Update File:") :].strip())
             elif line.startswith("*** Add File:"):
-                add_count += 1
+                add_files.append(line[len("*** Add File:") :].strip())
             elif line.startswith("*** Delete File:"):
-                delete_count += 1
+                delete_files.append(line[len("*** Delete File:") :].strip())
 
         parts: list[str] = []
-        if update_count > 0:
-            parts.append(f"Update File × {update_count}" if update_count > 1 else "Update File")
-        if add_count > 0:
-            parts.append(f"Add File × {add_count}" if add_count > 1 else "Add File")
-        if delete_count > 0:
-            parts.append(f"Delete File × {delete_count}" if delete_count > 1 else "Delete File")
+        if update_files:
+            parts.append(f"Update File × {len(update_files)}" if len(update_files) > 1 else "Update File")
+        if add_files:
+            # For single .md file addition, show filename in parentheses
+            if len(add_files) == 1 and add_files[0].endswith(".md"):
+                file_name = Path(add_files[0]).name
+                parts.append(f"Add File ({file_name})")
+            else:
+                parts.append(f"Add File × {len(add_files)}" if len(add_files) > 1 else "Add File")
+        if delete_files:
+            parts.append(f"Delete File × {len(delete_files)}" if len(delete_files) > 1 else "Delete File")
 
         if parts:
             details = Text(", ".join(parts), ThemeKey.TOOL_PARAM)
@@ -593,14 +594,24 @@ def _extract_markdown_doc(ui_extra: model.ToolResultUIExtra | None) -> model.Mar
 
 
 def render_markdown_doc(md_ui: model.MarkdownDocUIExtra, *, code_theme: str) -> RenderableType:
-    """Render markdown document content in a panel."""
-    header = render_path(md_ui.file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
-    return Panel.fit(
-        Group(header, Text(""), NoInsetMarkdown(md_ui.content, code_theme=code_theme)),
+    """Render markdown document content in a panel with 2-char left indent and top margin."""
+    import shutil
+
+    from rich.padding import Padding
+
+    # Limit panel width to min(100, terminal_width) minus left indent (2)
+    terminal_width = shutil.get_terminal_size().columns
+    panel_width = min(100, terminal_width) - 2
+
+    panel = Panel(
+        NoInsetMarkdown(md_ui.content, code_theme=code_theme),
         box=box.SIMPLE,
         border_style=ThemeKey.LINES,
         style=ThemeKey.WRITE_MARKDOWN_PANEL,
+        width=panel_width,
     )
+    # (top, right, bottom, left) - 1 line top margin, 2-char left indent
+    return Padding(panel, (1, 0, 0, 2))
 
 
 def render_tool_result(
@@ -628,11 +639,12 @@ def render_tool_result(
         rendered: list[RenderableType] = []
         for item in e.ui_extra.items:
             if isinstance(item, model.MarkdownDocUIExtra):
+                # Markdown docs render without TreeQuote wrap (already has 2-char indent)
                 rendered.append(render_markdown_doc(item, code_theme=code_theme))
             elif isinstance(item, model.DiffUIExtra):
                 show_file_name = e.tool_name == tools.APPLY_PATCH
-                rendered.append(r_diffs.render_structured_diff(item, show_file_name=show_file_name))
-        return wrap(Group(*rendered)) if rendered else None
+                rendered.append(wrap(r_diffs.render_structured_diff(item, show_file_name=show_file_name)))
+        return Group(*rendered) if rendered else None
 
     diff_ui = _extract_diff(e.ui_extra)
     md_ui = _extract_markdown_doc(e.ui_extra)
@@ -649,11 +661,13 @@ def render_tool_result(
             return wrap(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""))
         case tools.WRITE:
             if md_ui:
-                return wrap(render_markdown_doc(md_ui, code_theme=code_theme))
+                # Markdown docs render without TreeQuote wrap (already has 2-char indent)
+                return render_markdown_doc(md_ui, code_theme=code_theme)
             return wrap(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""))
         case tools.APPLY_PATCH:
             if md_ui:
-                return wrap(render_markdown_doc(md_ui, code_theme=code_theme))
+                # Markdown docs render without TreeQuote wrap (already has 2-char indent)
+                return render_markdown_doc(md_ui, code_theme=code_theme)
             if diff_ui:
                 return wrap(r_diffs.render_structured_diff(diff_ui, show_file_name=True))
             return _render_fallback()
