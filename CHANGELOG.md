@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-01-09
+
+### Added
+
+- enhance export UI with collapsible turns (`dfc01429`)
+- add markdown image support (`a66b5815`)
+- add /continue command (`1a4be5c6`)
+- add at file reminder for image model (`c7232ef1`)
+- reuse previous_summary when no new messages to summarize (`85961024`)
+
+### Fixed
+
+- update edit tool output when file does not exit (`310505df`)
+- update read max image bytes (`dad493c9`)
+
+### Other
+
+- lint (`2108e20b`)
+
 ## [2.8.0] - 2026-01-09
 
 ### Added
@@ -1428,7 +1447,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.8.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.8.1...HEAD
+[2.8.1]: https://github.com/inspirepan/klaude-code/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/inspirepan/klaude-code/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/inspirepan/klaude-code/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/inspirepan/klaude-code/compare/v2.5.3...v2.6.0
