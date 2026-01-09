@@ -153,13 +153,13 @@ class TestReadTool(BaseTempDirTest):
 
     def test_read_image_too_large_error(self):
         file_path = os.path.abspath("large.png")
-        oversized = 4 * 1024 * 1024 + 1
+        oversized = 64 * 1024 * 1024 + 1
         with open(file_path, "wb") as image_file:
             image_file.write(b"0" * oversized)
 
         res = arun(ReadTool.call(json.dumps({"file_path": file_path}), self.tool_context))
         self.assertEqual(res.status, "error")
-        self.assertIn("maximum supported size (4.00MB)", res.output_text or "")
+        self.assertIn("maximum supported size (64.00MB)", res.output_text or "")
 
 
 class TestReminders(BaseTempDirTest):

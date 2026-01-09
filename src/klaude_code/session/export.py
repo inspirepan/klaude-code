@@ -526,9 +526,7 @@ def _build_messages_html(
         # 1. Render User Message
         if turn.user_message:
             blocks.append(
-                _render_event_item(
-                    turn.user_message, tool_results, seen_session_ids, nesting_level, assistant_counter
-                )
+                _render_event_item(turn.user_message, tool_results, seen_session_ids, nesting_level, assistant_counter)
             )
 
         if not turn.body_items:
@@ -538,9 +536,8 @@ def _build_messages_html(
         # Find the LAST AssistantMessage that has a non-Mermaid tool call (and NO Mermaid tool call).
         barrier_index = -1
         for i, item in enumerate(turn.body_items):
-            if isinstance(item, message.AssistantMessage):
-                if _has_non_mermaid_tool(item):
-                    barrier_index = i
+            if isinstance(item, message.AssistantMessage) and _has_non_mermaid_tool(item):
+                barrier_index = i
 
         # If barrier found, everything up to it is collapsible.
         # Everything after is visible.
@@ -584,9 +581,7 @@ def _build_messages_html(
 
         # 4. Render Visible Items
         for item in visible_items:
-            blocks.append(
-                _render_event_item(item, tool_results, seen_session_ids, nesting_level, assistant_counter)
-            )
+            blocks.append(_render_event_item(item, tool_results, seen_session_ids, nesting_level, assistant_counter))
 
     return "\n".join(blocks)
 
@@ -923,12 +918,7 @@ def _get_mermaid_link_html(
 
     # If we have code, render the diagram
     if code:
-        return (
-            f'<div class="mermaid-container">'
-            f'<div class="mermaid">{escaped_code}</div>'
-            f"{toolbar_html}"
-            f"</div>"
-        )
+        return f'<div class="mermaid-container"><div class="mermaid">{escaped_code}</div>{toolbar_html}</div>'
 
     # Fallback to just link/toolbar if no code available (legacy support behavior)
     return toolbar_html
@@ -945,7 +935,7 @@ def _format_mermaid_tool_call(
     # Build standard tool details but hidden
     should_collapse = _should_collapse(args_html)
     open_attr = "" if should_collapse else " open"
-    
+
     details_html = (
         f'<div class="mermaid-meta" style="display: none;">'
         f'<div class="tool-header">'
@@ -1005,7 +995,7 @@ def _format_tool_call(
         mermaid_extra = next((x for x in extras if isinstance(x, model.MermaidLinkUIExtra)), None)
         mermaid_source = mermaid_extra if mermaid_extra else result.ui_extra
         mermaid_html = _get_mermaid_link_html(mermaid_source, tool_call)
-        
+
         if mermaid_html:
             return _format_mermaid_tool_call(tool_call, result, timestamp, mermaid_html, args_html, ts_str)
 
@@ -1116,10 +1106,6 @@ def _format_tool_call(
 
     html_parts.append("</div>")
     return "".join(html_parts)
-
-
-
-
 
 
 def _render_sub_agent_session(

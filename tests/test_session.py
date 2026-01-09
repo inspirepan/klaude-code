@@ -431,7 +431,7 @@ class TestRenderTextBlock:
         text = "\n".join(lines)
         result = export._render_text_block(text)
         assert "expandable" in result
-        assert "click to expand" in result
+        assert "Show full output" in result
 
 
 # =====================

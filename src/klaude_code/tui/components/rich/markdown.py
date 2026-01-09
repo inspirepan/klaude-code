@@ -458,9 +458,7 @@ class MarkdownStream:
         lines, _ = self._render_markdown_to_lines(text, apply_mark=apply_mark)
         return "".join(lines)
 
-    def render_stable_ansi(
-        self, stable_source: str, *, has_live_suffix: bool, final: bool
-    ) -> tuple[str, list[str]]:
+    def render_stable_ansi(self, stable_source: str, *, has_live_suffix: bool, final: bool) -> tuple[str, list[str]]:
         """Render stable prefix to ANSI, preserving inter-block spacing.
 
         Returns:

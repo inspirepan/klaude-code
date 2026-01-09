@@ -34,7 +34,7 @@ def _build_env_help() -> str:
             "Tool limits (Read):",
             "  KLAUDE_READ_GLOBAL_LINE_CAP    Max lines to read (default: 2000)",
             "  KLAUDE_READ_MAX_CHARS          Max total chars to read (default: 50000)",
-            "  KLAUDE_READ_MAX_IMAGE_BYTES    Max image bytes to read (default: 4MB)",
+            "  KLAUDE_READ_MAX_IMAGE_BYTES    Max image bytes to read (default: 64MB)",
             "  KLAUDE_IMAGE_OUTPUT_MAX_BYTES  Max decoded image bytes (default: 64MB)",
         ]
     )
