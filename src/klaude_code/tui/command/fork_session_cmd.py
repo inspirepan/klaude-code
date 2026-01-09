@@ -28,10 +28,14 @@ FORK_SELECT_STYLE = merge_styles(
 class ForkPoint:
     """A fork point in conversation history."""
 
+    kind: Literal["user", "compaction", "end"]
     history_index: int  # -1 means fork entire conversation
-    user_message: str
     tool_call_stats: dict[str, int]  # tool_name -> count
-    last_assistant_summary: str
+    user_message: str = ""
+    last_assistant_summary: str = ""
+    compaction_summary_preview: str = ""
+    compaction_first_kept_index: int | None = None
+    compaction_tokens_before: int | None = None
 
 
 def _truncate(text: str, max_len: int = 60) -> str:
@@ -42,11 +46,61 @@ def _truncate(text: str, max_len: int = 60) -> str:
     return text[: max_len - 1] + "…"
 
 
+def _first_non_empty_line(text: str) -> str:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
+
+
+def _preview_compaction_summary(summary: str) -> str:
+    """Return a human-friendly preview line for a CompactionEntry summary.
+
+    Compaction summaries may start with a fixed prefix line and may contain <summary> tags.
+    For UI previews we want something more informative than the prefix.
+    """
+
+    cleaned = summary.replace("<summary>", "\n").replace("</summary>", "\n")
+    lines = [line.strip() for line in cleaned.splitlines()]
+    prefix = "the conversation history before this point was compacted"
+
+    def _is_noise(line: str) -> bool:
+        if not line:
+            return True
+        if line.casefold().startswith(prefix):
+            return True
+        return line in {"---", "----", "-----"}
+
+    # Prefer the first non-empty line under the "## Goal" section.
+    for i, line in enumerate(lines):
+        if line == "## Goal":
+            for j in range(i + 1, len(lines)):
+                candidate = lines[j]
+                if _is_noise(candidate):
+                    continue
+                if candidate.startswith("## "):
+                    break
+                return candidate
+
+    # Otherwise, pick the first non-heading meaningful line.
+    for line in lines:
+        if _is_noise(line):
+            continue
+        if line.startswith("## "):
+            continue
+        return line
+
+    # Fallback: first non-empty line.
+    return _first_non_empty_line(cleaned)
+
+
 def _build_fork_points(conversation_history: list[message.HistoryEvent]) -> list[ForkPoint]:
     """Build list of fork points from conversation history.
 
     Fork points are:
     - Each UserMessage position (for UI display, including first which would be empty session)
+    - The latest CompactionEntry boundary (just after it)
     - The end of the conversation (fork entire conversation)
     """
     fork_points: list[ForkPoint] = []
@@ -80,23 +134,43 @@ def _build_fork_points(conversation_history: list[message.HistoryEvent]) -> list
         user_text = message.join_text_parts(user_item.parts)
         fork_points.append(
             ForkPoint(
+                kind="user",
                 history_index=user_idx,
-                user_message=user_text or "(empty)",
                 tool_call_stats=tool_stats,
+                user_message=user_text or "(empty)",
                 last_assistant_summary=_truncate(last_assistant_content) if last_assistant_content else "",
             )
         )
 
-    # Add the "fork entire conversation" option at the end
-    if user_indices:
+    # Add a fork point just after the latest compaction entry (if any).
+    last_compaction_idx = -1
+    last_compaction: message.CompactionEntry | None = None
+    for idx in range(len(conversation_history) - 1, -1, -1):
+        item = conversation_history[idx]
+        if isinstance(item, message.CompactionEntry):
+            last_compaction_idx = idx
+            last_compaction = item
+            break
+    if last_compaction is not None:
+        # `until_index` is exclusive; `idx + 1` means include the CompactionEntry itself.
+        boundary_index = min(len(conversation_history), last_compaction_idx + 1)
+        preview = _truncate(_preview_compaction_summary(last_compaction.summary), 70)
         fork_points.append(
             ForkPoint(
-                history_index=-1,  # None means fork entire conversation
-                user_message="",  # No specific message, this represents the end
+                kind="compaction",
+                history_index=boundary_index,
                 tool_call_stats={},
-                last_assistant_summary="",
+                compaction_summary_preview=preview,
+                compaction_first_kept_index=last_compaction.first_kept_index,
+                compaction_tokens_before=last_compaction.tokens_before,
             )
         )
+
+    fork_points.sort(key=lambda fp: fp.history_index)
+
+    # Add the "fork entire conversation" option at the end
+    if fork_points:
+        fork_points.append(ForkPoint(kind="end", history_index=-1, tool_call_stats={}))
 
     return fork_points
 
@@ -107,7 +181,6 @@ def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int]]:
 
     for i, fp in enumerate(fork_points):
         is_first = i == 0
-        is_last = i == len(fork_points) - 1
 
         # Build the title
         title_parts: list[tuple[str, str]] = []
@@ -115,12 +188,14 @@ def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int]]:
         # First line: separator (with special markers for first/last fork points)
         if is_first:
             pass
-        elif is_last:
+        elif fp.kind == "end":
             title_parts.append(("class:separator", "----- fork from here (entire session) -----\n\n"))
+        elif fp.kind == "compaction":
+            title_parts.append(("class:separator", "----- fork after compaction -----\n\n"))
         else:
             title_parts.append(("class:separator", "----- fork from here -----\n\n"))
 
-        if not is_last:
+        if fp.kind == "user":
             # Second line: user message
             title_parts.append(("class:msg", f"user:   {_truncate(fp.user_message, 70)}\n"))
 
@@ -133,6 +208,15 @@ def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int]]:
             if fp.last_assistant_summary:
                 title_parts.append(("class:assistant", f"ai:     {fp.last_assistant_summary}\n"))
 
+        elif fp.kind == "compaction":
+            kept_from = fp.compaction_first_kept_index
+            if kept_from is not None:
+                title_parts.append(("class:meta", f"kept:   from history index {kept_from}\n"))
+            if fp.compaction_tokens_before is not None:
+                title_parts.append(("class:meta", f"tokens: {fp.compaction_tokens_before}\n"))
+            if fp.compaction_summary_preview:
+                title_parts.append(("class:assistant", f"sum:    {fp.compaction_summary_preview}\n"))
+
         # Empty line at the end
         title_parts.append(("class:text", "\n"))
 
@@ -140,8 +224,12 @@ def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int]]:
             SelectItem(
                 title=title_parts,
                 value=fp.history_index,
-                search_text=fp.user_message if not is_last else "fork entire conversation",
-                selectable=not is_first,
+                search_text=(
+                    fp.user_message
+                    if fp.kind == "user"
+                    else (f"compaction {fp.compaction_summary_preview}" if fp.kind == "compaction" else "fork entire conversation")
+                ),
+                selectable=not (fp.kind == "user" and is_first),
             )
         )
 
@@ -247,7 +335,11 @@ class ForkSessionCommand(CommandABC):
         await new_session.wait_for_flush()
 
         # Build result message
-        fork_description = "entire conversation" if selected == -1 else f"up to message index {selected}"
+        selected_point = next((fp for fp in fork_points if fp.history_index == selected), None)
+        if selected_point is not None and selected_point.kind == "compaction":
+            fork_description = "after compaction"
+        else:
+            fork_description = "entire conversation" if selected == -1 else f"up to message index {selected}"
 
         resume_cmd = f"klaude --resume {new_session.id}"
         copy_to_clipboard(resume_cmd)
