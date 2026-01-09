@@ -16,7 +16,7 @@ _MERMAID_DEFAULT_PNG_SCALE = 2
 
 
 def artifacts_dir() -> Path:
-    return Path(TOOL_OUTPUT_TRUNCATION_DIR) / "mermaid"
+    return Path(TOOL_OUTPUT_TRUNCATION_DIR)
 
 
 def _extract_pako_from_link(link: str) -> str | None:
@@ -72,7 +72,7 @@ def ensure_viewer_file(*, code: str, link: str, tool_call_id: str) -> Path | Non
         return None
 
     safe_id = tool_call_id.replace("/", "_")
-    path = artifacts_dir() / f"mermaid-viewer-{safe_id}.html"
+    path = artifacts_dir() / f"klaude-mermaid-{safe_id}.html"
     if path.exists():
         return path
 

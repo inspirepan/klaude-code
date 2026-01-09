@@ -173,7 +173,7 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
 
 
 def render_update_plan_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Update Plan"
+    tool_name = "Plan"
     details: RenderableType | None = None
 
     if arguments:
@@ -273,7 +273,7 @@ def render_write_tool_call(arguments: str) -> RenderableType:
 
 
 def render_apply_patch_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Apply Patch"
+    tool_name = "Patch"
 
     try:
         payload = json.loads(arguments)
@@ -301,16 +301,16 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
 
         parts: list[str] = []
         if update_files:
-            parts.append(f"Update File × {len(update_files)}" if len(update_files) > 1 else "Update File")
+            parts.append(f"Edit × {len(update_files)}")
         if add_files:
             # For single .md file addition, show filename in parentheses
             if len(add_files) == 1 and add_files[0].endswith(".md"):
                 file_name = Path(add_files[0]).name
-                parts.append(f"Add File ({file_name})")
+                parts.append(f"Create ({file_name})")
             else:
-                parts.append(f"Add File × {len(add_files)}" if len(add_files) > 1 else "Add File")
+                parts.append(f"Create × {len(add_files)}")
         if delete_files:
-            parts.append(f"Delete File × {len(delete_files)}" if len(delete_files) > 1 else "Delete File")
+            parts.append(f"Delete × {len(delete_files)}")
 
         if parts:
             details = Text(", ".join(parts), ThemeKey.TOOL_PARAM)
@@ -434,7 +434,7 @@ def _render_mermaid_viewer_link(
 
 
 def render_web_fetch_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Fetch"
+    tool_name = "Fetch Web"
 
     try:
         payload: dict[str, str] = json.loads(arguments)
@@ -452,7 +452,7 @@ def render_web_fetch_tool_call(arguments: str) -> RenderableType:
 
 
 def render_web_search_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Web Search"
+    tool_name = "Search Web"
 
     try:
         payload: dict[str, Any] = json.loads(arguments)
@@ -558,7 +558,7 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
         case tools.APPLY_PATCH:
             return render_apply_patch_tool_call(e.arguments)
         case tools.TODO_WRITE:
-            return render_generic_tool_call("Update Todos", "", MARK_PLAN)
+            return render_generic_tool_call("Update To-Dos", "", MARK_PLAN)
         case tools.UPDATE_PLAN:
             return render_update_plan_tool_call(e.arguments)
         case tools.MERMAID:
