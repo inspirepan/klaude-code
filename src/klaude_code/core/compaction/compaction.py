@@ -478,12 +478,12 @@ async def _build_summary(
                 previous_summary,
                 cancel,
             )
-            if messages_to_summarize or previous_summary
-            else asyncio.sleep(0, result="No prior history.")
+            if messages_to_summarize
+            else asyncio.sleep(0, result=previous_summary or "")
         )
         prefix_task = _generate_task_prefix_summary(task_prefix_messages, llm_client, config, cancel)
         history_summary, task_prefix_summary = await asyncio.gather(history_task, prefix_task)
-        return f"{COMPACTION_SUMMARY_PREFIX}\n\n<summary>{history_summary}\n\n---\n\n**Task Context (split task):**\n\n{task_prefix_summary}\n\n</summary>"
+        return f"{COMPACTION_SUMMARY_PREFIX}\n\n<summary>{history_summary}\n\n---\n\n**Task Context (current task):**\n\n{task_prefix_summary}\n\n</summary>"
 
     return await _generate_summary(
         messages_to_summarize,
