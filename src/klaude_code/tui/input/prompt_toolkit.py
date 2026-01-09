@@ -53,6 +53,7 @@ class REPLStatusSnapshot(NamedTuple):
     """Snapshot of REPL status for bottom toolbar display."""
 
     update_message: str | None = None
+    debug_log_path: str | None = None
 
 
 COMPLETION_SELECTED_DARK_BG = "ansigreen"
@@ -573,24 +574,36 @@ class PromptToolkitInput(InputProviderABC):
         doing any blocking IO here.
         """
         update_message: str | None = None
+        debug_log_path: str | None = None
         if self._status_provider is not None:
             try:
                 status = self._status_provider()
                 update_message = status.update_message
+                debug_log_path = status.debug_log_path
             except (AttributeError, RuntimeError):
-                update_message = None
+                pass
+
+        # Priority: update_message > debug_log_path
+        display_text: str | None = None
+        text_style: str = ""
+        if update_message:
+            display_text = update_message
+            text_style = "#ansiyellow"
+        elif debug_log_path:
+            display_text = f"Debug log: {debug_log_path}"
+            text_style = "fg:ansibrightblack"
 
         # If nothing to show, return a blank line to actively clear any previously
         # rendered content. (When `bottom_toolbar` is a callable, prompt_toolkit
         # will still reserve the toolbar line.)
-        if not update_message:
+        if not display_text:
             try:
                 terminal_width = shutil.get_terminal_size().columns
             except (OSError, ValueError):
                 terminal_width = 0
             return FormattedText([("", " " * max(0, terminal_width))])
 
-        left_text = " " + update_message
+        left_text = " " + display_text
         try:
             terminal_width = shutil.get_terminal_size().columns
             padding = " " * max(0, terminal_width - len(left_text))
@@ -598,7 +611,7 @@ class PromptToolkitInput(InputProviderABC):
             padding = ""
 
         toolbar_text = left_text + padding
-        return FormattedText([("#ansiyellow", toolbar_text)])
+        return FormattedText([(text_style, toolbar_text)])
 
     # -------------------------------------------------------------------------
     # Placeholder

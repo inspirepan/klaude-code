@@ -60,7 +60,7 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
         else:
             # Fallback: limit width to 80% of terminal
             size_param = f"c={min(_MAX_COLS, term_size.columns * 4 // 5)}"
-
+        size_param = ""
         print("", file=out)
         _write_kitty_graphics(out, encoded, size_param=size_param)
         print("", file=out)

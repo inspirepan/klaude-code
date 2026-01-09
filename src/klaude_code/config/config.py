@@ -568,7 +568,7 @@ def _load_user_config() -> UserConfig | None:
     try:
         return UserConfig.model_validate(config_dict)
     except ValidationError as e:
-        log(f"Invalid config file: {config_path}", style="red bold")
+        log(f"Invalid config file: {config_path}", style="red")
         log(str(e), style="red")
         raise ValueError(f"Invalid config file: {config_path}") from e
 

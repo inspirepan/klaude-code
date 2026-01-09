@@ -18,7 +18,7 @@ from klaude_code.config import load_config
 from klaude_code.const import SIGINT_DOUBLE_PRESS_EXIT_TEXT
 from klaude_code.core.compaction import should_compact_threshold
 from klaude_code.core.executor import Executor
-from klaude_code.log import log
+from klaude_code.log import get_current_log_file, log
 from klaude_code.protocol import events, llm_param, op
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session
@@ -138,7 +138,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     def _status_provider() -> REPLStatusSnapshot:
         update_message = get_update_message()
-        return build_repl_status_snapshot(update_message)
+        debug_log = get_current_log_file()
+        debug_log_path = str(debug_log) if debug_log else None
+        return build_repl_status_snapshot(update_message, debug_log_path=debug_log_path)
 
     def _stop_rich_bottom_ui() -> None:
         active_display = components.display
