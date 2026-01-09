@@ -479,9 +479,14 @@ Result of calling the {tools.READ} tool:
 
 
 def _is_memory_loaded(session: Session, path: str) -> bool:
-    """Check if a memory file has already been loaded (tracked with is_memory=True)."""
+    """Check if a memory file has already been loaded or read unchanged."""
     status = session.file_tracker.get(path)
-    return status is not None and status.is_memory
+    if status is None:
+        return False
+    if status.is_memory:
+        return True
+    # Already tracked by ReadTool/@file - check if unchanged
+    return _is_tracked_file_unchanged(session, path)
 
 
 def _mark_memory_loaded(session: Session, path: str) -> None:

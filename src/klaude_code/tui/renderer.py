@@ -67,7 +67,7 @@ from klaude_code.tui.components import welcome as c_welcome
 from klaude_code.tui.components.common import truncate_head
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.live import CropAboveLive, SingleLine
-from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
+from klaude_code.tui.components.rich.markdown import MarkdownStream, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.status import BreathingSpinner, ShimmerStatusText
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme

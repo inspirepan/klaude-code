@@ -23,7 +23,7 @@ class TestCompactionBoundaries(unittest.TestCase):
             ),
         ]
 
-        cut_index = compaction._find_cut_index(history, start_index=0, keep_recent_tokens=200)
+        cut_index = compaction._find_cut_index(history, start_index=0, keep_recent_tokens=200)  # pyright: ignore[reportPrivateUsage]
         self.assertEqual(cut_index, 1)
         self.assertFalse(isinstance(history[cut_index], message.ToolResultMessage))
 
@@ -38,7 +38,7 @@ class TestCompactionBoundaries(unittest.TestCase):
             message.UserMessage(parts=[message.TextPart(text="continue")]),
         ]
 
-        adjusted = compaction._adjust_cut_index(history, cut_index=0, start_index=0)
+        adjusted = compaction._adjust_cut_index(history, cut_index=0, start_index=0)  # pyright: ignore[reportPrivateUsage]
         self.assertEqual(adjusted, 1)
         self.assertIsInstance(history[adjusted], message.UserMessage)
 
