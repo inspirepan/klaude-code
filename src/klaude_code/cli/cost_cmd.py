@@ -34,6 +34,16 @@ class ModelUsageStats:
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
 
+    @property
+    def non_cached_input_tokens(self) -> int:
+        """Non-cached prompt tokens.
+
+        We store `input_tokens` as the provider-reported prompt token count, which
+        includes cached tokens for providers that support prompt caching.
+        """
+
+        return max(0, self.input_tokens - self.cached_tokens)
+
     def add_usage(self, usage: model.Usage) -> None:
         self.input_tokens += usage.input_tokens
         self.output_tokens += usage.output_tokens
@@ -308,7 +318,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
         table.add_row(
             date_label,
             model_col,
-            fmt(format_tokens(stats.input_tokens)),
+            fmt(format_tokens(stats.non_cached_input_tokens)),
             fmt(format_tokens(stats.cached_tokens)),
             fmt(format_tokens(stats.output_tokens)),
             fmt(format_tokens(stats.total_tokens)),
