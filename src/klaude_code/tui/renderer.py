@@ -379,6 +379,7 @@ class TUICommandRenderer:
             live_sink=self.set_stream_renderable,
             mark=c_assistant.ASSISTANT_MESSAGE_MARK,
             left_margin=MARKDOWN_LEFT_MARGIN,
+            image_callback=self.display_image,
         )
 
     def _flush_thinking(self) -> None:

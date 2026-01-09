@@ -89,7 +89,7 @@ def test_frame_equivalence_stream_split_vs_full_render() -> None:
             full, min_stable_line=min_stable_line, final=False
         )
 
-        stable_rendered = stream.render_stable_ansi(
+        stable_rendered, _ = stream.render_stable_ansi(
             stable_source,
             has_live_suffix=bool(live_source),
             final=False,
@@ -164,7 +164,7 @@ def test_heading_list_boundary_does_not_double_blank_during_streaming() -> None:
             final=False,
         )
 
-        stable_ansi = stream.render_stable_ansi(stable_source, has_live_suffix=bool(live_source), final=False)
+        stable_ansi, _ = stream.render_stable_ansi(stable_source, has_live_suffix=bool(live_source), final=False)
         live_ansi = stream.render_ansi(live_source, apply_mark=(stable_line == 0))
         live_ansi = stream.normalize_live_ansi_for_boundary(stable_ansi=stable_ansi, live_ansi=live_ansi)
 
@@ -356,7 +356,7 @@ def test_markdown_stream_property_frame_equivalence(payload: tuple[str, list[int
         assert stable_source + live_source == full
         assert stable_line >= min_stable_line
 
-        stable_ansi = stream.render_stable_ansi(
+        stable_ansi, _ = stream.render_stable_ansi(
             stable_source,
             has_live_suffix=bool(live_source),
             final=False,
