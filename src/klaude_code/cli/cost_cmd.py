@@ -223,8 +223,8 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
     table.add_column("Date", style="cyan")
     table.add_column("Model", overflow="ellipsis")
     table.add_column("Input", justify="right")
-    table.add_column("Output", justify="right")
     table.add_column("Cache", justify="right")
+    table.add_column("Output", justify="right")
     table.add_column("Total", justify="right")
     table.add_column("USD", justify="right")
     table.add_column("CNY", justify="right")
@@ -249,8 +249,8 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
             date_label,
             model_col,
             fmt(format_tokens(stats.input_tokens)),
-            fmt(format_tokens(stats.output_tokens)),
             fmt(format_tokens(stats.cached_tokens)),
+            fmt(format_tokens(stats.output_tokens)),
             fmt(format_tokens(stats.total_tokens)),
             fmt(usd_str),
             fmt(cny_str),
