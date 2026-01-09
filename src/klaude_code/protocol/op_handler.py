@@ -15,6 +15,7 @@ if TYPE_CHECKING:
         ChangeThinkingOperation,
         ClearSessionOperation,
         CompactSessionOperation,
+        ContinueAgentOperation,
         ExportSessionOperation,
         InitAgentOperation,
         InterruptOperation,
@@ -28,6 +29,10 @@ class OperationHandler(Protocol):
 
     async def handle_run_agent(self, operation: RunAgentOperation) -> None:
         """Handle a run agent operation."""
+        ...
+
+    async def handle_continue_agent(self, operation: ContinueAgentOperation) -> None:
+        """Handle a continue agent operation (resume without adding user message)."""
         ...
 
     async def handle_compact_session(self, operation: CompactSessionOperation) -> None:

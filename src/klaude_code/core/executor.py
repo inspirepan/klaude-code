@@ -179,6 +179,21 @@ class AgentRuntime:
         )
         self._task_manager.register(operation.id, task, operation.session_id)
 
+    async def continue_agent(self, operation: op.ContinueAgentOperation) -> None:
+        """Continue agent execution without adding a new user message."""
+        agent = await self.ensure_agent(operation.session_id)
+
+        existing_active = self._task_manager.get(operation.id)
+        if existing_active is not None and not existing_active.task.done():
+            raise RuntimeError(f"Active task already registered for operation {operation.id}")
+
+        # Use empty input since we're continuing from existing history
+        empty_input = message.UserInputPayload(text="")
+        task: asyncio.Task[None] = asyncio.create_task(
+            self._run_agent_task(agent, empty_input, operation.id, operation.session_id)
+        )
+        self._task_manager.register(operation.id, task, operation.session_id)
+
     async def compact_session(self, operation: op.CompactSessionOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
 
@@ -524,6 +539,9 @@ class ExecutorContext:
 
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._agent_runtime.run_agent(operation)
+
+    async def handle_continue_agent(self, operation: op.ContinueAgentOperation) -> None:
+        await self._agent_runtime.continue_agent(operation)
 
     async def handle_compact_session(self, operation: op.CompactSessionOperation) -> None:
         await self._agent_runtime.compact_session(operation)

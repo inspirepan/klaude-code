@@ -268,9 +268,7 @@ def _call_args_probably_modify_file(args: dict[str, object]) -> bool:
         return True
     # Batch edits.
     edits = args.get("edits")
-    if isinstance(edits, list):
-        return True
-    return False
+    return bool(isinstance(edits, list))
 
 
 def _collect_file_operations(

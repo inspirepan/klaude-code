@@ -24,6 +24,7 @@ class OperationType(Enum):
     """Enumeration of supported operation types."""
 
     RUN_AGENT = "run_agent"
+    CONTINUE_AGENT = "continue_agent"
     COMPACT_SESSION = "compact_session"
     CHANGE_MODEL = "change_model"
     CHANGE_SUB_AGENT_MODEL = "change_sub_agent_model"
@@ -56,6 +57,19 @@ class RunAgentOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_run_agent(self)
+
+
+class ContinueAgentOperation(Operation):
+    """Operation for continuing an agent task without adding a new user message.
+
+    Used for recovery after interruptions (network errors, API failures, etc.).
+    """
+
+    type: OperationType = OperationType.CONTINUE_AGENT
+    session_id: str
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_continue_agent(self)
 
 
 class CompactSessionOperation(Operation):
