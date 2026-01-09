@@ -81,7 +81,7 @@ MEMORY_FILE_NAMES = ["CLAUDE.md", "AGENTS.md", "AGENT.md"]  # Memory file names 
 READ_CHAR_LIMIT_PER_LINE = 2000  # Maximum characters per line before truncation
 READ_GLOBAL_LINE_CAP = _get_int_env("KLAUDE_READ_GLOBAL_LINE_CAP", 2000)  # Maximum lines to read from a file
 READ_MAX_CHARS = _get_int_env("KLAUDE_READ_MAX_CHARS", 50000)  # Maximum total characters to read
-READ_MAX_IMAGE_BYTES = _get_int_env("KLAUDE_READ_MAX_IMAGE_BYTES", 4 * 1024 * 1024)  # Max image size (4MB)
+READ_MAX_IMAGE_BYTES = _get_int_env("KLAUDE_READ_MAX_IMAGE_BYTES", 64 * 1024 * 1024)  # Max image size (64MB)
 IMAGE_OUTPUT_MAX_BYTES = _get_int_env("KLAUDE_IMAGE_OUTPUT_MAX_BYTES", 64 * 1024 * 1024)  # Max decoded image (64MB)
 BINARY_CHECK_SIZE = 8192  # Bytes to check for binary file detection
 
