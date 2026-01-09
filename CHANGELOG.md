@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-01-09
+
+### Added
+
+- add fork-after-compaction checkpoint selection (`00dbddda`)
+- implement context compaction (`1d5ec5c0`)
+- add plan.md for compaction (`0987de5a`)
+- support Option+Up/Down to navigate input history (`010d3487`)
+- add markdown checkbox support (`9c90dc84`)
+- add antigravity oauth support (`970dbaa4`)
+- support codex gpt-5.2 model (`79906be7`)
+
+### Changed
+
+- add test for compaction (`afc3d368`)
+- update compact result style (`c8a5f7fb`)
+- show debug log path in bottom toolbar (`e8779818`)
+- update markdown preview ui for writing md files (`29c7d6d9`)
+
+### Fixed
+
+- correct checkbox test expectation and suppress pyright warning (`35b5c605`)
+- convert non-PNG images to PNG for Kitty graphics protocol (`11699a0e`)
+- skip memory loading for unchanged tracked files (`6d7bac57`)
+- handle concurrent OAuth token refresh race condition (`b1a2ea21`)
+- only convert file:// URIs on paste, not plain paths (`625d2b4b`)
+- fix cost command group provider (`7f76cd12`)
+- auto-size kitty image rendering (`52987028`)
+- fix model picker height (`c73b8342`)
+
+### Other
+
+- remove compaction plan.md (`75a0165b`)
+- add blank lines for readablility (`86e51369`)
+- fix changelog.md blank lines (`8fad0a26`)
+
 ## [2.7.0] - 2026-01-08
 
 ### Added
@@ -1392,7 +1428,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.7.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.8.0...HEAD
+[2.8.0]: https://github.com/inspirepan/klaude-code/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/inspirepan/klaude-code/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/inspirepan/klaude-code/compare/v2.5.3...v2.6.0
 [2.5.3]: https://github.com/inspirepan/klaude-code/compare/v2.5.2...v2.5.3
