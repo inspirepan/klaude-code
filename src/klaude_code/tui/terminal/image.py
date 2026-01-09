@@ -3,7 +3,9 @@ from __future__ import annotations
 import base64
 import shutil
 import struct
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import IO
 
@@ -12,6 +14,30 @@ _CHUNK_SIZE = 4096
 
 # Max columns for non-wide images
 _MAX_COLS = 120
+
+# Image formats that need conversion to PNG
+_NEEDS_CONVERSION = {".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
+
+
+def _convert_to_png(path: Path) -> bytes | None:
+    """Convert image to PNG using sips (macOS) or convert (ImageMagick)."""
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=True) as tmp:
+        tmp_path = tmp.name
+        # Try sips first (macOS built-in)
+        result = subprocess.run(
+            ["sips", "-s", "format", "png", str(path), "--out", tmp_path],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            return Path(tmp_path).read_bytes()
+        # Fallback to ImageMagick convert
+        result = subprocess.run(
+            ["convert", str(path), tmp_path],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            return Path(tmp_path).read_bytes()
+    return None
 
 
 def _get_png_dimensions(data: bytes) -> tuple[int, int] | None:
@@ -41,7 +67,15 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
         return
 
     try:
-        data = path.read_bytes()
+        # Convert non-PNG formats to PNG for Kitty graphics protocol compatibility
+        if path.suffix.lower() in _NEEDS_CONVERSION:
+            data = _convert_to_png(path)
+            if data is None:
+                print(f"Saved image: {path}", file=file or sys.stdout, flush=True)
+                return
+        else:
+            data = path.read_bytes()
+
         encoded = base64.standard_b64encode(data).decode("ascii")
         out = file or sys.stdout
 
