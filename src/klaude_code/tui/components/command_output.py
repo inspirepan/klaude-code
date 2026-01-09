@@ -4,6 +4,7 @@ from rich.table import Table
 from rich.text import Text
 
 from klaude_code.protocol import events, model
+from klaude_code.session import Session
 from klaude_code.tui.components.common import truncate_middle
 from klaude_code.tui.components.rich.theme import ThemeKey
 
@@ -47,10 +48,11 @@ def _render_fork_session_output(e: events.CommandOutputEvent) -> RenderableType:
 
     grid = Table.grid(padding=(0, 1))
     session_id = e.ui_extra.session_id
+    short_id = Session.shortest_unique_prefix(session_id)
     grid.add_column(style=ThemeKey.TOOL_RESULT, overflow="fold")
 
     grid.add_row(Text("Session forked. Resume command copied to clipboard:", style=ThemeKey.TOOL_RESULT))
-    grid.add_row(Text(f"  klaude --resume {session_id}", style=ThemeKey.TOOL_RESULT_BOLD))
+    grid.add_row(Text(f"  klaude -r {short_id}", style=ThemeKey.TOOL_RESULT_BOLD))
 
     return Padding.indent(grid, level=2)
 

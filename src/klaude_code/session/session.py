@@ -608,6 +608,68 @@ class Session(BaseModel):
         return resolved[0]
 
     @classmethod
+    def find_sessions_by_prefix(cls, prefix: str) -> list[str]:
+        """Find main session IDs matching a prefix.
+
+        Args:
+            prefix: Session ID prefix to match.
+
+        Returns:
+            List of matching session IDs, sorted alphabetically.
+        """
+        prefix = (prefix or "").strip().lower()
+        if not prefix:
+            return []
+
+        store = get_default_store()
+        matches: set[str] = set()
+
+        for meta_path in store.iter_meta_files():
+            data = _read_json_dict(meta_path)
+            if data is None:
+                continue
+            # Exclude sub-agent sessions.
+            if data.get("sub_agent_state") is not None:
+                continue
+            sid = str(data.get("id", meta_path.parent.name)).strip()
+            if sid.lower().startswith(prefix):
+                matches.add(sid)
+
+        return sorted(matches)
+
+    @classmethod
+    def shortest_unique_prefix(cls, session_id: str, min_length: int = 4) -> str:
+        """Find the shortest unique prefix for a session ID.
+
+        Args:
+            session_id: The session ID to find prefix for.
+            min_length: Minimum prefix length (default 4).
+
+        Returns:
+            The shortest prefix that uniquely identifies this session.
+        """
+        store = get_default_store()
+        other_ids: list[str] = []
+
+        for meta_path in store.iter_meta_files():
+            data = _read_json_dict(meta_path)
+            if data is None:
+                continue
+            if data.get("sub_agent_state") is not None:
+                continue
+            sid = str(data.get("id", meta_path.parent.name)).strip()
+            if sid != session_id:
+                other_ids.append(sid.lower())
+
+        session_lower = session_id.lower()
+        for length in range(min_length, len(session_id) + 1):
+            prefix = session_lower[:length]
+            if not any(other.startswith(prefix) for other in other_ids):
+                return session_id[:length]
+
+        return session_id
+
+    @classmethod
     def clean_small_sessions(cls, min_messages: int = 5) -> int:
         sessions = cls.list_sessions()
         deleted_count = 0

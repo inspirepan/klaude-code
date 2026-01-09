@@ -8,9 +8,16 @@ from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, 
 from .command_abc import Agent, CommandABC, CommandResult
 
 
-def select_session_sync() -> str | None:
-    """Interactive session selection (sync version for asyncio.to_thread)."""
+def select_session_sync(session_ids: list[str] | None = None) -> str | None:
+    """Interactive session selection (sync version for asyncio.to_thread).
+
+    Args:
+        session_ids: Optional list of session IDs to filter. If provided, only show these sessions.
+    """
     options = build_session_select_options()
+    if session_ids is not None:
+        session_id_set = set(session_ids)
+        options = [opt for opt in options if opt.session_id in session_id_set]
     if not options:
         log("No sessions found for this project.")
         return None

@@ -145,9 +145,7 @@ def group_models_by_provider(models: dict[ModelKey, ModelUsageStats]) -> dict[st
         for sub_group in group.sub_providers.values():
             sub_group.models.sort(key=_sort_by_cost)
         # Sort sub-providers by cost
-        group.sub_providers = dict(
-            sorted(group.sub_providers.items(), key=lambda x: _sort_by_cost(x[1].total))
-        )
+        group.sub_providers = dict(sorted(group.sub_providers.items(), key=lambda x: _sort_by_cost(x[1].total)))
 
     # Sort top-level providers by cost
     sorted_groups = dict(sorted(provider_groups.items(), key=lambda x: _sort_by_cost(x[1].total)))

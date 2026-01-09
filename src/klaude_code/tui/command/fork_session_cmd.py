@@ -6,6 +6,7 @@ from typing import Literal
 from prompt_toolkit.styles import Style, merge_styles
 
 from klaude_code.protocol import commands, events, message, model
+from klaude_code.session import Session
 from klaude_code.tui.input.key_bindings import copy_to_clipboard
 from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, select_one
 
@@ -312,7 +313,8 @@ class ForkSessionCommand(CommandABC):
             new_session = agent.session.fork()
             await new_session.wait_for_flush()
 
-            resume_cmd = f"klaude --resume {new_session.id}"
+            short_id = Session.shortest_unique_prefix(new_session.id)
+            resume_cmd = f"klaude -r {short_id}"
             copy_to_clipboard(resume_cmd)
 
             event = events.CommandOutputEvent(
@@ -345,7 +347,8 @@ class ForkSessionCommand(CommandABC):
         else:
             fork_description = "entire conversation" if selected == -1 else f"up to message index {selected}"
 
-        resume_cmd = f"klaude --resume {new_session.id}"
+        short_id = Session.shortest_unique_prefix(new_session.id)
+        resume_cmd = f"klaude -r {short_id}"
         copy_to_clipboard(resume_cmd)
 
         event = events.CommandOutputEvent(

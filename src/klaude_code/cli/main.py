@@ -227,10 +227,21 @@ def main_callback(
             log(("Error: --resume <id> cannot be combined with --continue or interactive --resume", "red"))
             raise typer.Exit(2)
 
+        # Resolve resume_by_id with prefix matching support
         if resume_by_id_value is not None and not Session.exists(resume_by_id_value):
-            log((f"Error: session id '{resume_by_id_value}' not found for this project", "red"))
-            log(("Hint: run `klaude --resume` to select an existing session", "yellow"))
-            raise typer.Exit(2)
+            matches = Session.find_sessions_by_prefix(resume_by_id_value)
+            if not matches:
+                log((f"Error: session id '{resume_by_id_value}' not found for this project", "red"))
+                log(("Hint: run `klaude --resume` to select an existing session", "yellow"))
+                raise typer.Exit(2)
+            if len(matches) == 1:
+                resume_by_id_value = matches[0]
+            else:
+                # Multiple matches: show interactive selection with filtered list
+                selected = select_session_sync(session_ids=matches)
+                if selected is None:
+                    raise typer.Exit(1)
+                resume_by_id_value = selected
 
         if not sys.stdin.isatty() or not sys.stdout.isatty():
             log(("Error: interactive mode requires a TTY", "red"))

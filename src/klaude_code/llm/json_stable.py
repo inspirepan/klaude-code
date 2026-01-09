@@ -4,15 +4,7 @@ import json
 from collections.abc import Mapping
 from typing import cast
 
-type JsonValue = (
-    str
-    | int
-    | float
-    | bool
-    | None
-    | list["JsonValue"]
-    | dict[str, "JsonValue"]
-)
+type JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
 
 def canonicalize_json(value: object) -> JsonValue:

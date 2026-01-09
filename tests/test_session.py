@@ -1101,6 +1101,167 @@ class TestCliResume:
         assert "cannot be combined" in result.output
 
 
+class TestFindSessionsByPrefix:
+    """Tests for Session.find_sessions_by_prefix method."""
+
+    def test_find_by_prefix_single_match(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session.create(id="abcd1234", work_dir=project_dir)
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("Test"))])
+            await session.wait_for_flush()
+
+            matches = Session.find_sessions_by_prefix("abc")
+            assert matches == ["abcd1234"]
+            await close_default_store()
+
+        arun(_test())
+
+    def test_find_by_prefix_multiple_matches(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            s1 = Session.create(id="abc123", work_dir=project_dir)
+            s1.append_history([message.UserMessage(parts=message.text_parts_from_str("Test 1"))])
+            await s1.wait_for_flush()
+
+            s2 = Session.create(id="abc456", work_dir=project_dir)
+            s2.append_history([message.UserMessage(parts=message.text_parts_from_str("Test 2"))])
+            await s2.wait_for_flush()
+
+            matches = Session.find_sessions_by_prefix("abc")
+            assert sorted(matches) == ["abc123", "abc456"]
+            await close_default_store()
+
+        arun(_test())
+
+    def test_find_by_prefix_no_match(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session.create(id="xyz789", work_dir=project_dir)
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("Test"))])
+            await session.wait_for_flush()
+
+            matches = Session.find_sessions_by_prefix("abc")
+            assert matches == []
+            await close_default_store()
+
+        arun(_test())
+
+    def test_find_by_prefix_excludes_sub_agents(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            main_session = Session.create(id="abc_main", work_dir=project_dir)
+            main_session.append_history([message.UserMessage(parts=message.text_parts_from_str("Test"))])
+            await main_session.wait_for_flush()
+
+            sub_session = Session.create(id="abc_sub", work_dir=project_dir)
+            sub_session.sub_agent_state = model.SubAgentState(
+                sub_agent_type="Task", sub_agent_desc="test", sub_agent_prompt="test"
+            )
+            sub_session.append_history([message.AssistantMessage(parts=message.text_parts_from_str("Done"))])
+            await sub_session.wait_for_flush()
+
+            matches = Session.find_sessions_by_prefix("abc")
+            assert matches == ["abc_main"]
+            await close_default_store()
+
+        arun(_test())
+
+    def test_find_by_prefix_case_insensitive(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session.create(id="AbCd1234", work_dir=project_dir)
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("Test"))])
+            await session.wait_for_flush()
+
+            matches = Session.find_sessions_by_prefix("ABCD")
+            assert matches == ["AbCd1234"]
+            await close_default_store()
+
+        arun(_test())
+
+
+class TestShortestUniquePrefix:
+    """Tests for Session.shortest_unique_prefix method."""
+
+    def test_single_session_returns_min_length(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session.create(id="abcdef123456", work_dir=project_dir)
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("Test"))])
+            await session.wait_for_flush()
+
+            prefix = Session.shortest_unique_prefix("abcdef123456")
+            assert prefix == "abcd"  # min_length is 4
+            await close_default_store()
+
+        arun(_test())
+
+    def test_needs_longer_prefix_to_disambiguate(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            s1 = Session.create(id="abcd1111", work_dir=project_dir)
+            s1.append_history([message.UserMessage(parts=message.text_parts_from_str("Test 1"))])
+            await s1.wait_for_flush()
+
+            s2 = Session.create(id="abcd2222", work_dir=project_dir)
+            s2.append_history([message.UserMessage(parts=message.text_parts_from_str("Test 2"))])
+            await s2.wait_for_flush()
+
+            prefix1 = Session.shortest_unique_prefix("abcd1111")
+            prefix2 = Session.shortest_unique_prefix("abcd2222")
+            assert prefix1 == "abcd1"
+            assert prefix2 == "abcd2"
+            await close_default_store()
+
+        arun(_test())
+
+    def test_excludes_sub_agents(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            main = Session.create(id="abcd1111", work_dir=project_dir)
+            main.append_history([message.UserMessage(parts=message.text_parts_from_str("Test"))])
+            await main.wait_for_flush()
+
+            sub = Session.create(id="abcd2222", work_dir=project_dir)
+            sub.sub_agent_state = model.SubAgentState(
+                sub_agent_type="Task", sub_agent_desc="test", sub_agent_prompt="test"
+            )
+            sub.append_history([message.AssistantMessage(parts=message.text_parts_from_str("Done"))])
+            await sub.wait_for_flush()
+
+            # Sub-agent should not affect the prefix calculation for main session
+            prefix = Session.shortest_unique_prefix("abcd1111")
+            assert prefix == "abcd"  # min_length, since abcd2222 is a sub-agent
+            await close_default_store()
+
+        arun(_test())
+
+
 class TestRenderMetadata:
     """Tests for metadata rendering functions."""
 
