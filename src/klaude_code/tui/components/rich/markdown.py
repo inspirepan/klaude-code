@@ -177,7 +177,8 @@ class CheckboxListItem(ListItem):
             bullet = Segment(" \u2610 ", bullet_style)
             skip_chars = len(unchecked_match.group(0))
         elif checked_match:
-            bullet = Segment(" \u2611 ", bullet_style)
+            checked_style = console.get_style("markdown.checkbox.checked", default="none")
+            bullet = Segment(" \u2713 ", checked_style)
             skip_chars = len(checked_match.group(0))
         else:
             bullet = Segment(" \u2022 ", bullet_style)

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(jj status:*)",
+      "Bash(jj diff:*)"
+    ]
+  }
+}

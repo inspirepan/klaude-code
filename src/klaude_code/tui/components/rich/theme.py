@@ -95,7 +95,7 @@ DARK_PALETTE = Palette(
     code_theme="ansi_dark",
     code_background="#1a1f2a",
     green_background="#23342c",
-    blue_grey_background="#313848",
+    blue_grey_background="#262d3a",
     cyan_background="#1a3333",
     green_sub_background="#1b3928",
     blue_sub_background="#1a2a3d",
@@ -116,6 +116,7 @@ class ThemeKey(str, Enum):
     # PANEL
     SUB_AGENT_RESULT_PANEL = "panel.sub_agent_result"
     WRITE_MARKDOWN_PANEL = "panel.write_markdown"
+    COMPACTION_SUMMARY_PANEL = "panel.compaction_summary"
     # DIFF
     DIFF_FILE_NAME = "diff.file_name"
     DIFF_REMOVE = "diff.remove"
@@ -237,6 +238,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 # PANEL
                 ThemeKey.SUB_AGENT_RESULT_PANEL.value: f"on {palette.blue_grey_background}",
                 ThemeKey.WRITE_MARKDOWN_PANEL.value: f"on {palette.green_background}",
+                ThemeKey.COMPACTION_SUMMARY_PANEL.value: f"on {palette.blue_grey_background}",
                 # DIFF
                 ThemeKey.DIFF_FILE_NAME.value: palette.blue,
                 ThemeKey.DIFF_REMOVE.value: palette.diff_remove,
@@ -354,6 +356,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.link": "underline " + palette.blue,
                 "markdown.link_url": "underline " + palette.blue,
                 "markdown.table.border": palette.grey2,
+                "markdown.checkbox.checked": palette.green,
             }
         ),
         thinking_markdown_theme=Theme(
@@ -376,6 +379,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.link_url": "underline " + palette.blue,
                 "markdown.strong": "bold italic " + palette.grey1,
                 "markdown.table.border": palette.grey2,
+                "markdown.checkbox.checked": palette.green,
             }
         ),
         code_theme=palette.code_theme,

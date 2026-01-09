@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import contextlib
+import shutil
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
+from rich import box
 from rich.console import Console, Group, RenderableType
 from rich.padding import Padding
+from rich.panel import Panel
 from rich.rule import Rule
 from rich.spinner import Spinner
 from rich.style import Style, StyleType
@@ -67,7 +70,7 @@ from klaude_code.tui.components import welcome as c_welcome
 from klaude_code.tui.components.common import truncate_head
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.live import CropAboveLive, SingleLine
-from klaude_code.tui.components.rich.markdown import MarkdownStream, ThinkingMarkdown
+from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.status import BreathingSpinner, ShimmerStatusText
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
@@ -529,8 +532,37 @@ class TUICommandRenderer:
         stripped = summary.strip()
         if not stripped:
             return
-        self.console.print(Rule("Compact", characters="=", style=ThemeKey.COMPACTION_SUMMARY))
-        self.print(stripped, style=ThemeKey.COMPACTION_SUMMARY)
+        stripped = (
+            stripped.replace("<summary>", "")
+            .replace("</summary>", "")
+            .replace("<read_files>", "")
+            .replace("</read_files>", "")
+            .replace("<modified-files>", "")
+            .replace("</modified-files>", "")
+        )
+        self.console.print(
+            Rule(
+                Text("Context Compact", style=ThemeKey.COMPACTION_SUMMARY),
+                characters="=",
+                style=ThemeKey.COMPACTION_SUMMARY,
+            )
+        )
+        self.print()
+
+        # Limit panel width to min(100, terminal_width) minus left indent (2)
+        terminal_width = shutil.get_terminal_size().columns
+        panel_width = min(100, terminal_width) - 2
+
+        self.console.push_theme(self.themes.markdown_theme)
+        panel = Panel(
+            NoInsetMarkdown(stripped, code_theme=self.themes.code_theme, style=ThemeKey.COMPACTION_SUMMARY),
+            box=box.SIMPLE,
+            border_style=ThemeKey.LINES,
+            style=ThemeKey.COMPACTION_SUMMARY_PANEL,
+            width=panel_width,
+        )
+        self.print(Padding(panel, (0, 0, 0, MARKDOWN_LEFT_MARGIN)))
+        self.console.pop_theme()
 
         if kept_items_brief:
             # Collect tool call counts (skip User/Assistant entries)
@@ -547,7 +579,7 @@ class TUICommandRenderer:
                     else:
                         parts.append(tool_type)
                 line = Text()
-                line.append("  Kept uncompacted: ", style=ThemeKey.COMPACTION_SUMMARY)
+                line.append("\n  Kept uncompacted: ", style=ThemeKey.COMPACTION_SUMMARY)
                 line.append(", ".join(parts), style=ThemeKey.COMPACTION_SUMMARY)
                 self.print(line)
 
