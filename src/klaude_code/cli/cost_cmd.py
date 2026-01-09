@@ -48,41 +48,101 @@ class ModelUsageStats:
 ModelKey = tuple[str, str]  # (model_name, provider)
 
 
-def group_models_by_provider(
-    models: dict[ModelKey, ModelUsageStats],
-) -> tuple[dict[str, list[ModelUsageStats]], dict[str, ModelUsageStats]]:
-    """Group models by provider and compute provider totals.
+@dataclass
+class SubProviderGroup:
+    """Group of models under a sub-provider."""
 
-    Returns (models_by_provider, provider_totals) where both are sorted by cost desc.
+    name: str
+    models: list[ModelUsageStats]
+    total: ModelUsageStats
+
+
+@dataclass
+class ProviderGroup:
+    """Group of models/sub-providers under a top-level provider."""
+
+    name: str
+    sub_providers: dict[str, SubProviderGroup]  # empty if no sub-providers
+    models: list[ModelUsageStats]  # direct models (when no sub-provider)
+    total: ModelUsageStats
+
+
+def _sort_by_cost(stats: ModelUsageStats) -> tuple[float, float]:
+    return (-stats.cost_usd, -stats.cost_cny)
+
+
+def group_models_by_provider(models: dict[ModelKey, ModelUsageStats]) -> dict[str, ProviderGroup]:
+    """Group models by provider with three-level hierarchy.
+
+    Provider strings like "openrouter/Anthropic" are split into:
+    - Top-level: "openrouter"
+    - Sub-provider: "Anthropic"
+
+    Returns dict of ProviderGroup sorted by cost desc.
     """
-    models_by_provider: dict[str, list[ModelUsageStats]] = {}
-    provider_totals: dict[str, ModelUsageStats] = {}
+    provider_groups: dict[str, ProviderGroup] = {}
 
     for stats in models.values():
-        provider_key = stats.provider or "(unknown)"
-        if provider_key not in models_by_provider:
-            models_by_provider[provider_key] = []
-            provider_totals[provider_key] = ModelUsageStats(model_name=provider_key, provider=provider_key)
-        models_by_provider[provider_key].append(stats)
-        provider_totals[provider_key].input_tokens += stats.input_tokens
-        provider_totals[provider_key].output_tokens += stats.output_tokens
-        provider_totals[provider_key].cached_tokens += stats.cached_tokens
-        provider_totals[provider_key].cost_usd += stats.cost_usd
-        provider_totals[provider_key].cost_cny += stats.cost_cny
+        provider_raw = stats.provider or "(unknown)"
 
-    def sort_by_cost(stats: ModelUsageStats) -> tuple[float, float]:
-        return (-stats.cost_usd, -stats.cost_cny)
+        # Split provider by first "/"
+        if "/" in provider_raw:
+            parts = provider_raw.split("/", 1)
+            top_provider, sub_provider = parts[0], parts[1]
+        else:
+            top_provider, sub_provider = provider_raw, ""
 
-    # Sort providers by cost, and models within each provider
-    sorted_providers = sorted(provider_totals.keys(), key=lambda p: sort_by_cost(provider_totals[p]))
-    for provider_key in models_by_provider:
-        models_by_provider[provider_key].sort(key=sort_by_cost)
+        # Initialize top-level provider group
+        if top_provider not in provider_groups:
+            provider_groups[top_provider] = ProviderGroup(
+                name=top_provider,
+                sub_providers={},
+                models=[],
+                total=ModelUsageStats(model_name=top_provider),
+            )
 
-    # Rebuild dicts in sorted order
-    sorted_models_by_provider = {p: models_by_provider[p] for p in sorted_providers}
-    sorted_provider_totals = {p: provider_totals[p] for p in sorted_providers}
+        group = provider_groups[top_provider]
 
-    return sorted_models_by_provider, sorted_provider_totals
+        # Accumulate to top-level total
+        group.total.input_tokens += stats.input_tokens
+        group.total.output_tokens += stats.output_tokens
+        group.total.cached_tokens += stats.cached_tokens
+        group.total.cost_usd += stats.cost_usd
+        group.total.cost_cny += stats.cost_cny
+
+        if sub_provider:
+            # Has sub-provider, add to sub-provider group
+            if sub_provider not in group.sub_providers:
+                group.sub_providers[sub_provider] = SubProviderGroup(
+                    name=sub_provider,
+                    models=[],
+                    total=ModelUsageStats(model_name=sub_provider),
+                )
+            sub_group = group.sub_providers[sub_provider]
+            sub_group.models.append(stats)
+            sub_group.total.input_tokens += stats.input_tokens
+            sub_group.total.output_tokens += stats.output_tokens
+            sub_group.total.cached_tokens += stats.cached_tokens
+            sub_group.total.cost_usd += stats.cost_usd
+            sub_group.total.cost_cny += stats.cost_cny
+        else:
+            # No sub-provider, add directly to models
+            group.models.append(stats)
+
+    # Sort everything by cost
+    for group in provider_groups.values():
+        group.models.sort(key=_sort_by_cost)
+        for sub_group in group.sub_providers.values():
+            sub_group.models.sort(key=_sort_by_cost)
+        # Sort sub-providers by cost
+        group.sub_providers = dict(
+            sorted(group.sub_providers.items(), key=lambda x: _sort_by_cost(x[1].total))
+        )
+
+    # Sort top-level providers by cost
+    sorted_groups = dict(sorted(provider_groups.items(), key=lambda x: _sort_by_cost(x[1].total)))
+
+    return sorted_groups
 
 
 @dataclass
@@ -261,19 +321,40 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
         date_label: str = "",
         show_subtotal: bool = True,
     ) -> None:
-        """Render models grouped by provider with tree structure."""
-        models_by_provider, provider_totals = group_models_by_provider(models)
+        """Render models grouped by provider with three-level tree structure."""
+        provider_groups = group_models_by_provider(models)
 
         first_row = True
-        for provider_key, provider_models in models_by_provider.items():
-            provider_stats = provider_totals[provider_key]
-            add_stats_row(provider_stats, date_label=date_label if first_row else "", bold=True)
+        for group in provider_groups.values():
+            # Top-level provider
+            add_stats_row(group.total, date_label=date_label if first_row else "", bold=True)
             first_row = False
 
-            for i, stats in enumerate(provider_models):
-                is_last = i == len(provider_models) - 1
-                prefix = " └─ " if is_last else " ├─ "
-                add_stats_row(stats, prefix=prefix)
+            if group.sub_providers:
+                # Has sub-providers: render three-level tree
+                sub_list = list(group.sub_providers.values())
+                for sub_idx, sub_group in enumerate(sub_list):
+                    is_last_sub = sub_idx == len(sub_list) - 1
+                    sub_prefix = " └─ " if is_last_sub else " ├─ "
+
+                    # Sub-provider row
+                    add_stats_row(sub_group.total, prefix=sub_prefix, bold=True)
+
+                    # Models under sub-provider
+                    for model_idx, stats in enumerate(sub_group.models):
+                        is_last_model = model_idx == len(sub_group.models) - 1
+                        # Indent based on whether sub-provider is last
+                        if is_last_sub:
+                            model_prefix = "     └─ " if is_last_model else "     ├─ "
+                        else:
+                            model_prefix = " │   └─ " if is_last_model else " │   ├─ "
+                        add_stats_row(stats, prefix=model_prefix)
+            else:
+                # No sub-providers: render two-level tree (direct models)
+                for model_idx, stats in enumerate(group.models):
+                    is_last_model = model_idx == len(group.models) - 1
+                    model_prefix = " └─ " if is_last_model else " ├─ "
+                    add_stats_row(stats, prefix=model_prefix)
 
         if show_subtotal:
             subtotal = ModelUsageStats(model_name="(subtotal)")
