@@ -3,7 +3,6 @@
 # pyright: reportUnknownArgumentType=false
 # pyright: reportAttributeAccessIssue=false
 
-import json
 from base64 import b64encode
 from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any, cast, override
@@ -33,6 +32,7 @@ from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.google.input import convert_history_to_contents, convert_tool_schema
 from klaude_code.llm.image import save_assistant_image
 from klaude_code.llm.input_common import apply_config_defaults
+from klaude_code.llm.json_stable import dumps_canonical_json
 from klaude_code.llm.registry import register
 from klaude_code.llm.stream_parts import (
     append_text_part,
@@ -122,6 +122,8 @@ def _usage_from_metadata(
     if usage is None:
         return None
 
+    # In Gemini usage metadata, prompt_token_count represents the full prompt tokens
+    # (including cached tokens). cached_content_token_count is a subset of prompt tokens.
     cached = usage.cached_content_token_count or 0
     prompt = usage.prompt_token_count or 0
     response = usage.candidates_token_count or 0
@@ -136,10 +138,10 @@ def _usage_from_metadata(
 
     total = usage.total_token_count
     if total is None:
-        total = prompt + cached + response + thoughts
+        total = prompt + response + thoughts
 
     return model.Usage(
-        input_tokens=prompt + cached,
+        input_tokens=prompt,
         cached_tokens=cached,
         output_tokens=response + thoughts,
         reasoning_tokens=thoughts,
@@ -385,7 +387,7 @@ async def parse_google_stream(
             args_obj = function_call.args
             if args_obj is not None:
                 # Add ToolCallPart, then ThinkingSignaturePart after it
-                state.append_tool_call(call_id, name, json.dumps(args_obj, ensure_ascii=False))
+                state.append_tool_call(call_id, name, dumps_canonical_json(args_obj))
                 encoded_sig = _encode_thought_signature(thought_signature)
                 if encoded_sig:
                     state.append_thinking_signature(encoded_sig)
@@ -400,7 +402,7 @@ async def parse_google_stream(
             will_continue = function_call.will_continue
             if will_continue is False and call_id in partial_args_by_call and call_id not in completed_tool_items:
                 # Add ToolCallPart, then ThinkingSignaturePart after it
-                state.append_tool_call(call_id, name, json.dumps(partial_args_by_call[call_id], ensure_ascii=False))
+                state.append_tool_call(call_id, name, dumps_canonical_json(partial_args_by_call[call_id]))
                 stored_sig = started_tool_calls.get(call_id, (name, None))[1]
                 encoded_stored_sig = _encode_thought_signature(stored_sig)
                 if encoded_stored_sig:
@@ -412,7 +414,7 @@ async def parse_google_stream(
         if call_id in completed_tool_items:
             continue
         args = partial_args_by_call.get(call_id, {})
-        state.append_tool_call(call_id, name, json.dumps(args, ensure_ascii=False))
+        state.append_tool_call(call_id, name, dumps_canonical_json(args))
         encoded_stored_sig = _encode_thought_signature(stored_sig)
         if encoded_stored_sig:
             state.append_thinking_signature(encoded_stored_sig)

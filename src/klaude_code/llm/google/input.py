@@ -6,7 +6,7 @@
 import json
 from base64 import b64decode
 from binascii import Error as BinasciiError
-from typing import Any
+from typing import Any, cast
 
 from google.genai import types
 
@@ -18,6 +18,7 @@ from klaude_code.llm.input_common import (
     merge_reminder_text,
     split_thinking_parts,
 )
+from klaude_code.llm.json_stable import canonicalize_json
 from klaude_code.protocol import llm_param, message
 
 
@@ -155,11 +156,14 @@ def _assistant_message_to_content(msg: message.AssistantMessage, model_name: str
             args: dict[str, Any]
             if part.arguments_json:
                 try:
-                    args = json.loads(part.arguments_json)
+                    loaded: object = json.loads(part.arguments_json)
                 except json.JSONDecodeError:
-                    args = {"_raw": part.arguments_json}
+                    loaded = {"_raw": part.arguments_json}
             else:
-                args = {}
+                loaded = {}
+
+            canonical = canonicalize_json(loaded)
+            args = cast(dict[str, Any], canonical) if isinstance(canonical, dict) else {"_value": canonical}
             parts.append(
                 types.Part(
                     function_call=types.FunctionCall(id=part.call_id, name=part.tool_name, args=args),
@@ -223,7 +227,7 @@ def convert_tool_schema(tools: list[llm_param.ToolSchema] | None) -> list[types.
         types.FunctionDeclaration(
             name=tool.name,
             description=tool.description,
-            parameters_json_schema=tool.parameters,
+            parameters_json_schema=canonicalize_json(tool.parameters),
         )
         for tool in tools
     ]
