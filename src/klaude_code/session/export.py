@@ -364,6 +364,233 @@ def _render_thinking_block(text: str) -> str:
     return f'<div class="thinking-block markdown-body markdown-content" data-raw="{encoded}"></div>'
 
 
+class _TurnGroup:
+    def __init__(self) -> None:
+        self.user_message: message.UserMessage | None = None
+        self.body_items: list[message.HistoryEvent] = []
+
+
+def _group_messages_by_turn(history: list[message.HistoryEvent]) -> list[_TurnGroup]:
+    groups: list[_TurnGroup] = []
+    current_group = _TurnGroup()
+
+    # Filter for renderable items only
+    renderable_items = [item for item in history if not isinstance(item, message.ToolResultMessage)]
+
+    for item in renderable_items:
+        if isinstance(item, message.UserMessage):
+            # If current group has content, save it and start new
+            if current_group.user_message or current_group.body_items:
+                groups.append(current_group)
+            current_group = _TurnGroup()
+            current_group.user_message = item
+        else:
+            current_group.body_items.append(item)
+
+    # Append the last group if it has content
+    if current_group.user_message or current_group.body_items:
+        groups.append(current_group)
+
+    return groups
+
+
+def _render_event_item(
+    item: message.HistoryEvent,
+    tool_results: dict[str, message.ToolResultMessage],
+    seen_session_ids: set[str],
+    nesting_level: int,
+    assistant_counter: list[int],
+) -> str:
+    blocks: list[str] = []
+
+    if isinstance(item, message.UserMessage):
+        text = message.join_text_parts(item.parts)
+        images = _extract_image_parts(item.parts)
+        images_html = _render_image_parts(images)
+        ts_str = _format_msg_timestamp(item.created_at)
+        body_parts: list[str] = []
+        if images_html:
+            body_parts.append(images_html)
+        if text:
+            body_parts.append(f'<div style="white-space: pre-wrap;">{_escape_html(text)}</div>')
+        if not body_parts:
+            body_parts.append('<div style="color: var(--text-dim); font-style: italic;">(empty)</div>')
+        blocks.append(
+            f'<div class="message-group">'
+            f'<div class="role-label user">'
+            f"User"
+            f'<span class="timestamp">{ts_str}</span>'
+            f"</div>"
+            f'<div class="message-content user">{"".join(body_parts)}</div>'
+            f"</div>"
+        )
+    elif isinstance(item, message.AssistantMessage):
+        assistant_counter[0] += 1
+        thinking_text = "".join(part.text for part in item.parts if isinstance(part, message.ThinkingTextPart))
+        if thinking_text:
+            blocks.append(_render_thinking_block(thinking_text))
+
+        assistant_text = message.join_text_parts(item.parts)
+        assistant_images = _extract_image_parts(item.parts)
+        if assistant_text or assistant_images:
+            blocks.append(
+                _render_assistant_message(
+                    assistant_counter[0],
+                    assistant_text,
+                    item.created_at,
+                    assistant_images,
+                )
+            )
+
+        for part in item.parts:
+            if isinstance(part, message.ToolCallPart):
+                result = tool_results.get(part.call_id)
+                blocks.append(_format_tool_call(part, result, item.created_at))
+                if result is not None:
+                    sub_agent_html = _render_sub_agent_session(result, seen_session_ids, nesting_level)
+                    if sub_agent_html:
+                        blocks.append(sub_agent_html)
+    elif isinstance(item, model.TaskMetadataItem):
+        blocks.append(_render_metadata_item(item))
+    elif isinstance(item, message.DeveloperMessage):
+        content = message.join_text_parts(item.parts)
+        images = _extract_image_parts(item.parts)
+        images_html = _render_image_parts(images)
+        ts_str = _format_msg_timestamp(item.created_at)
+
+        detail_body = ""
+        if images_html:
+            detail_body += images_html
+        if content:
+            detail_body += f'<div style="white-space: pre-wrap;">{_escape_html(content)}</div>'
+        if not detail_body:
+            detail_body = '<div style="color: var(--text-dim); font-style: italic;">(empty)</div>'
+
+        blocks.append(
+            f'<details class="developer-message gap-below">'
+            f"<summary>"
+            f"Developer"
+            f'<span class="timestamp">{ts_str}</span>'
+            f"</summary>"
+            f'<div class="details-content">{detail_body}</div>'
+            f"</details>"
+        )
+    elif isinstance(item, message.SystemMessage):
+        content = message.join_text_parts(item.parts)
+        if content:
+            ts_str = _format_msg_timestamp(item.created_at)
+            blocks.append(
+                f'<details class="developer-message">'
+                f"<summary>"
+                f"System"
+                f'<span class="timestamp">{ts_str}</span>'
+                f"</summary>"
+                f'<div class="details-content" style="white-space: pre-wrap;">{_escape_html(content)}</div>'
+                f"</details>"
+            )
+
+    return "".join(blocks)
+
+
+def _has_non_mermaid_tool(msg: message.AssistantMessage) -> bool:
+    has_non_mermaid = False
+    for part in msg.parts:
+        if isinstance(part, message.ToolCallPart):
+            if part.tool_name != "Mermaid":
+                has_non_mermaid = True
+            else:
+                # If it has Mermaid, we treat it as visible, overriding the non-mermaid flag
+                # for the purpose of finding the BARRIER.
+                # Logic: We want to find the LAST item that is STRICTLY non-mermaid/intermediate.
+                # If an item has Mermaid, it belongs to the visible chain.
+                return False
+    return has_non_mermaid
+
+
+def _build_messages_html(
+    history: list[message.HistoryEvent],
+    tool_results: dict[str, message.ToolResultMessage],
+    *,
+    seen_session_ids: set[str] | None = None,
+    nesting_level: int = 0,
+) -> str:
+    if seen_session_ids is None:
+        seen_session_ids = set()
+
+    blocks: list[str] = []
+    assistant_counter = [0]  # Use list for mutable reference
+
+    turns = _group_messages_by_turn(history)
+
+    for turn in turns:
+        # 1. Render User Message
+        if turn.user_message:
+            blocks.append(
+                _render_event_item(
+                    turn.user_message, tool_results, seen_session_ids, nesting_level, assistant_counter
+                )
+            )
+
+        if not turn.body_items:
+            continue
+
+        # 2. Identify split point (barrier)
+        # Find the LAST AssistantMessage that has a non-Mermaid tool call (and NO Mermaid tool call).
+        barrier_index = -1
+        for i, item in enumerate(turn.body_items):
+            if isinstance(item, message.AssistantMessage):
+                if _has_non_mermaid_tool(item):
+                    barrier_index = i
+
+        # If barrier found, everything up to it is collapsible.
+        # Everything after is visible.
+        # If no barrier (-1), checks depend on if we have any AssistantMessages
+        collapsible_items = []
+        visible_items = []
+
+        if barrier_index != -1:
+            collapsible_items = turn.body_items[: barrier_index + 1]
+            visible_items = turn.body_items[barrier_index + 1 :]
+        else:
+            # No barrier found (no non-Mermaid tools).
+            # If purely conversational, all visible?
+            # Or should we fold intermediate chat steps?
+            # Current logic: If no tools used, assume chat mode -> All visible.
+            collapsible_items = []
+            visible_items = turn.body_items
+
+        # 3. Render Collapsible Items
+        if collapsible_items:
+            # Count steps (assistant messages + tool calls approx)
+            step_count = sum(1 for item in collapsible_items if isinstance(item, message.AssistantMessage))
+            step_label = f"{step_count} steps" if step_count != 1 else "1 step"
+
+            collapsed_html = "".join(
+                _render_event_item(item, tool_results, seen_session_ids, nesting_level, assistant_counter)
+                for item in collapsible_items
+            )
+
+            blocks.append(
+                f'<div class="turn-collapsible">'
+                f'<button class="turn-collapse-btn" title="Show/hide intermediate steps">'
+                f'<span class="collapse-icon">[+]</span>'
+                f'<span class="collapse-count">{step_label}</span>'
+                f"</button>"
+                f'<div class="turn-steps" style="display: none;">'
+                f"{collapsed_html}"
+                f"</div>"
+                f"</div>"
+            )
+
+        # 4. Render Visible Items
+        for item in visible_items:
+            blocks.append(
+                _render_event_item(item, tool_results, seen_session_ids, nesting_level, assistant_counter)
+            )
+
+    return "\n".join(blocks)
+
+
 def _try_render_todo_args(arguments: str, tool_name: str) -> str | None:
     try:
         parsed = json.loads(arguments)
@@ -460,6 +687,31 @@ def _render_sub_agent_result(content: str, description: str | None = None) -> st
     if images_html and not formatted.strip():
         return f'<div class="sub-agent-result-container">{images_html}</div>'
 
+    # Check if content needs collapsing (approx > 20 lines or > 2000 chars)
+    # Using a simpler metric since we don't know rendered height
+    needs_collapse = formatted.count("\n") > 20 or len(formatted) > 2000
+
+    rendered_html = (
+        f'<div class="sub-agent-rendered markdown-content markdown-body" data-raw="{encoded}">'
+        f'<noscript><pre style="white-space: pre-wrap;">{encoded}</pre></noscript>'
+        f"</div>"
+    )
+
+    if needs_collapse:
+        content_html = (
+            f'<div class="expandable-markdown">'
+            f'<div class="markdown-preview">'
+            f"{rendered_html}"
+            f"</div>"
+            f'<div class="expand-control">'
+            f'<button class="expand-btn">Show full output</button>'
+            f"</div>"
+            f"</div>"
+        )
+    else:
+        # No collapse wrapper needed, but we keep the structure compatible
+        content_html = rendered_html
+
     return (
         f'<div class="sub-agent-result-container">'
         f"{images_html}"
@@ -468,9 +720,7 @@ def _render_sub_agent_result(content: str, description: str | None = None) -> st
         f'<button type="button" class="copy-raw-btn" title="Copy raw content">Copy</button>'
         f"</div>"
         f'<div class="sub-agent-content">'
-        f'<div class="sub-agent-rendered markdown-content markdown-body" data-raw="{encoded}">'
-        f'<noscript><pre style="white-space: pre-wrap;">{encoded}</pre></noscript>'
-        f"</div>"
+        f"{content_html}"
         f'<pre class="sub-agent-raw">{encoded}</pre>'
         f"</div>"
         f"</div>"
@@ -479,21 +729,20 @@ def _render_sub_agent_result(content: str, description: str | None = None) -> st
 
 def _render_text_block(text: str) -> str:
     lines = text.splitlines()
-    escaped_lines = [_escape_html(line) for line in lines]
+    encoded = _escape_html(text)
+    content_html = f'<div style="white-space: pre-wrap; font-family: var(--font-mono);">{encoded}</div>'
 
     if len(lines) <= _TOOL_OUTPUT_PREVIEW_LINES:
-        content = "\n".join(escaped_lines)
-        return f'<div style="white-space: pre-wrap; font-family: var(--font-mono);">{content}</div>'
-
-    preview = "\n".join(escaped_lines[:_TOOL_OUTPUT_PREVIEW_LINES])
-    full = "\n".join(escaped_lines)
+        return content_html
 
     return (
-        f'<div class="expandable-output expandable" style="--preview-max-lines: {_TOOL_OUTPUT_PREVIEW_LINES};">'
-        f'<div class="preview-text" style="white-space: pre-wrap; font-family: var(--font-mono);">{preview}</div>'
-        f'<div class="expand-hint expand-text">click to expand full output ({len(lines)} lines; showing first {_TOOL_OUTPUT_PREVIEW_LINES})</div>'
-        f'<div class="full-text" style="white-space: pre-wrap; font-family: var(--font-mono);">{full}</div>'
-        f'<div class="collapse-hint">click to collapse</div>'
+        f'<div class="expandable-tool-output">'
+        f'<div class="tool-output-preview">'
+        f"{content_html}"
+        f"</div>"
+        f'<div class="expand-control">'
+        f'<button class="expand-btn">Show full output</button>'
+        f"</div>"
         f"</div>"
     )
 
@@ -675,7 +924,7 @@ def _get_mermaid_link_html(
     # If we have code, render the diagram
     if code:
         return (
-            f'<div style="background: white; padding: 16px; border-radius: 4px; margin-top: 8px; border: 1px solid var(--border);">'
+            f'<div class="mermaid-container">'
             f'<div class="mermaid">{escaped_code}</div>'
             f"{toolbar_html}"
             f"</div>"
@@ -683,6 +932,45 @@ def _get_mermaid_link_html(
 
     # Fallback to just link/toolbar if no code available (legacy support behavior)
     return toolbar_html
+
+
+def _format_mermaid_tool_call(
+    tool_call: message.ToolCallPart,
+    result: message.ToolResultMessage | None,
+    timestamp: datetime,
+    mermaid_html: str,
+    args_html: str,
+    ts_str: str,
+) -> str:
+    # Build standard tool details but hidden
+    should_collapse = _should_collapse(args_html)
+    open_attr = "" if should_collapse else " open"
+    
+    details_html = (
+        f'<div class="mermaid-meta" style="display: none;">'
+        f'<div class="tool-header">'
+        f'<span class="tool-name">{_escape_html(tool_call.tool_name)}</span>'
+        f'<div class="tool-header-right">'
+        f'<span class="tool-id">{_escape_html(tool_call.call_id)}</span>'
+        f'<span class="timestamp">{ts_str}</span>'
+        f"</div>"
+        f"</div>"
+        f'<details class="tool-args-collapsible"{open_attr}>'
+        f"<summary>Arguments</summary>"
+        f'<div class="tool-args-content">{args_html}</div>'
+        f"</details>"
+        f"</div>"
+    )
+
+    return (
+        f'<div class="tool-call mermaid-tool-call">'
+        f'<div class="mermaid-view">'
+        f'<button class="mermaid-info-btn" title="Show/Hide Details">i</button>'
+        f"{mermaid_html}"
+        f"</div>"
+        f"{details_html}"
+        f"</div>"
+    )
 
 
 def _format_tool_call(
@@ -710,6 +998,16 @@ def _format_tool_call(
 
     if not args_html:
         args_html = '<span style="color: var(--text-dim); font-style: italic;">(no arguments)</span>'
+
+    # Special handling for Mermaid
+    if tool_call.tool_name == "Mermaid" and result:
+        extras = _collect_ui_extras(result.ui_extra)
+        mermaid_extra = next((x for x in extras if isinstance(x, model.MermaidLinkUIExtra)), None)
+        mermaid_source = mermaid_extra if mermaid_extra else result.ui_extra
+        mermaid_html = _get_mermaid_link_html(mermaid_source, tool_call)
+        
+        if mermaid_html:
+            return _format_mermaid_tool_call(tool_call, result, timestamp, mermaid_html, args_html, ts_str)
 
     # Wrap tool-args with collapsible details element (except for TodoWrite which renders as a list)
     if is_todo_list:
@@ -820,283 +1118,8 @@ def _format_tool_call(
     return "".join(html_parts)
 
 
-def _build_messages_html(
-    history: list[message.HistoryEvent],
-    tool_results: dict[str, message.ToolResultMessage],
-    *,
-    seen_session_ids: set[str] | None = None,
-    nesting_level: int = 0,
-) -> str:
-    """Render session history into HTML.
 
-    This export groups the conversation into Tasks:
-    - A Task starts with a UserMessage.
-    - The Task includes all subsequent model thinking/replies/tool calls/results until the next UserMessage.
-    - By default, only the final assistant reply is shown; intermediate steps are folded.
-    - Mermaid is a special case: show the last consecutive assistant messages + Mermaid diagram result.
-    """
 
-    if seen_session_ids is None:
-        seen_session_ids = set()
-
-    renderable_items = [item for item in history if not isinstance(item, message.ToolResultMessage)]
-    blocks: list[str] = []
-
-    def _render_user_message(item: message.UserMessage) -> str:
-        text = message.join_text_parts(item.parts)
-        images = _extract_image_parts(item.parts)
-        images_html = _render_image_parts(images)
-        ts_str = _format_msg_timestamp(item.created_at)
-        body_parts: list[str] = []
-        if images_html:
-            body_parts.append(images_html)
-        if text:
-            body_parts.append(f'<div style="white-space: pre-wrap;">{_escape_html(text)}</div>')
-        if not body_parts:
-            body_parts.append('<div style="color: var(--text-dim); font-style: italic;">(empty)</div>')
-        return (
-            f'<div class="message-group">'
-            f'<div class="role-label user">'
-            f"User"
-            f'<span class="timestamp">{ts_str}</span>'
-            f"</div>"
-            f'<div class="message-content user">{"".join(body_parts)}</div>'
-            f"</div>"
-        )
-
-    def _render_developer_message(item: message.DeveloperMessage, next_item: message.HistoryEvent | None) -> str:
-        content = message.join_text_parts(item.parts)
-        images = _extract_image_parts(item.parts)
-        images_html = _render_image_parts(images)
-        ts_str = _format_msg_timestamp(item.created_at)
-
-        extra_class = ""
-        if isinstance(next_item, (message.UserMessage, message.AssistantMessage)):
-            extra_class = " gap-below"
-
-        detail_body = ""
-        if images_html:
-            detail_body += images_html
-        if content:
-            detail_body += f'<div style="white-space: pre-wrap;">{_escape_html(content)}</div>'
-        if not detail_body:
-            detail_body = '<div style="color: var(--text-dim); font-style: italic;">(empty)</div>'
-
-        return (
-            f'<details class="developer-message{extra_class}">'
-            f"<summary>"
-            f"Developer"
-            f'<span class="timestamp">{ts_str}</span>'
-            f"</summary>"
-            f'<div class="details-content">{detail_body}</div>'
-            f"</details>"
-        )
-
-    def _render_system_message(item: message.SystemMessage) -> str | None:
-        content = message.join_text_parts(item.parts)
-        if not content:
-            return None
-        ts_str = _format_msg_timestamp(item.created_at)
-        return (
-            f'<details class="developer-message">'
-            f"<summary>"
-            f"System"
-            f'<span class="timestamp">{ts_str}</span>'
-            f"</summary>"
-            f'<div class="details-content" style="white-space: pre-wrap;">{_escape_html(content)}</div>'
-            f"</details>"
-        )
-
-    def _render_task_full(task_events: list[message.HistoryEvent]) -> str:
-        full_parts: list[str] = []
-        assistant_counter = 0
-
-        for idx, event in enumerate(task_events):
-            next_event = task_events[idx + 1] if idx + 1 < len(task_events) else None
-
-            if isinstance(event, message.AssistantMessage):
-                assistant_counter += 1
-
-                thinking_text = "".join(
-                    part.text for part in event.parts if isinstance(part, message.ThinkingTextPart)
-                ).strip()
-                if thinking_text:
-                    full_parts.append(_render_thinking_block(thinking_text))
-
-                assistant_text = message.join_text_parts(event.parts)
-                assistant_images = _extract_image_parts(event.parts)
-                if assistant_text or assistant_images:
-                    full_parts.append(
-                        _render_assistant_message(
-                            assistant_counter,
-                            assistant_text,
-                            event.created_at,
-                            assistant_images,
-                        )
-                    )
-
-                for part in event.parts:
-                    if isinstance(part, message.ToolCallPart):
-                        result = tool_results.get(part.call_id)
-                        full_parts.append(_format_tool_call(part, result, event.created_at))
-                        if result is not None:
-                            sub_agent_html = _render_sub_agent_session(result, seen_session_ids, nesting_level)
-                            if sub_agent_html:
-                                full_parts.append(sub_agent_html)
-            elif isinstance(event, model.TaskMetadataItem):
-                full_parts.append(_render_metadata_item(event))
-            elif isinstance(event, message.DeveloperMessage):
-                full_parts.append(_render_developer_message(event, next_event))
-            elif isinstance(event, message.SystemMessage):
-                rendered = _render_system_message(event)
-                if rendered:
-                    full_parts.append(rendered)
-
-        return "\n".join(full_parts)
-
-    def _choose_compact_assistants(
-        task_events: list[message.HistoryEvent],
-    ) -> tuple[list[message.AssistantMessage], bool]:
-        # Mermaid exception: show last consecutive assistant messages + Mermaid diagram result.
-        tail: list[message.AssistantMessage] = []
-
-        idx = len(task_events) - 1
-        while idx >= 0 and isinstance(task_events[idx], model.TaskMetadataItem):
-            idx -= 1
-
-        while idx >= 0 and isinstance(task_events[idx], message.AssistantMessage):
-            tail.append(cast(message.AssistantMessage, task_events[idx]))
-            idx -= 1
-
-        tail.reverse()
-        if tail:
-            has_mermaid = any(
-                isinstance(p, message.ToolCallPart) and p.tool_name == "Mermaid" for msg in tail for p in msg.parts
-            )
-            if has_mermaid:
-                return tail, True
-
-        for idx in range(len(task_events) - 1, -1, -1):
-            if isinstance(task_events[idx], message.AssistantMessage):
-                return [cast(message.AssistantMessage, task_events[idx])], False
-
-        return [], False
-
-    def _render_assistant_compact(assistant_messages: list[message.AssistantMessage], *, show_mermaid: bool) -> str:
-        parts: list[str] = []
-
-        for counter, msg in enumerate(assistant_messages, start=1):
-            assistant_text = message.join_text_parts(msg.parts)
-            assistant_images = _extract_image_parts(msg.parts)
-            if assistant_text or assistant_images:
-                parts.append(_render_assistant_message(counter, assistant_text, msg.created_at, assistant_images))
-
-            if show_mermaid:
-                # Keep Mermaid diagram interleaved where the tool call occurred.
-                for p in msg.parts:
-                    if not isinstance(p, message.ToolCallPart) or p.tool_name != "Mermaid":
-                        continue
-
-                    result = tool_results.get(p.call_id)
-                    ui_extra = result.ui_extra if result else None
-                    extras = _collect_ui_extras(ui_extra)
-                    mermaid_extra = next((x for x in extras if isinstance(x, model.MermaidLinkUIExtra)), None)
-                    mermaid_source = mermaid_extra if mermaid_extra else ui_extra
-                    mermaid_html = _get_mermaid_link_html(mermaid_source, p)
-                    if mermaid_html:
-                        parts.append(f'<div class="task-mermaid-result">{mermaid_html}</div>')
-
-        return "\n".join(parts)
-
-    def _count_hidden_steps(
-        task_events: list[message.HistoryEvent],
-        compact_assistants: list[message.AssistantMessage],
-    ) -> int:
-        compact_ids = {id(x) for x in compact_assistants}
-        hidden_assistant_messages = sum(
-            1 for x in task_events if isinstance(x, message.AssistantMessage) and id(x) not in compact_ids
-        )
-
-        thinking_blocks = 0
-        tool_calls = 0
-        other_events = 0
-        for e in task_events:
-            if isinstance(e, message.AssistantMessage):
-                for part in e.parts:
-                    if isinstance(part, message.ThinkingTextPart) and part.text.strip():
-                        thinking_blocks += 1
-                    elif isinstance(part, message.ToolCallPart):
-                        tool_calls += 1
-            elif isinstance(e, (model.TaskMetadataItem, message.DeveloperMessage, message.SystemMessage)):
-                other_events += 1
-
-        return hidden_assistant_messages + thinking_blocks + tool_calls + other_events
-
-    def _render_task(user: message.UserMessage, task_events: list[message.HistoryEvent]) -> str:
-        compact_assistants, show_mermaid = _choose_compact_assistants(task_events)
-        hidden_steps = _count_hidden_steps(task_events, compact_assistants)
-
-        full_html = _render_task_full(task_events)
-        compact_html = _render_assistant_compact(compact_assistants, show_mermaid=show_mermaid)
-
-        if not compact_html.strip() and full_html.strip():
-            compact_html = '<div style="color: var(--text-dim); font-style: italic;">(no assistant message)</div>'
-
-        steps_details = ""
-        if hidden_steps > 0 and full_html.strip():
-            steps_details = (
-                f'<details class="task-steps" data-step-count="{hidden_steps}">'
-                f'<summary data-step-count="{hidden_steps}">Show {hidden_steps} steps</summary>'
-                f'<div class="task-steps-content">{full_html}</div>'
-                f"</details>"
-            )
-
-        return (
-            '<div class="task">'
-            f"{_render_user_message(user)}"
-            f"{steps_details}"
-            f'<div class="task-final">{compact_html}</div>'
-            "</div>"
-        )
-
-    current_user: message.UserMessage | None = None
-    current_task_events: list[message.HistoryEvent] = []
-
-    def _flush_task() -> None:
-        nonlocal current_user, current_task_events
-        if current_user is None:
-            return
-        blocks.append(_render_task(current_user, current_task_events))
-        current_user = None
-        current_task_events = []
-
-    for idx, item in enumerate(renderable_items):
-        if isinstance(item, message.UserMessage):
-            _flush_task()
-            current_user = item
-            current_task_events = []
-            continue
-
-        if current_user is not None:
-            current_task_events.append(item)
-            continue
-
-        # Events before the first user message.
-        next_item = renderable_items[idx + 1] if idx + 1 < len(renderable_items) else None
-        if isinstance(item, message.DeveloperMessage):
-            blocks.append(_render_developer_message(item, next_item))
-        elif isinstance(item, message.SystemMessage):
-            rendered = _render_system_message(item)
-            if rendered:
-                blocks.append(rendered)
-        elif isinstance(item, message.AssistantMessage):
-            blocks.append(_render_task_full([item]))
-        elif isinstance(item, model.TaskMetadataItem):
-            blocks.append(_render_metadata_item(item))
-
-    _flush_task()
-
-    return "\n".join(blocks)
 
 
 def _render_sub_agent_session(

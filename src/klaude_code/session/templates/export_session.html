@@ -202,86 +202,6 @@
         display: block;
       }
 
-      /* Task: one user message + full agent run */
-      .task {
-        margin-bottom: 24px;
-      }
-
-      .task:last-child {
-        margin-bottom: 0;
-      }
-
-      /* Task steps: fold intermediate events by default */
-      details.task-steps {
-        margin: 6px 0 0 0;
-        background: transparent;
-      }
-
-      details.task-steps > summary {
-        list-style: none;
-        user-select: none;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        border: 1px solid var(--border);
-        background: var(--bg-card);
-        color: var(--text-dim);
-        font-family: var(--font-mono);
-        font-size: var(--font-size-xs);
-        line-height: 1.2;
-        transition: color 0.2s, border-color 0.2s, background 0.2s;
-      }
-
-      details.task-steps > summary::-webkit-details-marker {
-        display: none;
-      }
-
-      details.task-steps > summary::before {
-        content: "▶";
-        font-size: 0.8em;
-        color: var(--accent);
-        transform: translateY(-0.05em);
-        transition: transform 0.2s;
-      }
-
-      details.task-steps[open] > summary {
-        color: var(--accent);
-        border-color: var(--accent);
-        background: var(--accent-dim);
-      }
-
-      details.task-steps[open] > summary::before {
-        transform: rotate(90deg) translateY(-0.05em);
-      }
-
-      details.task-steps > summary:hover {
-        color: var(--text);
-        border-color: var(--accent);
-      }
-
-      details.task-steps > .task-steps-content {
-        margin-top: 12px;
-        padding: 0 0 0 18px;
-        margin-left: 10px;
-        border-left: 2px solid var(--border);
-      }
-
-      /* When expanded, hide compact final answer to avoid duplication */
-      .task details.task-steps[open] ~ .task-final {
-        display: none;
-      }
-
-      .task-final {
-        margin-top: 12px;
-      }
-
-      .task-mermaid-result {
-        margin: 12px 0;
-      }
-
       .message-group {
         display: flex;
         flex-direction: column;
@@ -614,12 +534,14 @@
         border-radius: var(--radius-md);
         overflow: hidden;
         font-size: var(--font-size-base);
+        /* Ensure background color to avoid gaps being transparent */
+        background: var(--bg-card); /* Using bg-card to unify */
       }
 
       .tool-header {
         padding: 8px 12px;
         background: var(--bg-container);
-        border-bottom: 1px solid var(--border);
+        /* border-bottom removed to unify look */
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -666,11 +588,14 @@
 
       /* Collapsible tool-args */
       details.tool-args-collapsible {
-        padding: 0;
         background: var(--bg-body);
+        margin: 6px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        overflow: hidden;
       }
       details.tool-args-collapsible > summary {
-        padding: 8px 12px;
+        padding: 6px 10px;
         font-family: var(--font-mono);
         font-size: var(--font-size-xs);
         text-transform: uppercase;
@@ -683,10 +608,16 @@
         gap: 8px;
         color: var(--text-dim);
         transition: color 0.2s;
+        border-radius: var(--radius-sm);
       }
       details.tool-args-collapsible > summary:hover,
       details.tool-args-collapsible[open] > summary {
         color: var(--text);
+      }
+      details.tool-args-collapsible[open] > summary {
+        border-bottom: 1px solid var(--border);
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
       }
       details.tool-args-collapsible > summary::-webkit-details-marker {
         display: none;
@@ -702,17 +633,17 @@
         content: "[-]";
       }
       details.tool-args-collapsible > .tool-args-content {
-        padding: 12px;
+        padding: 10px;
         font-family: var(--font-mono);
         color: var(--text-dim);
         overflow-x: auto;
         white-space: pre-wrap;
         font-size: var(--font-size-sm);
-        border-top: 1px dashed var(--border);
+        /* border-top handled by summary bottom border when open */
       }
 
       .tool-result {
-        border-top: 1px solid var(--border);
+        /* border-top removed to unify look */
         padding: 12px;
         font-size: var(--font-size-sm);
       }
@@ -726,14 +657,46 @@
       .tool-result.success {
         background: var(--bg-card);
         color: var(--text);
+        --mask-bg: var(--bg-card);
       }
       .tool-result.error {
         background: var(--bg-error);
         color: var(--error);
+        --mask-bg: var(--bg-error);
       }
       .tool-result.pending {
         background: var(--bg-body);
         color: var(--text-dim);
+        --mask-bg: var(--bg-body);
+      }
+
+      /* Tool Output Collapsing */
+      .expandable-tool-output {
+        position: relative;
+        display: block;
+      }
+      .tool-output-preview {
+        position: relative;
+        max-height: 200px;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+      }
+      .tool-output-preview.expanded {
+        max-height: none;
+        overflow: visible;
+      }
+      .tool-output-preview:not(.expanded)::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        background: linear-gradient(to bottom, transparent 0%, var(--mask-bg, var(--bg-card)) 100%);
+        pointer-events: none;
+      }
+      .tool-output-preview.expanded + .expand-control {
+        display: none;
       }
 
       /* Sub-Agent Result */
@@ -742,6 +705,69 @@
         flex-direction: column;
         gap: 8px;
         margin-top: 8px;
+      }
+
+      /* Mermaid Special Layout */
+      .mermaid-container {
+        background: white;
+        padding: 16px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        /* No top margin needed inside wrapper */
+      }
+      .mermaid-tool-call {
+        position: relative;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .mermaid-tool-call .mermaid-view {
+        position: relative;
+        order: 1;
+      }
+      .mermaid-tool-call .mermaid-container {
+        /* Override border/margin for cleaner look inside the wrapper */
+        border: none;
+        border-radius: 0;
+        margin: 0;
+      }
+      
+      .mermaid-info-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+        font-family: var(--font-mono);
+        font-weight: bold;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        opacity: 0.6;
+        transition: all 0.2s;
+        z-index: 5;
+      }
+      .mermaid-info-btn:hover {
+        opacity: 1;
+        color: var(--accent);
+        border-color: var(--accent);
+        transform: scale(1.1);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+      
+      .mermaid-meta {
+        border-bottom: 1px solid var(--border);
+        background: var(--bg-container);
+        order: -1;
       }
 
       .sub-agent-toolbar {
@@ -1411,6 +1437,176 @@
         font-weight: bold;
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
       }
+
+      /* Header Controls */
+      .header-controls {
+        margin-top: 16px;
+        display: flex;
+        justify-content: flex-end;
+      }
+      
+      .verbose-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        cursor: pointer;
+        font-family: var(--font-mono);
+        font-size: var(--font-size-xs);
+        color: var(--text-dim);
+        background: transparent;
+        transition: all 0.2s ease;
+        user-select: none;
+      }
+
+      .verbose-btn:hover {
+        color: var(--text);
+        border-color: var(--accent);
+      }
+
+      .verbose-btn.active {
+        background: var(--accent-dim);
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      .verbose-btn input {
+        display: none;
+      }
+
+      .verbose-icon {
+        font-family: var(--font-mono);
+        font-weight: bold;
+        /* Revert display/box properties from checkmark style */
+        display: inline;
+        width: auto;
+        height: auto;
+        border: none;
+        border-radius: 0;
+        position: static;
+        transition: none;
+      }
+      
+      /* Remove checkmark styles */
+      .verbose-btn.active .verbose-icon {
+        background: transparent;
+        border-color: transparent;
+      }
+      .verbose-btn.active .verbose-icon::after {
+        content: none;
+      }
+
+      /* Verbose Mode Visibility Logic */
+      body:not(.verbose-mode) .thinking-block,
+      body:not(.verbose-mode) details.developer-message,
+      body:not(.verbose-mode) .response-metadata {
+        display: none !important;
+      }
+
+      .turn-collapsible {
+        margin: 16px 0;
+      }
+
+      .turn-collapse-btn {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--text-dim);
+        font-family: var(--font-mono);
+        font-size: var(--font-size-xs);
+        padding: 4px 12px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+      }
+
+      .turn-collapse-btn:hover {
+        color: var(--text);
+        border-color: var(--accent);
+      }
+
+      .turn-collapse-btn.expanded {
+        color: var(--accent);
+        border-color: var(--accent);
+        background: var(--accent-dim);
+      }
+
+      .turn-steps {
+        margin-top: 8px;
+        padding-left: 16px;
+        border-left: 2px solid var(--border);
+      }
+
+      /* Collapsible Markdown (Sub-agent) */
+      .expandable-markdown {
+        position: relative;
+        display: block;
+      }
+      .markdown-preview {
+        position: relative;
+        max-height: 300px;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+      }
+      .markdown-preview.expanded {
+        max-height: none;
+        overflow: visible;
+      }
+      /* Mask for preview state */
+      .markdown-preview:not(.expanded)::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        background: linear-gradient(to bottom, transparent 0%, var(--bg-card) 100%);
+        pointer-events: none;
+      }
+
+      .expand-control {
+        display: flex;
+        justify-content: center;
+        margin-top: -20px; /* Pull button up into mask area */
+        position: relative;
+        z-index: 10;
+        padding-bottom: 8px;
+      }
+      .markdown-preview.expanded + .expand-control {
+        display: none;
+      }
+
+      .expand-btn {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 4px 16px;
+        font-size: var(--font-size-xs);
+        color: var(--accent);
+        cursor: pointer;
+        font-family: var(--font-mono);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        transition: all 0.2s;
+      }
+      .expand-btn:hover {
+        border-color: var(--accent);
+        color: var(--text);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      }
+
+      /* Mask for Tool Output */
+      .expandable-output {
+        position: relative;
+      }
+      .expandable-output:not(.expanded) .preview-text {
+        /* Add mask to the text container itself */
+        -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent 100%);
+        mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent 100%);
+      }
     </style>
   </head>
   <body>
@@ -1431,6 +1627,13 @@
             <span class="meta-label">Directory</span>
             <span class="meta-value" title="$work_dir_full">$work_dir</span>
           </div>
+        </div>
+        <div class="header-controls">
+          <label class="verbose-btn" id="verbose-label">
+            <input type="checkbox" id="verbose-toggle" />
+            <span class="verbose-icon">[+]</span>
+            <span class="verbose-text">Verbose</span>
+          </label>
         </div>
       </div>
 
@@ -1514,21 +1717,6 @@
       // Trim whitespace from pre-wrap content to avoid formatting artifacts
       document.querySelectorAll(".system-prompt-content").forEach((el) => {
         el.textContent = el.textContent.trim();
-      });
-
-      // Task steps toggle label
-      document.querySelectorAll("details.task-steps").forEach((details) => {
-        const summary = details.querySelector("summary");
-        const count = details.getAttribute("data-step-count");
-        if (!summary || !count) return;
-
-        const setLabel = () => {
-          summary.textContent =
-            (details.open ? "Hide" : "Show") + " " + count + " steps";
-        };
-
-        setLabel();
-        details.addEventListener("toggle", setLabel);
       });
 
       // Process markdown for collapsible sections
@@ -1917,44 +2105,70 @@
           });
         }
 
-        // 2. Tasks (User + final Assistant)
+        // 2. Messages and Tools
         const stream = document.querySelector(".message-stream");
         if (stream) {
-          Array.from(stream.querySelectorAll(":scope > .task")).forEach((task) => {
-            const userBlock = task.querySelector(":scope > .message-group");
-            if (userBlock) {
-              const roleLabel = userBlock.querySelector(".role-label");
-              if (roleLabel && roleLabel.classList.contains("user")) {
-                userCount++;
-                userBlock.id =
-                  userBlock.id || "user-" + Math.random().toString(36).substr(2, 9);
-                sections.push({
-                  id: userBlock.id,
-                  label: "USER " + userCount,
-                  el: userBlock,
-                });
+          // Use a Walker to find top-level relevant items if structure is complex
+          // But assuming flat children of message-stream based on CSS
+          Array.from(stream.children).forEach((child) => {
+            let label = null;
+            let idPrefix = "section";
+
+            if (child.classList.contains("message-group")) {
+              const roleLabel = child.querySelector(".role-label");
+              if (roleLabel) {
+                if (roleLabel.classList.contains("user")) {
+                  userCount++;
+                  label = `USER $$$${userCount}`;
+                  idPrefix = "user";
+                } else if (roleLabel.classList.contains("assistant")) {
+                  assistantCount++;
+                  label = `ASSISTANT $$$${assistantCount}`;
+                  idPrefix = "assistant";
+                } else {
+                  label = roleLabel.textContent.trim();
+                }
+              }
+            } else if (child.classList.contains("tool-call")) {
+              const toolName = child.querySelector(".tool-name");
+              if (toolName) {
+                label = toolName.textContent.trim();
+                idPrefix = "tool";
+
+                // Try to extract description for Sub Agents
+                try {
+                  const argsContent = child.querySelector(".tool-args-content");
+                  if (argsContent) {
+                    const argsText = argsContent.textContent.trim();
+                    if (argsText.startsWith("{")) {
+                      const args = JSON.parse(argsText);
+                      if (
+                        args &&
+                        typeof args.description === "string" &&
+                        args.description.trim()
+                      ) {
+                        let desc = args.description.trim();
+                        if (desc.length > 30) {
+                          desc = desc.substring(0, 30) + "…";
+                        }
+                        label = label + " - " + desc;
+                      }
+                    }
+                  }
+                } catch (e) {
+                  // Ignore JSON parse errors
+                }
+              } else {
+                label = "Tool";
               }
             }
 
-            const finalContainer = task.querySelector(":scope > .task-final");
-            if (!finalContainer) return;
-
-            Array.from(finalContainer.querySelectorAll(":scope > .message-group")).forEach(
-              (child) => {
-                const roleLabel = child.querySelector(".role-label");
-                if (!roleLabel || !roleLabel.classList.contains("assistant")) return;
-
-                assistantCount++;
-                child.id =
-                  child.id ||
-                  "assistant-" + Math.random().toString(36).substr(2, 9);
-                sections.push({
-                  id: child.id,
-                  label: "ASSISTANT " + assistantCount,
-                  el: child,
-                });
-              }
-            );
+            if (label) {
+              child.id =
+                child.id ||
+                `$$$${idPrefix}-$$$${Math.random().toString(36).substr(2, 9)}`;
+              sections.push({ id: child.id, label: label, el: child });
+            }
           });
         }
 
@@ -2023,6 +2237,88 @@
         // Initial update
         updateActiveSection();
       });
+
+      // Mermaid info toggle
+      document.querySelectorAll('.mermaid-info-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation(); // prevent collapsing turn
+          const container = btn.closest('.mermaid-tool-call');
+          const meta = container.querySelector('.mermaid-meta');
+          if (meta) {
+            const isHidden = meta.style.display === 'none';
+            meta.style.display = isHidden ? 'block' : 'none';
+            btn.style.color = isHidden ? 'var(--accent)' : '';
+            btn.style.borderColor = isHidden ? 'var(--accent)' : '';
+            btn.style.opacity = isHidden ? '1' : '';
+          }
+        });
+      });
+
+      // Turn collapsing
+      document.querySelectorAll('.turn-collapse-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const container = btn.parentElement;
+          const steps = container.querySelector('.turn-steps');
+          const isHidden = steps.style.display === 'none';
+          
+          steps.style.display = isHidden ? 'block' : 'none';
+          btn.classList.toggle('expanded', isHidden);
+          
+          const icon = btn.querySelector('.collapse-icon');
+          if (icon) icon.textContent = isHidden ? '[-]' : '[+]';
+        });
+      });
+
+      // Expandable content (Sub-agent markdown & Tool output)
+      document.body.addEventListener('click', (e) => {
+        if (e.target.classList.contains('expand-btn')) {
+          const container = e.target.closest('.expandable-markdown, .expandable-tool-output');
+          if (container) {
+            const preview = container.querySelector('.markdown-preview, .tool-output-preview');
+            if (preview) {
+              preview.classList.add('expanded');
+            }
+          }
+        }
+      });
+
+      // Verbose Toggle
+      const verboseToggle = document.getElementById('verbose-toggle');
+      const verboseLabel = document.getElementById('verbose-label');
+      let isVerbose = false;
+
+      function updateVerboseUI() {
+        const icon = verboseLabel ? verboseLabel.querySelector('.verbose-icon') : null;
+        
+        if (isVerbose) {
+          document.body.classList.add('verbose-mode');
+          if (verboseLabel) verboseLabel.classList.add('active');
+          if (icon) icon.textContent = '[-]';
+        } else {
+          document.body.classList.remove('verbose-mode');
+          if (verboseLabel) verboseLabel.classList.remove('active');
+          if (icon) icon.textContent = '[+]';
+          // Enforce collapsing of details when switching to non-verbose
+          document.querySelectorAll('details.tool-args-collapsible, details.diff-collapsible, details.sub-agent-session').forEach(el => {
+            el.removeAttribute('open');
+          });
+        }
+      }
+
+      if (verboseToggle) {
+        verboseToggle.addEventListener('change', (e) => {
+          isVerbose = e.target.checked;
+          updateVerboseUI();
+        });
+        
+        // Initialize state (default false)
+        // Also force close any initially open details if non-verbose
+        if (!isVerbose) {
+           document.querySelectorAll('details.tool-args-collapsible, details.diff-collapsible, details.sub-agent-session').forEach(el => {
+            el.removeAttribute('open');
+          });
+        }
+      }
     </script>
   </body>
 </html>
