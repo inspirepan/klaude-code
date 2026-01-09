@@ -104,4 +104,4 @@ def render_user_input(content: str) -> RenderableType:
 
 
 def render_interrupt() -> RenderableType:
-    return Text(" INTERRUPTED \n", style=ThemeKey.INTERRUPT)
+    return Text("  Interrupted by user\n", style=ThemeKey.INTERRUPT)

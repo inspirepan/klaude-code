@@ -5,7 +5,11 @@ from pathlib import Path
 import pytest
 
 from klaude_code.core.compaction import CompactionReason, run_compaction
-from klaude_code.core.compaction.prompts import COMPACTION_SUMMARY_PREFIX, TASK_PREFIX_SUMMARIZATION_PROMPT
+from klaude_code.core.compaction.prompts import (
+    COMPACTION_SUMMARY_PREFIX,
+    SUMMARIZATION_PROMPT,
+    TASK_PREFIX_SUMMARIZATION_PROMPT,
+)
 from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.protocol import llm_param, message, model
@@ -17,7 +21,7 @@ def arun(coro: object) -> object:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
     """Isolate user home to keep session persistence under tmp_path."""
 
     fake_home = tmp_path / "home"
@@ -93,7 +97,9 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
             _text_user("old user: " + ("u" * 2500)),
             message.AssistantMessage(
                 parts=[
-                    message.ToolCallPart(call_id="call_read", tool_name="read", arguments_json='{"file_path":"docs/a.md"}'),
+                    message.ToolCallPart(
+                        call_id="call_read", tool_name="read", arguments_json='{"file_path":"docs/a.md"}'
+                    ),
                     message.TextPart(text="about to read"),
                 ],
                 response_id=None,
@@ -175,13 +181,15 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
 
         # The history-summary call should include truncated tool output in its <conversation>.
         prompts = [
-            "\n".join(
-                message.join_text_parts(m.parts) for m in call.input if isinstance(m, message.UserMessage)
-            )
+            "\n".join(message.join_text_parts(m.parts) for m in call.input if isinstance(m, message.UserMessage))
             for call in llm_client.calls
         ]
         assert any("[Tool result]:" in p and "...(truncated)" in p for p in prompts)
         assert any(TASK_PREFIX_SUMMARIZATION_PROMPT in p for p in prompts)
+        assert any("<instructions>" in p and SUMMARIZATION_PROMPT in p for p in prompts)
+
+        # With no previous compaction, we should not label the base prompt as <previous-summary>.
+        assert all("<previous-summary>" not in p for p in prompts)
 
         await close_default_store()
 

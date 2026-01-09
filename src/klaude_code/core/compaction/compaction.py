@@ -200,9 +200,7 @@ async def run_compaction(
     )
 
 
-def _collect_kept_items_brief(
-    history: list[message.HistoryEvent], cut_index: int
-) -> list[message.KeptItemBrief]:
+def _collect_kept_items_brief(history: list[message.HistoryEvent], cut_index: int) -> list[message.KeptItemBrief]:
     """Extract brief info about kept (non-compacted) messages."""
     items: list[message.KeptItemBrief] = []
     tool_counts: dict[str, int] = {}
@@ -243,22 +241,36 @@ def _collect_kept_items_brief(
 
 
 def _normalize_tool_name(tool_name: str) -> str:
-    """Normalize tool name for display (capitalize first letter)."""
-    name_map = {
-        "read": "Read",
-        "edit": "Edit",
-        "write": "Write",
-        "bash": "Bash",
-        "glob": "Glob",
-        "grep": "Grep",
-        "todo_write": "Todo",
-        "task": "Task",
-        "explore": "Explore",
-        "web_agent": "WebAgent",
-        "mermaid": "Mermaid",
-        "image_gen": "ImageGen",
-    }
-    return name_map.get(tool_name.lower(), tool_name.capitalize())
+    """Return tool name as-is (no normalization).
+
+    We intentionally avoid enumerating tool names here; display should reflect
+    what was recorded in history.
+    """
+
+    return tool_name.strip()
+
+
+def _call_args_probably_modify_file(args: dict[str, object]) -> bool:
+    """Heuristically detect file modifications from tool call arguments.
+
+    This avoids enumerating tool names; we infer intent from argument structure.
+    """
+
+    # Common edit signature.
+    if "old" in args and "new" in args:
+        return True
+    # Common write signature.
+    if "content" in args:
+        return True
+    # Common apply_patch signature.
+    patch = args.get("patch")
+    if isinstance(patch, str) and "*** Begin Patch" in patch:
+        return True
+    # Batch edits.
+    edits = args.get("edits")
+    if isinstance(edits, list):
+        return True
+    return False
 
 
 def _collect_file_operations(
@@ -305,10 +317,12 @@ def _extract_file_ops_from_tool_calls(
         path = args_dict.get("file_path") or args_dict.get("path")
         if not isinstance(path, str):
             continue
-        tool = part.tool_name
-        if tool == "read":
-            read_set.add(path)
-        elif tool in {"write", "edit", "apply_patch"}:
+
+        # Always track referenced paths as read context.
+        read_set.add(path)
+
+        # Detect modifications via argument structure (no tool name enumeration).
+        if _call_args_probably_modify_file(args_dict):
             modified_set.add(path)
 
 
@@ -363,7 +377,11 @@ def _find_cut_index(history: list[message.HistoryEvent], start_index: int, keep_
             tokens += _estimate_tokens(item)
         # Never cut on a tool result; keeping tool results without their corresponding
         # assistant tool call breaks LLM-facing history.
-        if tokens >= keep_recent_tokens and isinstance(item, message.Message) and not isinstance(item, message.ToolResultMessage):
+        if (
+            tokens >= keep_recent_tokens
+            and isinstance(item, message.Message)
+            and not isinstance(item, message.ToolResultMessage)
+        ):
             cut_index = idx
             break
     return cut_index
@@ -497,7 +515,7 @@ async def _generate_summary(
     else:
         base_prompt = SUMMARIZATION_PROMPT
     parts.append(
-        message.TextPart(text=f"\n\n<previous-summary>\n{base_prompt}\n</previous-summary>"),
+        message.TextPart(text=f"\n\n<instructions>\n{base_prompt}\n</instructions>"),
     )
     if focus:
         parts.append(

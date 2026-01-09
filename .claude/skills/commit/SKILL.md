@@ -18,14 +18,16 @@ If changes were made during this conversation, use conversation context to write
 
 ## Commit Message Format
 
-In order to ensure good formatting, ALWAYS pass the commit message via a HEREDOC:
+Pass the commit message directly with `-m` flag. For multi-line messages, use quoted strings:
 
 ```bash
-jj describe -m "$(cat <<'EOF'
-Commit message here.
-EOF
-)"
+jj describe -m "feat(scope): short description
+
+- Detail line 1
+- Detail line 2"
 ```
+
+Avoid using single quotes or apostrophes in commit messages to prevent shell escaping issues.
 
 ## Message Style
 

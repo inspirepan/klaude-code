@@ -251,7 +251,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.ERROR.value: palette.red,
                 ThemeKey.ERROR_BOLD.value: "bold " + palette.red,
                 ThemeKey.ERROR_DIM.value: "dim " + palette.red,
-                ThemeKey.INTERRUPT.value: "reverse bold " + palette.red,
+                ThemeKey.INTERRUPT.value: palette.red,
                 # USER_INPUT
                 ThemeKey.USER_INPUT.value: palette.magenta,
                 ThemeKey.USER_INPUT_PROMPT.value: "bold " + palette.magenta,

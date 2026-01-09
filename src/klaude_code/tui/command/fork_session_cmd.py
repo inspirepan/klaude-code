@@ -227,7 +227,11 @@ def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int]]:
                 search_text=(
                     fp.user_message
                     if fp.kind == "user"
-                    else (f"compaction {fp.compaction_summary_preview}" if fp.kind == "compaction" else "fork entire conversation")
+                    else (
+                        f"compaction {fp.compaction_summary_preview}"
+                        if fp.kind == "compaction"
+                        else "fork entire conversation"
+                    )
                 ),
                 selectable=not (fp.kind == "user" and is_first),
             )

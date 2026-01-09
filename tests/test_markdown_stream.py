@@ -382,7 +382,7 @@ def test_checkbox_list_item_renders_unicode_symbols() -> None:
     plain = _strip_ansi(ansi)
 
     assert "\u2610" in plain  # unchecked box
-    assert "\u2611" in plain  # checked box
+    assert "\u2713" in plain  # checked (checkmark)
     assert "unchecked" in plain
     assert "checked" in plain
     assert "normal item" in plain

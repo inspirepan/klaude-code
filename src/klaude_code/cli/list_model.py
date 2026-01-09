@@ -157,7 +157,10 @@ def _get_antigravity_status_rows() -> list[tuple[Text, Text]]:
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
                 Text.assemble(
                     ("Logged in", ThemeKey.CONFIG_STATUS_OK),
-                    (f" (project: {state.project_id}{email_info}, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+                    (
+                        f" (project: {state.project_id}{email_info}, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})",
+                        "dim",
+                    ),
                 ),
             )
         )

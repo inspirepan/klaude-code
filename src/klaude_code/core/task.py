@@ -354,7 +354,9 @@ class TaskExecutor:
                                 llm_client=compact_client,
                                 llm_config=compact_client.get_llm_config(),
                             )
-                            log_debug("[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
+                            log_debug(
+                                "[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE
+                            )
                             session_ctx.append_history([result.to_entry()])
                             yield events.CompactionEndEvent(
                                 session_id=session_ctx.session_id,

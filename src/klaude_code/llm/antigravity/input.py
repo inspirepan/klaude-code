@@ -136,9 +136,7 @@ def _tool_messages_to_contents(
         response_parts.append(Part(functionResponse=function_response))
 
         if has_images and not supports_multimodal_function_response:
-            extra_image_contents.append(
-                Content(role="user", parts=[Part(text="Tool result image:"), *image_parts])
-            )
+            extra_image_contents.append(Content(role="user", parts=[Part(text="Tool result image:"), *image_parts]))
 
     contents: list[Content] = []
     if response_parts:
