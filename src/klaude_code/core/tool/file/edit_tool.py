@@ -114,10 +114,9 @@ class EditTool(ToolABC):
         file_tracker = context.file_tracker
         tracked_status: model.FileStatus | None = None
         if not file_exists(file_path):
-            # We require reading before editing
             return message.ToolResultMessage(
                 status="error",
-                output_text=("File has not been read yet. Read it first before writing to it."),
+                output_text=("File does not exist. If you want to create a file, use the Write tool instead."),
             )
         tracked_status = file_tracker.get(file_path)
         if tracked_status is None:
