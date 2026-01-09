@@ -311,7 +311,7 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         if is_image_model:
             agent_system_prompt: str | None = None
             agent_tools: list[llm_param.ToolSchema] = []
-            agent_reminders: list[Reminder] = []
+            agent_reminders: list[Reminder] = [at_file_reader_reminder, image_reminder]
         else:
             agent_system_prompt = load_system_prompt(
                 model_name, llm_client.protocol, sub_agent_type, config=self._config
