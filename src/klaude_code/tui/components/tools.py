@@ -13,6 +13,7 @@ from klaude_code.const import (
     DIFF_PREFIX_WIDTH,
     INVALID_TOOL_CALL_MAX_LENGTH,
     QUERY_DISPLAY_TRUNCATE_LENGTH,
+    TAB_EXPAND_WIDTH,
     URL_TRUNCATE_MAX_LENGTH,
     WEB_SEARCH_DEFAULT_MAX_RESULTS,
 )
@@ -395,7 +396,8 @@ def render_read_preview(ui_extra: model.ReadPreviewUIExtra) -> RenderableType:
 
     for line in ui_extra.lines:
         prefix = f"{line.line_no:>{DIFF_PREFIX_WIDTH}}  "
-        grid.add_row(Text(prefix, ThemeKey.TOOL_RESULT), Text(line.content, ThemeKey.TOOL_RESULT))
+        content = line.content.expandtabs(TAB_EXPAND_WIDTH)
+        grid.add_row(Text(prefix, ThemeKey.TOOL_RESULT), Text(content, ThemeKey.TOOL_RESULT))
 
     if ui_extra.remaining_lines > 0:
         remaining_prefix = f"{'⋮':>{DIFF_PREFIX_WIDTH}}  "

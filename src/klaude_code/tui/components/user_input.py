@@ -3,6 +3,7 @@ import re
 from rich.console import Group, RenderableType
 from rich.text import Text
 
+from klaude_code.const import TAB_EXPAND_WIDTH
 from klaude_code.skill import get_available_skills
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
@@ -82,6 +83,7 @@ def render_user_input(content: str) -> RenderableType:
     lines = content.strip().split("\n")
     renderables: list[RenderableType] = []
     for i, line in enumerate(lines):
+        line = line.expandtabs(TAB_EXPAND_WIDTH)
         # Handle slash command on first line
         if i == 0 and line.startswith("/"):
             splits = line.split(" ", maxsplit=1)

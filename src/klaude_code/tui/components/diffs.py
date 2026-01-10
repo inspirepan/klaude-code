@@ -1,7 +1,7 @@
 from rich.console import RenderableType
 from rich.text import Text
 
-from klaude_code.const import DIFF_PREFIX_WIDTH
+from klaude_code.const import DIFF_PREFIX_WIDTH, TAB_EXPAND_WIDTH
 from klaude_code.protocol import model
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
@@ -74,7 +74,8 @@ def _render_structured_line(line: model.DiffLine) -> Text:
         return Text("")
     text = Text()
     for span in line.spans:
-        text.append(span.text, style=_span_style(line.kind, span.op))
+        content = span.text.expandtabs(TAB_EXPAND_WIDTH)
+        text.append(content, style=_span_style(line.kind, span.op))
     return text
 
 
