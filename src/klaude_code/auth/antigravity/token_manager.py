@@ -25,21 +25,3 @@ class AntigravityTokenManager(BaseTokenManager[AntigravityAuthState]):
 
     def _create_state(self, data: dict[str, Any]) -> AntigravityAuthState:
         return AntigravityAuthState.model_validate(data)
-
-    def get_access_token(self) -> str:
-        """Get access token, raising if not logged in."""
-        state = self.get_state()
-        if state is None:
-            from klaude_code.auth.antigravity.exceptions import AntigravityNotLoggedInError
-
-            raise AntigravityNotLoggedInError("Not logged in to Antigravity. Run 'klaude login antigravity' first.")
-        return state.access_token
-
-    def get_project_id(self) -> str:
-        """Get project ID, raising if not logged in."""
-        state = self.get_state()
-        if state is None:
-            from klaude_code.auth.antigravity.exceptions import AntigravityNotLoggedInError
-
-            raise AntigravityNotLoggedInError("Not logged in to Antigravity. Run 'klaude login antigravity' first.")
-        return state.project_id

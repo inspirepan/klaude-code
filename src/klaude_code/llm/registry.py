@@ -38,11 +38,6 @@ def _load_protocol(protocol: llm_param.LLMClientProtocol) -> None:
     _loaded_protocols.add(protocol)
 
 
-def load_protocol(protocol: llm_param.LLMClientProtocol) -> None:
-    """Load the module for a specific protocol on demand."""
-    _load_protocol(protocol)
-
-
 def register(name: llm_param.LLMClientProtocol) -> Callable[[_T], _T]:
     """Decorator to register an LLM client class for a protocol."""
 

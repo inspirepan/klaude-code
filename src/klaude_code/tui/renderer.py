@@ -184,13 +184,6 @@ class TUICommandRenderer:
     def is_sub_agent_session(self, session_id: str) -> bool:
         return session_id in self._sessions and self._sessions[session_id].sub_agent_state is not None
 
-    def _should_display_sub_agent_thinking_header(self, session_id: str) -> bool:
-        # Hardcoded: only show sub-agent thinking headers for ImageGen.
-        st = self._sessions.get(session_id)
-        if st is None or st.sub_agent_state is None:
-            return False
-        return st.sub_agent_state.sub_agent_type == "ImageGen"
-
     def _advance_sub_agent_color_index(self) -> None:
         palette_size = len(self.themes.sub_agent_colors)
         if palette_size == 0:
@@ -423,18 +416,6 @@ class TUICommandRenderer:
         renderable = c_tools.render_tool_result(e, code_theme=self.themes.code_theme, session_id=e.session_id)
         if renderable is not None:
             self.print(renderable)
-
-    def display_thinking(self, content: str) -> None:
-        renderable = c_thinking.render_thinking(
-            content,
-            code_theme=self.themes.code_theme,
-            style=ThemeKey.THINKING,
-        )
-        if renderable is not None:
-            self.console.push_theme(theme=self.themes.thinking_markdown_theme)
-            self.print(renderable)
-            self.console.pop_theme()
-            self.print()
 
     def display_thinking_header(self, header: str) -> None:
         stripped = header.strip()

@@ -44,13 +44,6 @@ def parse_env_var_syntax(value: str | None) -> tuple[str | None, str | None]:
     return None, value
 
 
-def is_env_var_syntax(value: str | None) -> bool:
-    """Check if a value uses ${ENV_VAR} syntax."""
-    if value is None:
-        return False
-    return _ENV_VAR_PATTERN.match(value) is not None
-
-
 def resolve_api_key(value: str | None) -> str | None:
     """Resolve an API key value, expanding ${ENV_VAR} syntax if present."""
     _, resolved = parse_env_var_syntax(value)
@@ -396,13 +389,6 @@ class Config(BaseModel):
             if entry.modalities and "image" in entry.modalities:
                 return True
         return False
-
-    def get_first_available_nano_banana_model(self) -> str | None:
-        """Get the first available nano-banana model, or None."""
-        for entry in self.iter_model_entries(only_available=True, include_disabled=False):
-            if "nano-banana" in entry.model_name:
-                return entry.model_name
-        return None
 
     def get_first_available_image_model(self) -> str | None:
         """Get the first available image generation model, or None."""

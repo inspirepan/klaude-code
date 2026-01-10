@@ -26,33 +26,6 @@ class Commit(BaseModel):
     changes: dict[str, FileChange] = Field(default_factory=dict)
 
 
-def assemble_changes(orig: dict[str, str | None], dest: dict[str, str | None]) -> Commit:
-    commit = Commit()
-    for path in sorted(set(orig.keys()).union(dest.keys())):
-        old_content = orig.get(path)
-        new_content = dest.get(path)
-        if old_content != new_content:
-            if old_content is not None and new_content is not None:
-                commit.changes[path] = FileChange(
-                    type=ActionType.UPDATE,
-                    old_content=old_content,
-                    new_content=new_content,
-                )
-            elif new_content:
-                commit.changes[path] = FileChange(
-                    type=ActionType.ADD,
-                    new_content=new_content,
-                )
-            elif old_content:
-                commit.changes[path] = FileChange(
-                    type=ActionType.DELETE,
-                    old_content=old_content,
-                )
-            else:
-                raise AssertionError()
-    return commit
-
-
 def _new_str_list() -> list[str]:
     # Returns a new list[str] for pydantic Field default_factory
     return []

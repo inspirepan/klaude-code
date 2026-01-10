@@ -309,12 +309,3 @@ class AntigravityOAuth:
             state = self.refresh()
 
         return state.access_token, state.project_id
-
-    def get_api_key_json(self) -> str:
-        """Get API key as JSON string for LLM client.
-
-        Returns:
-            JSON string with token and projectId.
-        """
-        access_token, project_id = self.ensure_valid_token()
-        return json.dumps({"token": access_token, "projectId": project_id})

@@ -170,23 +170,3 @@ def install_system_skills() -> bool:
 
         log_debug("System skills installation complete")
         return True
-
-
-def get_installed_system_skills() -> list[Path]:
-    """Get list of installed system skill directories.
-
-    Returns:
-        List of paths to installed skill directories
-    """
-    dest_dir = get_system_skills_dir()
-    if not dest_dir.exists():
-        return []
-
-    skills: list[Path] = []
-    for item in dest_dir.iterdir():
-        if item.is_dir() and not item.name.startswith("."):
-            skill_file = item / "SKILL.md"
-            if skill_file.exists():
-                skills.append(item)
-
-    return skills

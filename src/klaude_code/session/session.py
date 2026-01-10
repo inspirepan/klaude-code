@@ -92,10 +92,6 @@ class Session(BaseModel):
             ]
         return self._user_messages_cache
 
-    @staticmethod
-    def _project_key() -> str:
-        return project_key_from_cwd()
-
     @classmethod
     def paths(cls) -> ProjectPaths:
         return get_default_store().paths
@@ -672,29 +668,6 @@ class Session(BaseModel):
                 return session_id[:length]
 
         return session_id
-
-    @classmethod
-    def clean_small_sessions(cls, min_messages: int = 5) -> int:
-        sessions = cls.list_sessions()
-        deleted_count = 0
-        store = get_default_store()
-        for session_meta in sessions:
-            if session_meta.messages_count < 0:
-                continue
-            if session_meta.messages_count < min_messages:
-                store.delete_session(session_meta.id)
-                deleted_count += 1
-        return deleted_count
-
-    @classmethod
-    def clean_all_sessions(cls) -> int:
-        sessions = cls.list_sessions()
-        deleted_count = 0
-        store = get_default_store()
-        for session_meta in sessions:
-            store.delete_session(session_meta.id)
-            deleted_count += 1
-        return deleted_count
 
     @classmethod
     def exports_dir(cls) -> Path:

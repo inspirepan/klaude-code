@@ -62,14 +62,6 @@ def _is_gemini_flash_model(model_name: str | None) -> bool:
     return "gemini-3-flash" in model_name.lower()
 
 
-def should_auto_trigger_thinking(model_name: str | None) -> bool:
-    """Check if model should auto-trigger thinking selection on switch."""
-    if not model_name:
-        return False
-    model_lower = model_name.lower()
-    return "gpt-5" in model_lower or "gemini-3" in model_lower or "opus" in model_lower
-
-
 def get_levels_for_responses(model_name: str | None) -> list[str]:
     """Get thinking levels for responses protocol."""
     if _is_codex_max_model(model_name):

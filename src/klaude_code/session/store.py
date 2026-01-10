@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import shutil
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -151,9 +150,6 @@ class JsonlSessionStore:
         if not sessions_dir.exists():
             return []
         return sessions_dir.glob("*/meta.json")
-
-    def delete_session(self, session_id: str) -> None:
-        shutil.rmtree(self._paths.session_dir(session_id), ignore_errors=True)
 
     async def aclose(self) -> None:
         await self._writer.aclose()

@@ -29,10 +29,6 @@ def _register_sub_agent_tools() -> None:
 _register_sub_agent_tools()
 
 
-def list_tools() -> list[str]:
-    return list(_REGISTRY.keys())
-
-
 def get_tool_schemas(tool_names: list[str]) -> list[llm_param.ToolSchema]:
     schemas: list[llm_param.ToolSchema] = []
     for tool_name in tool_names:

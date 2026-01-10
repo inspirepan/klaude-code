@@ -499,17 +499,6 @@ class TestSession:
         assert session.messages_count == 2
 
 
-class TestSessionProjectKey:
-    """Tests for Session._project_key method."""
-
-    def test_project_key_format(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-        monkeypatch.chdir(tmp_path)
-        key = Session._project_key()
-        # Should be path with slashes replaced by dashes, leading slash stripped
-        assert "/" not in key
-        assert key != ""
-
-
 class TestSessionDirectories:
     """Tests for Session directory methods."""
 
@@ -952,58 +941,6 @@ class TestForkSessionCommand:
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
             await session.wait_for_flush()
             assert Session.most_recent_session_id() == session.id
-            await close_default_store()
-
-        arun(_test())
-
-    def test_clean_small_sessions(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        project_dir = tmp_path / "test_project"
-        project_dir.mkdir()
-        monkeypatch.chdir(project_dir)
-
-        async def _test() -> None:
-            small_session = Session(work_dir=project_dir)
-            small_session.append_history([message.UserMessage(parts=message.text_parts_from_str("Only one"))])
-            await small_session.wait_for_flush()
-
-            large_session = Session(work_dir=project_dir)
-            large_session.append_history(
-                [
-                    message.UserMessage(parts=message.text_parts_from_str("1")),
-                    message.AssistantMessage(parts=message.text_parts_from_str("2")),
-                    message.UserMessage(parts=message.text_parts_from_str("3")),
-                    message.AssistantMessage(parts=message.text_parts_from_str("4")),
-                    message.UserMessage(parts=message.text_parts_from_str("5")),
-                ]
-            )
-            await large_session.wait_for_flush()
-
-            assert len(Session.list_sessions()) == 2
-            deleted = Session.clean_small_sessions(min_messages=5)
-            assert deleted == 1
-
-            sessions = Session.list_sessions()
-            assert len(sessions) == 1
-            assert sessions[0].id == large_session.id
-            await close_default_store()
-
-        arun(_test())
-
-    def test_clean_all_sessions(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        project_dir = tmp_path / "test_project"
-        project_dir.mkdir()
-        monkeypatch.chdir(project_dir)
-
-        async def _test() -> None:
-            for i in range(3):
-                session = Session(work_dir=project_dir)
-                session.append_history([message.UserMessage(parts=message.text_parts_from_str(f"Message {i}"))])
-                await session.wait_for_flush()
-
-            assert len(Session.list_sessions()) == 3
-            deleted = Session.clean_all_sessions()
-            assert deleted == 3
-            assert len(Session.list_sessions()) == 0
             await close_default_store()
 
         arun(_test())

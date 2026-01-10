@@ -332,11 +332,6 @@ class MarkdownStream:
         self.right_margin: int = max(right_margin, 0)
         self.markdown_class: Callable[..., Markdown] = markdown_class or NoInsetMarkdown
 
-    @property
-    def _live_started(self) -> bool:
-        """Check if Live display has been started (derived from self.live)."""
-        return self._live_sink is not None
-
     def _get_base_width(self) -> int:
         return self.console.options.max_width
 
@@ -450,14 +445,6 @@ class MarkdownStream:
             return "", text, 0
         return stable_source, live_source, stable_line
 
-    def render_ansi(self, text: str, *, apply_mark: bool) -> str:
-        """Render markdown source to an ANSI string.
-
-        This is primarily intended for internal debugging and tests.
-        """
-        lines, _ = self._render_markdown_to_lines(text, apply_mark=apply_mark)
-        return "".join(lines)
-
     def render_stable_ansi(self, stable_source: str, *, has_live_suffix: bool, final: bool) -> tuple[str, list[str]]:
         """Render stable prefix to ANSI, preserving inter-block spacing.
 
@@ -473,47 +460,6 @@ class MarkdownStream:
 
         lines, images = self._render_markdown_to_lines(render_source, apply_mark=True)
         return "".join(lines), images
-
-    @staticmethod
-    def normalize_live_ansi_for_boundary(*, stable_ansi: str, live_ansi: str) -> str:
-        """Normalize whitespace at the stable/live boundary.
-
-        Some Rich Markdown blocks (e.g. lists) render with a leading blank line.
-        If the stable prefix already renders a trailing blank line, rendering the
-        live suffix separately may introduce an extra blank line that wouldn't
-        appear when rendering the full document.
-
-        This function removes *overlapping* blank lines from the live ANSI when
-        the stable ANSI already ends with one or more blank lines.
-
-        Important: don't remove *all* leading blank lines from the live suffix.
-        In some incomplete-block cases, the live render may begin with multiple
-        blank lines while the full-document render would keep one of them.
-        """
-
-        stable_lines = stable_ansi.splitlines(keepends=True)
-        if not stable_lines:
-            return live_ansi
-
-        stable_trailing_blank = 0
-        for line in reversed(stable_lines):
-            if line.strip():
-                break
-            stable_trailing_blank += 1
-        if stable_trailing_blank <= 0:
-            return live_ansi
-
-        live_lines = live_ansi.splitlines(keepends=True)
-        live_leading_blank = 0
-        for line in live_lines:
-            if line.strip():
-                break
-            live_leading_blank += 1
-
-        drop = min(stable_trailing_blank, live_leading_blank)
-        if drop > 0:
-            live_lines = live_lines[drop:]
-        return "".join(live_lines)
 
     def _append_nonfinal_sentinel(self, stable_source: str) -> str:
         """Make Rich render stable content as if it isn't the last block.

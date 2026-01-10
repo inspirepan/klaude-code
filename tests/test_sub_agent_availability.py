@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
-
-import klaude_code.config.config as config_module
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
 from klaude_code.core.agent_profile import load_agent_tools
@@ -20,22 +15,6 @@ def _check_availability_requirement(requirement: str | None, config: Config | No
         return True
     helper = SubAgentModelHelper(config)
     return helper.check_availability_requirement(requirement)
-
-
-def _clear_api_key_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Clear all API key environment variables to ensure test isolation."""
-    for env_var in [
-        "ANTHROPIC_API_KEY",
-        "OPENAI_API_KEY",
-        "OPENROUTER_API_KEY",
-        "GOOGLE_API_KEY",
-        "DEEPSEEK_API_KEY",
-        "MOONSHOT_API_KEY",
-        "AWS_ACCESS_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY",
-        "AWS_REGION",
-    ]:
-        monkeypatch.delenv(env_var, raising=False)
 
 
 class TestImageModelAvailability:
@@ -175,78 +154,6 @@ class TestImageModelAvailability:
         config = Config(provider_list=[provider])
 
         assert config.get_first_available_image_model() is None
-
-
-class TestNanoBananaModelSelection:
-    """Tests for nano-banana model selection."""
-
-    def test_get_first_available_nano_banana_model_ignores_disabled(self) -> None:
-        provider = ProviderConfig(
-            provider_name="test-provider",
-            protocol=llm_param.LLMClientProtocol.OPENAI,
-            api_key="test-key",
-            model_list=[
-                ModelConfig(
-                    model_name="nano-banana-pro",
-                    model_id="image-gen-model",
-                    modalities=["image", "text"],
-                    disabled=True,
-                ),
-            ],
-        )
-        config = Config(provider_list=[provider])
-
-        assert config.get_first_available_nano_banana_model() is None
-
-    def test_get_first_available_nano_banana_model_from_openrouter(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Should find nano-banana model from openrouter when OPENROUTER_API_KEY is set."""
-        _clear_api_key_env_vars(monkeypatch)
-        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-
-        # Use a temporary config path to avoid loading user config
-        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
-        monkeypatch.setattr(config_module, "config_path", test_config_path)
-        config_module.load_config.cache_clear()  # type: ignore[attr-defined]
-
-        config = config_module.load_config()
-        result = config.get_first_available_nano_banana_model()
-
-        assert result is not None
-        assert "nano-banana" in result
-
-    def test_get_first_available_nano_banana_model_from_google(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Should find nano-banana model from google when GOOGLE_API_KEY is set."""
-        _clear_api_key_env_vars(monkeypatch)
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
-
-        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
-        monkeypatch.setattr(config_module, "config_path", test_config_path)
-        config_module.load_config.cache_clear()  # type: ignore[attr-defined]
-
-        config = config_module.load_config()
-        result = config.get_first_available_nano_banana_model()
-
-        assert result is not None
-        assert "nano-banana" in result
-
-    def test_get_first_available_nano_banana_model_returns_none_without_keys(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Should return None when no relevant API keys are set."""
-        _clear_api_key_env_vars(monkeypatch)
-
-        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
-        monkeypatch.setattr(config_module, "config_path", test_config_path)
-        config_module.load_config.cache_clear()  # type: ignore[attr-defined]
-
-        config = config_module.load_config()
-        result = config.get_first_available_nano_banana_model()
-
-        assert result is None
 
 
 class TestCheckAvailabilityRequirement:

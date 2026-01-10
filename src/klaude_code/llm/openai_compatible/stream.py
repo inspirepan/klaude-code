@@ -12,6 +12,7 @@ how reasoning is represented (``reasoning_details`` vs ``reasoning_content``).
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
@@ -26,7 +27,6 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.llm.image import save_assistant_image
-from klaude_code.llm.openai_compatible.tool_call_accumulator import normalize_tool_name
 from klaude_code.llm.stream_parts import (
     append_text_part,
     append_thinking_text_part,
@@ -34,7 +34,22 @@ from klaude_code.llm.stream_parts import (
     build_partial_parts,
 )
 from klaude_code.llm.usage import MetadataTracker, convert_usage
+from klaude_code.log import log_debug
 from klaude_code.protocol import llm_param, message, model
+
+
+def normalize_tool_name(name: str) -> str:
+    """Normalize tool name from Gemini-3 format.
+
+    Gemini-3 sometimes returns tool names in format like 'tool_Edit_mUoY2p3W3r3z8uO5P2nZ'.
+    This function extracts the actual tool name (e.g., 'Edit').
+    """
+    match = re.match(r"^tool_([A-Za-z]+)_[A-Za-z0-9]+$", name)
+    if match:
+        normalized = match.group(1)
+        log_debug(f"Gemini-3 tool name normalized: {name} -> {normalized}", style="yellow")
+        return normalized
+    return name
 
 
 class StreamStateManager:

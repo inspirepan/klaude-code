@@ -24,7 +24,3 @@ def is_context_overflow(error_message: str | None) -> bool:
     if _STATUS_CODE_PATTERN.search(error_message):
         return True
     return any(pattern.search(error_message) for pattern in _OVERFLOW_PATTERNS)
-
-
-def get_overflow_patterns() -> list[re.Pattern[str]]:
-    return list(_OVERFLOW_PATTERNS)

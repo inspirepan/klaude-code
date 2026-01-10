@@ -21,20 +21,6 @@ AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P
 SKILL_PATTERN = re.compile(r"(?:^|\s)[$¥](?P<skill>\S+)")
 
 
-def get_last_new_user_input(session: Session) -> str | None:
-    """Get last user input & developer message (CLAUDE.md) from conversation history. if there's a tool result after user input, return None"""
-    result: list[str] = []
-    for item in reversed(session.conversation_history):
-        if isinstance(item, message.ToolResultMessage):
-            return None
-        if isinstance(item, message.UserMessage):
-            result.append(message.join_text_parts(item.parts))
-            break
-        if isinstance(item, message.DeveloperMessage):
-            result.append(message.join_text_parts(item.parts))
-    return "\n\n".join(result)
-
-
 @dataclass
 class AtPatternSource:
     """Represents an @ pattern with its source file (if from a memory file)."""

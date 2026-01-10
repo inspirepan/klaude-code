@@ -44,14 +44,6 @@ class MetadataTracker:
         self._usage = model.Usage()
         self._cost_config = cost_config
 
-    @property
-    def first_token_time(self) -> float | None:
-        return self._first_token_time
-
-    @property
-    def last_token_time(self) -> float | None:
-        return self._last_token_time
-
     def record_token(self) -> None:
         """Record a token arrival, updating first/last token times."""
         now = time.time()

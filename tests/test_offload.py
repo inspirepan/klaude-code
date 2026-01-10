@@ -28,10 +28,6 @@ class TestReadToolStrategy:
         assert result.was_truncated is False
         assert result.output == long_text
 
-    def test_offload_policy_is_never(self):
-        strategy = ReadToolStrategy()
-        assert strategy.offload_policy == OffloadPolicy.NEVER
-
 
 class TestHeadTailOffloadStrategy:
     """Test HeadTailOffloadStrategy for Bash and generic tools."""

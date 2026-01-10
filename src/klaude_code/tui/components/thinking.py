@@ -1,14 +1,5 @@
 import re
 
-from rich.console import RenderableType
-from rich.padding import Padding
-from rich.text import Text
-
-from klaude_code.const import MARKDOWN_RIGHT_MARGIN
-from klaude_code.tui.components.common import create_grid
-from klaude_code.tui.components.rich.markdown import ThinkingMarkdown
-from klaude_code.tui.components.rich.theme import ThemeKey
-
 # UI markers
 THINKING_MESSAGE_MARK = "∴"
 
@@ -70,27 +61,3 @@ def extract_last_bold_header(text: str) -> str | None:
         i = end + 2
 
     return last
-
-
-def render_thinking(content: str, *, code_theme: str, style: str) -> RenderableType | None:
-    """Render thinking content as markdown with left mark.
-
-    Returns None if content is empty.
-    Note: Caller should push thinking_markdown_theme before printing.
-    """
-    if len(content.strip()) == 0:
-        return None
-
-    grid = create_grid()
-    grid.add_row(
-        Text(THINKING_MESSAGE_MARK, style=ThemeKey.THINKING),
-        Padding(
-            ThinkingMarkdown(
-                normalize_thinking_content(content),
-                code_theme=code_theme,
-                style=style,
-            ),
-            (0, MARKDOWN_RIGHT_MARGIN, 0, 0),
-        ),
-    )
-    return grid

@@ -1,5 +1,5 @@
 import json
-from typing import Any, cast
+from typing import Any
 
 from rich.console import Group, RenderableType
 from rich.json import JSON
@@ -7,8 +7,7 @@ from rich.style import Style
 from rich.text import Text
 
 from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
-from klaude_code.protocol import events, model
-from klaude_code.protocol.sub_agent import get_sub_agent_profile_by_tool
+from klaude_code.protocol import model
 from klaude_code.tui.components.common import truncate_head
 from klaude_code.tui.components.rich.theme import ThemeKey
 
@@ -125,46 +124,3 @@ def render_sub_agent_result(
         elements.append(Text(agent_id_footer, style=ThemeKey.SUB_AGENT_FOOTER))
 
     return Group(*elements)
-
-
-def build_sub_agent_state_from_tool_call(e: events.ToolCallEvent) -> model.SubAgentState | None:
-    """Build SubAgentState from a tool call event for replay rendering."""
-    profile = get_sub_agent_profile_by_tool(e.tool_name)
-    if profile is None:
-        return None
-    description = profile.name
-    prompt = ""
-    output_schema: dict[str, Any] | None = None
-    generation: dict[str, Any] | None = None
-    resume: str | None = None
-    if e.arguments:
-        try:
-            payload: dict[str, object] = json.loads(e.arguments)
-        except json.JSONDecodeError:
-            payload = {}
-        desc_value = payload.get("description")
-        if isinstance(desc_value, str) and desc_value.strip():
-            description = desc_value.strip()
-        prompt_value = payload.get("prompt") or payload.get("task")
-        if isinstance(prompt_value, str):
-            prompt = prompt_value.strip()
-        resume_value = payload.get("resume")
-        if isinstance(resume_value, str) and resume_value.strip():
-            resume = resume_value.strip()
-        # Extract output_schema if profile supports it
-        if profile.output_schema_arg:
-            schema_value = payload.get(profile.output_schema_arg)
-            if isinstance(schema_value, dict):
-                output_schema = cast(dict[str, Any], schema_value)
-        # Extract generation config for ImageGen
-        generation_value = payload.get("generation")
-        if isinstance(generation_value, dict):
-            generation = cast(dict[str, Any], generation_value)
-    return model.SubAgentState(
-        sub_agent_type=profile.name,
-        sub_agent_desc=description,
-        sub_agent_prompt=prompt,
-        resume=resume,
-        output_schema=output_schema,
-        generation=generation,
-    )

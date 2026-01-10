@@ -68,13 +68,6 @@ class OffloadPolicy(Enum):
     ON_THRESHOLD = auto()  # Offload only when exceeding size threshold
 
 
-class TruncationStyle(Enum):
-    """How to truncate content that exceeds limits."""
-
-    HEAD_ONLY = auto()  # Keep head, discard tail (important content at top)
-    HEAD_TAIL = auto()  # Keep head and tail, discard middle (errors at end)
-
-
 @dataclass
 class OffloadResult:
     """Result of offload/truncation operation."""
@@ -93,18 +86,6 @@ class OffloadResult:
 
 class OffloadStrategy(ABC):
     """Base class for tool-specific offload strategies."""
-
-    @property
-    @abstractmethod
-    def offload_policy(self) -> OffloadPolicy:
-        """When to offload content to file."""
-        ...
-
-    @property
-    @abstractmethod
-    def truncation_style(self) -> TruncationStyle:
-        """How to truncate content."""
-        ...
 
     @abstractmethod
     def process(self, output: str, tool_call: ToolCallLike | None = None) -> OffloadResult:
@@ -125,14 +106,6 @@ class ReadToolStrategy(OffloadStrategy):
 
     This strategy is a pass-through since Read tool handles its own truncation.
     """
-
-    @property
-    def offload_policy(self) -> OffloadPolicy:
-        return OffloadPolicy.NEVER
-
-    @property
-    def truncation_style(self) -> TruncationStyle:
-        return TruncationStyle.HEAD_ONLY
 
     def process(self, output: str, tool_call: ToolCallLike | None = None) -> OffloadResult:
         return OffloadResult(output=output, was_truncated=False, original_length=len(output))
@@ -164,14 +137,6 @@ class HeadTailOffloadStrategy(OffloadStrategy):
         self.tail_lines = tail_lines
         self.offload_dir = Path(offload_dir or TOOL_OUTPUT_TRUNCATION_DIR)
         self._policy = policy
-
-    @property
-    def offload_policy(self) -> OffloadPolicy:
-        return self._policy
-
-    @property
-    def truncation_style(self) -> TruncationStyle:
-        return TruncationStyle.HEAD_TAIL
 
     def _save_to_file(self, output: str, tool_call: ToolCallLike | None) -> str | None:
         """Save full output to file. Returns path or None on failure."""

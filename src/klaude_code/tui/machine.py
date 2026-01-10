@@ -97,10 +97,6 @@ class ActivityState:
         self._sub_agent_tool_calls: dict[str, int] = {}
         self._sub_agent_tool_calls_by_id: dict[str, str] = {}
 
-    @property
-    def is_composing(self) -> bool:
-        return self._composing and not self._tool_calls and not self._sub_agent_tool_calls
-
     def set_composing(self, composing: bool) -> None:
         self._composing = composing
         if not composing:

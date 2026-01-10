@@ -796,11 +796,6 @@ class ExecutorContext:
             return None
         return active.task
 
-    def has_active_task(self, submission_id: str) -> bool:
-        """Return True if a task is registered for the submission id."""
-
-        return self.task_manager.get(submission_id) is not None
-
 
 class Executor:
     """

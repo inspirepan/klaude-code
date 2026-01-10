@@ -179,10 +179,6 @@ class TaskExecutor:
         self._started_at: float = 0.0
         self._metadata_accumulator: MetadataAccumulator | None = None
 
-    @property
-    def current_turn(self) -> TurnExecutor | None:
-        return self._current_turn
-
     def get_partial_metadata(self) -> model.TaskMetadata | None:
         """Get the currently accumulated metadata without finalizing.
 
