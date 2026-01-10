@@ -210,7 +210,7 @@ class TaskExecutor:
             accumulated = self._metadata_accumulator.get_partial_item(task_duration_s)
             if accumulated is not None:
                 session_id = self._context.session_ctx.session_id
-                ui_events.append(events.TaskMetadataEvent(metadata=accumulated, session_id=session_id, cancelled=True))
+                ui_events.append(events.TaskMetadataEvent(metadata=accumulated, session_id=session_id))
                 self._context.session_ctx.append_history([accumulated])
 
         return ui_events

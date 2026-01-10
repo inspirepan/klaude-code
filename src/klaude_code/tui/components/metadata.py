@@ -136,9 +136,6 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     """Render task metadata including main agent and sub-agents."""
     renderables: list[RenderableType] = []
 
-    if e.cancelled:
-        renderables.append(Text())
-
     has_sub_agents = len(e.metadata.sub_agent_task_metadata) > 0
     # Use an extra space for the main agent mark to align with two-character marks (├─, └─)
     main_mark_text = "✓"

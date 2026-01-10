@@ -316,10 +316,15 @@ class Session(BaseModel):
         prev_item: message.HistoryEvent | None = None
         last_assistant_content: str = ""
         report_back_result: str | None = None
+        pending_tool_calls: dict[str, events.ToolCallEvent] = {}
         history = self.conversation_history
         history_len = len(history)
         yield events.TaskStartEvent(session_id=self.id, sub_agent_state=self.sub_agent_state)
         for idx, it in enumerate(history):
+            # Flush pending tool calls if current item won't consume them
+            if pending_tool_calls and not isinstance(it, message.ToolResultMessage):
+                yield from pending_tool_calls.values()
+                pending_tool_calls.clear()
             if self.need_turn_start(prev_item, it):
                 yield events.TurnStartEvent(session_id=self.id)
             match it:
@@ -380,7 +385,7 @@ class Session(BaseModel):
                             continue
                         if part.tool_name == tools.REPORT_BACK:
                             report_back_result = part.arguments_json
-                        yield events.ToolCallEvent(
+                        pending_tool_calls[part.call_id] = events.ToolCallEvent(
                             tool_call_id=part.call_id,
                             tool_name=part.tool_name,
                             arguments=part.arguments_json,
@@ -390,6 +395,8 @@ class Session(BaseModel):
                     if am.stop_reason == "aborted":
                         yield events.InterruptEvent(session_id=self.id)
                 case message.ToolResultMessage() as tr:
+                    if tr.call_id in pending_tool_calls:
+                        yield pending_tool_calls.pop(tr.call_id)
                     status = "success" if tr.status == "success" else "error"
                     # Check if this is the last tool result in the current turn
                     next_item = history[idx + 1] if idx + 1 < history_len else None
@@ -436,6 +443,11 @@ class Session(BaseModel):
                 case message.SystemMessage():
                     pass
             prev_item = it
+
+        # Flush any remaining pending tool calls (e.g., from aborted or incomplete sessions)
+        if pending_tool_calls:
+            yield from pending_tool_calls.values()
+            pending_tool_calls.clear()
 
         has_structured_output = report_back_result is not None
         task_result = report_back_result if has_structured_output else last_assistant_content
