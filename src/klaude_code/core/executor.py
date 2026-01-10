@@ -676,6 +676,39 @@ class ExecutorContext:
             )
         )
 
+    async def handle_change_compact_model(self, operation: op.ChangeCompactModelOperation) -> None:
+        """Handle a change compact model operation."""
+        agent = await self._agent_runtime.ensure_agent(operation.session_id)
+        config = load_config()
+
+        model_name = operation.model_name
+
+        if model_name is None:
+            # Clear explicit override and use main client for compaction
+            self.llm_clients.compact = None
+            agent.compact_llm_client = None
+            display_model = "(inherit from main agent)"
+        else:
+            # Create new client for compaction
+            llm_config = config.get_model_config(model_name)
+            new_client = create_llm_client(llm_config)
+            self.llm_clients.compact = new_client
+            agent.compact_llm_client = new_client
+            display_model = new_client.model_name
+
+        if operation.save_as_default:
+            config.compact_model = model_name
+            await config.save()
+
+        saved_note = " (saved in ~/.klaude/klaude-config.yaml)" if operation.save_as_default else ""
+        await self.emit_event(
+            events.CommandOutputEvent(
+                session_id=agent.session.id,
+                command_name=commands.CommandName.SUB_AGENT_MODEL,
+                content=f"Compact model: {display_model}{saved_note}",
+            )
+        )
+
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
         await self._agent_runtime.clear_session(operation.session_id)
 

@@ -27,6 +27,7 @@ class OperationType(Enum):
     CONTINUE_AGENT = "continue_agent"
     COMPACT_SESSION = "compact_session"
     CHANGE_MODEL = "change_model"
+    CHANGE_COMPACT_MODEL = "change_compact_model"
     CHANGE_SUB_AGENT_MODEL = "change_sub_agent_model"
     CHANGE_THINKING = "change_thinking"
     CLEAR_SESSION = "clear_session"
@@ -106,6 +107,18 @@ class ChangeModelOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_change_model(self)
+
+
+class ChangeCompactModelOperation(Operation):
+    """Operation for changing the compact model (used for session compaction)."""
+
+    type: OperationType = OperationType.CHANGE_COMPACT_MODEL
+    session_id: str
+    model_name: str | None
+    save_as_default: bool = False
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_change_compact_model(self)
 
 
 class ChangeThinkingOperation(Operation):

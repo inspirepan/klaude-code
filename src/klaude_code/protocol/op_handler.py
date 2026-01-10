@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from klaude_code.protocol.op import (
+        ChangeCompactModelOperation,
         ChangeModelOperation,
         ChangeSubAgentModelOperation,
         ChangeThinkingOperation,
@@ -41,6 +42,10 @@ class OperationHandler(Protocol):
 
     async def handle_change_model(self, operation: ChangeModelOperation) -> None:
         """Handle a change model operation."""
+        ...
+
+    async def handle_change_compact_model(self, operation: ChangeCompactModelOperation) -> None:
+        """Handle a change compact model operation."""
         ...
 
     async def handle_change_thinking(self, operation: ChangeThinkingOperation) -> None:
