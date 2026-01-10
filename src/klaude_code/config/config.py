@@ -70,6 +70,7 @@ class ModelConfig(llm_param.LLMConfigModelParameter):
 class ProviderConfig(llm_param.LLMConfigProviderParameter):
     """Full provider configuration (used in merged config)."""
 
+    disabled: bool = False
     model_list: list[ModelConfig] = Field(default_factory=lambda: [])
 
     def get_resolved_api_key(self) -> str | None:
@@ -141,6 +142,7 @@ class UserProviderConfig(BaseModel):
 
     provider_name: str
     protocol: llm_param.LLMClientProtocol | None = None
+    disabled: bool = False
     base_url: str | None = None
     api_key: str | None = None
     is_azure: bool = False
@@ -290,6 +292,9 @@ class Config(BaseModel):
             if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
                 continue
 
+            if provider.disabled:
+                continue
+
             api_key = provider.get_resolved_api_key()
             if (
                 provider.protocol
@@ -303,7 +308,11 @@ class Config(BaseModel):
             ):
                 continue
 
-            if any(m.model_name == requested_model for m in provider.model_list):
+            for model in provider.model_list:
+                if model.model_name != requested_model:
+                    continue
+                if model.disabled:
+                    continue
                 return requested_model, provider.provider_name
 
         return None
@@ -313,6 +322,11 @@ class Config(BaseModel):
 
         for provider in self.provider_list:
             if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
+                continue
+
+            if provider.disabled:
+                if requested_provider is not None:
+                    raise ValueError(f"Provider '{provider.provider_name}' is disabled for: {model_name}")
                 continue
 
             # Resolve ${ENV_VAR} syntax for api_key
@@ -339,7 +353,15 @@ class Config(BaseModel):
             for model in provider.model_list:
                 if model.model_name != requested_model:
                     continue
-                provider_dump = provider.model_dump(exclude={"model_list"})
+
+                if model.disabled:
+                    if requested_provider is not None:
+                        raise ValueError(
+                            f"Model '{requested_model}' is disabled in provider '{provider.provider_name}' for: {model_name}"
+                        )
+                    break
+
+                provider_dump = provider.model_dump(exclude={"model_list", "disabled"})
                 provider_dump["api_key"] = api_key
                 return llm_param.LLMConfigParameter(
                     **provider_dump,
@@ -353,7 +375,7 @@ class Config(BaseModel):
 
         Args:
             only_available: If True, only return models from providers with valid API keys.
-            include_disabled: If False, exclude models with disabled=True.
+            include_disabled: If False, exclude models/providers with disabled=True.
         """
         return [
             ModelEntry(
@@ -362,7 +384,8 @@ class Config(BaseModel):
                 **model.model_dump(exclude={"model_name"}),
             )
             for provider in self.provider_list
-            if not only_available or not provider.is_api_key_missing()
+            if include_disabled or not provider.disabled
+            if not only_available or (not provider.disabled and not provider.is_api_key_missing())
             for model in provider.model_list
             if include_disabled or not model.disabled
         ]
@@ -406,7 +429,22 @@ class Config(BaseModel):
         user_config.theme = self.theme
         # Note: provider_list is NOT synced - user providers are already in user_config
 
-        config_dict = user_config.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
+        # Keep the saved file compact (exclude defaults), but preserve explicit
+        # overrides inside provider_list (e.g. `disabled: false` to re-enable a
+        # builtin provider that is disabled by default).
+        config_dict = user_config.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude_defaults=True,
+            exclude={"provider_list"},
+        )
+
+        provider_list = [
+            p.model_dump(mode="json", exclude_none=True, exclude_unset=True)
+            for p in (user_config.provider_list or [])
+        ]
+        if provider_list:
+            config_dict["provider_list"] = provider_list
 
         def _save_config() -> None:
             config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -454,12 +492,12 @@ def _get_builtin_config() -> Config:
 def _merge_model(builtin: ModelConfig, user: ModelConfig) -> ModelConfig:
     """Merge user model config with builtin model config.
 
-    Strategy: user values take precedence if explicitly set (not default).
-    This allows users to override specific fields (e.g., disabled=true)
+    Strategy: user values take precedence if explicitly set (not unset).
+    This allows users to override specific fields (e.g., disabled=true/false)
     without losing other builtin settings (e.g., model_id, max_tokens).
     """
     merged_data = builtin.model_dump()
-    user_data = user.model_dump(exclude_defaults=True, exclude={"model_name"})
+    user_data = user.model_dump(exclude_unset=True, exclude={"model_name"})
     for key, value in user_data.items():
         if value is not None:
             merged_data[key] = value
@@ -485,10 +523,9 @@ def _merge_provider(builtin: ProviderConfig, user: UserProviderConfig) -> Provid
             # New model from user
             merged_models[m.model_name] = m
 
-    # For other fields, use user values if explicitly set, otherwise use builtin
-    # We check if user explicitly provided a value by comparing to defaults
+    # For other fields, use user values if explicitly set, otherwise use builtin.
     merged_data = builtin.model_dump()
-    user_data = user.model_dump(exclude_defaults=True, exclude={"model_list"})
+    user_data = user.model_dump(exclude_unset=True, exclude={"model_list"})
 
     # Update with user's explicit settings
     for key, value in user_data.items():

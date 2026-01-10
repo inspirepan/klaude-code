@@ -159,6 +159,32 @@ class TestConfig:
         assert llm_config.protocol == llm_param.LLMClientProtocol.OPENAI
         assert llm_config.api_key == "test-api-key"
 
+    def test_provider_disabled_excluded_from_available_models(self, sample_model_config: ModelConfig) -> None:
+        provider = ProviderConfig(
+            provider_name="test-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+            disabled=True,
+            model_list=[sample_model_config],
+        )
+        config = Config(provider_list=[provider], main_model=sample_model_config.model_name)
+
+        assert config.iter_model_entries(only_available=True, include_disabled=False) == []
+        assert len(config.iter_model_entries(only_available=False, include_disabled=True)) == 1
+
+    def test_get_model_config_rejects_disabled_provider_when_explicit(self, sample_model_config: ModelConfig) -> None:
+        provider = ProviderConfig(
+            provider_name="p",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+            disabled=True,
+            model_list=[sample_model_config],
+        )
+        config = Config(provider_list=[provider], main_model=sample_model_config.model_name)
+
+        with pytest.raises(ValueError, match=r"Provider 'p' is disabled"):
+            _ = config.get_model_config(f"{sample_model_config.model_name}@p")
+
     def test_get_model_config_codex_without_api_key(self) -> None:
         """Codex protocol should not require api_key to resolve model config."""
         provider = ProviderConfig(
@@ -1059,6 +1085,40 @@ class TestOutOfBoxExperience:
         model_names = [m.model_name for m in anthropic_provider.model_list]
         assert "sonnet" in model_names
         assert "opus" in model_names
+
+    def test_user_provider_disabled_overrides_builtin_disabled(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        builtin_provider = ProviderConfig(
+            provider_name="builtin",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="sk-builtin",
+            disabled=True,
+            model_list=[ModelConfig(model_name="m")],
+        )
+        builtin_config = Config(provider_list=[builtin_provider])
+
+        user_config = UserConfig.model_validate(
+            {
+                "provider_list": [
+                    {
+                        "provider_name": "builtin",
+                        "disabled": False,
+                    }
+                ]
+            }
+        )
+
+        merged = _config_module._merge_configs(user_config, builtin_config)
+        provider = next(p for p in merged.provider_list if p.provider_name == "builtin")
+        assert provider.disabled is False
+
+        # Ensure the explicit override can be persisted when Config.save() is used.
+        test_config_path = tmp_path / "test-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        merged.main_model = "m"
+        asyncio.run(merged.save())
+        saved_content = yaml.safe_load(test_config_path.read_text())
+        assert saved_content["provider_list"][0]["provider_name"] == "builtin"
+        assert saved_content["provider_list"][0]["disabled"] is False
 
     def test_user_config_adds_new_provider(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """User config with new provider should be added to builtin providers."""

@@ -3,7 +3,7 @@
 Minimal code agent CLI.
 
 ## Features
-- **Multi-provider**: Anthropic Message API, OpenAI Responses API, OpenRouter, Claude Max OAuth and ChatGPT Codex OAuth etc.
+- **Multi-provider**: Anthropic Message API, OpenAI Responses API, OpenRouter, ChatGPT Codex OAuth etc.
 - **Keep reasoning item in context**: Interleaved thinking support
 - **Model-aware tools**: Claude Code tool set for Opus, `apply_patch` for GPT-5/Codex
 - **Reminders**: Cooldown-based todo tracking, instruction reinforcement and external file change reminder
@@ -87,7 +87,6 @@ On first run, you'll be prompted to select a model. Your choice is saved as `mai
 | Provider    | Env Variable          | Models                                                                        |
 |-------------|-----------------------|-------------------------------------------------------------------------------|
 | anthropic   | `ANTHROPIC_API_KEY`   | sonnet, opus                                                                  |
-| claude      | N/A (OAuth)           | sonnet@claude, opus@claude (requires Claude Pro/Max subscription)             |
 | openai      | `OPENAI_API_KEY`      | gpt-5.2                                                                       |
 | openrouter  | `OPENROUTER_API_KEY`  | gpt-5.2, gpt-5.2-fast, gpt-5.1-codex-max, sonnet, opus, haiku, kimi, gemini-* |
 | deepseek    | `DEEPSEEK_API_KEY`    | deepseek                                                                      |
@@ -119,7 +118,6 @@ klaude auth login deepseek    # Set DEEPSEEK_API_KEY
 klaude auth login moonshot    # Set MOONSHOT_API_KEY
 
 # OAuth login for subscription-based providers
-klaude auth login claude      # Claude Pro/Max subscription
 klaude auth login codex       # ChatGPT Pro subscription
 ```
 
@@ -128,7 +126,6 @@ API keys are stored in `~/.klaude/klaude-auth.json` and used as fallback when en
 To logout from OAuth providers:
 
 ```bash
-klaude auth logout claude
 klaude auth logout codex
 ```
 
@@ -181,7 +178,6 @@ provider_list:
 ##### Supported Protocols
 
 - `anthropic` - Anthropic Messages API
-- `claude_oauth` - Claude OAuth (for Claude Pro/Max subscribers)
 - `openai` - OpenAI Chat Completion API
 - `responses` - OpenAI Responses API (for o-series, GPT-5, Codex)
 - `codex_oauth` - OpenAI Codex CLI (OAuth-based, for ChatGPT Pro subscribers)

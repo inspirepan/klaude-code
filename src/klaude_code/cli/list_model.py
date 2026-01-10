@@ -234,10 +234,15 @@ def _get_model_params_display(model: ModelConfig) -> list[Text]:
     return [Text("")]
 
 
-def _build_provider_info_panel(provider: ProviderConfig, available: bool) -> Quote:
+def _build_provider_info_panel(provider: ProviderConfig, available: bool, *, disabled: bool) -> Quote:
     """Build a Quote containing provider name and information using a two-column grid."""
     # Provider name as title
-    if available:
+    if disabled:
+        title = Text.assemble(
+            (provider.provider_name, ThemeKey.CONFIG_PROVIDER),
+            (" (Disabled)", "dim"),
+        )
+    elif available:
         title = Text(provider.provider_name, style=ThemeKey.CONFIG_PROVIDER)
     else:
         title = Text.assemble(
@@ -297,7 +302,8 @@ def _build_models_table(
     config: Config,
 ) -> Table:
     """Build a table for models under a provider."""
-    provider_available = not provider.is_api_key_missing()
+    provider_disabled = provider.disabled
+    provider_available = (not provider_disabled) and (not provider.is_api_key_missing())
 
     def _resolve_selector(value: str | None) -> str | None:
         if not value:
@@ -334,7 +340,15 @@ def _build_models_table(
         is_last = i == model_count - 1
         prefix = " └─ " if is_last else " ├─ "
 
-        if not provider_available:
+        if provider_disabled:
+            name = Text.assemble(
+                (prefix, ThemeKey.LINES),
+                (model.model_name, "dim strike"),
+                (" (provider disabled)", "dim"),
+            )
+            model_id = Text(model.model_id or "", style="dim")
+            params = Text("(disabled)", style="dim")
+        elif not provider_available:
             name = Text.assemble((prefix, ThemeKey.LINES), (model.model_name, "dim"))
             model_id = Text(model.model_id or "", style="dim")
             params = Text("(unavailable)", style="dim")
@@ -408,19 +422,22 @@ def display_models_and_providers(config: Config, *, show_all: bool = False):
     _display_agent_models_table(config, console)
     console.print()
 
-    # Sort providers: available (api_key set) first, unavailable (api_key not set) last
-    sorted_providers = sorted(config.provider_list, key=lambda p: (p.is_api_key_missing(), p.provider_name))
+    # Sort providers: enabled+available first, disabled/unavailable last
+    sorted_providers = sorted(
+        config.provider_list,
+        key=lambda p: (p.disabled, p.is_api_key_missing(), p.provider_name),
+    )
 
-    # Filter out unavailable providers unless show_all is True
+    # Filter out disabled/unavailable providers unless show_all is True
     if not show_all:
-        sorted_providers = [p for p in sorted_providers if not p.is_api_key_missing()]
+        sorted_providers = [p for p in sorted_providers if (not p.disabled) and (not p.is_api_key_missing())]
 
     # Display each provider with its models table
     for provider in sorted_providers:
-        provider_available = not provider.is_api_key_missing()
+        provider_available = (not provider.disabled) and (not provider.is_api_key_missing())
 
         # Provider info panel
-        provider_panel = _build_provider_info_panel(provider, provider_available)
+        provider_panel = _build_provider_info_panel(provider, provider_available, disabled=provider.disabled)
         console.print(provider_panel)
         console.print()
 

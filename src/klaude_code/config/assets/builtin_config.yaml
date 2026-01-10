@@ -277,6 +277,7 @@ provider_list:
 
 - provider_name: claude-max
   protocol: claude_oauth
+  disabled: true
   model_list:
 
   - model_name: sonnet
@@ -329,42 +330,25 @@ provider_list:
     model_id: claude-opus-4-5-thinking
     context_limit: 200000
     max_tokens: 64000
-    thinking:
-      type: enabled
-      budget_tokens: 10240
+
   - model_name: sonnet
     model_id: claude-sonnet-4-5
     context_limit: 200000
     max_tokens: 64000
-  - model_name: sonnet-thinking
-    model_id: claude-sonnet-4-5-thinking
-    context_limit: 200000
-    max_tokens: 64000
-    thinking:
-      type: enabled
-      budget_tokens: 10240
+
   - model_name: gemini-pro-high
     model_id: gemini-3-pro-high
     context_limit: 1048576
     max_tokens: 65535
     thinking:
       reasoning_effort: high
-  - model_name: gemini-pro-low
-    model_id: gemini-3-pro-low
-    context_limit: 1048576
-    max_tokens: 65535
-    thinking:
-      reasoning_effort: low
+
   - model_name: gemini-flash
     model_id: gemini-3-flash
     context_limit: 1048576
     max_tokens: 65535
     thinking:
       reasoning_effort: medium
-  - model_name: gpt-oss
-    model_id: gpt-oss-120b-medium
-    context_limit: 131072
-    max_tokens: 32768
 
 
 compact_model: gemini-flash
