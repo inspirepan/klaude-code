@@ -14,7 +14,6 @@ from rich import box
 from rich._loop import loop_first
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.markdown import CodeBlock, Heading, ImageItem, ListItem, Markdown, MarkdownElement, TableElement
-from rich.rule import Rule
 from rich.segment import Segment
 from rich.style import Style, StyleType
 from rich.syntax import Syntax
@@ -120,7 +119,8 @@ class Divider(MarkdownElement):
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         style = console.get_style("markdown.hr", default="none")
-        yield Rule(style=style, characters="-")
+        width = min(options.max_width, 100)
+        yield Text("-" * width, style=style)
 
 
 class MarkdownTable(TableElement):
