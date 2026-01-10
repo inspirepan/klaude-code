@@ -16,7 +16,6 @@ from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
 from klaude_code.core.reminders import (
     at_file_reader_reminder,
     empty_todo_reminder,
-    file_changed_externally_reminder,
     image_reminder,
     last_path_memory_reminder,
     memory_reminder,
@@ -218,7 +217,6 @@ def load_agent_reminders(
             memory_reminder,
             at_file_reader_reminder,
             last_path_memory_reminder,
-            file_changed_externally_reminder,
             image_reminder,
             skill_reminder,
         ]
