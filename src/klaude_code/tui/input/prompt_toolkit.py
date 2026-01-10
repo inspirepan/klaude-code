@@ -20,6 +20,7 @@ from prompt_toolkit.key_binding import merge_key_bindings
 from prompt_toolkit.layout import Float
 from prompt_toolkit.layout.containers import Container, FloatContainer, Window
 from prompt_toolkit.layout.controls import BufferControl, UIContent
+from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu, MultiColumnCompletionsMenu
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
@@ -61,9 +62,9 @@ COMPLETION_SELECTED_LIGHT_BG = "ansigreen"
 COMPLETION_SELECTED_UNKNOWN_BG = "ansigreen"
 COMPLETION_MENU = "ansibrightblack"
 INPUT_PROMPT_STYLE = "ansimagenta bold"
-PLACEHOLDER_TEXT_STYLE_DARK_BG = "fg:#5a5a5a italic"
-PLACEHOLDER_TEXT_STYLE_LIGHT_BG = "fg:#7a7a7a italic"
-PLACEHOLDER_TEXT_STYLE_UNKNOWN_BG = "fg:#8a8a8a italic"
+PLACEHOLDER_TEXT_STYLE_DARK_BG = "fg:#5a5a5a"
+PLACEHOLDER_TEXT_STYLE_LIGHT_BG = "fg:#7a7a7a"
+PLACEHOLDER_TEXT_STYLE_UNKNOWN_BG = "fg:#8a8a8a"
 PLACEHOLDER_SYMBOL_STYLE_DARK_BG = "bg:#2a2a2a fg:#5a5a5a"
 PLACEHOLDER_SYMBOL_STYLE_LIGHT_BG = "bg:#e6e6e6 fg:#7a7a7a"
 PLACEHOLDER_SYMBOL_STYLE_UNKNOWN_BG = "bg:#2a2a2a fg:#8a8a8a"
@@ -81,6 +82,9 @@ def _left_align_completion_menus(container: Container) -> None:
     cursor (`xcursor=True`). That makes the popup indent as the caret moves.
     We walk the layout tree and rewrite the Float positioning for completion menus
     to keep them fixed at the left edge.
+
+    Note: We intentionally keep Y positioning (ycursor) unchanged so that the
+    completion menu stays near the cursor/input line.
     """
     if isinstance(container, FloatContainer):
         for flt in container.floats:
@@ -300,6 +304,10 @@ class PromptToolkitInput(InputProviderABC):
             key_bindings=kb,
             completer=ThreadedCompleter(create_repl_completer(command_info_provider=self._command_info_provider)),
             complete_while_typing=True,
+            # Keep the bottom toolbar stable while completion menus open/close.
+            # Reserving space dynamically can make the non-fullscreen prompt
+            # "jump" by printing extra lines.
+            reserve_space_for_menu=0,
             erase_when_done=True,
             mouse_support=False,
             style=Style.from_dict(
@@ -417,41 +425,40 @@ class PromptToolkitInput(InputProviderABC):
 
             original_height = input_window.height
 
+            # Keep a comfortable multiline editing area even when no completion
+            # space is reserved. (We set reserve_space_for_menu=0 to avoid the
+            # bottom toolbar jumping when completions open/close.)
+            base_rows = 10
+
             def _height():  # type: ignore[no-untyped-def]
                 picker_open = (self._model_picker is not None and self._model_picker.is_open) or (
                     self._thinking_picker is not None and self._thinking_picker.is_open
                 )
 
                 try:
-                    complete_state = self._session.default_buffer.complete_state
-                    completion_open = complete_state is not None and bool(complete_state.completions)
-                except Exception:
-                    completion_open = False
-
-                try:
                     original_height_value = original_height() if callable(original_height) else original_height
                 except Exception:
                     original_height_value = None
-                original_height_int = original_height_value if isinstance(original_height_value, int) else None
+                original_min = 0
+                if isinstance(original_height_value, Dimension):
+                    original_min = int(original_height_value.min)
+                elif isinstance(original_height_value, int):
+                    original_min = int(original_height_value)
 
-                if picker_open or completion_open:
-                    target_rows = 24 if picker_open else 14
+                target_rows = 24 if picker_open else base_rows
 
-                    # Cap to the current terminal size.
-                    # Leave a small buffer to avoid triggering "Window too small".
-                    try:
-                        rows = get_app().output.get_size().rows
-                    except Exception:
-                        rows = 0
+                # Cap to the current terminal size.
+                # Leave a small buffer to avoid triggering "Window too small".
+                try:
+                    rows = get_app().output.get_size().rows
+                except Exception:
+                    rows = 0
 
-                    expanded = max(3, min(target_rows, rows - 2))
-                    if original_height_int is not None:
-                        expanded = max(original_height_int, expanded)
-                    return expanded
+                desired = max(original_min, target_rows)
+                if rows > 0:
+                    desired = max(3, min(desired, rows - 2))
 
-                if callable(original_height):
-                    return original_height()
-                return original_height
+                return Dimension(min=desired, preferred=desired)
 
             input_window.height = _height
 
@@ -583,7 +590,7 @@ class PromptToolkitInput(InputProviderABC):
             except (AttributeError, RuntimeError):
                 pass
 
-        # Priority: update_message > debug_log_path
+        # Priority: update_message > debug_log_path > shortcut hints
         display_text: str | None = None
         text_style: str = ""
         if update_message:
@@ -593,31 +600,25 @@ class PromptToolkitInput(InputProviderABC):
             display_text = f"Debug log: {debug_log_path}"
             text_style = "fg:ansibrightblack"
 
-        # If nothing to show, return a blank line to actively clear any previously
-        # rendered content. (When `bottom_toolbar` is a callable, prompt_toolkit
-        # will still reserve the toolbar line.)
-        if not display_text:
+        if display_text:
+            left_text = " " + display_text
             try:
                 terminal_width = shutil.get_terminal_size().columns
+                padding = " " * max(0, terminal_width - len(left_text))
             except (OSError, ValueError):
-                terminal_width = 0
-            return FormattedText([("", " " * max(0, terminal_width))])
+                padding = ""
 
-        left_text = " " + display_text
-        try:
-            terminal_width = shutil.get_terminal_size().columns
-            padding = " " * max(0, terminal_width - len(left_text))
-        except (OSError, ValueError):
-            padding = ""
+            toolbar_text = left_text + padding
+            return FormattedText([(text_style, toolbar_text)])
 
-        toolbar_text = left_text + padding
-        return FormattedText([(text_style, toolbar_text)])
+        # Show shortcut hints when nothing else to display
+        return self._render_shortcut_hints()
 
     # -------------------------------------------------------------------------
-    # Placeholder
+    # Shortcut hints (bottom toolbar)
     # -------------------------------------------------------------------------
 
-    def _render_input_placeholder(self) -> FormattedText:
+    def _render_shortcut_hints(self) -> FormattedText:
         if self._is_light_terminal_background is True:
             text_style = PLACEHOLDER_TEXT_STYLE_LIGHT_BG
             symbol_style = PLACEHOLDER_SYMBOL_STYLE_LIGHT_BG
@@ -630,27 +631,27 @@ class PromptToolkitInput(InputProviderABC):
 
         return FormattedText(
             [
-                (text_style, " " * 10),
+                (text_style, " "),
                 (symbol_style, " @ "),
                 (text_style, " "),
                 (text_style, "files"),
-                (text_style, "  "),
+                (text_style, " • "),
                 (symbol_style, " $ "),
                 (text_style, " "),
                 (text_style, "skills"),
-                (text_style, "  "),
+                (text_style, " • "),
                 (symbol_style, " / "),
                 (text_style, " "),
                 (text_style, "commands"),
-                (text_style, "  "),
+                (text_style, " • "),
                 (symbol_style, " ctrl-l "),
                 (text_style, " "),
                 (text_style, "models"),
-                (text_style, "  "),
+                (text_style, " • "),
                 (symbol_style, " ctrl-t "),
                 (text_style, " "),
                 (text_style, "think"),
-                (text_style, "  "),
+                (text_style, " • "),
                 (symbol_style, " ctrl-v "),
                 (text_style, " "),
                 (text_style, "paste image"),
@@ -679,7 +680,6 @@ class PromptToolkitInput(InputProviderABC):
             # proper styling instead of showing raw escape codes.
             with patch_stdout(raw=True):
                 line: str = await self._session.prompt_async(
-                    placeholder=self._render_input_placeholder(),
                     bottom_toolbar=self._get_bottom_toolbar,
                 )
             if self._post_prompt is not None:
