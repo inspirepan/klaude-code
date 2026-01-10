@@ -36,7 +36,7 @@ provider_list:
     verbosity: high
     thinking:
       reasoning_effort: high
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: {input: 1.75, output: 14, cache_read: 0.17}
 
   - model_name: gpt-5.2-medium
@@ -71,7 +71,7 @@ provider_list:
     context_limit: 400000
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: {input: 1.25, output: 10, cache_read: 0.13}
 
 
@@ -87,7 +87,7 @@ provider_list:
     verbosity: high
     thinking:
       reasoning_effort: high
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: {input: 1.75, output: 14, cache_read: 0.17}
 
   - model_name: gpt-5.2-medium
@@ -319,7 +319,7 @@ provider_list:
     verbosity: high
     thinking:
       reasoning_effort: high
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: {input: 1.75, output: 14, cache_read: 0.17}
 
 
