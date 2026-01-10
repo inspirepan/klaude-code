@@ -5,13 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from klaude_code.protocol import tools
 from klaude_code.protocol.sub_agent import (
     AVAILABILITY_IMAGE_MODEL,
     SubAgentProfile,
     get_sub_agent_profile,
-    get_sub_agent_profile_by_tool,
     iter_sub_agent_profiles,
-    sub_agent_tool_names,
 )
 from klaude_code.protocol.tools import SubAgentType
 
@@ -30,7 +29,7 @@ class SubAgentModelInfo:
     # Effective model name used by this sub-agent.
     # - When configured_model is set: equals configured_model.
     # - When requirement-based default applies (e.g. ImageGen): resolved model.
-    # - When inheriting from main agent: None.
+    # - When inheriting from defaults: resolved model name.
     effective_model: str | None
 
 
@@ -106,10 +105,11 @@ class SubAgentModelHelper:
     ) -> EmptySubAgentModelBehavior:
         """Describe what happens when a sub-agent model is not configured.
 
-        Most sub-agents default to inheriting the main model.
+        Most sub-agents default to the Task model if configured, otherwise
+        they inherit the main model.
 
         Sub-agents with an availability requirement (e.g. ImageGen) do NOT
-        inherit from the main model; instead they auto-resolve a suitable model
+        inherit from Task/main; instead they auto-resolve a suitable model
         (currently: the first available image model).
         """
 
@@ -117,9 +117,11 @@ class SubAgentModelHelper:
 
         requirement = profile.availability_requirement
         if requirement is None:
+            task_model = self._config.sub_agent_models.get(tools.TASK)
+            resolved = task_model or main_model_name
             return EmptySubAgentModelBehavior(
-                description=f"inherit from main agent: {main_model_name}",
-                resolved_model_name=main_model_name,
+                description=f"use default behavior: {resolved}",
+                resolved_model_name=resolved,
             )
 
         resolved = self.resolve_model_for_requirement(requirement)
@@ -154,13 +156,15 @@ class SubAgentModelHelper:
         For sub-agents without explicit config, resolves model based on availability_requirement.
         """
         result: list[SubAgentModelInfo] = []
-        for profile in iter_sub_agent_profiles(enabled_only=True):
+        for profile in iter_sub_agent_profiles():
             if not self.check_availability_requirement(profile.availability_requirement):
                 continue
             configured_model = self._config.sub_agent_models.get(profile.name)
             effective_model = configured_model
             if not effective_model and profile.availability_requirement:
                 effective_model = self.resolve_model_for_requirement(profile.availability_requirement)
+            if not effective_model and profile.availability_requirement is None:
+                effective_model = self._config.sub_agent_models.get(tools.TASK) or self._config.main_model
             result.append(
                 SubAgentModelInfo(
                     profile=profile,
@@ -189,11 +193,9 @@ class SubAgentModelHelper:
 
     def get_enabled_sub_agent_tool_names(self) -> list[str]:
         """Return sub-agent tool names that should be added to main agent's tool list."""
-        result: list[str] = []
-        for name in sub_agent_tool_names(enabled_only=True):
-            profile = get_sub_agent_profile_by_tool(name)
-            if profile is not None and self.check_availability_requirement(profile.availability_requirement):
-                result.append(name)
+        result: list[str] = [tools.TASK]
+        if self.check_availability_requirement(AVAILABILITY_IMAGE_MODEL):
+            result.append(tools.IMAGE_GEN)
         return result
 
     def build_sub_agent_client_configs(self) -> dict[SubAgentType, str]:
@@ -205,4 +207,7 @@ class SubAgentModelHelper:
                 model_name = self.resolve_model_for_requirement(profile.availability_requirement)
             if model_name:
                 result[profile.name] = model_name
+        task_model = self._config.sub_agent_models.get(tools.TASK)
+        if task_model:
+            result.setdefault(tools.TASK, task_model)
         return result

@@ -7,7 +7,7 @@ from .file.write_tool import WriteTool
 from .report_back_tool import ReportBackTool
 from .shell.bash_tool import BashTool
 from .shell.command_safety import SafetyCheckResult, is_safe_command
-from .sub_agent_tool import SubAgentTool
+from .sub_agent import ImageGenTool, TaskTool
 from .todo.todo_write_tool import TodoWriteTool
 from .todo.update_plan_tool import UpdatePlanTool
 from .tool_abc import ToolABC
@@ -23,13 +23,14 @@ __all__ = [
     "DiffError",
     "EditTool",
     "FileTracker",
+    "ImageGenTool",
     "MermaidTool",
     "ReadTool",
     "ReportBackTool",
     "RunSubtask",
     "SafetyCheckResult",
     "SubAgentResumeClaims",
-    "SubAgentTool",
+    "TaskTool",
     "TodoContext",
     "TodoWriteTool",
     "ToolABC",

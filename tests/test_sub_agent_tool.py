@@ -1,5 +1,5 @@
 # pyright: reportPrivateUsage=false
-"""Tests for sub_agent_tool module."""
+"""Tests for Task and ImageGen tools plus sub-agent profile basics."""
 
 from __future__ import annotations
 
@@ -9,8 +9,10 @@ from typing import Any
 import pytest
 
 from klaude_code.core.tool.context import RunSubtask, TodoContext, ToolContext
-from klaude_code.core.tool.sub_agent_tool import SubAgentTool
-from klaude_code.protocol.sub_agent import SubAgentProfile
+from klaude_code.core.tool.sub_agent.image_gen import ImageGenTool
+from klaude_code.core.tool.sub_agent.task import TaskTool
+from klaude_code.protocol import tools
+from klaude_code.protocol.sub_agent import SubAgentProfile, _default_prompt_builder
 
 
 def arun(coro: Any) -> Any:
@@ -23,260 +25,126 @@ def _tool_context(*, run_subtask: RunSubtask | None = None) -> ToolContext:
     return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", run_subtask=run_subtask)
 
 
-class TestSubAgentToolForProfile:
-    """Test SubAgentTool.for_profile class method."""
+def test_task_tool_schema() -> None:
+    schema = TaskTool.schema()
 
-    def test_creates_tool_class(self):
-        """Test creating a tool class from profile."""
-        profile = SubAgentProfile(
-            name="TestAgent",
-            description="A test agent",
-            parameters={"type": "object", "properties": {}},
-        )
-        tool_class = SubAgentTool.for_profile(profile)
-
-        assert tool_class.__name__ == "TestAgentTool"
-        assert issubclass(tool_class, SubAgentTool)
-        assert tool_class._profile is profile
-
-    def test_created_class_has_correct_schema(self):
-        """Test that created class returns correct schema."""
-        profile = SubAgentProfile(
-            name="CustomAgent",
-            description="Custom agent description",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "prompt": {"type": "string"},
-                },
-                "required": ["prompt"],
-            },
-        )
-        tool_class = SubAgentTool.for_profile(profile)
-        schema = tool_class.schema()
-
-        assert schema.name == "CustomAgent"
-        assert schema.description == "Custom agent description"
-        assert schema.parameters["properties"]["prompt"]["type"] == "string"
-
-    def test_multiple_profiles_create_distinct_classes(self):
-        """Test that different profiles create distinct tool classes."""
-        profile1 = SubAgentProfile(name="Agent1", description="First agent", parameters={})
-        profile2 = SubAgentProfile(name="Agent2", description="Second agent", parameters={})
-
-        class1 = SubAgentTool.for_profile(profile1)
-        class2 = SubAgentTool.for_profile(profile2)
-
-        assert class1 is not class2
-        assert class1._profile is not class2._profile
-        assert class1.schema().name == "Agent1"
-        assert class2.schema().name == "Agent2"
+    assert schema.name == tools.TASK
+    assert schema.type == "function"
+    assert "description" in schema.parameters["required"]
+    assert "prompt" in schema.parameters["required"]
+    assert "type" in schema.parameters["properties"]
+    assert "general-purpose" in schema.parameters["properties"]["type"]["enum"]
 
 
-class TestSubAgentToolSchema:
-    """Test SubAgentTool.schema method."""
+def test_image_gen_tool_schema() -> None:
+    schema = ImageGenTool.schema()
 
-    def test_schema_returns_tool_schema(self):
-        """Test schema method returns proper ToolSchema."""
-        profile = SubAgentProfile(
-            name="SchemaTest",
-            description="Test description",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "input": {"type": "string", "description": "Input text"},
-                },
-                "required": ["input"],
-            },
-        )
-        tool_class = SubAgentTool.for_profile(profile)
-        schema = tool_class.schema()
-
-        assert schema.type == "function"
-        assert schema.name == "SchemaTest"
-        assert schema.description == "Test description"
-        assert "input" in schema.parameters["properties"]
+    assert schema.name == tools.IMAGE_GEN
+    assert schema.type == "function"
+    assert "prompt" in schema.parameters["required"]
 
 
-class TestSubAgentToolCall:
-    """Test SubAgentTool.call method."""
+def test_task_tool_call_invalid_json() -> None:
+    result = arun(TaskTool.call("not valid json", _tool_context()))
 
-    def test_call_with_invalid_json(self):
-        """Test call with invalid JSON arguments."""
-        profile = SubAgentProfile(
-            name="TestAgent",
-            description="Test",
-            parameters={},
-        )
-        tool_class = SubAgentTool.for_profile(profile)
-        result = arun(tool_class.call("not valid json", _tool_context()))
+    assert result.status == "error"
+    assert result.output_text is not None and "Invalid JSON" in result.output_text
 
-        assert result.status == "error"
-        assert result.output_text is not None and "Invalid JSON" in result.output_text
 
-    def test_call_without_runner(self):
-        """Test call when no subtask runner is available."""
-        profile = SubAgentProfile(
-            name="TestAgent",
-            description="Test",
-            parameters={},
-        )
-        tool_class = SubAgentTool.for_profile(profile)
-        result = arun(tool_class.call('{"prompt": "test"}', _tool_context()))
+def test_task_tool_call_without_runner() -> None:
+    result = arun(TaskTool.call('{"description":"d","prompt":"p"}', _tool_context()))
 
-        assert result.status == "error"
-        assert result.output_text is not None and "No subtask runner" in result.output_text
+    assert result.status == "error"
+    assert result.output_text is not None and "No subtask runner" in result.output_text
 
-    def test_call_returns_session_id_in_ui_extra(self):
-        """Tool result should include session_id in ui_extra when session_id is present."""
 
-        async def _runner(state: Any, record_session_id: Any, register_metadata_getter: Any) -> Any:
-            if callable(record_session_id):
-                record_session_id("abc123def456")
+def test_task_tool_call_includes_session_id() -> None:
+    captured: dict[str, Any] = {}
 
-            class _Result:
-                task_result = "hello"
-                session_id = "abc123def456"
-                error = False
-                task_metadata = None
+    async def _runner(state: Any, record_session_id: Any, register_metadata_getter: Any) -> Any:
+        captured["sub_agent_type"] = state.sub_agent_type
+        if callable(record_session_id):
+            record_session_id("abc123def456")
 
-            return _Result()
+        class _Result:
+            task_result = "hello"
+            session_id = "abc123def456"
+            error = False
+            task_metadata = None
 
-        profile = SubAgentProfile(
-            name="TestAgent",
-            description="Test",
-            parameters={"type": "object", "properties": {"prompt": {"type": "string"}}},
-        )
-        tool_class = SubAgentTool.for_profile(profile)
-        result = arun(tool_class.call('{"prompt": "test"}', _tool_context(run_subtask=_runner)))
+        return _Result()
 
-        assert result.status == "success"
-        assert result.output_text == "hello"
-        assert result.ui_extra is not None
-        assert result.ui_extra.session_id == "abc123def456"
+    args = '{"type":"explore","description":"d","prompt":"p"}'
+    result = arun(TaskTool.call(args, _tool_context(run_subtask=_runner)))
+
+    assert captured["sub_agent_type"] == "Explore"
+    assert result.status == "success"
+    assert result.output_text == "hello"
+    assert result.ui_extra is not None
+    assert result.ui_extra.session_id == "abc123def456"
 
 
 class TestSubAgentProfile:
-    """Test SubAgentProfile dataclass."""
+    def test_default_values(self) -> None:
+        profile = SubAgentProfile(name="Minimal")
 
-    def test_default_values(self):
-        """Test profile default values."""
-        profile = SubAgentProfile(
-            name="Minimal",
-            description="Minimal profile",
-        )
-
-        assert profile.parameters == {}
+        assert profile.prompt_file == ""
         assert profile.tool_set == ()
         assert profile.active_form == ""
-        assert profile.enabled_by_default is True
-        assert profile.show_in_main_agent is True
+        assert profile.invoker_type is None
+        assert profile.invoker_summary == ""
+        assert profile.standalone_tool is False
+        assert profile.availability_requirement is None
 
-    def test_full_profile_creation(self):
-        """Test creating profile with all fields."""
-        profile = SubAgentProfile(
-            name="FullAgent",
-            description="Full agent with all options",
-            parameters={
-                "type": "object",
-                "properties": {"prompt": {"type": "string"}},
-            },
-            tool_set=("Read", "Bash", "Edit"),
-            active_form="Working",
-            enabled_by_default=True,
-            show_in_main_agent=True,
-        )
-
-        assert profile.name == "FullAgent"
-        assert profile.tool_set == ("Read", "Bash", "Edit")
-        assert profile.active_form == "Working"
-
-
-class TestPromptBuilder:
-    """Test prompt builder functionality."""
-
-    def test_default_prompt_builder(self):
-        """Test default prompt builder returns prompt field."""
-        from klaude_code.protocol.sub_agent import _default_prompt_builder
-
-        result = _default_prompt_builder({"prompt": "Hello world"})
-        assert result == "Hello world"
-
-    def test_default_prompt_builder_missing_prompt(self):
-        """Test default prompt builder with missing prompt."""
-        from klaude_code.protocol.sub_agent import _default_prompt_builder
-
-        result = _default_prompt_builder({})
-        assert result == ""
-
-    def test_custom_prompt_builder(self):
-        """Test custom prompt builder in profile."""
-
+    def test_custom_prompt_builder(self) -> None:
         def custom_builder(args: dict[str, Any]) -> str:
             task = args.get("task", "")
             context = args.get("context", "")
             return f"Task: {task}\nContext: {context}"
 
-        profile = SubAgentProfile(
-            name="CustomBuilder",
-            description="Agent with custom builder",
-            prompt_builder=custom_builder,
-        )
-
+        profile = SubAgentProfile(name="CustomBuilder", prompt_builder=custom_builder)
         result = profile.prompt_builder({"task": "Do something", "context": "Important"})
+
         assert "Task: Do something" in result
         assert "Context: Important" in result
 
 
-class TestSubAgentRegistration:
-    """Test sub-agent registration functions."""
+class TestPromptBuilder:
+    def test_default_prompt_builder(self) -> None:
+        result = _default_prompt_builder({"prompt": "Hello world"})
+        assert result == "Hello world"
 
-    def test_is_sub_agent_tool(self):
-        """Test is_sub_agent_tool function."""
+    def test_default_prompt_builder_missing_prompt(self) -> None:
+        result = _default_prompt_builder({})
+        assert result == ""
+
+
+class TestSubAgentRegistration:
+    def test_is_sub_agent_tool(self) -> None:
         from klaude_code.protocol.sub_agent import is_sub_agent_tool
 
-        # These are registered in sub_agent.py module
-        assert is_sub_agent_tool("Task") is True
-        assert is_sub_agent_tool("Explore") is True
-        assert is_sub_agent_tool("NotAnAgent") is False
+        assert is_sub_agent_tool(tools.TASK) is True
+        assert is_sub_agent_tool(tools.IMAGE_GEN) is True
+        assert is_sub_agent_tool("Explore") is False
 
-    def test_get_sub_agent_profile(self):
-        """Test get_sub_agent_profile function."""
+    def test_get_sub_agent_profile(self) -> None:
         from klaude_code.protocol.sub_agent import get_sub_agent_profile
 
         profile = get_sub_agent_profile("Task")
         assert profile.name == "Task"
-        assert "Task" in profile.active_form or profile.active_form == "Tasking"
+        assert profile.active_form == "Tasking"
 
-    def test_get_sub_agent_profile_not_found(self):
-        """Test get_sub_agent_profile raises for unknown type."""
+    def test_get_sub_agent_profile_not_found(self) -> None:
         from klaude_code.protocol.sub_agent import get_sub_agent_profile
 
         with pytest.raises(KeyError) as exc_info:
             get_sub_agent_profile("NonExistent")
         assert "Unknown sub agent type" in str(exc_info.value)
 
-    def test_iter_sub_agent_profiles(self):
-        """Test iter_sub_agent_profiles function."""
+    def test_iter_sub_agent_profiles(self) -> None:
         from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 
         profiles = iter_sub_agent_profiles()
         assert len(profiles) > 0
-        names = [p.name for p in profiles]
-        assert "Task" in names
-
-    def test_iter_sub_agent_profiles_enabled_only(self):
-        """Test iter_sub_agent_profiles with enabled_only filter."""
-        from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
-
-        # All default profiles should be enabled
-        enabled = iter_sub_agent_profiles(enabled_only=True)
-        assert len(enabled) > 0
-
-    def test_sub_agent_tool_names(self):
-        """Test sub_agent_tool_names function."""
-        from klaude_code.protocol.sub_agent import sub_agent_tool_names
-
-        names = sub_agent_tool_names()
-        assert "Task" in names
-        assert "Explore" in names
+        names = {p.name for p in profiles}
+        assert {"Task", "Explore", "Web", "ImageGen"}.issubset(names)

@@ -49,7 +49,7 @@ from klaude_code.tui.commands import (
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.thinking import extract_last_bold_header, normalize_thinking_content
-from klaude_code.tui.components.tools import get_tool_active_form, is_sub_agent_tool
+from klaude_code.tui.components.tools import get_task_active_form, get_tool_active_form, is_sub_agent_tool
 
 # Tools that complete quickly and don't benefit from streaming activity display.
 # For models without fine-grained tool JSON streaming (e.g., Gemini), showing these
@@ -317,7 +317,7 @@ class _SessionState:
 
     @property
     def should_show_sub_agent_thinking_header(self) -> bool:
-        return bool(self.sub_agent_state and self.sub_agent_state.sub_agent_type == "ImageGen")
+        return bool(self.sub_agent_state and self.sub_agent_state.sub_agent_type == tools.IMAGE_GEN)
 
     @property
     def should_extract_reasoning_header(self) -> bool:
@@ -603,11 +603,14 @@ class DisplayStateMachine:
                 # Skip activity state for fast tools on non-streaming models (e.g., Gemini)
                 # to avoid flash-and-disappear effect
                 if not is_replay and not s.should_skip_tool_activity(e.tool_name):
-                    tool_active_form = get_tool_active_form(e.tool_name)
-                    if is_sub_agent_tool(e.tool_name):
-                        self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
+                    if e.tool_name == tools.TASK:
+                        pass
                     else:
-                        self._spinner.add_tool_call(tool_active_form)
+                        tool_active_form = get_tool_active_form(e.tool_name)
+                        if is_sub_agent_tool(e.tool_name):
+                            self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
+                        else:
+                            self._spinner.add_tool_call(tool_active_form)
 
                 if not is_replay:
                     cmds.extend(self._spinner_update_commands())
@@ -625,12 +628,17 @@ class DisplayStateMachine:
                         primary.thinking_stream_active = False
                         cmds.append(EndThinkingStream(session_id=primary.session_id))
 
+                if not is_replay and e.tool_name == tools.TASK and not s.should_skip_tool_activity(e.tool_name):
+                    tool_active_form = get_task_active_form(e.arguments)
+                    self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
+                    cmds.extend(self._spinner_update_commands())
+
                 cmds.append(RenderToolCall(e))
                 return cmds
 
             case events.ToolResultEvent() as e:
                 if not is_replay and is_sub_agent_tool(e.tool_name):
-                    self._spinner.finish_sub_agent_tool_call(e.tool_call_id, get_tool_active_form(e.tool_name))
+                    self._spinner.finish_sub_agent_tool_call(e.tool_call_id)
                     cmds.extend(self._spinner_update_commands())
 
                 if s.is_sub_agent and not e.is_error:

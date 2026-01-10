@@ -10,6 +10,8 @@ MERMAID = "Mermaid"
 WEB_FETCH = "WebFetch"
 WEB_SEARCH = "WebSearch"
 REPORT_BACK = "report_back"
+TASK = "Task"
+IMAGE_GEN = "ImageGen"
 
 # SubAgentType is just a string alias now; agent types are defined via SubAgentProfile
 SubAgentType = str

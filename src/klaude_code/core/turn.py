@@ -243,7 +243,7 @@ class TurnExecutor:
         )
 
         # ImageGen per-call overrides (tool-level `generation` parameters)
-        if ctx.sub_agent_state is not None and ctx.sub_agent_state.sub_agent_type == "ImageGen":
+        if ctx.sub_agent_state is not None and ctx.sub_agent_state.sub_agent_type == tools.IMAGE_GEN:
             call_param.modalities = ["image", "text"]
             generation = ctx.sub_agent_state.generation or {}
             image_config = llm_param.ImageConfig()

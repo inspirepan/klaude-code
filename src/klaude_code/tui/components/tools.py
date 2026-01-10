@@ -48,6 +48,33 @@ def is_sub_agent_tool(tool_name: str) -> bool:
     return _is_sub_agent_tool(tool_name)
 
 
+def get_task_active_form(arguments: str) -> str:
+    """Return active form text for Task tool based on its arguments."""
+    import json
+
+    try:
+        parsed = json.loads(arguments)
+    except json.JSONDecodeError:
+        return "Tasking"
+
+    if not isinstance(parsed, dict):
+        return "Tasking"
+
+    args = cast(dict[str, Any], parsed)
+
+    type_raw = args.get("type")
+    if not isinstance(type_raw, str):
+        return "Tasking"
+
+    match type_raw.strip():
+        case "explore":
+            return "Exploring"
+        case "web":
+            return "Surfing"
+        case _:
+            return "Tasking"
+
+
 def render_path(path: str, style: str, is_directory: bool = False) -> Text:
     if path.startswith(str(Path().cwd())):
         path = path.replace(str(Path().cwd()), "").lstrip("/")
@@ -299,21 +326,22 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
             elif line.startswith("*** Delete File:"):
                 delete_files.append(line[len("*** Delete File:") :].strip())
 
-        parts: list[str] = []
+        details = Text("", ThemeKey.TOOL_PARAM)
         if update_files:
-            parts.append(f"Edit × {len(update_files)}")
+            details.append(f"Edit × {len(update_files)}")
         if add_files:
+            if details.plain:
+                details.append(", ")
             # For single .md file addition, show filename in parentheses
             if len(add_files) == 1 and add_files[0].endswith(".md"):
-                file_name = Path(add_files[0]).name
-                parts.append(f"Create ({file_name})")
+                details.append("Create ")
+                details.append_text(render_path(add_files[0], ThemeKey.TOOL_PARAM_FILE_PATH))
             else:
-                parts.append(f"Create × {len(add_files)}")
+                details.append(f"Create × {len(add_files)}")
         if delete_files:
-            parts.append(f"Delete × {len(delete_files)}")
-
-        if parts:
-            details = Text(", ".join(parts), ThemeKey.TOOL_PARAM)
+            if details.plain:
+                details.append(", ")
+            details.append(f"Delete × {len(delete_files)}")
     else:
         details = Text(
             str(patch_content)[:INVALID_TOOL_CALL_MAX_LENGTH],
@@ -516,6 +544,7 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.WEB_FETCH: "Fetching Web",
     tools.WEB_SEARCH: "Searching Web",
     tools.REPORT_BACK: "Reporting",
+    tools.IMAGE_GEN: "Generating Image",
 }
 
 
@@ -526,13 +555,6 @@ def get_tool_active_form(tool_name: str) -> str:
     """
     if tool_name in _TOOL_ACTIVE_FORM:
         return _TOOL_ACTIVE_FORM[tool_name]
-
-    # Check sub agent profiles
-    from klaude_code.protocol.sub_agent import get_sub_agent_profile_by_tool
-
-    profile = get_sub_agent_profile_by_tool(tool_name)
-    if profile and profile.active_form:
-        return profile.active_form
 
     return f"Calling {tool_name}"
 

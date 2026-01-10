@@ -10,8 +10,8 @@ from klaude_code.core.tool import ToolABC
 from klaude_code.core.tool.context import TodoContext, ToolContext
 from klaude_code.core.tool.tool_abc import ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_runner import ToolCallRequest, ToolExecutor
-from klaude_code.protocol import llm_param, message
-from klaude_code.protocol.sub_agent import sub_agent_tool_names
+from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.sub_agent import is_sub_agent_tool
 
 
 def _tool_context() -> ToolContext:
@@ -20,8 +20,9 @@ def _tool_context() -> ToolContext:
 
 
 def test_sub_agent_tool_visibility() -> None:
-    tools = set(sub_agent_tool_names(enabled_only=True))
-    assert {"Task", "Explore", "WebAgent"}.issubset(tools)
+    assert is_sub_agent_tool(tools.TASK) is True
+    assert is_sub_agent_tool(tools.IMAGE_GEN) is True
+    assert is_sub_agent_tool("Explore") is False
 
 
 def test_main_agent_tools_include_registered_sub_agents() -> None:
@@ -29,12 +30,16 @@ def test_main_agent_tools_include_registered_sub_agents() -> None:
     gpt5_tool_names = {schema.name for schema in load_agent_tools("gpt-5")}
     claude_tool_names = {schema.name for schema in load_agent_tools("claude-3")}
 
-    assert "Task" in gpt5_tool_names
-    assert "Explore" in gpt5_tool_names
-    assert "WebAgent" in gpt5_tool_names
+    assert tools.TASK in gpt5_tool_names
+    assert tools.IMAGE_GEN in gpt5_tool_names
+    assert "Explore" not in gpt5_tool_names
+    assert "Web" not in gpt5_tool_names
     assert "Oracle" not in gpt5_tool_names
 
-    assert {"Task", "Explore", "WebAgent"}.issubset(claude_tool_names)
+    assert tools.TASK in claude_tool_names
+    assert tools.IMAGE_GEN in claude_tool_names
+    assert "Explore" not in claude_tool_names
+    assert "Web" not in claude_tool_names
     assert "Oracle" not in claude_tool_names
 
 
@@ -51,7 +56,7 @@ class _SlowSubAgentTool(ToolABC):
     def schema(cls) -> llm_param.ToolSchema:
         # Schema is not used in this test; return a minimal valid schema.
         return llm_param.ToolSchema(
-            name="Explore",
+            name=tools.TASK,
             type="function",
             description="Slow sub-agent tool for cancellation tests",
             parameters={"type": "object", "properties": {}},

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from klaude_code.protocol import tools
@@ -38,31 +38,21 @@ class SubAgentProfile:
     3. Build the prompt for the sub agent
     """
 
-    # Identity - single name used for type, tool_name, config_key, and prompt_key
-    name: str  # e.g., "Task", "Explore", "WebAgent"
+    # Identity - single name used for type, config_key, and prompt_key
+    name: str  # e.g., "Task", "Explore", "Web", "ImageGen"
 
-    # Tool schema
-    description: str  # Tool description shown to the main agent
-    parameters: dict[str, Any] = field(
-        default_factory=lambda: dict[str, Any](), hash=False
-    )  # JSON Schema for tool parameters
-
-    # System prompt
+    # Sub-agent run configuration
     prompt_file: str = ""  # Resource file path relative to core package (e.g., "prompts/prompt-sub-agent.md")
-
-    # Sub agent configuration
     tool_set: tuple[str, ...] = ()  # Tools available to this sub agent
     prompt_builder: PromptBuilder = _default_prompt_builder  # Builds the sub agent prompt from tool arguments
 
+    # Entry-point metadata for Task tool (RunSubAgent)
+    invoker_type: str | None = None  # Tool-level type mapping (e.g., "general-purpose", "explore", "web")
+    invoker_summary: str = ""  # Short description shown under Task tool supported types
+    standalone_tool: bool = False  # True for sub-agents invoked by dedicated tools (e.g., ImageGen)
+
     # UI display
     active_form: str = ""  # Active form for spinner status (e.g., "Tasking", "Exploring")
-
-    # Availability
-    enabled_by_default: bool = True
-    show_in_main_agent: bool = True
-
-    # Structured output support: specifies which parameter in the tool schema contains the output schema
-    output_schema_arg: str | None = None
 
     # Config-based availability requirement (e.g., "image_model" means requires an image model)
     # The actual check is performed in the core layer to avoid circular imports.
@@ -85,25 +75,14 @@ def get_sub_agent_profile(sub_agent_type: tools.SubAgentType) -> SubAgentProfile
         raise KeyError(f"Unknown sub agent type: {sub_agent_type}") from exc
 
 
-def iter_sub_agent_profiles(enabled_only: bool = False) -> list[SubAgentProfile]:
-    profiles = list(_PROFILES.values())
-    if not enabled_only:
-        return profiles
-    return [p for p in profiles if p.enabled_by_default]
-
-
-def get_sub_agent_profile_by_tool(tool_name: str) -> SubAgentProfile | None:
-    return _PROFILES.get(tool_name)
+def iter_sub_agent_profiles() -> list[SubAgentProfile]:
+    return list(_PROFILES.values())
 
 
 def is_sub_agent_tool(tool_name: str) -> bool:
-    return tool_name in _PROFILES
+    from klaude_code.protocol import tools
 
-
-def sub_agent_tool_names(enabled_only: bool = False) -> list[str]:
-    return [
-        profile.name for profile in iter_sub_agent_profiles(enabled_only=enabled_only) if profile.show_in_main_agent
-    ]
+    return tool_name in {tools.TASK, tools.IMAGE_GEN}
 
 
 # Import sub-agent modules to trigger registration

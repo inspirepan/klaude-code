@@ -27,7 +27,7 @@ from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_registry import get_tool_schemas
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import llm_param, message, tools
-from klaude_code.protocol.sub_agent import get_sub_agent_profile
+from klaude_code.protocol.sub_agent import AVAILABILITY_IMAGE_MODEL, get_sub_agent_profile
 from klaude_code.session import Session
 
 type Reminder = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
@@ -63,20 +63,6 @@ STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT = """\
 You have a `report_back` tool available. When you complete the task,\
 you MUST call `report_back` with the structured result matching the required schema.\
 Only the content passed to `report_back` will be returned to user.\
-"""
-
-
-SUB_AGENT_COMMON_PROMPT_FOR_MAIN_AGENT = """\
-
-# Sub-agent capabilities
-You have sub-agents (e.g. Task, Explore, WebAgent, ImageGen) with structured output and resume capabilites:
-- Agents can be provided with an `output_format` (JSON Schema) parameter for structured output
--   Example: `output_format={"type": "object", "properties": {"files": {"type": "array", "items": {"type": "string"}, "description": "List of file paths that match the search criteria, e.g. ['src/main.py', 'src/utils/helper.py']"}}, "required": ["files"]}`
-- Agents can be resumed using the `resume` parameter by passing the agent ID from a previous invocation. \
-When resumed, the agent continues with its full previous context preserved. \
-When NOT resuming, each invocation starts fresh and you should provide a detailed task description with all necessary context.
-- When the agent is done, it will return a single message back to you along with its agent ID. \
-You can use this ID to resume the agent later if needed for follow-up work.
 """
 
 
@@ -137,19 +123,6 @@ def _build_env_info(model_name: str) -> str:
     return "\n".join(env_lines)
 
 
-def _has_sub_agents(config: Config | None) -> bool:
-    """Check if there are any sub-agent tools available for the main agent."""
-    if config is not None:
-        from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
-
-        helper = SubAgentModelHelper(config)
-        return bool(helper.get_enabled_sub_agent_tool_names())
-
-    from klaude_code.protocol.sub_agent import sub_agent_tool_names
-
-    return bool(sub_agent_tool_names(enabled_only=True))
-
-
 def load_system_prompt(
     model_name: str,
     protocol: llm_param.LLMClientProtocol,
@@ -175,18 +148,13 @@ def load_system_prompt(
         base_prompt = _load_prompt_by_model(model_name)
 
     skills_prompt = ""
-    sub_agent_prompt = ""
     if sub_agent_type is None:
         # Skills are progressive-disclosure: keep only metadata in the system prompt.
         from klaude_code.skill.manager import format_available_skills_for_system_prompt
 
         skills_prompt = format_available_skills_for_system_prompt()
 
-        # Add sub-agent resume instructions if there are sub-agent tools available.
-        if _has_sub_agents(config):
-            sub_agent_prompt = "\n" + SUB_AGENT_COMMON_PROMPT_FOR_MAIN_AGENT
-
-    return base_prompt + _build_env_info(model_name) + skills_prompt + sub_agent_prompt
+    return base_prompt + _build_env_info(model_name) + skills_prompt
 
 
 def load_agent_tools(
@@ -214,13 +182,13 @@ def load_agent_tools(
     else:
         tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE]
 
+    tool_names.append(tools.TASK)
     if config is not None:
         helper = SubAgentModelHelper(config)
-        tool_names.extend(helper.get_enabled_sub_agent_tool_names())
+        if helper.check_availability_requirement(AVAILABILITY_IMAGE_MODEL):
+            tool_names.append(tools.IMAGE_GEN)
     else:
-        from klaude_code.protocol.sub_agent import sub_agent_tool_names
-
-        tool_names.extend(sub_agent_tool_names(enabled_only=True))
+        tool_names.append(tools.IMAGE_GEN)
 
     tool_names.extend([tools.MERMAID])
     # tool_names.extend([tools.MEMORY])

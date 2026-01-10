@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 
 from klaude_code.llm.client import LLMClientABC
+from klaude_code.protocol import tools
 from klaude_code.protocol.tools import SubAgentType
 
 
@@ -26,7 +27,14 @@ class LLMClients:
 
         if sub_agent_type is None:
             return self.main
-        return self.sub_clients.get(sub_agent_type) or self.main
+        client = self.sub_clients.get(sub_agent_type)
+        if client is not None:
+            return client
+        if sub_agent_type != tools.TASK:
+            fallback = self.sub_clients.get(tools.TASK)
+            if fallback is not None:
+                return fallback
+        return self.main
 
     def get_compact_client(self) -> LLMClientABC:
         """Return compact client if configured, otherwise main client."""

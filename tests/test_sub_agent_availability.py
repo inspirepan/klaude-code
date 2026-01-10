@@ -294,7 +294,7 @@ class TestLoadAgentToolsWithAvailability:
         assert "ImageGen" not in tool_names
 
     def test_other_subagents_not_affected_by_image_availability(self) -> None:
-        """Task, Explore, WebAgent should be included regardless of image model availability."""
+        """Task should be included regardless of image model availability."""
         provider = ProviderConfig(
             provider_name="test",
             protocol=llm_param.LLMClientProtocol.OPENAI,
@@ -312,8 +312,8 @@ class TestLoadAgentToolsWithAvailability:
         tool_names = [t.name for t in tools]
 
         assert "Task" in tool_names
-        assert "Explore" in tool_names
-        assert "WebAgent" in tool_names
+        assert "Explore" not in tool_names
+        assert "Web" not in tool_names
 
     def test_imagegen_excluded_when_no_config_provided(self) -> None:
         """When config is None, ImageGen should still be included (backward compatibility)."""
@@ -328,12 +328,12 @@ class TestLoadAgentToolsWithAvailability:
 class TestEmptyModelConfigBehavior:
     """Tests for user-facing behavior of an unset sub-agent model config."""
 
-    def test_task_defaults_to_inheriting_main_model(self) -> None:
+    def test_task_defaults_to_main_model(self) -> None:
         config = Config(provider_list=[])
         helper = SubAgentModelHelper(config)
 
         result = helper.describe_empty_model_config_behavior("Task", main_model_name="anthropic/test")
-        assert result.description == "inherit from main agent: anthropic/test"
+        assert result.description == "use default behavior: anthropic/test"
         assert result.resolved_model_name == "anthropic/test"
 
     def test_imagegen_defaults_to_first_available_image_model(self) -> None:

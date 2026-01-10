@@ -1,6 +1,6 @@
 # Sub-Agent Protocol
 
-Sub-agents are specialized agents invoked by the main agent as tools. This module defines profiles and registration.
+Sub-agents are specialized agent types invoked by tools like Task and ImageGen. This module defines profiles and registration.
 
 ## Key Constraint
 
@@ -9,7 +9,7 @@ The `protocol` layer cannot import from `config` or `core` (enforced by import-l
 ## Core Files
 
 - `__init__.py` - `SubAgentProfile` dataclass and registration. Defines `AVAILABILITY_*` constants.
-- `image_gen.py`, `task.py`, `explore.py`, `web.py` - Individual sub-agent definitions.
+- `image_gen.py`, `task.py`, `explore.py`, `web.py` - Individual sub-agent type definitions.
 
 ## Availability Requirement Flow
 
@@ -23,6 +23,6 @@ Some sub-agents require specific model capabilities (e.g., ImageGen needs an ima
 ## Model Selection
 
 For sub-agents with `availability_requirement`, priority is:
-1. Explicit config in `sub_agent_models`
-2. Auto-resolve via requirement
-3. If neither found, sub-agent is unavailable (no fallback to main agent model)
+1. Explicit config in `sub_agent_models` for the specific type
+2. Fallback to the Task model config (if present)
+3. Otherwise inherit the main agent model
