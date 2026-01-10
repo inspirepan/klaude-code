@@ -177,43 +177,47 @@ class CodexOAuth:
         )
 
     def refresh(self) -> CodexAuthState:
-        """Refresh the access token using refresh token."""
-        state = self.token_manager.get_state()
-        if state is None:
+        """Refresh the access token using refresh token with file locking.
+
+        Uses file locking to prevent multiple instances from refreshing simultaneously.
+        If another instance has already refreshed, returns the updated state.
+        """
+
+        def do_refresh(current_state: CodexAuthState) -> CodexAuthState:
+            data = {
+                "grant_type": "refresh_token",
+                "client_id": CLIENT_ID,
+                "refresh_token": current_state.refresh_token,
+            }
+
+            with httpx.Client() as client:
+                response = client.post(TOKEN_URL, data=data)
+
+            if response.status_code != 200:
+                from klaude_code.auth.codex.exceptions import CodexTokenExpiredError
+
+                raise CodexTokenExpiredError(f"Token refresh failed: {response.text}")
+
+            tokens = response.json()
+            access_token = tokens["access_token"]
+            refresh_token = tokens.get("refresh_token", current_state.refresh_token)
+            expires_in = tokens.get("expires_in", 3600)
+
+            account_id = extract_account_id(access_token)
+
+            return CodexAuthState(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                expires_at=int(time.time()) + expires_in,
+                account_id=account_id,
+            )
+
+        try:
+            return self.token_manager.refresh_with_lock(do_refresh)
+        except ValueError as e:
             from klaude_code.auth.codex.exceptions import CodexNotLoggedInError
 
-            raise CodexNotLoggedInError("Not logged in to Codex. Run 'klaude login codex' first.")
-
-        data = {
-            "grant_type": "refresh_token",
-            "client_id": CLIENT_ID,
-            "refresh_token": state.refresh_token,
-        }
-
-        with httpx.Client() as client:
-            response = client.post(TOKEN_URL, data=data)
-
-        if response.status_code != 200:
-            from klaude_code.auth.codex.exceptions import CodexTokenExpiredError
-
-            raise CodexTokenExpiredError(f"Token refresh failed: {response.text}")
-
-        tokens = response.json()
-        access_token = tokens["access_token"]
-        refresh_token = tokens.get("refresh_token", state.refresh_token)
-        expires_in = tokens.get("expires_in", 3600)
-
-        account_id = extract_account_id(access_token)
-
-        new_state = CodexAuthState(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            expires_at=int(time.time()) + expires_in,
-            account_id=account_id,
-        )
-
-        self.token_manager.save(new_state)
-        return new_state
+            raise CodexNotLoggedInError(str(e)) from e
 
     def ensure_valid_token(self) -> str:
         """Ensure we have a valid access token, refreshing if needed."""

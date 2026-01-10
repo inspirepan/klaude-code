@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     from klaude_code.config.config import Config
 
-from klaude_code.auth.codex.exceptions import CodexUnsupportedModelError
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
 from klaude_code.core.reminders import (
     at_file_reader_reminder,
@@ -53,12 +52,6 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
     "jj": "jujutsu - Git-compatible version control system",
 }
 
-
-# Prompts for codex_oauth protocol - must be used exactly as-is without any additions.
-CODEX_OAUTH_PROMPTS: dict[str, str] = {
-    "gpt-5.2-codex": "prompts/prompt-codex-gpt-5-2-codex.md",
-    "gpt-5.2": "prompts/prompt-codex-gpt-5-2.md",
-}
 
 # Prompt for antigravity protocol - used exactly as-is without any additions.
 ANTIGRAVITY_PROMPT_PATH = "prompts/prompt-antigravity.md"
@@ -165,12 +158,11 @@ def load_system_prompt(
 ) -> str:
     """Get system prompt content for the given model and sub-agent type."""
 
-    # For codex_oauth protocol, use exact prompts without any additions.
+    # For codex_oauth protocol, use dynamic prompts from GitHub (no additions).
     if protocol == llm_param.LLMClientProtocol.CODEX_OAUTH:
-        for model_key, prompt_path in CODEX_OAUTH_PROMPTS.items():
-            if model_key in model_name:
-                return _load_prompt_by_path(prompt_path)
-        raise CodexUnsupportedModelError(f"codex_oauth protocol does not support model: {model_name}")
+        from klaude_code.llm.codex.prompt_sync import get_codex_instructions
+
+        return get_codex_instructions(model_name)
 
     # For antigravity protocol, use exact prompt without any additions.
     if protocol == llm_param.LLMClientProtocol.ANTIGRAVITY:

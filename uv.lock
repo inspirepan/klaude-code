@@ -372,6 +372,15 @@ wheels = [
 ]
 
 [[package]]
+name = "filelock"
+version = "3.20.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/65/ce7f1b70157833bf3cb851b556a37d4547ceafc158aa9b34b36782f23696/filelock-3.20.3.tar.gz", hash = "sha256:18c57ee915c7ec61cff0ecf7f0f869936c7c30191bb0cf406f1341778d0834e1", size = 19485, upload-time = "2026-01-09T17:55:05.421Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b5/36/7fb70f04bf00bc646cd5bb45aa9eddb15e19437a28b8fb2b4a5249fac770/filelock-3.20.3-py3-none-any.whl", hash = "sha256:4b0dda527ee31078689fc205ec4f1c1bf7d56cf88b6dc9426c4f230e46c2dce1", size = 16701, upload-time = "2026-01-09T17:55:04.334Z" },
+]
+
+[[package]]
 name = "google-auth"
 version = "2.45.0"
 source = { registry = "https://pypi.org/simple" }
@@ -679,6 +688,7 @@ dependencies = [
     { name = "chardet" },
     { name = "ddgs" },
     { name = "diff-match-patch" },
+    { name = "filelock" },
     { name = "google-genai" },
     { name = "markdown-it-py" },
     { name = "openai" },
@@ -706,6 +716,7 @@ requires-dist = [
     { name = "chardet", specifier = ">=5.2.0" },
     { name = "ddgs", specifier = ">=9.9.3" },
     { name = "diff-match-patch", specifier = ">=20241021" },
+    { name = "filelock", specifier = ">=3.20.3" },
     { name = "google-genai", specifier = ">=1.56.0" },
     { name = "markdown-it-py", specifier = ">=4.0.0" },
     { name = "openai", specifier = ">=1.102.0" },

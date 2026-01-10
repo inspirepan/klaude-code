@@ -3,12 +3,15 @@
 import json
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
+from filelock import FileLock, Timeout
 from pydantic import BaseModel
 
 KLAUDE_AUTH_FILE = Path.home() / ".klaude" / "klaude-auth.json"
+LOCK_TIMEOUT_SECONDS = 30  # Maximum time to wait for lock acquisition
 
 
 class BaseAuthState(BaseModel):
@@ -99,3 +102,53 @@ class BaseTokenManager[T: BaseAuthState](ABC):
     def clear_cached_state(self) -> None:
         """Clear in-memory cached state to force reload from file on next access."""
         self._state = None
+
+    def _get_lock_file(self) -> Path:
+        """Get the lock file path for this auth file."""
+        return self.auth_file.with_suffix(".lock")
+
+    def refresh_with_lock(self, refresh_fn: Callable[[T], T]) -> T:
+        """Refresh token with file locking to prevent concurrent refresh.
+
+        This prevents multiple instances from simultaneously refreshing the same token.
+        If another instance has already refreshed, returns the updated state.
+
+        Args:
+            refresh_fn: Function that takes current state and returns new state.
+
+        Returns:
+            The new or already-refreshed authentication state.
+
+        Raises:
+            Timeout: If unable to acquire the lock within timeout.
+            ValueError: If not logged in.
+        """
+        lock_file = self._get_lock_file()
+        lock = FileLock(lock_file, timeout=LOCK_TIMEOUT_SECONDS)
+
+        try:
+            with lock:
+                # Re-read file after acquiring lock - another instance may have refreshed
+                self.clear_cached_state()
+                state = self.load()
+
+                if state is None:
+                    raise ValueError(f"Not logged in to {self.storage_key}")
+
+                # Check if token is still expired after re-reading
+                if not state.is_expired():
+                    # Another instance already refreshed, use their result
+                    return state
+
+                # Token still expired, we need to refresh
+                new_state = refresh_fn(state)
+                self.save(new_state)
+                return new_state
+
+        except Timeout:
+            # Lock timeout - try to re-read file in case another instance succeeded
+            self.clear_cached_state()
+            state = self.load()
+            if state and not state.is_expired():
+                return state
+            raise
