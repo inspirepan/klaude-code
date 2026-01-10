@@ -277,7 +277,7 @@ def truncate_left(text: Text, max_cells: int, *, console: Console, ellipsis: str
     if cell_len(text.plain) <= max_cells:
         return text
 
-    ellipsis_cells = cell_len(ellipsis)
+    ellipsis_cells = cell_len(ellipsis) + 1  # +1 for trailing space
     if max_cells <= ellipsis_cells:
         # Not enough space to show any meaningful suffix.
         clipped = Text(ellipsis, style=text.style)
@@ -307,7 +307,7 @@ def truncate_left(text: Text, max_cells: int, *, console: Console, ellipsis: str
     except Exception:
         ellipsis_style = suffix.style or text.style
 
-    return Text.assemble(Text(ellipsis, style=ellipsis_style), suffix)
+    return Text.assemble(Text(ellipsis + " ", style=ellipsis_style), suffix)
 
 
 class ShimmerStatusText:
