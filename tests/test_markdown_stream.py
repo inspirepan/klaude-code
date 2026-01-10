@@ -75,6 +75,3 @@ def test_update_does_not_write_synchronized_output_sequences_when_not_tty() -> N
     assert "\x1b[?2026h" not in captured
     assert "\x1b[?2026l" not in captured
     assert live_calls
-
-
-

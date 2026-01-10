@@ -14,8 +14,7 @@ Tests are located in the `tests/` directory.
 ## Build, Test, and Development Commands
 
 - `make lint`: Run ruff + pyright + import-linter
-- `make lint-fix`: Auto-fix with ruff, then format
-- `make format`: Format (ruff)
+- `make format`: Auto-fix with ruff check --fix + ruff format
 - `make test`: Run tests (pytest)
 - use `tmux-test` skill to test UI interactive features
 

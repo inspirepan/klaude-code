@@ -12,6 +12,15 @@ Remove AI-generated slop from code. Check the specified files or diff and remove
 - Extra comments that a human wouldn't add or are inconsistent with the rest of the file
 - Extra defensive checks or try/catch blocks that are abnormal for that area of the codebase (especially if called by trusted/validated codepaths)
 - Casts to `any` or `# type: ignore` to get around type issues
+- Unnecessary complexity and nesting that reduces readability
+- Redundant abstractions or over-engineered solutions
 - Any other style that is inconsistent with the file
+
+## Principles
+
+1. **Preserve functionality**: Never change what the code does - only how it does it
+2. **Prefer clarity over brevity**: Explicit readable code is better than overly compact solutions
+3. **Avoid over-simplification**: Don't create overly clever solutions that are hard to understand or debug
+4. **Focus scope**: Only refine the specified files or recently modified code, unless instructed otherwise
 
 Report at the end with only a 1-3 sentence summary of what you changed.
