@@ -187,6 +187,10 @@ def highlight_bash_command(command: str) -> Text:
                 expect_subcommand = False
         elif token_type in (Token.Text.Whitespace,):
             result.append(token_value)
+            # Newline starts a new command context (like ; or &&)
+            if "\n" in token_value:
+                expect_command = True
+                expect_subcommand = False
         elif token_type == Token.Name.Builtin:
             # Built-in commands are always commands
             result.append(token_value, style=ThemeKey.BASH_COMMAND)

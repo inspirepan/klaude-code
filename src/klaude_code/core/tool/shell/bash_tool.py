@@ -342,7 +342,7 @@ class BashTool(ToolABC):
                 if not combined:
                     combined = f"Command exited with code {rc}"
                 return message.ToolResultMessage(
-                    status="error",
+                    status="success",
                     # Preserve leading whitespace; only trim trailing newlines.
                     output_text=combined.rstrip("\n"),
                 )

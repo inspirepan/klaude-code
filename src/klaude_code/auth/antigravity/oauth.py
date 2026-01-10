@@ -258,42 +258,46 @@ class AntigravityOAuth:
         )
 
     def refresh(self) -> AntigravityAuthState:
-        """Refresh the access token using refresh token."""
-        state = self.token_manager.get_state()
-        if state is None:
-            raise AntigravityNotLoggedInError("Not logged in to Antigravity. Run 'klaude login antigravity' first.")
+        """Refresh the access token using refresh token with file locking.
 
-        data = {
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "refresh_token": state.refresh_token,
-            "grant_type": "refresh_token",
-        }
+        Uses file locking to prevent multiple instances from refreshing simultaneously.
+        If another instance has already refreshed, returns the updated state.
+        """
 
-        with httpx.Client() as client:
-            response = client.post(TOKEN_URL, data=data, timeout=30)
+        def do_refresh(current_state: AntigravityAuthState) -> AntigravityAuthState:
+            data = {
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "refresh_token": current_state.refresh_token,
+                "grant_type": "refresh_token",
+            }
 
-        if response.status_code != 200:
-            raise AntigravityTokenExpiredError(f"Token refresh failed: {response.text}")
+            with httpx.Client() as client:
+                response = client.post(TOKEN_URL, data=data, timeout=30)
 
-        tokens = response.json()
-        access_token = tokens["access_token"]
-        refresh_token = tokens.get("refresh_token", state.refresh_token)
-        expires_in = tokens.get("expires_in", 3600)
+            if response.status_code != 200:
+                raise AntigravityTokenExpiredError(f"Token refresh failed: {response.text}")
 
-        # Calculate expiry time with 5 minute buffer
-        expires_at = int(time.time()) + expires_in - 300
+            tokens = response.json()
+            access_token = tokens["access_token"]
+            refresh_token = tokens.get("refresh_token", current_state.refresh_token)
+            expires_in = tokens.get("expires_in", 3600)
 
-        new_state = AntigravityAuthState(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            expires_at=expires_at,
-            project_id=state.project_id,
-            email=state.email,
-        )
+            # Calculate expiry time with 5 minute buffer
+            expires_at = int(time.time()) + expires_in - 300
 
-        self.token_manager.save(new_state)
-        return new_state
+            return AntigravityAuthState(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                expires_at=expires_at,
+                project_id=current_state.project_id,
+                email=current_state.email,
+            )
+
+        try:
+            return self.token_manager.refresh_with_lock(do_refresh)
+        except ValueError as e:
+            raise AntigravityNotLoggedInError(str(e)) from e
 
     def ensure_valid_token(self) -> tuple[str, str]:
         """Ensure we have a valid access token, refreshing if needed.
