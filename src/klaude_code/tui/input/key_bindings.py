@@ -19,7 +19,7 @@ from typing import cast
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.filters import Always, Condition, Filter
-from prompt_toolkit.filters.app import has_completions
+from prompt_toolkit.filters.app import has_completions, is_searching
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.keys import Keys
@@ -367,7 +367,7 @@ def create_key_bindings(
 
         _insert_newline(event)
 
-    @kb.add("enter", filter=enabled)
+    @kb.add("enter", filter=enabled & ~is_searching)
     def _(event: KeyPressEvent) -> None:
         nonlocal swallow_next_control_j
 
