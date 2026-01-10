@@ -228,6 +228,17 @@ class MarkdownDocUIExtra(BaseModel):
     content: str
 
 
+class ReadPreviewLine(BaseModel):
+    line_no: int
+    content: str
+
+
+class ReadPreviewUIExtra(BaseModel):
+    type: Literal["read_preview"] = "read_preview"
+    lines: list[ReadPreviewLine]
+    remaining_lines: int  # lines not shown in preview
+
+
 class SessionStatusUIExtra(BaseModel):
     type: Literal["session_status"] = "session_status"
     usage: "Usage"
@@ -243,6 +254,7 @@ MultiUIExtraItem = (
     | ImageUIExtra
     | MarkdownDocUIExtra
     | SessionStatusUIExtra
+    | ReadPreviewUIExtra
 )
 
 
@@ -265,7 +277,8 @@ ToolResultUIExtra = Annotated[
     | ImageUIExtra
     | MarkdownDocUIExtra
     | SessionStatusUIExtra
-    | MultiUIExtra,
+    | MultiUIExtra
+    | ReadPreviewUIExtra,
     Field(discriminator="type"),
 ]
 

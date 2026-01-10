@@ -10,6 +10,7 @@ from rich.text import Text
 
 from klaude_code.const import (
     BASH_OUTPUT_PANEL_THRESHOLD,
+    DIFF_PREFIX_WIDTH,
     INVALID_TOOL_CALL_MAX_LENGTH,
     QUERY_DISPLAY_TRUNCATE_LENGTH,
     URL_TRUNCATE_MAX_LENGTH,
@@ -387,6 +388,23 @@ def render_generic_tool_result(result: str, *, is_error: bool = False) -> Render
     return text
 
 
+def render_read_preview(ui_extra: model.ReadPreviewUIExtra) -> RenderableType:
+    """Render read preview with line numbers aligned to diff style."""
+    grid = create_grid()
+    grid.padding = (0, 0)
+
+    for line in ui_extra.lines:
+        prefix = f"{line.line_no:>{DIFF_PREFIX_WIDTH}}  "
+        grid.add_row(Text(prefix, ThemeKey.TOOL_RESULT), Text(line.content, ThemeKey.TOOL_RESULT))
+
+    if ui_extra.remaining_lines > 0:
+        remaining_prefix = f"{'⋮':>{DIFF_PREFIX_WIDTH}}  "
+        remaining_text = Text(f"(more {ui_extra.remaining_lines} lines)", ThemeKey.TOOL_RESULT_TRUNCATED)
+        grid.add_row(Text(remaining_prefix, ThemeKey.TOOL_RESULT_TRUNCATED), remaining_text)
+
+    return grid
+
+
 def _extract_mermaid_link(
     ui_extra: model.ToolResultUIExtra | None,
 ) -> model.MermaidLinkUIExtra | None:
@@ -678,6 +696,8 @@ def render_tool_result(
 
     match e.tool_name:
         case tools.READ:
+            if isinstance(e.ui_extra, model.ReadPreviewUIExtra):
+                return wrap(render_read_preview(e.ui_extra))
             return None
         case tools.EDIT:
             return wrap(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""))

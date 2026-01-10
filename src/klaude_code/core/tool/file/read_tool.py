@@ -22,7 +22,7 @@ from klaude_code.core.tool.file._utils import file_exists, is_directory
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
-from klaude_code.protocol.model import ImageUIExtra
+from klaude_code.protocol.model import ImageUIExtra, ReadPreviewLine, ReadPreviewUIExtra
 
 _IMAGE_MIME_TYPES: dict[str, str] = {
     ".png": "image/png",
@@ -346,4 +346,15 @@ class ReadTool(ToolABC):
         read_result_str = "\n".join(lines_out)
         _track_file_access(context.file_tracker, file_path, content_sha256=read_result.content_sha256)
 
-        return message.ToolResultMessage(status="success", output_text=read_result_str)
+        # When offset > 1, show a preview of the first 5 lines in UI
+        ui_extra = None
+        if args.offset is not None and args.offset > 1:
+            preview_count = 5
+            preview_lines = [
+                ReadPreviewLine(line_no=line_no, content=content)
+                for line_no, content in read_result.selected_lines[:preview_count]
+            ]
+            remaining = len(read_result.selected_lines) - len(preview_lines)
+            ui_extra = ReadPreviewUIExtra(lines=preview_lines, remaining_lines=remaining)
+
+        return message.ToolResultMessage(status="success", output_text=read_result_str, ui_extra=ui_extra)
