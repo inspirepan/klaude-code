@@ -165,7 +165,14 @@ class ReadTool(ToolABC):
         return llm_param.ToolSchema(
             name=tools.READ,
             type="function",
-            description=load_desc(Path(__file__).parent / "read_tool.md"),
+            description=load_desc(
+                Path(__file__).parent / "read_tool.md",
+                {
+                    "line_cap": str(READ_GLOBAL_LINE_CAP),
+                    "char_limit_per_line": str(READ_CHAR_LIMIT_PER_LINE),
+                    "max_chars": str(READ_MAX_CHARS),
+                },
+            ),
             parameters={
                 "type": "object",
                 "properties": {
