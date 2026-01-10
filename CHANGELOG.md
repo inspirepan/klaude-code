@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-01-10
+
+### Added
+
+- disable file external change reminder (`fbd3855e`)
+- update builtin gpt reasoning summary to concise (`dd6d24bb`)
+- show image when reading/pasting/attaching images (`284deff0`)
+- remove claude-max models (`8b50704e`)
+- add compact model configuration to sub-agent-model command (`283dad49`)
+- add prompt sync for codex oauth and concurrent file lock (`d8eb65c3`)
+- support short prefix matching for --resume (`1dba28f0`)
+- add three-level provider hierarchy in cost display (`28ce8774`)
+
+### Changed
+
+- reorganize sub-agent tools (`b6b0c835`)
+- use dynamic values in Read tool description and improve error display (`70d9a3cb`)
+- move shortcut hints from placeholder to bottom toolbar (`a56912a8`)
+- update tool names in UI and mermaid html path (`3f3958a4`)
+- switch cache & output column in cost cmd (`0c8c087a`)
+
+### Fixed
+
+- allow Enter to accept history search result in Ctrl-R mode (`42c7ea45`)
+- show non-cached input in cost table (`2c0f6a4e`)
+- correct Gemini cache token accounting (`e0749828`)
+
+### Other
+
+- lint and update makefile (`1ddc5f6d`)
+- remove dead code (`4283f1b1`)
+
 ## [2.8.1] - 2026-01-09
 
 ### Added
@@ -1447,7 +1479,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.8.1...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.9.0...HEAD
+[2.9.0]: https://github.com/inspirepan/klaude-code/compare/v2.8.1...v2.9.0
 [2.8.1]: https://github.com/inspirepan/klaude-code/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/inspirepan/klaude-code/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/inspirepan/klaude-code/compare/v2.6.0...v2.7.0
