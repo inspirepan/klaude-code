@@ -137,7 +137,7 @@ EOF"""
         # Should not crash and should produce some output
         assert len(result.plain) > 0
 
-    def test_heredoc_body_truncated_to_two_lines(self):
+    def test_heredoc_body_truncated_to_four_lines(self):
         """Heredoc body should be truncated to keep tool calls compact."""
         cmd = """cat <<'EOF'
 line1
@@ -149,22 +149,22 @@ EOF"""
         result = highlight_bash_command(cmd)
         assert "line1" in result.plain
         assert "line2" in result.plain
-        assert "line3" not in result.plain
-        assert "line4" not in result.plain
+        assert "line3" in result.plain
+        assert "line4" in result.plain
         assert "line5" not in result.plain
         assert "\nEOF" in result.plain
 
         truncated = get_spans_by_style(result, ThemeKey.TOOL_RESULT_TRUNCATED)
         assert any("… (more" in seg for seg in truncated)
 
-    def test_multiline_string_truncated_to_two_lines(self):
+    def test_multiline_string_truncated_to_four_lines(self):
         """Multi-line string tokens should be truncated to keep tool calls compact."""
         cmd = "python -c \"print('a')\nprint('b')\nprint('c')\nprint('d')\nprint('e')\""
         result = highlight_bash_command(cmd)
         assert "print('a')" in result.plain
         assert "print('b')" in result.plain
-        assert "print('c')" not in result.plain
-        assert "print('d')" not in result.plain
+        assert "print('c')" in result.plain
+        assert "print('d')" in result.plain
         assert "print('e')" not in result.plain
 
         truncated = get_spans_by_style(result, ThemeKey.TOOL_RESULT_TRUNCATED)

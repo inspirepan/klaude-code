@@ -17,7 +17,9 @@ def test_user_input_payload_creation_with_images() -> None:
     assert payload.text == "Check this image"
     assert payload.images is not None
     assert len(payload.images) == 1
-    assert payload.images[0].url == "data:image/png;base64,abc123"
+    img = payload.images[0]
+    assert isinstance(img, message.ImageURLPart)
+    assert img.url == "data:image/png;base64,abc123"
 
 
 def test_user_input_payload_images_preserved_in_user_message_item() -> None:
@@ -36,12 +38,15 @@ def test_user_input_payload_images_preserved_in_user_message_item() -> None:
 
 def test_user_input_payload_multiple_images() -> None:
     """Test UserInputPayload with multiple images."""
-    images = [message.ImageURLPart(url=f"data:image/png;base64,img{i}", id=f"id-{i}") for i in range(3)]
+    images: list[message.ImageURLPart | message.ImageFilePart] = [
+        message.ImageURLPart(url=f"data:image/png;base64,img{i}", id=f"id-{i}") for i in range(3)
+    ]
     payload = message.UserInputPayload(text="Multiple images", images=images)
 
     assert payload.images is not None
     assert len(payload.images) == 3
     for i, img in enumerate(payload.images):
+        assert isinstance(img, message.ImageURLPart)
         assert img.id == f"id-{i}"
 
 

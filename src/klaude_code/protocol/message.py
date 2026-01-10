@@ -213,7 +213,7 @@ class UserInputPayload(BaseModel):
     """
 
     text: str
-    images: list[ImageURLPart] | None = None
+    images: Sequence[ImageURLPart | ImageFilePart] | None = None
 
 
 # Helper functions
@@ -225,7 +225,7 @@ def text_parts_from_str(text: str | None) -> list[Part]:
     return [TextPart(text=text)]
 
 
-def parts_from_text_and_images(text: str | None, images: list[ImageURLPart] | None) -> list[Part]:
+def parts_from_text_and_images(text: str | None, images: Sequence[ImageURLPart | ImageFilePart] | None) -> list[Part]:
     parts: list[Part] = []
     if text:
         parts.append(TextPart(text=text))

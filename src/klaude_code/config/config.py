@@ -440,8 +440,7 @@ class Config(BaseModel):
         )
 
         provider_list = [
-            p.model_dump(mode="json", exclude_none=True, exclude_unset=True)
-            for p in (user_config.provider_list or [])
+            p.model_dump(mode="json", exclude_none=True, exclude_unset=True) for p in (user_config.provider_list or [])
         ]
         if provider_list:
             config_dict["provider_list"] = provider_list

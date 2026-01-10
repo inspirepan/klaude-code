@@ -6,9 +6,10 @@ from binascii import Error as BinasciiError
 from typing import Any, TypedDict
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
-from klaude_code.llm.image import assistant_image_to_data_url, parse_data_url
+from klaude_code.llm.image import assistant_image_to_data_url, image_file_to_data_url, parse_data_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
+    ImagePart,
     attach_developer_messages,
     merge_reminder_text,
     split_thinking_parts,
@@ -66,9 +67,9 @@ def _data_url_to_inline_data(url: str) -> InlineData:
     return InlineData(mimeType=media_type, data=base64.b64encode(decoded).decode("ascii"))
 
 
-def _image_part_to_part(image: message.ImageURLPart) -> Part:
-    """Convert ImageURLPart to Part dict."""
-    url = image.url
+def _image_part_to_part(image: ImagePart) -> Part:
+    """Convert ImageURLPart or ImageFilePart to Part dict."""
+    url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image.url
     if url.startswith("data:"):
         return Part(inlineData=_data_url_to_inline_data(url))
     # For non-data URLs, best-effort using inline_data format
@@ -81,7 +82,7 @@ def _user_message_to_content(msg: message.UserMessage, attachment: DeveloperAtta
     for part in msg.parts:
         if isinstance(part, message.TextPart):
             parts.append(Part(text=part.text))
-        elif isinstance(part, message.ImageURLPart):
+        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
             parts.append(_image_part_to_part(part))
     if attachment.text:
         parts.append(Part(text=attachment.text))
@@ -108,14 +109,20 @@ def _tool_messages_to_contents(
         )
         has_text = merged_text.strip() != ""
 
-        images = [part for part in msg.parts if isinstance(part, message.ImageURLPart)] + attachment.images
+        images: list[ImagePart] = [
+            part for part in msg.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))
+        ]
+        images.extend(attachment.images)
         image_parts: list[Part] = []
         function_response_parts: list[dict[str, Any]] = []
 
         for image in images:
             try:
                 image_parts.append(_image_part_to_part(image))
-                if image.url.startswith("data:"):
+                if isinstance(image, message.ImageFilePart):
+                    inline_data = _data_url_to_inline_data(image_file_to_data_url(image))
+                    function_response_parts.append({"inlineData": inline_data})
+                elif image.url.startswith("data:"):
                     inline_data = _data_url_to_inline_data(image.url)
                     function_response_parts.append({"inlineData": inline_data})
             except ValueError:

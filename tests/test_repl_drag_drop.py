@@ -50,4 +50,5 @@ def test_extract_images_from_marker(tmp_path: Path) -> None:
     marker = format_image_marker(str(img))
     images = extract_images_from_text(f"hello {marker}")
     assert len(images) == 1
-    assert images[0].url.startswith("data:image/jpeg;base64,")
+    assert images[0].file_path == str(img)
+    assert images[0].mime_type == "image/jpeg"

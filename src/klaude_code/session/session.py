@@ -410,7 +410,11 @@ class Session(BaseModel):
                     )
                     yield from self._iter_sub_agent_history(tr, seen_sub_agent_sessions)
                 case message.UserMessage() as um:
-                    images = [part for part in um.parts if isinstance(part, message.ImageURLPart)]
+                    images = [
+                        part
+                        for part in um.parts
+                        if isinstance(part, (message.ImageURLPart, message.ImageFilePart))
+                    ]
                     yield events.UserMessageEvent(
                         content=message.join_text_parts(um.parts),
                         session_id=self.id,

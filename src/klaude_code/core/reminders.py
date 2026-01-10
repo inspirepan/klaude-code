@@ -115,6 +115,7 @@ async def _load_at_file_recursive(
     at_ops: list[model.AtFileOp],
     formatted_blocks: list[str],
     collected_images: list[message.ImageURLPart],
+    collected_image_paths: list[str],
     visited: set[str],
     base_dir: Path | None = None,
     mentioned_in: str | None = None,
@@ -150,6 +151,7 @@ Result of calling the {tools.READ} tool:
         at_ops.append(model.AtFileOp(operation="Read", path=path_str, mentioned_in=mentioned_in))
         if images:
             collected_images.extend(images)
+            collected_image_paths.append(path_str)
 
         # Recursively parse @ references from ReadTool output
         output = tool_result.output_text
@@ -163,6 +165,7 @@ Result of calling the {tools.READ} tool:
                         at_ops,
                         formatted_blocks,
                         collected_images,
+                        collected_image_paths,
                         visited,
                         base_dir=path.parent,
                         mentioned_in=path_str,
@@ -193,6 +196,7 @@ async def at_file_reader_reminder(
     at_ops: list[model.AtFileOp] = []
     formatted_blocks: list[str] = []
     collected_images: list[message.ImageURLPart] = []
+    collected_image_paths: list[str] = []
     visited: set[str] = set()
 
     for source in at_pattern_sources:
@@ -202,6 +206,7 @@ async def at_file_reader_reminder(
             at_ops,
             formatted_blocks,
             collected_images,
+            collected_image_paths,
             visited,
             mentioned_in=source.mentioned_in,
         )
@@ -210,12 +215,15 @@ async def at_file_reader_reminder(
         return None
 
     at_files_str = "\n\n".join(formatted_blocks)
+    ui_items: list[model.DeveloperUIItem] = [model.AtFileOpsUIItem(ops=at_ops)]
+    if collected_image_paths:
+        ui_items.append(model.AtFileImagesUIItem(paths=collected_image_paths))
     return message.DeveloperMessage(
         parts=message.parts_from_text_and_images(
             f"""<system-reminder>{at_files_str}\n</system-reminder>""",
             collected_images or None,
         ),
-        ui_extra=model.DeveloperUIExtra(items=[model.AtFileOpsUIItem(ops=at_ops)]),
+        ui_extra=model.DeveloperUIExtra(items=ui_items),
     )
 
 
@@ -410,25 +418,29 @@ class Memory(BaseModel):
     content: str
 
 
-def get_last_user_message_image_count(session: Session) -> int:
-    """Get image count from the last user message in conversation history."""
+def get_last_user_message_image_paths(session: Session) -> list[str]:
+    """Get image file paths from the last user message in conversation history."""
     for item in reversed(session.conversation_history):
         if isinstance(item, message.ToolResultMessage):
-            return 0
+            return []
         if isinstance(item, message.UserMessage):
-            return len([part for part in item.parts if isinstance(part, message.ImageURLPart)])
-    return 0
+            paths: list[str] = []
+            for part in item.parts:
+                if isinstance(part, message.ImageFilePart):
+                    paths.append(part.file_path)
+            return paths
+    return []
 
 
 async def image_reminder(session: Session) -> message.DeveloperMessage | None:
     """Remind agent about images attached by user in the last message."""
-    image_count = get_last_user_message_image_count(session)
-    if image_count == 0:
+    image_paths = get_last_user_message_image_paths(session)
+    if not image_paths:
         return None
 
     return message.DeveloperMessage(
         parts=[],
-        ui_extra=model.DeveloperUIExtra(items=[model.UserImagesUIItem(count=image_count)]),
+        ui_extra=model.DeveloperUIExtra(items=[model.UserImagesUIItem(count=len(image_paths), paths=image_paths)]),
     )
 
 

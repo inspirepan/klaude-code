@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -58,7 +59,7 @@ class ResponseEvent(Event):
 
 class UserMessageEvent(Event):
     content: str
-    images: list[message.ImageURLPart] | None = None
+    images: Sequence[message.ImageURLPart | message.ImageFilePart] | None = None
 
 
 class DeveloperMessageEvent(Event):

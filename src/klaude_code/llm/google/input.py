@@ -11,9 +11,10 @@ from typing import Any, cast
 from google.genai import types
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
-from klaude_code.llm.image import assistant_image_to_data_url, parse_data_url
+from klaude_code.llm.image import assistant_image_to_data_url, image_file_to_data_url, parse_data_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
+    ImagePart,
     attach_developer_messages,
     merge_reminder_text,
     split_thinking_parts,
@@ -27,16 +28,16 @@ def _data_url_to_blob(url: str) -> types.Blob:
     return types.Blob(data=decoded, mime_type=media_type)
 
 
-def _image_part_to_part(image: message.ImageURLPart) -> types.Part:
-    url = image.url
+def _image_part_to_part(image: ImagePart) -> types.Part:
+    url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image.url
     if url.startswith("data:"):
         return types.Part(inline_data=_data_url_to_blob(url))
     # Best-effort: Gemini supports file URIs, and may accept public HTTPS URLs.
     return types.Part(file_data=types.FileData(file_uri=url))
 
 
-def _image_part_to_function_response_part(image: message.ImageURLPart) -> types.FunctionResponsePart:
-    url = image.url
+def _image_part_to_function_response_part(image: ImagePart) -> types.FunctionResponsePart:
+    url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image.url
     if url.startswith("data:"):
         media_type, _, decoded = parse_data_url(url)
         return types.FunctionResponsePart.from_bytes(data=decoded, mime_type=media_type)
@@ -48,7 +49,7 @@ def _user_message_to_content(msg: message.UserMessage, attachment: DeveloperAtta
     for part in msg.parts:
         if isinstance(part, message.TextPart):
             parts.append(types.Part(text=part.text))
-        elif isinstance(part, message.ImageURLPart):
+        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
             parts.append(_image_part_to_part(part))
     if attachment.text:
         parts.append(types.Part(text=attachment.text))
@@ -74,7 +75,10 @@ def _tool_messages_to_contents(
         )
         has_text = merged_text.strip() != ""
 
-        images = [part for part in msg.parts if isinstance(part, message.ImageURLPart)] + attachment.images
+        images: list[ImagePart] = [
+            part for part in msg.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))
+        ]
+        images.extend(attachment.images)
         image_parts: list[types.Part] = []
         function_response_parts: list[types.FunctionResponsePart] = []
 

@@ -17,11 +17,10 @@ import shutil
 import subprocess
 import sys
 import uuid
-from base64 import b64encode
 from pathlib import Path
 
 from klaude_code.const import get_system_temp
-from klaude_code.protocol.message import ImageURLPart
+from klaude_code.protocol.message import ImageFilePart
 
 # ---------------------------------------------------------------------------
 # Constants and marker syntax
@@ -183,36 +182,40 @@ def capture_clipboard_tag() -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def _encode_image_file(file_path: str) -> ImageURLPart | None:
-    """Encode an image file as base64 data URL and create ImageURLPart."""
+_MIME_TYPES: dict[str, str] = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
+
+
+def _create_image_file_part(file_path: str) -> ImageFilePart | None:
+    """Create an ImageFilePart from a file path."""
     try:
         path = Path(file_path)
         if not path.exists():
             return None
-        with open(path, "rb") as f:
-            encoded = b64encode(f.read()).decode("ascii")
 
         suffix = path.suffix.lower()
-        mime = {
-            ".png": "image/png",
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".gif": "image/gif",
-            ".webp": "image/webp",
-        }.get(suffix)
+        mime = _MIME_TYPES.get(suffix)
         if mime is None:
             return None
 
-        data_url = f"data:{mime};base64,{encoded}"
-        return ImageURLPart(url=data_url, id=None)
+        return ImageFilePart(
+            file_path=str(path),
+            mime_type=mime,
+            byte_size=path.stat().st_size,
+        )
     except OSError:
         return None
 
 
-def extract_images_from_text(text: str) -> list[ImageURLPart]:
+def extract_images_from_text(text: str) -> list[ImageFilePart]:
     """Extract images referenced by [image ...] markers in text."""
 
-    images: list[ImageURLPart] = []
+    images: list[ImageFilePart] = []
     for m in IMAGE_MARKER_RE.finditer(text):
         raw = m.group("path")
         path_str = parse_image_marker_path(raw)
@@ -221,7 +224,7 @@ def extract_images_from_text(text: str) -> list[ImageURLPart]:
         p = Path(path_str).expanduser()
         if not p.is_absolute():
             p = (Path.cwd() / p).resolve()
-        image_part = _encode_image_file(str(p))
+        image_part = _create_image_file_part(str(p))
         if image_part:
             images.append(image_part)
     return images

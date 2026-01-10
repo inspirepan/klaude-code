@@ -109,6 +109,7 @@ DARK_PALETTE = Palette(
 
 class ThemeKey(str, Enum):
     LINES = "lines"
+    LINES_DIM = "lines.dim"
 
     # CODE
     CODE_BACKGROUND = "code_background"
@@ -233,6 +234,7 @@ def get_theme(theme: str | None = None) -> Themes:
         app_theme=Theme(
             styles={
                 ThemeKey.LINES.value: palette.grey3,
+                ThemeKey.LINES_DIM.value: "dim " + palette.grey3,
                 # CODE
                 ThemeKey.CODE_BACKGROUND.value: f"on {palette.code_background}",
                 # PANEL

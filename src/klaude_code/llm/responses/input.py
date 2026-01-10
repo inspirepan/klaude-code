@@ -7,6 +7,7 @@ from typing import Any, cast
 from openai.types import responses
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
+from klaude_code.llm.image import image_file_to_data_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
     attach_developer_messages,
@@ -14,6 +15,12 @@ from klaude_code.llm.input_common import (
     split_thinking_parts,
 )
 from klaude_code.protocol import llm_param, message
+
+
+def _image_to_url(image: message.ImageURLPart | message.ImageFilePart) -> str:
+    if isinstance(image, message.ImageFilePart):
+        return image_file_to_data_url(image)
+    return image.url
 
 
 def _build_user_content_parts(
@@ -24,11 +31,11 @@ def _build_user_content_parts(
     for part in user.parts:
         if isinstance(part, message.TextPart):
             parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": part.text}))
-        elif isinstance(part, message.ImageURLPart):
+        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
             parts.append(
                 cast(
                     responses.ResponseInputContentParam,
-                    {"type": "input_image", "detail": "auto", "image_url": part.url},
+                    {"type": "input_image", "detail": "auto", "image_url": _image_to_url(part)},
                 )
             )
     if attachment.text:
@@ -37,7 +44,7 @@ def _build_user_content_parts(
         parts.append(
             cast(
                 responses.ResponseInputContentParam,
-                {"type": "input_image", "detail": "auto", "image_url": image.url},
+                {"type": "input_image", "detail": "auto", "image_url": _image_to_url(image)},
             )
         )
     if not parts:
@@ -56,12 +63,15 @@ def _build_tool_result_item(
     )
     if text_output:
         content_parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": text_output}))
-    images = [part for part in tool.parts if isinstance(part, message.ImageURLPart)] + attachment.images
+    images: list[message.ImageURLPart | message.ImageFilePart] = [
+        part for part in tool.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))
+    ]
+    images.extend(attachment.images)
     for image in images:
         content_parts.append(
             cast(
                 responses.ResponseInputContentParam,
-                {"type": "input_image", "detail": "auto", "image_url": image.url},
+                {"type": "input_image", "detail": "auto", "image_url": _image_to_url(image)},
             )
         )
 

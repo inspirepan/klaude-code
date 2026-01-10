@@ -18,9 +18,10 @@ from anthropic.types.beta.beta_tool_use_block_param import BetaToolUseBlockParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
-from klaude_code.llm.image import parse_data_url
+from klaude_code.llm.image import image_file_to_data_url, parse_data_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
+    ImagePart,
     attach_developer_messages,
     merge_reminder_text,
     split_thinking_parts,
@@ -36,8 +37,8 @@ _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
 )
 
 
-def _image_part_to_block(image: message.ImageURLPart) -> BetaImageBlockParam:
-    url = image.url
+def _image_part_to_block(image: ImagePart) -> BetaImageBlockParam:
+    url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image.url
     if url.startswith("data:"):
         media_type, base64_payload, _ = parse_data_url(url)
         if media_type not in _INLINE_IMAGE_MEDIA_TYPES:
@@ -64,7 +65,7 @@ def _user_message_to_message(
     for part in msg.parts:
         if isinstance(part, message.TextPart):
             blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": part.text}))
-        elif isinstance(part, message.ImageURLPart):
+        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
             blocks.append(_image_part_to_block(part))
     if attachment.text:
         blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": attachment.text}))
@@ -86,7 +87,7 @@ def _tool_message_to_block(
         attachment.text,
     )
     tool_content.append(cast(BetaTextBlockParam, {"type": "text", "text": merged_text}))
-    for image in [part for part in msg.parts if isinstance(part, message.ImageURLPart)]:
+    for image in [part for part in msg.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))]:
         tool_content.append(_image_part_to_block(image))
     for image in attachment.images:
         tool_content.append(_image_part_to_block(image))

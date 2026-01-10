@@ -1086,7 +1086,9 @@ class TestOutOfBoxExperience:
         assert "sonnet" in model_names
         assert "opus" in model_names
 
-    def test_user_provider_disabled_overrides_builtin_disabled(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_user_provider_disabled_overrides_builtin_disabled(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         builtin_provider = ProviderConfig(
             provider_name="builtin",
             protocol=llm_param.LLMClientProtocol.OPENAI,

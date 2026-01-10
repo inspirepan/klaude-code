@@ -99,20 +99,11 @@ def save_assistant_image(
     )
 
 
-def assistant_image_to_data_url(image: message.ImageFilePart) -> str:
-    """Load an assistant image from disk and encode it as a base64 data URL.
-
-    This is primarily used for multi-turn image editing, where providers require
-    sending the previous assistant message (including images) back to the model.
-    """
+def image_file_to_data_url(image: message.ImageFilePart) -> str:
+    """Load an image file from disk and encode it as a base64 data URL."""
 
     file_path = Path(image.file_path)
     decoded = file_path.read_bytes()
-
-    if len(decoded) > IMAGE_OUTPUT_MAX_BYTES:
-        decoded_mb = len(decoded) / (1024 * 1024)
-        limit_mb = IMAGE_OUTPUT_MAX_BYTES / (1024 * 1024)
-        raise ValueError(f"Assistant image size ({decoded_mb:.2f}MB) exceeds limit ({limit_mb:.2f}MB)")
 
     mime_type = image.mime_type
     if not mime_type:
@@ -121,3 +112,19 @@ def assistant_image_to_data_url(image: message.ImageFilePart) -> str:
 
     encoded = b64encode(decoded).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
+
+
+def assistant_image_to_data_url(image: message.ImageFilePart) -> str:
+    """Load an assistant image from disk and encode it as a base64 data URL.
+
+    This is primarily used for multi-turn image editing, where providers require
+    sending the previous assistant message (including images) back to the model.
+    """
+
+    file_path = Path(image.file_path)
+    if file_path.stat().st_size > IMAGE_OUTPUT_MAX_BYTES:
+        size_mb = file_path.stat().st_size / (1024 * 1024)
+        limit_mb = IMAGE_OUTPUT_MAX_BYTES / (1024 * 1024)
+        raise ValueError(f"Assistant image size ({size_mb:.2f}MB) exceeds limit ({limit_mb:.2f}MB)")
+
+    return image_file_to_data_url(image)

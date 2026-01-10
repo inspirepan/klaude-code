@@ -8,26 +8,29 @@ if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMCallParameter, LLMConfigParameter
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
+from klaude_code.llm.image import image_file_to_data_url
 from klaude_code.protocol import message
 
+ImagePart = message.ImageURLPart | message.ImageFilePart
 
-def _empty_image_parts() -> list[message.ImageURLPart]:
+
+def _empty_image_parts() -> list[ImagePart]:
     return []
 
 
 @dataclass
 class DeveloperAttachment:
     text: str = ""
-    images: list[message.ImageURLPart] = field(default_factory=_empty_image_parts)
+    images: list[ImagePart] = field(default_factory=_empty_image_parts)
 
 
-def _extract_developer_content(msg: message.DeveloperMessage) -> tuple[str, list[message.ImageURLPart]]:
+def _extract_developer_content(msg: message.DeveloperMessage) -> tuple[str, list[ImagePart]]:
     text_parts: list[str] = []
-    images: list[message.ImageURLPart] = []
+    images: list[ImagePart] = []
     for part in msg.parts:
         if isinstance(part, message.TextPart):
             text_parts.append(part.text + "\n")
-        elif isinstance(part, message.ImageURLPart):
+        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
             images.append(part)
     return "".join(text_parts), images
 
@@ -87,10 +90,15 @@ def build_chat_content_parts(
             parts.append({"type": "text", "text": part.text})
         elif isinstance(part, message.ImageURLPart):
             parts.append({"type": "image_url", "image_url": {"url": part.url}})
+        elif isinstance(part, message.ImageFilePart):
+            parts.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(part)}})
     if attachment.text:
         parts.append({"type": "text", "text": attachment.text})
     for image in attachment.images:
-        parts.append({"type": "image_url", "image_url": {"url": image.url}})
+        if isinstance(image, message.ImageFilePart):
+            parts.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(image)}})
+        else:
+            parts.append({"type": "image_url", "image_url": {"url": image.url}})
     if not parts:
         parts.append({"type": "text", "text": ""})
     return parts

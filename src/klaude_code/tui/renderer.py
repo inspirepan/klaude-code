@@ -417,6 +417,9 @@ class TUICommandRenderer:
             if image_path is not None:
                 self.display_image(str(image_path))
 
+        if not is_sub_agent and isinstance(e.ui_extra, model.ImageUIExtra):
+            self.display_image(e.ui_extra.file_path)
+
         renderable = c_tools.render_tool_result(e, code_theme=self.themes.code_theme, session_id=e.session_id)
         if renderable is not None:
             self.print(renderable)
@@ -450,6 +453,13 @@ class TUICommandRenderer:
             return
         with self.session_print_context(e.session_id):
             self.print(c_developer.render_developer_message(e))
+
+        # Display images from @ file references and user attachments
+        if e.item.ui_extra:
+            for ui_item in e.item.ui_extra.items:
+                if isinstance(ui_item, (model.AtFileImagesUIItem, model.UserImagesUIItem)):
+                    for image_path in ui_item.paths:
+                        self.display_image(image_path)
 
     def display_command_output(self, e: events.CommandOutputEvent) -> None:
         with self.session_print_context(e.session_id):
@@ -690,7 +700,7 @@ class TUICommandRenderer:
                 case PrintBlankLine():
                     self.print()
                 case PrintRuleLine():
-                    self.console.print(Rule(characters="─", style=ThemeKey.LINES))
+                    self.console.print(Rule(characters="─", style=ThemeKey.LINES_DIM))
                 case EmitOsc94Error():
                     emit_osc94(OSC94States.ERROR)
                 case EmitTmuxSignal():

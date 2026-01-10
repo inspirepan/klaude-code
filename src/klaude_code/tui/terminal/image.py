@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import shutil
-import struct
 import subprocess
 import sys
 import tempfile
@@ -12,8 +11,8 @@ from typing import IO
 # Kitty graphics protocol chunk size (4096 is the recommended max)
 _CHUNK_SIZE = 4096
 
-# Max columns for non-wide images
-_MAX_COLS = 120
+# Max columns for image display
+_MAX_COLS = 80
 
 # Image formats that need conversion to PNG
 _NEEDS_CONVERSION = {".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
@@ -40,26 +39,10 @@ def _convert_to_png(path: Path) -> bytes | None:
     return None
 
 
-def _get_png_dimensions(data: bytes) -> tuple[int, int] | None:
-    """Extract width and height from PNG file header."""
-    # PNG: 8-byte signature + IHDR chunk (4 len + 4 type + 4 width + 4 height)
-    if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n":
-        return None
-    width, height = struct.unpack(">II", data[16:24])
-    return width, height
-
-
 def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> None:
     """Print an image to the terminal using Kitty graphics protocol.
 
-    This intentionally bypasses Rich rendering to avoid interleaving Live refreshes
-    with raw escape sequences. Image size adapts based on aspect ratio:
-    - Landscape images: fill terminal width
-    - Portrait images: limit height to avoid oversized display
-
-    Args:
-        file_path: Path to the image file (PNG recommended).
-        file: Output file stream. Defaults to stdout.
+    Only specifies column width; Kitty auto-scales height to preserve aspect ratio.
     """
     path = Path(file_path) if isinstance(file_path, str) else file_path
     if not path.exists():
@@ -80,20 +63,9 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
         out = file or sys.stdout
 
         term_size = shutil.get_terminal_size()
-        dimensions = _get_png_dimensions(data)
-
-        # Determine sizing strategy based on aspect ratio
-        if dimensions is not None:
-            img_width, img_height = dimensions
-            if img_width > 2 * img_height:
-                # Wide landscape (width > 2x height): fill terminal width
-                size_param = f"c={term_size.columns}"
-            else:
-                # Other images: limit width to 80% of terminal
-                size_param = f"c={min(_MAX_COLS, term_size.columns * 4 // 5)}"
-        else:
-            # Fallback: limit width to 80% of terminal
-            size_param = f"c={min(_MAX_COLS, term_size.columns * 4 // 5)}"
+        # Only specify columns, let Kitty auto-scale height to preserve aspect ratio
+        target_cols = min(_MAX_COLS, term_size.columns)
+        size_param = f"c={target_cols}"
         print("", file=out)
         _write_kitty_graphics(out, encoded, size_param=size_param)
         print("", file=out)

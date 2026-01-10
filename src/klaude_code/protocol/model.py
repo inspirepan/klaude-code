@@ -217,6 +217,11 @@ class MermaidLinkUIExtra(BaseModel):
     line_count: int
 
 
+class ImageUIExtra(BaseModel):
+    type: Literal["image"] = "image"
+    file_path: str
+
+
 class MarkdownDocUIExtra(BaseModel):
     type: Literal["markdown_doc"] = "markdown_doc"
     file_path: str
@@ -231,7 +236,13 @@ class SessionStatusUIExtra(BaseModel):
 
 
 MultiUIExtraItem = (
-    DiffUIExtra | TodoListUIExtra | SessionIdUIExtra | MermaidLinkUIExtra | MarkdownDocUIExtra | SessionStatusUIExtra
+    DiffUIExtra
+    | TodoListUIExtra
+    | SessionIdUIExtra
+    | MermaidLinkUIExtra
+    | ImageUIExtra
+    | MarkdownDocUIExtra
+    | SessionStatusUIExtra
 )
 
 
@@ -251,6 +262,7 @@ ToolResultUIExtra = Annotated[
     | TodoListUIExtra
     | SessionIdUIExtra
     | MermaidLinkUIExtra
+    | ImageUIExtra
     | MarkdownDocUIExtra
     | SessionStatusUIExtra
     | MultiUIExtra,
@@ -292,11 +304,17 @@ class AtFileOpsUIItem(BaseModel):
 class UserImagesUIItem(BaseModel):
     type: Literal["user_images"] = "user_images"
     count: int
+    paths: list[str] = []
 
 
 class SkillActivatedUIItem(BaseModel):
     type: Literal["skill_activated"] = "skill_activated"
     name: str
+
+
+class AtFileImagesUIItem(BaseModel):
+    type: Literal["at_file_images"] = "at_file_images"
+    paths: list[str]
 
 
 type DeveloperUIItem = (
@@ -306,6 +324,7 @@ type DeveloperUIItem = (
     | AtFileOpsUIItem
     | UserImagesUIItem
     | SkillActivatedUIItem
+    | AtFileImagesUIItem
 )
 
 

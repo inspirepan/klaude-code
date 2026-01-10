@@ -171,9 +171,7 @@ class SubAgentModelCommand(CommandABC):
 
         sub_agents = helper.get_available_sub_agents()
 
-        selected_option = await asyncio.to_thread(
-            _select_sub_agent_sync, sub_agents, helper, main_model_name, config
-        )
+        selected_option = await asyncio.to_thread(_select_sub_agent_sync, sub_agents, helper, main_model_name, config)
         if selected_option is None:
             return CommandResult(
                 events=[

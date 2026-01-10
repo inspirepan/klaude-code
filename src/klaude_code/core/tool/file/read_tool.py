@@ -22,6 +22,7 @@ from klaude_code.core.tool.file._utils import file_exists, is_directory
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
+from klaude_code.protocol.model import ImageUIExtra
 
 _IMAGE_MIME_TYPES: dict[str, str] = {
     ".png": "image/png",
@@ -280,7 +281,12 @@ class ReadTool(ToolABC):
             size_kb = size_bytes / 1024.0 if size_bytes else 0.0
             output_text = f"[image] {Path(file_path).name} ({size_kb:.1f}KB)"
             image_part = message.ImageURLPart(url=data_url, id=None)
-            return message.ToolResultMessage(status="success", output_text=output_text, parts=[image_part])
+            return message.ToolResultMessage(
+                status="success",
+                output_text=output_text,
+                parts=[image_part],
+                ui_extra=ImageUIExtra(file_path=file_path),
+            )
 
         offset = 1 if args.offset is None or args.offset < 1 else int(args.offset)
         limit = None if args.limit is None else int(args.limit)

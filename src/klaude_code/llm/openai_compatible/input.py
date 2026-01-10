@@ -6,7 +6,6 @@
 from typing import cast
 
 from openai.types import chat
-from openai.types.chat import ChatCompletionContentPartParam
 
 from klaude_code.llm.image import assistant_image_to_data_url
 from klaude_code.llm.input_common import (
@@ -28,15 +27,6 @@ def _assistant_message_to_openai(msg: message.AssistantMessage) -> chat.ChatComp
 
     assistant_message.update(build_assistant_common_fields(msg, image_to_data_url=assistant_image_to_data_url))
     return cast(chat.ChatCompletionMessageParam, assistant_message)
-
-
-def build_user_content_parts(
-    images: list[message.ImageURLPart],
-) -> list[ChatCompletionContentPartParam]:
-    """Build content parts for images only. Used by OpenRouter."""
-    return [
-        cast(ChatCompletionContentPartParam, {"type": "image_url", "image_url": {"url": image.url}}) for image in images
-    ]
 
 
 def convert_history_to_input(

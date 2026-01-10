@@ -115,5 +115,8 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                         ),
                     )
                     parts.append(grid)
+                case model.AtFileImagesUIItem():
+                    # Image display is handled by renderer.display_developer_message
+                    pass
 
     return Group(*parts) if parts else Text("")
