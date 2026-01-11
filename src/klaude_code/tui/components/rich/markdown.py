@@ -622,20 +622,19 @@ class MarkdownStream:
             live_text_to_set = Text.from_ansi("".join(live_lines))
 
         with self._synchronized_output():
+            # Update/clear live area first to avoid blank padding when stable block appears
+            if final:
+                if self._live_sink is not None:
+                    self._live_sink(None)
+            elif live_text_to_set is not None and self._live_sink is not None:
+                self._live_sink(live_text_to_set)
+
             if stable_chunk_to_print:
                 self.console.print(Text.from_ansi(stable_chunk_to_print), end="\n")
 
             if new_images and self._image_callback:
                 for img_path in new_images:
                     self._image_callback(img_path)
-
-            if final:
-                if self._live_sink is not None:
-                    self._live_sink(None)
-                return
-
-            if live_text_to_set is not None and self._live_sink is not None:
-                self._live_sink(live_text_to_set)
 
         elapsed = time.time() - start
         self.min_delay = min(max(elapsed * 6, 1.0 / 30), 0.5)
