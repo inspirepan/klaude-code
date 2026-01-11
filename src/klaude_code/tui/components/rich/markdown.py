@@ -595,8 +595,11 @@ class MarkdownStream:
 
         live_text_to_set: Text | None = None
         if not final and MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._live_sink is not None:
-            apply_mark_live = self._stable_source_line_count == 0
-            live_lines, _ = self._render_markdown_to_lines(live_source, apply_mark=apply_mark_live)
+            # Only update live area after we have rendered at least one stable block
+            if not self._stable_rendered_lines:
+                return
+
+            live_lines, _ = self._render_markdown_to_lines(live_source, apply_mark=False)
 
             if self._stable_rendered_lines:
                 stable_trailing_blank = 0
