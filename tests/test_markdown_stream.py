@@ -31,6 +31,24 @@ def test_candidate_stable_line_incomplete_fence_is_zero() -> None:
     assert stream.compute_candidate_stable_line("```py\nprint(1)\n") == 0
 
 
+def test_candidate_stable_line_list_advances_by_item() -> None:
+    stream = _make_stream()
+    assert stream.compute_candidate_stable_line("- a\n") == 0
+    assert stream.compute_candidate_stable_line("- a\n- b") == 1
+    assert stream.compute_candidate_stable_line("hello\n\n- a\n- b") == 3
+
+
+def test_split_blocks_can_stabilize_list_prefix() -> None:
+    stream = _make_stream()
+    text = "- a\n- b\n- c\n"
+    stable_source, live_source, stable_line = stream.split_blocks(text, final=False)
+
+    assert stable_line == 2
+    assert stable_source == "- a\n- b\n"
+    assert live_source == "- c\n"
+    assert stable_source + live_source == text
+
+
 def test_split_source_stabilizes_only_before_last_block() -> None:
     stream = _make_stream()
     text = "hello\n\nworld"

@@ -395,11 +395,24 @@ class MarkdownStream:
             return 0
 
         top_level: list[Token] = [token for token in tokens if token.level == 0 and token.map is not None]
-        if len(top_level) < 2:
+        if not top_level:
             return 0
 
         last = top_level[-1]
         assert last.map is not None
+
+        # Lists are a special case: markdown-it-py treats the whole list as one
+        # top-level block, which would keep the entire list in the live area
+        # until the list ends.
+        #
+        # For streaming UX, we want all but the final list item to be eligible
+        # for stabilization, leaving only the *last* item in the live area.
+        if last.type in {"bullet_list_open", "ordered_list_open"}:
+            stable_line = self._compute_list_item_boundary(tokens, last)
+            return max(stable_line, 0)
+
+        if len(top_level) < 2:
+            return 0
 
         # When the buffer ends mid-line, markdown-it-py can temporarily classify
         # some lines as a thematic break (hr). For example, a trailing "- --"
@@ -416,6 +429,59 @@ class MarkdownStream:
 
         start_line = last.map[0]
         return max(start_line, 0)
+
+    def _compute_list_item_boundary(self, tokens: list[Token], list_open: Token) -> int:
+        """Return the start line of the last list item in a list.
+
+        This allows stabilizing all list items except the final one.
+        """
+
+        if list_open.map is None:
+            return 0
+
+        list_start, list_end = list_open.map
+        item_level = list_open.level + 1
+
+        last_item_start: int | None = None
+        for token in tokens:
+            if token.type != "list_item_open":
+                continue
+            if token.level != item_level:
+                continue
+            if token.map is None:
+                continue
+            start_line = token.map[0]
+            if start_line < list_start or start_line >= list_end:
+                continue
+            last_item_start = start_line
+
+        return last_item_start if last_item_start is not None else list_start
+
+    def _stable_boundary_continues_list(self, text: str, stable_line: int, *, final: bool) -> bool:
+        """Whether the stable/live split point is inside the final top-level list."""
+
+        if final:
+            return False
+        if stable_line <= 0:
+            return False
+
+        try:
+            tokens = self._parser.parse(text)
+        except Exception:
+            return False
+
+        top_level: list[Token] = [token for token in tokens if token.level == 0 and token.map is not None]
+        if not top_level:
+            return False
+
+        last = top_level[-1]
+        if last.type not in {"bullet_list_open", "ordered_list_open"}:
+            return False
+        if last.map is None:
+            return False
+
+        list_start, list_end = last.map
+        return list_start < stable_line < list_end
 
     def split_blocks(self, text: str, *, min_stable_line: int = 0, final: bool = False) -> tuple[str, str, int]:
         """Split full markdown into stable and live sources.
@@ -446,7 +512,14 @@ class MarkdownStream:
             return "", text, 0
         return stable_source, live_source, stable_line
 
-    def render_stable_ansi(self, stable_source: str, *, has_live_suffix: bool, final: bool) -> tuple[str, list[str]]:
+    def render_stable_ansi(
+        self,
+        stable_source: str,
+        *,
+        has_live_suffix: bool,
+        final: bool,
+        continues_list: bool = False,
+    ) -> tuple[str, list[str]]:
         """Render stable prefix to ANSI, preserving inter-block spacing.
 
         Returns:
@@ -456,10 +529,14 @@ class MarkdownStream:
             return "", []
 
         render_source = stable_source
-        if not final and has_live_suffix:
+        if not final and has_live_suffix and not continues_list:
             render_source = self._append_nonfinal_sentinel(stable_source)
 
         lines, images = self._render_markdown_to_lines(render_source, apply_mark=True)
+
+        if continues_list:
+            while lines and not lines[-1].strip():
+                lines.pop()
         return "".join(lines), images
 
     def _append_nonfinal_sentinel(self, stable_source: str) -> str:
@@ -571,6 +648,8 @@ class MarkdownStream:
             final=final,
         )
 
+        continues_list = self._stable_boundary_continues_list(text, stable_line, final=final) and bool(live_source)
+
         start = time.time()
 
         stable_chunk_to_print: str | None = None
@@ -578,7 +657,10 @@ class MarkdownStream:
         stable_changed = final or stable_line > self._stable_source_line_count
         if stable_changed and stable_source:
             stable_ansi, collected_images = self.render_stable_ansi(
-                stable_source, has_live_suffix=bool(live_source), final=final
+                stable_source,
+                has_live_suffix=bool(live_source),
+                final=final,
+                continues_list=continues_list,
             )
             stable_lines = stable_ansi.splitlines(keepends=True)
             new_lines = stable_lines[len(self._stable_rendered_lines) :]
@@ -596,31 +678,33 @@ class MarkdownStream:
 
         live_text_to_set: Text | None = None
         if not final and MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._live_sink is not None:
-            # Only update live area after we have rendered at least one stable block
-            if not self._stable_rendered_lines:
-                return
+            if continues_list and self._stable_rendered_lines:
+                full_lines, _ = self._render_markdown_to_lines(text, apply_mark=True)
+                skip = min(len(self._stable_rendered_lines), len(full_lines))
+                live_text_to_set = Text.from_ansi("".join(full_lines[skip:]))
+            else:
+                apply_mark = not self._stable_rendered_lines
+                live_lines, _ = self._render_markdown_to_lines(live_source, apply_mark=apply_mark)
 
-            live_lines, _ = self._render_markdown_to_lines(live_source, apply_mark=False)
-
-            if self._stable_rendered_lines:
-                stable_trailing_blank = 0
-                for line in reversed(self._stable_rendered_lines):
-                    if line.strip():
-                        break
-                    stable_trailing_blank += 1
-
-                if stable_trailing_blank > 0:
-                    live_leading_blank = 0
-                    for line in live_lines:
+                if self._stable_rendered_lines:
+                    stable_trailing_blank = 0
+                    for line in reversed(self._stable_rendered_lines):
                         if line.strip():
                             break
-                        live_leading_blank += 1
+                        stable_trailing_blank += 1
 
-                    drop = min(stable_trailing_blank, live_leading_blank)
-                    if drop > 0:
-                        live_lines = live_lines[drop:]
+                    if stable_trailing_blank > 0:
+                        live_leading_blank = 0
+                        for line in live_lines:
+                            if line.strip():
+                                break
+                            live_leading_blank += 1
 
-            live_text_to_set = Text.from_ansi("".join(live_lines))
+                        drop = min(stable_trailing_blank, live_leading_blank)
+                        if drop > 0:
+                            live_lines = live_lines[drop:]
+
+                live_text_to_set = Text.from_ansi("".join(live_lines))
 
         with self._synchronized_output():
             # Update/clear live area first to avoid blank padding when stable block appears

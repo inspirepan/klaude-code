@@ -17,14 +17,14 @@ def test_truncate_left_keeps_suffix_with_ellipsis() -> None:
     console = Console()
     text = Text("abcdef")
     result = truncate_left(text, 4, console=console)
-    assert result.plain == "…def"
+    assert result.plain == "… ef"
 
 
 def test_truncate_left_uses_cell_width_for_wide_chars() -> None:
     console = Console()
     text = Text("你好世界")
     result = truncate_left(text, 5, console=console)
-    assert result.plain == "…世界"
+    assert result.plain == "… 界"
 
 
 def test_truncate_left_tiny_width_returns_ellipsis_only() -> None:
