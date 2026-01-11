@@ -28,7 +28,7 @@ def calculate_cost(usage: model.Usage, cost_config: llm_param.Cost | None) -> No
     usage.output_cost = (usage.output_tokens / 1_000_000) * cost_config.output
 
     # Cache read cost
-    usage.cache_read_cost = (usage.cached_tokens / 1_000_000) * cost_config.cache_read
+    usage.cache_read_cost = (usage.cached_tokens / 1_000_000) * (cost_config.cache_read or cost_config.input)
 
     # Image generation cost
     usage.image_cost = (usage.image_tokens / 1_000_000) * cost_config.image
