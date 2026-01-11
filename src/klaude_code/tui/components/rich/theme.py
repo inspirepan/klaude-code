@@ -303,7 +303,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.THINKING.value: "italic " + palette.grey2,
                 ThemeKey.THINKING_BOLD.value: "italic " + palette.grey1,
                 # COMPACTION
-                ThemeKey.COMPACTION_SUMMARY.value: "italic " + palette.grey1,
+                ThemeKey.COMPACTION_SUMMARY.value: palette.grey1,
                 # TODO_ITEM
                 ThemeKey.TODO_EXPLANATION.value: palette.grey1 + " italic",
                 ThemeKey.TODO_PENDING_MARK.value: "bold " + palette.grey1,
