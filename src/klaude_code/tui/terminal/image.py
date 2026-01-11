@@ -17,6 +17,17 @@ _MAX_COLS = 80
 # Image formats that need conversion to PNG
 _NEEDS_CONVERSION = {".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
 
+# Approximate pixels per terminal column (typical for most terminals)
+_PIXELS_PER_COL = 9
+
+
+def _get_png_width(data: bytes) -> int | None:
+    """Extract width from PNG header (IHDR chunk)."""
+    # PNG signature (8 bytes) + IHDR length (4 bytes) + "IHDR" (4 bytes) + width (4 bytes)
+    if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    return int.from_bytes(data[16:20], "big")
+
 
 def _convert_to_png(path: Path) -> bytes | None:
     """Convert image to PNG using sips (macOS) or convert (ImageMagick)."""
@@ -63,9 +74,18 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
         out = file or sys.stdout
 
         term_size = shutil.get_terminal_size()
-        # Only specify columns, let Kitty auto-scale height to preserve aspect ratio
         target_cols = min(_MAX_COLS, term_size.columns)
-        size_param = f"c={target_cols}"
+
+        # Only set column width if image is wider than target, to avoid upscaling small images
+        size_param = ""
+        img_width = _get_png_width(data)
+        if img_width is not None:
+            img_cols = img_width // _PIXELS_PER_COL
+            if img_cols > target_cols:
+                size_param = f"c={target_cols}"
+        else:
+            # Fallback: always constrain if we can't determine image size
+            size_param = f"c={target_cols}"
         print("", file=out)
         _write_kitty_graphics(out, encoded, size_param=size_param)
         print("", file=out)
@@ -92,7 +112,8 @@ def _write_kitty_graphics(out: IO[str], encoded_data: str, *, size_param: str) -
 
         if i == 0:
             # First chunk: include control parameters
-            ctrl = f"a=T,f=100,{size_param},m={0 if is_last else 1}"
+            base_ctrl = f"a=T,f=100,{size_param}" if size_param else "a=T,f=100"
+            ctrl = f"{base_ctrl},m={0 if is_last else 1}"
             out.write(f"\033_G{ctrl};{chunk}\033\\")
         else:
             # Subsequent chunks: only m parameter needed
