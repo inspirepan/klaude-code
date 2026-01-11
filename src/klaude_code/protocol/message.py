@@ -112,6 +112,7 @@ class ThinkingTextPart(BaseModel):
     id: str | None = None
     text: str
     model_id: str | None = None
+    reasoning_field: str | None = None  # Original field name: reasoning_content, reasoning, reasoning_text
 
 
 class ThinkingSignaturePart(BaseModel):

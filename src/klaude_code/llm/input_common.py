@@ -149,6 +149,14 @@ def build_assistant_common_fields(
             }
             for tc in tool_calls
         ]
+
+    thinking_parts = [part for part in msg.parts if isinstance(part, message.ThinkingTextPart)]
+    if thinking_parts:
+        thinking_text = "".join(part.text for part in thinking_parts)
+        reasoning_field = next((p.reasoning_field for p in thinking_parts if p.reasoning_field), None)
+        if thinking_text and reasoning_field:
+            result[reasoning_field] = thinking_text
+
     return result
 
 

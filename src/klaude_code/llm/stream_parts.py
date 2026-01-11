@@ -24,6 +24,7 @@ def append_thinking_text_part(
     text: str,
     *,
     model_id: str,
+    reasoning_field: str | None = None,
     force_new: bool = False,
 ) -> int | None:
     if not text:
@@ -35,10 +36,11 @@ def append_thinking_text_part(
             parts[-1] = message.ThinkingTextPart(
                 text=last.text + text,
                 model_id=model_id,
+                reasoning_field=reasoning_field or last.reasoning_field,
             )
             return len(parts) - 1
 
-    parts.append(message.ThinkingTextPart(text=text, model_id=model_id))
+    parts.append(message.ThinkingTextPart(text=text, model_id=model_id, reasoning_field=reasoning_field))
     return len(parts) - 1
 
 

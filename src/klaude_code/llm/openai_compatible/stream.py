@@ -76,9 +76,9 @@ class StreamStateManager:
         """Set the response ID once received from the stream."""
         self.response_id = response_id
 
-    def append_thinking_text(self, text: str) -> None:
+    def append_thinking_text(self, text: str, *, reasoning_field: str | None = None) -> None:
         """Append thinking text, merging with the previous ThinkingTextPart when possible."""
-        append_thinking_text_part(self.assistant_parts, text, model_id=self.param_model)
+        append_thinking_text_part(self.assistant_parts, text, model_id=self.param_model, reasoning_field=reasoning_field)
 
     def append_text(self, text: str) -> None:
         """Append assistant text, merging with the previous TextPart when possible."""
@@ -150,6 +150,7 @@ class ReasoningDeltaResult:
 
     handled: bool
     outputs: list[str | message.Part]
+    reasoning_field: str | None = None  # Original field name: reasoning_content, reasoning, reasoning_text
 
 
 class ReasoningHandlerABC(ABC):
@@ -168,8 +169,11 @@ class ReasoningHandlerABC(ABC):
         """Flush buffered reasoning content (usually at stage transition/finalize)."""
 
 
+REASONING_FIELDS = ("reasoning_content", "reasoning", "reasoning_text")
+
+
 class DefaultReasoningHandler(ReasoningHandlerABC):
-    """Handles OpenAI-compatible reasoning fields (reasoning_content / reasoning)."""
+    """Handles OpenAI-compatible reasoning fields (reasoning_content / reasoning / reasoning_text)."""
 
     def __init__(
         self,
@@ -179,16 +183,20 @@ class DefaultReasoningHandler(ReasoningHandlerABC):
     ) -> None:
         self._param_model = param_model
         self._response_id = response_id
+        self._reasoning_field: str | None = None
 
     def set_response_id(self, response_id: str | None) -> None:
         self._response_id = response_id
 
     def on_delta(self, delta: object) -> ReasoningDeltaResult:
-        reasoning_content = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None) or ""
-        if not reasoning_content:
-            return ReasoningDeltaResult(handled=False, outputs=[])
-        text = str(reasoning_content)
-        return ReasoningDeltaResult(handled=True, outputs=[text])
+        for field_name in REASONING_FIELDS:
+            content = getattr(delta, field_name, None)
+            if content:
+                if self._reasoning_field is None:
+                    self._reasoning_field = field_name
+                text = str(content)
+                return ReasoningDeltaResult(handled=True, outputs=[text], reasoning_field=self._reasoning_field)
+        return ReasoningDeltaResult(handled=False, outputs=[])
 
     def flush(self) -> list[message.Part]:
         return []
@@ -282,7 +290,7 @@ async def parse_chat_completions_stream(
                         if not output:
                             continue
                         metadata_tracker.record_token()
-                        state.append_thinking_text(output)
+                        state.append_thinking_text(output, reasoning_field=reasoning_result.reasoning_field)
                         yield message.ThinkingTextDelta(content=output, response_id=state.response_id)
                     else:
                         state.assistant_parts.append(output)
