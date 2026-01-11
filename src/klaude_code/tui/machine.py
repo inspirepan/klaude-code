@@ -32,7 +32,6 @@ from klaude_code.tui.commands import (
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
-    RenderThinkingHeader,
     RenderToolCall,
     RenderToolResult,
     RenderTurnStart,
@@ -66,25 +65,6 @@ FAST_TOOLS: frozenset[str] = frozenset(
         tools.REPORT_BACK,
     }
 )
-
-
-@dataclass
-class SubAgentThinkingHeaderState:
-    buffer: str = ""
-    last_header: str | None = None
-
-    def append_and_extract_new_header(self, content: str) -> str | None:
-        self.buffer += content
-
-        max_chars = 8192
-        if len(self.buffer) > max_chars:
-            self.buffer = self.buffer[-max_chars:]
-
-        header = extract_last_bold_header(normalize_thinking_content(self.buffer))
-        if header and header != self.last_header:
-            self.last_header = header
-            return header
-        return None
 
 
 class ActivityState:
@@ -303,7 +283,6 @@ class SpinnerStatusState:
 class _SessionState:
     session_id: str
     sub_agent_state: model.SubAgentState | None = None
-    sub_agent_thinking_header: SubAgentThinkingHeaderState | None = None
     model_id: str | None = None
     assistant_stream_active: bool = False
     thinking_stream_active: bool = False
@@ -418,8 +397,6 @@ class DisplayStateMachine:
                     self._set_primary_if_needed(e.session_id)
                     if not is_replay:
                         cmds.append(TaskClockStart())
-                else:
-                    s.sub_agent_thinking_header = SubAgentThinkingHeaderState()
 
                 if not is_replay:
                     cmds.append(SpinnerStart())
@@ -465,7 +442,11 @@ class DisplayStateMachine:
 
             case events.ThinkingStartEvent() as e:
                 if s.is_sub_agent:
-                    return []
+                    if not s.should_show_sub_agent_thinking_header:
+                        return []
+                    s.thinking_stream_active = True
+                    cmds.append(StartThinkingStream(session_id=e.session_id))
+                    return cmds
                 if not self._is_primary(e.session_id):
                     return []
                 s.thinking_stream_active = True
@@ -483,11 +464,7 @@ class DisplayStateMachine:
                 if s.is_sub_agent:
                     if not s.should_show_sub_agent_thinking_header:
                         return []
-                    if s.sub_agent_thinking_header is None:
-                        s.sub_agent_thinking_header = SubAgentThinkingHeaderState()
-                    header = s.sub_agent_thinking_header.append_and_extract_new_header(e.content)
-                    if header:
-                        cmds.append(RenderThinkingHeader(session_id=e.session_id, header=header))
+                    cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
                     return cmds
 
                 if not self._is_primary(e.session_id):
@@ -507,7 +484,11 @@ class DisplayStateMachine:
 
             case events.ThinkingEndEvent() as e:
                 if s.is_sub_agent:
-                    return []
+                    if not s.should_show_sub_agent_thinking_header:
+                        return []
+                    s.thinking_stream_active = False
+                    cmds.append(EndThinkingStream(session_id=e.session_id))
+                    return cmds
                 if not self._is_primary(e.session_id):
                     return []
                 s.thinking_stream_active = False
@@ -679,15 +660,12 @@ class DisplayStateMachine:
             case events.TaskFinishEvent() as e:
                 s.task_active = False
                 cmds.append(RenderTaskFinish(e))
-                if not s.is_sub_agent:
-                    if not is_replay:
-                        cmds.append(TaskClockClear())
-                        self._spinner.reset()
-                        cmds.append(SpinnerStop())
-                        cmds.append(PrintRuleLine())
-                        cmds.append(EmitTmuxSignal())
-                else:
-                    s.sub_agent_thinking_header = None
+                if not s.is_sub_agent and not is_replay:
+                    cmds.append(TaskClockClear())
+                    self._spinner.reset()
+                    cmds.append(SpinnerStop())
+                    cmds.append(PrintRuleLine())
+                    cmds.append(EmitTmuxSignal())
                 return cmds
 
             case events.InterruptEvent() as e:

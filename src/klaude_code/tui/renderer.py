@@ -67,7 +67,7 @@ from klaude_code.tui.components import thinking as c_thinking
 from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components import user_input as c_user_input
 from klaude_code.tui.components import welcome as c_welcome
-from klaude_code.tui.components.common import truncate_head
+from klaude_code.tui.components.common import create_grid, truncate_head
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.live import CropAboveLive, SingleLine
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
@@ -168,6 +168,7 @@ class TUICommandRenderer:
         self._sessions: dict[str, _SessionStatus] = {}
         self._current_sub_agent_color: Style | None = None
         self._sub_agent_color_index = 0
+        self._sub_agent_thinking_buffers: dict[str, str] = {}
 
     # ---------------------------------------------------------------------
     # Session helpers
@@ -379,6 +380,19 @@ class TUICommandRenderer:
 
     def _flush_assistant(self) -> None:
         self._assistant_stream.render()
+
+    def _render_sub_agent_thinking(self, content: str) -> None:
+        """Render sub-agent thinking content as a single block."""
+        normalized = c_thinking.normalize_thinking_content(content)
+        if not normalized.strip():
+            return
+        md = ThinkingMarkdown(normalized, code_theme=self.themes.code_theme, style=ThemeKey.THINKING)
+        self.console.push_theme(self.themes.thinking_markdown_theme)
+        grid = create_grid()
+        grid.add_row(Text(c_thinking.THINKING_MESSAGE_MARK, style=ThemeKey.THINKING), md)
+        self.print(grid)
+        self.console.pop_theme()
+        self.print()
 
     # ---------------------------------------------------------------------
     # Event-specific rendering helpers
@@ -621,20 +635,31 @@ class TUICommandRenderer:
                     self.display_command_output(event)
                 case RenderTurnStart(event=event):
                     self.display_turn_start(event)
-                case StartThinkingStream():
-                    if not self._thinking_stream.is_active:
+                case StartThinkingStream(session_id=session_id):
+                    if self.is_sub_agent_session(session_id):
+                        self._sub_agent_thinking_buffers[session_id] = ""
+                    elif not self._thinking_stream.is_active:
                         self._thinking_stream.start(self._new_thinking_mdstream())
-                case AppendThinking(content=content):
-                    if self._thinking_stream.is_active:
+                case AppendThinking(session_id=session_id, content=content):
+                    if self.is_sub_agent_session(session_id):
+                        if session_id in self._sub_agent_thinking_buffers:
+                            self._sub_agent_thinking_buffers[session_id] += content
+                    elif self._thinking_stream.is_active:
                         first_delta = self._thinking_stream.buffer == ""
                         self._thinking_stream.append(content)
                         if first_delta:
                             self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
                         self._flush_thinking()
-                case EndThinkingStream():
-                    finalized = self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
-                    if finalized:
-                        self.print()
+                case EndThinkingStream(session_id=session_id):
+                    if self.is_sub_agent_session(session_id):
+                        buf = self._sub_agent_thinking_buffers.pop(session_id, "")
+                        if buf.strip():
+                            with self.session_print_context(session_id):
+                                self._render_sub_agent_thinking(buf)
+                    else:
+                        finalized = self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
+                        if finalized:
+                            self.print()
                 case StartAssistantStream():
                     if not self._assistant_stream.is_active:
                         self._assistant_stream.start(self._new_assistant_mdstream())
