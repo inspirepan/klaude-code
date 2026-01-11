@@ -275,6 +275,19 @@ provider_list:
     cost: {input: 4, output: 16, cache_read: 1, currency: CNY}
 
 
+- provider_name: cerebras
+  protocol: openai
+  api_key: ${CEREBRAS_API_KEY}
+  base_url: https://api.cerebras.ai/v1
+  model_list:
+
+  - model_name: glm
+    model_id: zai-glm-4.7
+    context_limit: 131072
+    max_tokens: 12800
+    cost: {input: 2.25, output: 2.75}
+
+
 - provider_name: claude-max
   protocol: claude_oauth
   disabled: true
