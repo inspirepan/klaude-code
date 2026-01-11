@@ -153,7 +153,8 @@ class LeftHeading(Heading):
             h1_text = text.assemble((" ", "markdown.h1"), text, (" ", "markdown.h1"))
             yield h1_text
         elif self.tag == "h2":
-            text.stylize(Style(bold=True, underline=False))
+            h2_style = console.get_style("markdown.h2", default="bold")
+            text.stylize(h2_style + Style(underline=False))
             yield text
         else:
             yield text

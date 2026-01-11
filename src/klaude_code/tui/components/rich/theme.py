@@ -21,6 +21,7 @@ class Palette:
     grey_green: str
     purple: str
     lavender: str
+    black: str
     diff_add: str
     diff_add_char: str
     diff_remove: str
@@ -55,6 +56,7 @@ LIGHT_PALETTE = Palette(
     grey_green="#96a096",
     purple="#5f5fb7",
     lavender="#7878b0",
+    black="#101827",
     diff_add="#2e5a32 on #dafbe1",
     diff_add_char="#2e5a32 on #aceebb",
     diff_remove="#82071e on #ffecec",
@@ -88,6 +90,7 @@ DARK_PALETTE = Palette(
     grey_green="#6d8672",
     purple="#afbafe",
     lavender="#9898b8",
+    black="white",
     diff_add="#c8e6c9 on #1b3928",
     diff_add_char="#c8e6c9 on #2d6b42",
     diff_remove="#ffcdd2 on #3d1f23",
@@ -347,9 +350,9 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.code.border": palette.grey3,
                 # Used by ThinkingMarkdown when rendering `<thinking>` blocks.
                 "markdown.code.block": palette.grey1,
-                "markdown.h1": "bold reverse",
+                "markdown.h1": "bold reverse " + palette.black,
                 "markdown.h1.border": palette.grey3,
-                "markdown.h2": "bold underline",
+                "markdown.h2": "bold underline " + palette.black,
                 "markdown.h3": "bold " + palette.grey1,
                 "markdown.h4": "bold " + palette.grey2,
                 "markdown.hr": palette.grey3,

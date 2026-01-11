@@ -547,9 +547,9 @@ class TUICommandRenderer:
         )
         self.console.print(
             Rule(
-                Text("Context Compact", style=ThemeKey.COMPACTION_SUMMARY),
+                Text("Context Compacted", style=ThemeKey.COMPACTION_SUMMARY),
                 characters="=",
-                style=ThemeKey.COMPACTION_SUMMARY,
+                style=ThemeKey.LINES,
             )
         )
         self.print()
