@@ -301,7 +301,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.BASH_HEREDOC_DELIMITER.value: "bold " + palette.grey1,
                 # THINKING
                 ThemeKey.THINKING.value: "italic " + palette.grey2,
-                ThemeKey.THINKING_BOLD.value: "bold italic " + palette.grey1,
+                ThemeKey.THINKING_BOLD.value: "italic " + palette.grey1,
                 # COMPACTION
                 ThemeKey.COMPACTION_SUMMARY.value: "italic " + palette.grey1,
                 # TODO_ITEM
@@ -365,7 +365,8 @@ def get_theme(theme: str | None = None) -> Themes:
             styles={
                 # THINKING (used for left-side mark in thinking output)
                 ThemeKey.THINKING.value: "italic " + palette.grey2,
-                ThemeKey.THINKING_BOLD.value: "bold italic " + palette.grey1,
+                ThemeKey.THINKING_BOLD.value: "italic " + palette.grey1,
+                "markdown.strong": "italic " + palette.grey1,
                 "markdown.code": palette.grey1 + " italic on " + palette.code_background,
                 "markdown.code.block": palette.grey1,
                 "markdown.code.border": palette.grey3,
@@ -379,7 +380,6 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.item.number": palette.grey2,
                 "markdown.link": "underline " + palette.blue,
                 "markdown.link_url": "underline " + palette.blue,
-                "markdown.strong": "bold italic " + palette.grey1,
                 "markdown.table.border": palette.grey2,
                 "markdown.checkbox.checked": palette.green,
             }

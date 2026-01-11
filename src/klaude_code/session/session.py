@@ -336,6 +336,7 @@ class Session(BaseModel):
                     # Reconstruct streaming boundaries from saved parts.
                     # This allows replay to reuse the same TUI state machine as live events.
                     thinking_open = False
+                    thinking_had_content = False
                     assistant_open = False
 
                     for part in am.parts:
@@ -347,15 +348,23 @@ class Session(BaseModel):
                                 thinking_open = True
                                 yield events.ThinkingStartEvent(response_id=am.response_id, session_id=self.id)
                             if part.text:
+                                if thinking_had_content:
+                                    yield events.ThinkingDeltaEvent(
+                                        content="  \n  \n",
+                                        response_id=am.response_id,
+                                        session_id=self.id,
+                                    )
                                 yield events.ThinkingDeltaEvent(
                                     content=part.text,
                                     response_id=am.response_id,
                                     session_id=self.id,
                                 )
+                                thinking_had_content = True
                             continue
 
                         if thinking_open:
                             thinking_open = False
+                            thinking_had_content = False
                             yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id)
 
                         if isinstance(part, message.TextPart):
