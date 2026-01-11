@@ -39,8 +39,10 @@ def build_payload(param: llm_param.LLMCallParameter) -> tuple[CompletionCreatePa
         "max_tokens": param.max_tokens,
         "tools": tools,
         "reasoning_effort": param.thinking.reasoning_effort if param.thinking else None,
-        "verbosity": param.verbosity,
     }
+
+    if param.verbosity:
+        payload["verbosity"] = param.verbosity
 
     return payload, extra_body
 
