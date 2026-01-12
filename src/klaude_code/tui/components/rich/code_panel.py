@@ -14,12 +14,12 @@ from rich.style import StyleType
 if TYPE_CHECKING:
     from rich.console import Console, ConsoleOptions, RenderResult
 
-# Box drawing characters
-TOP_LEFT = "┌"  # ┌
-TOP_RIGHT = "┐"  # ┐
-BOTTOM_LEFT = "└"  # └
-BOTTOM_RIGHT = "┘"  # ┘
-HORIZONTAL = "─"  # ─
+# Box drawing characters (rounded corners)
+TOP_LEFT = "╭"
+TOP_RIGHT = "╮"
+BOTTOM_LEFT = "╰"
+BOTTOM_RIGHT = "╯"
+HORIZONTAL = "─"
 
 
 class CodePanel(JupyterMixin):
@@ -32,10 +32,10 @@ class CodePanel(JupyterMixin):
         >>> console.print(CodePanel(Syntax(code, "python")))
 
     Renders as:
-        ┌──────────────────────────┐
+        ╭──────────────────────────╮
         code line 1
         code line 2
-        └──────────────────────────┘
+        ╰──────────────────────────╯
     """
 
     def __init__(
@@ -45,6 +45,7 @@ class CodePanel(JupyterMixin):
         border_style: StyleType = "none",
         expand: bool = False,
         padding: int = 1,
+        title: str | None = None,
     ) -> None:
         """Initialize the CodePanel.
 
@@ -53,11 +54,13 @@ class CodePanel(JupyterMixin):
             border_style: The style of the border. Defaults to "none".
             expand: If True, expand to fill available width. Defaults to False.
             padding: Left/right padding for content. Defaults to 1.
+            title: Optional title to display in the top border. Defaults to None.
         """
         self.renderable = renderable
         self.border_style = border_style
         self.expand = expand
         self.padding = padding
+        self.title = title
 
     @staticmethod
     def _measure_max_line_cells(lines: list[list[Segment]]) -> int:
@@ -93,10 +96,15 @@ class CodePanel(JupyterMixin):
         new_line = Segment.line()
         pad_segment = Segment(" " * pad) if pad > 0 else None
 
-        # Top border: ┌───...───┐
-        top_border = (
-            TOP_LEFT + (HORIZONTAL * (border_width - 2)) + TOP_RIGHT if border_width >= 2 else HORIZONTAL * border_width
-        )
+        # Top border: ╭───...───╮ or ╭ title ───...───╮
+        if self.title and border_width >= len(self.title) + 4:
+            title_part = f" {self.title} "
+            remaining = border_width - 2 - len(title_part)
+            top_border = TOP_LEFT + title_part + (HORIZONTAL * remaining) + TOP_RIGHT
+        elif border_width >= 2:
+            top_border = TOP_LEFT + (HORIZONTAL * (border_width - 2)) + TOP_RIGHT
+        else:
+            top_border = HORIZONTAL * border_width
         yield Segment(top_border, border_style)
         yield new_line
 
@@ -109,7 +117,7 @@ class CodePanel(JupyterMixin):
                 yield pad_segment
             yield new_line
 
-        # Bottom border: └───...───┘
+        # Bottom border: ╰───...───╯
         bottom_border = (
             BOTTOM_LEFT + (HORIZONTAL * (border_width - 2)) + BOTTOM_RIGHT
             if border_width >= 2
