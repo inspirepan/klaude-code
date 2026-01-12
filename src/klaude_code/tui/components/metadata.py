@@ -137,15 +137,15 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     renderables: list[RenderableType] = []
 
     has_sub_agents = len(e.metadata.sub_agent_task_metadata) > 0
-    # Use an extra space for the main agent mark to align with two-character marks (├─, ╰─)
-    main_mark_text = "✓"
+    # Use an extra space for the main agent mark to align with two-character marks (├─, └─)
+    main_mark_text = "●"
     main_mark = Text(main_mark_text, style=ThemeKey.METADATA)
 
     renderables.append(_render_task_metadata_block(e.metadata.main_agent, mark=main_mark, show_context_and_time=True))
 
     # Render each sub-agent metadata block
     for meta in e.metadata.sub_agent_task_metadata:
-        sub_mark = Text("  ╰", style=ThemeKey.METADATA_DIM)
+        sub_mark = Text("  └", style=ThemeKey.METADATA_DIM)
         renderables.append(_render_task_metadata_block(meta, mark=sub_mark, show_context_and_time=True))
 
     # Add total cost line when there are sub-agents
@@ -162,7 +162,7 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
 
         currency_symbol = "¥" if currency == "CNY" else "$"
         total_line = Text.assemble(
-            ("  ╰", ThemeKey.METADATA_DIM),
+            ("  └", ThemeKey.METADATA_DIM),
             (" Σ ", ThemeKey.METADATA_DIM),
             ("total ", ThemeKey.METADATA_DIM),
             (currency_symbol, ThemeKey.METADATA_DIM),
