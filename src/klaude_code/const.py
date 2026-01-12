@@ -71,7 +71,6 @@ DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS = 2048  # Default thinking budget token
 
 TODO_REMINDER_TOOL_CALL_THRESHOLD = 10  # Tool call count threshold for todo reminder
 REMINDER_COOLDOWN_TURNS = 3  # Cooldown turns between reminder triggers
-MEMORY_FILE_NAMES = ["CLAUDE.md", "AGENTS.md", "AGENT.md"]  # Memory file names to search for
 
 
 # =============================================================================

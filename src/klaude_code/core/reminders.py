@@ -4,9 +4,13 @@ import shlex
 from dataclasses import dataclass
 from pathlib import Path
 
-from pydantic import BaseModel
-
-from klaude_code.const import MEMORY_FILE_NAMES, REMINDER_COOLDOWN_TURNS, TODO_REMINDER_TOOL_CALL_THRESHOLD
+from klaude_code.const import REMINDER_COOLDOWN_TURNS, TODO_REMINDER_TOOL_CALL_THRESHOLD
+from klaude_code.core.memory import (
+    Memory,
+    discover_memory_files_near_paths,
+    format_memories_reminder,
+    get_memory_paths,
+)
 from klaude_code.core.tool import BashTool, ReadTool, build_todo_context
 from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.file._utils import hash_text_sha256
@@ -382,28 +386,6 @@ def _compute_file_content_sha256(path: str) -> str | None:
         return None
 
 
-def get_memory_paths() -> list[tuple[Path, str]]:
-    return [
-        (
-            Path.home() / ".claude" / "CLAUDE.md",
-            "user's private global instructions for all projects",
-        ),
-        (
-            Path.home() / ".codex" / "AGENTS.md",
-            "user's private global instructions for all projects",
-        ),
-        (Path.cwd() / "AGENTS.md", "project instructions, checked into the codebase"),
-        (Path.cwd() / "CLAUDE.md", "project instructions, checked into the codebase"),
-        (Path.cwd() / ".claude" / "CLAUDE.md", "project instructions, checked into the codebase"),
-    ]
-
-
-class Memory(BaseModel):
-    path: str
-    instruction: str
-    content: str
-
-
 def get_last_user_message_image_paths(session: Session) -> list[str]:
     """Get image file paths from the last user message in conversation history."""
     for item in reversed(session.conversation_history):
@@ -502,7 +484,7 @@ def _mark_memory_loaded(session: Session, path: str) -> None:
 
 async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
     """CLAUDE.md AGENTS.md"""
-    memory_paths = get_memory_paths()
+    memory_paths = get_memory_paths(work_dir=session.work_dir)
     memories: list[Memory] = []
     for memory_path, instruction in memory_paths:
         path_str = str(memory_path)
@@ -514,21 +496,12 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
             except (PermissionError, UnicodeDecodeError, OSError):
                 continue
     if len(memories) > 0:
-        memories_str = "\n\n".join(
-            [f"Contents of {memory.path} ({memory.instruction}):\n\n{memory.content}" for memory in memories]
-        )
         loaded_files = [
             model.MemoryFileLoaded(path=memory.path, mentioned_patterns=_extract_at_patterns(memory.content))
             for memory in memories
         ]
         return message.DeveloperMessage(
-            parts=message.text_parts_from_str(
-                f"""<system-reminder>
-Loaded memory files. Follow these instructions. Do not mention them to the user unless explicitly asked.
-
-{memories_str}
-</system-reminder>"""
-            ),
+            parts=message.text_parts_from_str(format_memories_reminder(memories, include_header=True)),
             ui_extra=model.DeveloperUIExtra(items=[model.MemoryLoadedUIItem(files=loaded_files)]),
         )
     return None
@@ -546,68 +519,23 @@ async def last_path_memory_reminder(
         return None
 
     paths = list(session.file_tracker.keys())
-    memories: list[Memory] = []
-
-    cwd = Path.cwd().resolve()
-    seen_memory_files: set[str] = set()
-
-    for p_str in paths:
-        p = Path(p_str)
-        full = (cwd / p).resolve() if not p.is_absolute() else p.resolve()
-        try:
-            _ = full.relative_to(cwd)
-        except ValueError:
-            # Not under cwd; skip
-            continue
-
-        # Determine the deepest directory to scan (file parent or directory itself)
-        deepest_dir = full if full.is_dir() else full.parent
-
-        # Iterate each directory level from cwd to deepest_dir
-        try:
-            rel_parts = deepest_dir.relative_to(cwd).parts
-        except ValueError:
-            # Shouldn't happen due to check above, but guard anyway
-            continue
-
-        current_dir = cwd
-        for part in rel_parts:
-            current_dir = current_dir / part
-            for fname in MEMORY_FILE_NAMES:
-                mem_path = current_dir / fname
-                mem_path_str = str(mem_path)
-                if mem_path_str in seen_memory_files or _is_memory_loaded(session, mem_path_str):
-                    continue
-                if mem_path.exists() and mem_path.is_file():
-                    try:
-                        text = mem_path.read_text(encoding="utf-8", errors="replace")
-                    except (PermissionError, UnicodeDecodeError, OSError):
-                        continue
-                    _mark_memory_loaded(session, mem_path_str)
-                    seen_memory_files.add(mem_path_str)
-                    memories.append(
-                        Memory(
-                            path=mem_path_str,
-                            instruction="project instructions, discovered near last accessed path",
-                            content=text,
-                        )
-                    )
+    memories = discover_memory_files_near_paths(
+        paths,
+        work_dir=session.work_dir,
+        is_memory_loaded=lambda p: _is_memory_loaded(session, p),
+        mark_memory_loaded=lambda p: _mark_memory_loaded(session, p),
+    )
 
     if len(memories) > 0:
-        memories_str = "\n\n".join(
-            [f"Contents of {memory.path} ({memory.instruction}):\n\n{memory.content}" for memory in memories]
-        )
         loaded_files = [
             model.MemoryFileLoaded(path=memory.path, mentioned_patterns=_extract_at_patterns(memory.content))
             for memory in memories
         ]
         return message.DeveloperMessage(
-            parts=message.text_parts_from_str(
-                f"""<system-reminder>{memories_str}
-</system-reminder>"""
-            ),
+            parts=message.text_parts_from_str(format_memories_reminder(memories, include_header=False)),
             ui_extra=model.DeveloperUIExtra(items=[model.MemoryLoadedUIItem(files=loaded_files)]),
         )
+    return None
 
 
 ALL_REMINDERS = [
