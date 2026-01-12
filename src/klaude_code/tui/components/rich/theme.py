@@ -39,6 +39,7 @@ class Palette:
     red_background: str
     grey_background: str
     yellow_background: str
+    user_message_background: str
 
 
 LIGHT_PALETTE = Palette(
@@ -73,6 +74,7 @@ LIGHT_PALETTE = Palette(
     red_background="#f9ecec",
     grey_background="#f0f0f0",
     yellow_background="#f9f9ec",
+    user_message_background="#f0f0f0",
 )
 
 DARK_PALETTE = Palette(
@@ -107,6 +109,7 @@ DARK_PALETTE = Palette(
     red_background="#3d1f23",
     grey_background="#2a2d30",
     yellow_background="#3d3a1a",
+    user_message_background="#2a2d30",
 )
 
 
@@ -258,18 +261,18 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.ERROR_DIM.value: "dim " + palette.red,
                 ThemeKey.INTERRUPT.value: palette.red,
                 # USER_INPUT
-                ThemeKey.USER_INPUT.value: palette.magenta,
-                ThemeKey.USER_INPUT_PROMPT.value: "bold " + palette.magenta,
-                ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple,
-                ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold " + palette.blue,
-                ThemeKey.USER_INPUT_SKILL.value: "bold " + palette.green,
+                ThemeKey.USER_INPUT.value: f"{palette.magenta} on {palette.user_message_background}",
+                ThemeKey.USER_INPUT_PROMPT.value: f"bold {palette.magenta} on {palette.user_message_background}",
+                ThemeKey.USER_INPUT_AT_PATTERN.value: f"{palette.purple} on {palette.user_message_background}",
+                ThemeKey.USER_INPUT_SLASH_COMMAND.value: f"bold {palette.blue} on {palette.user_message_background}",
+                ThemeKey.USER_INPUT_SKILL.value: f"bold {palette.green} on {palette.user_message_background}",
                 # ASSISTANT
                 ThemeKey.ASSISTANT_MESSAGE_MARK.value: "bold",
                 # METADATA
-                ThemeKey.METADATA.value: palette.lavender,
-                ThemeKey.METADATA_DIM.value: "dim " + palette.lavender,
-                ThemeKey.METADATA_BOLD.value: "bold " + palette.lavender,
-                ThemeKey.METADATA_ITALIC.value: "italic " + palette.lavender,
+                ThemeKey.METADATA.value: palette.grey_green,
+                ThemeKey.METADATA_DIM.value: "dim " + palette.grey_green,
+                ThemeKey.METADATA_BOLD.value: "bold " + palette.grey_green,
+                ThemeKey.METADATA_ITALIC.value: "italic " + palette.grey_green,
                 # STATUS
                 ThemeKey.STATUS_SPINNER.value: palette.blue,
                 ThemeKey.STATUS_TEXT.value: palette.blue,
@@ -362,6 +365,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.link_url": "underline " + palette.blue,
                 "markdown.table.border": palette.grey2,
                 "markdown.checkbox.checked": palette.green,
+                "markdown.block_quote": palette.grey1,
             }
         ),
         thinking_markdown_theme=Theme(
@@ -386,6 +390,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.link_url": "underline " + palette.blue,
                 "markdown.table.border": palette.grey2,
                 "markdown.checkbox.checked": palette.green,
+                "markdown.block_quote": palette.grey1,
             }
         ),
         code_theme=palette.code_theme,
