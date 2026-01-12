@@ -34,7 +34,7 @@ def select_session_sync(session_ids: list[str] | None = None) -> str | None:
             if msg == "⋮":
                 title.append(("class:msg", f"    {msg}\n"))
             else:
-                prefix = "└─" if is_last else "├─"
+                prefix = "╰─" if is_last else "├─"
                 title.append(("fg:ansibrightblack dim", f"    {prefix} "))
                 title.append(("class:msg", f"{msg}\n"))
         title.append(("", "\n"))

@@ -343,7 +343,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
                 sub_list = list(group.sub_providers.values())
                 for sub_idx, sub_group in enumerate(sub_list):
                     is_last_sub = sub_idx == len(sub_list) - 1
-                    sub_prefix = " └─ " if is_last_sub else " ├─ "
+                    sub_prefix = " ╰─ " if is_last_sub else " ├─ "
 
                     # Sub-provider row
                     add_stats_row(sub_group.total, prefix=sub_prefix, bold=True)
@@ -353,15 +353,15 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
                         is_last_model = model_idx == len(sub_group.models) - 1
                         # Indent based on whether sub-provider is last
                         if is_last_sub:
-                            model_prefix = "     └─ " if is_last_model else "     ├─ "
+                            model_prefix = "     ╰─ " if is_last_model else "     ├─ "
                         else:
-                            model_prefix = " │   └─ " if is_last_model else " │   ├─ "
+                            model_prefix = " │   ╰─ " if is_last_model else " │   ├─ "
                         add_stats_row(stats, prefix=model_prefix)
             else:
                 # No sub-providers: render two-level tree (direct models)
                 for model_idx, stats in enumerate(group.models):
                     is_last_model = model_idx == len(group.models) - 1
-                    model_prefix = " └─ " if is_last_model else " ├─ "
+                    model_prefix = " ╰─ " if is_last_model else " ├─ "
                     add_stats_row(stats, prefix=model_prefix)
 
         if show_subtotal:

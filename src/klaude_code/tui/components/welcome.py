@@ -50,7 +50,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     # Render config items with tree-style prefixes
     for i, param_str in enumerate(param_strings):
         is_last = i == len(param_strings) - 1
-        prefix = "└─ " if is_last else "├─ "
+        prefix = "╰─ " if is_last else "├─ "
         panel_content.append_text(
             Text.assemble(
                 ("\n", ThemeKey.WELCOME_INFO),
@@ -81,7 +81,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
 
         for i, (group_name, skills) in enumerate(skill_groups):
             is_last = i == len(skill_groups) - 1
-            prefix = "└─ " if is_last else "├─ "
+            prefix = "╰─ " if is_last else "├─ "
             label = f"[{group_name}]"
             panel_content.append_text(
                 Text.assemble(
