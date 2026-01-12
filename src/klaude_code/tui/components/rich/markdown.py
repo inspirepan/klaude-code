@@ -102,16 +102,21 @@ class NoInsetCodeBlock(CodeBlock):
             word_wrap=True,
             padding=(0, 0),
         )
-        yield CodePanel(syntax, border_style="markdown.code.border")
+        title = self.lexer_name if self.lexer_name != "text" else None
+        yield CodePanel(syntax, border_style="markdown.code.border", title=title)
 
 
 class ThinkingCodeBlock(CodeBlock):
-    """A code block for thinking content that uses grey styling instead of syntax highlighting."""
+    """A code block for thinking content that uses simple ``` delimiters."""
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         code = str(self.text).rstrip()
-        text = Text(code, "markdown.code.block")
-        yield CodePanel(text, border_style="markdown.code.border")
+        fence_style = "markdown.code.fence"
+        code_style = "markdown.code.block"
+        lang = self.lexer_name if self.lexer_name != "text" else ""
+        yield Text(f"```{lang}", style=fence_style)
+        yield Text(code, style=code_style)
+        yield Text("```", style=fence_style)
 
 
 class Divider(MarkdownElement):
