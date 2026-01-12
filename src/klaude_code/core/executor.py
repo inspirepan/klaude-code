@@ -134,9 +134,6 @@ class AgentRuntime:
             compact_llm_client=self._llm_clients.compact,
         )
 
-        async for evt in agent.replay_history():
-            await self._emit_event(evt)
-
         await self._emit_event(
             events.WelcomeEvent(
                 session_id=session.id,
@@ -145,6 +142,9 @@ class AgentRuntime:
                 loaded_skills=get_loaded_skill_names_by_location(),
             )
         )
+
+        async for evt in agent.replay_history():
+            await self._emit_event(evt)
 
         self._agent = agent
         log_debug(
@@ -249,9 +249,6 @@ class AgentRuntime:
             compact_llm_client=self._llm_clients.compact,
         )
 
-        async for evt in agent.replay_history():
-            await self._emit_event(evt)
-
         await self._emit_event(
             events.WelcomeEvent(
                 session_id=target_session.id,
@@ -260,6 +257,9 @@ class AgentRuntime:
                 loaded_skills=get_loaded_skill_names_by_location(),
             )
         )
+
+        async for evt in agent.replay_history():
+            await self._emit_event(evt)
 
         self._agent = agent
         log_debug(
