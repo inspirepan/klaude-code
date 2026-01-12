@@ -193,4 +193,14 @@ def apply_config_defaults(param: "LLMCallParameter", config: "LLMConfigParameter
         param.verbosity = config.verbosity
     if param.thinking is None:
         param.thinking = config.thinking
+    if param.modalities is None:
+        param.modalities = config.modalities
+    if param.image_config is None:
+        param.image_config = config.image_config
+    elif config.image_config is not None:
+        # Merge field-level: param overrides config defaults
+        if param.image_config.aspect_ratio is None:
+            param.image_config.aspect_ratio = config.image_config.aspect_ratio
+        if param.image_config.image_size is None:
+            param.image_config.image_size = config.image_config.image_size
     return param

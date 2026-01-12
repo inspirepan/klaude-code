@@ -148,6 +148,8 @@ provider_list:
     modalities:
     - image
     - text
+    image_config:
+      image_size: "4K"
     cost: {input: 2, output: 12, cache_read: 0.2, image: 120}
 
   - model_name: nano-banana
@@ -221,6 +223,8 @@ provider_list:
     modalities:
     - image
     - text
+    image_config:
+      image_size: "4K"
     cost: {input: 2, output: 12, cache_read: 0.2, image: 120}
 
   - model_name: nano-banana
