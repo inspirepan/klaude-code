@@ -90,7 +90,10 @@ class ActivityState:
 
     def add_sub_agent_tool_call(self, tool_call_id: str, tool_name: str) -> None:
         if tool_call_id in self._sub_agent_tool_calls_by_id:
-            return
+            old_tool_name = self._sub_agent_tool_calls_by_id[tool_call_id]
+            self._sub_agent_tool_calls[old_tool_name] = self._sub_agent_tool_calls.get(old_tool_name, 0) - 1
+            if self._sub_agent_tool_calls[old_tool_name] <= 0:
+                self._sub_agent_tool_calls.pop(old_tool_name, None)
         self._sub_agent_tool_calls_by_id[tool_call_id] = tool_name
         self._sub_agent_tool_calls[tool_name] = self._sub_agent_tool_calls.get(tool_name, 0) + 1
 
@@ -584,14 +587,11 @@ class DisplayStateMachine:
                 # Skip activity state for fast tools on non-streaming models (e.g., Gemini)
                 # to avoid flash-and-disappear effect
                 if not is_replay and not s.should_skip_tool_activity(e.tool_name):
-                    if e.tool_name == tools.TASK:
-                        pass
+                    tool_active_form = get_tool_active_form(e.tool_name)
+                    if is_sub_agent_tool(e.tool_name):
+                        self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
                     else:
-                        tool_active_form = get_tool_active_form(e.tool_name)
-                        if is_sub_agent_tool(e.tool_name):
-                            self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
-                        else:
-                            self._spinner.add_tool_call(tool_active_form)
+                        self._spinner.add_tool_call(tool_active_form)
 
                 if not is_replay:
                     cmds.extend(self._spinner_update_commands())

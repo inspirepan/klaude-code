@@ -3,8 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 
-import pytest
-
 from klaude_code.core.tool import WebFetchTool
 from klaude_code.core.tool.context import TodoContext, ToolContext
 from klaude_code.core.tool.web.web_fetch_tool import (
@@ -146,4 +144,3 @@ class TestWebFetchTool:
         assert result.status == "error"
         assert result.output_text is not None
         assert "Invalid arguments" in result.output_text
-
