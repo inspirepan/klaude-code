@@ -23,7 +23,6 @@ from klaude_code.tui.commands import (
     EndAssistantStream,
     EndThinkingStream,
     PrintBlankLine,
-    PrintRuleLine,
     RenderAssistantImage,
     RenderBashCommandEnd,
     RenderBashCommandStart,
@@ -667,6 +666,8 @@ class DisplayStateMachine:
                 cmds.append(EndThinkingStream(e.session_id))
                 cmds.append(EndAssistantStream(e.session_id))
                 cmds.append(RenderTaskMetadata(e))
+                if is_replay:
+                    cmds.append(PrintBlankLine())
                 return cmds
 
             case events.TodoChangeEvent() as e:
@@ -699,7 +700,6 @@ class DisplayStateMachine:
                     cmds.append(TaskClockClear())
                     self._spinner.reset()
                     cmds.append(SpinnerStop())
-                    cmds.append(PrintRuleLine())
                     cmds.append(EmitTmuxSignal())
                 return cmds
 
