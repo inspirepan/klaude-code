@@ -64,9 +64,9 @@ class TerminalNotifier:
             return False
 
         output = resolve_stream(self.config.stream)
-        if not self._supports_osc9(output):
+        if not self._supports_notification(output):
             log_debug(
-                "Terminal notifier skipped: OSC 9 unsupported or not a TTY",
+                "Terminal notifier skipped: not a TTY",
                 debug_type=DebugType.TERMINAL,
             )
             return False
@@ -74,27 +74,26 @@ class TerminalNotifier:
         payload = self._render_payload(notification)
         return self._emit(payload, output)
 
-    def _render_payload(self, notification: Notification) -> str:
-        title = _compact(notification.title)
-        body = _compact(notification.body) if notification.body else None
-        if body:
-            return f"{title} - {body}"
-        return title
+    def _render_payload(self, notification: Notification) -> tuple[str, str]:
+        """Return (title, body) for OSC 777 notification."""
+        body = _compact(notification.body) if notification.body else _compact(notification.title)
+        return ("klaude", body)
 
-    def _emit(self, payload: str, output: TextIO) -> bool:
+    def _emit(self, payload: tuple[str, str], output: TextIO) -> bool:
         terminator = BEL if self.config.use_bel else ST
-        seq = f"\033]9;{payload}{terminator}"
+        title, body = payload
+        seq = f"\033]777;notify;{title};{body}{terminator}"
         try:
             output.write(seq)
             output.flush()
-            log_debug("Terminal notifier sent OSC 9 payload", debug_type=DebugType.TERMINAL)
+            log_debug("Terminal notifier sent OSC 777 payload", debug_type=DebugType.TERMINAL)
             return True
         except Exception as exc:
             log_debug(f"Terminal notifier send failed: {exc}", debug_type=DebugType.TERMINAL)
             return False
 
     @staticmethod
-    def _supports_osc9(stream: TextIO) -> bool:
+    def _supports_notification(stream: TextIO) -> bool:
         if sys.platform == "win32":
             return False
         if not getattr(stream, "isatty", lambda: False)():

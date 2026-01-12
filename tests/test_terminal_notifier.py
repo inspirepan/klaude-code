@@ -38,8 +38,8 @@ def test_notifier_sends_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert sent is True
     payload = stream.getvalue()
-    assert "\033]9;" in payload
-    assert "Task done" in payload
+    assert "\033]777;notify;" in payload
+    assert "summary text" in payload
 
 
 def test_env_force_mode_bypasses_focus(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -52,4 +52,4 @@ def test_env_force_mode_bypasses_focus(monkeypatch: pytest.MonkeyPatch) -> None:
     sent = notifier.notify(_notification())
 
     assert sent is True
-    assert "\033]9;" in stream.getvalue()
+    assert "\033]777;notify;" in stream.getvalue()
