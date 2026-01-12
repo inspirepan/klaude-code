@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.1] - 2026-01-12
+
+### Added
+
+- support image_config and modalities in model config with field-level merge (`0c9d3c77`)
+- track and preserve reasoning field name for round-trip (`d915e2d2`)
+- add cerebras provider with glm model (`f0f96b64`)
+- display full thinking content for sub-agent (`5369b560`)
+- add file preview UI when using offset (`ddb41c91`)
+
+### Changed
+
+- remove network-dependent test cases (`bc3140e7`)
+- rename responses, bedrock and codex to vendor-prefixed modules (`e7c23a2c`)
+- update markdown header color (`762c3f91`)
+- remove italic from compaction summary (`9c0c448a`)
+- remove unused gap_part from bottom renderable (`8503acc5`)
+- unify token refresh to use file locking (`834f8ed4`)
+
+### Fixed
+
+- show Task tool activity in spinner (`5278db1e`)
+- stabilize markdown lists by item (`e3f2bd61`)
+- only include verbosity in payload when set (`ec9c576f`)
+- fallback to input cost when cache_read is not set (`6d3ed1ff`)
+- clear live area before printing stable block (`176bab36`)
+- avoid upscaling small images in terminal display (`ce21d561`)
+- improve thinking replay formatting (`faea52e7`)
+- defer tool call events until result is ready (`780e3a7f`)
+- expand tabs in grid content to prevent incorrect line wrapping (`3d112cd5`)
+- add space after ellipsis in status text truncation (`98588af1`)
+- replace Rule with Text for horizontal divider (`eb1b44a7`)
+
 ## [2.9.0] - 2026-01-10
 
 ### Added
@@ -1479,7 +1512,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.9.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.9.1...HEAD
+[2.9.1]: https://github.com/inspirepan/klaude-code/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/inspirepan/klaude-code/compare/v2.8.1...v2.9.0
 [2.8.1]: https://github.com/inspirepan/klaude-code/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/inspirepan/klaude-code/compare/v2.7.0...v2.8.0
