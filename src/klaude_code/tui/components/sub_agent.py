@@ -90,7 +90,7 @@ def render_sub_agent_result(
     if description:
         elements.append(
             Text(
-                f"---\n{description}",
+                description,
                 style=Style(bold=True, color=sub_agent_color.color, frame=True)
                 if sub_agent_color
                 else ThemeKey.TOOL_RESULT_BOLD,

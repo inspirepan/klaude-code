@@ -6,7 +6,7 @@ from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import render_path
 
-REMINDER_BULLET = "  ⧉"
+REMINDER_BULLET = "⧉"
 
 
 def need_render_developer_message(e: events.DeveloperMessageEvent) -> bool:
@@ -56,8 +56,6 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                             text = "Todo hasn't been updated recently"
                         case "empty":
                             text = "Todo list is empty"
-                        case _:
-                            text = "Todo reminder"
                     grid = create_grid()
                     grid.add_row(
                         Text(REMINDER_BULLET, style=ThemeKey.REMINDER),

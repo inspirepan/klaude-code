@@ -18,6 +18,7 @@ from rich.text import Text
 
 from klaude_code.const import (
     MARKDOWN_LEFT_MARGIN,
+    MARKDOWN_RIGHT_MARGIN,
     MARKDOWN_STREAM_LIVE_REPAINT_ENABLED,
     STATUS_DEFAULT_TEXT,
     STREAM_MAX_HEIGHT_SHRINK_RESET_LINES,
@@ -59,7 +60,6 @@ from klaude_code.tui.commands import (
     TaskClockClear,
     TaskClockStart,
 )
-from klaude_code.tui.components import assistant as c_assistant
 from klaude_code.tui.components import command_output as c_command_output
 from klaude_code.tui.components import developer as c_developer
 from klaude_code.tui.components import errors as c_errors
@@ -369,6 +369,7 @@ class TUICommandRenderer:
             mark=c_thinking.THINKING_MESSAGE_MARK,
             mark_style=ThemeKey.THINKING,
             left_margin=MARKDOWN_LEFT_MARGIN,
+            right_margin=MARKDOWN_RIGHT_MARGIN,
             markdown_class=ThinkingMarkdown,
         )
 
@@ -378,8 +379,8 @@ class TUICommandRenderer:
             theme=self.themes.markdown_theme,
             console=self.console,
             live_sink=self.set_stream_renderable,
-            mark=c_assistant.ASSISTANT_MESSAGE_MARK,
             left_margin=MARKDOWN_LEFT_MARGIN,
+            right_margin=MARKDOWN_RIGHT_MARGIN,
             image_callback=self.display_image,
         )
 
@@ -575,7 +576,6 @@ class TUICommandRenderer:
         if self.is_sub_agent_session(event.session_id):
             return
         self.print(c_metadata.render_task_metadata(event))
-        self.print()
 
     def display_task_finish(self, event: events.TaskFinishEvent) -> None:
         if self.is_sub_agent_session(event.session_id):

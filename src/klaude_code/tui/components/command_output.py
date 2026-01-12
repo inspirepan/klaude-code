@@ -1,5 +1,4 @@
 from rich.console import RenderableType
-from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
 
@@ -19,7 +18,7 @@ def render_command_output(e: events.CommandOutputEvent) -> RenderableType:
         case _:
             content = e.content or "(no content)"
             style = ThemeKey.TOOL_RESULT if not e.is_error else ThemeKey.ERROR
-            return Padding.indent(truncate_middle(content, base_style=style), level=2)
+            return truncate_middle(content, base_style=style)
 
 
 def _format_tokens(tokens: int) -> str:
@@ -44,7 +43,7 @@ def _format_cost(cost: float | None, currency: str = "USD") -> str:
 def _render_fork_session_output(e: events.CommandOutputEvent) -> RenderableType:
     """Render fork session output with usage instructions."""
     if not isinstance(e.ui_extra, model.SessionIdUIExtra):
-        return Padding.indent(Text(e.content, style=ThemeKey.TOOL_RESULT), level=2)
+        return Text(e.content, style=ThemeKey.TOOL_RESULT)
 
     grid = Table.grid(padding=(0, 1))
     session_id = e.ui_extra.session_id
@@ -54,7 +53,7 @@ def _render_fork_session_output(e: events.CommandOutputEvent) -> RenderableType:
     grid.add_row(Text("Session forked. Resume command copied to clipboard:", style=ThemeKey.TOOL_RESULT))
     grid.add_row(Text(f"  klaude -r {short_id}", style=ThemeKey.TOOL_RESULT_BOLD))
 
-    return Padding.indent(grid, level=2)
+    return grid
 
 
 def _render_status_output(e: events.CommandOutputEvent) -> RenderableType:
@@ -95,4 +94,4 @@ def _render_status_output(e: events.CommandOutputEvent) -> RenderableType:
                 usage_detail = "(no usage data)"
             table.add_row(f"{model_label}:", usage_detail)
 
-    return Padding.indent(table, level=2)
+    return table

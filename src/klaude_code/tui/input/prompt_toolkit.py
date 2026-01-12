@@ -303,7 +303,6 @@ class PromptToolkitInput(InputProviderABC):
             history=FileHistory(str(history_path)),
             multiline=True,
             cursor=CursorShape.BLINKING_BEAM,
-            prompt_continuation=[(INPUT_PROMPT_STYLE, "  ")],
             key_bindings=kb,
             completer=ThreadedCompleter(create_repl_completer(command_info_provider=self._command_info_provider)),
             complete_while_typing=True,
