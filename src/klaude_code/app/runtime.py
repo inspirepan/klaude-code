@@ -87,7 +87,7 @@ async def initialize_app_components(
     )
 
     if on_model_change is not None:
-        on_model_change(llm_clients.main.model_name)
+        on_model_change(llm_clients.main_model_alias)
 
     executor_task = asyncio.create_task(executor.start())
 

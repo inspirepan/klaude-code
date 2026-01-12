@@ -53,7 +53,7 @@ def build_llm_clients(
         compact_client = create_llm_client(compact_llm_config)
 
     if skip_sub_agents:
-        return LLMClients(main=main_client, compact=compact_client)
+        return LLMClients(main=main_client, main_model_alias=model_name, compact=compact_client)
 
     helper = SubAgentModelHelper(config)
     sub_agent_configs = helper.build_sub_agent_client_configs()
@@ -63,4 +63,4 @@ def build_llm_clients(
         sub_llm_config = config.get_model_config(sub_model_name)
         sub_clients[sub_agent_type] = create_llm_client(sub_llm_config)
 
-    return LLMClients(main=main_client, sub_clients=sub_clients, compact=compact_client)
+    return LLMClients(main=main_client, main_model_alias=model_name, sub_clients=sub_clients, compact=compact_client)

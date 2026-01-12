@@ -19,6 +19,7 @@ class LLMClients:
     """Container for LLM clients used by main agent and sub-agents."""
 
     main: LLMClientABC
+    main_model_alias: str = ""
     sub_clients: dict[SubAgentType, LLMClientABC] = dataclass_field(default_factory=_default_sub_clients)
     compact: LLMClientABC | None = None
 

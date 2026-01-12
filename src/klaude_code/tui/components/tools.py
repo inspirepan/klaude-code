@@ -565,6 +565,7 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.WEB_SEARCH: "Searching Web",
     tools.REPORT_BACK: "Reporting",
     tools.IMAGE_GEN: "Generating Image",
+    tools.TASK: "Spawning Task",
 }
 
 

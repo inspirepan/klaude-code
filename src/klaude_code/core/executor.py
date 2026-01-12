@@ -467,7 +467,7 @@ class ModelSwitcher:
             config.main_model = model_name
             await config.save()
 
-        return llm_config, llm_client.model_name
+        return llm_config, model_name
 
     def change_thinking(self, agent: Agent, *, thinking: Thinking) -> Thinking | None:
         """Apply thinking configuration to the agent's active LLM config and persisted session."""

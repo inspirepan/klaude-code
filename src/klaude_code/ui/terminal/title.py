@@ -26,6 +26,8 @@ def update_terminal_title(model_name: str | None = None) -> None:
     """Update terminal title with folder name and optional model name."""
     folder_name = os.path.basename(os.getcwd())
     if model_name:
-        set_terminal_title(f"{folder_name}: klaude ✳ {model_name}")
+        # Strip provider suffix (e.g., opus@openrouter -> opus)
+        model_alias = model_name.split("@")[0]
+        set_terminal_title(f"klaude [{model_alias}] · {folder_name}")
     else:
-        set_terminal_title(f"{folder_name}: klaude")
+        set_terminal_title(f"klaude · {folder_name}")
