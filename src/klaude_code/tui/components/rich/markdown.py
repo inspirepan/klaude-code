@@ -22,7 +22,6 @@ from rich.text import Text
 from rich.theme import Theme
 
 from klaude_code.const import (
-    MARKDOWN_RIGHT_MARGIN,
     MARKDOWN_STREAM_LIVE_REPAINT_ENABLED,
     MARKDOWN_STREAM_SYNCHRONIZED_OUTPUT_ENABLED,
     UI_REFRESH_RATE_FPS,
@@ -294,7 +293,7 @@ class MarkdownStream:
         mark: str | None = None,
         mark_style: StyleType | None = None,
         left_margin: int = 0,
-        right_margin: int = MARKDOWN_RIGHT_MARGIN,
+        right_margin: int = 0,
         markdown_class: Callable[..., Markdown] | None = None,
         image_callback: Callable[[str], None] | None = None,
     ) -> None:
@@ -330,10 +329,10 @@ class MarkdownStream:
 
         self.theme = theme
         self.console = console
-        self.mark: str | None = mark
-        self.mark_style: StyleType | None = mark_style
-
         self.left_margin: int = max(left_margin, 0)
+        # Default mark "•" when left_margin >= 2 and no mark specified
+        self.mark: str | None = mark if mark is not None else ("•" if self.left_margin >= 2 else None)
+        self.mark_style: StyleType | None = mark_style
 
         self.right_margin: int = max(right_margin, 0)
         self.markdown_class: Callable[..., Markdown] = markdown_class or NoInsetMarkdown
@@ -518,12 +517,17 @@ class MarkdownStream:
 
         collected_images = getattr(markdown, "collected_images", [])
 
-        # Split rendered output into lines, strip trailing spaces, and apply left margin.
         lines = output.splitlines(keepends=True)
-        indent_prefix = " " * self.left_margin if self.left_margin > 0 else ""
+        use_mark = apply_mark and bool(self.mark) and self.left_margin >= 2
+
+        # Fast path: no margin, no mark -> just rstrip each line
+        if self.left_margin == 0 and not use_mark:
+            processed_lines = [line.rstrip() + "\n" if line.endswith("\n") else line.rstrip() for line in lines]
+            return processed_lines, list(collected_images)
+
+        indent_prefix = " " * self.left_margin
         processed_lines: list[str] = []
         mark_applied = False
-        use_mark = apply_mark and bool(self.mark) and self.left_margin >= 2
 
         # Pre-render styled mark if needed
         styled_mark: str | None = None
@@ -544,7 +548,7 @@ class MarkdownStream:
             if use_mark and not mark_applied and stripped:
                 stripped = f"{styled_mark} {stripped}"
                 mark_applied = True
-            elif indent_prefix:
+            else:
                 stripped = indent_prefix + stripped
 
             if line.endswith("\n"):
