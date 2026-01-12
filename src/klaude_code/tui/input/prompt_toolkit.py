@@ -62,6 +62,7 @@ COMPLETION_SELECTED_LIGHT_BG = "ansigreen"
 COMPLETION_SELECTED_UNKNOWN_BG = "ansigreen"
 COMPLETION_MENU = "ansibrightblack"
 INPUT_PROMPT_STYLE = "ansimagenta bold"
+INPUT_PROMPT_BASH_STYLE = "ansigreen bold"
 PLACEHOLDER_TEXT_STYLE_DARK_BG = "fg:#5a5a5a"
 PLACEHOLDER_TEXT_STYLE_LIGHT_BG = "fg:#7a7a7a"
 PLACEHOLDER_TEXT_STYLE_UNKNOWN_BG = "fg:#8a8a8a"
@@ -244,6 +245,7 @@ class PromptToolkitInput(InputProviderABC):
         get_current_llm_config: Callable[[], llm_param.LLMConfigParameter | None] | None = None,
         command_info_provider: Callable[[], list[CommandInfo]] | None = None,
     ):
+        self._prompt_text = prompt
         self._status_provider = status_provider
         self._pre_prompt = pre_prompt
         self._post_prompt = post_prompt
@@ -296,6 +298,7 @@ class PromptToolkitInput(InputProviderABC):
             completion_selected = COMPLETION_SELECTED_UNKNOWN_BG
 
         return PromptSession(
+            # Use a stable prompt string; we override the style dynamically in prompt_async.
             [(INPUT_PROMPT_STYLE, prompt)],
             history=FileHistory(str(history_path)),
             multiline=True,
@@ -339,6 +342,25 @@ class PromptToolkitInput(InputProviderABC):
                 }
             ),
         )
+
+    def _is_bash_mode_active(self) -> bool:
+        try:
+            text = self._session.default_buffer.text
+            return text.startswith(("!", "！"))
+        except Exception:
+            return False
+
+    def _get_prompt_message(self) -> FormattedText:
+        style = INPUT_PROMPT_BASH_STYLE if self._is_bash_mode_active() else INPUT_PROMPT_STYLE
+        return FormattedText([(style, self._prompt_text)])
+
+    def _bash_mode_toolbar_fragments(self) -> StyleAndTextTuples:
+        if not self._is_bash_mode_active():
+            return []
+        return [
+            ("fg:ansigreen", " bash mode"),
+            ("fg:ansibrightblack", " (type ! at start; backspace first char to exit)"),
+        ]
 
     def _setup_model_picker(self) -> None:
         """Initialize the model picker overlay and attach it to the layout."""
@@ -600,18 +622,32 @@ class PromptToolkitInput(InputProviderABC):
             display_text = f"Debug log: {debug_log_path}"
             text_style = "fg:ansibrightblack"
 
+        bash_frags = self._bash_mode_toolbar_fragments()
+        bash_plain = "".join(frag[1] for frag in bash_frags)
+
         if display_text:
             left_text = " " + display_text
             try:
                 terminal_width = shutil.get_terminal_size().columns
-                padding = " " * max(0, terminal_width - len(left_text))
             except (OSError, ValueError):
+                terminal_width = 0
+
+            if terminal_width > 0 and bash_plain:
+                # Keep the right-side bash mode hint visible by truncating the left side if needed.
+                reserved = len(bash_plain)
+                max_left = max(0, terminal_width - reserved)
+                if len(left_text) > max_left:
+                    left_text = left_text[: max_left - 1] + "…" if max_left >= 2 else ""
+                padding = " " * max(0, terminal_width - len(left_text) - reserved)
+            else:
                 padding = ""
 
-            toolbar_text = left_text + padding
-            return FormattedText([(text_style, toolbar_text)])
+            return FormattedText([(text_style, left_text + padding), *bash_frags])
 
-        # Show shortcut hints when nothing else to display
+        # Show shortcut hints when nothing else to display.
+        # In bash mode, prefer showing only the bash hint (no placeholder shortcuts).
+        if bash_frags:
+            return FormattedText([("fg:default", " "), *bash_frags])
         return self._render_shortcut_hints()
 
     # -------------------------------------------------------------------------
@@ -680,6 +716,7 @@ class PromptToolkitInput(InputProviderABC):
             # proper styling instead of showing raw escape codes.
             with patch_stdout(raw=True):
                 line: str = await self._session.prompt_async(
+                    message=self._get_prompt_message,
                     bottom_toolbar=self._get_bottom_toolbar,
                 )
             if self._post_prompt is not None:

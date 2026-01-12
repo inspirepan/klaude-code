@@ -24,6 +24,7 @@ class OperationType(Enum):
     """Enumeration of supported operation types."""
 
     RUN_AGENT = "run_agent"
+    RUN_BASH = "run_bash"
     CONTINUE_AGENT = "continue_agent"
     COMPACT_SESSION = "compact_session"
     CHANGE_MODEL = "change_model"
@@ -58,6 +59,17 @@ class RunAgentOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_run_agent(self)
+
+
+class RunBashOperation(Operation):
+    """Operation for running a user-entered bash-mode command."""
+
+    type: OperationType = OperationType.RUN_BASH
+    session_id: str
+    command: str
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_run_bash(self)
 
 
 class ContinueAgentOperation(Operation):

@@ -22,6 +22,7 @@ if TYPE_CHECKING:
         InterruptOperation,
         ResumeSessionOperation,
         RunAgentOperation,
+        RunBashOperation,
     )
 
 
@@ -30,6 +31,10 @@ class OperationHandler(Protocol):
 
     async def handle_run_agent(self, operation: RunAgentOperation) -> None:
         """Handle a run agent operation."""
+        ...
+
+    async def handle_run_bash(self, operation: RunBashOperation) -> None:
+        """Handle a bash-mode command execution operation."""
         ...
 
     async def handle_continue_agent(self, operation: ContinueAgentOperation) -> None:

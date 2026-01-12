@@ -25,6 +25,7 @@ from klaude_code.const import (
 from klaude_code.protocol import events, model, tools
 from klaude_code.tui.commands import (
     AppendAssistant,
+    AppendBashCommandOutput,
     AppendThinking,
     EmitOsc94Error,
     EmitTmuxSignal,
@@ -33,6 +34,8 @@ from klaude_code.tui.commands import (
     PrintBlankLine,
     PrintRuleLine,
     RenderAssistantImage,
+    RenderBashCommandEnd,
+    RenderBashCommandStart,
     RenderCommand,
     RenderCommandOutput,
     RenderCompactionSummary,
@@ -164,6 +167,9 @@ class TUICommandRenderer:
         self._notifier = notifier
         self._assistant_stream = _StreamState()
         self._thinking_stream = _StreamState()
+
+        self._bash_stream_active: bool = False
+        self._bash_last_char_was_newline: bool = True
 
         self._sessions: dict[str, _SessionStatus] = {}
         self._current_sub_agent_color: Style | None = None
@@ -304,7 +310,9 @@ class TUICommandRenderer:
 
     def _bottom_renderable(self) -> RenderableType:
         stream_part: RenderableType = Group()
-        gap_part: RenderableType = Group()
+        # Keep a visible separation between the bottom status line (spinner)
+        # and the main terminal output.
+        gap_part: RenderableType = Text(" ") if (self._spinner_visible and self._bash_stream_active) else Group()
 
         if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED:
             stream = self._stream_renderable
@@ -326,7 +334,7 @@ class TUICommandRenderer:
                 if pad_lines:
                     stream = Padding(stream, (0, 0, pad_lines, 0))
                 stream_part = stream
-                gap_part = Text("")
+                gap_part = Text(" ") if (self._spinner_visible and self._bash_stream_active) else Group()
 
         status_part: RenderableType = SingleLine(self._status_spinner) if self._spinner_visible else Group()
         return Group(stream_part, gap_part, status_part)
@@ -459,6 +467,66 @@ class TUICommandRenderer:
         with self.session_print_context(e.session_id):
             self.print(c_command_output.render_command_output(e))
             self.print()
+
+    def display_bash_command_start(self, e: events.BashCommandStartEvent) -> None:
+        # The user input line already shows `!cmd`; bash output is streamed as it arrives.
+        # We keep minimal rendering here to avoid adding noise.
+        self._bash_stream_active = True
+        self._bash_last_char_was_newline = True
+        if self._spinner_visible:
+            self._refresh_bottom_live()
+
+    def display_bash_command_delta(self, e: events.BashCommandOutputDeltaEvent) -> None:
+        if not self._bash_stream_active:
+            self._bash_stream_active = True
+            if self._spinner_visible:
+                self._refresh_bottom_live()
+
+        content = e.content
+        if content == "":
+            return
+
+        # Rich Live refreshes periodically (even when the renderable doesn't change).
+        # If we print bash output without a trailing newline while Live is active,
+        # the next refresh can overwrite the partial line.
+        #
+        # To keep streamed bash output stable, temporarily stop the bottom Live
+        # during the print, and only resume it once the output is back at a
+        # line boundary (i.e. chunk ends with "\n").
+        if self._bottom_live is not None:
+            with contextlib.suppress(Exception):
+                self._bottom_live.stop()
+            self._bottom_live = None
+
+        try:
+            # Do not use Renderer.print() here because it forces overflow="ellipsis",
+            # which would truncate long command output lines.
+            self.console.print(Text(content, style=ThemeKey.TOOL_RESULT), end="", overflow="ignore")
+            self._bash_last_char_was_newline = content.endswith("\n")
+        finally:
+            # Resume the bottom Live only when we're not in the middle of a line,
+            # otherwise periodic refresh can clobber the partial line.
+            if self._bash_last_char_was_newline and self._spinner_visible:
+                self._ensure_bottom_live_started()
+                self._refresh_bottom_live()
+
+    def display_bash_command_end(self, e: events.BashCommandEndEvent) -> None:
+        # Stop the bottom Live before finalizing bash output to prevent a refresh
+        # from interfering with the final line(s) written to stdout.
+        if self._bottom_live is not None:
+            with contextlib.suppress(Exception):
+                self._bottom_live.stop()
+            self._bottom_live = None
+
+        # Leave a blank line before the next prompt:
+        # - If the command output already ended with a newline, print one more "\n".
+        # - Otherwise, print "\n\n" to end the line and add one empty line.
+        if self._bash_stream_active:
+            sep = "\n" if self._bash_last_char_was_newline else "\n\n"
+            self.console.print(Text(sep), end="", overflow="ignore")
+
+        self._bash_stream_active = False
+        self._bash_last_char_was_newline = True
 
     def display_welcome(self, event: events.WelcomeEvent) -> None:
         self.print(c_welcome.render_welcome(event))
@@ -633,6 +701,12 @@ class TUICommandRenderer:
                     self.display_developer_message(event)
                 case RenderCommandOutput(event=event):
                     self.display_command_output(event)
+                case RenderBashCommandStart(event=event):
+                    self.display_bash_command_start(event)
+                case AppendBashCommandOutput(event=event):
+                    self.display_bash_command_delta(event)
+                case RenderBashCommandEnd(event=event):
+                    self.display_bash_command_end(event)
                 case RenderTurnStart(event=event):
                     self.display_turn_start(event)
                 case StartThinkingStream(session_id=session_id):

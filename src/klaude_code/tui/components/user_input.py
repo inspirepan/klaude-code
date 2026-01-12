@@ -5,6 +5,7 @@ from rich.text import Text
 
 from klaude_code.const import TAB_EXPAND_WIDTH
 from klaude_code.skill import get_available_skills
+from klaude_code.tui.components.bash_syntax import highlight_bash_command
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
 
@@ -81,9 +82,29 @@ def render_user_input(content: str) -> RenderableType:
     - Highlights @file and $skill patterns in all lines
     """
     lines = content.strip().split("\n")
+    is_bash_mode = bool(lines) and lines[0].startswith("!")
     renderables: list[RenderableType] = []
     for i, line in enumerate(lines):
         line = line.expandtabs(TAB_EXPAND_WIDTH)
+
+        if is_bash_mode and i == 0:
+            after_bang = line[1:]
+            after_ws = after_bang.lstrip(" \t")
+            ws_len = len(after_bang) - len(after_ws)
+            leading_ws = after_bang[:ws_len]
+            cmd = after_ws
+
+            line_text = Text("!", style=ThemeKey.BASH_ARGUMENT)
+            if leading_ws:
+                line_text.append(leading_ws, style=ThemeKey.USER_INPUT)
+            if cmd:
+                line_text.append_text(highlight_bash_command(cmd))
+            renderables.append(line_text)
+            continue
+
+        if is_bash_mode and i > 0:
+            renderables.append(Text(line, style=ThemeKey.TOOL_RESULT))
+            continue
         # Handle slash command on first line
         if i == 0 and line.startswith("/"):
             splits = line.split(" ", maxsplit=1)
@@ -100,10 +121,11 @@ def render_user_input(content: str) -> RenderableType:
 
     grid = create_grid()
     grid.padding = (0, 0)
-    mark = Text(USER_MESSAGE_MARK, style=ThemeKey.USER_INPUT_PROMPT)
+    mark_style = ThemeKey.BASH_ARGUMENT if is_bash_mode else ThemeKey.USER_INPUT_PROMPT
+    mark = Text(USER_MESSAGE_MARK, style=mark_style)
     grid.add_row(mark, Group(*renderables))
     return grid
 
 
 def render_interrupt() -> RenderableType:
-    return Text("  Interrupted by user\n", style=ThemeKey.INTERRUPT)
+    return Text("Interrupted by user", style=ThemeKey.INTERRUPT)

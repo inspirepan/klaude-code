@@ -65,10 +65,26 @@ async def submit_user_input_payload(
 
     submission_id = uuid4().hex
 
+    # Normalize a leading full-width exclamation mark for consistent UI/history.
+    # (Bash mode is triggered only when the first character is `!`.)
+    text = user_input.text
+    if text.startswith("！"):
+        text = "!" + text[1:]
+        user_input = UserInputPayload(text=text, images=user_input.images)
+
     # Render the raw user input in the TUI even when it resolves to an event-only command.
     await executor.context.emit_event(
         events.UserMessageEvent(content=user_input.text, session_id=sid, images=user_input.images)
     )
+
+    # Bash mode: run a user-entered command without invoking the agent.
+    if user_input.text.startswith("!"):
+        command = user_input.text[1:].lstrip(" \t")
+        if command == "":
+            # Enter should be ignored in the input layer for this case; keep a guard here.
+            return None
+        bash_op = op.RunBashOperation(id=submission_id, session_id=sid, command=command)
+        return await executor.submit(bash_op)
 
     cmd_result = await dispatch_command(user_input, agent, submission_id=submission_id)
     operations: list[op.Operation] = list(cmd_result.operations or [])
@@ -304,6 +320,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             if is_interactive:
                 with _double_ctrl_c_to_exit_while_running():
                     await components.executor.wait_for(wait_id)
+                # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
+                # before handing control back to prompt_toolkit.
+                await components.event_queue.join()
                 continue
 
             async def _on_esc_interrupt() -> None:
@@ -313,6 +332,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             try:
                 with _double_ctrl_c_to_exit_while_running():
                     await components.executor.wait_for(wait_id)
+                # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
+                # before handing control back to prompt_toolkit.
+                await components.event_queue.join()
             finally:
                 stop_event.set()
                 with contextlib.suppress(Exception):

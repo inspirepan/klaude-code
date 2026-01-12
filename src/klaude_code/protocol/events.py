@@ -14,6 +14,9 @@ __all__ = [
     "AssistantTextDeltaEvent",
     "AssistantTextEndEvent",
     "AssistantTextStartEvent",
+    "BashCommandEndEvent",
+    "BashCommandOutputDeltaEvent",
+    "BashCommandStartEvent",
     "CommandOutputEvent",
     "CompactionEndEvent",
     "CompactionStartEvent",
@@ -79,6 +82,19 @@ class CommandOutputEvent(Event):
     content: str = ""
     ui_extra: model.ToolResultUIExtra | None = None
     is_error: bool = False
+
+
+class BashCommandStartEvent(Event):
+    command: str
+
+
+class BashCommandOutputDeltaEvent(Event):
+    content: str
+
+
+class BashCommandEndEvent(Event):
+    exit_code: int | None = None
+    cancelled: bool = False
 
 
 class TaskStartEvent(Event):

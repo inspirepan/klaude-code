@@ -39,6 +39,21 @@ class RenderCommandOutput(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderBashCommandStart(RenderCommand):
+    event: events.BashCommandStartEvent
+
+
+@dataclass(frozen=True, slots=True)
+class AppendBashCommandOutput(RenderCommand):
+    event: events.BashCommandOutputDeltaEvent
+
+
+@dataclass(frozen=True, slots=True)
+class RenderBashCommandEnd(RenderCommand):
+    event: events.BashCommandEndEvent
+
+
+@dataclass(frozen=True, slots=True)
 class RenderTurnStart(RenderCommand):
     event: events.TurnStartEvent
 

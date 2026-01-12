@@ -76,6 +76,9 @@ def create_key_bindings(
     term_program = os.environ.get("TERM_PROGRAM", "").lower()
     swallow_next_control_j = False
 
+    def _is_bash_mode_text(text: str) -> bool:
+        return text.startswith(("!", "！"))
+
     def _data_requests_newline(data: str) -> bool:
         """Return True when incoming key data should insert a newline.
 
@@ -374,6 +377,33 @@ def create_key_bindings(
         buf = event.current_buffer
         doc = buf.document  # type: ignore
 
+        # Normalize a leading full-width exclamation mark to ASCII so that:
+        # - UI echo shows `!cmd` consistently
+        # - history stores `!cmd` (not `！cmd`)
+        # - bash-mode detection is stable
+        try:
+            current_text = buf.text  # type: ignore[reportUnknownMemberType]
+            cursor_pos = int(buf.cursor_position)  # type: ignore[reportUnknownMemberType]
+        except Exception:
+            current_text = ""
+            cursor_pos = 0
+
+        if current_text.startswith("！"):
+            normalized = "!" + current_text[1:]
+            if normalized != current_text:
+                with contextlib.suppress(Exception):
+                    buf.text = normalized  # type: ignore[reportUnknownMemberType]
+                    buf.cursor_position = min(cursor_pos, len(normalized))  # type: ignore[reportUnknownMemberType]
+                current_text = normalized
+
+        # Bash mode: if there is no command after `!` (ignoring only space/tab),
+        # ignore Enter but keep the input text as-is.
+        if _is_bash_mode_text(current_text):
+            after_bang = current_text[1:]
+            command = after_bang.lstrip(" \t")
+            if command == "":
+                return
+
         data = getattr(event, "data", "")
         if isinstance(data, str) and _data_requests_newline(data):
             _insert_newline(event)
@@ -393,7 +423,13 @@ def create_key_bindings(
         # When completions are visible, Enter accepts the current selection.
         # This aligns with common TUI completion UX: navigation doesn't modify
         # the buffer, and Enter/Tab inserts the selected option.
-        if not _should_submit_instead_of_accepting_completion(buf) and _accept_current_completion(buf):
+        #
+        # Bash mode disables completions entirely, so always prefer submitting.
+        if (
+            not _is_bash_mode_text(current_text)
+            and not _should_submit_instead_of_accepting_completion(buf)
+            and _accept_current_completion(buf)
+        ):
             return
 
         # Before submitting, expand any folded paste markers so that:

@@ -91,6 +91,7 @@ BINARY_CHECK_SIZE = 8192  # Bytes to check for binary file detection
 
 BASH_DEFAULT_TIMEOUT_MS = 120000  # Default timeout for bash commands (milliseconds)
 BASH_TERMINATE_TIMEOUT_SEC = 1.0  # Timeout before escalating to SIGKILL (seconds)
+BASH_MODE_SESSION_OUTPUT_MAX_BYTES = 200 * 1024 * 1024  # Max command output captured for session history
 
 
 # =============================================================================
@@ -170,6 +171,7 @@ STATUS_WAITING_TEXT = "Loading …"
 STATUS_THINKING_TEXT = "Thinking …"
 STATUS_COMPOSING_TEXT = "Composing"
 STATUS_COMPACTING_TEXT = "Compacting"
+STATUS_RUNNING_TEXT = "Running …"
 
 # Backwards-compatible alias for the default spinner status text.
 STATUS_DEFAULT_TEXT = STATUS_WAITING_TEXT

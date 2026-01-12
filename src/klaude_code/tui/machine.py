@@ -9,12 +9,14 @@ from klaude_code.const import (
     STATUS_COMPACTING_TEXT,
     STATUS_COMPOSING_TEXT,
     STATUS_DEFAULT_TEXT,
+    STATUS_RUNNING_TEXT,
     STATUS_SHOW_BUFFER_LENGTH,
     STATUS_THINKING_TEXT,
 )
 from klaude_code.protocol import events, model, tools
 from klaude_code.tui.commands import (
     AppendAssistant,
+    AppendBashCommandOutput,
     AppendThinking,
     EmitOsc94Error,
     EmitTmuxSignal,
@@ -23,6 +25,8 @@ from klaude_code.tui.commands import (
     PrintBlankLine,
     PrintRuleLine,
     RenderAssistantImage,
+    RenderBashCommandEnd,
+    RenderBashCommandStart,
     RenderCommand,
     RenderCommandOutput,
     RenderCompactionSummary,
@@ -245,7 +249,7 @@ class SpinnerStatusState:
 
         if base_status:
             # Default "Thinking ..." uses normal style; custom headers use bold italic
-            is_default_reasoning = base_status == STATUS_THINKING_TEXT
+            is_default_reasoning = base_status in {STATUS_THINKING_TEXT, STATUS_RUNNING_TEXT}
             status_style = ThemeKey.STATUS_TEXT if is_default_reasoning else ThemeKey.STATUS_TEXT_BOLD_ITALIC
             if activity_text:
                 result = Text()
@@ -390,6 +394,37 @@ class DisplayStateMachine:
                 if s.is_sub_agent:
                     return []
                 cmds.append(RenderUserMessage(e))
+                return cmds
+
+            case events.BashCommandStartEvent() as e:
+                if s.is_sub_agent:
+                    return []
+                if not is_replay:
+                    self._spinner.set_reasoning_status(STATUS_RUNNING_TEXT)
+                    cmds.append(TaskClockStart())
+                    cmds.append(SpinnerStart())
+                    cmds.extend(self._spinner_update_commands())
+
+                cmds.append(RenderBashCommandStart(e))
+                return cmds
+
+            case events.BashCommandOutputDeltaEvent() as e:
+                if s.is_sub_agent:
+                    return []
+                cmds.append(AppendBashCommandOutput(e))
+                return cmds
+
+            case events.BashCommandEndEvent() as e:
+                if s.is_sub_agent:
+                    return []
+                cmds.append(RenderBashCommandEnd(e))
+
+                if not is_replay:
+                    self._spinner.set_reasoning_status(None)
+                    cmds.append(TaskClockClear())
+                    cmds.append(SpinnerStop())
+                    cmds.extend(self._spinner_update_commands())
+
                 return cmds
 
             case events.TaskStartEvent() as e:

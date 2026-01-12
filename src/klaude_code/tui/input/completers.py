@@ -219,6 +219,14 @@ class _ComboCompleter(Completer):
         document: Document,
         complete_event,  # type: ignore[override]
     ) -> Iterable[Completion]:
+        # Bash mode: disable all completions.
+        # A command is considered bash mode only when the first character is `!` (or full-width `！`).
+        try:
+            if document.text.startswith(("!", "！")):
+                return
+        except Exception:
+            pass
+
         # Try slash command completion first (only on first line)
         if document.cursor_position_row == 0 and self._slash_completer.is_slash_command_context(document):
             yield from self._slash_completer.get_completions(document, complete_event)
