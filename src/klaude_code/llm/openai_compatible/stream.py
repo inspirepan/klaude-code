@@ -78,7 +78,9 @@ class StreamStateManager:
 
     def append_thinking_text(self, text: str, *, reasoning_field: str | None = None) -> None:
         """Append thinking text, merging with the previous ThinkingTextPart when possible."""
-        append_thinking_text_part(self.assistant_parts, text, model_id=self.param_model, reasoning_field=reasoning_field)
+        append_thinking_text_part(
+            self.assistant_parts, text, model_id=self.param_model, reasoning_field=reasoning_field
+        )
 
     def append_text(self, text: str) -> None:
         """Append assistant text, merging with the previous TextPart when possible."""

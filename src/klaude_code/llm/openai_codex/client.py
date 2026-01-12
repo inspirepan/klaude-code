@@ -20,9 +20,9 @@ from klaude_code.const import (
 )
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.input_common import apply_config_defaults
+from klaude_code.llm.openai_responses.client import ResponsesLLMStream
+from klaude_code.llm.openai_responses.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.registry import register
-from klaude_code.llm.responses.client import ResponsesLLMStream
-from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param
@@ -164,7 +164,7 @@ def _is_invalid_instruction_error(e: Exception) -> bool:
 
 def _invalidate_prompt_cache_for_model(model_id: str) -> None:
     """Invalidate the cached prompt for a model to force refresh."""
-    from klaude_code.llm.codex.prompt_sync import invalidate_cache
+    from klaude_code.llm.openai_codex.prompt_sync import invalidate_cache
 
     log_debug(
         f"Invalidating prompt cache for model {model_id} due to invalid instruction error",

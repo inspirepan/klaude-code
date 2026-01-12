@@ -11,8 +11,8 @@ from openai.types.responses.response_create_params import ResponseCreateParamsSt
 from klaude_code.const import LLM_HTTP_TIMEOUT_CONNECT, LLM_HTTP_TIMEOUT_READ, LLM_HTTP_TIMEOUT_TOTAL
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.input_common import apply_config_defaults
+from klaude_code.llm.openai_responses.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.registry import register
-from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.stream_parts import (
     append_text_part,
     append_thinking_text_part,

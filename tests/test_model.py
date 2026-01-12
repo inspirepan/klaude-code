@@ -11,8 +11,8 @@ from klaude_code.llm.anthropic.input import convert_history_to_input as anthropi
 if TYPE_CHECKING:
     from klaude_code.protocol import message, model
 from klaude_code.llm.openai_compatible.input import convert_history_to_input as openai_history
+from klaude_code.llm.openai_responses.input import convert_history_to_input as responses_history
 from klaude_code.llm.openrouter.input import convert_history_to_input as openrouter_history
-from klaude_code.llm.responses.input import convert_history_to_input as responses_history
 from klaude_code.protocol import message, model
 
 SAMPLE_IMAGE_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="

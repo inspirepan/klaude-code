@@ -15,11 +15,11 @@ _REGISTRY: dict[llm_param.LLMClientProtocol, type["LLMClientABC"]] = {}
 _PROTOCOL_MODULES: dict[llm_param.LLMClientProtocol, str] = {
     llm_param.LLMClientProtocol.ANTHROPIC: "klaude_code.llm.anthropic",
     llm_param.LLMClientProtocol.CLAUDE_OAUTH: "klaude_code.llm.claude",
-    llm_param.LLMClientProtocol.BEDROCK: "klaude_code.llm.bedrock",
-    llm_param.LLMClientProtocol.CODEX_OAUTH: "klaude_code.llm.codex",
+    llm_param.LLMClientProtocol.BEDROCK: "klaude_code.llm.bedrock_anthropic",
+    llm_param.LLMClientProtocol.CODEX_OAUTH: "klaude_code.llm.openai_codex",
     llm_param.LLMClientProtocol.OPENAI: "klaude_code.llm.openai_compatible",
     llm_param.LLMClientProtocol.OPENROUTER: "klaude_code.llm.openrouter",
-    llm_param.LLMClientProtocol.RESPONSES: "klaude_code.llm.responses",
+    llm_param.LLMClientProtocol.RESPONSES: "klaude_code.llm.openai_responses",
     llm_param.LLMClientProtocol.GOOGLE: "klaude_code.llm.google",
     llm_param.LLMClientProtocol.ANTIGRAVITY: "klaude_code.llm.antigravity",
 }

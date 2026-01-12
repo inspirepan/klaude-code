@@ -8,7 +8,7 @@ import httpx
 
 from klaude_code.llm.anthropic.client import AnthropicLLMStream
 from klaude_code.llm.openai_compatible.stream import DefaultReasoningHandler, OpenAILLMStream
-from klaude_code.llm.responses.client import ResponsesLLMStream
+from klaude_code.llm.openai_responses.client import ResponsesLLMStream
 from klaude_code.llm.usage import MetadataTracker
 from klaude_code.protocol import llm_param, message
 

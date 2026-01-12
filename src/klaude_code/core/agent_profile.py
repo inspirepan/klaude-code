@@ -132,7 +132,7 @@ def load_system_prompt(
 
     # For codex_oauth protocol, use dynamic prompts from GitHub (no additions).
     if protocol == llm_param.LLMClientProtocol.CODEX_OAUTH:
-        from klaude_code.llm.codex.prompt_sync import get_codex_instructions
+        from klaude_code.llm.openai_codex.prompt_sync import get_codex_instructions
 
         return get_codex_instructions(model_name)
 
@@ -176,8 +176,6 @@ def load_agent_tools(
     # Main agent tools
     if "gpt-5" in model_name:
         tool_names: list[str] = [tools.BASH, tools.READ, tools.APPLY_PATCH, tools.UPDATE_PLAN]
-    elif "gemini-3" in model_name:
-        tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE]
     else:
         tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE]
 
@@ -189,8 +187,7 @@ def load_agent_tools(
     else:
         tool_names.append(tools.IMAGE_GEN)
 
-    tool_names.extend([tools.MERMAID])
-    # tool_names.extend([tools.MEMORY])
+    tool_names.append(tools.MERMAID)
     return get_tool_schemas(tool_names)
 
 
