@@ -111,7 +111,7 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
             meta_str = " · ".join(meta_parts) if meta_parts else ""
             title: list[tuple[str, str]] = [
                 ("class:meta", f"{model_idx:>{num_width}}. "),
-                ("class:msg bold", first_line_prefix),
+                ("class:msg", first_line_prefix),
                 ("class:msg dim", " → "),
                 # Keep provider/model_id styling attribute-based (dim/bold) so that
                 # the selector's highlight color can still override uniformly.

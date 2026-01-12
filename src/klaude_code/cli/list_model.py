@@ -338,7 +338,7 @@ def _build_models_table(
     model_count = len(provider.model_list)
     for i, model in enumerate(provider.model_list):
         is_last = i == model_count - 1
-        prefix = " └─ " if is_last else " ├─ "
+        prefix = " ╰─ " if is_last else " ├─ "
 
         if provider_disabled:
             name = Text.assemble(
@@ -439,7 +439,6 @@ def display_models_and_providers(config: Config, *, show_all: bool = False):
         # Provider info panel
         provider_panel = _build_provider_info_panel(provider, provider_available, disabled=provider.disabled)
         console.print(provider_panel)
-        console.print()
 
         # Models table for this provider
         models_table = _build_models_table(provider, config)
