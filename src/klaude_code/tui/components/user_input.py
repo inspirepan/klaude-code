@@ -1,6 +1,7 @@
 import re
 
 from rich.console import Group, RenderableType
+from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code.const import TAB_EXPAND_WIDTH
@@ -11,10 +12,8 @@ from klaude_code.tui.components.rich.theme import ThemeKey
 # Match inline patterns only when they appear at the beginning of the line
 # or immediately after whitespace, to avoid treating mid-word email-like
 # patterns such as foo@bar.com as file references.
-#
 # Group 1 is present only for $/¥ skills and captures the skill token (without the $/¥).
 INLINE_RENDER_PATTERN = re.compile(r'(?<!\S)(?:@(?:"[^"]+"|\S+)|[$¥](\S+))')
-
 USER_MESSAGE_MARK = "❯ "
 
 
@@ -48,6 +47,7 @@ def render_user_input(content: str) -> RenderableType:
 
     - Highlights slash command token on the first line
     - Highlights @file and $skill patterns in all lines
+    - Wrapped in a Panel for block-style background
     """
     lines = content.strip().split("\n")
     is_bash_mode = bool(lines) and lines[0].startswith("!")
@@ -56,6 +56,8 @@ def render_user_input(content: str) -> RenderableType:
 
     renderables: list[RenderableType] = []
     for i, line in enumerate(lines):
+        if not line.strip():
+            continue
         if "\t" in line:
             line = line.expandtabs(TAB_EXPAND_WIDTH)
 
@@ -84,7 +86,12 @@ def render_user_input(content: str) -> RenderableType:
         # Render @file and $skill patterns
         renderables.append(render_at_and_skill_patterns(line, available_skill_names=available_skill_names))
 
-    return Group(*renderables)
+    return Padding(
+        Group(*renderables),
+        pad=(0, 1),
+        style=ThemeKey.USER_INPUT,
+        expand=False,
+    )
 
 
 def render_interrupt() -> RenderableType:
