@@ -194,11 +194,17 @@ class TurnExecutor:
                 and self._turn_result.assistant_message is not None
                 and self._turn_result.assistant_message.parts
             ):
-                session_ctx.append_history([self._turn_result.assistant_message])
-                # Add continuation prompt to avoid Anthropic thinking block requirement
-                session_ctx.append_history(
-                    [message.UserMessage(parts=[message.TextPart(text="<system>continue</system>")])]
+                # Discard partial message if it only contains thinking parts
+                has_non_thinking = any(
+                    not isinstance(part, message.ThinkingTextPart)
+                    for part in self._turn_result.assistant_message.parts
                 )
+                if has_non_thinking:
+                    session_ctx.append_history([self._turn_result.assistant_message])
+                    # Add continuation prompt to avoid Anthropic thinking block requirement
+                    session_ctx.append_history(
+                        [message.UserMessage(parts=[message.TextPart(text="<system>continue</system>")])]
+                    )
             yield events.TurnEndEvent(session_id=session_ctx.session_id)
             raise TurnError(self._turn_result.stream_error.error)
 
