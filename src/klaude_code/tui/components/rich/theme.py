@@ -119,6 +119,7 @@ class ThemeKey(str, Enum):
 
     # CODE
     CODE_BACKGROUND = "code_background"
+    CODE_PANEL_TITLE = "code_panel.title"
 
     # PANEL
     SUB_AGENT_RESULT_PANEL = "panel.sub_agent_result"

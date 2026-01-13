@@ -46,6 +46,7 @@ class CodePanel(JupyterMixin):
         expand: bool = False,
         padding: int = 0,
         title: str | None = None,
+        title_style: StyleType = "none",
     ) -> None:
         """Initialize the CodePanel.
 
@@ -55,12 +56,14 @@ class CodePanel(JupyterMixin):
             expand: If True, expand to fill available width. Defaults to False.
             padding: Left/right padding for content. Defaults to 0.
             title: Optional title to display in the top border. Defaults to None.
+            title_style: The style of the title. Defaults to "none".
         """
         self.renderable = renderable
         self.border_style = border_style
         self.expand = expand
         self.padding = padding
         self.title = title
+        self.title_style = title_style
 
     @staticmethod
     def _measure_max_line_cells(lines: list[list[Segment]]) -> int:
@@ -99,13 +102,17 @@ class CodePanel(JupyterMixin):
         # Top border: ╭───...───╮ or ╭ title ───...───╮
         if self.title and border_width >= len(self.title) + 4:
             title_part = f" {self.title} "
+            title_style = console.get_style(self.title_style)
             remaining = border_width - 2 - len(title_part)
-            top_border = TOP_LEFT + title_part + (HORIZONTAL * remaining) + TOP_RIGHT
+            yield Segment(TOP_LEFT, border_style)
+            yield Segment(title_part, title_style)
+            yield Segment((HORIZONTAL * remaining) + TOP_RIGHT, border_style)
         elif border_width >= 2:
             top_border = TOP_LEFT + (HORIZONTAL * (border_width - 2)) + TOP_RIGHT
+            yield Segment(top_border, border_style)
         else:
             top_border = HORIZONTAL * border_width
-        yield Segment(top_border, border_style)
+            yield Segment(top_border, border_style)
         yield new_line
 
         # Content lines with padding
