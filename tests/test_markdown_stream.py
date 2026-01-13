@@ -75,3 +75,51 @@ def test_update_does_not_write_synchronized_output_sequences_when_not_tty() -> N
     assert "\x1b[?2026h" not in captured
     assert "\x1b[?2026l" not in captured
     assert live_calls
+
+
+def test_update_sets_live_renderable_without_stable_block() -> None:
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+    out = io.StringIO()
+    console = Console(file=out, force_terminal=True, width=80, theme=theme)
+    live_calls: list[object] = []
+
+    def _sink(renderable: object) -> None:
+        live_calls.append(renderable)
+
+    stream = MarkdownStream(console=console, theme=theme, live_sink=_sink, left_margin=0)
+    stream.min_delay = 0
+
+    stream.update("Single block", final=False)
+
+    assert out.getvalue() == ""
+    assert live_calls
+    last = live_calls[-1]
+    assert isinstance(last, Text)
+    assert "Single block" in last.plain
+
+
+def test_update_applies_mark_to_live_when_all_live() -> None:
+    stream = _make_stream()
+    stream.min_delay = 0
+
+    live_calls: list[object] = []
+
+    def _sink(renderable: object) -> None:
+        live_calls.append(renderable)
+
+    stream._live_sink = _sink
+
+    stream.update("hello", final=False)
+
+    assert live_calls
+    last = live_calls[-1]
+    assert isinstance(last, Text)
+    assert last.plain.startswith(">")

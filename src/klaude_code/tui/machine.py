@@ -597,6 +597,31 @@ class DisplayStateMachine:
                     return []
                 if not self._is_primary(e.session_id):
                     return []
+
+                # Some providers/models may not emit fine-grained AssistantText* deltas.
+                # In that case, ResponseCompleteEvent.content is the only assistant text we get.
+                # Render it as a single assistant stream to avoid dropping the entire message.
+                content = e.content
+                if content.strip():
+                    # If we saw no streamed assistant text for this response, render from the final snapshot.
+                    if s.assistant_char_count == 0:
+                        if not s.assistant_stream_active:
+                            s.assistant_stream_active = True
+                            cmds.append(StartAssistantStream(session_id=e.session_id))
+                        cmds.append(AppendAssistant(session_id=e.session_id, content=content))
+                        s.assistant_char_count += len(content)
+
+                    # Ensure any active assistant stream is finalized.
+                    if s.assistant_stream_active:
+                        s.assistant_stream_active = False
+                        cmds.append(EndAssistantStream(session_id=e.session_id))
+                else:
+                    # If there is an active stream but the final snapshot has no text,
+                    # still finalize to flush any pending markdown rendering.
+                    if s.assistant_stream_active:
+                        s.assistant_stream_active = False
+                        cmds.append(EndAssistantStream(session_id=e.session_id))
+
                 if not is_replay:
                     self._spinner.set_composing(False)
                     cmds.append(SpinnerStart())
