@@ -66,9 +66,9 @@ INPUT_PROMPT_BASH_STYLE = "ansigreen bold"
 PLACEHOLDER_TEXT_STYLE_DARK_BG = "fg:#5a5a5a"
 PLACEHOLDER_TEXT_STYLE_LIGHT_BG = "fg:#7a7a7a"
 PLACEHOLDER_TEXT_STYLE_UNKNOWN_BG = "fg:#8a8a8a"
-PLACEHOLDER_SYMBOL_STYLE_DARK_BG = "bg:#2a2a2a fg:#5a5a5a"
-PLACEHOLDER_SYMBOL_STYLE_LIGHT_BG = "bg:#e6e6e6 fg:#7a7a7a"
-PLACEHOLDER_SYMBOL_STYLE_UNKNOWN_BG = "bg:#2a2a2a fg:#8a8a8a"
+PLACEHOLDER_SYMBOL_STYLE_DARK_BG = "fg:ansiblue"
+PLACEHOLDER_SYMBOL_STYLE_LIGHT_BG = "fg:ansiblue"
+PLACEHOLDER_SYMBOL_STYLE_UNKNOWN_BG = "fg:ansiblue"
 
 
 # ---------------------------------------------------------------------------
@@ -667,29 +667,20 @@ class PromptToolkitInput(InputProviderABC):
         return FormattedText(
             [
                 (text_style, " "),
-                (symbol_style, " @ "),
-                (text_style, " "),
-                (text_style, "files"),
-                (text_style, " • "),
-                (symbol_style, " $ "),
-                (text_style, " "),
-                (text_style, "skills"),
-                (text_style, " • "),
-                (symbol_style, " / "),
-                (text_style, " "),
-                (text_style, "commands"),
-                (text_style, " • "),
-                (symbol_style, " ctrl-l "),
-                (text_style, " "),
-                (text_style, "models"),
-                (text_style, " • "),
-                (symbol_style, " ctrl-t "),
-                (text_style, " "),
-                (text_style, "think"),
-                (text_style, " • "),
-                (symbol_style, " ctrl-v "),
-                (text_style, " "),
-                (text_style, "paste image"),
+                (symbol_style, "@"),
+                (text_style, " files • "),
+                (symbol_style, "$"),
+                (text_style, " skills • "),
+                (symbol_style, "/"),
+                (text_style, " commands • "),
+                (symbol_style, "!"),
+                (text_style, " shell • "),
+                (symbol_style, "ctrl-l"),
+                (text_style, " models • "),
+                (symbol_style, "ctrl-t"),
+                (text_style, " think • "),
+                (symbol_style, "ctrl-v"),
+                (text_style, " paste image"),
             ]
         )
 
