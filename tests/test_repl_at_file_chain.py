@@ -19,7 +19,9 @@ def _arun(coro):  # type: ignore
 def _extract_plain_text(renderable: object) -> str:
     from rich.console import Console
 
-    console = Console(width=200, record=True)
+    from klaude_code.tui.components.rich.theme import get_theme
+
+    console = Console(width=200, record=True, theme=get_theme().app_theme)
     console.print(renderable)
     output = console.export_text(styles=False)
     return output
