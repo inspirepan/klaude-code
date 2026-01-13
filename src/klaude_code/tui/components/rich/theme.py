@@ -351,6 +351,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.thinking": "italic " + palette.grey2,
                 "markdown.thinking.tag": palette.grey2,
                 "markdown.code.border": palette.grey3,
+                "markdown.code.fence": palette.grey3,
+                "markdown.code.fence.title": palette.grey1,
                 # Used by ThinkingMarkdown when rendering `<thinking>` blocks.
                 "markdown.code.block": palette.grey1,
                 "markdown.h1": "bold reverse " + palette.black,

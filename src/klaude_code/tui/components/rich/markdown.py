@@ -26,7 +26,6 @@ from klaude_code.const import (
     MARKDOWN_STREAM_SYNCHRONIZED_OUTPUT_ENABLED,
     UI_REFRESH_RATE_FPS,
 )
-from klaude_code.tui.components.rich.code_panel import CodePanel
 
 _THINKING_HTML_BLOCK_RE = re.compile(
     r"\A\s*<thinking>\s*\n?(?P<body>.*?)(?:\n\s*)?</thinking>\s*\Z",
@@ -90,10 +89,15 @@ class ThinkingHTMLBlock(MarkdownElement):
 
 
 class NoInsetCodeBlock(CodeBlock):
-    """A code block with syntax highlighting and no padding."""
+    """A code block with syntax highlighting using markdown fence style."""
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         code = str(self.text).rstrip()
+        lang = self.lexer_name if self.lexer_name != "text" else ""
+        fence_style = console.get_style("markdown.code.fence", default="none")
+        fence_title_style = console.get_style("markdown.code.fence.title", default="none")
+
+        yield Text.assemble(("```", fence_style), (lang, fence_title_style))
         syntax = Syntax(
             code,
             self.lexer_name,
@@ -101,8 +105,8 @@ class NoInsetCodeBlock(CodeBlock):
             word_wrap=True,
             padding=(0, 0),
         )
-        title = self.lexer_name if self.lexer_name != "text" else None
-        yield CodePanel(syntax, border_style="markdown.code.border", title=title)
+        yield syntax
+        yield Text("```", style=fence_style)
 
 
 class ThinkingCodeBlock(CodeBlock):

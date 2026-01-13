@@ -44,7 +44,7 @@ class CodePanel(JupyterMixin):
         *,
         border_style: StyleType = "none",
         expand: bool = False,
-        padding: int = 1,
+        padding: int = 0,
         title: str | None = None,
     ) -> None:
         """Initialize the CodePanel.
@@ -53,7 +53,7 @@ class CodePanel(JupyterMixin):
             renderable: A console renderable object.
             border_style: The style of the border. Defaults to "none".
             expand: If True, expand to fill available width. Defaults to False.
-            padding: Left/right padding for content. Defaults to 1.
+            padding: Left/right padding for content. Defaults to 0.
             title: Optional title to display in the top border. Defaults to None.
         """
         self.renderable = renderable
