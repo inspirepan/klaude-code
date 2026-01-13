@@ -107,15 +107,25 @@ def test_update_sets_live_renderable_without_stable_block() -> None:
 
 
 def test_update_applies_mark_to_live_when_all_live() -> None:
-    stream = _make_stream()
-    stream.min_delay = 0
-
     live_calls: list[object] = []
 
     def _sink(renderable: object) -> None:
         live_calls.append(renderable)
 
-    stream._live_sink = _sink
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.thinking": "dim",
+            "markdown.thinking.tag": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+    console = Console(file=io.StringIO(), force_terminal=True, width=80, theme=theme)
+    stream = MarkdownStream(console=console, theme=theme, live_sink=_sink, left_margin=2, mark=">", mark_style="bold")
+    stream.min_delay = 0
 
     stream.update("hello", final=False)
 

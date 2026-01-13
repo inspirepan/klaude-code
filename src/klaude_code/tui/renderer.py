@@ -349,7 +349,11 @@ class TUICommandRenderer:
                 if pad_lines:
                     stream = Padding(stream, (0, 0, pad_lines, 0))
                 stream_part = stream
-                gap_part = Text(" ") if (self._spinner_visible and self._bash_stream_active) else Group()
+                gap_part = (
+                    Text(" ")
+                    if (self._spinner_visible and (self._bash_stream_active or self._stream_renderable))
+                    else Group()
+                )
 
         status_part: RenderableType = SingleLine(self._status_spinner) if self._spinner_visible else Group()
         return Group(stream_part, gap_part, status_part)

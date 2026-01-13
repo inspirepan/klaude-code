@@ -196,8 +196,7 @@ class TurnExecutor:
             ):
                 # Discard partial message if it only contains thinking parts
                 has_non_thinking = any(
-                    not isinstance(part, message.ThinkingTextPart)
-                    for part in self._turn_result.assistant_message.parts
+                    not isinstance(part, message.ThinkingTextPart) for part in self._turn_result.assistant_message.parts
                 )
                 if has_non_thinking:
                     session_ctx.append_history([self._turn_result.assistant_message])
