@@ -368,7 +368,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.link_url": "underline " + palette.blue,
                 "markdown.table.border": palette.grey2,
                 "markdown.checkbox.checked": palette.green,
-                "markdown.block_quote": palette.grey1,
+                "markdown.block_quote": palette.cyan,
             }
         ),
         thinking_markdown_theme=Theme(
