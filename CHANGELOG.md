@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-01-13
+
+### Added
+
+- support ! bash mode (`4411c2b3`)
+- show memory context sources (`8d1de07d`)
+- improve model name display in terminal title (`56664a6b`)
+- show language name in code blocks and simplify thinking blocks (`bfc75da3`)
+- add title support to CodePanel and use rounded corners (`9b9c2c58`)
+
+### Changed
+
+- extract bash mode execution to dedicated module (`44d6b889`)
+- skip streaming UI during replay mode (`8b4e0f60`)
+- add theme to Console in test_repl_at_file_chain (`2cf27e70`)
+- add separator line before sub_agent description (`b0dc194f`)
+- change markdown block_quote color to cyan (`19490415`)
+- change metadata color from grey_green to blue (`e6f7cac4`)
+- add block-style background to user input (`62fe9ca5`)
+- unify metadata styling by replacing METADATA_DIM with METADATA (`992063f1`)
+- optimize inline pattern rendering (`7c43f048`)
+- update shortcut hints in bottom toolbar (`01e0c5b1`)
+- add grey1 style to code panel language title (`6fbca5b3`)
+- update code panel style (`c9eb5e15`)
+- remove rule line after task completion (`afdb3970`)
+- simplify user input rendering (`98706f16`)
+- auto-generate mark in markdown streamer (`ac248227`)
+- use simpler tree symbols in metadata (`7685dff1`)
+- update theme colors for user input and metadata (`7ce75318`)
+- remove markdown indent and padding (`c8e5e340`)
+- switch terminal notification to OSC 777 (`f5ee6a71`)
+- minor UI adjustments (`8648b186`)
+- use rounded corners for tree-style UI elements (`c83533c7`)
+
+### Fixed
+
+- discard partial assistant message with only thinking parts (`6dbb48b2`)
+- render assistant message when no streaming deltas received (`ef37fdef`)
+- emit welcome event before replaying history (`e67f17ec`)
+
+### Other
+
+- Revert "fix(tui): stabilize markdown lists by item" (`ffa3a105`)
+
 ## [2.9.1] - 2026-01-12
 
 ### Added
@@ -1512,7 +1556,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.9.1...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.10.0...HEAD
+[2.10.0]: https://github.com/inspirepan/klaude-code/compare/v2.9.1...v2.10.0
 [2.9.1]: https://github.com/inspirepan/klaude-code/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/inspirepan/klaude-code/compare/v2.8.1...v2.9.0
 [2.8.1]: https://github.com/inspirepan/klaude-code/compare/v2.8.0...v2.8.1
