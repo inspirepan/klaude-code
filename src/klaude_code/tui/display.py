@@ -31,12 +31,20 @@ class TUIDisplay(DisplayABC):
     @override
     async def consume_event(self, event: events.Event) -> None:
         if isinstance(event, events.ReplayHistoryEvent):
-            await self._renderer.execute(self._machine.begin_replay())
-            for item in event.events:
-                commands = self._machine.transition_replay(item)
-                if commands:
-                    await self._renderer.execute(commands)
-            await self._renderer.execute(self._machine.end_replay())
+            # Replay does not need streaming UI; disable bottom Live rendering to avoid
+            # repaint overhead and flicker while reconstructing history.
+            self._renderer.stop_bottom_live()
+            self._renderer.set_stream_renderable(None)
+            self._renderer.set_replay_mode(True)
+            try:
+                await self._renderer.execute(self._machine.begin_replay())
+                for item in event.events:
+                    commands = self._machine.transition_replay(item)
+                    if commands:
+                        await self._renderer.execute(commands)
+                await self._renderer.execute(self._machine.end_replay())
+            finally:
+                self._renderer.set_replay_mode(False)
             return
 
         commands = self._machine.transition(event)

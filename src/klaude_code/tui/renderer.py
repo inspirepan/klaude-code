@@ -168,6 +168,11 @@ class TUICommandRenderer:
         self._assistant_stream = _StreamState()
         self._thinking_stream = _StreamState()
 
+        # Replay mode reuses the same event/state machine but does not need streaming UI.
+        # When enabled, we avoid bottom Live rendering and defer markdown rendering until
+        # the corresponding stream End event.
+        self._replay_mode: bool = False
+
         self._bash_stream_active: bool = False
         self._bash_last_char_was_newline: bool = True
 
@@ -175,6 +180,16 @@ class TUICommandRenderer:
         self._current_sub_agent_color: Style | None = None
         self._sub_agent_color_index = 0
         self._sub_agent_thinking_buffers: dict[str, str] = {}
+
+    def set_replay_mode(self, enabled: bool) -> None:
+        """Enable or disable replay rendering mode.
+
+        Replay mode is optimized for speed and stability:
+        - Avoid Rich Live / bottom status rendering.
+        - Defer markdown stream rendering until End events.
+        """
+
+        self._replay_mode = enabled
 
     # ---------------------------------------------------------------------
     # Session helpers
@@ -374,11 +389,12 @@ class TUICommandRenderer:
         )
 
     def _new_assistant_mdstream(self) -> MarkdownStream:
+        live_sink = None if self._replay_mode else self.set_stream_renderable
         return MarkdownStream(
             mdargs={"code_theme": self.themes.code_theme},
             theme=self.themes.markdown_theme,
             console=self.console,
-            live_sink=self.set_stream_renderable,
+            live_sink=live_sink,
             left_margin=MARKDOWN_LEFT_MARGIN,
             right_margin=MARKDOWN_RIGHT_MARGIN,
             image_callback=self.display_image,
@@ -719,11 +735,12 @@ class TUICommandRenderer:
                         if session_id in self._sub_agent_thinking_buffers:
                             self._sub_agent_thinking_buffers[session_id] += content
                     elif self._thinking_stream.is_active:
-                        first_delta = self._thinking_stream.buffer == ""
                         self._thinking_stream.append(content)
-                        if first_delta:
-                            self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
-                        self._flush_thinking()
+                        if not self._replay_mode:
+                            first_delta = self._thinking_stream.buffer == ""
+                            if first_delta:
+                                self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
+                            self._flush_thinking()
                 case EndThinkingStream(session_id=session_id):
                     if self.is_sub_agent_session(session_id):
                         buf = self._sub_agent_thinking_buffers.pop(session_id, "")
@@ -731,22 +748,25 @@ class TUICommandRenderer:
                             with self.session_print_context(session_id):
                                 self._render_sub_agent_thinking(buf)
                     else:
+                        had_content = bool(self._thinking_stream.buffer.strip())
                         finalized = self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
-                        if finalized:
+                        if finalized and had_content:
                             self.print()
-                case StartAssistantStream():
+                case StartAssistantStream(session_id=_):
                     if not self._assistant_stream.is_active:
                         self._assistant_stream.start(self._new_assistant_mdstream())
-                case AppendAssistant(content=content):
+                case AppendAssistant(session_id=_, content=content):
                     if self._assistant_stream.is_active:
-                        first_delta = self._assistant_stream.buffer == ""
                         self._assistant_stream.append(content)
-                        if first_delta:
-                            self._assistant_stream.render()
-                        self._flush_assistant()
-                case EndAssistantStream():
+                        if not self._replay_mode:
+                            first_delta = self._assistant_stream.buffer == ""
+                            if first_delta:
+                                self._assistant_stream.render()
+                            self._flush_assistant()
+                case EndAssistantStream(session_id=_):
+                    had_content = bool(self._assistant_stream.buffer.strip())
                     finalized = self._assistant_stream.finalize()
-                    if finalized:
+                    if finalized and had_content:
                         self.print()
                 case RenderThinkingHeader(session_id=session_id, header=header):
                     with self.session_print_context(session_id):
