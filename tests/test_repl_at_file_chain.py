@@ -8,7 +8,7 @@ from klaude_code.core.reminders import at_file_reader_reminder
 from klaude_code.protocol import events, message, model
 from klaude_code.session.session import Session
 from klaude_code.tui.components.developer import render_developer_message
-from klaude_code.tui.components.user_input import AT_FILE_RENDER_PATTERN, render_user_input
+from klaude_code.tui.components.user_input import INLINE_RENDER_PATTERN, render_user_input
 from klaude_code.tui.input.completers import create_repl_completer
 
 
@@ -122,15 +122,15 @@ def test_render_user_input_highlights_full_at_pattern() -> None:
 
 
 def test_at_file_render_pattern_ignores_mid_word_at() -> None:
-    """AT_FILE_RENDER_PATTERN should not match email-like mid-word @ symbols.
+    """INLINE_RENDER_PATTERN should not match email-like mid-word @ symbols.
 
     We only want to treat @ as a file reference when it appears at the
     beginning of a line or immediately after whitespace.
     """
 
-    assert AT_FILE_RENDER_PATTERN.search("foo@bar.com") is None
-    assert AT_FILE_RENDER_PATTERN.search("Contact me via foo@bar.com") is None
+    assert INLINE_RENDER_PATTERN.search("foo@bar.com") is None
+    assert INLINE_RENDER_PATTERN.search("Contact me via foo@bar.com") is None
 
     # But it should still match when @ starts a token at line start or after space
-    assert AT_FILE_RENDER_PATTERN.search("@src/file.py") is not None
-    assert AT_FILE_RENDER_PATTERN.search("See @src/file.py for details") is not None
+    assert INLINE_RENDER_PATTERN.search("@src/file.py") is not None
+    assert INLINE_RENDER_PATTERN.search("See @src/file.py for details") is not None
