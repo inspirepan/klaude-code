@@ -35,7 +35,7 @@ def _render_task_metadata_block(
     if metadata.provider is not None:
         content.append_text(Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA))
         content.append_text(Text("/", style=ThemeKey.METADATA))
-    content.append_text(Text(metadata.model_name, style=ThemeKey.METADATA_BOLD))
+    content.append_text(Text(metadata.model_name, style=ThemeKey.METADATA))
     if metadata.description:
         content.append_text(Text(" ", style=ThemeKey.METADATA)).append_text(
             Text(metadata.description, style=ThemeKey.METADATA_ITALIC)

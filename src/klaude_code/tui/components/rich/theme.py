@@ -270,10 +270,10 @@ def get_theme(theme: str | None = None) -> Themes:
                 # ASSISTANT
                 ThemeKey.ASSISTANT_MESSAGE_MARK.value: "bold",
                 # METADATA
-                ThemeKey.METADATA.value: palette.grey_green,
-                ThemeKey.METADATA_DIM.value: "dim " + palette.grey_green,
-                ThemeKey.METADATA_BOLD.value: "bold " + palette.grey_green,
-                ThemeKey.METADATA_ITALIC.value: "italic " + palette.grey_green,
+                ThemeKey.METADATA.value: palette.blue,
+                ThemeKey.METADATA_DIM.value: "dim " + palette.blue,
+                ThemeKey.METADATA_BOLD.value: "bold " + palette.blue,
+                ThemeKey.METADATA_ITALIC.value: "italic " + palette.blue,
                 # STATUS
                 ThemeKey.STATUS_SPINNER.value: palette.blue,
                 ThemeKey.STATUS_TEXT.value: palette.blue,
