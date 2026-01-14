@@ -50,7 +50,6 @@ from klaude_code.tui.commands import (
 )
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
-from klaude_code.tui.components.thinking import extract_last_bold_header, normalize_thinking_content
 from klaude_code.tui.components.tools import get_task_active_form, get_tool_active_form, is_sub_agent_tool
 
 # Tools that complete quickly and don't benefit from streaming activity display.
@@ -293,7 +292,6 @@ class _SessionState:
     assistant_stream_active: bool = False
     thinking_stream_active: bool = False
     assistant_char_count: int = 0
-    thinking_tail: str = ""
     task_active: bool = False
 
     @property
@@ -303,15 +301,6 @@ class _SessionState:
     @property
     def should_show_sub_agent_thinking_header(self) -> bool:
         return bool(self.sub_agent_state and self.sub_agent_state.sub_agent_type == tools.IMAGE_GEN)
-
-    @property
-    def should_extract_reasoning_header(self) -> bool:
-        """Gemini and GPT-5 models use markdown bold headers in thinking."""
-        return False  # Temporarily disabled for all models
-        if self.model_id is None:
-            return False
-        model_lower = self.model_id.lower()
-        return "gemini" in model_lower or "gpt-5" in model_lower
 
     def should_skip_tool_activity(self, tool_name: str) -> bool:
         """Check if tool activity should be skipped for non-streaming models."""
@@ -334,6 +323,11 @@ class DisplayStateMachine:
         self._sessions: dict[str, _SessionState] = {}
         self._primary_session_id: str | None = None
         self._spinner = SpinnerStatusState()
+
+    def _reset_sessions(self) -> None:
+        self._sessions = {}
+        self._primary_session_id = None
+        self._spinner.reset()
 
     def _session(self, session_id: str) -> _SessionState:
         existing = self._sessions.get(session_id)
@@ -367,7 +361,9 @@ class DisplayStateMachine:
         return self._spinner_update_commands()
 
     def begin_replay(self) -> list[RenderCommand]:
-        self._spinner.reset()
+        # Replay is a full rebuild of the terminal view; clear session state so primary-session
+        # routing is recalculated from the replayed TaskStartEvent.
+        self._reset_sessions()
         return [SpinnerStop(), PrintBlankLine()]
 
     def end_replay(self) -> list[RenderCommand]:
@@ -386,6 +382,13 @@ class DisplayStateMachine:
 
         match event:
             case events.WelcomeEvent() as e:
+                # WelcomeEvent marks (or reaffirms) the current interactive session.
+                # If the session id changes (e.g., /clear creates a new session), clear
+                # routing state so subsequent streamed events are not dropped.
+                if self._primary_session_id is not None and self._primary_session_id != e.session_id:
+                    self._reset_sessions()
+                    s = self._session(e.session_id)
+                self._primary_session_id = e.session_id
                 cmds.append(RenderWelcome(e))
                 return cmds
 
@@ -431,7 +434,12 @@ class DisplayStateMachine:
                 s.model_id = e.model_id
                 s.task_active = True
                 if not s.is_sub_agent:
-                    self._set_primary_if_needed(e.session_id)
+                    # Keep primary session tracking in sync even if the session id changes
+                    # during the process lifetime (e.g., /clear).
+                    if is_replay:
+                        self._set_primary_if_needed(e.session_id)
+                    else:
+                        self._primary_session_id = e.session_id
                     if not is_replay:
                         cmds.append(TaskClockStart())
 
@@ -487,9 +495,8 @@ class DisplayStateMachine:
                 if not self._is_primary(e.session_id):
                     return []
                 s.thinking_stream_active = True
-                s.thinking_tail = ""
                 # Ensure the status reflects that reasoning has started even
-                # before we receive any deltas (or a bold header).
+                # before we receive any deltas.
                 if not is_replay:
                     self._spinner.set_reasoning_status(STATUS_THINKING_TEXT)
                 cmds.append(StartThinkingStream(session_id=e.session_id))
@@ -507,16 +514,6 @@ class DisplayStateMachine:
                 if not self._is_primary(e.session_id):
                     return []
                 cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
-
-                # Update reasoning status for spinner (based on bounded tail).
-                # Only extract headers for models that use markdown bold headers in thinking.
-                if not is_replay and s.should_extract_reasoning_header:
-                    s.thinking_tail = (s.thinking_tail + e.content)[-8192:]
-                    header = extract_last_bold_header(normalize_thinking_content(s.thinking_tail))
-                    if header:
-                        self._spinner.set_reasoning_status(header)
-                        cmds.extend(self._spinner_update_commands())
-
                 return cmds
 
             case events.ThinkingEndEvent() as e:
@@ -721,6 +718,29 @@ class DisplayStateMachine:
             case events.TaskFinishEvent() as e:
                 s.task_active = False
                 cmds.append(RenderTaskFinish(e))
+
+                # Defensive: finalize any open streams so buffered markdown is flushed.
+                if s.thinking_stream_active:
+                    s.thinking_stream_active = False
+                    cmds.append(EndThinkingStream(session_id=e.session_id))
+                if s.assistant_stream_active:
+                    s.assistant_stream_active = False
+                    cmds.append(EndAssistantStream(session_id=e.session_id))
+
+                # Rare providers / edge cases may complete a turn without emitting any
+                # assistant deltas (or without the display consuming them). In that case,
+                # fall back to rendering the final task result to avoid a "blank" turn.
+                if (
+                    not is_replay
+                    and not s.is_sub_agent
+                    and not e.has_structured_output
+                    and s.assistant_char_count == 0
+                    and e.task_result.strip()
+                ):
+                    cmds.append(StartAssistantStream(session_id=e.session_id))
+                    cmds.append(AppendAssistant(session_id=e.session_id, content=e.task_result))
+                    cmds.append(EndAssistantStream(session_id=e.session_id))
+
                 if not s.is_sub_agent and not is_replay:
                     cmds.append(TaskClockClear())
                     self._spinner.reset()
