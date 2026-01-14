@@ -270,10 +270,10 @@ def get_theme(theme: str | None = None) -> Themes:
                 # ASSISTANT
                 ThemeKey.ASSISTANT_MESSAGE_MARK.value: "bold",
                 # METADATA
-                ThemeKey.METADATA.value: palette.blue,
-                ThemeKey.METADATA_DIM.value: "dim " + palette.blue,
-                ThemeKey.METADATA_BOLD.value: "bold " + palette.blue,
-                ThemeKey.METADATA_ITALIC.value: "italic " + palette.blue,
+                ThemeKey.METADATA.value: palette.grey1,
+                ThemeKey.METADATA_DIM.value: "dim " + palette.grey1,
+                ThemeKey.METADATA_BOLD.value: "bold " + palette.grey1,
+                ThemeKey.METADATA_ITALIC.value: "italic " + palette.grey1,
                 # STATUS
                 ThemeKey.STATUS_SPINNER.value: palette.blue,
                 ThemeKey.STATUS_TEXT.value: palette.blue,
@@ -351,8 +351,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 # it is used while rendering assistant output.
                 "markdown.thinking": "italic " + palette.grey2,
                 "markdown.thinking.tag": palette.grey2,
-                "markdown.code.border": palette.grey3,
-                "markdown.code.fence": palette.grey3,
+                "markdown.code.border": palette.grey2,
+                "markdown.code.fence": palette.grey2,
                 "markdown.code.fence.title": palette.grey1,
                 # Used by ThinkingMarkdown when rendering `<thinking>` blocks.
                 "markdown.code.block": palette.grey1,
@@ -379,8 +379,9 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.strong": "italic " + palette.grey1,
                 "markdown.code": palette.grey1 + " italic on " + palette.code_background,
                 "markdown.code.block": palette.grey2,
-                "markdown.code.fence": palette.grey3,
-                "markdown.code.border": palette.grey3,
+                "markdown.code.fence": palette.grey2,
+                "markdown.code.fence.title": palette.grey1,
+                "markdown.code.border": palette.grey2,
                 "markdown.thinking.tag": palette.grey2 + " dim",
                 "markdown.h1": "bold reverse",
                 "markdown.h1.border": palette.grey3,
