@@ -4,6 +4,7 @@ from typing import Any, cast
 
 from rich import box
 from rich.console import Group, RenderableType
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
@@ -166,7 +167,6 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
     if isinstance(command, str) and command.strip():
         cmd_str = command.strip()
         highlighted = highlight_bash_command(cmd_str)
-        highlighted.stylize(ThemeKey.CODE_BACKGROUND)
 
         display_line_count = len(highlighted.plain.splitlines())
 
@@ -189,7 +189,8 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
                 highlighted.append(f" {timeout_ms // 1000}s", style=ThemeKey.TOOL_TIMEOUT)
             else:
                 highlighted.append(f" {timeout_ms}ms", style=ThemeKey.TOOL_TIMEOUT)
-        return _render_tool_call_tree(mark=MARK_BASH, tool_name=tool_name, details=highlighted)
+        padded = Padding(highlighted, pad=0, style=ThemeKey.CODE_BACKGROUND, expand=False)
+        return _render_tool_call_tree(mark=MARK_BASH, tool_name=tool_name, details=padded)
     else:
         summary = Text("", ThemeKey.TOOL_PARAM)
         if isinstance(timeout_ms, int):
