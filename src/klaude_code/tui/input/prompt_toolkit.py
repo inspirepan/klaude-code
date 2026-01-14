@@ -358,7 +358,6 @@ class PromptToolkitInput(InputProviderABC):
             return []
         return [
             ("fg:ansigreen", " bash mode"),
-            ("fg:ansibrightblack", " (type ! at start; backspace first char to exit)"),
         ]
 
     def _setup_model_picker(self) -> None:
