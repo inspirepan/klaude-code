@@ -609,6 +609,9 @@ class MarkdownStream:
 
         live_text_to_set: Text | None = None
         if not final and MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._live_sink is not None:
+            # Only update live area after we have rendered at least one stable block
+            if not self._stable_rendered_lines:
+                return
             # When nothing is stable yet, we still want to show incremental output.
             # Apply the mark only for the first (all-live) frame so it stays anchored
             # to the first visible line of the full message.
