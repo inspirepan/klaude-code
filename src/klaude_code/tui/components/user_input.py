@@ -25,7 +25,7 @@ def render_at_and_skill_patterns(
     available_skill_names: set[str] | None = None,
 ) -> Text:
     """Render text with highlighted @file and $skill patterns."""
-    result = Text(text, style=other_style)
+    result = Text(text, style=other_style, overflow="fold")
     for match in INLINE_RENDER_PATTERN.finditer(text):
         skill_name = match.group(1)
         if skill_name is None:
@@ -79,6 +79,7 @@ def render_user_input(content: str) -> RenderableType:
                 render_at_and_skill_patterns(splits[1], available_skill_names=available_skill_names)
                 if len(splits) > 1
                 else Text(""),
+                overflow="fold",
             )
             renderables.append(line_text)
             continue
