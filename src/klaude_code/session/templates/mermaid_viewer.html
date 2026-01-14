@@ -539,6 +539,21 @@ __KLAUDE_CODE__</textarea
           </svg>
           <span>SVG</span>
         </button>
+        <button class="tool-btn" id="btn-download-png" title="Download PNG">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>PNG</span>
+        </button>
       </div>
     </div>
 
@@ -570,6 +585,7 @@ __KLAUDE_CODE__</textarea
           zoomOut: document.getElementById("btn-zoom-out"),
           reset: document.getElementById("btn-reset"),
           download: document.getElementById("btn-download"),
+          downloadPng: document.getElementById("btn-download-png"),
           copy: document.getElementById("btn-copy-code"),
           collapse: document.getElementById("btn-collapse"),
           expand: document.getElementById("btn-expand"),
@@ -892,6 +908,75 @@ __KLAUDE_CODE__</textarea
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
+      };
+
+      els.btns.downloadPng.onclick = async () => {
+        const svg = els.canvas.querySelector("svg");
+        if (!svg) return;
+
+        const clone = svg.cloneNode(true);
+
+        const bbox = svg.getBBox();
+        const width = bbox.width + 40;
+        const height = bbox.height + 40;
+
+        clone.setAttribute("width", width);
+        clone.setAttribute("height", height);
+        clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+
+        // Remove foreignObject elements (they cause tainted canvas)
+        clone.querySelectorAll("foreignObject").forEach((fo) => {
+          const text = fo.textContent || "";
+          const parent = fo.parentNode;
+          if (parent) {
+            const textEl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            textEl.textContent = text;
+            textEl.setAttribute("font-family", "sans-serif");
+            textEl.setAttribute("font-size", "14");
+            parent.replaceChild(textEl, fo);
+          }
+        });
+
+        // Add white background rect
+        const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        bgRect.setAttribute("width", "100%");
+        bgRect.setAttribute("height", "100%");
+        bgRect.setAttribute("fill", "white");
+        clone.insertBefore(bgRect, clone.firstChild);
+
+        const svgData = new XMLSerializer().serializeToString(clone);
+        const svgBase64 = btoa(unescape(encodeURIComponent(svgData)));
+        const dataUrl = "data:image/svg+xml;base64," + svgBase64;
+
+        const img = new Image();
+        img.onload = () => {
+          const scale = 2;
+          const canvas = document.createElement("canvas");
+          canvas.width = width * scale;
+          canvas.height = height * scale;
+
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "white";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.scale(scale, scale);
+          ctx.drawImage(img, 0, 0);
+
+          canvas.toBlob((blob) => {
+            const pngUrl = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = pngUrl;
+            a.download = "diagram.png";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(pngUrl);
+          }, "image/png");
+        };
+        img.onerror = (e) => {
+          console.error("PNG export failed:", e);
+        };
+        img.src = dataUrl;
       };
 
       els.btns.copy.onclick = async () => {
