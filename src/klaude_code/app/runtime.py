@@ -12,6 +12,7 @@ from klaude_code.core.agent import Agent
 from klaude_code.core.agent_profile import (
     DefaultModelProfileProvider,
     VanillaModelProfileProvider,
+    WebModelProfileProvider,
 )
 from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
@@ -27,6 +28,7 @@ class AppInitConfig:
     model: str | None
     debug: bool
     vanilla: bool
+    web: bool = False
     debug_filters: set[DebugType] | None = None
 
 
@@ -74,6 +76,8 @@ async def initialize_app_components(
 
     if init_config.vanilla:
         model_profile_provider = VanillaModelProfileProvider()
+    elif init_config.web:
+        model_profile_provider = WebModelProfileProvider(config=config)
     else:
         model_profile_provider = DefaultModelProfileProvider(config=config)
 

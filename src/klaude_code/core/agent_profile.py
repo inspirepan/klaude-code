@@ -305,3 +305,26 @@ class VanillaModelProfileProvider(ModelProfileProvider):
         if output_schema:
             return with_structured_output(profile, output_schema)
         return profile
+
+
+class WebModelProfileProvider(DefaultModelProfileProvider):
+    """Provider that adds web tools to the main agent."""
+
+    def build_profile(
+        self,
+        llm_client: LLMClientABC,
+        sub_agent_type: tools.SubAgentType | None = None,
+        *,
+        output_schema: dict[str, Any] | None = None,
+    ) -> AgentProfile:
+        profile = super().build_profile(llm_client, sub_agent_type, output_schema=output_schema)
+        # Only add web tools for main agent (not sub-agents)
+        if sub_agent_type is None:
+            web_tools = get_tool_schemas([tools.WEB_FETCH, tools.WEB_SEARCH])
+            return AgentProfile(
+                llm_client=profile.llm_client,
+                system_prompt=profile.system_prompt,
+                tools=[*profile.tools, *web_tools],
+                reminders=profile.reminders,
+            )
+        return profile

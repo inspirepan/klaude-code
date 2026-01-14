@@ -200,6 +200,11 @@ def main_callback(
         help="Image generation mode (alias for --model banana)",
         rich_help_panel="LLM",
     ),
+    web: bool = typer.Option(
+        False,
+        "--web",
+        help="Enable web tools (WebFetch, WebSearch) for the main agent",
+    ),
     version: bool = typer.Option(
         False,
         "--version",
@@ -216,6 +221,10 @@ def main_callback(
 
         if vanilla and banana:
             log(("Error: --banana cannot be combined with --vanilla", "red"))
+            raise typer.Exit(2)
+
+        if vanilla and web:
+            log(("Error: --web cannot be combined with --vanilla", "red"))
             raise typer.Exit(2)
 
         resume_by_id_value = resume_by_id.strip() if resume_by_id is not None else None
@@ -347,6 +356,7 @@ def main_callback(
             model=chosen_model,
             debug=debug_enabled,
             vanilla=vanilla,
+            web=web,
             debug_filters=debug_filters,
         )
 

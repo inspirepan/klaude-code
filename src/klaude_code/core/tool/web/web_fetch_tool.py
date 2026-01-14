@@ -235,7 +235,7 @@ class WebFetchTool(ToolABC):
             text = _decode_content(data, charset)
             processed = _process_content(content_type, text)
             saved_path = _save_text_content(url, processed)
-            output = f"[Web content saved to {saved_path}]\n\n{processed}" if saved_path else processed
+            output = f"[Full content saved to {saved_path}]\n\n{processed}" if saved_path else processed
 
             return message.ToolResultMessage(
                 status="success",
