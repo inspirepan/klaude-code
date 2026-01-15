@@ -227,11 +227,11 @@ class HeadTailOffloadStrategy(OffloadStrategy):
         if self._should_offload(needs_truncation):
             offloaded_path = self._save_to_file(output, tool_call)
 
-        # Prefer line-based truncation if line limit exceeded
-        if needs_line_truncation:
-            truncated_output, hidden = self._truncate_by_lines(output, lines, offloaded_path)
-        else:
+        # Prefer char-based truncation if char limit exceeded (stricter limit)
+        if needs_char_truncation:
             truncated_output, hidden = self._truncate_by_chars(output, offloaded_path)
+        else:
+            truncated_output, hidden = self._truncate_by_lines(output, lines, offloaded_path)
 
         return OffloadResult(
             output=truncated_output,
