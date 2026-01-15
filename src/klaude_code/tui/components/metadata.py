@@ -47,13 +47,16 @@ def _render_task_metadata_block(
     if metadata.usage is not None:
         # Tokens: ↑37k ◎5k ↓907 ∿45k ⌗ 100
         token_text = Text()
+        input_tokens = max(metadata.usage.input_tokens - metadata.usage.cached_tokens, 0)
+        output_tokens = max(metadata.usage.output_tokens - metadata.usage.reasoning_tokens, 0)
+
         token_text.append("↑", style=ThemeKey.METADATA)
-        token_text.append(format_number(metadata.usage.input_tokens), style=ThemeKey.METADATA)
+        token_text.append(format_number(input_tokens), style=ThemeKey.METADATA)
         if metadata.usage.cached_tokens > 0:
             token_text.append(" ◎", style=ThemeKey.METADATA)
             token_text.append(format_number(metadata.usage.cached_tokens), style=ThemeKey.METADATA)
         token_text.append(" ↓", style=ThemeKey.METADATA)
-        token_text.append(format_number(metadata.usage.output_tokens), style=ThemeKey.METADATA)
+        token_text.append(format_number(output_tokens), style=ThemeKey.METADATA)
         if metadata.usage.reasoning_tokens > 0:
             token_text.append(" ∿", style=ThemeKey.METADATA)
             token_text.append(format_number(metadata.usage.reasoning_tokens), style=ThemeKey.METADATA)
