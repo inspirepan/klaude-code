@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.1] - 2026-01-15
+
+### Added
+
+- add gpt-5.2-codex model entries (`d895c644`)
+- add PNG download button to mermaid viewer (`b48b52eb`)
+- add --web option to enable web tools for main agent (`d07f3194`)
+
+### Changed
+
+- remove bash mode usage hint from toolbar (`629c4499`)
+- use Padding with code background for bash tool call (`a2373fc0`)
+- use fold overflow for user input text (`be70acc5`)
+- update markdown theme (`bbf7f9ee`)
+
+### Fixed
+
+- prioritize char truncation over line truncation (`997df020`)
+- adjust token display for cache/thinking (`3126ab04`)
+- prevent live area update before stable content renders (`a6872f65`)
+- correct session tracking and stream closure in state machine (`3de23999`)
+- avoid accessing protected _live_sink attribute (`b68ae0a3`)
+
 ## [2.10.0] - 2026-01-13
 
 ### Added
@@ -1556,7 +1579,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.10.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.10.1...HEAD
+[2.10.1]: https://github.com/inspirepan/klaude-code/compare/v2.10.0...v2.10.1
 [2.10.0]: https://github.com/inspirepan/klaude-code/compare/v2.9.1...v2.10.0
 [2.9.1]: https://github.com/inspirepan/klaude-code/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/inspirepan/klaude-code/compare/v2.8.1...v2.9.0
