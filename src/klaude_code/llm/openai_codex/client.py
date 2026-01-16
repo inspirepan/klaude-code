@@ -146,28 +146,6 @@ class CodexClient(LLMClientABC):
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
             error_message = f"{e.__class__.__name__} {e!s}"
-
-            # Check for invalid instruction error and invalidate prompt cache
-            if _is_invalid_instruction_error(e) and param.model_id:
-                _invalidate_prompt_cache_for_model(param.model_id)
-
             return error_llm_stream(metadata_tracker, error=error_message)
 
         return ResponsesLLMStream(stream, param=param, metadata_tracker=metadata_tracker)
-
-
-def _is_invalid_instruction_error(e: Exception) -> bool:
-    """Check if the error is related to invalid instructions."""
-    error_str = str(e).lower()
-    return "invalid instruction" in error_str or "invalid_instruction" in error_str
-
-
-def _invalidate_prompt_cache_for_model(model_id: str) -> None:
-    """Invalidate the cached prompt for a model to force refresh."""
-    from klaude_code.llm.openai_codex.prompt_sync import invalidate_cache
-
-    log_debug(
-        f"Invalidating prompt cache for model {model_id} due to invalid instruction error",
-        debug_type=DebugType.GENERAL,
-    )
-    invalidate_cache(model_id)

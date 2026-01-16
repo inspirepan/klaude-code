@@ -130,12 +130,6 @@ def load_system_prompt(
 ) -> str:
     """Get system prompt content for the given model and sub-agent type."""
 
-    # For codex_oauth protocol, use dynamic prompts from GitHub (no additions).
-    if protocol == llm_param.LLMClientProtocol.CODEX_OAUTH:
-        from klaude_code.llm.openai_codex.prompt_sync import get_codex_instructions
-
-        return get_codex_instructions(model_name)
-
     # For antigravity protocol, use exact prompt without any additions.
     if protocol == llm_param.LLMClientProtocol.ANTIGRAVITY:
         return _load_prompt_by_path(ANTIGRAVITY_PROMPT_PATH)
