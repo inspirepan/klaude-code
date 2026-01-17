@@ -34,6 +34,12 @@ def is_gemini_model(model_name: str | None) -> bool:
     return model_name is not None and model_name.startswith("google/gemini")
 
 
+def is_xai_model(model_name: str | None) -> bool:
+    """Return True if the model name represents an xAI model."""
+
+    return model_name is not None and model_name.startswith("x-ai/")
+
+
 def _assistant_message_to_openrouter(
     msg: message.AssistantMessage, model_name: str | None
 ) -> chat.ChatCompletionMessageParam:

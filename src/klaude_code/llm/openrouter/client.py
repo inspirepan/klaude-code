@@ -17,7 +17,7 @@ from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_tool_schema
 from klaude_code.llm.openai_compatible.stream import OpenAILLMStream
-from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude_model
+from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude_model, is_xai_model
 from klaude_code.llm.openrouter.reasoning import ReasoningStreamHandler
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
@@ -69,6 +69,9 @@ def build_payload(
         extra_headers["x-anthropic-beta"] = (
             f"{ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING},{ANTHROPIC_BETA_INTERLEAVED_THINKING}"
         )
+
+    if is_xai_model(param.model_id):
+        extra_body["plugins"] = [{"id": "web", "engine": "native"}]
 
     payload: CompletionCreateParamsStreaming = {
         "model": str(param.model_id),
