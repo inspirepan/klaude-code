@@ -76,6 +76,60 @@ def create_key_bindings(
     term_program = os.environ.get("TERM_PROGRAM", "").lower()
     swallow_next_control_j = False
 
+    def _history_backward_cursor_to_start(buf: Buffer) -> None:
+        """Switch to previous history entry and place cursor at absolute start.
+
+        prompt_toolkit's default `Buffer.history_backward()` moves the cursor to
+        the end of the (possibly multi-line) history entry. That makes it hard
+        to keep pressing Up to continue cycling history, because subsequent Up
+        key presses start moving within the multi-line buffer.
+        """
+
+        try:
+            before = int(buf.working_index)  # type: ignore[reportUnknownMemberType]
+        except Exception:
+            before = None
+
+        buf.history_backward()
+
+        try:
+            after = int(buf.working_index)  # type: ignore[reportUnknownMemberType]
+        except Exception:
+            after = None
+
+        if before is not None and after is not None and before == after:
+            return
+
+        with contextlib.suppress(Exception):
+            buf.cursor_position = 0  # type: ignore[reportUnknownMemberType]
+
+    def _history_forward_cursor_to_end(buf: Buffer) -> None:
+        """Switch to next history entry and place cursor at absolute end.
+
+        prompt_toolkit's default `Buffer.history_forward()` moves the cursor to
+        the end of the *first* line. For our multiline REPL, it's more useful to
+        land at the end so that pressing Down keeps cycling through history.
+        """
+
+        try:
+            before = int(buf.working_index)  # type: ignore[reportUnknownMemberType]
+        except Exception:
+            before = None
+
+        buf.history_forward()
+
+        try:
+            after = int(buf.working_index)  # type: ignore[reportUnknownMemberType]
+        except Exception:
+            after = None
+
+        if before is not None and after is not None and before == after:
+            return
+
+        with contextlib.suppress(Exception):
+            text = buf.text  # type: ignore[reportUnknownMemberType]
+            buf.cursor_position = len(text)  # type: ignore[reportUnknownMemberType]
+
     def _is_bash_mode_text(text: str) -> bool:
         return text.startswith(("!", "！"))
 
@@ -150,6 +204,20 @@ def create_key_bindings(
             return current_input_line is not None and current_input_line == target_input_line
         except Exception:
             return False
+
+    def _current_cursor_row() -> int:
+        try:
+            doc = get_app().current_buffer.document
+            return int(doc.cursor_position_row)
+        except Exception:
+            return 0
+
+    def _current_line_count() -> int:
+        try:
+            doc = get_app().current_buffer.document
+            return int(doc.line_count)
+        except Exception:
+            return 1
 
     def _move_cursor_visually_within_wrapped_line(event: KeyPressEvent, *, delta_visible_y: int) -> None:
         """Move the cursor Up/Down by one wrapped screen row, keeping column."""
@@ -493,6 +561,32 @@ def create_key_bindings(
     def _(event: KeyPressEvent) -> None:
         _move_cursor_visually_within_wrapped_line(event, delta_visible_y=1)
 
+    @kb.add(
+        "up",
+        filter=enabled
+        & ~has_completions
+        & ~is_searching
+        & Condition(lambda: not _can_move_cursor_visually_within_wrapped_line(delta_visible_y=-1))
+        & Condition(lambda: _current_cursor_row() == 0),
+        eager=True,
+    )
+    def _(event: KeyPressEvent) -> None:
+        """Up on first logical line: switch history and keep caret at start."""
+        _history_backward_cursor_to_start(event.current_buffer)
+
+    @kb.add(
+        "down",
+        filter=enabled
+        & ~has_completions
+        & ~is_searching
+        & Condition(lambda: not _can_move_cursor_visually_within_wrapped_line(delta_visible_y=1))
+        & Condition(lambda: _current_cursor_row() >= (_current_line_count() - 1)),
+        eager=True,
+    )
+    def _(event: KeyPressEvent) -> None:
+        """Down on last logical line: switch history and keep caret at end."""
+        _history_forward_cursor_to_end(event.current_buffer)
+
     @kb.add("c-j", filter=enabled)
     def _(event: KeyPressEvent) -> None:
         nonlocal swallow_next_control_j
@@ -617,11 +711,11 @@ def create_key_bindings(
     @kb.add("escape", "up", filter=enabled & ~has_completions)
     def _(event: KeyPressEvent) -> None:
         """Option+Up switches to previous history entry."""
-        event.current_buffer.history_backward()
+        _history_backward_cursor_to_start(event.current_buffer)
 
     @kb.add("escape", "down", filter=enabled & ~has_completions)
     def _(event: KeyPressEvent) -> None:
         """Option+Down switches to next history entry."""
-        event.current_buffer.history_forward()
+        _history_forward_cursor_to_end(event.current_buffer)
 
     return kb
