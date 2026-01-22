@@ -61,6 +61,25 @@ def test_task_finish_does_not_render_structured_output_as_assistant_text() -> No
     assert not any(isinstance(c, AppendAssistant) for c in cmds)
 
 
+def test_task_finish_does_not_render_task_cancelled_as_assistant_text() -> None:
+    m = DisplayStateMachine()
+    session_id = "s1"
+
+    _ = m.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
+
+    cmds = m.transition(
+        events.TaskFinishEvent(
+            session_id=session_id,
+            task_result="task cancelled",
+            has_structured_output=False,
+        )
+    )
+
+    assert not any(isinstance(c, StartAssistantStream) for c in cmds)
+    assert not any(isinstance(c, AppendAssistant) for c in cmds)
+    assert not any(isinstance(c, EndAssistantStream) for c in cmds)
+
+
 def test_task_start_updates_primary_session_after_session_change() -> None:
     m = DisplayStateMachine()
 

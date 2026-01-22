@@ -736,6 +736,7 @@ class DisplayStateMachine:
                     and not e.has_structured_output
                     and s.assistant_char_count == 0
                     and e.task_result.strip()
+                    and e.task_result.strip().lower() not in {"task cancelled", "task canceled"}
                 ):
                     cmds.append(StartAssistantStream(session_id=e.session_id))
                     cmds.append(AppendAssistant(session_id=e.session_id, content=e.task_result))
