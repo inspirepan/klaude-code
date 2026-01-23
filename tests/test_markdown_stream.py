@@ -100,10 +100,8 @@ def test_update_sets_live_renderable_without_stable_block() -> None:
     stream.update("Single block", final=False)
 
     assert out.getvalue() == ""
-    assert live_calls
-    last = live_calls[-1]
-    assert isinstance(last, Text)
-    assert "Single block" in last.plain
+    # When there is no stable block yet, the stream does not update the live area.
+    assert live_calls == []
 
 
 def test_update_applies_mark_to_live_when_all_live() -> None:
@@ -129,7 +127,5 @@ def test_update_applies_mark_to_live_when_all_live() -> None:
 
     stream.update("hello", final=False)
 
-    assert live_calls
-    last = live_calls[-1]
-    assert isinstance(last, Text)
-    assert last.plain.startswith(">")
+    # Same as above: without any stable block, we don't emit a live renderable.
+    assert live_calls == []

@@ -609,7 +609,11 @@ class MarkdownStream:
 
         live_text_to_set: Text | None = None
         if not final and MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._live_sink is not None:
-            # Only update live area after we have rendered at least one stable block
+            # Only update the live area after we have rendered at least one stable block.
+            #
+            # This keeps the bottom "live" region anchored to stable scrollback, and
+            # avoids showing a live frame that would later need to be retroactively
+            # re-rendered once stable content exists.
             if not self._stable_rendered_lines:
                 return
             # When nothing is stable yet, we still want to show incremental output.

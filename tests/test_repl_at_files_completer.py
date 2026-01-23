@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from prompt_toolkit.document import Document
 
-from klaude_code.tui.input.completers import _AtFilesCompleter  # pyright: ignore[reportPrivateUsage]
+from klaude_code.tui.input.completers import _AtFilesCompleter, _CmdResult  # pyright: ignore[reportPrivateUsage]
 
 if TYPE_CHECKING:
     import pytest
@@ -106,3 +106,45 @@ def test_at_files_completer_formats_display_labels() -> None:
 
     # All labels should have the same length (aligned)
     assert len(labels[0]) == len(labels[1]) == len(labels[2])
+
+
+def test_git_paths_for_keyword_includes_all_tools_dirs_even_when_many_files_match(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Ensure we don't lose later */tools/ directories due to early scan truncation.
+
+    Regression case:
+    - There are many matching files under one tools directory early in git path order.
+    - Other */tools/ directories exist later.
+
+    We still want all those tools directories to be eligible completion candidates.
+    """
+
+    monkeypatch.chdir(tmp_path)
+    completer = _AtFilesCompleter()  # pyright: ignore[reportPrivateUsage]
+
+    # Avoid depending on a real git repo.
+    monkeypatch.setattr(completer, "_get_git_repo_root", lambda _cwd: tmp_path)
+
+    git_lines = [f"auxiliary/tools/file_{i}.py" for i in range(200)] + [
+        "image/tools/x.py",
+        "video/tools/y.py",
+        "three_d/tools/z.py",
+    ]
+
+    def fake_run_cmd(cmd: list[str], cwd: Path | None = None, *, timeout_sec: float) -> _CmdResult:
+        assert cmd[:2] == ["git", "ls-files"]
+        return _CmdResult(True, git_lines)
+
+    monkeypatch.setattr(completer, "_run_cmd", fake_run_cmd)
+
+    candidates, truncated = completer._git_paths_for_keyword(tmp_path, "tools", max_results=5)  # pyright: ignore[reportPrivateUsage]
+
+    assert not truncated
+    assert {
+        "auxiliary/tools/",
+        "image/tools/",
+        "video/tools/",
+        "three_d/tools/",
+    }.issubset(set(candidates))

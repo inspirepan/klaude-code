@@ -673,34 +673,68 @@ class _AtFilesCompleter(Completer):
         all_files_lower = self._git_file_list_lower or []
         kn = keyword_norm
 
-        # Bound per-keystroke work: stop scanning once enough matches are found.
+        # Bound per-keystroke work.
+        #
+        # Important: When the keyword is common (e.g. "tools"), truncating the
+        # scan purely by number of matching *files* can accidentally hide valid
+        # directory completions that appear later in the git path order.
+        #
+        # Example: multiple */tools/ directories under different parents.
+        file_quota = max_results
+        dir_quota = max_results
+        scan_cap = max(2000, max_results * 200)
+
+        keyword_stripped = keyword_norm.strip("/")
+        keyword_basename = os.path.basename(keyword_stripped)
+        explicit_parent = "/" in keyword_stripped
+
+        def dir_matches_keyword(dir_path: str) -> bool:
+            if not keyword_basename:
+                return False
+            if explicit_parent:
+                # When user typed an explicit parent segment, match against the
+                # whole directory path (not just basename).
+                return kn in f"{dir_path}/".lower()
+            # Otherwise prioritize directories by basename match.
+            return keyword_basename in os.path.basename(dir_path).lower()
+
         matching_files: list[str] = []
+        dir_list: list[str] = []
+        dir_seen: set[str] = set()
         scan_truncated = False
+        scanned = 0
+
         for p, pl in zip(all_files, all_files_lower, strict=False):
-            if kn in pl:
-                matching_files.append(p)
-                if len(matching_files) >= max_results:
+            scanned += 1
+            if kn not in pl:
+                if scanned >= scan_cap and (matching_files or dir_list):
                     scan_truncated = True
                     break
+                continue
 
-        # Also include parent directories of matching files so users can
-        # complete into a folder, similar to fd's directory results.
-        dir_candidates: set[str] = set()
-        for p in matching_files[: max_results * 3]:
+            if len(matching_files) < file_quota:
+                matching_files.append(p)
+
+            # Collect matching parent directories, walking upwards until repo root.
+            # This allows completing into directories like "image/tools/" even
+            # when the matching file is nested deeper.
             parent = os.path.dirname(p)
             while parent and parent != ".":
-                dir_candidates.add(f"{parent}/")
+                if dir_matches_keyword(parent):
+                    cand = f"{parent}/"
+                    if cand not in dir_seen:
+                        dir_seen.add(cand)
+                        dir_list.append(cand)
+                        if len(dir_list) >= dir_quota:
+                            break
                 parent = os.path.dirname(parent)
 
-        dir_list = sorted(dir_candidates)
-        dir_truncated = False
-        if len(dir_list) > max_results:
-            dir_list = dir_list[:max_results]
-            dir_truncated = True
+            if len(matching_files) >= file_quota and len(dir_list) >= dir_quota:
+                scan_truncated = True
+                break
 
-        candidates = matching_files + dir_list
-        truncated = scan_truncated or dir_truncated
-        return candidates, truncated
+        candidates = dir_list + matching_files
+        return candidates, scan_truncated
 
     def _get_git_repo_root(self, cwd: Path) -> Path | None:
         if not self._has_cmd("git"):
