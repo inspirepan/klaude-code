@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.2] - 2026-01-23
+
+### Added
+
+- enable native web search plugin for xAI models (`723fdb00`)
+- remove dynamic prompt sync for Codex (`622e6a81`)
+
+### Fixed
+
+- keep caret stable when cycling history (`6bb298a6`)
+- avoid rendering cancelled task as assistant output (`2e9f6ade`)
+- show initial thinking indicator (`e5446d95`)
+
 ## [2.10.1] - 2026-01-15
 
 ### Added
@@ -1579,7 +1592,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.10.1...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.10.2...HEAD
+[2.10.2]: https://github.com/inspirepan/klaude-code/compare/v2.10.1...v2.10.2
 [2.10.1]: https://github.com/inspirepan/klaude-code/compare/v2.10.0...v2.10.1
 [2.10.0]: https://github.com/inspirepan/klaude-code/compare/v2.9.1...v2.10.0
 [2.9.1]: https://github.com/inspirepan/klaude-code/compare/v2.9.0...v2.9.1
