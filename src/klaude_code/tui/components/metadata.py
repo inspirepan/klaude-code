@@ -32,9 +32,6 @@ def _render_task_metadata_block(
 
     # Second column: provider/model description / tokens / cost / …
     content = Text()
-    if metadata.provider is not None:
-        content.append_text(Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA))
-        content.append_text(Text("/", style=ThemeKey.METADATA))
     content.append_text(Text(metadata.model_name, style=ThemeKey.METADATA))
     if metadata.description:
         content.append_text(Text(" ", style=ThemeKey.METADATA)).append_text(
@@ -129,7 +126,7 @@ def _render_task_metadata_block(
 
     if parts:
         content.append_text(Text(" ", style=ThemeKey.METADATA))
-        content.append_text(Text(" ", style=ThemeKey.METADATA).join(parts))
+        content.append_text(Text(" ", style=ThemeKey.METADATA_DIM).join(parts))
 
     grid.add_row(mark, content)
     return grid
@@ -140,15 +137,14 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     renderables: list[RenderableType] = []
 
     has_sub_agents = len(e.metadata.sub_agent_task_metadata) > 0
-    # Use an extra space for the main agent mark to align with two-character marks (├─, └─)
-    main_mark_text = "●"
+    main_mark_text = "•"
     main_mark = Text(main_mark_text, style=ThemeKey.METADATA)
 
     renderables.append(_render_task_metadata_block(e.metadata.main_agent, mark=main_mark, show_context_and_time=True))
 
     # Render each sub-agent metadata block
     for meta in e.metadata.sub_agent_task_metadata:
-        sub_mark = Text("  └", style=ThemeKey.METADATA)
+        sub_mark = Text("  •", style=ThemeKey.METADATA)
         renderables.append(_render_task_metadata_block(meta, mark=sub_mark, show_context_and_time=True))
 
     # Add total cost line when there are sub-agents
@@ -165,9 +161,8 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
 
         currency_symbol = "¥" if currency == "CNY" else "$"
         total_line = Text.assemble(
-            ("  └", ThemeKey.METADATA),
-            (" Σ ", ThemeKey.METADATA),
-            ("total ", ThemeKey.METADATA),
+            ("  •", ThemeKey.METADATA),
+            (" total ", ThemeKey.METADATA),
             (currency_symbol, ThemeKey.METADATA),
             (f"{total_cost:.4f}", ThemeKey.METADATA),
         )

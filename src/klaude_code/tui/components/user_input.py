@@ -89,9 +89,9 @@ def render_user_input(content: str) -> RenderableType:
 
     return Padding(
         Group(*renderables),
-        pad=(0, 1),
+        pad=(1, 1),
         style=ThemeKey.USER_INPUT,
-        expand=False,
+        expand=True,
     )
 
 
