@@ -91,7 +91,7 @@ def render_user_input(content: str) -> RenderableType:
         Group(*renderables),
         pad=(1, 1),
         style=ThemeKey.USER_INPUT,
-        expand=True,
+        expand=False,
     )
 
 
