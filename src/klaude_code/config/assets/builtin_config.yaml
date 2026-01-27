@@ -102,12 +102,12 @@ provider_list:
     cost: {input: 1.75, output: 14, cache_read: 0.17}
 
   - model_name: kimi
-    model_id: moonshotai/kimi-k2-thinking
+    model_id: moonshotai/kimi-k2.5
     context_limit: 262144
-    provider_routing:
-      only:
-      - moonshotai/turbo
-    cost: {input: 0.6, output: 2.5, cache_read: 0.15}
+    # provider_routing:
+    #   only:
+    #   - moonshotai/turbo
+    cost: {input: 0.6, output: 3, cache_read: 0.1}
 
   - model_name: haiku
     model_id: anthropic/claude-haiku-4.5
@@ -272,12 +272,12 @@ provider_list:
   model_list:
 
   - model_name: kimi
-    model_id: kimi-k2-thinking
+    model_id: kimi-k2.5
     context_limit: 262144
     thinking:
       type: enabled
       budget_tokens: 8192
-    cost: {input: 4, output: 16, cache_read: 1, currency: CNY}
+    cost: {input: 4, output: 21, cache_read: 0.7, currency: CNY}
 
 
 - provider_name: cerebras

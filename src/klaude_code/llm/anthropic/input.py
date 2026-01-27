@@ -107,11 +107,20 @@ def _tool_blocks_to_message(blocks: list[BetaToolResultBlockParam]) -> BetaMessa
     }
 
 
+def _model_supports_unsigned_thinking(model_name: str | None) -> bool:
+    """Check if the model supports thinking blocks without signature (e.g., kimi, deepseek)."""
+    if not model_name:
+        return False
+    model_lower = model_name.lower()
+    return "kimi" in model_lower or "deepseek" in model_lower
+
+
 def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str | None) -> BetaMessageParam:
     content: list[BetaContentBlockParam] = []
     current_thinking_content: str | None = None
     native_thinking_parts, _ = split_thinking_parts(msg, model_name)
     native_thinking_ids = {id(part) for part in native_thinking_parts}
+    supports_unsigned = _model_supports_unsigned_thinking(model_name)
 
     def _degraded_thinking_block(text: str) -> BetaTextBlockParam | None:
         stripped = text.strip()
@@ -125,11 +134,18 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
             },
         )
 
-    def _flush_thinking_as_text_block() -> None:
+    def _flush_thinking() -> None:
         nonlocal current_thinking_content
         if current_thinking_content is None:
             return
-        if block := _degraded_thinking_block(current_thinking_content):
+        if supports_unsigned:
+            content.append(
+                cast(
+                    BetaContentBlockParam,
+                    {"type": "thinking", "thinking": current_thinking_content},
+                )
+            )
+        elif block := _degraded_thinking_block(current_thinking_content):
             content.append(block)
         current_thinking_content = None
 
@@ -156,9 +172,17 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
                     )
                 )
                 current_thinking_content = None
+            elif supports_unsigned:
+                content.append(
+                    cast(
+                        BetaContentBlockParam,
+                        {"type": "thinking", "thinking": current_thinking_content or ""},
+                    )
+                )
+                current_thinking_content = None
             continue
 
-        _flush_thinking_as_text_block()
+        _flush_thinking()
         if isinstance(part, message.TextPart):
             content.append(cast(BetaTextBlockParam, {"type": "text", "text": part.text}))
         elif isinstance(part, message.ToolCallPart):
@@ -182,7 +206,7 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
                 )
             )
 
-    _flush_thinking_as_text_block()
+    _flush_thinking()
 
     return {"role": "assistant", "content": content}
 
