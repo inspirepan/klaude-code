@@ -448,6 +448,9 @@ class PromptToolkitInput(InputProviderABC):
             # Keep a comfortable multiline editing area even when no completion
             # space is reserved. (We set reserve_space_for_menu=0 to avoid the
             # bottom toolbar jumping when completions open/close.)
+            #
+            # Also allow the input area to grow with content so that large multi-line
+            # inputs expand the prompt instead of scrolling within a fixed-height window.
             base_rows = 10
 
             def _height():  # type: ignore[no-untyped-def]
@@ -465,7 +468,18 @@ class PromptToolkitInput(InputProviderABC):
                 elif isinstance(original_height_value, int):
                     original_min = int(original_height_value)
 
-                target_rows = 24 if picker_open else base_rows
+                try:
+                    buffer_line_count = int(self._session.default_buffer.document.line_count)
+                except Exception:
+                    buffer_line_count = 1
+
+                # Grow with content (based on newline count), but keep a sensible minimum.
+                content_rows = max(1, buffer_line_count)
+                target_rows = max(base_rows, content_rows)
+
+                # When a picker overlay is open, keep enough height for it to be usable.
+                if picker_open:
+                    target_rows = max(target_rows, 24)
 
                 # Cap to the current terminal size.
                 # Leave a small buffer to avoid triggering "Window too small".
