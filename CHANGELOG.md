@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.3] - 2026-01-28
+
+### Added
+
+- auto-resize clipboard images exceeding 5MB limit (`c19c8a3e`)
+- add kimi k2.5 (`4187eebe`)
+
+### Changed
+
+- update input tui (`a7270f41`)
+- update tui (`3e653349`)
+
+### Fixed
+
+- prevent losing directory completions during keyword scan truncation (`8cbe8e15`)
+
 ## [2.10.2] - 2026-01-23
 
 ### Added
@@ -1592,7 +1608,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.10.2...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.10.3...HEAD
+[2.10.3]: https://github.com/inspirepan/klaude-code/compare/v2.10.2...v2.10.3
 [2.10.2]: https://github.com/inspirepan/klaude-code/compare/v2.10.1...v2.10.2
 [2.10.1]: https://github.com/inspirepan/klaude-code/compare/v2.10.0...v2.10.1
 [2.10.0]: https://github.com/inspirepan/klaude-code/compare/v2.9.1...v2.10.0
