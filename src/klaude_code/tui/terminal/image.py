@@ -14,19 +14,25 @@ _CHUNK_SIZE = 4096
 # Max columns for image display
 _MAX_COLS = 80
 
+# Max rows for image display
+_MAX_ROWS = 35
+
 # Image formats that need conversion to PNG
 _NEEDS_CONVERSION = {".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
 
-# Approximate pixels per terminal column (typical for most terminals)
+# Approximate pixels per terminal cell (typical for most terminals)
 _PIXELS_PER_COL = 9
+_PIXELS_PER_ROW = 18
 
 
-def _get_png_width(data: bytes) -> int | None:
-    """Extract width from PNG header (IHDR chunk)."""
-    # PNG signature (8 bytes) + IHDR length (4 bytes) + "IHDR" (4 bytes) + width (4 bytes)
-    if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n":
+def _get_png_dimensions(data: bytes) -> tuple[int, int] | None:
+    """Extract width and height from PNG header (IHDR chunk)."""
+    # PNG signature (8 bytes) + IHDR length (4 bytes) + "IHDR" (4 bytes) + width (4 bytes) + height (4 bytes)
+    if len(data) < 28 or data[:8] != b"\x89PNG\r\n\x1a\n":
         return None
-    return int.from_bytes(data[16:20], "big")
+    width = int.from_bytes(data[16:20], "big")
+    height = int.from_bytes(data[20:24], "big")
+    return width, height
 
 
 def _convert_to_png(path: Path) -> bytes | None:
@@ -76,16 +82,29 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
         term_size = shutil.get_terminal_size()
         target_cols = min(_MAX_COLS, term_size.columns)
 
-        # Only set column width if image is wider than target, to avoid upscaling small images
         size_param = ""
-        img_width = _get_png_width(data)
-        if img_width is not None:
+        dimensions = _get_png_dimensions(data)
+        if dimensions is not None:
+            img_width, img_height = dimensions
             img_cols = img_width // _PIXELS_PER_COL
-            if img_cols > target_cols:
+            img_rows = img_height // _PIXELS_PER_ROW
+            exceeds_width = img_cols > target_cols
+            exceeds_height = img_rows > _MAX_ROWS
+            if exceeds_width and exceeds_height:
+                # Both exceed: use the more constrained dimension to preserve aspect ratio
+                width_scale = target_cols / img_cols
+                height_scale = _MAX_ROWS / img_rows
+                if width_scale < height_scale:
+                    size_param = f"c={target_cols}"
+                else:
+                    size_param = f"r={_MAX_ROWS}"
+            elif exceeds_width:
                 size_param = f"c={target_cols}"
+            elif exceeds_height:
+                size_param = f"r={_MAX_ROWS}"
         else:
-            # Fallback: always constrain if we can't determine image size
-            size_param = f"c={target_cols}"
+            # Fallback: constrain by height since we can't determine image size
+            size_param = f"r={_MAX_ROWS}"
         print("", file=out)
         _write_kitty_graphics(out, encoded, size_param=size_param)
         print("", file=out)
