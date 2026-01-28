@@ -125,7 +125,7 @@ def test_git_paths_for_keyword_includes_all_tools_dirs_even_when_many_files_matc
     completer = _AtFilesCompleter()  # pyright: ignore[reportPrivateUsage]
 
     # Avoid depending on a real git repo.
-    monkeypatch.setattr(completer, "_get_git_repo_root", lambda _cwd: tmp_path)
+    monkeypatch.setattr(completer, "_get_git_repo_root", lambda _cwd: tmp_path)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     git_lines = [f"auxiliary/tools/file_{i}.py" for i in range(200)] + [
         "image/tools/x.py",

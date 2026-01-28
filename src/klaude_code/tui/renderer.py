@@ -610,6 +610,8 @@ class TUICommandRenderer:
                         sub_agent_color=self._current_sub_agent_color,
                     )
                 )
+        else:
+            self.print()
 
     def display_interrupt(self) -> None:
         self.print(c_user_input.render_interrupt())
