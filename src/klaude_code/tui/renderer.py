@@ -35,6 +35,7 @@ from klaude_code.tui.commands import (
     PrintBlankLine,
     PrintRuleLine,
     RenderAssistantImage,
+    RenderBacktrack,
     RenderBashCommandEnd,
     RenderBashCommandStart,
     RenderCommand,
@@ -680,6 +681,75 @@ class TUICommandRenderer:
 
         self.print()
 
+    def display_backtrack(
+        self,
+        checkpoint_id: int,
+        note: str,
+        rationale: str,
+        original_user_message: str,
+        messages_discarded: int | None,
+    ) -> None:
+        self.console.print(
+            Rule(
+                Text(f"Backtracked to Checkpoint {checkpoint_id}", style=ThemeKey.BACKTRACK),
+                characters="=",
+                style=ThemeKey.LINES,
+            )
+        )
+        self.print()
+
+        if messages_discarded:
+            self.console.print(
+                Text(f"  Discarded {messages_discarded} messages", style=ThemeKey.BACKTRACK_INFO)
+            )
+
+        if rationale:
+            self.console.print(Text("  Rationale:", style=ThemeKey.BACKTRACK_INFO))
+            rationale_preview = rationale[:300] + "..." if len(rationale) > 300 else rationale
+            self.console.print(
+                Padding(
+                    Panel(
+                        NoInsetMarkdown(rationale_preview, code_theme=self.themes.code_theme, style=ThemeKey.BACKTRACK_NOTE),
+                        box=box.SIMPLE,
+                        border_style=ThemeKey.LINES,
+                        style=ThemeKey.BACKTRACK_NOTE,
+                    ),
+                    (0, 0, 0, 4),
+                )
+            )
+
+        if original_user_message:
+            self.console.print(Text("  Returned to:", style=ThemeKey.BACKTRACK_INFO))
+            msg_preview = (
+                original_user_message[:200] + "..." if len(original_user_message) > 200 else original_user_message
+            )
+            self.console.print(
+                Padding(
+                    Panel(
+                        Text(msg_preview, style=ThemeKey.BACKTRACK_USER_MESSAGE),
+                        box=box.SIMPLE,
+                        border_style=ThemeKey.LINES,
+                    ),
+                    (0, 0, 0, 4),
+                )
+            )
+
+        self.console.print(Text("  Summary:", style=ThemeKey.BACKTRACK_INFO))
+        note_preview = note[:300] + "..." if len(note) > 300 else note
+        self.console.print(
+            Padding(
+                Panel(
+                    NoInsetMarkdown(note_preview, code_theme=self.themes.code_theme, style=ThemeKey.BACKTRACK_NOTE),
+                    box=box.SIMPLE,
+                    border_style=ThemeKey.LINES,
+                    style=ThemeKey.BACKTRACK_NOTE,
+                ),
+                (0, 0, 0, 4),
+            )
+        )
+
+        self.print()
+
     # ---------------------------------------------------------------------
     # Notifications
     # ---------------------------------------------------------------------
@@ -799,6 +869,20 @@ class TUICommandRenderer:
                     self.display_error(event)
                 case RenderCompactionSummary(summary=summary, kept_items_brief=kept_items_brief):
                     self.display_compaction_summary(summary, kept_items_brief)
+                case RenderBacktrack(
+                    checkpoint_id=checkpoint_id,
+                    note=note,
+                    rationale=rationale,
+                    original_user_message=original_user_message,
+                    messages_discarded=messages_discarded,
+                ):
+                    self.display_backtrack(
+                        checkpoint_id=checkpoint_id,
+                        note=note,
+                        rationale=rationale,
+                        original_user_message=original_user_message,
+                        messages_discarded=messages_discarded,
+                    )
                 case SpinnerStart():
                     self.spinner_start()
                 case SpinnerStop():

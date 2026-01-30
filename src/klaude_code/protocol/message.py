@@ -85,6 +85,15 @@ class CompactionEntry(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class BacktrackEntry(BaseModel):
+    checkpoint_id: int
+    note: str
+    rationale: str
+    reverted_from_index: int
+    original_user_message: str
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 # Part types
 
 
@@ -196,7 +205,7 @@ class ToolResultMessage(MessageBase):
 
 Message = SystemMessage | DeveloperMessage | UserMessage | AssistantMessage | ToolResultMessage
 
-HistoryEvent = Message | StreamErrorItem | TaskMetadataItem | CompactionEntry
+HistoryEvent = Message | StreamErrorItem | TaskMetadataItem | CompactionEntry | BacktrackEntry
 
 StreamItem = AssistantTextDelta | AssistantImageDelta | ThinkingTextDelta | ToolCallStartDelta
 

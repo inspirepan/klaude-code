@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
 from collections.abc import Iterable, Sequence
@@ -14,6 +15,15 @@ from klaude_code.protocol import events, llm_param, message, model, tools
 from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
 
 _DEFAULT_STORES: dict[str, JsonlSessionStore] = {}
+
+_CHECKPOINT_RE = re.compile(r"<system>Checkpoint (\d+)</system>")
+
+
+def _extract_checkpoint_id(text: str) -> int | None:
+    match = _CHECKPOINT_RE.search(text)
+    if match is None:
+        return None
+    return int(match.group(1))
 
 
 def _read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -50,6 +60,8 @@ class Session(BaseModel):
     file_tracker: dict[str, model.FileStatus] = Field(default_factory=dict)
     todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     model_name: str | None = None
+
+    next_checkpoint_id: int = 0
 
     model_config_name: str | None = None
     model_thinking: llm_param.Thinking | None = None
@@ -153,6 +165,8 @@ class Session(BaseModel):
         model_name = raw.get("model_name") if isinstance(raw.get("model_name"), str) else None
         model_config_name = raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None
 
+        next_checkpoint_id = int(raw.get("next_checkpoint_id", 0))
+
         model_thinking_raw = raw.get("model_thinking")
         model_thinking = (
             llm_param.Thinking.model_validate(model_thinking_raw) if isinstance(model_thinking_raw, dict) else None
@@ -169,6 +183,7 @@ class Session(BaseModel):
             model_name=model_name,
             model_config_name=model_config_name,
             model_thinking=model_thinking,
+            next_checkpoint_id=next_checkpoint_id,
         )
         session._store = store
         return session
@@ -221,19 +236,101 @@ class Session(BaseModel):
             model_name=self.model_name,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
+            next_checkpoint_id=self.next_checkpoint_id,
         )
         self._store.append_and_flush(session_id=self.id, items=items, meta=meta)
+
+    @property
+    def n_checkpoints(self) -> int:
+        return self.next_checkpoint_id
+
+    def create_checkpoint(self) -> int:
+        checkpoint_id = self.next_checkpoint_id
+        self.next_checkpoint_id += 1
+        checkpoint_msg = message.DeveloperMessage(
+            parts=[message.TextPart(text=f"<system>Checkpoint {checkpoint_id}</system>")]
+        )
+        self.append_history([checkpoint_msg])
+        return checkpoint_id
+
+    def find_checkpoint_index(self, checkpoint_id: int) -> int | None:
+        target_text = f"<system>Checkpoint {checkpoint_id}</system>"
+        for i, item in enumerate(self.conversation_history):
+            if not isinstance(item, message.DeveloperMessage):
+                continue
+            text = message.join_text_parts(item.parts)
+            if target_text in text:
+                return i
+        return None
+
+    def get_user_message_before_checkpoint(self, checkpoint_id: int) -> str | None:
+        checkpoint_idx = self.find_checkpoint_index(checkpoint_id)
+        if checkpoint_idx is None:
+            return None
+
+        for i in range(checkpoint_idx - 1, -1, -1):
+            item = self.conversation_history[i]
+            if isinstance(item, message.UserMessage):
+                return message.join_text_parts(item.parts)
+        return None
+
+    def get_checkpoint_user_messages(self) -> dict[int, str]:
+        checkpoints: dict[int, str] = {}
+        last_user_message = ""
+        for item in self.conversation_history:
+            if isinstance(item, message.UserMessage):
+                last_user_message = message.join_text_parts(item.parts)
+                continue
+            if not isinstance(item, message.DeveloperMessage):
+                continue
+            text = message.join_text_parts(item.parts)
+            checkpoint_id = _extract_checkpoint_id(text)
+            if checkpoint_id is None:
+                continue
+            checkpoints[checkpoint_id] = last_user_message
+        return checkpoints
+
+    def revert_to_checkpoint(self, checkpoint_id: int, note: str, rationale: str) -> message.BacktrackEntry:
+        target_idx = self.find_checkpoint_index(checkpoint_id)
+        if target_idx is None:
+            raise ValueError(f"Checkpoint {checkpoint_id} not found")
+
+        user_message = self.get_user_message_before_checkpoint(checkpoint_id) or ""
+        reverted_from = len(self.conversation_history)
+        entry = message.BacktrackEntry(
+            checkpoint_id=checkpoint_id,
+            note=note,
+            rationale=rationale,
+            reverted_from_index=reverted_from,
+            original_user_message=user_message,
+        )
+
+        self.conversation_history = self.conversation_history[: target_idx + 1]
+        self.next_checkpoint_id = checkpoint_id + 1
+        self._invalidate_messages_count_cache()
+        self._user_messages_cache = None
+        return entry
 
     def get_llm_history(self) -> list[message.HistoryEvent]:
         """Return the LLM-facing history view with compaction summary injected."""
         history = self.conversation_history
+
+        def _convert(item: message.HistoryEvent) -> message.HistoryEvent:
+            if isinstance(item, message.BacktrackEntry):
+                return message.DeveloperMessage(
+                    parts=[
+                        message.TextPart(text=f"<system>After this, some operations were performed and context was refined via Backtrack. Rationale: {item.rationale}. Summary: {item.note}. Please continue.</system>")
+                    ]
+                )
+            return item
+
         last_compaction: message.CompactionEntry | None = None
         for item in reversed(history):
             if isinstance(item, message.CompactionEntry):
                 last_compaction = item
                 break
         if last_compaction is None:
-            return [it for it in history if not isinstance(it, message.CompactionEntry)]
+            return [_convert(it) for it in history if not isinstance(it, message.CompactionEntry)]
 
         summary_message = message.UserMessage(parts=[message.TextPart(text=last_compaction.summary)])
         kept = [it for it in history[last_compaction.first_kept_index :] if not isinstance(it, message.CompactionEntry)]
@@ -246,7 +343,7 @@ class Session(BaseModel):
                 first_non_tool += 1
             kept = kept[first_non_tool:]
 
-        return [summary_message, *kept]
+        return [summary_message, *[_convert(it) for it in kept]]
 
     def fork(self, *, new_id: str | None = None, until_index: int | None = None) -> Session:
         """Create a new session as a fork of the current session.
@@ -266,6 +363,7 @@ class Session(BaseModel):
         forked.model_name = self.model_name
         forked.model_config_name = self.model_config_name
         forked.model_thinking = self.model_thinking.model_copy(deep=True) if self.model_thinking is not None else None
+        forked.next_checkpoint_id = self.next_checkpoint_id
         forked.file_tracker = {k: v.model_copy(deep=True) for k, v in self.file_tracker.items()}
         forked.todos = [todo.model_copy(deep=True) for todo in self.todos]
 
@@ -437,6 +535,15 @@ class Session(BaseModel):
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm)
                 case message.StreamErrorItem() as se:
                     yield events.ErrorEvent(error_message=se.error, can_retry=False, session_id=self.id)
+                case message.BacktrackEntry() as be:
+                    yield events.BacktrackEvent(
+                        session_id=self.id,
+                        checkpoint_id=be.checkpoint_id,
+                        note=be.note,
+                        rationale=be.rationale,
+                        original_user_message=be.original_user_message,
+                        messages_discarded=None,
+                    )
                 case message.CompactionEntry() as ce:
                     yield events.CompactionStartEvent(session_id=self.id, reason="threshold")
                     yield events.CompactionEndEvent(

@@ -183,3 +183,12 @@ class TaskClockClear(RenderCommand):
 class RenderCompactionSummary(RenderCommand):
     summary: str
     kept_items_brief: tuple[tuple[str, int, str], ...] = ()  # (item_type, count, preview)
+
+
+@dataclass(frozen=True, slots=True)
+class RenderBacktrack(RenderCommand):
+    checkpoint_id: int
+    note: str
+    rationale: str
+    original_user_message: str
+    messages_discarded: int | None = None

@@ -14,6 +14,7 @@ __all__ = [
     "AssistantTextDeltaEvent",
     "AssistantTextEndEvent",
     "AssistantTextStartEvent",
+    "BacktrackEvent",
     "BashCommandEndEvent",
     "BashCommandOutputDeltaEvent",
     "BashCommandStartEvent",
@@ -114,6 +115,14 @@ class CompactionEndEvent(Event):
     kept_from_index: int | None = None
     summary: str | None = None
     kept_items_brief: list[message.KeptItemBrief] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+
+
+class BacktrackEvent(Event):
+    checkpoint_id: int
+    note: str
+    rationale: str
+    original_user_message: str
+    messages_discarded: int | None = None
 
 
 class TaskFinishEvent(Event):
@@ -220,6 +229,7 @@ type ReplayEventUnion = (
     | ErrorEvent
     | CompactionStartEvent
     | CompactionEndEvent
+    | BacktrackEvent
 )
 
 

@@ -24,6 +24,7 @@ from klaude_code.tui.commands import (
     EndThinkingStream,
     PrintBlankLine,
     RenderAssistantImage,
+    RenderBacktrack,
     RenderBashCommandEnd,
     RenderBashCommandStart,
     RenderCommand,
@@ -65,6 +66,7 @@ FAST_TOOLS: frozenset[str] = frozenset(
         tools.UPDATE_PLAN,
         tools.APPLY_PATCH,
         tools.REPORT_BACK,
+        tools.BACKTRACK,
     }
 )
 
@@ -467,6 +469,18 @@ class DisplayStateMachine:
                 if e.summary and not e.aborted:
                     kept_brief = tuple((item.item_type, item.count, item.preview) for item in e.kept_items_brief)
                     cmds.append(RenderCompactionSummary(summary=e.summary, kept_items_brief=kept_brief))
+                return cmds
+
+            case events.BacktrackEvent() as e:
+                cmds.append(
+                    RenderBacktrack(
+                        checkpoint_id=e.checkpoint_id,
+                        note=e.note,
+                        rationale=e.rationale,
+                        original_user_message=e.original_user_message,
+                        messages_discarded=e.messages_discarded,
+                    )
+                )
                 return cmds
 
             case events.DeveloperMessageEvent() as e:

@@ -1,3 +1,4 @@
+from .backtrack.backtrack_tool import BacktrackTool
 from .context import FileTracker, RunSubtask, SubAgentResumeClaims, TodoContext, ToolContext, build_todo_context
 from .file.apply_patch import DiffError, process_patch
 from .file.apply_patch_tool import ApplyPatchTool
@@ -19,6 +20,7 @@ from .web.web_search_tool import WebSearchTool
 
 __all__ = [
     "ApplyPatchTool",
+    "BacktrackTool",
     "BashTool",
     "DiffError",
     "EditTool",

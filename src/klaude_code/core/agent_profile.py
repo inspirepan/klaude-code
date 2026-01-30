@@ -169,9 +169,9 @@ def load_agent_tools(
 
     # Main agent tools
     if "gpt-5" in model_name:
-        tool_names: list[str] = [tools.BASH, tools.READ, tools.APPLY_PATCH, tools.UPDATE_PLAN]
+        tool_names: list[str] = [tools.BASH, tools.READ, tools.APPLY_PATCH, tools.UPDATE_PLAN, tools.BACKTRACK]
     else:
-        tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE]
+        tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE, tools.BACKTRACK]
 
     tool_names.append(tools.TASK)
     if config is not None:

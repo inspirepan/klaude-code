@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from klaude_code.const import INITIAL_RETRY_DELAY_S, MAX_FAILED_TURN_RETRIES, MAX_RETRY_DELAY_S
 from klaude_code.core.agent_profile import AgentProfile, Reminder
+from klaude_code.core.backtrack import BacktrackManager
 from klaude_code.core.compaction import (
     CompactionReason,
     is_context_overflow,
@@ -178,6 +179,7 @@ class TaskExecutor:
         self._current_turn: TurnExecutor | None = None
         self._started_at: float = 0.0
         self._metadata_accumulator: MetadataAccumulator | None = None
+        self._backtrack_manager: BacktrackManager | None = None
 
     def get_partial_metadata(self) -> model.TaskMetadata | None:
         """Get the currently accumulated metadata without finalizing.
@@ -221,6 +223,11 @@ class TaskExecutor:
         session_ctx = ctx.session_ctx
         self._started_at = time.perf_counter()
 
+        if ctx.sub_agent_state is None:
+            self._backtrack_manager = BacktrackManager()
+            self._backtrack_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+            self._backtrack_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+
         yield events.TaskStartEvent(
             session_id=session_ctx.session_id,
             sub_agent_state=ctx.sub_agent_state,
@@ -262,6 +269,9 @@ class TaskExecutor:
                     log_debug("[Compact] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
 
                     session_ctx.append_history([result.to_entry()])
+                    if self._backtrack_manager is not None:
+                        self._backtrack_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                        self._backtrack_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
                     yield events.CompactionEndEvent(
                         session_id=session_ctx.session_id,
                         reason=CompactionReason.THRESHOLD.value,
@@ -298,6 +308,12 @@ class TaskExecutor:
                         will_retry=False,
                     )
 
+            if self._backtrack_manager is not None:
+                checkpoint_id = ctx.session.create_checkpoint()
+                self._backtrack_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                user_msg = ctx.session.get_user_message_before_checkpoint(checkpoint_id) or ""
+                self._backtrack_manager.register_checkpoint(checkpoint_id, user_msg)
+
             turn_context = TurnExecutionContext(
                 session_ctx=session_ctx,
                 llm_client=profile.llm_client,
@@ -305,6 +321,7 @@ class TaskExecutor:
                 tools=profile.tools,
                 tool_registry=ctx.tool_registry,
                 sub_agent_state=ctx.sub_agent_state,
+                backtrack_manager=self._backtrack_manager,
             )
 
             turn: TurnExecutor | None = None
@@ -354,6 +371,9 @@ class TaskExecutor:
                                 "[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE
                             )
                             session_ctx.append_history([result.to_entry()])
+                            if self._backtrack_manager is not None:
+                                self._backtrack_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                                self._backtrack_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
                             yield events.CompactionEndEvent(
                                 session_id=session_ctx.session_id,
                                 reason=CompactionReason.OVERFLOW.value,
@@ -413,6 +433,32 @@ class TaskExecutor:
                     final_error = f"{last_error_message}\n{final_error}"
                 yield events.ErrorEvent(error_message=final_error, can_retry=False, session_id=session_ctx.session_id)
                 return
+
+            if self._backtrack_manager is not None:
+                pending = self._backtrack_manager.fetch_pending()
+                if pending is not None:
+                    try:
+                        entry = ctx.session.revert_to_checkpoint(pending.checkpoint_id, pending.note, pending.rationale)
+                    except ValueError as exc:
+                        yield events.ErrorEvent(
+                            error_message=str(exc),
+                            can_retry=False,
+                            session_id=session_ctx.session_id,
+                        )
+                    else:
+                        messages_discarded = entry.reverted_from_index - len(ctx.session.conversation_history)
+                        session_ctx.append_history([entry])
+                        self._backtrack_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                        self._backtrack_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+                        yield events.BacktrackEvent(
+                            session_id=session_ctx.session_id,
+                            checkpoint_id=pending.checkpoint_id,
+                            note=pending.note,
+                            rationale=pending.rationale,
+                            original_user_message=entry.original_user_message,
+                            messages_discarded=messages_discarded,
+                        )
+                        continue
 
             if turn is None or turn.task_finished:
                 # Empty result should retry instead of finishing

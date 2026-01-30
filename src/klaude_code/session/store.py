@@ -169,6 +169,7 @@ def build_meta_snapshot(
     model_name: str | None,
     model_config_name: str | None,
     model_thinking: llm_param.Thinking | None,
+    next_checkpoint_id: int = 0,
 ) -> dict[str, Any]:
     return {
         "id": session_id,
@@ -186,4 +187,5 @@ def build_meta_snapshot(
         "model_thinking": model_thinking.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
         if model_thinking
         else None,
+        "next_checkpoint_id": next_checkpoint_id,
     }

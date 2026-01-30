@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Awaitable, Callable, MutableMapping
 from dataclasses import dataclass, replace
 
+from klaude_code.core.backtrack import BacktrackManager
 from klaude_code.protocol import model
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
@@ -85,9 +86,13 @@ class ToolContext:
     sub_agent_resume_claims: SubAgentResumeClaims | None = None
     record_sub_agent_session_id: Callable[[str], None] | None = None
     register_sub_agent_metadata_getter: Callable[[GetMetadataFn], None] | None = None
+    backtrack_manager: BacktrackManager | None = None
 
     def with_record_sub_agent_session_id(self, callback: Callable[[str], None] | None) -> ToolContext:
         return replace(self, record_sub_agent_session_id=callback)
 
     def with_register_sub_agent_metadata_getter(self, callback: Callable[[GetMetadataFn], None] | None) -> ToolContext:
         return replace(self, register_sub_agent_metadata_getter=callback)
+
+    def with_backtrack_manager(self, manager: BacktrackManager | None) -> ToolContext:
+        return replace(self, backtrack_manager=manager)

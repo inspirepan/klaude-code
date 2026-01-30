@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from klaude_code.const import RETRY_PRESERVE_PARTIAL_MESSAGE, SUPPORTED_IMAGE_SIZES
+from klaude_code.core.backtrack import BacktrackManager
 from klaude_code.core.tool import ToolABC
 from klaude_code.core.tool.context import SubAgentResumeClaims, ToolContext
 
@@ -49,6 +50,7 @@ class TurnExecutionContext:
     tools: list[llm_param.ToolSchema]
     tool_registry: dict[str, type[ToolABC]]
     sub_agent_state: model.SubAgentState | None = None
+    backtrack_manager: BacktrackManager | None = None
 
 
 @dataclass
@@ -404,6 +406,7 @@ class TurnExecutor:
             session_id=session_ctx.session_id,
             run_subtask=session_ctx.run_subtask,
             sub_agent_resume_claims=SubAgentResumeClaims(),
+            backtrack_manager=ctx.backtrack_manager,
         )
 
         executor = ToolExecutor(
