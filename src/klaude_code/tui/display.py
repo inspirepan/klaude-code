@@ -101,3 +101,7 @@ class TUIDisplay(DisplayABC):
             self._renderer.spinner_stop()
         with contextlib.suppress(Exception):
             self._renderer.stop_bottom_live()
+
+    def set_model_name(self, model_name: str | None) -> None:
+        """Set model name for terminal title updates."""
+        self._machine.set_model_name(model_name)

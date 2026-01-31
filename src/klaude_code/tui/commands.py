@@ -192,3 +192,9 @@ class RenderBacktrack(RenderCommand):
     rationale: str
     original_user_message: str
     messages_discarded: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateTerminalTitlePrefix(RenderCommand):
+    prefix: str | None
+    model_name: str | None

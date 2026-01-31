@@ -48,6 +48,7 @@ from klaude_code.tui.commands import (
     StartThinkingStream,
     TaskClockClear,
     TaskClockStart,
+    UpdateTerminalTitlePrefix,
 )
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
@@ -325,6 +326,10 @@ class DisplayStateMachine:
         self._sessions: dict[str, _SessionState] = {}
         self._primary_session_id: str | None = None
         self._spinner = SpinnerStatusState()
+        self._model_name: str | None = None
+
+    def set_model_name(self, model_name: str | None) -> None:
+        self._model_name = model_name
 
     def _reset_sessions(self) -> None:
         self._sessions = {}
@@ -444,6 +449,7 @@ class DisplayStateMachine:
                         self._primary_session_id = e.session_id
                     if not is_replay:
                         cmds.append(TaskClockStart())
+                        cmds.append(UpdateTerminalTitlePrefix(prefix="\u26ac", model_name=self._model_name))
 
                 if not is_replay:
                     cmds.append(SpinnerStart())
@@ -761,6 +767,7 @@ class DisplayStateMachine:
                     self._spinner.reset()
                     cmds.append(SpinnerStop())
                     cmds.append(EmitTmuxSignal())
+                    cmds.append(UpdateTerminalTitlePrefix(prefix="\u2714", model_name=self._model_name))
                 return cmds
 
             case events.InterruptEvent() as e:

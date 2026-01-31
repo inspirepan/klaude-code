@@ -60,6 +60,7 @@ from klaude_code.tui.commands import (
     StartThinkingStream,
     TaskClockClear,
     TaskClockStart,
+    UpdateTerminalTitlePrefix,
 )
 from klaude_code.tui.components import command_output as c_command_output
 from klaude_code.tui.components import developer as c_developer
@@ -86,6 +87,7 @@ from klaude_code.tui.terminal.notifier import (
     emit_tmux_signal,
 )
 from klaude_code.tui.terminal.progress_bar import OSC94States, emit_osc94
+from klaude_code.ui.terminal.title import update_terminal_title
 
 
 @dataclass
@@ -699,9 +701,7 @@ class TUICommandRenderer:
         self.print()
 
         if messages_discarded:
-            self.console.print(
-                Text(f"  Discarded {messages_discarded} messages", style=ThemeKey.BACKTRACK_INFO)
-            )
+            self.console.print(Text(f"  Discarded {messages_discarded} messages", style=ThemeKey.BACKTRACK_INFO))
 
         if rationale:
             self.console.print(Text("  Rationale:", style=ThemeKey.BACKTRACK_INFO))
@@ -709,7 +709,9 @@ class TUICommandRenderer:
             self.console.print(
                 Padding(
                     Panel(
-                        NoInsetMarkdown(rationale_preview, code_theme=self.themes.code_theme, style=ThemeKey.BACKTRACK_NOTE),
+                        NoInsetMarkdown(
+                            rationale_preview, code_theme=self.themes.code_theme, style=ThemeKey.BACKTRACK_NOTE
+                        ),
                         box=box.SIMPLE,
                         border_style=ThemeKey.LINES,
                         style=ThemeKey.BACKTRACK_NOTE,
@@ -901,6 +903,8 @@ class TUICommandRenderer:
                     r_status.set_task_start()
                 case TaskClockClear():
                     r_status.clear_task_start()
+                case UpdateTerminalTitlePrefix(prefix=prefix, model_name=model_name):
+                    update_terminal_title(model_name, prefix=prefix)
                 case _:
                     continue
 

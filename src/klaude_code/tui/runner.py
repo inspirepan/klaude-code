@@ -142,14 +142,19 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         elif detected is False:
             theme = "dark"
 
-    display: ui.DisplayABC = TUIDisplay(theme=theme)
+    tui_display = TUIDisplay(theme=theme)
+    display: ui.DisplayABC = tui_display
     if init_config.debug:
         display = ui.DebugEventDisplay(display)
+
+    def _on_model_change(model_name: str) -> None:
+        update_terminal_title(model_name)
+        tui_display.set_model_name(model_name)
 
     components = await initialize_app_components(
         init_config=init_config,
         display=display,
-        on_model_change=update_terminal_title,
+        on_model_change=_on_model_change,
     )
 
     def _status_provider() -> REPLStatusSnapshot:
