@@ -9,7 +9,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-MEMORY_FILE_NAMES = ["CLAUDE.md", "AGENTS.md", "AGENT.md"]
+MEMORY_FILE_NAMES = ["AGENTS.md", "CLAUDE.md", "AGENT.md"]
 
 
 class Memory(BaseModel):
@@ -36,12 +36,20 @@ def get_memory_paths(*, work_dir: Path) -> list[tuple[Path, str]]:
 
 
 def get_existing_memory_files(*, work_dir: Path) -> dict[str, list[str]]:
-    """Return existing memory file paths grouped by location (user/project)."""
+    """Return existing memory file paths grouped by location (user/project).
+
+    Only one memory file per directory is loaded, with priority: AGENTS.md > CLAUDE.md > AGENT.md
+    """
     result: dict[str, list[str]] = {"user": [], "project": []}
     work_dir = work_dir.resolve()
+    seen_dirs: set[Path] = set()
 
     for memory_path, _instruction in get_memory_paths(work_dir=work_dir):
+        parent = memory_path.parent.resolve()
+        if parent in seen_dirs:
+            continue
         if memory_path.exists() and memory_path.is_file():
+            seen_dirs.add(parent)
             path_str = str(memory_path)
             resolved = memory_path.resolve()
             try:
@@ -87,6 +95,8 @@ def discover_memory_files_near_paths(
 ) -> list[Memory]:
     """Discover and load CLAUDE.md/AGENTS.md from directories containing accessed files.
 
+    Only one memory file per directory is loaded, with priority: AGENTS.md > CLAUDE.md > AGENT.md
+
     Args:
         paths: List of file paths that have been accessed.
         is_memory_loaded: Callback to check if a memory file is already loaded.
@@ -97,7 +107,7 @@ def discover_memory_files_near_paths(
     """
     memories: list[Memory] = []
     work_dir = work_dir.resolve()
-    seen_memory_files: set[str] = set()
+    seen_dirs: set[Path] = set()
 
     for p_str in paths:
         p = Path(p_str)
@@ -117,24 +127,30 @@ def discover_memory_files_near_paths(
         current_dir = work_dir
         for part in rel_parts:
             current_dir = current_dir / part
+            if current_dir in seen_dirs:
+                continue
+            # Check if any memory file in this directory was already loaded
+            dir_already_loaded = any(is_memory_loaded(str(current_dir / fname)) for fname in MEMORY_FILE_NAMES)
+            if dir_already_loaded:
+                seen_dirs.add(current_dir)
+                continue
+            # Load first existing memory file in priority order
             for fname in MEMORY_FILE_NAMES:
                 mem_path = current_dir / fname
-                mem_path_str = str(mem_path)
-                if mem_path_str in seen_memory_files or is_memory_loaded(mem_path_str):
-                    continue
                 if mem_path.exists() and mem_path.is_file():
                     try:
                         text = mem_path.read_text(encoding="utf-8", errors="replace")
                     except (PermissionError, UnicodeDecodeError, OSError):
                         continue
-                    mark_memory_loaded(mem_path_str)
-                    seen_memory_files.add(mem_path_str)
+                    mark_memory_loaded(str(mem_path))
+                    seen_dirs.add(current_dir)
                     memories.append(
                         Memory(
-                            path=mem_path_str,
+                            path=str(mem_path),
                             instruction="project instructions, discovered near last accessed path",
                             content=text,
                         )
                     )
+                    break
 
     return memories
