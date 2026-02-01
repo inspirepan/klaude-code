@@ -275,8 +275,7 @@ class Config(BaseModel):
     def resolve_model_location_prefer_available(self, model_selector: str) -> tuple[str, str] | None:
         """Resolve a selector to (model_name, provider_name), preferring usable providers.
 
-        This uses the same availability logic as :meth:`get_model_config` (API-key
-        presence for non-OAuth protocols).
+        This uses the same availability logic as :meth:`get_model_config`.
         """
 
         requested_model, requested_provider = self._split_model_selector(model_selector)
@@ -285,20 +284,7 @@ class Config(BaseModel):
             if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
                 continue
 
-            if provider.disabled:
-                continue
-
-            api_key = provider.get_resolved_api_key()
-            if (
-                provider.protocol
-                not in {
-                    llm_param.LLMClientProtocol.CODEX_OAUTH,
-                    llm_param.LLMClientProtocol.CLAUDE_OAUTH,
-                    llm_param.LLMClientProtocol.ANTIGRAVITY,
-                    llm_param.LLMClientProtocol.BEDROCK,
-                }
-                and not api_key
-            ):
+            if provider.disabled or provider.is_api_key_missing():
                 continue
 
             for model in provider.model_list:
@@ -322,24 +308,10 @@ class Config(BaseModel):
                     raise ValueError(f"Provider '{provider.provider_name}' is disabled for: {model_name}")
                 continue
 
-            # Resolve ${ENV_VAR} syntax for api_key
-            api_key = provider.get_resolved_api_key()
-
-            # Some protocols do not use API keys for authentication.
-            if (
-                provider.protocol
-                not in {
-                    llm_param.LLMClientProtocol.CODEX_OAUTH,
-                    llm_param.LLMClientProtocol.CLAUDE_OAUTH,
-                    llm_param.LLMClientProtocol.ANTIGRAVITY,
-                    llm_param.LLMClientProtocol.BEDROCK,
-                }
-                and not api_key
-            ):
-                # When provider is explicitly requested, fail fast with a clearer error.
+            if provider.is_api_key_missing():
                 if requested_provider is not None:
                     raise ValueError(
-                        f"Provider '{provider.provider_name}' is not available (missing API key) for: {model_name}"
+                        f"Provider '{provider.provider_name}' is not available (missing credentials) for: {model_name}"
                     )
                 continue
 
@@ -355,7 +327,7 @@ class Config(BaseModel):
                     break
 
                 provider_dump = provider.model_dump(exclude={"model_list", "disabled"})
-                provider_dump["api_key"] = api_key
+                provider_dump["api_key"] = provider.get_resolved_api_key()
                 return llm_param.LLMConfigParameter(
                     **provider_dump,
                     **model.model_dump(exclude={"model_name"}),
