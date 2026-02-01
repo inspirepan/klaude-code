@@ -1,6 +1,6 @@
 # Adding a New OAuth Provider
 
-This document describes all the files and changes required to add a new OAuth-based authentication provider (like `antigravity`, `codex`, or `claude`).
+This document describes all the files and changes required to add a new OAuth-based authentication provider (like `codex` or `claude`).
 
 ## Overview
 
@@ -25,7 +25,7 @@ Add the new protocol to the `LLMClientProtocol` enum:
 ```python
 class LLMClientProtocol(Enum):
     # ... existing protocols ...
-    ANTIGRAVITY = "antigravity"  # Add new protocol
+    NEW_PROVIDER = "new_provider"  # Add new protocol
 ```
 
 ---
@@ -171,26 +171,8 @@ def is_api_key_missing(self) -> bool:
         return state is None
 ```
 
-#### `Config.resolve_model_location_prefer_available()`
-
-Add the protocol to the "no API key required" set:
-
-```python
-if (
-    provider.protocol
-    not in {
-        llm_param.LLMClientProtocol.CODEX_OAUTH,
-        llm_param.LLMClientProtocol.CLAUDE_OAUTH,
-        llm_param.LLMClientProtocol.<PROVIDER>,  # Add here
-        llm_param.LLMClientProtocol.BEDROCK,
-    }
-    and not api_key
-):
-```
-
-#### `Config.get_model_config()`
-
-Same change as above - add protocol to the set.
+Note: `resolve_model_location_prefer_available()` and `get_model_config()` both use
+`is_api_key_missing()` internally, so no additional changes are needed in those methods.
 
 ---
 
@@ -317,8 +299,6 @@ When adding a new OAuth provider, ensure you've completed:
 - [ ] Create `llm/<provider>/` module (input, client, __init__)
 - [ ] Register protocol in `llm/registry.py`
 - [ ] Update `config.py` - `is_api_key_missing()` method
-- [ ] Update `config.py` - `resolve_model_location_prefer_available()` method
-- [ ] Update `config.py` - `get_model_config()` method
 - [ ] Update `auth_cmd.py` - provider selection, login, logout
 - [ ] Update `list_model.py` - status display function and panel
 - [ ] Add provider/models to `builtin_config.yaml`

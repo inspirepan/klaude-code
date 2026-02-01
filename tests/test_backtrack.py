@@ -17,7 +17,7 @@ def arun(coro: object) -> object:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
     fake_home = tmp_path / "home"
     fake_home.mkdir(exist_ok=True)
     monkeypatch.setenv("HOME", str(fake_home))
@@ -26,7 +26,9 @@ def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _tool_context(backtrack_manager: BacktrackManager | None) -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
-    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", backtrack_manager=backtrack_manager)
+    return ToolContext(
+        file_tracker={}, todo_context=todo_context, session_id="test", backtrack_manager=backtrack_manager
+    )
 
 
 def test_backtrack_manager_send_and_fetch() -> None:
@@ -90,7 +92,9 @@ def test_backtrack_tool_success() -> None:
         manager.set_n_checkpoints(1)
         manager.register_checkpoint(0, "hello")
 
-        result = await BacktrackTool.call('{"checkpoint_id": 0, "note": "keep", "rationale": "test"}', _tool_context(manager))
+        result = await BacktrackTool.call(
+            '{"checkpoint_id": 0, "note": "keep", "rationale": "test"}', _tool_context(manager)
+        )
         assert result.status == "success"
         assert "Backtrack scheduled" in result.output_text
 
@@ -101,7 +105,9 @@ def test_backtrack_tool_success() -> None:
 
 def test_backtrack_tool_rejects_missing_manager() -> None:
     async def _test() -> None:
-        result = await BacktrackTool.call('{"checkpoint_id": 0, "note": "keep", "rationale": "test"}', _tool_context(None))
+        result = await BacktrackTool.call(
+            '{"checkpoint_id": 0, "note": "keep", "rationale": "test"}', _tool_context(None)
+        )
         assert result.status == "error"
         assert "Backtrack is not available" in result.output_text
 

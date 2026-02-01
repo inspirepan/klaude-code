@@ -319,7 +319,9 @@ class Session(BaseModel):
             if isinstance(item, message.BacktrackEntry):
                 return message.DeveloperMessage(
                     parts=[
-                        message.TextPart(text=f"<system>After this, some operations were performed and context was refined via Backtrack. Rationale: {item.rationale}. Summary: {item.note}. Please continue.</system>")
+                        message.TextPart(
+                            text=f"<system>After this, some operations were performed and context was refined via Backtrack. Rationale: {item.rationale}. Summary: {item.note}. Please continue.</system>"
+                        )
                     ]
                 )
             return item

@@ -101,15 +101,6 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
             # Consider available if logged in. Token refresh happens on-demand.
             return state is None
 
-        if self.protocol == LLMClientProtocol.ANTIGRAVITY:
-            # Antigravity uses OAuth authentication, not API key
-            from klaude_code.auth.antigravity.token_manager import AntigravityTokenManager
-
-            token_manager = AntigravityTokenManager()
-            state = token_manager.get_state()
-            # Consider available if logged in. Token refresh happens on-demand.
-            return state is None
-
         if self.protocol == LLMClientProtocol.BEDROCK:
             # Bedrock uses AWS credentials, not API key. Region is always required.
             _, resolved_profile = parse_env_var_syntax(self.aws_profile)

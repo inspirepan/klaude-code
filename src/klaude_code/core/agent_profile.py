@@ -52,10 +52,6 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
 }
 
 
-# Prompt for antigravity protocol - used exactly as-is without any additions.
-ANTIGRAVITY_PROMPT_PATH = "prompts/prompt-antigravity.md"
-
-
 STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT = """\
 
 # Structured Output
@@ -129,10 +125,6 @@ def load_system_prompt(
     config: Config | None = None,
 ) -> str:
     """Get system prompt content for the given model and sub-agent type."""
-
-    # For antigravity protocol, use exact prompt without any additions.
-    if protocol == llm_param.LLMClientProtocol.ANTIGRAVITY:
-        return _load_prompt_by_path(ANTIGRAVITY_PROMPT_PATH)
 
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)

@@ -94,10 +94,7 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
                 # Both exceed: use the more constrained dimension to preserve aspect ratio
                 width_scale = target_cols / img_cols
                 height_scale = _MAX_ROWS / img_rows
-                if width_scale < height_scale:
-                    size_param = f"c={target_cols}"
-                else:
-                    size_param = f"r={_MAX_ROWS}"
+                size_param = f"c={target_cols}" if width_scale < height_scale else f"r={_MAX_ROWS}"
             elif exceeds_width:
                 size_param = f"c={target_cols}"
             elif exceeds_height:
