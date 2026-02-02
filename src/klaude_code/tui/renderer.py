@@ -139,6 +139,7 @@ class _SessionStatus:
     color: Style | None = None
     color_index: int | None = None
     sub_agent_state: model.SubAgentState | None = None
+    turn_first_dev_msg_rendered: bool = False
 
 
 class TUICommandRenderer:
@@ -478,6 +479,10 @@ class TUICommandRenderer:
         if not c_developer.need_render_developer_message(e):
             return
         with self.session_print_context(e.session_id):
+            session_status = self._sessions.get(e.session_id)
+            if session_status and not session_status.turn_first_dev_msg_rendered:
+                session_status.turn_first_dev_msg_rendered = True
+                self.print()
             self.print(c_developer.render_developer_message(e))
 
         # Display images from @ file references and user attachments
@@ -570,6 +575,8 @@ class TUICommandRenderer:
                 )
 
     def display_turn_start(self, event: events.TurnStartEvent) -> None:
+        if event.session_id in self._sessions:
+            self._sessions[event.session_id].turn_first_dev_msg_rendered = False
         if not self.is_sub_agent_session(event.session_id):
             self.print()
 
