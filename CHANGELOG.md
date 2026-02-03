@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.4] - 2026-02-03
+
+### Added
+
+- show status prefix in terminal title (⚬ running, ✔ done) (`88dacbbc`)
+- load only one memory file per directory with priority (`d106e893`)
+- backtrack tool (`beadf9ab`)
+- make input area grow dynamically with content (`c3755634`)
+
+### Changed
+
+- simplify bash command display and increase truncation limit (`1e0ab1cb`)
+- simplify status bar styling (`de07a1dd`)
+- remove antigravity protocol support (`520c97b3`)
+- consolidate provider availability checks to is_api_key_missing() (`7acbebb2`)
+- split create-plan into writing-plans and executing-plans (`d9aebaca`)
+
+### Fixed
+
+- handle image parts in tool result messages for openai-compatible providers (`b1858ec3`)
+- improve developer message display spacing (`eaa0cebd`)
+- only retry on empty result for sub-agents (`fc8463de`)
+- print empty line when no tool output to display (`0dd5c2f6`)
+- resize terminal image (`cd66fb35`)
+
 ## [2.10.3] - 2026-01-28
 
 ### Added
@@ -1608,7 +1633,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.10.3...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.10.4...HEAD
+[2.10.4]: https://github.com/inspirepan/klaude-code/compare/v2.10.3...v2.10.4
 [2.10.3]: https://github.com/inspirepan/klaude-code/compare/v2.10.2...v2.10.3
 [2.10.2]: https://github.com/inspirepan/klaude-code/compare/v2.10.1...v2.10.2
 [2.10.1]: https://github.com/inspirepan/klaude-code/compare/v2.10.0...v2.10.1
