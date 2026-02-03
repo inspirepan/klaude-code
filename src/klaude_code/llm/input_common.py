@@ -108,15 +108,84 @@ def build_tool_message(
     msg: message.ToolResultMessage,
     attachment: DeveloperAttachment,
 ) -> dict[str, object]:
+    """Build a tool message. Note: image_url in tool message is not supported by
+    OpenAI Chat Completions API. Use build_tool_message_for_chat_completions instead.
+    """
     merged_text = merge_reminder_text(
         msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
     )
+    content: list[dict[str, object]] = [{"type": "text", "text": merged_text}]
+    for part in msg.parts:
+        if isinstance(part, message.ImageFilePart):
+            content.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(part)}})
+        elif isinstance(part, message.ImageURLPart):
+            content.append({"type": "image_url", "image_url": {"url": part.url}})
+    for image in attachment.images:
+        if isinstance(image, message.ImageFilePart):
+            content.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(image)}})
+        else:
+            content.append({"type": "image_url", "image_url": {"url": image.url}})
     return {
         "role": "tool",
-        "content": [{"type": "text", "text": merged_text}],
+        "content": content,
         "tool_call_id": msg.call_id,
     }
+
+
+def build_tool_message_for_chat_completions(
+    msg: message.ToolResultMessage,
+    attachment: DeveloperAttachment,
+) -> tuple[dict[str, object], dict[str, object] | None]:
+    """Build tool message for OpenAI Chat Completions API.
+
+    OpenAI Chat Completions API does not support image_url in tool messages.
+    Images are extracted and returned as a separate user message to be appended after the tool message.
+
+    Returns:
+        A tuple of (tool_message, optional_user_message_with_images).
+        The user_message is None if there are no images.
+    """
+    merged_text = merge_reminder_text(
+        msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
+        attachment.text,
+    )
+
+    # Collect all images
+    image_urls: list[dict[str, object]] = []
+    for part in msg.parts:
+        if isinstance(part, message.ImageFilePart):
+            image_urls.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(part)}})
+        elif isinstance(part, message.ImageURLPart):
+            image_urls.append({"type": "image_url", "image_url": {"url": part.url}})
+    for image in attachment.images:
+        if isinstance(image, message.ImageFilePart):
+            image_urls.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(image)}})
+        else:
+            image_urls.append({"type": "image_url", "image_url": {"url": image.url}})
+
+    # If only images (no text), use placeholder
+    has_text = bool(merged_text.strip())
+    tool_content = merged_text if has_text else "(see attached image)"
+
+    tool_message: dict[str, object] = {
+        "role": "tool",
+        "content": tool_content,
+        "tool_call_id": msg.call_id,
+    }
+
+    # Build user message with images if any
+    user_message: dict[str, object] | None = None
+    if image_urls:
+        user_message = {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Attached image(s) from tool result:"},
+                *image_urls,
+            ],
+        }
+
+    return tool_message, user_message
 
 
 def build_assistant_common_fields(

@@ -12,7 +12,7 @@ from klaude_code.llm.input_common import (
     attach_developer_messages,
     build_assistant_common_fields,
     build_chat_content_parts,
-    build_tool_message,
+    build_tool_message_for_chat_completions,
     collect_text_content,
 )
 from klaude_code.protocol import llm_param, message
@@ -50,7 +50,10 @@ def convert_history_to_input(
                 parts = build_chat_content_parts(msg, attachment)
                 messages.append(cast(chat.ChatCompletionMessageParam, {"role": "user", "content": parts}))
             case message.ToolResultMessage():
-                messages.append(cast(chat.ChatCompletionMessageParam, build_tool_message(msg, attachment)))
+                tool_msg, user_msg = build_tool_message_for_chat_completions(msg, attachment)
+                messages.append(cast(chat.ChatCompletionMessageParam, tool_msg))
+                if user_msg is not None:
+                    messages.append(cast(chat.ChatCompletionMessageParam, user_msg))
             case message.AssistantMessage():
                 messages.append(_assistant_message_to_openai(msg))
             case _:
