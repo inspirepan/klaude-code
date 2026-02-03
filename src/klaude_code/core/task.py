@@ -462,11 +462,7 @@ class TaskExecutor:
 
             if turn is None or turn.task_finished:
                 # Empty result should retry only for sub-agents
-                if (
-                    turn is not None
-                    and not turn.task_result.strip()
-                    and ctx.sub_agent_state is not None
-                ):
+                if turn is not None and not turn.task_result.strip() and ctx.sub_agent_state is not None:
                     yield events.ErrorEvent(
                         error_message="Sub-agent returned empty result, retrying…",
                         can_retry=True,

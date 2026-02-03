@@ -138,7 +138,7 @@ class ActivityState:
                 for name, count in counts.items():
                     if not first:
                         activity_text.append(", ")
-                    activity_text.append(Text(name, style=ThemeKey.STATUS_TEXT_BOLD))
+                    activity_text.append(Text(name, style=ThemeKey.STATUS_TEXT))
                     if count > 1:
                         activity_text.append(f" x {count}")
                     first = False
@@ -241,24 +241,21 @@ class SpinnerStatusState:
 
         if extra_reasoning is not None:
             if activity_text is None:
-                activity_text = Text(extra_reasoning, style=ThemeKey.STATUS_TEXT_BOLD_ITALIC)
+                activity_text = Text(extra_reasoning, style=ThemeKey.STATUS_TEXT)
             else:
-                prefixed = Text(extra_reasoning, style=ThemeKey.STATUS_TEXT_BOLD_ITALIC)
+                prefixed = Text(extra_reasoning, style=ThemeKey.STATUS_TEXT)
                 prefixed.append(" , ")
                 prefixed.append_text(activity_text)
                 activity_text = prefixed
 
         if base_status:
-            # Default "Thinking ..." uses normal style; custom headers use bold italic
-            is_default_reasoning = base_status in {STATUS_THINKING_TEXT, STATUS_RUNNING_TEXT}
-            status_style = ThemeKey.STATUS_TEXT if is_default_reasoning else ThemeKey.STATUS_TEXT_BOLD_ITALIC
             if activity_text:
                 result = Text()
-                result.append(base_status, style=status_style)
+                result.append(base_status, style=ThemeKey.STATUS_TEXT)
                 result.append(" | ")
                 result.append_text(activity_text)
             else:
-                result = Text(base_status, style=status_style)
+                result = Text(base_status, style=ThemeKey.STATUS_TEXT)
         elif activity_text:
             activity_text.append(" …")
             result = activity_text

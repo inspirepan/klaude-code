@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import math
-import random
 import time
 from collections.abc import Callable
 
@@ -21,22 +20,13 @@ from klaude_code.const import (
     STATUS_HINT_TEXT,
     STATUS_SHIMMER_ALPHA_SCALE,
     STATUS_SHIMMER_BAND_HALF_WIDTH,
+    STATUS_SHIMMER_ENABLED,
     STATUS_SHIMMER_PADDING,
 )
 from klaude_code.tui.components.rich.theme import ThemeKey
-from klaude_code.tui.terminal.color import get_last_terminal_background_rgb
 
 # Use an existing Rich spinner name; BreathingSpinner overrides its rendering
 BREATHING_SPINNER_NAME = "dots"
-
-# Alternating glyphs for the breathing spinner - switches at each "transparent" point
-_BREATHING_SPINNER_GLYPHS_BASE = [
-    "✦",
-]
-
-# Shuffle glyphs on module load for variety across sessions
-BREATHING_SPINNER_GLYPHS = _BREATHING_SPINNER_GLYPHS_BASE.copy()
-random.shuffle(BREATHING_SPINNER_GLYPHS)
 
 
 _process_start: float | None = None
@@ -158,6 +148,9 @@ def _shimmer_profile(main_text: str) -> list[tuple[str, float]]:
     if not chars:
         return []
 
+    if not STATUS_SHIMMER_ENABLED:
+        return [(ch, 0.0) for ch in chars]
+
     padding = STATUS_SHIMMER_PADDING
     char_count = len(chars)
     period = char_count + padding * 2
@@ -209,58 +202,6 @@ def _shimmer_style(console: Console, base_style: Style, intensity: float) -> Sty
 
     shimmer_color = Color.from_rgb(r, g, b)
     return base_style + Style(color=shimmer_color)
-
-
-def _breathing_intensity() -> float:
-    """Compute breathing intensity in [0, 1] for the spinner.
-
-    Intensity follows a smooth cosine curve over the configured period, starting
-    from 0 (fully blended into background), rising to 1 (full style color),
-    then returning to 0, giving a subtle "breathing" effect.
-    """
-
-    period = max(SPINNER_BREATH_PERIOD_SECONDS, 0.1)
-    elapsed = _elapsed_since_start()
-    phase = (elapsed % period) / period
-    return 0.5 * (1.0 - math.cos(2.0 * math.pi * phase))
-
-
-def _breathing_glyph() -> str:
-    """Get the current glyph for the breathing spinner.
-
-    Alternates between glyphs at each breath cycle (when intensity reaches 0).
-    """
-    period = max(SPINNER_BREATH_PERIOD_SECONDS, 0.1)
-    elapsed = _elapsed_since_start()
-    cycle = int(elapsed / period)
-    return BREATHING_SPINNER_GLYPHS[cycle % len(BREATHING_SPINNER_GLYPHS)]
-
-
-def _breathing_style(console: Console, base_style: Style, intensity: float) -> Style:
-    """Blend a base style's foreground color toward terminal background.
-
-    When intensity is 0, the color matches the background (effectively
-    "transparent"); when intensity is 1, the color is the base style color.
-    """
-
-    base_color = base_style.color or Color.default()
-    base_triplet = base_color.get_truecolor()
-    base_r, base_g, base_b = base_triplet
-
-    cached_bg = get_last_terminal_background_rgb()
-    if cached_bg is not None:
-        bg_r, bg_g, bg_b = cached_bg
-    else:
-        bg_triplet = Color.default().get_truecolor(foreground=False)
-        bg_r, bg_g, bg_b = bg_triplet
-
-    intensity_clamped = max(0.0, min(1.0, intensity))
-    r = int(bg_r * (1.0 - intensity_clamped) + base_r * intensity_clamped)
-    g = int(bg_g * (1.0 - intensity_clamped) + base_g * intensity_clamped)
-    b = int(bg_b * (1.0 - intensity_clamped) + base_b * intensity_clamped)
-
-    breathing_color = Color.from_rgb(r, g, b)
-    return base_style + Style(color=breathing_color)
 
 
 def truncate_left(text: Text, max_cells: int, *, console: Console, ellipsis: str = "…") -> Text:
@@ -409,21 +350,11 @@ class BreathingSpinner(RichSpinner):
         return console.get_style(style_name)
 
     def _render_breathing(self, console: Console) -> RenderableType:
-        base_style = self._resolve_base_style(console)
-        intensity = _breathing_intensity()
-        style = _breathing_style(console, base_style, intensity)
-
-        glyph = _breathing_glyph()
-        frame = Text(glyph, style=style)
-
         if not self.text:
-            return frame
+            return Text()
         if isinstance(self.text, (str, Text)):
-            return Text.assemble(frame, " ", self.text)
-
-        table = Table.grid(padding=1)
-        table.add_row(frame, self.text)
-        return table
+            return self.text if isinstance(self.text, Text) else Text(self.text)
+        return self.text
 
 
 # Monkey-patch Rich's Status module to use the breathing spinner implementation

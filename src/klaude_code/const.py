@@ -169,7 +169,7 @@ STATUS_HINT_TEXT = " (esc to interrupt)"  # Status hint text shown after spinner
 # Spinner status texts
 STATUS_WAITING_TEXT = "Loading …"
 STATUS_THINKING_TEXT = "Thinking …"
-STATUS_COMPOSING_TEXT = "Composing"
+STATUS_COMPOSING_TEXT = "Typing"
 STATUS_COMPACTING_TEXT = "Compacting"
 STATUS_RUNNING_TEXT = "Running …"
 
@@ -177,6 +177,7 @@ STATUS_RUNNING_TEXT = "Running …"
 STATUS_DEFAULT_TEXT = STATUS_WAITING_TEXT
 SIGINT_DOUBLE_PRESS_EXIT_TEXT = "Press ctrl+c again to exit"  # Toast shown on first Ctrl+C during task waits
 SPINNER_BREATH_PERIOD_SECONDS: float = 2.0  # Spinner breathing animation period (seconds)
+STATUS_SHIMMER_ENABLED = True  # Enable shimmer effect on status text
 STATUS_SHIMMER_PADDING = 10  # Horizontal padding for shimmer band position
 STATUS_SHIMMER_BAND_HALF_WIDTH = 5.0  # Half-width of shimmer band in characters
 STATUS_SHIMMER_ALPHA_SCALE = 0.7  # Scale factor for shimmer intensity
