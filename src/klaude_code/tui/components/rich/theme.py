@@ -280,10 +280,10 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.METADATA_BOLD.value: "bold " + palette.grey1,
                 ThemeKey.METADATA_ITALIC.value: "italic " + palette.grey1,
                 # STATUS
-                ThemeKey.STATUS_SPINNER.value: palette.blue,
-                ThemeKey.STATUS_TEXT.value: palette.blue,
-                ThemeKey.STATUS_TEXT_BOLD.value: "bold " + palette.blue,
-                ThemeKey.STATUS_TEXT_BOLD_ITALIC.value: "bold italic " + palette.blue,
+                ThemeKey.STATUS_SPINNER.value: palette.grey1,
+                ThemeKey.STATUS_TEXT.value: palette.grey1,
+                ThemeKey.STATUS_TEXT_BOLD.value: "bold " + palette.grey1,
+                ThemeKey.STATUS_TEXT_BOLD_ITALIC.value: "bold italic " + palette.grey1,
                 ThemeKey.STATUS_TOAST.value: "bold " + palette.yellow,
                 ThemeKey.STATUS_HINT.value: palette.grey2,
                 # REMINDER
