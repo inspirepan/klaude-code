@@ -10,7 +10,6 @@ from rich.style import Style
 from rich.text import Text
 
 from klaude_code.const import (
-    BASH_OUTPUT_PANEL_THRESHOLD,
     DIFF_PREFIX_WIDTH,
     INVALID_TOOL_CALL_MAX_LENGTH,
     QUERY_DISPLAY_TRUNCATE_LENGTH,
@@ -24,7 +23,6 @@ from klaude_code.tui.components import diffs as r_diffs
 from klaude_code.tui.components import mermaid_viewer as r_mermaid_viewer
 from klaude_code.tui.components.bash_syntax import highlight_bash_command
 from klaude_code.tui.components.common import create_grid, truncate_middle
-from klaude_code.tui.components.rich.code_panel import CodePanel
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.components.rich.quote import TreeQuote
 from klaude_code.tui.components.rich.theme import ThemeKey
@@ -169,22 +167,6 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
         cmd_str = command.strip()
         highlighted = highlight_bash_command(cmd_str)
 
-        display_line_count = len(highlighted.plain.splitlines())
-
-        if display_line_count > BASH_OUTPUT_PANEL_THRESHOLD:
-            code_panel = CodePanel(highlighted, border_style=ThemeKey.LINES)
-            if isinstance(timeout_ms, int):
-                if timeout_ms >= 1000 and timeout_ms % 1000 == 0:
-                    timeout_text = Text(f"{timeout_ms // 1000}s", style=ThemeKey.TOOL_TIMEOUT)
-                else:
-                    timeout_text = Text(f"{timeout_ms}ms", style=ThemeKey.TOOL_TIMEOUT)
-                return _render_tool_call_tree(
-                    mark=MARK_BASH,
-                    tool_name=tool_name,
-                    details=Group(code_panel, timeout_text),
-                )
-            else:
-                return _render_tool_call_tree(mark=MARK_BASH, tool_name=tool_name, details=code_panel)
         if isinstance(timeout_ms, int):
             if timeout_ms >= 1000 and timeout_ms % 1000 == 0:
                 highlighted.append(f" {timeout_ms // 1000}s", style=ThemeKey.TOOL_TIMEOUT)

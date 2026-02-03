@@ -137,35 +137,31 @@ EOF"""
         # Should not crash and should produce some output
         assert len(result.plain) > 0
 
-    def test_heredoc_body_truncated_to_four_lines(self):
+    def test_heredoc_body_truncated(self):
         """Heredoc body should be truncated to keep tool calls compact."""
-        cmd = """cat <<'EOF'
-line1
-line2
-line3
-line4
-line5
-EOF"""
+        # Build a heredoc with 25 lines (exceeds BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES=20)
+        lines = [f"line{i}" for i in range(1, 26)]
+        cmd = "cat <<'EOF'\n" + "\n".join(lines) + "\nEOF"
         result = highlight_bash_command(cmd)
         assert "line1" in result.plain
-        assert "line2" in result.plain
-        assert "line3" in result.plain
-        assert "line4" in result.plain
-        assert "line5" not in result.plain
+        assert "line10" in result.plain
+        assert "line20" in result.plain
+        assert "line21" not in result.plain
         assert "\nEOF" in result.plain
 
         truncated = get_spans_by_style(result, ThemeKey.TOOL_RESULT_TRUNCATED)
         assert any("… (more" in seg for seg in truncated)
 
-    def test_multiline_string_truncated_to_four_lines(self):
+    def test_multiline_string_truncated(self):
         """Multi-line string tokens should be truncated to keep tool calls compact."""
-        cmd = "python -c \"print('a')\nprint('b')\nprint('c')\nprint('d')\nprint('e')\""
+        # Build a command with 25 lines (exceeds BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES=20)
+        lines = [f"print({i})" for i in range(1, 26)]
+        cmd = 'python -c "' + "\n".join(lines) + '"'
         result = highlight_bash_command(cmd)
-        assert "print('a')" in result.plain
-        assert "print('b')" in result.plain
-        assert "print('c')" in result.plain
-        assert "print('d')" in result.plain
-        assert "print('e')" not in result.plain
+        assert "print(1)" in result.plain
+        assert "print(10)" in result.plain
+        assert "print(20)" in result.plain
+        assert "print(21)" not in result.plain
 
         truncated = get_spans_by_style(result, ThemeKey.TOOL_RESULT_TRUNCATED)
         assert any("… (more" in seg for seg in truncated)
