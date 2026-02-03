@@ -133,7 +133,9 @@ Skills can be stored in multiple locations with the following priority (higher p
 
 | Priority | Scope   | Path                        | Description           |
 |----------|---------|-----------------------------|-----------------------|
-| 1        | Project | `.claude/skills/`           | Current project only  |
-| 2        | User    | `~/.klaude/skills/`         | User-level            |
-| 3        | User    | `~/.claude/skills/`         | User-level (Claude)   |
-| 4        | System  | `~/.klaude/skills/.system/` | Built-in system skills|
+| 1        | Project | `.agents/skills/`           | Current project only  |
+| 2        | Project | `.claude/skills/`           | Current project only  |
+| 3        | User    | `~/.agents/skills/`         | User-level            |
+| 4        | User    | `~/.klaude/skills/`         | User-level            |
+| 5        | User    | `~/.claude/skills/`         | User-level (Claude)   |
+| 6        | System  | `~/.klaude/skills/.system/` | Built-in system skills|

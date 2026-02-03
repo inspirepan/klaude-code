@@ -41,9 +41,13 @@ class SkillLoader:
     USER_SKILLS_DIRS: ClassVar[list[Path]] = [
         Path("~/.claude/skills"),
         Path("~/.klaude/skills"),
+        Path("~/.agents/skills"),
     ]
-    # Project-level skills directory (highest priority)
-    PROJECT_SKILLS_DIR: ClassVar[Path] = Path("./.claude/skills")
+    # Project-level skills directories (checked in order, later ones override earlier ones with same name)
+    PROJECT_SKILLS_DIRS: ClassVar[list[Path]] = [
+        Path("./.claude/skills"),
+        Path("./.agents/skills"),
+    ]
 
     def __init__(self) -> None:
         """Initialize the skill loader"""
@@ -119,8 +123,8 @@ class SkillLoader:
 
         Loading order (lower priority first, higher priority overrides):
         1. System skills (~/.klaude/skills/.system/) - built-in, lowest priority
-        2. User skills (~/.claude/skills/, ~/.klaude/skills/) - user-level
-        3. Project skills (./.claude/skills/) - project-level, highest priority
+        2. User skills (~/.claude/skills/, ~/.klaude/skills/, ~/.agents/skills/) - user-level
+        3. Project skills (./.claude/skills/, ./.agents/skills/) - project-level, highest priority
 
         Returns:
             List of successfully loaded Skill objects
@@ -159,13 +163,14 @@ class SkillLoader:
                         register(skill)
 
         # Load project-level skills (override user skills if same name)
-        project_dir = self.PROJECT_SKILLS_DIR.resolve()
-        if project_dir.exists():
-            for skill_file in project_dir.rglob("SKILL.md"):
-                skill = self.load_skill(skill_file, location="project")
-                if skill:
-                    skills.append(skill)
-                    register(skill)
+        for project_dir in self.PROJECT_SKILLS_DIRS:
+            resolved_dir = project_dir.resolve()
+            if resolved_dir.exists():
+                for skill_file in resolved_dir.rglob("SKILL.md"):
+                    skill = self.load_skill(skill_file, location="project")
+                    if skill:
+                        skills.append(skill)
+                        register(skill)
 
         # Log discovery summary
         if self.loaded_skills:
