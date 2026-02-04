@@ -109,6 +109,11 @@ provider_list:
     #   - moonshotai/turbo
     cost: {input: 0.6, output: 3, cache_read: 0.1}
 
+  - model_name: qwen
+    model_id: qwen/qwen3-coder-next
+    context_limit: 262144
+    cost: {input: 0.2, output: 1.5}
+
   - model_name: haiku
     model_id: anthropic/claude-haiku-4.5
     context_limit: 200000
