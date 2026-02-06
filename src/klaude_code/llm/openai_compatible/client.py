@@ -42,7 +42,7 @@ def build_payload(param: llm_param.LLMCallParameter) -> tuple[CompletionCreatePa
     }
 
     if param.verbosity:
-        payload["verbosity"] = param.verbosity
+        payload["verbosity"] = param.verbosity  # type: ignore[typeddict-item]
 
     return payload, extra_body
 

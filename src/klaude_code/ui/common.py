@@ -37,7 +37,9 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
     parts: list[str] = []
 
     if model_params.thinking:
-        if model_params.thinking.reasoning_effort:
+        if model_params.thinking.type == "adaptive":
+            parts.append("adaptive thinking")
+        elif model_params.thinking.reasoning_effort:
             parts.append(f"reasoning {model_params.thinking.reasoning_effort}")
         if model_params.thinking.reasoning_summary:
             parts.append(f"summary {model_params.thinking.reasoning_summary}")
@@ -45,7 +47,9 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
             parts.append(f"thinking budget {model_params.thinking.budget_tokens}")
 
     if model_params.verbosity:
-        parts.append(f"verbosity {model_params.verbosity}")
+        # For Claude models, verbosity maps to output_config.effort
+        label = "effort" if model_params.model_id and "claude" in model_params.model_id.lower() else "verbosity"
+        parts.append(f"{label} {model_params.verbosity}")
 
     if model_params.provider_routing:
         parts.append(f"provider routing {_format_provider_routing(model_params.provider_routing)}")

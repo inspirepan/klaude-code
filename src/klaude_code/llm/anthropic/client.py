@@ -215,11 +215,16 @@ def build_payload(
         "betas": betas,
     }
 
-    if param.thinking and param.thinking.type == "enabled":
+    if param.thinking and param.thinking.type == "adaptive":
+        payload["thinking"] = {"type": "adaptive"}  # type: ignore[typeddict-item]
+    elif param.thinking and param.thinking.type == "enabled":
         payload["thinking"] = anthropic.types.ThinkingConfigEnabledParam(
             type="enabled",
             budget_tokens=param.thinking.budget_tokens or DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
         )
+
+    if param.verbosity:
+        payload["output_config"] = {"effort": param.verbosity}  # type: ignore[typeddict-item]
 
     return payload
 

@@ -81,7 +81,7 @@ class ClaudeClient(LLMClientABC):
         payload = build_payload(param, extra_betas=extra_betas)
 
         # Keep the interleaved-thinking beta in sync with configured thinking.
-        if not (param.thinking and param.thinking.type == "enabled"):
+        if not (param.thinking and param.thinking.type in ("enabled", "adaptive")):
             payload["betas"] = [b for b in payload.get("betas", []) if b != ANTHROPIC_BETA_INTERLEAVED_THINKING]
 
         log_debug(

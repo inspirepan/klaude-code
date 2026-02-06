@@ -52,10 +52,13 @@ def build_payload(
     extra_headers: dict[str, str] = {}
 
     if param.thinking:
-        if param.thinking.type != "disabled" and param.thinking.budget_tokens is not None:
+        if param.thinking.type == "adaptive":
+            # Opus 4.6+: adaptive thinking (no max_tokens), use verbosity for effort
+            extra_body["reasoning"] = {"enabled": True}
+        elif param.thinking.type != "disabled" and param.thinking.budget_tokens is not None:
             extra_body["reasoning"] = {
                 "max_tokens": param.thinking.budget_tokens,
-                "enable": True,
+                "enabled": True,
             }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
         elif param.thinking.reasoning_effort is not None:
             extra_body["reasoning"] = {
@@ -82,7 +85,7 @@ def build_payload(
         "temperature": param.temperature,
         "max_tokens": param.max_tokens,
         "tools": tools,
-        "verbosity": param.verbosity,
+        "verbosity": param.verbosity,  # type: ignore[typeddict-item]
     }
 
     return payload, extra_body, extra_headers

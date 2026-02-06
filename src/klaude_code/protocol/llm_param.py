@@ -35,7 +35,7 @@ class Thinking(BaseModel):
     reasoning_summary: Literal["auto", "concise", "detailed"] | None = None
 
     # Claude/Gemini Thinking Style
-    type: Literal["enabled", "disabled"] | None = None
+    type: Literal["enabled", "disabled", "adaptive"] | None = None
     budget_tokens: int | None = None
 
 
@@ -125,8 +125,8 @@ class LLMConfigModelParameter(BaseModel):
     max_tokens: int | None = None
     context_limit: int | None = None
 
-    # OpenAI GPT-5
-    verbosity: Literal["low", "medium", "high"] | None = None
+    # OpenAI GPT-5 / OpenRouter output_config.effort
+    verbosity: Literal["low", "medium", "high", "max"] | None = None
 
     # Multimodal output control (OpenRouter image generation)
     modalities: list[Literal["text", "image"]] | None = None

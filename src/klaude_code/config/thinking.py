@@ -25,6 +25,19 @@ ANTHROPIC_LEVELS: list[tuple[str, int | None]] = [
     ("high (31999 tokens)", 31999),
 ]
 
+ANTHROPIC_ADAPTIVE_LEVELS: list[tuple[str, str]] = [
+    ("off", "disabled"),
+    ("adaptive", "adaptive"),
+]
+
+
+def is_opus_46_model(model_name: str | None) -> bool:
+    """Check if the model is Claude Opus 4.6+ (supports adaptive thinking)."""
+    if not model_name:
+        return False
+    model_lower = model_name.lower()
+    return "opus-4-6" in model_lower or "opus-4.6" in model_lower
+
 
 def is_openrouter_model_with_reasoning_effort(model_name: str | None) -> bool:
     """Check if the model is GPT series, Grok or Gemini 3."""
@@ -42,10 +55,10 @@ def _is_gpt51_model(model_name: str | None) -> bool:
 
 
 def _is_gpt52_model(model_name: str | None) -> bool:
-    """Check if the model is GPT-5.2."""
+    """Check if the model is GPT-5.2 or GPT-5.3 (same thinking levels)."""
     if not model_name:
         return False
-    return model_name.lower() in ["gpt-5.2", "openai/gpt-5.2"]
+    return model_name.lower() in ["gpt-5.2", "openai/gpt-5.2", "gpt-5.3", "openai/gpt-5.3"]
 
 
 def _is_codex_max_model(model_name: str | None) -> bool:
@@ -91,6 +104,8 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
     if protocol in (llm_param.LLMClientProtocol.ANTHROPIC, llm_param.LLMClientProtocol.CLAUDE_OAUTH):
         if thinking.type == "disabled":
             return "off"
+        if thinking.type == "adaptive":
+            return "adaptive"
         if thinking.type == "enabled":
             return f"enabled (budget_tokens={thinking.budget_tokens})"
         return "not set"
@@ -102,6 +117,8 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
         else:
             if thinking.type == "disabled":
                 return "off"
+            if thinking.type == "adaptive":
+                return "adaptive"
             if thinking.type == "enabled":
                 return f"enabled (budget_tokens={thinking.budget_tokens})"
         return "not set"
@@ -161,6 +178,11 @@ def _build_effort_options(levels: list[str]) -> list[ThinkingOption]:
     return [ThinkingOption(label=level, value=f"effort:{level}") for level in levels]
 
 
+def _build_adaptive_options() -> list[ThinkingOption]:
+    """Build adaptive thinking options for Opus 4.6+ (on/off)."""
+    return [ThinkingOption(label=label, value=f"adaptive:{value}") for label, value in ANTHROPIC_ADAPTIVE_LEVELS]
+
+
 def _build_budget_options() -> list[ThinkingOption]:
     """Build budget-based thinking options."""
     return [ThinkingOption(label=label, value=f"budget:{tokens or 0}") for label, tokens in ANTHROPIC_LEVELS]
@@ -170,6 +192,16 @@ def _get_current_effort_value(thinking: llm_param.Thinking | None) -> str | None
     """Get current value for effort-based thinking."""
     if thinking and thinking.reasoning_effort:
         return f"effort:{thinking.reasoning_effort}"
+    return None
+
+
+def _get_current_adaptive_value(thinking: llm_param.Thinking | None) -> str | None:
+    """Get current value for adaptive thinking."""
+    if thinking:
+        if thinking.type == "adaptive":
+            return "adaptive:adaptive"
+        if thinking.type == "disabled":
+            return "adaptive:disabled"
     return None
 
 
@@ -202,6 +234,12 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
         )
 
     if protocol in (llm_param.LLMClientProtocol.ANTHROPIC, llm_param.LLMClientProtocol.CLAUDE_OAUTH):
+        if is_opus_46_model(model_name):
+            return ThinkingPickerData(
+                options=_build_adaptive_options(),
+                message="Select thinking mode:",
+                current_value=_get_current_adaptive_value(thinking),
+            )
         return ThinkingPickerData(
             options=_build_budget_options(),
             message="Select thinking level:",
@@ -215,6 +253,12 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
                 options=_build_effort_options(levels),
                 message="Select reasoning effort:",
                 current_value=_get_current_effort_value(thinking),
+            )
+        if is_opus_46_model(model_name):
+            return ThinkingPickerData(
+                options=_build_adaptive_options(),
+                message="Select thinking mode:",
+                current_value=_get_current_adaptive_value(thinking),
             )
         return ThinkingPickerData(
             options=_build_budget_options(),
@@ -248,6 +292,12 @@ def parse_thinking_value(value: str) -> llm_param.Thinking | None:
     Returns:
         Thinking object, or None if invalid format.
     """
+    if value.startswith("adaptive:"):
+        mode = value[9:]
+        if mode == "disabled":
+            return llm_param.Thinking(type="disabled")
+        return llm_param.Thinking(type="adaptive")
+
     if value.startswith("effort:"):
         effort = value[7:]
         return llm_param.Thinking(reasoning_effort=effort)  # type: ignore[arg-type]

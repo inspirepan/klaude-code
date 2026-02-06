@@ -15,12 +15,11 @@ provider_list:
     cost: {input: 3, output: 15, cache_read: 0.3, cache_write: 3.75}
 
   - model_name: opus
-    model_id: claude-opus-4-5-20251101
+    model_id: claude-opus-4-6
     context_limit: 200000
     verbosity: high
     thinking:
-      type: enabled
-      budget_tokens: 2048
+      type: adaptive
     cost: {input: 5, output: 25, cache_read: 0.5, cache_write: 6.25}
 
 
@@ -127,11 +126,11 @@ provider_list:
     cost: {input: 3, output: 15, cache_read: 0.3, cache_write: 3.75}
 
   - model_name: opus
-    model_id: anthropic/claude-4.5-opus
+    model_id: anthropic/claude-opus-4.6
     context_limit: 200000
+    verbosity: high
     thinking:
-      type: enabled
-      budget_tokens: 2048
+      type: adaptive
     cost: {input: 5, output: 25, cache_read: 0.5, cache_write: 6.25}
 
   - model_name: gemini-pro
@@ -309,11 +308,11 @@ provider_list:
     cost: {input: 3, output: 15, cache_read: 0.3, cache_write: 3.75}
 
   - model_name: opus
-    model_id: claude-opus-4-5-20251101
+    model_id: claude-opus-4-6
     context_limit: 200000
+    verbosity: high
     thinking:
-      type: enabled
-      budget_tokens: 2048
+      type: adaptive
     cost: {input: 5, output: 25, cache_read: 0.5, cache_write: 6.25}
 
   - model_name: haiku
@@ -326,8 +325,8 @@ provider_list:
   protocol: codex_oauth
   model_list:
 
-  - model_name: gpt-5.2-codex
-    model_id: gpt-5.2-codex
+  - model_name: gpt-5.3-codex
+    model_id: gpt-5.3-codex
     thinking:
       reasoning_effort: medium
       reasoning_summary: auto
@@ -335,8 +334,8 @@ provider_list:
     max_tokens: 128000
     cost: {input: 1.75, output: 14, cache_read: 0.17}
 
-  - model_name: gpt-5.2-high
-    model_id: gpt-5.2
+  - model_name: gpt-5.3-high
+    model_id: gpt-5.3
     max_tokens: 128000
     context_limit: 400000
     verbosity: high
