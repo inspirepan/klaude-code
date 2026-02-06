@@ -65,6 +65,8 @@ def build_payload(
             extra_body["reasoning"] = {
                 "effort": param.thinking.reasoning_effort,
             }
+    else:
+        extra_body["reasoning"] = {"enabled": False}
 
     if param.provider_routing:
         extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)

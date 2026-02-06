@@ -103,9 +103,17 @@ provider_list:
   - model_name: kimi
     model_id: moonshotai/kimi-k2.5
     context_limit: 262144
-    # provider_routing:
-    #   only:
-    #   - moonshotai/turbo
+    provider_routing:
+      only:
+      - baseten/fp4
+    cost: {input: 0.6, output: 3, cache_read: 0.1}
+
+  - model_name: kimi-no-thinking
+    model_id: moonshotai/kimi-k2.5
+    context_limit: 262144
+    provider_routing:
+      only:
+      - baseten/fp4
     cost: {input: 0.6, output: 3, cache_read: 0.1}
 
   - model_name: qwen
@@ -281,6 +289,11 @@ provider_list:
     thinking:
       type: enabled
       budget_tokens: 8192
+    cost: {input: 4, output: 21, cache_read: 0.7, currency: CNY}
+
+  - model_name: kimi-no-thinking
+    model_id: kimi-k2.5
+    context_limit: 262144
     cost: {input: 4, output: 21, cache_read: 0.7, currency: CNY}
 
 

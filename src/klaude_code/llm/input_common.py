@@ -264,6 +264,8 @@ def apply_config_defaults(param: "LLMCallParameter", config: "LLMConfigParameter
         param.thinking = config.thinking
     if param.modalities is None:
         param.modalities = config.modalities
+    if param.provider_routing is None:
+        param.provider_routing = config.provider_routing
     if param.image_config is None:
         param.image_config = config.image_config
     elif config.image_config is not None:
