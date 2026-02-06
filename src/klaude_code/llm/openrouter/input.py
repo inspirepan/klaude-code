@@ -20,24 +20,9 @@ from klaude_code.llm.input_common import (
     split_thinking_parts,
 )
 from klaude_code.protocol import message
-
-
-def is_claude_model(model_name: str | None) -> bool:
-    """Return True if the model name represents an Anthropic Claude model."""
-
-    return model_name is not None and model_name.startswith("anthropic/claude")
-
-
-def is_gemini_model(model_name: str | None) -> bool:
-    """Return True if the model name represents a Google Gemini model."""
-
-    return model_name is not None and model_name.startswith("google/gemini")
-
-
-def is_xai_model(model_name: str | None) -> bool:
-    """Return True if the model name represents an xAI model."""
-
-    return model_name is not None and model_name.startswith("x-ai/")
+from klaude_code.protocol.model_id import is_claude_model as is_claude_model
+from klaude_code.protocol.model_id import is_gemini_model as is_gemini_model
+from klaude_code.protocol.model_id import is_xai_model as is_xai_model
 
 
 def _assistant_message_to_openrouter(

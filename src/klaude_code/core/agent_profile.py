@@ -26,6 +26,12 @@ from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_registry import get_tool_schemas
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.model_id import (
+    is_gemini_model_any,
+    is_gpt5_model,
+    is_gpt52_codex_model,
+    is_gpt52_model,
+)
 from klaude_code.protocol.sub_agent import AVAILABILITY_IMAGE_MODEL, get_sub_agent_profile
 from klaude_code.session import Session
 
@@ -71,17 +77,15 @@ def _load_prompt_by_path(prompt_path: str) -> str:
 def _load_prompt_by_model(model_name: str) -> str:
     """Load base prompt content based on model name."""
 
-    match model_name:
-        case name if "gpt-5.2-codex" in name:
-            return _load_prompt_by_path("prompts/prompt-codex-gpt-5-2-codex.md")
-        case name if "gpt-5.2" in name:
-            return _load_prompt_by_path("prompts/prompt-codex-gpt-5-2.md")
-        case name if "gpt-5" in name:
-            return _load_prompt_by_path("prompts/prompt-codex.md")
-        case name if "gemini" in name:
-            return _load_prompt_by_path("prompts/prompt-gemini.md")
-        case _:
-            return _load_prompt_by_path("prompts/prompt-claude-code.md")
+    if is_gpt52_codex_model(model_name):
+        return _load_prompt_by_path("prompts/prompt-codex-gpt-5-2-codex.md")
+    if is_gpt52_model(model_name):
+        return _load_prompt_by_path("prompts/prompt-codex-gpt-5-2.md")
+    if is_gpt5_model(model_name):
+        return _load_prompt_by_path("prompts/prompt-codex.md")
+    if is_gemini_model_any(model_name):
+        return _load_prompt_by_path("prompts/prompt-gemini.md")
+    return _load_prompt_by_path("prompts/prompt-claude-code.md")
 
 
 def _build_env_info(model_name: str) -> str:
@@ -160,7 +164,7 @@ def load_agent_tools(
         return get_tool_schemas(list(profile.tool_set))
 
     # Main agent tools
-    if "gpt-5" in model_name:
+    if is_gpt5_model(model_name):
         tool_names: list[str] = [tools.BASH, tools.READ, tools.APPLY_PATCH, tools.UPDATE_PLAN, tools.BACKTRACK]
     else:
         tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE, tools.BACKTRACK]
@@ -190,8 +194,8 @@ def load_agent_reminders(
 
     reminders: list[Reminder] = []
 
-    # Only main agent (not sub-agent) gets todo reminders, and not for GPT-5
-    if sub_agent_type is None and ("gpt-5" not in model_name and "gemini" not in model_name):
+    # Only main agent (not sub-agent) gets todo reminders, and not for GPT-5/Gemini
+    if sub_agent_type is None and not is_gpt5_model(model_name) and not is_gemini_model_any(model_name):
         reminders.append(empty_todo_reminder)
         reminders.append(todo_not_used_recently_reminder)
 

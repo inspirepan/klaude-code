@@ -21,6 +21,7 @@ from klaude_code.llm.input_common import (
 )
 from klaude_code.llm.json_stable import canonicalize_json
 from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.model_id import is_gemini3_model
 
 
 def _data_url_to_blob(url: str) -> types.Blob:
@@ -63,7 +64,7 @@ def _user_message_to_content(msg: message.UserMessage, attachment: DeveloperAtta
 def _tool_messages_to_contents(
     msgs: list[tuple[message.ToolResultMessage, DeveloperAttachment]], model_name: str | None
 ) -> list[types.Content]:
-    supports_multimodal_function_response = bool(model_name and "gemini-3" in model_name.lower())
+    supports_multimodal_function_response = is_gemini3_model(model_name)
 
     response_parts: list[types.Part] = []
     extra_image_contents: list[types.Content] = []

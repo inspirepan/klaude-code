@@ -27,6 +27,7 @@ from klaude_code.llm.input_common import (
     split_thinking_parts,
 )
 from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.model_id import model_supports_unsigned_thinking
 
 AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
 _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
@@ -107,20 +108,12 @@ def _tool_blocks_to_message(blocks: list[BetaToolResultBlockParam]) -> BetaMessa
     }
 
 
-def _model_supports_unsigned_thinking(model_name: str | None) -> bool:
-    """Check if the model supports thinking blocks without signature (e.g., kimi, deepseek)."""
-    if not model_name:
-        return False
-    model_lower = model_name.lower()
-    return "kimi" in model_lower or "deepseek" in model_lower
-
-
 def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str | None) -> BetaMessageParam:
     content: list[BetaContentBlockParam] = []
     current_thinking_content: str | None = None
     native_thinking_parts, _ = split_thinking_parts(msg, model_name)
     native_thinking_ids = {id(part) for part in native_thinking_parts}
-    supports_unsigned = _model_supports_unsigned_thinking(model_name)
+    supports_unsigned = model_supports_unsigned_thinking(model_name)
 
     def _degraded_thinking_block(text: str) -> BetaTextBlockParam | None:
         stripped = text.strip()

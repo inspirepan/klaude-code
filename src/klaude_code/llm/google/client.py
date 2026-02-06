@@ -43,6 +43,7 @@ from klaude_code.llm.stream_parts import (
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol.model_id import supports_google_thinking
 
 # Unified format for Google thought signatures
 GOOGLE_THOUGHT_SIGNATURE_FORMAT = "google"
@@ -53,7 +54,7 @@ SYNTHETIC_THOUGHT_SIGNATURE = b"skip_thought_signature_validator"
 
 
 def support_thinking(model_id: str | None) -> bool:
-    return bool(model_id) and ("gemini-3" in model_id or "gemini-2.5-pro" in model_id)
+    return supports_google_thinking(model_id)
 
 
 def convert_gemini_thinking_level(reasoning_effort: str | None) -> ThinkingLevel | None:

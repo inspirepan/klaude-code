@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING
 
+from klaude_code.protocol.model_id import is_claude_model_any
+
 if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMConfigModelParameter, OpenRouterProviderRouting
 
@@ -48,7 +50,7 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
 
     if model_params.verbosity:
         # For Claude models, verbosity maps to output_config.effort
-        label = "effort" if model_params.model_id and "claude" in model_params.model_id.lower() else "verbosity"
+        label = "effort" if is_claude_model_any(model_params.model_id) else "verbosity"
         parts.append(f"{label} {model_params.verbosity}")
 
     if model_params.provider_routing:

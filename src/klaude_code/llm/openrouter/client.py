@@ -23,6 +23,7 @@ from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, is_debug_enabled, log_debug
 from klaude_code.protocol import llm_param
+from klaude_code.protocol.model_id import is_opus_46_model
 
 
 def build_payload(
@@ -69,9 +70,16 @@ def build_payload(
         extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
 
     if is_claude_model(param.model_id):
-        extra_headers["x-anthropic-beta"] = (
-            f"{ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING},{ANTHROPIC_BETA_INTERLEAVED_THINKING}"
+        # Opus 4.6 with adaptive thinking has interleaved thinking built-in; no beta header needed
+        _is_opus46_adaptive = (
+            is_opus_46_model(str(param.model_id)) and param.thinking and param.thinking.type == "adaptive"
         )
+        if _is_opus46_adaptive:
+            extra_headers["x-anthropic-beta"] = ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING
+        else:
+            extra_headers["x-anthropic-beta"] = (
+                f"{ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING},{ANTHROPIC_BETA_INTERLEAVED_THINKING}"
+            )
 
     if is_xai_model(param.model_id):
         extra_body["plugins"] = [{"id": "web", "engine": "native"}]

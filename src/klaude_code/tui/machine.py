@@ -14,6 +14,7 @@ from klaude_code.const import (
     STATUS_THINKING_TEXT,
 )
 from klaude_code.protocol import events, model, tools
+from klaude_code.protocol.model_id import is_gemini_model_any, is_grok_model
 from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
@@ -308,8 +309,7 @@ class _SessionState:
             return False
         if tool_name not in FAST_TOOLS:
             return False
-        model_lower = self.model_id.lower()
-        return "gemini" in model_lower or "grok" in model_lower
+        return is_gemini_model_any(self.model_id) or is_grok_model(self.model_id)
 
 
 class DisplayStateMachine:
