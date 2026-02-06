@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-02-06
+
+### Added
+
+- add adaptive thinking support for Claude Opus 4.6 and upgrade codex to GPT-5.3 (`e38af33c`)
+- add qwen model configuration (`3575ac53`)
+- add .agents/skills/ to project and user skill directories (`6b7a375f`)
+
+### Changed
+
+- use grey color for status spinner and text (`88575a89`)
+
+### Other
+
+- remove plan.md for backtrack (`5530970c`)
+- remove bundled handoff skill (`f0b52eb1`)
+
 ## [2.10.4] - 2026-02-03
 
 ### Added
@@ -1633,7 +1650,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.10.4...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.11.0...HEAD
+[2.11.0]: https://github.com/inspirepan/klaude-code/compare/v2.10.4...v2.11.0
 [2.10.4]: https://github.com/inspirepan/klaude-code/compare/v2.10.3...v2.10.4
 [2.10.3]: https://github.com/inspirepan/klaude-code/compare/v2.10.2...v2.10.3
 [2.10.2]: https://github.com/inspirepan/klaude-code/compare/v2.10.1...v2.10.2
