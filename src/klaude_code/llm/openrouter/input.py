@@ -43,15 +43,19 @@ def _assistant_message_to_openrouter(
                 }
             )
         elif isinstance(part, message.ThinkingSignaturePart) and part.signature:
-            reasoning_details.append(
-                {
-                    "id": part.id,
-                    "type": "reasoning.encrypted",
-                    "data": part.signature,
-                    "format": part.format,
-                    "index": len(reasoning_details),
-                }
-            )
+            if is_claude_model(model_name):
+                if len(reasoning_details) > 0:
+                    reasoning_details[-1]["signature"] = part.signature
+            else:
+                reasoning_details.append(
+                    {
+                        "id": part.id,
+                        "type": "reasoning.encrypted",
+                        "data": part.signature,
+                        "format": part.format,
+                        "index": len(reasoning_details),
+                    }
+                )
     if reasoning_details:
         assistant_message["reasoning_details"] = reasoning_details
 
