@@ -74,9 +74,9 @@ def _format_provider_routing(pr: "OpenRouterProviderRouting") -> str:
     if pr.sort:
         items.append(pr.sort)
     if pr.only:
-        items.append(">".join(pr.only))
+        items.append(" > ".join(pr.only))
     if pr.order:
-        items.append(">".join(pr.order))
+        items.append(" > ".join(pr.order))
     if pr.ignore:
-        items.append(f"ignore {'>'.join(pr.ignore)}")
+        items.append(f"ignore {' > '.join(pr.ignore)}")
     return " · ".join(items) if items else ""

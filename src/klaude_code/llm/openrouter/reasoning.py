@@ -9,7 +9,7 @@ class ReasoningDetail(BaseModel):
     """OpenRouter's https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning_details-array-structure"""
 
     type: str
-    format: str
+    format: str | None = None
     index: int
     id: str | None = None
     data: str | None = None  # OpenAI's encrypted content

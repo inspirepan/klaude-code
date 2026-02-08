@@ -184,6 +184,14 @@ provider_list:
   - model_name: minimax
     model_id: minimax/minimax-m2.1
     context_limit: 204800
+    thinking:
+      type: enabled
+      budget_tokens: 2048
+    provider_routing:
+      only:
+      - fireworks
+      - minimax/lightning
+      - friendli
     cost: {input: 0.3, output: 1.2, cache_read: 0.03}
 
   - model_name: glm
