@@ -45,9 +45,9 @@ Based on feedback:
 ### Step 5: Complete Development
 
 After all tasks complete and verified:
-- Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-- **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
-- Follow that skill to verify tests, present options, execute choice
+- Run full test suite to ensure no regressions
+- Summarize all changes made
+- Ask partner: "All tasks complete and verified. Ready to merge or any final adjustments?"
 
 ## When to Stop and Ask for Help
 
@@ -71,14 +71,6 @@ After all tasks complete and verified:
 - Review plan critically first
 - Follow plan steps exactly
 - Don't skip verifications
-- Reference skills when plan says to
 - Between batches: just report and wait
 - Stop when blocked, don't guess
 - Never start implementation on main/master branch without explicit user consent
-
-## Integration
-
-**Required workflow skills:**
-- **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:finishing-a-development-branch** - Complete development after all tasks
