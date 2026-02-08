@@ -189,11 +189,11 @@ class ThemeKey(str, Enum):
     THINKING_BOLD = "thinking.bold"
     # COMPACTION
     COMPACTION_SUMMARY = "compaction.summary"
-    # BACKTRACK
-    BACKTRACK = "backtrack"
-    BACKTRACK_INFO = "backtrack.info"
-    BACKTRACK_USER_MESSAGE = "backtrack.user_message"
-    BACKTRACK_NOTE = "backtrack.note"
+    # REWIND
+    REWIND = "rewind"
+    REWIND_INFO = "rewind.info"
+    REWIND_USER_MESSAGE = "rewind.user_message"
+    REWIND_NOTE = "rewind.note"
     # TODO_ITEM
     TODO_EXPLANATION = "todo.explanation"
     TODO_PENDING_MARK = "todo.pending.mark"
@@ -316,11 +316,11 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.THINKING_BOLD.value: "italic " + palette.grey1,
                 # COMPACTION
                 ThemeKey.COMPACTION_SUMMARY.value: palette.grey1,
-                # BACKTRACK
-                ThemeKey.BACKTRACK.value: palette.orange,
-                ThemeKey.BACKTRACK_INFO.value: "dim " + palette.grey2,
-                ThemeKey.BACKTRACK_USER_MESSAGE.value: palette.cyan,
-                ThemeKey.BACKTRACK_NOTE.value: palette.grey1,
+                # REWIND
+                ThemeKey.REWIND.value: palette.orange,
+                ThemeKey.REWIND_INFO.value: "dim " + palette.grey2,
+                ThemeKey.REWIND_USER_MESSAGE.value: palette.cyan,
+                ThemeKey.REWIND_NOTE.value: palette.grey1,
                 # TODO_ITEM
                 ThemeKey.TODO_EXPLANATION.value: palette.grey1 + " italic",
                 ThemeKey.TODO_PENDING_MARK.value: "bold " + palette.grey1,

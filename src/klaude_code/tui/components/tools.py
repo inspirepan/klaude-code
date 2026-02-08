@@ -38,7 +38,7 @@ MARK_MERMAID = "⧉"
 MARK_WEB_FETCH = "→"
 MARK_WEB_SEARCH = "✱"
 MARK_DONE = "✔"
-MARK_BACKTRACK = "↶"
+MARK_REWIND = "↶"
 
 # Todo status markers
 MARK_TODO_PENDING = "▢"
@@ -535,8 +535,8 @@ def render_report_back_tool_call() -> RenderableType:
     return _render_tool_call_tree(mark=MARK_DONE, tool_name="Report Back", details=None)
 
 
-def render_backtrack_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Backtrack"
+def render_rewind_tool_call(arguments: str) -> RenderableType:
+    tool_name = "Rewind"
 
     try:
         payload: dict[str, Any] = json.loads(arguments)
@@ -545,7 +545,7 @@ def render_backtrack_tool_call(arguments: str) -> RenderableType:
             arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
-        return _render_tool_call_tree(mark=MARK_BACKTRACK, tool_name=tool_name, details=details)
+        return _render_tool_call_tree(mark=MARK_REWIND, tool_name=tool_name, details=details)
 
     checkpoint_id = payload.get("checkpoint_id")
     rationale = payload.get("rationale", "")
@@ -559,7 +559,7 @@ def render_backtrack_tool_call(arguments: str) -> RenderableType:
             summary.append(" - ")
         summary.append(rationale_preview, ThemeKey.TOOL_PARAM)
 
-    return _render_tool_call_tree(mark=MARK_BACKTRACK, tool_name=tool_name, details=summary if summary.plain else None)
+    return _render_tool_call_tree(mark=MARK_REWIND, tool_name=tool_name, details=summary if summary.plain else None)
 
 
 # Tool name to active form mapping (for spinner status)
@@ -577,7 +577,7 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.REPORT_BACK: "Reporting",
     tools.IMAGE_GEN: "Generating Image",
     tools.TASK: "Spawning Task",
-    tools.BACKTRACK: "Backtracking",
+    tools.REWIND: "Rewinding",
 }
 
 
@@ -620,8 +620,8 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_mermaid_tool_call(e.arguments)
         case tools.REPORT_BACK:
             return render_report_back_tool_call()
-        case tools.BACKTRACK:
-            return render_backtrack_tool_call(e.arguments)
+        case tools.REWIND:
+            return render_rewind_tool_call(e.arguments)
         case tools.WEB_FETCH:
             return render_web_fetch_tool_call(e.arguments)
         case tools.WEB_SEARCH:

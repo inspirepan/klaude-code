@@ -186,7 +186,7 @@ class RenderCompactionSummary(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
-class RenderBacktrack(RenderCommand):
+class RenderRewind(RenderCommand):
     checkpoint_id: int
     note: str
     rationale: str

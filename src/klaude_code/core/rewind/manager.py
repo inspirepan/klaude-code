@@ -2,17 +2,17 @@ from dataclasses import dataclass
 
 
 @dataclass
-class BacktrackRequest:
+class RewindRequest:
     checkpoint_id: int
     note: str
     rationale: str
 
 
-class BacktrackManager:
-    """Manage backtrack requests and checkpoint metadata for a task run."""
+class RewindManager:
+    """Manage rewind requests and checkpoint metadata for a task run."""
 
     def __init__(self) -> None:
-        self._pending: BacktrackRequest | None = None
+        self._pending: RewindRequest | None = None
         self._n_checkpoints: int = 0
         self._checkpoint_user_messages: dict[int, str] = {}
 
@@ -32,17 +32,17 @@ class BacktrackManager:
     def get_checkpoint_user_message(self, checkpoint_id: int) -> str | None:
         return self._checkpoint_user_messages.get(checkpoint_id)
 
-    def send_backtrack(self, checkpoint_id: int, note: str, rationale: str) -> str:
+    def send_rewind(self, checkpoint_id: int, note: str, rationale: str) -> str:
         if self._pending is not None:
-            raise ValueError("Only one backtrack can be pending at a time")
+            raise ValueError("Only one rewind can be pending at a time")
         if checkpoint_id < 0 or checkpoint_id >= self._n_checkpoints:
             raise ValueError(f"Invalid checkpoint {checkpoint_id}, available: 0-{self._n_checkpoints - 1}")
         if checkpoint_id not in self._checkpoint_user_messages:
             raise ValueError("Checkpoint is no longer available")
-        self._pending = BacktrackRequest(checkpoint_id=checkpoint_id, note=note, rationale=rationale)
-        return "Backtrack scheduled"
+        self._pending = RewindRequest(checkpoint_id=checkpoint_id, note=note, rationale=rationale)
+        return "Rewind scheduled"
 
-    def fetch_pending(self) -> BacktrackRequest | None:
+    def fetch_pending(self) -> RewindRequest | None:
         pending = self._pending
         self._pending = None
         return pending

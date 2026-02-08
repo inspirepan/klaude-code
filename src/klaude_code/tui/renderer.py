@@ -35,7 +35,6 @@ from klaude_code.tui.commands import (
     PrintBlankLine,
     PrintRuleLine,
     RenderAssistantImage,
-    RenderBacktrack,
     RenderBashCommandEnd,
     RenderBashCommandStart,
     RenderCommand,
@@ -44,6 +43,7 @@ from klaude_code.tui.commands import (
     RenderDeveloperMessage,
     RenderError,
     RenderInterrupt,
+    RenderRewind,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
@@ -690,7 +690,7 @@ class TUICommandRenderer:
 
         self.print()
 
-    def display_backtrack(
+    def display_rewind(
         self,
         checkpoint_id: int,
         note: str,
@@ -700,7 +700,7 @@ class TUICommandRenderer:
     ) -> None:
         self.console.print(
             Rule(
-                Text(f"Backtracked to Checkpoint {checkpoint_id}", style=ThemeKey.BACKTRACK),
+                Text(f"Rewound to Checkpoint {checkpoint_id}", style=ThemeKey.REWIND),
                 characters="=",
                 style=ThemeKey.LINES,
             )
@@ -708,34 +708,34 @@ class TUICommandRenderer:
         self.print()
 
         if messages_discarded:
-            self.console.print(Text(f"  Discarded {messages_discarded} messages", style=ThemeKey.BACKTRACK_INFO))
+            self.console.print(Text(f"  Discarded {messages_discarded} messages", style=ThemeKey.REWIND_INFO))
 
         if rationale:
-            self.console.print(Text("  Rationale:", style=ThemeKey.BACKTRACK_INFO))
+            self.console.print(Text("  Rationale:", style=ThemeKey.REWIND_INFO))
             rationale_preview = rationale[:300] + "..." if len(rationale) > 300 else rationale
             self.console.print(
                 Padding(
                     Panel(
                         NoInsetMarkdown(
-                            rationale_preview, code_theme=self.themes.code_theme, style=ThemeKey.BACKTRACK_NOTE
+                            rationale_preview, code_theme=self.themes.code_theme, style=ThemeKey.REWIND_NOTE
                         ),
                         box=box.SIMPLE,
                         border_style=ThemeKey.LINES,
-                        style=ThemeKey.BACKTRACK_NOTE,
+                        style=ThemeKey.REWIND_NOTE,
                     ),
                     (0, 0, 0, 4),
                 )
             )
 
         if original_user_message:
-            self.console.print(Text("  Returned to:", style=ThemeKey.BACKTRACK_INFO))
+            self.console.print(Text("  Returned to:", style=ThemeKey.REWIND_INFO))
             msg_preview = (
                 original_user_message[:200] + "..." if len(original_user_message) > 200 else original_user_message
             )
             self.console.print(
                 Padding(
                     Panel(
-                        Text(msg_preview, style=ThemeKey.BACKTRACK_USER_MESSAGE),
+                        Text(msg_preview, style=ThemeKey.REWIND_USER_MESSAGE),
                         box=box.SIMPLE,
                         border_style=ThemeKey.LINES,
                     ),
@@ -743,15 +743,15 @@ class TUICommandRenderer:
                 )
             )
 
-        self.console.print(Text("  Summary:", style=ThemeKey.BACKTRACK_INFO))
+        self.console.print(Text("  Summary:", style=ThemeKey.REWIND_INFO))
         note_preview = note[:300] + "..." if len(note) > 300 else note
         self.console.print(
             Padding(
                 Panel(
-                    NoInsetMarkdown(note_preview, code_theme=self.themes.code_theme, style=ThemeKey.BACKTRACK_NOTE),
+                    NoInsetMarkdown(note_preview, code_theme=self.themes.code_theme, style=ThemeKey.REWIND_NOTE),
                     box=box.SIMPLE,
                     border_style=ThemeKey.LINES,
-                    style=ThemeKey.BACKTRACK_NOTE,
+                    style=ThemeKey.REWIND_NOTE,
                 ),
                 (0, 0, 0, 4),
             )
@@ -878,14 +878,14 @@ class TUICommandRenderer:
                     self.display_error(event)
                 case RenderCompactionSummary(summary=summary, kept_items_brief=kept_items_brief):
                     self.display_compaction_summary(summary, kept_items_brief)
-                case RenderBacktrack(
+                case RenderRewind(
                     checkpoint_id=checkpoint_id,
                     note=note,
                     rationale=rationale,
                     original_user_message=original_user_message,
                     messages_discarded=messages_discarded,
                 ):
-                    self.display_backtrack(
+                    self.display_rewind(
                         checkpoint_id=checkpoint_id,
                         note=note,
                         rationale=rationale,

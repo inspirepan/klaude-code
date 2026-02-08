@@ -25,7 +25,6 @@ from klaude_code.tui.commands import (
     EndThinkingStream,
     PrintBlankLine,
     RenderAssistantImage,
-    RenderBacktrack,
     RenderBashCommandEnd,
     RenderBashCommandStart,
     RenderCommand,
@@ -34,6 +33,7 @@ from klaude_code.tui.commands import (
     RenderDeveloperMessage,
     RenderError,
     RenderInterrupt,
+    RenderRewind,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
@@ -68,7 +68,7 @@ FAST_TOOLS: frozenset[str] = frozenset(
         tools.UPDATE_PLAN,
         tools.APPLY_PATCH,
         tools.REPORT_BACK,
-        tools.BACKTRACK,
+        tools.REWIND,
     }
 )
 
@@ -474,9 +474,9 @@ class DisplayStateMachine:
                     cmds.append(RenderCompactionSummary(summary=e.summary, kept_items_brief=kept_brief))
                 return cmds
 
-            case events.BacktrackEvent() as e:
+            case events.RewindEvent() as e:
                 cmds.append(
-                    RenderBacktrack(
+                    RenderRewind(
                         checkpoint_id=e.checkpoint_id,
                         note=e.note,
                         rationale=e.rationale,

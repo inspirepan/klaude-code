@@ -290,14 +290,14 @@ class Session(BaseModel):
             checkpoints[checkpoint_id] = last_user_message
         return checkpoints
 
-    def revert_to_checkpoint(self, checkpoint_id: int, note: str, rationale: str) -> message.BacktrackEntry:
+    def revert_to_checkpoint(self, checkpoint_id: int, note: str, rationale: str) -> message.RewindEntry:
         target_idx = self.find_checkpoint_index(checkpoint_id)
         if target_idx is None:
             raise ValueError(f"Checkpoint {checkpoint_id} not found")
 
         user_message = self.get_user_message_before_checkpoint(checkpoint_id) or ""
         reverted_from = len(self.conversation_history)
-        entry = message.BacktrackEntry(
+        entry = message.RewindEntry(
             checkpoint_id=checkpoint_id,
             note=note,
             rationale=rationale,
@@ -316,11 +316,11 @@ class Session(BaseModel):
         history = self.conversation_history
 
         def _convert(item: message.HistoryEvent) -> message.HistoryEvent:
-            if isinstance(item, message.BacktrackEntry):
+            if isinstance(item, message.RewindEntry):
                 return message.DeveloperMessage(
                     parts=[
                         message.TextPart(
-                            text=f"<system>After this, some operations were performed and context was refined via Backtrack. Rationale: {item.rationale}. Summary: {item.note}. Please continue.</system>"
+                            text=f"<system>After this, some operations were performed and context was refined via Rewind. Rationale: {item.rationale}. Summary: {item.note}. Please continue.</system>"
                         )
                     ]
                 )
@@ -537,8 +537,8 @@ class Session(BaseModel):
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm)
                 case message.StreamErrorItem() as se:
                     yield events.ErrorEvent(error_message=se.error, can_retry=False, session_id=self.id)
-                case message.BacktrackEntry() as be:
-                    yield events.BacktrackEvent(
+                case message.RewindEntry() as be:
+                    yield events.RewindEvent(
                         session_id=self.id,
                         checkpoint_id=be.checkpoint_id,
                         note=be.note,

@@ -7,13 +7,13 @@ from dataclasses import dataclass
 
 from klaude_code.const import INITIAL_RETRY_DELAY_S, MAX_FAILED_TURN_RETRIES, MAX_RETRY_DELAY_S
 from klaude_code.core.agent_profile import AgentProfile, Reminder
-from klaude_code.core.backtrack import BacktrackManager
 from klaude_code.core.compaction import (
     CompactionReason,
     is_context_overflow,
     run_compaction,
     should_compact_threshold,
 )
+from klaude_code.core.rewind import RewindManager
 from klaude_code.core.tool import FileTracker, TodoContext, ToolABC
 from klaude_code.core.tool.context import RunSubtask
 from klaude_code.core.turn import TurnError, TurnExecutionContext, TurnExecutor
@@ -179,7 +179,7 @@ class TaskExecutor:
         self._current_turn: TurnExecutor | None = None
         self._started_at: float = 0.0
         self._metadata_accumulator: MetadataAccumulator | None = None
-        self._backtrack_manager: BacktrackManager | None = None
+        self._rewind_manager: RewindManager | None = None
 
     def get_partial_metadata(self) -> model.TaskMetadata | None:
         """Get the currently accumulated metadata without finalizing.
@@ -224,9 +224,9 @@ class TaskExecutor:
         self._started_at = time.perf_counter()
 
         if ctx.sub_agent_state is None:
-            self._backtrack_manager = BacktrackManager()
-            self._backtrack_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-            self._backtrack_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+            self._rewind_manager = RewindManager()
+            self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+            self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
 
         yield events.TaskStartEvent(
             session_id=session_ctx.session_id,
@@ -269,9 +269,9 @@ class TaskExecutor:
                     log_debug("[Compact] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
 
                     session_ctx.append_history([result.to_entry()])
-                    if self._backtrack_manager is not None:
-                        self._backtrack_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                        self._backtrack_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+                    if self._rewind_manager is not None:
+                        self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                        self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
                     yield events.CompactionEndEvent(
                         session_id=session_ctx.session_id,
                         reason=CompactionReason.THRESHOLD.value,
@@ -308,11 +308,11 @@ class TaskExecutor:
                         will_retry=False,
                     )
 
-            if self._backtrack_manager is not None:
+            if self._rewind_manager is not None:
                 checkpoint_id = ctx.session.create_checkpoint()
-                self._backtrack_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
                 user_msg = ctx.session.get_user_message_before_checkpoint(checkpoint_id) or ""
-                self._backtrack_manager.register_checkpoint(checkpoint_id, user_msg)
+                self._rewind_manager.register_checkpoint(checkpoint_id, user_msg)
 
             turn_context = TurnExecutionContext(
                 session_ctx=session_ctx,
@@ -321,7 +321,7 @@ class TaskExecutor:
                 tools=profile.tools,
                 tool_registry=ctx.tool_registry,
                 sub_agent_state=ctx.sub_agent_state,
-                backtrack_manager=self._backtrack_manager,
+                rewind_manager=self._rewind_manager,
             )
 
             turn: TurnExecutor | None = None
@@ -371,9 +371,9 @@ class TaskExecutor:
                                 "[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE
                             )
                             session_ctx.append_history([result.to_entry()])
-                            if self._backtrack_manager is not None:
-                                self._backtrack_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                                self._backtrack_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+                            if self._rewind_manager is not None:
+                                self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                                self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
                             yield events.CompactionEndEvent(
                                 session_id=session_ctx.session_id,
                                 reason=CompactionReason.OVERFLOW.value,
@@ -434,8 +434,8 @@ class TaskExecutor:
                 yield events.ErrorEvent(error_message=final_error, can_retry=False, session_id=session_ctx.session_id)
                 return
 
-            if self._backtrack_manager is not None:
-                pending = self._backtrack_manager.fetch_pending()
+            if self._rewind_manager is not None:
+                pending = self._rewind_manager.fetch_pending()
                 if pending is not None:
                     try:
                         entry = ctx.session.revert_to_checkpoint(pending.checkpoint_id, pending.note, pending.rationale)
@@ -448,9 +448,9 @@ class TaskExecutor:
                     else:
                         messages_discarded = entry.reverted_from_index - len(ctx.session.conversation_history)
                         session_ctx.append_history([entry])
-                        self._backtrack_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                        self._backtrack_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
-                        yield events.BacktrackEvent(
+                        self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                        self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+                        yield events.RewindEvent(
                             session_id=session_ctx.session_id,
                             checkpoint_id=pending.checkpoint_id,
                             note=pending.note,

@@ -1,4 +1,3 @@
-from .backtrack.backtrack_tool import BacktrackTool
 from .context import FileTracker, RunSubtask, SubAgentResumeClaims, TodoContext, ToolContext, build_todo_context
 from .file.apply_patch import DiffError, process_patch
 from .file.apply_patch_tool import ApplyPatchTool
@@ -6,6 +5,7 @@ from .file.edit_tool import EditTool
 from .file.read_tool import ReadTool
 from .file.write_tool import WriteTool
 from .report_back_tool import ReportBackTool
+from .rewind.rewind_tool import RewindTool
 from .shell.bash_tool import BashTool
 from .shell.command_safety import SafetyCheckResult, is_safe_command
 from .sub_agent import ImageGenTool, TaskTool
@@ -20,7 +20,6 @@ from .web.web_search_tool import WebSearchTool
 
 __all__ = [
     "ApplyPatchTool",
-    "BacktrackTool",
     "BashTool",
     "DiffError",
     "EditTool",
@@ -29,6 +28,7 @@ __all__ = [
     "MermaidTool",
     "ReadTool",
     "ReportBackTool",
+    "RewindTool",
     "RunSubtask",
     "SafetyCheckResult",
     "SubAgentResumeClaims",

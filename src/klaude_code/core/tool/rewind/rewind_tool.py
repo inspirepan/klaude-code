@@ -8,20 +8,20 @@ from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, tools
 
 
-class BacktrackArguments(BaseModel):
+class RewindArguments(BaseModel):
     checkpoint_id: int = Field(description="The checkpoint ID to revert to")
     note: str = Field(description="A note to your future self with key findings/context to preserve")
-    rationale: str = Field(description="Why you are performing this backtrack")
+    rationale: str = Field(description="Why you are performing this rewind")
 
 
-@register(tools.BACKTRACK)
-class BacktrackTool(ToolABC):
+@register(tools.REWIND)
+class RewindTool(ToolABC):
     @classmethod
     def schema(cls) -> llm_param.ToolSchema:
         return llm_param.ToolSchema(
-            name=tools.BACKTRACK,
+            name=tools.REWIND,
             type="function",
-            description=load_desc(Path(__file__).parent / "backtrack_tool.md"),
+            description=load_desc(Path(__file__).parent / "rewind_tool.md"),
             parameters={
                 "type": "object",
                 "properties": {
@@ -35,7 +35,7 @@ class BacktrackTool(ToolABC):
                     },
                     "rationale": {
                         "type": "string",
-                        "description": "Why you are performing this backtrack",
+                        "description": "Why you are performing this rewind",
                     },
                 },
                 "required": ["checkpoint_id", "note", "rationale"],
@@ -46,19 +46,19 @@ class BacktrackTool(ToolABC):
     @classmethod
     async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         try:
-            args = BacktrackArguments.model_validate_json(arguments)
+            args = RewindArguments.model_validate_json(arguments)
         except ValueError as exc:
             return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {exc}")
 
-        backtrack_manager = context.backtrack_manager
-        if backtrack_manager is None:
+        rewind_manager = context.rewind_manager
+        if rewind_manager is None:
             return message.ToolResultMessage(
                 status="error",
-                output_text="Backtrack is not available in this context",
+                output_text="Rewind is not available in this context",
             )
 
         try:
-            result = backtrack_manager.send_backtrack(args.checkpoint_id, args.note, args.rationale)
+            result = rewind_manager.send_rewind(args.checkpoint_id, args.note, args.rationale)
         except ValueError as exc:
             return message.ToolResultMessage(status="error", output_text=str(exc))
 
