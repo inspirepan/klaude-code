@@ -7,9 +7,7 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 ## Overview
 
-Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
-
-Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
+Write clear implementation plans that describe **intent, not code**. Document which files to touch, what each task should achieve, and how to verify it. The executing engineer is a skilled AI developer who can write the code themselves -- they need to understand *what* to build and *why*, not be given copy-paste snippets. DRY. YAGNI. TDD. Frequent commits.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
@@ -49,46 +47,29 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Files:**
 - Create: `exact/path/to/file.py`
-- Modify: `exact/path/to/existing.py:123-145`
+- Modify: `exact/path/to/existing.py`
 - Test: `tests/exact/path/to/test.py`
 
-**Step 1: Write the failing test**
+**Intent:** What this task achieves and why.
 
-```python
-def test_specific_behavior():
-    result = function(input)
-    assert result == expected
-```
+**Steps:**
+1. Write a failing test that verifies [specific behavior]
+2. Implement [component/function] to make the test pass
+3. Verify: `pytest tests/path/test.py -v`
+4. Commit: `feat: add specific feature`
 
-**Step 2: Run test to verify it fails**
+**Acceptance criteria:**
+- [Concrete, verifiable outcome 1]
+- [Concrete, verifiable outcome 2]
 
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: FAIL with "function not defined"
-
-**Step 3: Write minimal implementation**
-
-```python
-def function(input):
-    return expected
-```
-
-**Step 4: Run test to verify it passes**
-
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: PASS
-
-**Step 5: Commit**
-
-```bash
-git add tests/path/test.py src/path/file.py
-git commit -m "feat: add specific feature"
-```
+**Notes:** Any gotchas, edge cases, or references to existing patterns in the codebase.
 ```
 
 ## Remember
 - Exact file paths always
-- Complete code in plan (not "add validation")
-- Exact commands with expected output
+- Describe intent and acceptance criteria, not full code
+- Only include code snippets for non-obvious APIs, data structures, or tricky interfaces
+- Exact verification commands
 - DRY, YAGNI, TDD, frequent commits
 
 ## Execution Handoff
