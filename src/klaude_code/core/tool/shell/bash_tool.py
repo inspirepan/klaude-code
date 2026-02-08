@@ -5,6 +5,7 @@ import re
 import shlex
 import signal
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -289,35 +290,48 @@ class BashTool(ToolABC):
         try:
             # Create a dedicated process group so we can terminate the whole tree.
             # (macOS/Linux support start_new_session; Windows does not.)
-            kwargs: dict[str, Any] = {
-                "stdin": asyncio.subprocess.DEVNULL,
-                "stdout": asyncio.subprocess.PIPE,
-                "stderr": asyncio.subprocess.PIPE,
-                "env": env,
-            }
-            if os.name == "posix":
-                kwargs["start_new_session"] = True
-            elif os.name == "nt":  # pragma: no cover
-                kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            #
+            # Use temp files instead of PIPE for stdout/stderr to avoid hanging
+            # on background processes. With pipes, communicate() waits for EOF
+            # which only arrives when ALL holders of the write end close it.
+            # Background processes (cmd &) inherit pipe fds, so communicate()
+            # blocks even after the shell exits. Temp files sidestep this:
+            # proc.wait() returns as soon as the shell itself exits.
+            with tempfile.TemporaryFile() as stdout_tmp, tempfile.TemporaryFile() as stderr_tmp:
+                kwargs: dict[str, Any] = {
+                    "stdin": asyncio.subprocess.DEVNULL,
+                    "stdout": stdout_tmp,
+                    "stderr": stderr_tmp,
+                    "env": env,
+                }
+                if os.name == "posix":
+                    kwargs["start_new_session"] = True
+                elif os.name == "nt":  # pragma: no cover
+                    kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
 
-            proc = await asyncio.create_subprocess_exec(*cmd, **kwargs)
-            try:
-                stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout_sec)
-            except TimeoutError:
-                with contextlib.suppress(Exception):
-                    await _terminate_process(proc)
-                return message.ToolResultMessage(
-                    status="error",
-                    output_text=f"Timeout after {args.timeout_ms} ms running: {args.command}",
-                )
-            except asyncio.CancelledError:
-                # Ensure subprocess is stopped and propagate cancellation.
-                with contextlib.suppress(Exception):
-                    await asyncio.shield(_terminate_process(proc))
-                raise
+                proc = await asyncio.create_subprocess_exec(*cmd, **kwargs)
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=timeout_sec)
+                except TimeoutError:
+                    with contextlib.suppress(Exception):
+                        await _terminate_process(proc)
+                    return message.ToolResultMessage(
+                        status="error",
+                        output_text=f"Timeout after {args.timeout_ms} ms running: {args.command}",
+                    )
+                except asyncio.CancelledError:
+                    # Ensure subprocess is stopped and propagate cancellation.
+                    with contextlib.suppress(Exception):
+                        await asyncio.shield(_terminate_process(proc))
+                    raise
 
-            stdout = _ANSI_ESCAPE_RE.sub("", (stdout_b or b"").decode(errors="replace"))
-            stderr = _ANSI_ESCAPE_RE.sub("", (stderr_b or b"").decode(errors="replace"))
+                stdout_tmp.seek(0)
+                stderr_tmp.seek(0)
+                stdout_b = stdout_tmp.read()
+                stderr_b = stderr_tmp.read()
+
+            stdout = _ANSI_ESCAPE_RE.sub("", stdout_b.decode(errors="replace"))
+            stderr = _ANSI_ESCAPE_RE.sub("", stderr_b.decode(errors="replace"))
             rc = proc.returncode
 
             if rc == 0:
