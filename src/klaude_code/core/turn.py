@@ -33,6 +33,9 @@ _PREFILL_SUPPORTED_PROTOCOLS = frozenset(
     }
 )
 
+# Models that do not support prefill even on supported protocols
+_PREFILL_BLOCKED_MODEL_PATTERNS = ("opus-4.6", "opus-4-6")
+
 
 class TurnError(Exception):
     """Raised when a turn fails and should be retried."""
@@ -189,7 +192,9 @@ class TurnExecutor:
             # Save accumulated content for potential prefill on retry (only for supported protocols)
             session_ctx.append_history([self._turn_result.stream_error])
             protocol = ctx.llm_client.get_llm_config().protocol
-            supports_prefill = protocol.value in _PREFILL_SUPPORTED_PROTOCOLS
+            model_name = ctx.llm_client.model_name.lower()
+            model_blocked = any(p in model_name for p in _PREFILL_BLOCKED_MODEL_PATTERNS)
+            supports_prefill = protocol.value in _PREFILL_SUPPORTED_PROTOCOLS and not model_blocked
             if (
                 RETRY_PRESERVE_PARTIAL_MESSAGE
                 and supports_prefill
