@@ -12,7 +12,7 @@ provider_list:
     context_limit: 200000
     provider_routing:
       sort: throughput
-    cost: {input: 3, output: 15, cache_read: 0.3, cache_write: 3.75}
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
     model_id: claude-opus-4-6
@@ -20,8 +20,7 @@ provider_list:
     verbosity: high
     thinking:
       type: adaptive
-    cost: {input: 5, output: 25, cache_read: 0.5, cache_write: 6.25}
-
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
 - provider_name: openai
   protocol: responses
@@ -36,7 +35,7 @@ provider_list:
     thinking:
       reasoning_effort: high
       reasoning_summary: concise
-    cost: {input: 1.75, output: 14, cache_read: 0.17}
+    cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
   - model_name: gpt-5.2-medium
     model_id: gpt-5.2
@@ -45,7 +44,7 @@ provider_list:
     thinking:
       reasoning_effort: medium
       reasoning_summary: concise
-    cost: {input: 1.75, output: 14, cache_read: 0.17}
+    cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
   - model_name: gpt-5.2-low
     model_id: gpt-5.2
@@ -54,7 +53,7 @@ provider_list:
     thinking:
       reasoning_effort: low
       reasoning_summary: concise
-    cost: {input: 1.75, output: 14, cache_read: 0.17}
+    cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
   - model_name: gpt-5.2-codex
     model_id: gpt-5.2-codex
@@ -63,8 +62,7 @@ provider_list:
       reasoning_summary: auto
     context_limit: 400000
     max_tokens: 128000
-    cost: {input: 1.75, output: 14, cache_read: 0.17}
-
+    cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
 - provider_name: openrouter
   protocol: openrouter
@@ -78,7 +76,7 @@ provider_list:
       reasoning_summary: auto
     context_limit: 400000
     max_tokens: 128000
-    cost: {input: 1.75, output: 14, cache_read: 0.17}
+    cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
   - model_name: gpt-5.2-high
     model_id: openai/gpt-5.2
@@ -88,7 +86,7 @@ provider_list:
     thinking:
       reasoning_effort: high
       reasoning_summary: concise
-    cost: {input: 1.75, output: 14, cache_read: 0.17}
+    cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
   - model_name: gpt-5.2-medium
     model_id: openai/gpt-5.2
@@ -98,7 +96,7 @@ provider_list:
     thinking:
       reasoning_effort: medium
       reasoning_summary: concise
-    cost: {input: 1.75, output: 14, cache_read: 0.17}
+    cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
   - model_name: kimi
     model_id: moonshotai/kimi-k2.5
@@ -106,7 +104,7 @@ provider_list:
     provider_routing:
       only:
       - baseten/fp4
-    cost: {input: 0.6, output: 3, cache_read: 0.1}
+    cost: { input: 0.6, output: 3, cache_read: 0.1 }
 
   - model_name: kimi-no-thinking
     model_id: moonshotai/kimi-k2.5
@@ -114,24 +112,24 @@ provider_list:
     provider_routing:
       only:
       - baseten/fp4
-    cost: {input: 0.6, output: 3, cache_read: 0.1}
+    cost: { input: 0.6, output: 3, cache_read: 0.1 }
 
   - model_name: qwen
     model_id: qwen/qwen3-coder-next
     context_limit: 262144
-    cost: {input: 0.2, output: 1.5}
+    cost: { input: 0.2, output: 1.5 }
 
   - model_name: haiku
     model_id: anthropic/claude-haiku-4.5
     context_limit: 200000
-    cost: {input: 1, output: 5, cache_read: 0.1, cache_write: 1.25}
+    cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
 
   - model_name: sonnet
     model_id: anthropic/claude-4.5-sonnet
     context_limit: 200000
     provider_routing:
       sort: throughput
-    cost: {input: 3, output: 15, cache_read: 0.3, cache_write: 3.75}
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
     model_id: anthropic/claude-opus-4.6
@@ -139,21 +137,21 @@ provider_list:
     verbosity: high
     thinking:
       type: adaptive
-    cost: {input: 5, output: 25, cache_read: 0.5, cache_write: 6.25}
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: gemini-pro
     model_id: google/gemini-3-pro-preview
     context_limit: 1048576
     thinking:
       reasoning_effort: high
-    cost: {input: 2, output: 12, cache_read: 0.2}
+    cost: { input: 2, output: 12, cache_read: 0.2 }
 
   - model_name: gemini-flash
     model_id: google/gemini-3-flash-preview
     context_limit: 1048576
     thinking:
       reasoning_effort: medium
-    cost: {input: 0.5, output: 3, cache_read: 0.05}
+    cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
   - model_name: nano-banana-pro
     model_id: google/gemini-3-pro-image-preview
@@ -163,7 +161,7 @@ provider_list:
     - text
     image_config:
       image_size: "4K"
-    cost: {input: 2, output: 12, cache_read: 0.2, image: 120}
+    cost: { input: 2, output: 12, cache_read: 0.2, image: 120 }
 
   - model_name: nano-banana
     model_id: google/gemini-2.5-flash-image
@@ -171,7 +169,15 @@ provider_list:
     modalities:
     - image
     - text
-    cost: {input: 0.3, output: 2.5, cache_read: 0.03, image: 30}
+    cost: { input: 0.3, output: 2.5, cache_read: 0.03, image: 30 }
+
+  - model_name: pony
+    model_id: openrouter/pony-alpha
+    context_limit: 200000
+    # thinking:
+    #   type: enabled
+    #   budget_tokens: 2048
+    cost: { input: 0, output: 0 }
 
   - model_name: grok
     model_id: x-ai/grok-4.1-fast
@@ -179,7 +185,7 @@ provider_list:
     thinking:
       type: enabled
       budget_tokens: 2048
-    cost: {input: 0.2, output: 0.5, cache_read: 0.05}
+    cost: { input: 0.2, output: 0.5, cache_read: 0.05 }
 
   - model_name: minimax
     model_id: minimax/minimax-m2.1
@@ -192,7 +198,7 @@ provider_list:
       - fireworks
       - minimax/lightning
       - friendli
-    cost: {input: 0.3, output: 1.2, cache_read: 0.03}
+    cost: { input: 0.3, output: 1.2, cache_read: 0.03 }
 
   - model_name: glm
     model_id: z-ai/glm-4.7
@@ -200,12 +206,12 @@ provider_list:
     provider_routing:
       only:
       - z-ai
-    cost: {input: 0.44, output: 1.74, cache_read: 0.04}
+    cost: { input: 0.44, output: 1.74, cache_read: 0.04 }
 
   - model_name: seedream
     model_id: bytedance-seed/seedream-4.5
     context_limit: 4000
-    cost: {input: 0, output: 9.581, image: 9.581}
+    cost: { input: 0, output: 9.581, image: 9.581 }
     modalities:
     - image
     - text
@@ -213,11 +219,10 @@ provider_list:
   - model_name: flux
     model_id: black-forest-labs/flux.2-max
     context_limit: 47000
-    cost: {input: 7.32, output: 7.32, image: 7.32}
+    cost: { input: 7.32, output: 7.32, image: 7.32 }
     modalities:
     - image
     - text
-
 
 - provider_name: google
   protocol: google
@@ -229,14 +234,14 @@ provider_list:
     context_limit: 1048576
     thinking:
       reasoning_effort: high
-    cost: {input: 2, output: 12, cache_read: 0.2}
+    cost: { input: 2, output: 12, cache_read: 0.2 }
 
   - model_name: gemini-flash
     model_id: gemini-3-flash-preview
     context_limit: 1048576
     thinking:
       reasoning_effort: medium
-    cost: {input: 0.5, output: 3, cache_read: 0.05}
+    cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
   - model_name: nano-banana-pro
     model_id: gemini-3-pro-image-preview
@@ -246,7 +251,7 @@ provider_list:
     - text
     image_config:
       image_size: "4K"
-    cost: {input: 2, output: 12, cache_read: 0.2, image: 120}
+    cost: { input: 2, output: 12, cache_read: 0.2, image: 120 }
 
   - model_name: nano-banana
     model_id: gemini-2.5-flash-image
@@ -254,8 +259,7 @@ provider_list:
     modalities:
     - image
     - text
-    cost: {input: 0.3, output: 2.5, cache_read: 0.03, image: 30}
-
+    cost: { input: 0.3, output: 2.5, cache_read: 0.03, image: 30 }
 
 - provider_name: bedrock
   protocol: bedrock
@@ -267,8 +271,7 @@ provider_list:
   - model_name: sonnet
     model_id: us.anthropic.claude-sonnet-4-5-20250929-v1:0
     context_limit: 200000
-    cost: {input: 3, output: 15, cache_read: 0.3, cache_write: 3.75}
-
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
 - provider_name: deepseek
   protocol: anthropic
@@ -282,8 +285,7 @@ provider_list:
     thinking:
       type: enabled
       budget_tokens: 2048
-    cost: {input: 2, output: 3, cache_read: 0.2, currency: CNY}
-
+    cost: { input: 2, output: 3, cache_read: 0.2, currency: CNY }
 
 - provider_name: moonshot
   protocol: anthropic
@@ -297,13 +299,12 @@ provider_list:
     thinking:
       type: enabled
       budget_tokens: 8192
-    cost: {input: 4, output: 21, cache_read: 0.7, currency: CNY}
+    cost: { input: 4, output: 21, cache_read: 0.7, currency: CNY }
 
   - model_name: kimi-no-thinking
     model_id: kimi-k2.5
     context_limit: 262144
-    cost: {input: 4, output: 21, cache_read: 0.7, currency: CNY}
-
+    cost: { input: 4, output: 21, cache_read: 0.7, currency: CNY }
 
 - provider_name: cerebras
   protocol: openai
@@ -315,8 +316,7 @@ provider_list:
     model_id: zai-glm-4.7
     context_limit: 131072
     max_tokens: 12800
-    cost: {input: 2.25, output: 2.75}
-
+    cost: { input: 2.25, output: 2.75 }
 
 - provider_name: claude-max
   protocol: claude_oauth
@@ -326,7 +326,7 @@ provider_list:
   - model_name: sonnet
     model_id: claude-sonnet-4-5-20250929
     context_limit: 200000
-    cost: {input: 3, output: 15, cache_read: 0.3, cache_write: 3.75}
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
     model_id: claude-opus-4-6
@@ -334,13 +334,12 @@ provider_list:
     verbosity: high
     thinking:
       type: adaptive
-    cost: {input: 5, output: 25, cache_read: 0.5, cache_write: 6.25}
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: haiku
     model_id: claude-haiku-4-5-20251001
     context_limit: 200000
-    cost: {input: 1, output: 5, cache_read: 0.1, cache_write: 1.25}
-
+    cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
 
 - provider_name: codex
   protocol: codex_oauth
@@ -353,7 +352,7 @@ provider_list:
       reasoning_summary: auto
     context_limit: 400000
     max_tokens: 128000
-    cost: {input: 1.75, output: 14, cache_read: 0.17}
+    cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
   - model_name: gpt-5.3-high
     model_id: gpt-5.3
@@ -363,7 +362,6 @@ provider_list:
     thinking:
       reasoning_effort: high
       reasoning_summary: concise
-    cost: {input: 1.75, output: 14, cache_read: 0.17}
-
+    cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
 compact_model: gemini-flash
