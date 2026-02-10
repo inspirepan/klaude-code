@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.11.2] - 2026-02-10
+
+### Added
+
+- add openrouter/aurora-alpha model to builtin config (`5651a6a4`)
+- add openrouter/pony-alpha model to builtin config (`5cb3700d`)
+
+### Changed
+
+- improve CLI utilities description in system prompt (`6d78ca24`)
+- writing-plans focus on intent over full code (`4c6400b8`)
+- rename 'backtrack' to 'rewind' (`7ea51c50`)
+- remove superpowers dependencies from executing-plans and writing-plans (`ded03740`)
+- restyle export session template (`39202630`)
+
+### Fixed
+
+- clarify fd/rg are CLI commands invoked via Bash tool (`e12226cb`)
+- use temp files instead of pipes to prevent hanging on background processes (`9cad08b5`)
+- disable prefill on retry for opus-4.6 models (`ca9bed3a`)
+- enable thinking for minimax and fix openrouter reasoning format (`97f1047a`)
+
 ## [2.11.1] - 2026-02-08
 
 ### Added
@@ -1664,7 +1686,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.11.1...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.11.2...HEAD
+[2.11.2]: https://github.com/inspirepan/klaude-code/compare/v2.11.1...v2.11.2
 [2.11.1]: https://github.com/inspirepan/klaude-code/compare/v2.11.0...v2.11.1
 [2.11.0]: https://github.com/inspirepan/klaude-code/compare/v2.10.4...v2.11.0
 [2.10.4]: https://github.com/inspirepan/klaude-code/compare/v2.10.3...v2.10.4
