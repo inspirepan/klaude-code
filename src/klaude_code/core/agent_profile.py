@@ -31,6 +31,7 @@ from klaude_code.protocol.model_id import (
     is_gpt5_model,
     is_gpt52_codex_model,
     is_gpt52_model,
+    is_gpt53_codex_model,
 )
 from klaude_code.protocol.sub_agent import AVAILABILITY_IMAGE_MODEL, get_sub_agent_profile
 from klaude_code.session import Session
@@ -77,6 +78,8 @@ def _load_prompt_by_path(prompt_path: str) -> str:
 def _load_prompt_by_model(model_name: str) -> str:
     """Load base prompt content based on model name."""
 
+    if is_gpt53_codex_model(model_name):
+        return _load_prompt_by_path("prompts/prompt-codex-gpt-5-3-codex.md")
     if is_gpt52_codex_model(model_name):
         return _load_prompt_by_path("prompts/prompt-codex-gpt-5-2-codex.md")
     if is_gpt52_model(model_name):

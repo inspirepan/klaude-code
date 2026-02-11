@@ -66,6 +66,13 @@ def is_gpt52_codex_model(model_name: str | None) -> bool:
     return "gpt-5.2-codex" in model_name.lower()
 
 
+def is_gpt53_codex_model(model_name: str | None) -> bool:
+    """Check if the model is GPT-5.3-codex."""
+    if not model_name:
+        return False
+    return "gpt-5.3-codex" in model_name.lower()
+
+
 def is_codex_max_model(model_name: str | None) -> bool:
     """Check if the model is GPT-5.1-codex-max."""
     if not model_name:
