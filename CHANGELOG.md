@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-02-11
+
+### Added
+
+- add gpt-5.3-codex prompt (`342e25a6`)
+
 ## [2.11.2] - 2026-02-10
 
 ### Added
@@ -1686,7 +1692,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.11.2...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.12.0...HEAD
+[2.12.0]: https://github.com/inspirepan/klaude-code/compare/v2.11.2...v2.12.0
 [2.11.2]: https://github.com/inspirepan/klaude-code/compare/v2.11.1...v2.11.2
 [2.11.1]: https://github.com/inspirepan/klaude-code/compare/v2.11.0...v2.11.1
 [2.11.0]: https://github.com/inspirepan/klaude-code/compare/v2.10.4...v2.11.0
