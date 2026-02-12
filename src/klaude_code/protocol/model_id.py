@@ -114,6 +114,17 @@ def supports_google_thinking(model_name: str | None) -> bool:
     return "gemini-3" in model_name or "gemini-2.5-pro" in model_name
 
 
+# -- Zhipu (GLM) ---------------------------------------------------------------
+
+
+def is_glm_model(model_name: str | None) -> bool:
+    """Return True if the model is GLM-5 or GLM-4.7 (supports preserved thinking)."""
+    if not model_name:
+        return False
+    model_lower = model_name.lower()
+    return "glm-5" in model_lower or "glm-4.7" in model_lower
+
+
 # -- xAI -----------------------------------------------------------------------
 
 

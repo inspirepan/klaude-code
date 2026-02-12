@@ -17,7 +17,7 @@ from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_tool_schema
 from klaude_code.llm.openai_compatible.stream import OpenAILLMStream
-from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude_model, is_xai_model
+from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude_model, is_glm_model, is_xai_model
 from klaude_code.llm.openrouter.reasoning import ReasoningStreamHandler
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
@@ -85,6 +85,11 @@ def build_payload(
 
     if is_xai_model(param.model_id):
         extra_body["plugins"] = [{"id": "web", "engine": "native"}]
+
+    if is_glm_model(param.model_id):
+        thinking_cfg = cast(dict[str, object], extra_body.get("thinking", {}))
+        thinking_cfg["clear_thinking"] = False
+        extra_body["thinking"] = thinking_cfg
 
     payload: CompletionCreateParamsStreaming = {
         "model": str(param.model_id),

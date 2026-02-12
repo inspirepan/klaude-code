@@ -22,6 +22,7 @@ from klaude_code.llm.input_common import (
 from klaude_code.protocol import message
 from klaude_code.protocol.model_id import is_claude_model as is_claude_model
 from klaude_code.protocol.model_id import is_gemini_model as is_gemini_model
+from klaude_code.protocol.model_id import is_glm_model as is_glm_model
 from klaude_code.protocol.model_id import is_xai_model as is_xai_model
 
 

@@ -171,14 +171,6 @@ provider_list:
     - text
     cost: { input: 0.3, output: 2.5, cache_read: 0.03, image: 30 }
 
-  - model_name: pony
-    model_id: openrouter/pony-alpha
-    context_limit: 200000
-    # thinking:
-    #   type: enabled
-    #   budget_tokens: 2048
-    cost: { input: 0, output: 0 }
-
   - model_name: aurora
     model_id: openrouter/aurora-alpha
     context_limit: 128000
@@ -209,12 +201,12 @@ provider_list:
     cost: { input: 0.3, output: 1.2, cache_read: 0.03 }
 
   - model_name: glm
-    model_id: z-ai/glm-4.7
-    context_limit: 200000
+    model_id: z-ai/glm-5
+    context_limit: 202752
     provider_routing:
       only:
       - z-ai
-    cost: { input: 0.44, output: 1.74, cache_read: 0.04 }
+    cost: { input: 1, output: 3.2, cache_read: 0.1 }
 
   - model_name: seedream
     model_id: bytedance-seed/seedream-4.5
