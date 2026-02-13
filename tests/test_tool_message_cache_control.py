@@ -1,0 +1,96 @@
+"""Tests for tool message list-format content and _add_cache_control compatibility."""
+
+from klaude_code.llm.input_common import (
+    DeveloperAttachment,
+    build_tool_message,
+    build_tool_message_for_chat_completions,
+)
+from klaude_code.llm.openrouter.input import _add_cache_control
+from klaude_code.protocol import message
+
+
+def _make_tool_result(output: str = "ok", call_id: str = "call_1") -> message.ToolResultMessage:
+    return message.ToolResultMessage(status="success", output_text=output, call_id=call_id)
+
+
+def _empty_attachment() -> DeveloperAttachment:
+    return DeveloperAttachment()
+
+
+# --- build_tool_message_for_chat_completions produces list content ---
+
+
+def test_chat_completions_tool_message_content_is_list() -> None:
+    msg = _make_tool_result("hello world")
+    tool_msg, _ = build_tool_message_for_chat_completions(msg, _empty_attachment())
+    content = tool_msg["content"]
+    assert isinstance(content, list)
+    assert len(content) == 1
+    assert content[0] == {"type": "text", "text": "hello world"}
+
+
+def test_chat_completions_tool_message_empty_output_still_list() -> None:
+    """When output is whitespace-only, content should still be a list with empty text."""
+    msg = _make_tool_result("   ")
+    tool_msg, _ = build_tool_message_for_chat_completions(msg, _empty_attachment())
+    content = tool_msg["content"]
+    assert isinstance(content, list)
+    assert content[0]["type"] == "text"
+    assert content[0]["text"] == ""
+
+
+# --- build_tool_message (non-chat-completions) also produces list content ---
+
+
+def test_build_tool_message_content_is_list() -> None:
+    msg = _make_tool_result("some output")
+    tool_msg = build_tool_message(msg, _empty_attachment())
+    content = tool_msg["content"]
+    assert isinstance(content, list)
+    assert content[0] == {"type": "text", "text": "some output"}
+
+
+# --- _add_cache_control integration ---
+
+
+def test_add_cache_control_attaches_to_tool_message() -> None:
+    """_add_cache_control should attach cache_control to the last text part
+    of a tool message built by build_tool_message_for_chat_completions."""
+    msg = _make_tool_result("result text")
+    tool_msg, _ = build_tool_message_for_chat_completions(msg, _empty_attachment())
+    messages = [tool_msg]
+
+    _add_cache_control(messages, use_cache_control=True)
+
+    last_part = tool_msg["content"][-1]
+    assert last_part.get("cache_control") == {"type": "ephemeral"}
+
+
+def test_add_cache_control_attaches_to_last_tool_in_sequence() -> None:
+    """When multiple messages exist, cache_control goes on the last user/tool message."""
+    user_msg = {"role": "user", "content": [{"type": "text", "text": "hi"}]}
+    tool_msg_1, _ = build_tool_message_for_chat_completions(
+        _make_tool_result("first", "call_1"), _empty_attachment()
+    )
+    tool_msg_2, _ = build_tool_message_for_chat_completions(
+        _make_tool_result("second", "call_2"), _empty_attachment()
+    )
+    assistant_msg = {"role": "assistant", "content": "thinking..."}
+    messages = [user_msg, assistant_msg, tool_msg_1, tool_msg_2]
+
+    _add_cache_control(messages, use_cache_control=True)
+
+    # cache_control should be on tool_msg_2 (the last tool message)
+    assert tool_msg_2["content"][-1].get("cache_control") == {"type": "ephemeral"}
+    # and NOT on tool_msg_1
+    assert "cache_control" not in tool_msg_1["content"][-1]
+
+
+def test_add_cache_control_noop_when_disabled() -> None:
+    msg = _make_tool_result("result")
+    tool_msg, _ = build_tool_message_for_chat_completions(msg, _empty_attachment())
+    messages = [tool_msg]
+
+    _add_cache_control(messages, use_cache_control=False)
+
+    assert "cache_control" not in tool_msg["content"][-1]
