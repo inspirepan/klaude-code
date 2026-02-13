@@ -188,7 +188,7 @@ provider_list:
     cost: { input: 0.2, output: 0.5, cache_read: 0.05 }
 
   - model_name: minimax
-    model_id: minimax/minimax-m2.1
+    model_id: minimax/minimax-m2.5
     context_limit: 204800
     thinking:
       type: enabled
