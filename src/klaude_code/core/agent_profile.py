@@ -294,7 +294,7 @@ class VanillaModelProfileProvider(ModelProfileProvider):
         del sub_agent_type
         profile = AgentProfile(
             llm_client=llm_client,
-            system_prompt=None,
+            system_prompt="You're an agent running in user's terminal",
             tools=get_tool_schemas([tools.BASH, tools.EDIT, tools.WRITE, tools.READ]),
             reminders=[],
         )
