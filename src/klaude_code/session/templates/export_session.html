@@ -1496,6 +1496,18 @@
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
       }
 
+      .toc-item.toc-user {
+        border-left: 2px solid var(--accent);
+        padding-left: 8px;
+      }
+
+      .toc-item.toc-assistant {
+        border-left: 2px solid var(--assistant-border);
+        padding-left: 8px;
+        font-size: 11px;
+        opacity: 0.7;
+      }
+
       /* Header Controls */
       .header-controls {
         margin-top: 16px;
@@ -2177,11 +2189,21 @@
               if (roleLabel) {
                 if (roleLabel.classList.contains("user")) {
                   userCount++;
-                  label = `USER $$$${userCount}`;
+                  const contentEl = child.querySelector('.message-content.user');
+                  let preview = '';
+                  if (contentEl) {
+                    preview = contentEl.textContent.trim().replace(/\s+/g, ' ').substring(0, 80);
+                  }
+                  label = preview || `User $${userCount}`;
                   idPrefix = "user";
                 } else if (roleLabel.classList.contains("assistant")) {
                   assistantCount++;
-                  label = `ASSISTANT $$$${assistantCount}`;
+                  const contentEl = child.querySelector('.assistant-rendered');
+                  let preview = '';
+                  if (contentEl) {
+                    preview = contentEl.textContent.trim().replace(/\s+/g, ' ').substring(0, 80);
+                  }
+                  label = preview || `Assistant $${assistantCount}`;
                   idPrefix = "assistant";
                 } else {
                   label = roleLabel.textContent.trim();
@@ -2225,7 +2247,7 @@
               child.id =
                 child.id ||
                 `$$$${idPrefix}-$$$${Math.random().toString(36).substr(2, 9)}`;
-              sections.push({ id: child.id, label: label, el: child });
+              sections.push({ id: child.id, label: label, el: child, type: idPrefix });
             }
           });
         }
@@ -2233,7 +2255,7 @@
         // Render TOC
         sections.forEach((section) => {
           const item = document.createElement("div");
-          item.className = "toc-item";
+          item.className = "toc-item" + (section.type === "user" ? " toc-user" : section.type === "assistant" ? " toc-assistant" : "");
           item.textContent = section.label;
           item.dataset.target = section.id;
           item.addEventListener("click", () => {
