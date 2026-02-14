@@ -202,44 +202,77 @@ body {
 #json-view {
   flex: 1;
   overflow: auto;
-  padding: 16px;
+  padding: 0;
   font-family: var(--font-mono);
   font-size: 12px;
-  line-height: 22px;
-  white-space: pre;
+  line-height: 1;
 }
 #json-view .empty-hint {
   color: var(--fg-tertiary);
   font-family: var(--font-sans);
   font-size: 13px;
+  padding: 16px;
 }
 
-/* JSON syntax */
-.j-key { color: #171717; }
-.j-str { color: #0d9488; }
-.j-num { color: #c2410c; }
-.j-bool { color: #2563eb; }
-.j-null { color: var(--fg-tertiary); }
-.j-bracket { color: var(--fg-tertiary); }
-.j-colon { color: #ccc; }
-
-/* Collapsible */
-.j-toggle {
+/* JSON tree */
+.jt-row {
+  display: flex;
+  align-items: center;
+  line-height: 24px;
+  padding: 0 12px 0 0;
+}
+.jt-row:hover { background: rgba(0,0,0,0.03); }
+.jt-lineno {
+  color: var(--fg-tertiary);
+  min-width: 3em;
+  text-align: right;
+  padding-right: 8px;
+  flex-shrink: 0;
+  user-select: none;
+  font-size: 11px;
+}
+.jt-indent { display: inline-block; flex-shrink: 0; }
+.jt-arrow {
+  width: 16px;
+  flex-shrink: 0;
   cursor: pointer;
   user-select: none;
-  position: relative;
-}
-.j-toggle::before {
-  content: '\25BE';
-  display: inline-block;
-  width: 1em;
-  margin-left: -1em;
   color: var(--fg-tertiary);
   font-size: 10px;
   text-align: center;
+  line-height: 24px;
 }
-.j-toggle.collapsed::before { content: '\25B8'; }
-.j-ellipsis { color: var(--fg-tertiary); }
+.jt-arrow-ph { width: 16px; flex-shrink: 0; }
+.jt-key { color: #1a3a5c; font-weight: 600; }
+.jt-colon { color: var(--fg-tertiary); margin-right: 4px; }
+.jt-str { color: #0d9488; word-break: break-all; white-space: pre-wrap; }
+.jt-str.clamped { display: -webkit-box; -webkit-line-clamp: 10; -webkit-box-orient: vertical; overflow: hidden; }
+.jt-str-toggle {
+  color: var(--fg-tertiary);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--font-sans);
+  display: block;
+  padding: 2px 0;
+}
+.jt-str-toggle:hover { color: var(--fg-secondary); }
+.jt-num { color: #c2410c; }
+.jt-bool { color: #2563eb; }
+.jt-null { color: var(--fg-tertiary); }
+.jt-summary { color: var(--fg-tertiary); }
+.jt-copy {
+  opacity: 0;
+  cursor: pointer;
+  color: var(--fg-tertiary);
+  margin-left: 6px;
+  flex-shrink: 0;
+  transition: opacity 0.1s;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+.jt-row:hover > .jt-copy { opacity: 0.5; }
+.jt-copy:hover { opacity: 1 !important; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -432,7 +465,7 @@ function selectLine(idx) {
   renderDetail(logLines[idx]);
 }
 
-// --- JSON renderer with folding ---
+// --- JSON tree renderer ---
 function renderDetail(entry) {
   const view = document.getElementById('json-view');
   const label = document.getElementById('right-label');
@@ -441,95 +474,161 @@ function renderDetail(entry) {
   if (entry.jsonObj) {
     label.textContent = 'Line ' + entry.lineNo + ' - ' + entry.type + (entry.text ? ' ' + entry.text : '');
     view.innerHTML = '';
-    view.appendChild(buildJsonTree(entry.jsonObj, 0));
+    view.appendChild(buildJsonTree(entry.jsonObj));
   } else {
     label.textContent = 'Line ' + entry.lineNo + ' - ' + entry.type;
     view.innerHTML = '';
-    view.appendChild(document.createTextNode(entry.raw));
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'margin:0;padding:16px;white-space:pre-wrap;word-break:break-all;font:inherit;';
+    pre.textContent = entry.raw;
+    view.appendChild(pre);
   }
 }
 
 const _COLLAPSE_KEYS = new Set(['tools']);
-function buildJsonTree(value, depth, parentKey) {
-  if (value === null) return makeSpan('null', 'j-null');
-  if (typeof value === 'boolean') return makeSpan(String(value), 'j-bool');
-  if (typeof value === 'number') return makeSpan(String(value), 'j-num');
-  if (typeof value === 'string') return makeSpan('"' + escJson(value) + '"', 'j-str');
+let _jLineNo = 0;
 
-  const isArr = Array.isArray(value);
-  const entries = isArr ? value.map((v, i) => [i, v]) : Object.entries(value);
-  const open = isArr ? '[' : '{';
-  const close = isArr ? ']' : '}';
-
-  if (entries.length === 0) {
-    return makeSpan(open + close, 'j-bracket');
-  }
-
-  const frag = document.createDocumentFragment();
-
-  // Toggle line
-  const toggleLine = document.createElement('span');
-  toggleLine.className = 'j-toggle';
-  toggleLine.appendChild(makeSpan(open, 'j-bracket'));
-  frag.appendChild(toggleLine);
-
-  // Children container
-  const children = document.createElement('span');
-  children.className = 'j-children';
-
-  const indent = '  '.repeat(depth + 1);
-  const closeIndent = '  '.repeat(depth);
-
-  entries.forEach(([key, val], i) => {
-    children.appendChild(document.createTextNode('\n' + indent));
-    if (!isArr) {
-      children.appendChild(makeSpan('"' + escJson(String(key)) + '"', 'j-key'));
-      children.appendChild(makeSpan(': ', 'j-colon'));
-    }
-    children.appendChild(buildJsonTree(val, depth + 1, isArr ? parentKey : String(key)));
-    if (i < entries.length - 1) {
-      children.appendChild(makeSpan(',', 'j-bracket'));
-    }
-  });
-  children.appendChild(document.createTextNode('\n' + closeIndent));
-  children.appendChild(makeSpan(close, 'j-bracket'));
-  frag.appendChild(children);
-
-  // Ellipsis (shown when collapsed)
-  const ellipsis = document.createElement('span');
-  ellipsis.className = 'j-ellipsis';
-  const summary = isArr ? entries.length + ' items' : entries.length + ' keys';
-  ellipsis.appendChild(makeSpan(' ...' + summary + '... ', 'j-bracket'));
-  ellipsis.appendChild(makeSpan(close, 'j-bracket'));
-  frag.appendChild(ellipsis);
-
-  // Default-collapse certain keys
-  const startCollapsed = _COLLAPSE_KEYS.has(parentKey);
-  children.style.display = startCollapsed ? 'none' : '';
-  ellipsis.style.display = startCollapsed ? 'inline' : 'none';
-  if (startCollapsed) toggleLine.classList.add('collapsed');
-
-  // Store refs for bulk expand/collapse
-  toggleLine._jChildren = children;
-  toggleLine._jEllipsis = ellipsis;
-
-  toggleLine.onclick = (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const collapsed = !toggleLine.classList.contains('collapsed');
-    toggleLine.classList.toggle('collapsed', collapsed);
-    children.style.display = collapsed ? 'none' : '';
-    ellipsis.style.display = collapsed ? 'inline' : 'none';
-  };
-
-  return frag;
+function buildJsonTree(value) {
+  _jLineNo = 0;
+  const root = document.createElement('div');
+  _buildNode(root, null, value, 0);
+  return root;
 }
 
-function makeSpan(text, cls) {
+function _buildNode(parent, key, value, depth) {
+  const isObj = value !== null && typeof value === 'object';
+  const isArr = Array.isArray(value);
+  _jLineNo++;
+
+  const row = document.createElement('div');
+  row.className = 'jt-row';
+
+  // Line number
+  const ln = document.createElement('span');
+  ln.className = 'jt-lineno';
+  ln.textContent = _jLineNo;
+  row.appendChild(ln);
+
+  // Indent
+  if (depth > 0) {
+    const indent = document.createElement('span');
+    indent.className = 'jt-indent';
+    indent.style.width = (depth * 20) + 'px';
+    row.appendChild(indent);
+  }
+
+  if (isObj) {
+    const entries = isArr ? value.map((v, i) => [String(i), v]) : Object.entries(value);
+
+    // Arrow
+    const arrow = document.createElement('span');
+    arrow.className = 'jt-arrow';
+    arrow.textContent = entries.length > 0 ? '\u25BC' : '';
+    row.appendChild(arrow);
+
+    // Key
+    if (key !== null) {
+      row.appendChild(_mkSpan(String(key), 'jt-key'));
+      row.appendChild(_mkSpan(': ', 'jt-colon'));
+    }
+
+    // Summary
+    const summary = isArr
+      ? 'Array(' + entries.length + ')'
+      : '{' + entries.length + (entries.length === 1 ? ' key' : ' keys') + '}';
+    row.appendChild(_mkSpan(summary, 'jt-summary'));
+    row.appendChild(_mkCopy(value));
+    parent.appendChild(row);
+
+    // Children
+    if (entries.length > 0) {
+      const childDiv = document.createElement('div');
+      childDiv.className = 'jt-children';
+      entries.forEach(([k, v]) => _buildNode(childDiv, k, v, depth + 1));
+      parent.appendChild(childDiv);
+
+      // Default collapse for certain keys
+      const startCollapsed = _COLLAPSE_KEYS.has(key);
+      if (startCollapsed) {
+        childDiv.style.display = 'none';
+        arrow.textContent = '\u25B6';
+        arrow.classList.add('collapsed');
+      }
+
+      arrow._jChildren = childDiv;
+      arrow.onclick = () => {
+        const collapsed = childDiv.style.display !== 'none';
+        childDiv.style.display = collapsed ? 'none' : '';
+        arrow.textContent = collapsed ? '\u25B6' : '\u25BC';
+        arrow.classList.toggle('collapsed', collapsed);
+      };
+    }
+  } else {
+    // Leaf value
+    const ph = document.createElement('span');
+    ph.className = 'jt-arrow-ph';
+    row.appendChild(ph);
+
+    if (key !== null) {
+      row.appendChild(_mkSpan(String(key), 'jt-key'));
+      row.appendChild(_mkSpan(': ', 'jt-colon'));
+    }
+
+    if (value === null) {
+      row.appendChild(_mkSpan('null', 'jt-null'));
+    } else if (typeof value === 'string') {
+      const lineCount = value.split('\n').length;
+      const needsClamp = lineCount > 10;
+      if (needsClamp) {
+        const wrapper = document.createElement('span');
+        wrapper.style.cssText = 'min-width:0;flex:1;';
+        const strSpan = _mkSpan('"' + value + '"', 'jt-str');
+        strSpan.classList.add('clamped');
+        wrapper.appendChild(strSpan);
+        const toggle = document.createElement('span');
+        toggle.className = 'jt-str-toggle';
+        toggle.textContent = 'Show all (' + lineCount + ' lines)';
+        toggle.onclick = (e) => {
+          e.stopPropagation();
+          const isClamped = strSpan.classList.contains('clamped');
+          strSpan.classList.toggle('clamped', !isClamped);
+          toggle.textContent = isClamped ? 'Show less' : 'Show all (' + lineCount + ' lines)';
+        };
+        wrapper.appendChild(toggle);
+        row.appendChild(wrapper);
+      } else {
+        const display = value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+        row.appendChild(_mkSpan('"' + display + '"', 'jt-str'));
+      }
+    } else if (typeof value === 'number') {
+      row.appendChild(_mkSpan(String(value), 'jt-num'));
+    } else if (typeof value === 'boolean') {
+      row.appendChild(_mkSpan(String(value), 'jt-bool'));
+    }
+
+    row.appendChild(_mkCopy(value));
+    parent.appendChild(row);
+  }
+}
+
+function _mkSpan(text, cls) {
   const s = document.createElement('span');
   s.className = cls;
   s.textContent = text;
   return s;
+}
+
+function _mkCopy(value) {
+  const btn = document.createElement('span');
+  btn.className = 'jt-copy';
+  btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  btn.title = 'Copy';
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    navigator.clipboard.writeText(text);
+  };
+  return btn;
 }
 
 // --- Actions ---
@@ -545,18 +644,19 @@ document.getElementById('btn-copy').addEventListener('click', () => {
 });
 
 document.getElementById('btn-expand-all').addEventListener('click', () => {
-  document.querySelectorAll('#json-view .j-toggle.collapsed').forEach(el => {
+  document.querySelectorAll('#json-view .jt-arrow.collapsed').forEach(el => {
     el.classList.remove('collapsed');
+    el.textContent = '\u25BC';
     if (el._jChildren) el._jChildren.style.display = '';
-    if (el._jEllipsis) el._jEllipsis.style.display = 'none';
   });
 });
 
 document.getElementById('btn-collapse-all').addEventListener('click', () => {
-  document.querySelectorAll('#json-view .j-toggle:not(.collapsed)').forEach(el => {
+  document.querySelectorAll('#json-view .jt-arrow:not(.collapsed)').forEach(el => {
+    if (!el._jChildren) return;
     el.classList.add('collapsed');
-    if (el._jChildren) el._jChildren.style.display = 'none';
-    if (el._jEllipsis) el._jEllipsis.style.display = 'inline';
+    el.textContent = '\u25B6';
+    el._jChildren.style.display = 'none';
   });
 });
 
@@ -567,7 +667,10 @@ document.getElementById('btn-raw').addEventListener('click', () => {
   showRaw = !showRaw;
   if (showRaw) {
     view.innerHTML = '';
-    view.appendChild(document.createTextNode(entry.raw));
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'margin:0;padding:16px;white-space:pre-wrap;word-break:break-all;font:inherit;';
+    pre.textContent = entry.raw;
+    view.appendChild(pre);
   } else {
     renderDetail(entry);
   }
@@ -738,9 +841,6 @@ function _extract(val, key, parts) {
 }
 function badgeify(s) {
   return esc(s).replace(/\[([\w.]+)\]/g, '<span class="badge">$1</span>');
-}
-function escJson(s) {
-  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
 }
 function truncate(s, n) { return s.length <= n ? s : s.slice(0, n) + '...'; }
 
