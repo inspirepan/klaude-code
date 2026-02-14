@@ -195,9 +195,7 @@ provider_list:
       budget_tokens: 2048
     provider_routing:
       only:
-      - fireworks
-      - minimax/lightning
-      - friendli
+      - minimax/highspeed
     cost: { input: 0.3, output: 1.2, cache_read: 0.03 }
 
   - model_name: glm
@@ -305,6 +303,25 @@ provider_list:
     model_id: kimi-k2.5
     context_limit: 262144
     cost: { input: 4, output: 21, cache_read: 0.7, currency: CNY }
+
+- provider_name: opencode-zen
+  protocol: openai
+  api_key: ${OPENCODE_API_KEY}
+  base_url: https://opencode.ai/zen/v1
+  model_list:
+
+  - model_name: minimax-free
+    model_id: minimax-m2.5-free
+    context_limit: 204800
+    thinking:
+      type: enabled
+      budget_tokens: 2048
+    cost: { input: 0, output: 0 }
+
+  - model_name: kimi-free
+    model_id: kimi-k2.5-free
+    context_limit: 262144
+    cost: { input: 0, output: 0 }
 
 - provider_name: cerebras
   protocol: openai
