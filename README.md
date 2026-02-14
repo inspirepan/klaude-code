@@ -201,6 +201,9 @@ klaude cost
 
 # Show usage for the last 7 days only
 klaude cost --days 7
+
+# Alias for days
+klaude cost --recent 7
 ```
 
 ### Slash Commands
