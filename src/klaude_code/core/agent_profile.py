@@ -117,10 +117,7 @@ def _build_env_info(model_name: str) -> str:
     ]
 
     if available_tools:
-        env_lines.append(
-            "The following efficient CLI utilities are available and preferred by the user."
-            " Use them via the Bash tool when applicable:"
-        )
+        env_lines.append("Available bash commands (use with `Bash` tool):")
         for tool in available_tools:
             env_lines.append(f"- {tool}")
 
