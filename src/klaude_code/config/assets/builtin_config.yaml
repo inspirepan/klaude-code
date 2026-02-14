@@ -371,4 +371,20 @@ provider_list:
     max_tokens: 128000
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
+- provider_name: volceng
+  protocol: openai
+  api_key: ${ARK_API_KEY}
+  base_url: https://ark.cn-beijing.volces.com/api/v3
+  model_list:
+
+  - model_name: seed-2.0
+    model_id: doubao-seed-2-0-pro-260215
+    context_limit: 256000
+    cost: { input: 4.8, output: 24, cache_read: 0.96, currency: CNY }
+
+  - model_name: seed-2.0-code
+    model_id: doubao-seed-2-0-code-preview-260215
+    context_limit: 256000
+    cost: { input: 4.8, output: 24, cache_read: 0.96, currency: CNY }
+
 compact_model: gemini-flash
