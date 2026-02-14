@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>klaude debug log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #ffffff;
+  --bg-surface: #fafafa;
+  --bg-hover: #f5f5f5;
+  --bg-selected: #ebebeb;
+  --border: #eaeaea;
+  --border-strong: #ccc;
+  --fg: #171717;
+  --fg-secondary: #666666;
+  --fg-tertiary: #999999;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--fg);
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+#container { display: flex; height: 100vh; }
+
+/* Left panel */
+#left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+/* Toolbar */
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#toolbar .title {
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  letter-spacing: -0.01em;
+}
+#toolbar .filter-group {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.filter-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-tertiary);
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 400;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1;
+}
+.filter-btn:hover { background: var(--bg-hover); color: var(--fg-secondary); border-color: var(--border-strong); }
+.filter-btn.active { background: #171717; color: #fff; border-color: #171717; }
+#search-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 5px 12px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  width: 200px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+#search-box:focus { border-color: var(--border-strong); }
+#search-box::placeholder { color: var(--fg-tertiary); }
+
+/* Log list */
+#log-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.log-line {
+  padding: 2px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 24px;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--border);
+}
+.log-line:hover { background: var(--bg-hover); }
+.log-line.selected { background: var(--bg-selected); border-color: var(--border-strong); }
+.log-line .ts { color: var(--fg-tertiary); }
+.log-line .dtype { font-weight: 500; font-size: 11px; letter-spacing: 0.02em; }
+.log-line .dtype-GENERAL { color: #999; }
+.log-line .dtype-LLM_CONFIG { color: #7c3aed; }
+.log-line .dtype-LLM_PAYLOAD { color: #0d9488; }
+.log-line .dtype-LLM_STREAM { color: #0891b2; }
+.log-line .dtype-UI_EVENT { color: #c2410c; }
+.log-line .dtype-RESPONSE { color: #2563eb; }
+.log-line .dtype-EXECUTION { color: #16a34a; }
+.log-line .dtype-TERMINAL { color: #a16207; }
+.log-line .msg { color: var(--fg-secondary); }
+.log-line .json-inline { color: var(--fg-tertiary); }
+.log-line .lineno {
+  color: var(--fg-tertiary);
+  display: inline-block;
+  width: 3em;
+  text-align: right;
+  margin-right: 8px;
+  user-select: none;
+  font-size: 11px;
+}
+.log-line .badge {
+  display: inline-block;
+  padding: 1px 6px;
+  margin: 0 3px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 400;
+  line-height: 18px;
+  vertical-align: middle;
+  background: var(--bg-hover);
+  color: var(--fg-secondary);
+  border: 1px solid var(--border);
+}
+.log-line.hidden { display: none; }
+
+/* Right panel */
+#right {
+  width: 50%;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+}
+#right-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#right-toolbar .label {
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 400;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.action-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-secondary);
+  padding: 4px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 400;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.action-btn:hover { background: var(--bg-hover); color: var(--fg); border-color: var(--border-strong); }
+
+/* JSON viewer */
+#json-view {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 22px;
+  white-space: pre;
+}
+#json-view .empty-hint {
+  color: var(--fg-tertiary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+/* JSON syntax */
+.j-key { color: #171717; }
+.j-str { color: #0d9488; }
+.j-num { color: #c2410c; }
+.j-bool { color: #2563eb; }
+.j-null { color: var(--fg-tertiary); }
+.j-bracket { color: var(--fg-tertiary); }
+.j-colon { color: #ccc; }
+
+/* Collapsible */
+.j-toggle {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+.j-toggle::before {
+  content: '\25BE';
+  display: inline-block;
+  width: 1em;
+  margin-left: -1em;
+  color: var(--fg-tertiary);
+  font-size: 10px;
+  text-align: center;
+}
+.j-toggle.collapsed::before { content: '\25B8'; }
+.j-ellipsis { color: var(--fg-tertiary); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #ccc; }
+
+/* Resize handle */
+#resize-handle {
+  width: 3px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+#resize-handle:hover, #resize-handle.dragging { background: #171717; }
+</style>
+</head>
+<body>
+<div id="container">
+  <div id="left">
+    <div id="toolbar">
+      <span class="title" id="log-title">No log loaded</span>
+      <input type="text" id="search-box" placeholder="Search... (/)">
+      <div class="filter-group" id="filter-group"></div>
+    </div>
+    <div id="log-list"></div>
+  </div>
+  <div id="resize-handle"></div>
+  <div id="right">
+    <div id="right-toolbar">
+      <span class="label" id="right-label">Click a log line</span>
+      <button class="action-btn" id="btn-copy" title="Copy JSON">Copy</button>
+      <button class="action-btn" id="btn-expand-all" title="Expand all">Expand All</button>
+      <button class="action-btn" id="btn-collapse-all" title="Collapse all">Collapse All</button>
+      <button class="action-btn" id="btn-raw" title="Toggle raw text">Raw</button>
+    </div>
+    <div id="json-view"><span class="empty-hint">Select a log line to view details</span></div>
+  </div>
+</div>
+
+<script>
+const LOG_RE = /^\[([^\]]+)\]\s+(\S+)\s+(.*)/;
+const ALL_TYPES = ['GENERAL','LLM_CONFIG','LLM_PAYLOAD','LLM_STREAM','UI_EVENT','RESPONSE','EXECUTION','TERMINAL'];
+
+let logLines = [];
+let selectedIdx = -1;
+let activeFilters = new Set();
+let searchQuery = '';
+let showRaw = false;
+
+// --- Data loading ---
+async function loadLog() {
+  const params = new URLSearchParams(location.search);
+  const logPath = params.get('log');
+  if (!logPath) {
+    document.getElementById('log-title').textContent = 'No log path specified';
+    return;
+  }
+  document.getElementById('log-title').textContent = logPath.split('/').slice(-2).join('/');
+  try {
+    const resp = await fetch('/api/log?path=' + encodeURIComponent(logPath));
+    if (!resp.ok) throw new Error(resp.statusText);
+    const text = await resp.text();
+    parseLog(text);
+    renderLogList();
+  } catch (e) {
+    document.getElementById('log-title').textContent = 'Error: ' + e.message;
+  }
+}
+
+function parseLog(text) {
+  logLines = [];
+  const raw = text.split('\n');
+  for (let i = 0; i < raw.length; i++) {
+    const line = raw[i];
+    if (!line.trim()) continue;
+    const m = line.match(LOG_RE);
+    if (m) {
+      const rest = m[3];
+      // Try to find JSON in the rest
+      let textPart = rest, jsonPart = null, jsonObj = null;
+      const jsonStart = rest.indexOf('{');
+      if (jsonStart >= 0) {
+        const candidate = rest.slice(jsonStart);
+        try {
+          jsonObj = JSON.parse(candidate);
+          jsonPart = candidate;
+          textPart = rest.slice(0, jsonStart).trimEnd();
+        } catch { /* not JSON, keep as text */ }
+      }
+      // If no object JSON, try array
+      if (!jsonObj) {
+        const arrStart = rest.indexOf('[');
+        if (arrStart >= 0 && arrStart !== 0) {
+          const candidate = rest.slice(arrStart);
+          try {
+            jsonObj = JSON.parse(candidate);
+            jsonPart = candidate;
+            textPart = rest.slice(0, arrStart).trimEnd();
+          } catch { /* not JSON */ }
+        }
+      }
+      logLines.push({ ts: m[1], type: m[2], text: textPart, json: jsonPart, jsonObj, raw: line, lineNo: i + 1 });
+    } else {
+      logLines.push({ ts: '', type: '', text: line, json: null, jsonObj: null, raw: line, lineNo: i + 1 });
+    }
+  }
+}
+
+// --- Filter buttons ---
+function buildFilters() {
+  const group = document.getElementById('filter-group');
+  ALL_TYPES.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn';
+    btn.textContent = t;
+    btn.dataset.type = t;
+    btn.addEventListener('click', () => toggleFilter(t, btn));
+    group.appendChild(btn);
+  });
+}
+
+function toggleFilter(type, btn) {
+  if (activeFilters.has(type)) {
+    activeFilters.delete(type);
+    btn.classList.remove('active');
+  } else {
+    activeFilters.add(type);
+    btn.classList.add('active');
+  }
+  applyFilters();
+}
+
+function applyFilters() {
+  const list = document.getElementById('log-list');
+  const items = list.children;
+  for (let i = 0; i < items.length; i++) {
+    const entry = logLines[i];
+    let visible = true;
+    if (activeFilters.size > 0 && entry.type && !activeFilters.has(entry.type)) {
+      visible = false;
+    }
+    if (visible && searchQuery) {
+      const hay = entry.raw.toLowerCase();
+      if (!hay.includes(searchQuery)) visible = false;
+    }
+    items[i].classList.toggle('hidden', !visible);
+  }
+}
+
+// --- Render log list ---
+function renderLogList() {
+  const list = document.getElementById('log-list');
+  list.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  logLines.forEach((entry, idx) => {
+    const div = document.createElement('div');
+    div.className = 'log-line';
+    div.dataset.idx = idx;
+
+    let html = '<span class="lineno">' + entry.lineNo + '</span>';
+    if (entry.ts) {
+      // Show only time part (trim date)
+      const timePart = entry.ts.includes(' ') ? entry.ts.split(' ')[1] : entry.ts;
+      html += '<span class="ts">' + esc(timePart) + '</span> ';
+      html += '<span class="dtype dtype-' + entry.type + '">' + esc(entry.type.padEnd(12)) + '</span> ';
+      html += '<span class="msg">' + badgeify(entry.text) + '</span>';
+      const summary = summarizeJson(entry);
+      if (summary) {
+        html += ' <span class="json-inline">' + esc(summary) + '</span>';
+      }
+    } else {
+      html += '<span class="msg">' + esc(entry.text) + '</span>';
+    }
+    div.innerHTML = html;
+    div.addEventListener('click', () => selectLine(idx));
+    frag.appendChild(div);
+  });
+  list.appendChild(frag);
+}
+
+function selectLine(idx) {
+  const list = document.getElementById('log-list');
+  if (selectedIdx >= 0 && list.children[selectedIdx]) {
+    list.children[selectedIdx].classList.remove('selected');
+  }
+  selectedIdx = idx;
+  list.children[idx].classList.add('selected');
+  renderDetail(logLines[idx]);
+}
+
+// --- JSON renderer with folding ---
+function renderDetail(entry) {
+  const view = document.getElementById('json-view');
+  const label = document.getElementById('right-label');
+  showRaw = false;
+
+  if (entry.jsonObj) {
+    label.textContent = 'Line ' + entry.lineNo + ' - ' + entry.type + (entry.text ? ' ' + entry.text : '');
+    view.innerHTML = '';
+    view.appendChild(buildJsonTree(entry.jsonObj, 0));
+  } else {
+    label.textContent = 'Line ' + entry.lineNo + ' - ' + entry.type;
+    view.innerHTML = '';
+    view.appendChild(document.createTextNode(entry.raw));
+  }
+}
+
+const _COLLAPSE_KEYS = new Set(['tools']);
+function buildJsonTree(value, depth, parentKey) {
+  if (value === null) return makeSpan('null', 'j-null');
+  if (typeof value === 'boolean') return makeSpan(String(value), 'j-bool');
+  if (typeof value === 'number') return makeSpan(String(value), 'j-num');
+  if (typeof value === 'string') return makeSpan('"' + escJson(value) + '"', 'j-str');
+
+  const isArr = Array.isArray(value);
+  const entries = isArr ? value.map((v, i) => [i, v]) : Object.entries(value);
+  const open = isArr ? '[' : '{';
+  const close = isArr ? ']' : '}';
+
+  if (entries.length === 0) {
+    return makeSpan(open + close, 'j-bracket');
+  }
+
+  const frag = document.createDocumentFragment();
+
+  // Toggle line
+  const toggleLine = document.createElement('span');
+  toggleLine.className = 'j-toggle';
+  toggleLine.appendChild(makeSpan(open, 'j-bracket'));
+  frag.appendChild(toggleLine);
+
+  // Children container
+  const children = document.createElement('span');
+  children.className = 'j-children';
+
+  const indent = '  '.repeat(depth + 1);
+  const closeIndent = '  '.repeat(depth);
+
+  entries.forEach(([key, val], i) => {
+    children.appendChild(document.createTextNode('\n' + indent));
+    if (!isArr) {
+      children.appendChild(makeSpan('"' + escJson(String(key)) + '"', 'j-key'));
+      children.appendChild(makeSpan(': ', 'j-colon'));
+    }
+    children.appendChild(buildJsonTree(val, depth + 1, isArr ? parentKey : String(key)));
+    if (i < entries.length - 1) {
+      children.appendChild(makeSpan(',', 'j-bracket'));
+    }
+  });
+  children.appendChild(document.createTextNode('\n' + closeIndent));
+  children.appendChild(makeSpan(close, 'j-bracket'));
+  frag.appendChild(children);
+
+  // Ellipsis (shown when collapsed)
+  const ellipsis = document.createElement('span');
+  ellipsis.className = 'j-ellipsis';
+  const summary = isArr ? entries.length + ' items' : entries.length + ' keys';
+  ellipsis.appendChild(makeSpan(' ...' + summary + '... ', 'j-bracket'));
+  ellipsis.appendChild(makeSpan(close, 'j-bracket'));
+  frag.appendChild(ellipsis);
+
+  // Default-collapse certain keys
+  const startCollapsed = _COLLAPSE_KEYS.has(parentKey);
+  children.style.display = startCollapsed ? 'none' : '';
+  ellipsis.style.display = startCollapsed ? 'inline' : 'none';
+  if (startCollapsed) toggleLine.classList.add('collapsed');
+
+  // Store refs for bulk expand/collapse
+  toggleLine._jChildren = children;
+  toggleLine._jEllipsis = ellipsis;
+
+  toggleLine.onclick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const collapsed = !toggleLine.classList.contains('collapsed');
+    toggleLine.classList.toggle('collapsed', collapsed);
+    children.style.display = collapsed ? 'none' : '';
+    ellipsis.style.display = collapsed ? 'inline' : 'none';
+  };
+
+  return frag;
+}
+
+function makeSpan(text, cls) {
+  const s = document.createElement('span');
+  s.className = cls;
+  s.textContent = text;
+  return s;
+}
+
+// --- Actions ---
+document.getElementById('btn-copy').addEventListener('click', () => {
+  if (selectedIdx < 0) return;
+  const entry = logLines[selectedIdx];
+  const text = entry.jsonObj ? JSON.stringify(entry.jsonObj, null, 2) : entry.raw;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('btn-copy');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+});
+
+document.getElementById('btn-expand-all').addEventListener('click', () => {
+  document.querySelectorAll('#json-view .j-toggle.collapsed').forEach(el => {
+    el.classList.remove('collapsed');
+    if (el._jChildren) el._jChildren.style.display = '';
+    if (el._jEllipsis) el._jEllipsis.style.display = 'none';
+  });
+});
+
+document.getElementById('btn-collapse-all').addEventListener('click', () => {
+  document.querySelectorAll('#json-view .j-toggle:not(.collapsed)').forEach(el => {
+    el.classList.add('collapsed');
+    if (el._jChildren) el._jChildren.style.display = 'none';
+    if (el._jEllipsis) el._jEllipsis.style.display = 'inline';
+  });
+});
+
+document.getElementById('btn-raw').addEventListener('click', () => {
+  if (selectedIdx < 0) return;
+  const entry = logLines[selectedIdx];
+  const view = document.getElementById('json-view');
+  showRaw = !showRaw;
+  if (showRaw) {
+    view.innerHTML = '';
+    view.appendChild(document.createTextNode(entry.raw));
+  } else {
+    renderDetail(entry);
+  }
+});
+
+// --- Search ---
+const searchBox = document.getElementById('search-box');
+searchBox.addEventListener('input', () => {
+  searchQuery = searchBox.value.toLowerCase();
+  applyFilters();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === '/' && document.activeElement !== searchBox) {
+    e.preventDefault();
+    searchBox.focus();
+  }
+  if (e.key === 'Escape') {
+    searchBox.value = '';
+    searchQuery = '';
+    searchBox.blur();
+    applyFilters();
+  }
+  // Arrow keys for navigation
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    navigateLine(e.key === 'ArrowDown' ? 1 : -1);
+  }
+});
+
+function navigateLine(direction) {
+  const list = document.getElementById('log-list');
+  let next = selectedIdx + direction;
+  // Skip hidden lines
+  while (next >= 0 && next < logLines.length && list.children[next].classList.contains('hidden')) {
+    next += direction;
+  }
+  if (next >= 0 && next < logLines.length) {
+    selectLine(next);
+    list.children[next].scrollIntoView({ block: 'nearest' });
+  }
+}
+
+// --- Resize handle ---
+const handle = document.getElementById('resize-handle');
+const right = document.getElementById('right');
+let dragging = false;
+handle.addEventListener('mousedown', (e) => {
+  dragging = true;
+  handle.classList.add('dragging');
+  e.preventDefault();
+});
+document.addEventListener('mousemove', (e) => {
+  if (!dragging) return;
+  const containerWidth = document.getElementById('container').offsetWidth;
+  const newWidth = containerWidth - e.clientX;
+  const clamped = Math.max(200, Math.min(containerWidth - 200, newWidth));
+  right.style.width = clamped + 'px';
+  right.style.flex = 'none';
+});
+document.addEventListener('mouseup', () => {
+  if (dragging) {
+    dragging = false;
+    handle.classList.remove('dragging');
+  }
+});
+
+// --- Auto-reload ---
+let lastContent = '';
+async function pollForUpdates() {
+  const params = new URLSearchParams(location.search);
+  const logPath = params.get('log');
+  if (!logPath) return;
+  try {
+    const resp = await fetch('/api/log?path=' + encodeURIComponent(logPath));
+    if (!resp.ok) return;
+    const text = await resp.text();
+    if (text === lastContent) return;
+    lastContent = text;
+
+    const prevCount = logLines.length;
+    parseLog(text);
+
+    // Append only new lines to the DOM
+    const list = document.getElementById('log-list');
+    const frag = document.createDocumentFragment();
+    for (let idx = prevCount; idx < logLines.length; idx++) {
+      const entry = logLines[idx];
+      const div = document.createElement('div');
+      div.className = 'log-line';
+      div.dataset.idx = idx;
+      let html = '<span class="lineno">' + entry.lineNo + '</span>';
+      if (entry.ts) {
+        const timePart = entry.ts.includes(' ') ? entry.ts.split(' ')[1] : entry.ts;
+        html += '<span class="ts">' + esc(timePart) + '</span> ';
+        html += '<span class="dtype dtype-' + entry.type + '">' + esc(entry.type.padEnd(12)) + '</span> ';
+        html += '<span class="msg">' + badgeify(entry.text) + '</span>';
+        const summary = summarizeJson(entry);
+        if (summary) {
+          html += ' <span class="json-inline">' + esc(summary) + '</span>';
+        }
+      } else {
+        html += '<span class="msg">' + esc(entry.text) + '</span>';
+      }
+      div.innerHTML = html;
+      div.addEventListener('click', () => selectLine(idx));
+      frag.appendChild(div);
+    }
+    list.appendChild(frag);
+    applyFilters();
+
+    // Re-mark the selected line (class only, don't rebuild detail)
+    if (selectedIdx >= 0 && list.children[selectedIdx]) {
+      list.children[selectedIdx].classList.add('selected');
+    }
+
+    // Auto-scroll to bottom if near bottom
+    if (list.scrollHeight - list.scrollTop - list.clientHeight < 100) {
+      list.scrollTop = list.scrollHeight;
+    }
+  } catch { /* ignore polling errors */ }
+}
+setInterval(pollForUpdates, 2000);
+
+// --- Helpers ---
+function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function summarizeJson(entry) {
+  if (!entry.jsonObj) return entry.json ? truncate(entry.json, 120) : '';
+  if (entry.type === 'LLM_STREAM') return extractInteresting(entry.jsonObj);
+  return truncate(entry.json, 120);
+}
+// Recursively pick short/meaningful leaf values from an object
+function extractInteresting(obj) {
+  const parts = [];
+  _extract(obj, '', parts);
+  return parts.length > 0 ? parts.join(' | ') : '';
+}
+const _SKIP_KEYS = new Set(['id','item_id','object','created','index','output_index',
+  'content_index','summary_index','sequence_number','type','model','provider',
+  'logprobs','obfuscation','prompt_tokens_details','completion_tokens_details',
+  'cost_details','debug','prompt_tokens','is_byok','native_finish_reason']);
+function _extract(val, key, parts) {
+  if (val == null) return;
+  if (typeof val === 'string') {
+    if (!val || _SKIP_KEYS.has(key)) return;
+    // Skip long blobs (base64, encrypted, system prompts)
+    if (val.length > 200) { parts.push(key + ': ' + truncate(val, 40)); return; }
+    parts.push(key ? key + ': ' + val : val);
+    return;
+  }
+  if (typeof val === 'number') {
+    if (_SKIP_KEYS.has(key)) return;
+    parts.push(key + ': ' + val);
+    return;
+  }
+  if (typeof val === 'boolean') {
+    if (_SKIP_KEYS.has(key)) return;
+    parts.push(key + ': ' + val);
+    return;
+  }
+  if (Array.isArray(val)) {
+    for (const item of val) _extract(item, key, parts);
+    return;
+  }
+  if (typeof val === 'object') {
+    if (_SKIP_KEYS.has(key)) return;
+    for (const [k, v] of Object.entries(val)) _extract(v, k, parts);
+  }
+}
+function badgeify(s) {
+  return esc(s).replace(/\[([\w.]+)\]/g, '<span class="badge">$1</span>');
+}
+function escJson(s) {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+}
+function truncate(s, n) { return s.length <= n ? s : s.slice(0, n) + '...'; }
+
+// --- Init ---
+buildFilters();
+loadLog();
+</script>
+</body>
+</html>
