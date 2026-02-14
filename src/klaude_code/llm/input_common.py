@@ -239,12 +239,14 @@ def build_assistant_common_fields(
                         detail["format"] = part.format
                     details.append(detail)
                 elif isinstance(part, message.ThinkingSignaturePart) and part.signature:
-                    details.append({
-                        "type": "reasoning.encrypted",
-                        "data": part.signature,
-                        "format": part.format,
-                        "index": len(details),
-                    })
+                    details.append(
+                        {
+                            "type": "reasoning.encrypted",
+                            "data": part.signature,
+                            "format": part.format,
+                            "index": len(details),
+                        }
+                    )
             if details:
                 result["reasoning_details"] = details
         else:

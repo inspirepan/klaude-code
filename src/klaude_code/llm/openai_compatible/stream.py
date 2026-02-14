@@ -164,7 +164,9 @@ class ReasoningDeltaResult:
 
     handled: bool
     outputs: list[str | message.Part]
-    reasoning_field: str | None = None  # Original field name: reasoning_content, reasoning, reasoning_text, reasoning_details
+    reasoning_field: str | None = (
+        None  # Original field name: reasoning_content, reasoning, reasoning_text, reasoning_details
+    )
     reasoning_format: str | None = None  # e.g. "MiniMax-response-v1"
     reasoning_id: str | None = None
 

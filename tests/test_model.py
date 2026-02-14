@@ -96,10 +96,12 @@ def test_openai_compatible_history_includes_image_url_parts():
     image_url = _ensure_dict(second_part["image_url"])
     assert image_url["url"] == SAMPLE_DATA_URL
 
-    # Tool message content is now a string (OpenAI Chat Completions API limitation)
+    # Tool message content is a list (required by openrouter cache control)
     tool_message = _ensure_dict(messages[1])
     assert tool_message["role"] == "tool"
-    assert tool_message["content"] == "done"
+    tool_content = _ensure_list(tool_message["content"])
+    assert len(tool_content) == 1
+    assert _ensure_dict(tool_content[0]) == {"type": "text", "text": "done"}
 
     # Images from tool result are sent as a separate user message
     image_user_msg = _ensure_dict(messages[2])
