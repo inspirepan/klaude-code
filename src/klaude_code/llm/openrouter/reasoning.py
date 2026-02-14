@@ -1,25 +1,15 @@
-from pydantic import BaseModel
-
-from klaude_code.llm.openai_compatible.stream import ReasoningDeltaResult, ReasoningHandlerABC
+from klaude_code.llm.openai_compatible.stream import ReasoningDeltaResult, ReasoningDetail, ReasoningHandlerABC
 from klaude_code.log import log
 from klaude_code.protocol import message
 
 
-class ReasoningDetail(BaseModel):
-    """OpenRouter's https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning_details-array-structure"""
-
-    type: str
-    format: str | None = None
-    index: int
-    id: str | None = None
-    data: str | None = None  # OpenAI's encrypted content
-    summary: str | None = None
-    text: str | None = None
-    signature: str | None = None  # Claude's signature
-
-
 class ReasoningStreamHandler(ReasoningHandlerABC):
-    """Accumulates OpenRouter reasoning details and emits ordered outputs."""
+    """Accumulates OpenRouter reasoning details and emits ordered outputs.
+
+    Unlike DefaultReasoningHandler, this handler is OpenRouter-specific:
+    it handles Claude's inline signature on reasoning.text items and
+    OpenAI's reasoning.encrypted items via separate code paths.
+    """
 
     def __init__(
         self,
@@ -44,18 +34,18 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
         outputs: list[str | message.Part] = []
         for item in reasoning_details:
             try:
-                reasoning_detail = ReasoningDetail.model_validate(item)
-                if reasoning_detail.text:
-                    outputs.append(reasoning_detail.text)
-                if reasoning_detail.summary:
-                    outputs.append(reasoning_detail.summary)
-                outputs.extend(self.on_detail(reasoning_detail))
+                detail = ReasoningDetail.model_validate(item)
+                if detail.text:
+                    outputs.append(detail.text)
+                if detail.summary:
+                    outputs.append(detail.summary)
+                outputs.extend(self._on_detail(detail))
             except Exception as e:
                 log("reasoning_details error", str(e), style="red")
 
         return ReasoningDeltaResult(handled=True, outputs=outputs)
 
-    def on_detail(self, detail: ReasoningDetail) -> list[message.Part]:
+    def _on_detail(self, detail: ReasoningDetail) -> list[message.Part]:
         """Process a single reasoning detail and return streamable parts."""
         items: list[message.Part] = []
 

@@ -35,14 +35,15 @@ def _assistant_message_to_openrouter(
     native_thinking_parts, degraded_thinking_texts = split_thinking_parts(msg, model_name)
     for part in native_thinking_parts:
         if isinstance(part, message.ThinkingTextPart):
-            reasoning_details.append(
-                {
-                    "id": part.id,
-                    "type": "reasoning.text",
-                    "text": part.text,
-                    "index": len(reasoning_details),
-                }
-            )
+            detail: dict[str, object] = {
+                "id": part.id,
+                "type": "reasoning.text",
+                "text": part.text,
+                "index": len(reasoning_details),
+            }
+            if part.format:
+                detail["format"] = part.format
+            reasoning_details.append(detail)
         elif isinstance(part, message.ThinkingSignaturePart) and part.signature:
             if is_claude_model(model_name):
                 if len(reasoning_details) > 0:

@@ -76,10 +76,22 @@ class StreamStateManager:
         """Set the response ID once received from the stream."""
         self.response_id = response_id
 
-    def append_thinking_text(self, text: str, *, reasoning_field: str | None = None) -> None:
+    def append_thinking_text(
+        self,
+        text: str,
+        *,
+        reasoning_field: str | None = None,
+        reasoning_format: str | None = None,
+        reasoning_id: str | None = None,
+    ) -> None:
         """Append thinking text, merging with the previous ThinkingTextPart when possible."""
         append_thinking_text_part(
-            self.assistant_parts, text, model_id=self.param_model, reasoning_field=reasoning_field
+            self.assistant_parts,
+            text,
+            model_id=self.param_model,
+            reasoning_field=reasoning_field,
+            reasoning_format=reasoning_format,
+            reasoning_id=reasoning_id,
         )
 
     def append_text(self, text: str) -> None:
@@ -152,7 +164,22 @@ class ReasoningDeltaResult:
 
     handled: bool
     outputs: list[str | message.Part]
-    reasoning_field: str | None = None  # Original field name: reasoning_content, reasoning, reasoning_text
+    reasoning_field: str | None = None  # Original field name: reasoning_content, reasoning, reasoning_text, reasoning_details
+    reasoning_format: str | None = None  # e.g. "MiniMax-response-v1"
+    reasoning_id: str | None = None
+
+
+class ReasoningDetail(pydantic.BaseModel):
+    """Structured reasoning detail used by OpenRouter and MiniMax (reasoning_details array)."""
+
+    type: str
+    format: str | None = None
+    index: int = 0
+    id: str | None = None
+    data: str | None = None  # OpenAI's encrypted content
+    summary: str | None = None
+    text: str | None = None
+    signature: str | None = None  # Claude's signature
 
 
 class ReasoningHandlerABC(ABC):
@@ -175,7 +202,12 @@ REASONING_FIELDS = ("reasoning_content", "reasoning", "reasoning_text")
 
 
 class DefaultReasoningHandler(ReasoningHandlerABC):
-    """Handles OpenAI-compatible reasoning fields (reasoning_content / reasoning / reasoning_text)."""
+    """Handles OpenAI-compatible reasoning fields.
+
+    Supports both plain-text fields (reasoning_content / reasoning / reasoning_text)
+    and structured reasoning_details arrays (MiniMax M2.5).
+    When reasoning_details is present it takes priority over plain-text fields.
+    """
 
     def __init__(
         self,
@@ -186,18 +218,75 @@ class DefaultReasoningHandler(ReasoningHandlerABC):
         self._param_model = param_model
         self._response_id = response_id
         self._reasoning_field: str | None = None
+        self._has_details: bool = False
 
     def set_response_id(self, response_id: str | None) -> None:
         self._response_id = response_id
 
     def on_delta(self, delta: object) -> ReasoningDeltaResult:
+        # Prefer reasoning_details (structured array) when present.
+        # MiniMax returns both reasoning (text) and reasoning_details (array) simultaneously;
+        # we use only reasoning_details to avoid duplication.
+        reasoning_details = getattr(delta, "reasoning_details", None)
+        if reasoning_details:
+            self._has_details = True
+            outputs: list[str | message.Part] = []
+            fmt: str | None = None
+            rid: str | None = None
+            for item in reasoning_details:
+                try:
+                    detail = ReasoningDetail.model_validate(item)
+                    if detail.format:
+                        fmt = detail.format
+                    if detail.id:
+                        rid = detail.id
+                    if detail.text:
+                        outputs.append(detail.text)
+                    if detail.summary:
+                        outputs.append(detail.summary)
+                    if detail.type == "reasoning.encrypted" and detail.data:
+                        outputs.append(
+                            message.ThinkingSignaturePart(
+                                id=detail.id,
+                                signature=detail.data,
+                                format=detail.format,
+                                model_id=self._param_model,
+                            )
+                        )
+                    elif detail.signature:
+                        outputs.append(
+                            message.ThinkingSignaturePart(
+                                id=detail.id,
+                                signature=detail.signature,
+                                format=detail.format,
+                                model_id=self._param_model,
+                            )
+                        )
+                except Exception:
+                    pass
+            return ReasoningDeltaResult(
+                handled=True,
+                outputs=outputs,
+                reasoning_field="reasoning_details",
+                reasoning_format=fmt,
+                reasoning_id=rid,
+            )
+
+        # Skip plain-text fields if we already received reasoning_details
+        if self._has_details:
+            return ReasoningDeltaResult(handled=False, outputs=[])
+
+        # Fallback: plain-text reasoning fields
         for field_name in REASONING_FIELDS:
             content = getattr(delta, field_name, None)
             if content:
                 if self._reasoning_field is None:
                     self._reasoning_field = field_name
-                text = str(content)
-                return ReasoningDeltaResult(handled=True, outputs=[text], reasoning_field=self._reasoning_field)
+                return ReasoningDeltaResult(
+                    handled=True,
+                    outputs=[str(content)],
+                    reasoning_field=self._reasoning_field,
+                )
         return ReasoningDeltaResult(handled=False, outputs=[])
 
     def flush(self) -> list[message.Part]:
@@ -292,7 +381,12 @@ async def parse_chat_completions_stream(
                         if not output:
                             continue
                         metadata_tracker.record_token()
-                        state.append_thinking_text(output, reasoning_field=reasoning_result.reasoning_field)
+                        state.append_thinking_text(
+                            output,
+                            reasoning_field=reasoning_result.reasoning_field,
+                            reasoning_format=reasoning_result.reasoning_format,
+                            reasoning_id=reasoning_result.reasoning_id,
+                        )
                         yield message.ThinkingTextDelta(content=output, response_id=state.response_id)
                     else:
                         state.assistant_parts.append(output)

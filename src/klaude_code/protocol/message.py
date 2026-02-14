@@ -121,7 +121,8 @@ class ThinkingTextPart(BaseModel):
     id: str | None = None
     text: str
     model_id: str | None = None
-    reasoning_field: str | None = None  # Original field name: reasoning_content, reasoning, reasoning_text
+    reasoning_field: str | None = None  # Original field name: reasoning_content, reasoning, reasoning_text, reasoning_details
+    format: str | None = None  # e.g. "MiniMax-response-v1" for reasoning_details round-trip
 
 
 class ThinkingSignaturePart(BaseModel):

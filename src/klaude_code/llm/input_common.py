@@ -222,10 +222,35 @@ def build_assistant_common_fields(
 
     thinking_parts = [part for part in msg.parts if isinstance(part, message.ThinkingTextPart)]
     if thinking_parts:
-        thinking_text = "".join(part.text for part in thinking_parts)
         reasoning_field = next((p.reasoning_field for p in thinking_parts if p.reasoning_field), None)
-        if thinking_text and reasoning_field:
-            result[reasoning_field] = thinking_text
+        if reasoning_field == "reasoning_details":
+            # Rebuild structured reasoning_details array (MiniMax M2.5 etc.)
+            details: list[dict[str, object]] = []
+            for part in msg.parts:
+                if isinstance(part, message.ThinkingTextPart):
+                    detail: dict[str, object] = {
+                        "type": "reasoning.text",
+                        "text": part.text,
+                        "index": len(details),
+                    }
+                    if part.id:
+                        detail["id"] = part.id
+                    if part.format:
+                        detail["format"] = part.format
+                    details.append(detail)
+                elif isinstance(part, message.ThinkingSignaturePart) and part.signature:
+                    details.append({
+                        "type": "reasoning.encrypted",
+                        "data": part.signature,
+                        "format": part.format,
+                        "index": len(details),
+                    })
+            if details:
+                result["reasoning_details"] = details
+        else:
+            thinking_text = "".join(part.text for part in thinking_parts)
+            if thinking_text and reasoning_field:
+                result[reasoning_field] = thinking_text
 
     return result
 
