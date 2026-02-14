@@ -69,6 +69,66 @@ def test_copy_command_formats_saved_images(monkeypatch: pytest.MonkeyPatch) -> N
     assert copied == ["Saved image at /tmp/foo.png"]
 
 
+def test_copy_command_merges_across_mermaid_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When Mermaid tool calls separate assistant messages, merge them all."""
+    session = Session.create(work_dir=Path.cwd())
+    mermaid_code = "graph TD; A-->B;"
+    session.conversation_history = [
+        message.UserMessage(parts=message.text_parts_from_str("draw report")),
+        # First assistant segment with a Mermaid tool call
+        message.AssistantMessage(
+            parts=[
+                *message.text_parts_from_str("Section 1"),
+                message.ToolCallPart(call_id="c1", tool_name="Mermaid", arguments_json=f'{{"code": "{mermaid_code}"}}'),
+            ]
+        ),
+        message.ToolResultMessage(call_id="c1", tool_name="Mermaid", status="success", output_text="ok"),
+        # Second assistant segment (final text, no tool call)
+        message.AssistantMessage(parts=message.text_parts_from_str("Section 2")),
+    ]
+
+    copied: list[str] = []
+
+    def _copy(text: str) -> None:
+        copied.append(text)
+
+    monkeypatch.setattr(copy_cmd, "copy_to_clipboard", _copy)
+
+    cmd = copy_cmd.CopyCommand()
+    _ = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="")))
+
+    assert len(copied) == 1
+    result = copied[0]
+    assert "Section 1" in result
+    assert "Section 2" in result
+    assert f"```mermaid\n{mermaid_code}\n```" in result
+    # Section 1 should come before Section 2
+    assert result.index("Section 1") < result.index("Section 2")
+
+
+def test_copy_command_stops_at_non_mermaid_tool(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Non-Mermaid tool results should stop backward merging."""
+    session = Session.create(work_dir=Path.cwd())
+    session.conversation_history = [
+        message.UserMessage(parts=message.text_parts_from_str("do stuff")),
+        message.AssistantMessage(parts=message.text_parts_from_str("before")),
+        message.ToolResultMessage(call_id="c0", tool_name="Bash", status="success", output_text="ok"),
+        message.AssistantMessage(parts=message.text_parts_from_str("after")),
+    ]
+
+    copied: list[str] = []
+
+    def _copy(text: str) -> None:
+        copied.append(text)
+
+    monkeypatch.setattr(copy_cmd, "copy_to_clipboard", _copy)
+
+    cmd = copy_cmd.CopyCommand()
+    _ = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="")))
+
+    assert copied == ["after"]
+
+
 def test_copy_command_no_assistant_message(monkeypatch: pytest.MonkeyPatch) -> None:
     session = Session.create(work_dir=Path.cwd())
     session.conversation_history = [message.UserMessage(parts=message.text_parts_from_str("hi"))]
