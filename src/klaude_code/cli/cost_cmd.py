@@ -2,10 +2,11 @@
 
 import json
 import os
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Iterator
+from typing import Any, cast
 
 import pydantic
 import typer
@@ -179,14 +180,19 @@ class DailyStats:
         self.by_model[model_key].add_usage(meta.usage)
 
 
-def _load_cost_cache() -> dict[str, object]:
+def _load_cost_cache() -> dict[str, Any]:
     cache_path = COST_CACHE_PATH
     try:
-        data = json.loads(cache_path.read_text(encoding="utf-8"))
+        raw = json.loads(cache_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {"version": COST_CACHE_VERSION, "sessions": {}}
 
-    if not isinstance(data, dict) or data.get("version") != COST_CACHE_VERSION:
+    if not isinstance(raw, dict):
+        return {"version": COST_CACHE_VERSION, "sessions": {}}
+
+    data = cast(dict[str, Any], raw)
+
+    if data.get("version") != COST_CACHE_VERSION:
         return {"version": COST_CACHE_VERSION, "sessions": {}}
 
     if "sessions" not in data or not isinstance(data.get("sessions"), dict):
@@ -195,7 +201,7 @@ def _load_cost_cache() -> dict[str, object]:
     return data
 
 
-def _save_cost_cache(cache: dict[str, object]) -> None:
+def _save_cost_cache(cache: dict[str, Any]) -> None:
     cache_path = COST_CACHE_PATH
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = cache_path.with_suffix(".tmp")
@@ -204,7 +210,7 @@ def _save_cost_cache(cache: dict[str, object]) -> None:
     tmp_path.replace(cache_path)
 
 
-def _is_cache_entry_valid(entry: dict[str, object], events_path: Path) -> bool:
+def _is_cache_entry_valid(entry: dict[str, Any], events_path: Path) -> bool:
     try:
         stat = events_path.stat()
     except OSError:
@@ -213,7 +219,7 @@ def _is_cache_entry_valid(entry: dict[str, object], events_path: Path) -> bool:
     return entry.get("mtime_ns") == stat.st_mtime_ns and entry.get("size") == stat.st_size
 
 
-def _apply_entries(daily_stats: dict[str, DailyStats], entries: list[dict[str, object]]) -> bool:
+def _apply_entries(daily_stats: dict[str, DailyStats], entries: list[dict[str, Any]]) -> bool:
     try:
         for entry in entries:
             date_str = str(entry["date"])
@@ -247,7 +253,7 @@ def _apply_entries(daily_stats: dict[str, DailyStats], entries: list[dict[str, o
     return True
 
 
-def _aggregate_session_entries(events_path: Path) -> list[dict[str, object]]:
+def _aggregate_session_entries(events_path: Path) -> list[dict[str, Any]]:
     per_day: dict[str, DailyStats] = {}
 
     for date_str, metadata_item in iter_task_metadata_from_events(events_path):
@@ -260,7 +266,7 @@ def _aggregate_session_entries(events_path: Path) -> list[dict[str, object]]:
         for sub_meta in metadata_item.sub_agent_task_metadata:
             day_stats.add_task_metadata(sub_meta, date_str)
 
-    entries: list[dict[str, object]] = []
+    entries: list[dict[str, Any]] = []
     for date_str, day_stats in per_day.items():
         for stats in day_stats.by_model.values():
             entries.append(
@@ -349,10 +355,12 @@ def aggregate_all_sessions() -> dict[str, DailyStats]:
     """
     daily_stats: dict[str, DailyStats] = {}
     cache = _load_cost_cache()
-    cache_sessions = cache.get("sessions")
     cache_changed = False
 
-    if not isinstance(cache_sessions, dict):
+    raw_sessions = cache.get("sessions")
+    if isinstance(raw_sessions, dict):
+        cache_sessions = cast(dict[str, Any], raw_sessions)
+    else:
         cache_sessions = {}
         cache["sessions"] = cache_sessions
         cache_changed = True
@@ -364,9 +372,13 @@ def aggregate_all_sessions() -> dict[str, DailyStats]:
         seen_paths.add(cache_key)
         entry = cache_sessions.get(cache_key)
 
-        if isinstance(entry, dict) and _is_cache_entry_valid(entry, events_path):
-            entries = entry.get("entries")
-            if isinstance(entries, list) and _apply_entries(daily_stats, entries):
+        if isinstance(entry, dict):
+            typed_entry = cast(dict[str, Any], entry)
+            if not _is_cache_entry_valid(typed_entry, events_path):
+                pass
+            elif isinstance(typed_entry.get("entries"), list) and _apply_entries(
+                daily_stats, cast(list[dict[str, Any]], typed_entry["entries"])
+            ):
                 continue
 
         entries = _aggregate_session_entries(events_path)
@@ -384,7 +396,7 @@ def aggregate_all_sessions() -> dict[str, DailyStats]:
         }
         cache_changed = True
 
-    stale_paths = [path for path in cache_sessions.keys() if path not in seen_paths]
+    stale_paths = [path for path in cache_sessions if path not in seen_paths]
     if stale_paths:
         for path in stale_paths:
             cache_sessions.pop(path, None)

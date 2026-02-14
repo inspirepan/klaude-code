@@ -1,4 +1,7 @@
 import asyncio
+import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,6 +12,28 @@ from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, tools
+
+
+@contextmanager
+def _suppress_native_output() -> Iterator[None]:
+    """Suppress stdout/stderr at the OS fd level.
+
+    primp (Rust) prints warnings like "Impersonate 'X' does not exist" directly
+    to stderr, bypassing Python's sys.stderr. This corrupts the TUI and causes hangs.
+    """
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    saved_stdout = os.dup(1)
+    saved_stderr = os.dup(2)
+    try:
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
+        yield
+    finally:
+        os.dup2(saved_stdout, 1)
+        os.dup2(saved_stderr, 2)
+        os.close(saved_stdout)
+        os.close(saved_stderr)
+        os.close(devnull)
 
 
 @dataclass
@@ -27,7 +52,7 @@ def _search_duckduckgo(query: str, max_results: int) -> list[SearchResult]:
 
     results: list[SearchResult] = []
 
-    with DDGS() as ddgs:
+    with _suppress_native_output(), DDGS() as ddgs:
         for i, r in enumerate(ddgs.text(query, max_results=max_results)):
             results.append(
                 SearchResult(
