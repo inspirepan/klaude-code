@@ -7,7 +7,7 @@ PYRIGHT := $(UV) run pyright
 IMPORT_LINT := $(UV) run lint-imports
 PYTEST := $(UV) run pytest
 
-.PHONY: help lint ruff-check format format-check typecheck imports test
+.PHONY: help lint ruff-check format format-check typecheck imports test test-network
 
 help:
 	@printf "%s\n" \
@@ -35,4 +35,7 @@ imports:
 	$(IMPORT_LINT)
 
 test:
-	$(PYTEST)
+	$(PYTEST) -m "not network"
+
+test-network:
+	$(PYTEST) -m "network"

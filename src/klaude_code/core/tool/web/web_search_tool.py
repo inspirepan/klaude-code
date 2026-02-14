@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 import asyncio
+import json
 import os
+import urllib.parse
+import urllib.request
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -12,6 +18,8 @@ from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, tools
+
+_BRAVE_LLM_CONTEXT_URL = "https://api.search.brave.com/res/v1/llm/context"
 
 
 @contextmanager
@@ -38,7 +46,7 @@ def _suppress_native_output() -> Iterator[None]:
 
 @dataclass
 class SearchResult:
-    """A single search result from DuckDuckGo."""
+    """A single search result."""
 
     title: str
     url: str
@@ -66,6 +74,37 @@ def _search_duckduckgo(query: str, max_results: int) -> list[SearchResult]:
     return results
 
 
+def _parse_brave_response(raw: bytes) -> list[SearchResult]:
+    """Parse Brave LLM Context API response into SearchResult list."""
+    data: dict[str, Any] = json.loads(raw)
+    grounding: dict[str, Any] = data.get("grounding", {})
+    sources: dict[str, Any] = data.get("sources", {})
+    items: list[dict[str, Any]] = grounding.get("generic", [])
+
+    results: list[SearchResult] = []
+    for i, item in enumerate(items):
+        item_url: str = item.get("url", "")
+        if not item_url:
+            continue
+        title: str = item.get("title", "")
+        if not title:
+            src_meta: dict[str, Any] = sources.get(item_url, {})
+            title = src_meta.get("title", "")
+        raw_snippets: list[str] = item.get("snippets", [])
+        snippet = "\n".join(raw_snippets)
+        results.append(SearchResult(title=title, url=item_url, snippet=snippet, position=i + 1))
+    return results
+
+
+def _search_brave(query: str, max_results: int, api_key: str) -> list[SearchResult]:
+    """Perform a web search using Brave LLM Context API."""
+    params = urllib.parse.urlencode({"q": query, "count": max_results})
+    url = f"{_BRAVE_LLM_CONTEXT_URL}?{params}"
+    req = urllib.request.Request(url, headers={"Accept": "application/json", "X-Subscription-Token": api_key})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return _parse_brave_response(resp.read())
+
+
 def _format_results(results: list[SearchResult]) -> str:
     """Format search results for LLM consumption."""
     if not results:
@@ -74,14 +113,17 @@ def _format_results(results: list[SearchResult]) -> str:
             "Please try rephrasing your search or using different keywords."
         )
 
-    lines = [f"Found {len(results)} search results:\n"]
-
+    parts: list[str] = []
     for result in results:
-        lines.append(f"{result.position}. {result.title}")
-        lines.append(f"   URL: {result.url}")
-        lines.append(f"   Summary: {result.snippet}\n")
+        parts.append(
+            f'<result position="{result.position}">\n'
+            f"<title>{result.title}</title>\n"
+            f"<url>{result.url}</url>\n"
+            f"<snippet>{result.snippet}</snippet>\n"
+            f"</result>"
+        )
 
-    return "\n".join(lines)
+    return "<search_results>\n" + "\n".join(parts) + "\n</search_results>"
 
 
 @register(tools.WEB_SEARCH)
@@ -140,7 +182,11 @@ class WebSearchTool(ToolABC):
         max_results = min(max(args.max_results, 1), WEB_SEARCH_MAX_RESULTS_LIMIT)
 
         try:
-            results = await asyncio.to_thread(_search_duckduckgo, query, max_results)
+            brave_api_key = os.environ.get("BRAVE_API_KEY", "")
+            if brave_api_key:
+                results = await asyncio.to_thread(_search_brave, query, max_results, brave_api_key)
+            else:
+                results = await asyncio.to_thread(_search_duckduckgo, query, max_results)
             formatted = _format_results(results)
 
             return message.ToolResultMessage(

@@ -75,6 +75,7 @@ export OPENAI_API_KEY=sk-xxx             # GPT models
 export OPENROUTER_API_KEY=sk-or-xxx      # OpenRouter (multi-provider)
 export DEEPSEEK_API_KEY=sk-xxx           # DeepSeek models
 export MOONSHOT_API_KEY=sk-xxx           # Moonshot/Kimi models
+export BRAVE_API_KEY=BSA-xxx             # Brave Search (optional, enhances web search)
 
 # Then just run:
 klaude
@@ -248,5 +249,5 @@ The main agent can spawn specialized sub-agents for specific tasks:
 |-----------|---------|
 | **Explore** | Fast codebase exploration - find files, search code, answer questions about the codebase |
 | **Task** | Handle complex multi-step tasks autonomously |
-| **WebAgent** | Search the web, fetch pages, and analyze content |
+| **WebAgent** | Search the web, fetch pages, and analyze content. Uses Brave LLM Context API when `BRAVE_API_KEY` is set, otherwise falls back to DuckDuckGo |
 | **ImageGen** | Generate images from text prompts via OpenRouter Nano Banana Pro |
