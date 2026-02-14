@@ -61,7 +61,9 @@ def test_task_tool_call_without_runner() -> None:
 def test_task_tool_call_includes_session_id() -> None:
     captured: dict[str, Any] = {}
 
-    async def _runner(state: Any, record_session_id: Any, register_metadata_getter: Any) -> Any:
+    async def _runner(
+        state: Any, record_session_id: Any, register_metadata_getter: Any, register_progress_getter: Any
+    ) -> Any:
         captured["sub_agent_type"] = state.sub_agent_type
         if callable(record_session_id):
             record_session_id("abc123def456")

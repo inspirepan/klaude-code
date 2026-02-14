@@ -134,6 +134,7 @@ class ImageGenTool(ToolABC):
                 ),
                 context.record_sub_agent_session_id,
                 context.register_sub_agent_metadata_getter,
+                context.register_sub_agent_progress_getter,
             )
         except Exception as exc:
             return message.ToolResultMessage(status="error", output_text=f"Failed to run subtask: {exc}")

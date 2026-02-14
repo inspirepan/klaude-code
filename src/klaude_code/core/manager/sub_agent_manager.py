@@ -45,6 +45,7 @@ class SubAgentManager:
         *,
         record_session_id: Callable[[str], None] | None = None,
         register_metadata_getter: Callable[[Callable[[], model.TaskMetadata | None]], None] | None = None,
+        register_progress_getter: Callable[[Callable[[], str | None]], None] | None = None,
     ) -> SubAgentResult:
         """Run a nested sub-agent task and return its result."""
 
@@ -125,6 +126,24 @@ class SubAgentManager:
         if register_metadata_getter is not None:
             register_metadata_getter(_get_partial_metadata)
 
+        # Track tool calls for partial progress reporting on cancel
+        _ARGS_MAX_LEN = 500
+        tool_call_log: dict[str, tuple[str, str]] = {}  # call_id -> (tool_name, arguments)
+        completed_calls: set[str] = set()
+
+        def _get_progress() -> str | None:
+            if not tool_call_log:
+                return None
+            lines: list[str] = []
+            for call_id, (tool_name, arguments) in tool_call_log.items():
+                status = "completed" if call_id in completed_calls else "interrupted"
+                args_display = arguments if len(arguments) <= _ARGS_MAX_LEN else arguments[:_ARGS_MAX_LEN] + "..."
+                lines.append(f"- {tool_name}({args_display}) [{status}]")
+            return "\n".join(lines)
+
+        if register_progress_getter is not None:
+            register_progress_getter(_get_progress)
+
         try:
             # Not emit the subtask's user input since task tool call is already rendered
             result: str = ""
@@ -138,6 +157,12 @@ class SubAgentManager:
                 ]
             )
             async for event in child_agent.run_task(sub_agent_input):
+                # Track tool calls for progress reporting
+                if isinstance(event, events.ToolCallEvent):
+                    tool_call_log[event.tool_call_id] = (event.tool_name, event.arguments)
+                elif isinstance(event, events.ToolResultEvent):
+                    completed_calls.add(event.tool_call_id)
+
                 # Capture TaskFinishEvent content for return
                 if isinstance(event, events.TaskFinishEvent):
                     result = _append_agent_id(event.task_result, child_session.id)

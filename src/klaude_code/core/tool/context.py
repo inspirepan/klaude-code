@@ -12,9 +12,15 @@ from klaude_code.session.session import Session
 type FileTracker = MutableMapping[str, model.FileStatus]
 
 GetMetadataFn = Callable[[], model.TaskMetadata | None]
+GetProgressFn = Callable[[], str | None]
 
 RunSubtask = Callable[
-    [model.SubAgentState, Callable[[str], None] | None, Callable[[GetMetadataFn], None] | None],
+    [
+        model.SubAgentState,
+        Callable[[str], None] | None,
+        Callable[[GetMetadataFn], None] | None,
+        Callable[[GetProgressFn], None] | None,
+    ],
     Awaitable[SubAgentResult],
 ]
 
@@ -86,6 +92,7 @@ class ToolContext:
     sub_agent_resume_claims: SubAgentResumeClaims | None = None
     record_sub_agent_session_id: Callable[[str], None] | None = None
     register_sub_agent_metadata_getter: Callable[[GetMetadataFn], None] | None = None
+    register_sub_agent_progress_getter: Callable[[GetProgressFn], None] | None = None
     rewind_manager: RewindManager | None = None
 
     def with_record_sub_agent_session_id(self, callback: Callable[[str], None] | None) -> ToolContext:
@@ -93,6 +100,9 @@ class ToolContext:
 
     def with_register_sub_agent_metadata_getter(self, callback: Callable[[GetMetadataFn], None] | None) -> ToolContext:
         return replace(self, register_sub_agent_metadata_getter=callback)
+
+    def with_register_sub_agent_progress_getter(self, callback: Callable[[GetProgressFn], None] | None) -> ToolContext:
+        return replace(self, register_sub_agent_progress_getter=callback)
 
     def with_rewind_manager(self, manager: RewindManager | None) -> ToolContext:
         return replace(self, rewind_manager=manager)
