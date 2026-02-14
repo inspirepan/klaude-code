@@ -44,24 +44,9 @@ class DebugType(str, Enum):
     TERMINAL = "terminal"
 
 
-class DebugTypeFilter(logging.Filter):
-    """Filter log records based on DebugType."""
-
-    def __init__(self, allowed_types: set[DebugType] | None = None):
-        super().__init__()
-        self.allowed_types = allowed_types
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        if self.allowed_types is None:
-            return True
-        debug_type = getattr(record, "debug_type", DebugType.GENERAL)
-        return debug_type in self.allowed_types
-
-
 # Handler references for reconfiguration
 _file_handler: RotatingFileHandler | None = None
 _console_handler: RichHandler | None = None
-_debug_filter: DebugTypeFilter | None = None
 _debug_enabled = False
 _current_log_file: Path | None = None
 
@@ -90,7 +75,6 @@ def set_debug_logging(
     *,
     write_to_file: bool | None = None,
     log_file: str | None = None,
-    filters: set[DebugType] | None = None,
 ) -> None:
     """Configure global debug logging behavior.
 
@@ -98,9 +82,8 @@ def set_debug_logging(
         enabled: Enable or disable debug logging
         write_to_file: If True, write to file; if False, output to console
         log_file: Path to the log file (default: debug.log)
-        filters: Set of DebugType to include; None means all types
     """
-    global _file_handler, _console_handler, _debug_filter, _debug_enabled, _current_log_file
+    global _file_handler, _console_handler, _debug_enabled, _current_log_file
 
     _debug_enabled = enabled
 
@@ -116,9 +99,6 @@ def set_debug_logging(
     if not enabled:
         _current_log_file = None
         return
-
-    # Create filter
-    _debug_filter = DebugTypeFilter(filters)
 
     # Determine output mode
     use_file = write_to_file if write_to_file is not None else True
@@ -142,7 +122,6 @@ def set_debug_logging(
         )
         _file_handler.setLevel(logging.DEBUG)
         _file_handler.setFormatter(logging.Formatter("[%(asctime)s] %(debug_type_label)-12s %(message)s"))
-        _file_handler.addFilter(_debug_filter)
         logger.addHandler(_file_handler)
     else:
         # Console handler with Rich formatting
@@ -153,7 +132,6 @@ def set_debug_logging(
             rich_tracebacks=True,
         )
         _console_handler.setLevel(logging.DEBUG)
-        _console_handler.addFilter(_debug_filter)
         logger.addHandler(_console_handler)
 
 

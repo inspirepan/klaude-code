@@ -9,7 +9,7 @@ from typer.core import TyperGroup
 from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.cost_cmd import register_cost_commands
-from klaude_code.cli.debug import DEBUG_FILTER_HELP, prepare_debug_logging
+from klaude_code.cli.debug import prepare_debug_logging
 from klaude_code.cli.self_update import register_self_upgrade_commands, version_option_callback
 from klaude_code.session import Session
 from klaude_code.tui.command.resume_cmd import select_session_sync
@@ -183,12 +183,6 @@ def main_callback(
         help="Enable debug logging",
         rich_help_panel="Debug",
     ),
-    debug_filter: str | None = typer.Option(
-        None,
-        "--debug-filter",
-        help=DEBUG_FILTER_HELP,
-        rich_help_panel="Debug",
-    ),
     vanilla: bool = typer.Option(
         False,
         "--vanilla",
@@ -350,14 +344,13 @@ def main_callback(
                 asyncio.run(cfg.save())
                 log(f"Saved main_model={chosen_model} to {config_path}", style="dim")
 
-        debug_enabled, debug_filters, log_path = prepare_debug_logging(debug, debug_filter)
+        debug_enabled, log_path = prepare_debug_logging(debug)
 
         init_config = AppInitConfig(
             model=chosen_model,
             debug=debug_enabled,
             vanilla=vanilla,
             web=web,
-            debug_filters=debug_filters,
         )
 
         if log_path:

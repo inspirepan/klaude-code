@@ -217,7 +217,7 @@ body {
 /* JSON tree */
 .jt-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   line-height: 24px;
   padding: 0 12px 0 0;
 }
@@ -317,6 +317,7 @@ body {
 <script>
 const LOG_RE = /^\[([^\]]+)\]\s+(\S+)\s+(.*)/;
 const ALL_TYPES = ['GENERAL','LLM_CONFIG','LLM_PAYLOAD','LLM_STREAM','UI_EVENT','RESPONSE','EXECUTION','TERMINAL'];
+const DEFAULT_FILTERS = new Set(['LLM_CONFIG','LLM_PAYLOAD','LLM_STREAM']);
 
 let logLines = [];
 let selectedIdx = -1;
@@ -391,6 +392,10 @@ function buildFilters() {
     btn.className = 'filter-btn';
     btn.textContent = t;
     btn.dataset.type = t;
+    if (DEFAULT_FILTERS.has(t)) {
+      activeFilters.add(t);
+      btn.classList.add('active');
+    }
     btn.addEventListener('click', () => toggleFilter(t, btn));
     group.appendChild(btn);
   });
@@ -579,12 +584,12 @@ function _buildNode(parent, key, value, depth) {
     } else if (typeof value === 'string') {
       const lineCount = value.split('\n').length;
       const needsClamp = lineCount > 10;
+      const wrapper = document.createElement('span');
+      wrapper.style.cssText = 'min-width:0;flex:1;';
+      const strSpan = _mkSpan('"' + value + '"', 'jt-str');
+      if (needsClamp) strSpan.classList.add('clamped');
+      wrapper.appendChild(strSpan);
       if (needsClamp) {
-        const wrapper = document.createElement('span');
-        wrapper.style.cssText = 'min-width:0;flex:1;';
-        const strSpan = _mkSpan('"' + value + '"', 'jt-str');
-        strSpan.classList.add('clamped');
-        wrapper.appendChild(strSpan);
         const toggle = document.createElement('span');
         toggle.className = 'jt-str-toggle';
         toggle.textContent = 'Show all (' + lineCount + ' lines)';
@@ -595,11 +600,8 @@ function _buildNode(parent, key, value, depth) {
           toggle.textContent = isClamped ? 'Show less' : 'Show all (' + lineCount + ' lines)';
         };
         wrapper.appendChild(toggle);
-        row.appendChild(wrapper);
-      } else {
-        const display = value.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
-        row.appendChild(_mkSpan('"' + display + '"', 'jt-str'));
       }
+      row.appendChild(wrapper);
     } else if (typeof value === 'number') {
       row.appendChild(_mkSpan(String(value), 'jt-num'));
     } else if (typeof value === 'boolean') {

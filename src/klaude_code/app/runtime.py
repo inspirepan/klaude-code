@@ -16,7 +16,7 @@ from klaude_code.core.agent_profile import (
 )
 from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
-from klaude_code.log import DebugType, log, set_debug_logging
+from klaude_code.log import log, set_debug_logging
 from klaude_code.protocol import events, op
 from klaude_code.session.session import Session, close_default_store
 
@@ -29,7 +29,6 @@ class AppInitConfig:
     debug: bool
     vanilla: bool
     web: bool = False
-    debug_filters: set[DebugType] | None = None
 
 
 @dataclass
@@ -51,7 +50,7 @@ async def initialize_app_components(
     on_model_change: Callable[[str], None] | None = None,
 ) -> AppComponents:
     """Initialize LLM clients, executor, and display task."""
-    set_debug_logging(init_config.debug, filters=init_config.debug_filters)
+    set_debug_logging(init_config.debug)
 
     config = load_config()
 
