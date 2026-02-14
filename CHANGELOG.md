@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-02-14
+
+### Added
+
+- add debug log viewer with browser-based UI (`0f0f1548`)
+- support reasoning_details array round-trip for MiniMax M2.5 (`e1eff4ec`)
+- show message content preview in session export TOC (`ccc1a9df`)
+- add system prompt for vanilla model profile (`3b73ddda`)
+- update model configurations (`57dcbece`)
+
+### Changed
+
+- shorten CLI tools section header in system prompt (`734296e6`)
+- add tests for tool message list-format content and cache control (`cb296627`)
+- remove fd/rg tool hints from explore sub-agent prompt (`de4cd129`)
+
+### Fixed
+
+- update openrouter minimax provider: minimax/highspeed; add opencode zen (`ab2b098f`)
+- use list content format in tool messages for prefix caching (`35f26c79`)
+
+### Other
+
+- fix lint and test (`87243f8b`)
+- Merge pull request #2 from inspirepan/claude/review-recent-changes-vUNcZ (`640257fa`)
+- update minimax model from M2.1 to M2.5 (`acf9c962`)
+
 ## [2.12.0] - 2026-02-11
 
 ### Added
@@ -1692,7 +1719,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.12.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.13.0...HEAD
+[2.13.0]: https://github.com/inspirepan/klaude-code/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/inspirepan/klaude-code/compare/v2.11.2...v2.12.0
 [2.11.2]: https://github.com/inspirepan/klaude-code/compare/v2.11.1...v2.11.2
 [2.11.1]: https://github.com/inspirepan/klaude-code/compare/v2.11.0...v2.11.1
