@@ -449,6 +449,7 @@ class TUICommandRenderer:
 
         if not is_sub_agent and e.tool_name == tools.MERMAID and isinstance(e.ui_extra, model.MermaidLinkUIExtra):
             image_path = c_mermaid_viewer.download_mermaid_png(
+                code=e.ui_extra.code,
                 link=e.ui_extra.link,
                 tool_call_id=e.tool_call_id,
                 session_id=e.session_id,
