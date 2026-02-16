@@ -2,9 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import socket
+from unittest.mock import patch
 
 from klaude_code.core.tool import WebFetchTool
 from klaude_code.core.tool.context import TodoContext, ToolContext
+from klaude_code.core.tool.web.external_content import (
+    _BOUNDARY_END,  # pyright: ignore[reportPrivateUsage]
+    _BOUNDARY_START,  # pyright: ignore[reportPrivateUsage]
+)
+from klaude_code.core.tool.web.web_cache import _cache as web_cache  # pyright: ignore[reportPrivateUsage]
 from klaude_code.core.tool.web.web_fetch_tool import (
     _convert_html_to_markdown,  # pyright: ignore[reportPrivateUsage]
     _decode_content,  # pyright: ignore[reportPrivateUsage]
@@ -144,3 +151,68 @@ class TestWebFetchTool:
         assert result.status == "error"
         assert result.output_text is not None
         assert "Invalid arguments" in result.output_text
+
+    def test_ssrf_blocks_localhost(self) -> None:
+        args = WebFetchTool.WebFetchArguments(url="http://localhost:8080/secret").model_dump_json()
+        result = asyncio.run(WebFetchTool.call(args, _tool_context()))
+        assert result.status == "error"
+        assert result.output_text is not None
+        assert "Blocked" in result.output_text or "security policy" in result.output_text
+
+    def test_ssrf_blocks_private_ip(self) -> None:
+        args = WebFetchTool.WebFetchArguments(url="http://10.0.0.1/internal").model_dump_json()
+        result = asyncio.run(WebFetchTool.call(args, _tool_context()))
+        assert result.status == "error"
+        assert result.output_text is not None
+        assert "security policy" in result.output_text
+
+    def test_ssrf_blocks_metadata_endpoint(self) -> None:
+        args = WebFetchTool.WebFetchArguments(url="http://169.254.169.254/latest/meta-data/").model_dump_json()
+        result = asyncio.run(WebFetchTool.call(args, _tool_context()))
+        assert result.status == "error"
+        assert result.output_text is not None
+        assert "security policy" in result.output_text
+
+    def test_ssrf_blocks_dns_to_private(self) -> None:
+        """Domain that resolves to a private IP should be blocked."""
+        fake_addrinfo = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("127.0.0.1", 0))]
+        with patch("klaude_code.core.tool.web.ssrf.socket.getaddrinfo", return_value=fake_addrinfo):
+            args = WebFetchTool.WebFetchArguments(url="http://evil.example.com/steal").model_dump_json()
+            result = asyncio.run(WebFetchTool.call(args, _tool_context()))
+            assert result.status == "error"
+            assert result.output_text is not None
+            assert "security policy" in result.output_text
+
+    def test_security_wrapping_present(self) -> None:
+        """Successful fetch should wrap content with security boundaries."""
+        web_cache.clear()
+
+        def fake_fetch(*_args: object, **_kwargs: object) -> tuple[str, bytes, str | None]:
+            return ("text/plain", b"Hello from the web", "utf-8")
+
+        with patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch):
+            args = WebFetchTool.WebFetchArguments(url="https://example.com/page").model_dump_json()
+            result = asyncio.run(WebFetchTool.call(args, _tool_context()))
+            assert result.status == "success"
+            assert result.output_text is not None
+            assert _BOUNDARY_START in result.output_text
+            assert _BOUNDARY_END in result.output_text
+            assert "SECURITY NOTICE" in result.output_text
+
+    def test_caching(self) -> None:
+        """Second call for same URL should return cached result."""
+        web_cache.clear()
+        call_count = 0
+
+        def fake_fetch(*_args: object, **_kwargs: object) -> tuple[str, bytes, str | None]:
+            nonlocal call_count
+            call_count += 1
+            return ("text/plain", b"cached content", "utf-8")
+
+        with patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch):
+            args = WebFetchTool.WebFetchArguments(url="https://example.com/cached").model_dump_json()
+            result1 = asyncio.run(WebFetchTool.call(args, _tool_context()))
+            result2 = asyncio.run(WebFetchTool.call(args, _tool_context()))
+            assert result1.status == "success"
+            assert result2.status == "success"
+            assert call_count == 1  # Only fetched once

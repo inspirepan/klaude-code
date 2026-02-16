@@ -17,6 +17,8 @@ from klaude_code.const import WEB_SEARCH_DEFAULT_MAX_RESULTS, WEB_SEARCH_MAX_RES
 from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
+from klaude_code.core.tool.web.external_content import wrap_web_content
+from klaude_code.core.tool.web.web_cache import get_cached, make_cache_key, set_cached
 from klaude_code.protocol import llm_param, message, tools
 
 _BRAVE_LLM_CONTEXT_URL = "https://api.search.brave.com/res/v1/llm/context"
@@ -181,6 +183,12 @@ class WebSearchTool(ToolABC):
 
         max_results = min(max(args.max_results, 1), WEB_SEARCH_MAX_RESULTS_LIMIT)
 
+        # Check cache
+        cache_key = make_cache_key("search", query, str(max_results))
+        cached = get_cached(cache_key)
+        if cached is not None:
+            return message.ToolResultMessage(status="success", output_text=cached)
+
         try:
             brave_api_key = os.environ.get("BRAVE_API_KEY", "")
             if brave_api_key:
@@ -188,10 +196,12 @@ class WebSearchTool(ToolABC):
             else:
                 results = await asyncio.to_thread(_search_duckduckgo, query, max_results)
             formatted = _format_results(results)
+            wrapped = wrap_web_content(formatted, source="Web Search", include_warning=False)
 
+            set_cached(cache_key, wrapped)
             return message.ToolResultMessage(
                 status="success",
-                output_text=formatted,
+                output_text=wrapped,
             )
 
         except Exception as e:

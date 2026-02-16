@@ -5,7 +5,7 @@ import urllib.error
 import urllib.request
 from http.client import HTTPResponse
 from pathlib import Path
-from urllib.parse import quote, urlparse, urlunparse
+from urllib.parse import quote, urljoin, urlparse, urlunparse
 
 from pydantic import BaseModel
 
@@ -13,14 +13,38 @@ from klaude_code.const import (
     TOOL_OUTPUT_TRUNCATION_DIR,
     URL_FILENAME_MAX_LENGTH,
     WEB_FETCH_DEFAULT_TIMEOUT_SEC,
+    WEB_FETCH_MAX_REDIRECTS,
+    WEB_FETCH_MAX_RESPONSE_BYTES,
     WEB_FETCH_USER_AGENT,
 )
 from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
+from klaude_code.core.tool.web.external_content import wrap_web_content
+from klaude_code.core.tool.web.ssrf import SSRFBlockedError, check_ssrf
+from klaude_code.core.tool.web.web_cache import get_cached, make_cache_key, set_cached
 from klaude_code.protocol import llm_param, message, tools
 
 WEB_FETCH_SAVE_DIR = Path(TOOL_OUTPUT_TRUNCATION_DIR)
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Suppress automatic redirects so we can check each hop for SSRF."""
+
+    def redirect_request(  # type: ignore[override]
+        self,
+        req: urllib.request.Request,
+        fp: HTTPResponse,
+        code: int,
+        msg: str,
+        headers: dict[str, str],
+        newurl: str,
+    ) -> None:
+        del req, fp, code, msg, headers, newurl
+        return None
+
+
+_opener = urllib.request.build_opener(_NoRedirectHandler)
 
 
 def _encode_url(url: str) -> str:
@@ -151,19 +175,50 @@ def _process_content(content_type: str, text: str) -> str:
         return text
 
 
-def _fetch_url(url: str, timeout: int = WEB_FETCH_DEFAULT_TIMEOUT_SEC) -> tuple[str, bytes, str | None]:
-    """Fetch URL content synchronously."""
-    headers = {
-        "Accept": "text/markdown, */*",
-        "User-Agent": WEB_FETCH_USER_AGENT,
-    }
-    encoded_url = _encode_url(url)
-    request = urllib.request.Request(encoded_url, headers=headers)
+def _fetch_url(
+    url: str,
+    timeout: int = WEB_FETCH_DEFAULT_TIMEOUT_SEC,
+    max_bytes: int = WEB_FETCH_MAX_RESPONSE_BYTES,
+    max_redirects: int = WEB_FETCH_MAX_REDIRECTS,
+) -> tuple[str, bytes, str | None]:
+    """Fetch URL content with SSRF protection and redirect control."""
+    current_url = url
+    seen_urls: set[str] = set()
 
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    for _ in range(max_redirects + 1):
+        check_ssrf(current_url)
+
+        if current_url in seen_urls:
+            raise urllib.error.URLError(f"Redirect loop detected: {current_url}")
+        seen_urls.add(current_url)
+
+        headers = {
+            "Accept": "text/markdown, */*",
+            "User-Agent": WEB_FETCH_USER_AGENT,
+        }
+        encoded_url = _encode_url(current_url)
+        request = urllib.request.Request(encoded_url, headers=headers)
+
+        response = _opener.open(request, timeout=timeout)
+
+        if response.status in (301, 302, 303, 307, 308):
+            location = response.getheader("Location")
+            if not location:
+                raise urllib.error.URLError("Redirect without Location header")
+            # Resolve relative redirects
+            location = urljoin(current_url, location)
+            current_url = location
+            response.close()
+            continue
+
         content_type, charset = _extract_content_type_and_charset(response)
-        data = response.read()
+        data = response.read(max_bytes + 1)
+        response.close()
+        if len(data) > max_bytes:
+            data = data[:max_bytes]
         return content_type, data, charset
+
+    raise urllib.error.URLError(f"Too many redirects (max {max_redirects})")
 
 
 @register(tools.WEB_FETCH)
@@ -215,6 +270,12 @@ class WebFetchTool(ToolABC):
                 output_text=f"Invalid URL: must start with http:// or https:// (url={url})",
             )
 
+        # Check cache
+        cache_key = make_cache_key("fetch", url)
+        cached = get_cached(cache_key)
+        if cached is not None:
+            return message.ToolResultMessage(status="success", output_text=cached)
+
         try:
             content_type, data, charset = await asyncio.to_thread(_fetch_url, url)
 
@@ -222,10 +283,11 @@ class WebFetchTool(ToolABC):
             if content_type == "application/pdf" or _is_pdf_url(url):
                 saved_path = _save_binary_content(url, data, ".pdf")
                 if saved_path:
-                    return message.ToolResultMessage(
-                        status="success",
-                        output_text=f"PDF file saved to: {saved_path}\n\nTo read the PDF content, use the Read tool on this file path.",
+                    output = (
+                        f"PDF file saved to: {saved_path}\n\n"
+                        f"To read the PDF content, use the Read tool on this file path."
                     )
+                    return message.ToolResultMessage(status="success", output_text=output)
                 return message.ToolResultMessage(
                     status="error",
                     output_text=f"Failed to save PDF file (url={url})",
@@ -234,14 +296,18 @@ class WebFetchTool(ToolABC):
             # Handle text content - save to file and return with path hint
             text = _decode_content(data, charset)
             processed = _process_content(content_type, text)
+            wrapped = wrap_web_content(processed, source="Web Fetch", include_warning=True)
             saved_path = _save_text_content(url, processed)
-            output = f"[Full content saved to {saved_path}]\n\n{processed}" if saved_path else processed
+            output = f"[Full content saved to {saved_path}]\n\n{wrapped}" if saved_path else wrapped
 
+            set_cached(cache_key, output)
+            return message.ToolResultMessage(status="success", output_text=output)
+
+        except SSRFBlockedError as e:
             return message.ToolResultMessage(
-                status="success",
-                output_text=output,
+                status="error",
+                output_text=f"Blocked by security policy: {e} (url={url})",
             )
-
         except urllib.error.HTTPError as e:
             return message.ToolResultMessage(
                 status="error",
