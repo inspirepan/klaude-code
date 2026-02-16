@@ -371,7 +371,7 @@ provider_list:
     max_tokens: 128000
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
-- provider_name: volceng
+- provider_name: volceng-api
   protocol: openai
   api_key: ${ARK_API_KEY}
   base_url: https://ark.cn-beijing.volces.com/api/v3
@@ -386,5 +386,21 @@ provider_list:
     model_id: doubao-seed-2-0-code-preview-260215
     context_limit: 256000
     cost: { input: 4.8, output: 24, cache_read: 0.96, currency: CNY }
+
+- provider_name: volceng-coding-plan
+  protocol: anthropic
+  api_key: ${ARK_API_KEY}
+  base_url: https://ark.cn-beijing.volces.com/api/coding
+  model_list:
+
+  - model_name: seed-2.0-code
+    model_id: doubao-seed-2.0-code
+    context_limit: 256000
+    cost: { input: 4.8, output: 24, cache_read: 0.96, currency: CNY }
+
+  - model_name: kimi-k2.5
+    model_id: kimi-k2.5
+    context_limit: 262144
+    cost: { input: 0.6, output: 3, cache_read: 0.1 }
 
 compact_model: gemini-flash
