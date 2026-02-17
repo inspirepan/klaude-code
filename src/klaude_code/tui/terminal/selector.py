@@ -54,6 +54,11 @@ class SelectItem[T]:
 # ---------------------------------------------------------------------------
 
 
+def _is_image_model(m: Any) -> bool:
+    modalities = getattr(m, "modalities", None)
+    return bool(modalities and "image" in modalities)
+
+
 def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
     """Build SelectItem list from ModelEntry objects.
 
@@ -66,44 +71,53 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
     if not models:
         return []
 
+    # Separate image generation models from regular models.
+    regular_models = [m for m in models if not _is_image_model(m)]
+    image_models = [m for m in models if _is_image_model(m)]
+
     max_model_name_length = max(len(m.model_name) for m in models)
     num_width = len(str(len(models)))
 
-    # Group models by provider in stable insertion order.
-    # This keeps per-provider model order intact while making the list easier to scan.
-    grouped: dict[str, list[Any]] = {}
-    for m in models:
+    # Group regular models by provider in stable insertion order.
+    provider_grouped: dict[str, list[Any]] = {}
+    for m in regular_models:
         provider = str(getattr(m, "provider", ""))
-        grouped.setdefault(provider, []).append(m)
+        provider_grouped.setdefault(provider, []).append(m)
 
-    # Calculate max header width for alignment
-    max_header_len = max(len(f"{p.upper()} ({len(ms)})") for p, ms in grouped.items())
+    # Collect all groups: provider groups + optional image generation group.
+    all_groups: list[tuple[str, list[Any]]] = list(provider_grouped.items())
+    if image_models:
+        all_groups.append(("image generation", image_models))
+
+    # Calculate max header width for alignment across all groups.
+    max_header_len = max(len(f"{name.upper()} ({len(ms)})") for name, ms in all_groups)
 
     items: list[SelectItem[str]] = []
     model_idx = 0
     separator_base_len = 80
-    for provider, provider_models in grouped.items():
-        provider_text = provider.lower()
-        count_text = f"({len(provider_models)})"
-        header_len = len(provider_text) + 1 + len(count_text)
+    for group_name, group_models in all_groups:
+        group_text = group_name.lower()
+        count_text = f"({len(group_models)})"
+        header_len = len(group_text) + 1 + len(count_text)
         separator_len = separator_base_len + max_header_len - header_len
         separator = "-" * separator_len
         items.append(
             SelectItem(
                 title=[
-                    ("class:meta ansiyellow", provider_text + " "),
+                    ("class:meta ansiyellow", group_text + " "),
                     ("class:meta ansibrightblack", count_text + " "),
                     ("class:meta ansibrightblack dim", separator),
                     ("class:meta", "\n"),
                 ],
                 value=None,
-                search_text=provider,
+                search_text=group_name,
                 selectable=False,
             )
         )
 
-        for m in provider_models:
+        for m in group_models:
             model_idx += 1
+            provider = str(getattr(m, "provider", ""))
             model_id_str = m.model_id or "N/A"
             display_name = m.model_name
             first_line_prefix = f"{display_name:<{max_model_name_length}}"
@@ -113,8 +127,6 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
                 ("class:meta", f"{model_idx:>{num_width}}. "),
                 ("class:msg", first_line_prefix),
                 ("class:msg dim", " → "),
-                # Keep provider/model_id styling attribute-based (dim/bold) so that
-                # the selector's highlight color can still override uniformly.
                 ("class:msg ansiblue", model_id_str),
                 ("class:msg dim", " · "),
                 ("class:msg ansibrightblack", provider),
