@@ -93,23 +93,7 @@ def convert_history_to_input(
     for msg, attachment in attach_developer_messages(history):
         match msg:
             case message.SystemMessage():
-                system_text = "\n".join(part.text for part in msg.parts)
-                if system_text:
-                    items.append(
-                        cast(
-                            responses.ResponseInputItemParam,
-                            {
-                                "type": "message",
-                                "role": "system",
-                                "content": [
-                                    cast(
-                                        responses.ResponseInputContentParam,
-                                        {"type": "input_text", "text": system_text},
-                                    )
-                                ],
-                            },
-                        )
-                    )
+                continue
             case message.UserMessage():
                 items.append(
                     cast(
