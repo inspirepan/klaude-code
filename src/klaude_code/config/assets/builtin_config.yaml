@@ -119,6 +119,11 @@ provider_list:
     context_limit: 262144
     cost: { input: 0.2, output: 1.5 }
 
+  - model_name: qwen-3.5-plus
+    model_id: qwen/qwen3.5-plus-02-15
+    context_limit: 1000000
+    cost: { input: 0.4, output: 2.4 }
+
   - model_name: haiku
     model_id: anthropic/claude-haiku-4.5
     context_limit: 200000
