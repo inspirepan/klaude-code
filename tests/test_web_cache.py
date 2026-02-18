@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from klaude_code.core.tool.web.web_cache import (  # pyright: ignore[reportPrivateUsage]
-    _cache,
+from klaude_code.core.tool.web.web_cache import (
+    _cache,  # pyright: ignore[reportPrivateUsage]
     get_cached,
     make_cache_key,
     set_cached,

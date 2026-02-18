@@ -23,7 +23,7 @@ def _tool_context() -> ToolContext:
 
 
 @pytest.fixture(autouse=True)
-def _no_brave_api_key() -> Iterator[None]:
+def _no_brave_api_key() -> Iterator[None]:  # pyright: ignore[reportUnusedFunction]
     with patch.dict(os.environ, {"BRAVE_API_KEY": ""}):
         yield
 

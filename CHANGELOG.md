@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-02-18
+
+### Added
+
+- add Claude Sonnet 4.6 support with adaptive thinking (`6413ee2e`)
+- group image generation models separately in model selector (`ad56620a`)
+- add qwen 3.5 plus model (`d2f53294`)
+- add volc engine coding plan (`54aeaca7`)
+- add SSRF protection, web cache, and external content handling for fetch/search tools (`386598d5`)
+- add volcengine seed-2.0 & seed-2.0-code (`798adc61`)
+- add Brave LLM Context API backend and XML output format (`7738a703`)
+- compact tree-style JSON viewer for log viewer (`8ac52085`)
+- show partial tool call transcript on interruption (`bd4e96ba`)
+- prefer local rendering via npx mermaid-cli over mermaid.ink (`8f326720`)
+- merge assistant messages across Mermaid tool call boundaries (`7d751762`)
+- add session-level cost cache and performance improvements (`986da9ef`)
+
+### Changed
+
+- update color palette to Anthropic-inspired design (`895a924a`)
+- remove debug filter functionality (`a57aa668`)
+
+### Fixed
+
+- fix lint errors and test failures (`6241d8e5`)
+- avoid system prompt in responses input (`3a235550`)
+- suppress primp Rust-layer stderr that corrupts TUI (`f2f29038`)
+
 ## [2.13.0] - 2026-02-14
 
 ### Added
@@ -1719,7 +1747,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.13.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.14.0...HEAD
+[2.14.0]: https://github.com/inspirepan/klaude-code/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/inspirepan/klaude-code/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/inspirepan/klaude-code/compare/v2.11.2...v2.12.0
 [2.11.2]: https://github.com/inspirepan/klaude-code/compare/v2.11.1...v2.11.2
