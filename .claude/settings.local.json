@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(jj status:*)",
-      "Bash(jj diff:*)"
+      "Bash(jj diff:*)",
+      "WebSearch"
     ]
   }
 }

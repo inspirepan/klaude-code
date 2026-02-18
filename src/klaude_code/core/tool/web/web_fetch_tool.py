@@ -27,6 +27,9 @@ from klaude_code.protocol import llm_param, message, tools
 
 WEB_FETCH_SAVE_DIR = Path(TOOL_OUTPUT_TRUNCATION_DIR)
 
+# Skip trafilatura for HTML larger than 1MB to avoid excessive memory/CPU usage.
+_READABILITY_MAX_HTML_CHARS = 1_000_000
+
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Suppress automatic redirects so we can check each hop for SSRF."""
@@ -104,12 +107,36 @@ def _decode_content(data: bytes, declared_charset: str | None) -> str:
         return data.decode("utf-8", errors="replace")
 
 
+def _html_to_markdown_fallback(html: str) -> str:
+    """Simple regex-based HTML to text conversion as a fallback."""
+    text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"</(p|div|h[1-6]|li|tr|blockquote)>", "\n\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = re.sub(r"&nbsp;", " ", text)
+    text = re.sub(r"&amp;", "&", text)
+    text = re.sub(r"&lt;", "<", text)
+    text = re.sub(r"&gt;", ">", text)
+    text = re.sub(r"&quot;", '"', text)
+    text = re.sub(r"&#39;", "'", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def _convert_html_to_markdown(html: str) -> str:
-    """Convert HTML to Markdown using trafilatura."""
+    """Convert HTML to Markdown using trafilatura, with fallback for large/problematic content."""
+    if len(html) > _READABILITY_MAX_HTML_CHARS:
+        return _html_to_markdown_fallback(html)
+
     import trafilatura
 
     result = trafilatura.extract(html, output_format="markdown", include_links=True, include_images=True)
-    return result or ""
+    if result:
+        return result
+
+    return _html_to_markdown_fallback(html)
 
 
 def _format_json(text: str) -> str:

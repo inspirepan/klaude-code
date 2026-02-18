@@ -13,10 +13,12 @@ from klaude_code.core.tool.web.external_content import (
 )
 from klaude_code.core.tool.web.web_cache import _cache as web_cache  # pyright: ignore[reportPrivateUsage]
 from klaude_code.core.tool.web.web_fetch_tool import (
+    _READABILITY_MAX_HTML_CHARS,  # pyright: ignore[reportPrivateUsage]
     _convert_html_to_markdown,  # pyright: ignore[reportPrivateUsage]
     _decode_content,  # pyright: ignore[reportPrivateUsage]
     _extract_content_type_and_charset,  # pyright: ignore[reportPrivateUsage]
     _format_json,  # pyright: ignore[reportPrivateUsage]
+    _html_to_markdown_fallback,  # pyright: ignore[reportPrivateUsage]
     _is_pdf_url,  # pyright: ignore[reportPrivateUsage]
     _process_content,  # pyright: ignore[reportPrivateUsage]
 )
@@ -114,6 +116,48 @@ class TestHelperFunctions:
         result = _convert_html_to_markdown(html)
         # trafilatura may return empty for minimal HTML, just check it doesn't crash
         assert isinstance(result, str)
+
+    def test_convert_html_to_markdown_fallback_on_large_html(self) -> None:
+        """HTML exceeding _READABILITY_MAX_HTML_CHARS should bypass trafilatura."""
+        body_text = "Important content here. " * 100
+        html = f"<html><body><p>{body_text}</p></body></html>"
+        # Pad to exceed threshold
+        padding = "<!-- padding -->" * ((_READABILITY_MAX_HTML_CHARS // 16) + 1)
+        large_html = html + padding
+        assert len(large_html) > _READABILITY_MAX_HTML_CHARS
+
+        result = _convert_html_to_markdown(large_html)
+        assert "Important content here." in result
+
+    def test_convert_html_to_markdown_fallback_on_trafilatura_empty(self) -> None:
+        """When trafilatura returns None/empty, should fall back to regex stripping."""
+        html = "<html><body><span>tiny</span></body></html>"
+        with patch("trafilatura.extract", return_value=None):
+            result = _convert_html_to_markdown(html)
+        assert "tiny" in result
+
+    def test_html_to_markdown_fallback_strips_scripts_and_styles(self) -> None:
+        html = (
+            "<html><head><style>body{color:red}</style></head>"
+            "<body><script>alert('xss')</script>"
+            "<p>Real content</p></body></html>"
+        )
+        result = _html_to_markdown_fallback(html)
+        assert "Real content" in result
+        assert "alert" not in result
+        assert "color:red" not in result
+
+    def test_html_to_markdown_fallback_decodes_entities(self) -> None:
+        html = "<p>A &amp; B &lt; C &gt; D &quot;E&quot; &#39;F&#39;</p>"
+        result = _html_to_markdown_fallback(html)
+        assert 'A & B < C > D "E" \'F\'' in result
+
+    def test_html_to_markdown_fallback_collapses_newlines(self) -> None:
+        html = "<p>First</p><p></p><p></p><p></p><p>Second</p>"
+        result = _html_to_markdown_fallback(html)
+        assert "\n\n\n" not in result
+        assert "First" in result
+        assert "Second" in result
 
     def test_is_pdf_url_with_extension(self) -> None:
         assert _is_pdf_url("https://example.com/paper.pdf") is True
