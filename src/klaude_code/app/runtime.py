@@ -64,7 +64,7 @@ async def initialize_app_components(
         if init_config.model:
             log(
                 (
-                    f"Error: model '{init_config.model}' is not defined in the config",
+                    f"Error: model '{init_config.model}' is not defined in the config, {exc}",
                     "red",
                 )
             )

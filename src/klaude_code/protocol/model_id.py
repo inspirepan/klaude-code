@@ -10,11 +10,24 @@ layers can import it without violating the layered-architecture contract.
 
 
 def is_opus_46_model(model_name: str | None) -> bool:
-    """Check if the model is Claude Opus 4.6+ (supports adaptive thinking)."""
+    """Check if the model is Claude Opus 4.6."""
     if not model_name:
         return False
     model_lower = model_name.lower()
     return "opus-4-6" in model_lower or "opus-4.6" in model_lower
+
+
+def is_sonnet_46_model(model_name: str | None) -> bool:
+    """Check if the model is Claude Sonnet 4.6."""
+    if not model_name:
+        return False
+    model_lower = model_name.lower()
+    return "sonnet-4-6" in model_lower or "sonnet-4.6" in model_lower
+
+
+def supports_adaptive_thinking(model_name: str | None) -> bool:
+    """Check if the model supports adaptive thinking (Opus 4.6 or Sonnet 4.6)."""
+    return is_opus_46_model(model_name) or is_sonnet_46_model(model_name)
 
 
 def is_claude_model(model_name: str | None) -> bool:

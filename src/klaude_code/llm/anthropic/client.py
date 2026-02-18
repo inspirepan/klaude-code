@@ -43,7 +43,7 @@ from klaude_code.llm.stream_parts import (
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message, model
-from klaude_code.protocol.model_id import is_opus_46_model
+from klaude_code.protocol.model_id import supports_adaptive_thinking
 
 
 def _map_anthropic_stop_reason(reason: str) -> model.StopReason | None:
@@ -194,8 +194,8 @@ def build_payload(
     }
     system = [identity_block, *system]
 
-    # Opus 4.6 with adaptive thinking has interleaved thinking built-in; no beta header needed
-    _is_opus46_adaptive = is_opus_46_model(str(param.model_id)) and param.thinking and param.thinking.type == "adaptive"
+    # Models with adaptive thinking have interleaved thinking built-in; no beta header needed
+    _is_opus46_adaptive = supports_adaptive_thinking(str(param.model_id)) and param.thinking and param.thinking.type == "adaptive"
     betas = [] if _is_opus46_adaptive else [ANTHROPIC_BETA_INTERLEAVED_THINKING]
     if extra_betas:
         # Prepend extra betas, avoiding duplicates

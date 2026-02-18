@@ -8,10 +8,15 @@ provider_list:
   model_list:
 
   - model_name: sonnet
-    model_id: claude-sonnet-4-5-20250929
+    model_id: claude-sonnet-4-6
     context_limit: 200000
-    provider_routing:
-      sort: throughput
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet-no-thinking
+    model_id: claude-sonnet-4-6
+    context_limit: 200000
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
@@ -130,7 +135,16 @@ provider_list:
     cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
 
   - model_name: sonnet
-    model_id: anthropic/claude-4.5-sonnet
+    model_id: anthropic/claude-sonnet-4.6
+    context_limit: 200000
+    provider_routing:
+      sort: throughput
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet-no-thinking
+    model_id: anthropic/claude-sonnet-4.6
     context_limit: 200000
     provider_routing:
       sort: throughput
@@ -272,7 +286,7 @@ provider_list:
   model_list:
 
   - model_name: sonnet
-    model_id: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+    model_id: anthropic.claude-sonnet-4-6
     context_limit: 200000
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
@@ -346,7 +360,14 @@ provider_list:
   model_list:
 
   - model_name: sonnet
-    model_id: claude-sonnet-4-5-20250929
+    model_id: claude-sonnet-4-6
+    context_limit: 200000
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet-no-thinking
+    model_id: claude-sonnet-4-6
     context_limit: 200000
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 

@@ -14,7 +14,7 @@ from klaude_code.protocol.model_id import (
     is_gpt51_model,
     is_gpt52_model,
     is_openrouter_model_with_reasoning_effort,
-    is_opus_46_model,
+    supports_adaptive_thinking,
 )
 
 ReasoningEffort = Literal["high", "medium", "low", "minimal", "none", "xhigh"]
@@ -31,11 +31,6 @@ ANTHROPIC_LEVELS: list[tuple[str, int | None]] = [
     ("low (2048 tokens)", 2048),
     ("medium (8192 tokens)", 8192),
     ("high (31999 tokens)", 31999),
-]
-
-ANTHROPIC_ADAPTIVE_LEVELS: list[tuple[str, str]] = [
-    ("off", "disabled"),
-    ("adaptive", "adaptive"),
 ]
 
 
@@ -142,14 +137,16 @@ def _build_effort_options(levels: list[str]) -> list[ThinkingOption]:
     return [ThinkingOption(label=level, value=f"effort:{level}") for level in levels]
 
 
-def _build_adaptive_options() -> list[ThinkingOption]:
-    """Build adaptive thinking options for Opus 4.6+ (on/off)."""
-    return [ThinkingOption(label=label, value=f"adaptive:{value}") for label, value in ANTHROPIC_ADAPTIVE_LEVELS]
-
-
 def _build_budget_options() -> list[ThinkingOption]:
     """Build budget-based thinking options."""
     return [ThinkingOption(label=label, value=f"budget:{tokens or 0}") for label, tokens in ANTHROPIC_LEVELS]
+
+
+def _build_budget_with_adaptive_options() -> list[ThinkingOption]:
+    """Build budget-based options with adaptive appended at the end."""
+    options = _build_budget_options()
+    options.append(ThinkingOption(label="adaptive", value="adaptive:adaptive"))
+    return options
 
 
 def _get_current_effort_value(thinking: llm_param.Thinking | None) -> str | None:
@@ -159,19 +156,21 @@ def _get_current_effort_value(thinking: llm_param.Thinking | None) -> str | None
     return None
 
 
-def _get_current_adaptive_value(thinking: llm_param.Thinking | None) -> str | None:
-    """Get current value for adaptive thinking."""
-    if thinking:
-        if thinking.type == "adaptive":
-            return "adaptive:adaptive"
-        if thinking.type == "disabled":
-            return "adaptive:disabled"
-    return None
-
-
 def _get_current_budget_value(thinking: llm_param.Thinking | None) -> str | None:
     """Get current value for budget-based thinking."""
     if thinking:
+        if thinking.type == "disabled":
+            return "budget:0"
+        if thinking.budget_tokens:
+            return f"budget:{thinking.budget_tokens}"
+    return None
+
+
+def _get_current_budget_or_adaptive_value(thinking: llm_param.Thinking | None) -> str | None:
+    """Get current value for budget-or-adaptive thinking."""
+    if thinking:
+        if thinking.type == "adaptive":
+            return "adaptive:adaptive"
         if thinking.type == "disabled":
             return "budget:0"
         if thinking.budget_tokens:
@@ -198,11 +197,11 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
         )
 
     if protocol in (llm_param.LLMClientProtocol.ANTHROPIC, llm_param.LLMClientProtocol.CLAUDE_OAUTH):
-        if is_opus_46_model(model_name):
+        if supports_adaptive_thinking(model_name):
             return ThinkingPickerData(
-                options=_build_adaptive_options(),
-                message="Select thinking mode:",
-                current_value=_get_current_adaptive_value(thinking),
+                options=_build_budget_with_adaptive_options(),
+                message="Select thinking level:",
+                current_value=_get_current_budget_or_adaptive_value(thinking),
             )
         return ThinkingPickerData(
             options=_build_budget_options(),
@@ -218,11 +217,11 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
                 message="Select reasoning effort:",
                 current_value=_get_current_effort_value(thinking),
             )
-        if is_opus_46_model(model_name):
+        if supports_adaptive_thinking(model_name):
             return ThinkingPickerData(
-                options=_build_adaptive_options(),
-                message="Select thinking mode:",
-                current_value=_get_current_adaptive_value(thinking),
+                options=_build_budget_with_adaptive_options(),
+                message="Select thinking level:",
+                current_value=_get_current_budget_or_adaptive_value(thinking),
             )
         return ThinkingPickerData(
             options=_build_budget_options(),
