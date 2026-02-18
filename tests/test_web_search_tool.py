@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import os
+from collections.abc import Iterator
 from unittest.mock import patch
+
+import pytest
 
 from klaude_code.core.tool import WebSearchTool
 from klaude_code.core.tool.context import TodoContext, ToolContext
@@ -16,6 +20,12 @@ from klaude_code.core.tool.web.web_search_tool import SearchResult
 def _tool_context() -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
     return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test")
+
+
+@pytest.fixture(autouse=True)
+def _no_brave_api_key() -> Iterator[None]:
+    with patch.dict(os.environ, {"BRAVE_API_KEY": ""}):
+        yield
 
 
 def _fake_search(_query: str, _max_results: int) -> list[SearchResult]:

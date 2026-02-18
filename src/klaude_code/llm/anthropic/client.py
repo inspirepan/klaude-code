@@ -195,7 +195,9 @@ def build_payload(
     system = [identity_block, *system]
 
     # Models with adaptive thinking have interleaved thinking built-in; no beta header needed
-    _is_opus46_adaptive = supports_adaptive_thinking(str(param.model_id)) and param.thinking and param.thinking.type == "adaptive"
+    _is_opus46_adaptive = (
+        supports_adaptive_thinking(str(param.model_id)) and param.thinking and param.thinking.type == "adaptive"
+    )
     betas = [] if _is_opus46_adaptive else [ANTHROPIC_BETA_INTERLEAVED_THINKING]
     if extra_betas:
         # Prepend extra betas, avoiding duplicates

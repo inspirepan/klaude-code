@@ -112,9 +112,11 @@ class TestCheckSsrf:
 
     def test_dns_resolves_to_private(self) -> None:
         fake_addrinfo = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("127.0.0.1", 0))]
-        with patch("klaude_code.core.tool.web.ssrf.socket.getaddrinfo", return_value=fake_addrinfo):
-            with pytest.raises(SSRFBlockedError, match="resolves to private IP"):
-                check_ssrf("http://evil.example.com/")
+        with (
+            patch("klaude_code.core.tool.web.ssrf.socket.getaddrinfo", return_value=fake_addrinfo),
+            pytest.raises(SSRFBlockedError, match="resolves to private IP"),
+        ):
+            check_ssrf("http://evil.example.com/")
 
     def test_dns_resolves_to_public(self) -> None:
         fake_addrinfo = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 0))]
@@ -122,6 +124,8 @@ class TestCheckSsrf:
             check_ssrf("http://example.com/")  # should not raise
 
     def test_dns_failure(self) -> None:
-        with patch("klaude_code.core.tool.web.ssrf.socket.getaddrinfo", side_effect=socket.gaierror("DNS failed")):
-            with pytest.raises(SSRFBlockedError, match="DNS resolution failed"):
-                check_ssrf("http://nonexistent.example.com/")
+        with (
+            patch("klaude_code.core.tool.web.ssrf.socket.getaddrinfo", side_effect=socket.gaierror("DNS failed")),
+            pytest.raises(SSRFBlockedError, match="DNS resolution failed"),
+        ):
+            check_ssrf("http://nonexistent.example.com/")

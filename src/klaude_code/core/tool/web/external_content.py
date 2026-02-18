@@ -30,12 +30,18 @@ _FULLWIDTH_PATTERN = re.compile(
 )
 _FULLWIDTH_ASCII_OFFSET = 0xFEE0
 _ANGLE_MAP: dict[int, str] = {
-    0xFF1C: "<", 0xFF1E: ">",
-    0x2329: "<", 0x232A: ">",
-    0x3008: "<", 0x3009: ">",
-    0x2039: "<", 0x203A: ">",
-    0x27E8: "<", 0x27E9: ">",
-    0xFE64: "<", 0xFE65: ">",
+    0xFF1C: "<",
+    0xFF1E: ">",
+    0x2329: "<",
+    0x232A: ">",
+    0x3008: "<",
+    0x3009: ">",
+    0x2039: "<",
+    0x203A: ">",
+    0x27E8: "<",
+    0x27E9: ">",
+    0xFE64: "<",
+    0xFE65: ">",
 }
 
 

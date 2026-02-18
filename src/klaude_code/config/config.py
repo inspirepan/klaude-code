@@ -203,6 +203,12 @@ class Config(BaseModel):
         """Set the user config reference for saving."""
         object.__setattr__(self, "_user_config", user_config)
 
+    def get_user_sub_agent_models(self) -> dict[str, str]:
+        """Return sub_agent_models from user config only (excludes builtin defaults)."""
+        if self._user_config is None:
+            return {}
+        return self._user_config.sub_agent_models
+
     @classmethod
     def _split_model_selector(cls, model_selector: str) -> tuple[str, str | None]:
         """Split a model selector into (model_name, provider_name).
@@ -407,7 +413,7 @@ def get_example_config() -> UserConfig:
     return UserConfig(
         main_model="opus",
         compact_model="gemini-flash",
-        sub_agent_models={"explore": "haiku", "webagent": "sonnet", "task": "sonnet"},
+        sub_agent_models={"Explore": "haiku", "Web": "sonnet", "Task": "sonnet"},
         provider_list=[
             UserProviderConfig(
                 provider_name="my-provider",

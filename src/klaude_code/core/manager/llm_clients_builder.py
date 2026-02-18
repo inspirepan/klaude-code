@@ -58,9 +58,21 @@ def build_llm_clients(
     helper = SubAgentModelHelper(config)
     sub_agent_configs = helper.build_sub_agent_client_configs()
 
+    # User-configured sub_agent_models take precedence; builtin defaults are soft-fallback.
+    user_sub_agent_models = config.get_user_sub_agent_models()
+
     sub_clients: dict[SubAgentType, LLMClientABC] = {}
     for sub_agent_type, sub_model_name in sub_agent_configs.items():
-        sub_llm_config = config.get_model_config(sub_model_name)
-        sub_clients[sub_agent_type] = create_llm_client(sub_llm_config)
+        try:
+            sub_llm_config = config.get_model_config(sub_model_name)
+            sub_clients[sub_agent_type] = create_llm_client(sub_llm_config)
+        except ValueError:
+            if sub_agent_type in user_sub_agent_models:
+                raise
+            log_debug(
+                f"Sub-agent '{sub_agent_type}' builtin model '{sub_model_name}' not available, falling back to main model",
+                style="yellow",
+                debug_type=DebugType.LLM_CONFIG,
+            )
 
     return LLMClients(main=main_client, main_model_alias=model_name, sub_clients=sub_clients, compact=compact_client)

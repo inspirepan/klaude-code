@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from klaude_code.core.tool.web.web_cache import _cache, get_cached, make_cache_key, set_cached
+from klaude_code.core.tool.web.web_cache import (  # pyright: ignore[reportPrivateUsage]
+    _cache,
+    get_cached,
+    make_cache_key,
+    set_cached,
+)
 
 
 class TestMakeCacheKey:

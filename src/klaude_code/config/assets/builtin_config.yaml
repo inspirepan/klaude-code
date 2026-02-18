@@ -430,3 +430,7 @@ provider_list:
     cost: { input: 0.6, output: 3, cache_read: 0.1 }
 
 compact_model: gemini-flash
+
+sub_agent_models:
+  Explore: sonnet-no-thinking
+  Web: sonnet-no-thinking

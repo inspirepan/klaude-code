@@ -8,7 +8,11 @@ import os
 
 import pytest
 
-from klaude_code.core.tool.web.web_search_tool import SearchResult, _format_results, _search_brave
+from klaude_code.core.tool.web.web_search_tool import (  # pyright: ignore[reportPrivateUsage]
+    SearchResult,
+    _format_results,
+    _search_brave,
+)
 
 
 @pytest.mark.network
