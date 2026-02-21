@@ -153,6 +153,9 @@ class CacheHitWarnEvent(Event):
 
 class TaskMetadataEvent(Event):
     metadata: model.TaskMetadataItem
+    # True when emitted as a best-effort snapshot (e.g. task cancellation/interrupt).
+    # This can affect UI spacing because a partial task may not emit TaskFinishEvent.
+    is_partial: bool = False
 
 
 class ThinkingStartEvent(ResponseEvent):

@@ -36,7 +36,9 @@ def test_truncate_left_tiny_width_returns_ellipsis_only() -> None:
 
 def test_truncate_status_with_pipe_truncates_left_side() -> None:
     console = Console()
-    text = Text("Explore model definitions (Usage, TaskMetadata) to understand existing fields | Exploring (esc to interrupt)")
+    text = Text(
+        "Explore model definitions (Usage, TaskMetadata) to understand existing fields | Exploring (esc to interrupt)"
+    )
     result = truncate_status(text, 50, console=console)
     # The right part is " | Exploring (esc to interrupt)" which is 31 chars
     # max width is 50. left_budget is 19. ellipsis takes 1. prefix takes 18.
@@ -62,4 +64,3 @@ def test_truncate_status_when_pipe_right_part_too_long() -> None:
     # Ellipsis takes 2 chars. suffix budget 18.
     # "ht hand activity" = 16. "ght hand activity" = 17.
     assert result.plain == "… ight hand activity"
-

@@ -706,7 +706,7 @@ class DisplayStateMachine:
                 cmds.append(EndThinkingStream(e.session_id))
                 cmds.append(EndAssistantStream(e.session_id))
                 cmds.append(RenderTaskMetadata(e))
-                if is_replay:
+                if is_replay or e.is_partial:
                     cmds.append(PrintBlankLine())
                 return cmds
 
@@ -734,6 +734,7 @@ class DisplayStateMachine:
                 if is_replay or s.is_sub_agent:
                     return []
                 cmds.append(RenderCacheHitWarn(e))
+                cmds.append(PrintBlankLine())
                 return cmds
 
             case events.TurnEndEvent():
