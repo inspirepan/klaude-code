@@ -187,9 +187,9 @@ class SubAgentManager:
                 task_metadata=task_metadata,
             )
         except asyncio.CancelledError:
-            # Call cancel() on child agent to emit cleanup events
+            # Call on_interrupt() on child agent to emit cleanup events
             # Note: Parent retrieves partial metadata via registered getter before this runs
-            for evt in child_agent.cancel():
+            for evt in child_agent.on_interrupt():
                 await self.emit_event(evt)
 
             log_debug(

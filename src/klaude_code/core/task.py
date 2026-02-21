@@ -223,11 +223,15 @@ class TaskExecutor:
         task_duration_s = time.perf_counter() - self._started_at
         return self._metadata_accumulator.get_partial(task_duration_s)
 
-    def cancel(self) -> list[events.Event]:
-        """Cancel the current turn and return any resulting events including metadata."""
+    def on_interrupt(self) -> list[events.Event]:
+        """Handle an interrupt by finalizing the current turn and emitting partial metadata.
+
+        This method synthesizes best-effort UI/history events for an interrupted
+        task, but it does not cancel the outer asyncio task.
+        """
         ui_events: list[events.Event] = []
         if self._current_turn is not None:
-            for evt in self._current_turn.cancel():
+            for evt in self._current_turn.on_interrupt():
                 # Collect sub-agent task metadata from cancelled tool results
                 if (
                     isinstance(evt, events.ToolResultEvent)

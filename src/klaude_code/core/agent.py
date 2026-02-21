@@ -27,11 +27,15 @@ class Agent:
         if not self.session.model_name:
             self.session.model_name = profile.llm_client.model_name
 
-    def cancel(self) -> Iterable[events.Event]:
-        """Handle agent cancellation and tool cancellations."""
-        # First, cancel any running task so it stops emitting events.
+    def on_interrupt(self) -> Iterable[events.Event]:
+        """Handle an interrupt by emitting best-effort cleanup events.
+
+        This does not stop the running asyncio task by itself. The executor still
+        needs to cancel the owning asyncio.Task to inject asyncio.CancelledError.
+        """
+
         if self._current_task is not None:
-            yield from self._current_task.cancel()
+            yield from self._current_task.on_interrupt()
             self._current_task = None
 
         log_debug(

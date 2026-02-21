@@ -300,7 +300,7 @@ class AgentRuntime:
         for sid in session_ids:
             agent = self._get_active_agent(sid)
             if agent is not None:
-                for evt in agent.cancel():
+                for evt in agent.on_interrupt():
                     await self._emit_event(evt)
 
         await self._emit_event(events.InterruptEvent(session_id=target_session_id or "all"))
@@ -822,7 +822,7 @@ class ExecutorContext:
             raise RuntimeError(msg) from exc
 
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
-        """Handle an interrupt by invoking agent.cancel() and cancelling tasks."""
+        """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
 
         await self._agent_runtime.interrupt(operation.target_session_id)
 

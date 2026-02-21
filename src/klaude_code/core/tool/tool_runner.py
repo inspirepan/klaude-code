@@ -102,7 +102,7 @@ class ToolExecutor:
     - Partitioning tool calls into sequential and concurrent tools
     - Running sequential tools one by one and concurrent tools in parallel
     - Emitting ToolCall/ToolResult events and tool side-effect events
-    - Tracking unfinished calls so `cancel()` can synthesize cancellation results
+    - Tracking unfinished calls so `on_interrupt()` can synthesize cancellation results
     """
 
     def __init__(
@@ -179,7 +179,7 @@ class ToolExecutor:
                 # - If the user interrupts the main agent, the executor cancels the
                 #   outer agent task, which should propagate cancellation up through
                 #   tool execution so the task can terminate and emit TaskFinishEvent.
-                # - Sub-agent tool tasks cancelled via ToolExecutor.cancel() are
+                # - Sub-agent tool tasks cancelled via ToolExecutor.on_interrupt() are
                 #   handled by synthesizing ToolExecutionResult events; any
                 #   CancelledError raised here should still bubble up so the
                 #   calling agent can stop cleanly, matching pre-refactor behavior.
@@ -191,8 +191,8 @@ class ToolExecutor:
                 for exec_event in result_events:
                     yield exec_event
 
-    def cancel(self) -> Iterable[ToolExecutorEvent]:
-        """Cancel unfinished tool calls and synthesize error results.
+    def on_interrupt(self) -> Iterable[ToolExecutorEvent]:
+        """Handle an interrupt by cancelling unfinished tool calls and synthesizing aborted results.
 
         - Cancels any running concurrent tool tasks so they stop emitting events.
         - For each unfinished tool call, yields a ToolExecutionCallStarted (if not

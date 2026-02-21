@@ -299,6 +299,3 @@ class VanillaModelProfileProvider(ModelProfileProvider):
         if output_schema:
             return with_structured_output(profile, output_schema)
         return profile
-
-
-

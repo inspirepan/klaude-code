@@ -278,7 +278,7 @@ class TestToolExecutor:
         )
         executor._unfinished_calls["test_123"] = tool_call
 
-        events = list(executor.cancel())
+        events = list(executor.on_interrupt())
 
         # Should have call started and result (aborted) events
         assert len(events) == 2
@@ -296,7 +296,7 @@ class TestToolExecutor:
         executor._unfinished_calls["test_123"] = tool_call
         executor._sub_agent_session_ids["test_123"] = "session_abc"  # pyright: ignore[reportPrivateUsage]
 
-        events = list(executor.cancel())
+        events = list(executor.on_interrupt())
 
         assert len(events) == 2
         assert isinstance(events[1], ToolExecutionResult)
@@ -318,7 +318,7 @@ class TestToolExecutor:
             description="Test sub-agent",
         )
 
-        events = list(executor.cancel())
+        events = list(executor.on_interrupt())
 
         assert len(events) == 2
         assert isinstance(events[1], ToolExecutionResult)
@@ -339,7 +339,7 @@ class TestToolExecutor:
         executor._unfinished_calls["test_123"] = tool_call
         executor._call_event_emitted.add("test_123")
 
-        events = list(executor.cancel())
+        events = list(executor.on_interrupt())
 
         # Should only have result event (call started was already emitted)
         assert len(events) == 1
@@ -347,7 +347,7 @@ class TestToolExecutor:
 
     def test_cancel_with_no_unfinished(self, executor: ToolExecutor):
         """Test cancel with no unfinished calls."""
-        events = list(executor.cancel())
+        events = list(executor.on_interrupt())
         assert events == []
 
 

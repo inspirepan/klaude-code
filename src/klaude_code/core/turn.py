@@ -157,12 +157,16 @@ class TurnExecutor:
         """Check if the task result is structured output from report_back."""
         return bool(self._turn_result and self._turn_result.report_back_result)
 
-    def cancel(self) -> list[events.Event]:
-        """Cancel running tools and return any resulting events."""
+    def on_interrupt(self) -> list[events.Event]:
+        """Handle an interrupt by persisting partial output and finalizing running tools.
+
+        This method emits best-effort UI/history events, but it does not cancel
+        the outer asyncio task.
+        """
         ui_events: list[events.Event] = []
-        self._persist_partial_message_on_cancel()
+        self._persist_partial_message_on_interrupt()
         if self._tool_executor is not None:
-            for exec_event in self._tool_executor.cancel():
+            for exec_event in self._tool_executor.on_interrupt():
                 for ui_event in build_events_from_tool_executor_event(self._context.session_ctx.session_id, exec_event):
                     ui_events.append(ui_event)
             self._tool_executor = None
@@ -427,7 +431,7 @@ class TurnExecutor:
         finally:
             self._tool_executor = None
 
-    def _persist_partial_message_on_cancel(self) -> None:
+    def _persist_partial_message_on_interrupt(self) -> None:
         """Persist accumulated message when a turn is interrupted.
 
         Retrieves the partial message from the LLM stream, including both
