@@ -5,42 +5,46 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Klaude Log Viewer</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23e3dac7'/%3E%3Cpath d='M22 18h8v12l10-12h10L36 34l14 12H40L30 36v10h-8V18z' fill='%23141413'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/Iosevka/6.0.0/iosevka/iosevka.min.css" rel="stylesheet">
 <style>
 :root {
-  --bg: #faf9f5;
-  --bg-surface: #f0eee6;
-  --bg-hover: #e8e6dc;
-  --bg-selected: #f5ebe0;
+  --bg: #fcfbf9;
+  --bg-surface: #ffffff;
+  --bg-hover: #f3f1eb;
+  --bg-selected: #f0ede5;
   --bg-deep: #e3dac7;
-  --border: #d1cfc5;
-  --border-strong: #bfbdb3;
+  --border: #e8e6df;
+  --border-strong: #d4d1c9;
   --fg: #141413;
-  --fg-secondary: #878680;
-  --fg-tertiary: #b0aea5;
+  --fg-secondary: #5e5c56;
+  --fg-tertiary: #a19f95;
   --accent: #d97757;
   --accent-strong: #c6613f;
   --radius: 8px;
-  --radius-sm: 6px;
-  --font-sans: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-  --font-serif: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --radius-sm: 4px;
+  --font-sans: 'Iosevka Web', 'Iosevka', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Iosevka Web', 'Iosevka', Georgia, serif;
+  --font-mono: 'Iosevka Web', 'Iosevka', 'SF Mono', 'Fira Code', monospace;
   --code-key: #2f2b22;
   --code-str: #1b6b5c;
   --code-num: #b26b1d;
   --code-bool: #2e5c8a;
 }
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
+
 body {
   font-family: var(--font-sans);
-  font-size: 13px;
-  background: linear-gradient(180deg, var(--bg) 0%, #f3efe6 60%, var(--bg) 100%);
+  font-size: 16px;
+  background: var(--bg);
   color: var(--fg);
   height: 100vh;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
 #container { display: flex; height: 100vh; }
 
 /* Left panel */
@@ -54,25 +58,33 @@ body {
 }
 
 /* Toolbar */
+
+#toolbar, #right-toolbar {
+  height: 52px;
+  box-sizing: border-box;
+  padding: 0 16px;
+}
+
 #toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
+  gap: 12px;
+  
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+
 }
 #toolbar .title {
   color: var(--fg);
   font-family: var(--font-serif);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
 }
 #toolbar .filter-group {
   display: flex;
@@ -81,35 +93,42 @@ body {
   flex-wrap: wrap;
 }
 .filter-btn {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
+  background: transparent;
+  border: 1px solid transparent;
   color: var(--fg-secondary);
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 700;
   font-family: var(--font-sans);
   cursor: pointer;
-  transition: all 0.15s;
-  line-height: 1;
+  transition: all 0.2s ease;
+  line-height: 1.2;
 }
-.filter-btn:hover { background: var(--bg-hover); color: var(--fg); border-color: var(--border-strong); }
-.filter-btn.active { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.filter-btn:hover { background: #e6f0fa; color: #005fcc; }
+.filter-btn.active { 
+  background: #dbeafe; 
+  color: #1e3a8a; 
+  border-color: transparent; 
+  box-shadow: none; 
+}
+
 #search-box {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   color: var(--fg);
-  padding: 5px 12px;
-  border-radius: var(--radius);
-  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 16px;
   font-family: var(--font-sans);
   width: 200px;
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: all 0.2s ease;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
 }
 #search-box:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.2);
+  border-color: var(--fg-tertiary);
+  box-shadow: 0 0 0 2px rgba(20,20,19,0.05);
 }
 #search-box::placeholder { color: var(--fg-tertiary); }
 
@@ -119,8 +138,9 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 16px;
   background: var(--bg);
+  padding: 8px 0;
 }
 .log-line {
   padding: 2px 16px;
@@ -128,26 +148,27 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 24px;
-  transition: background 0.1s, box-shadow 0.1s;
-  border-bottom: 1px solid var(--border);
+  line-height: 20px;
+  border-radius: 4px;
+  margin: 1px 8px;
+  transition: background 0.1s ease;
 }
 .log-line:hover { background: var(--bg-hover); }
 .log-line.selected {
   background: var(--bg-selected);
-  border-color: var(--border-strong);
-  box-shadow: inset 2px 0 0 var(--accent);
+  border-radius: 6px;
 }
 .log-line .ts { color: var(--fg-tertiary); }
-.log-line .dtype { font-weight: 600; font-size: 11px; letter-spacing: 0.04em; }
-.log-line .dtype-GENERAL { color: var(--fg-tertiary); }
-.log-line .dtype-LLM_CONFIG { color: #6f6353; }
-.log-line .dtype-LLM_PAYLOAD { color: #1b6b5c; }
-.log-line .dtype-LLM_STREAM { color: #2e5c8a; }
-.log-line .dtype-UI_EVENT { color: #b26b1d; }
-.log-line .dtype-RESPONSE { color: #3f5f7a; }
-.log-line .dtype-EXECUTION { color: #6a7b3a; }
-.log-line .dtype-TERMINAL { color: #8a6a3a; }
+.log-line .dtype-wrapper { display: inline-block; min-width: 90px; text-align: left; }
+.log-line .dtype { display: inline-block; font-family: var(--font-sans); font-weight: 700; font-size: 16px; letter-spacing: 0.03em; padding: 2px 6px; border-radius: 4px; line-height: 1.2; }
+.log-line .dtype-GENERAL { color: #5e5c56; background: #e8e6df; }
+.log-line .dtype-LLM_CONFIG { color: #9a6700; background: #fdf3d1; }
+.log-line .dtype-LLM_PAYLOAD { color: #0b5e20; background: #e6f6e6; }
+.log-line .dtype-LLM_STREAM { color: #005fcc; background: #e6f0fa; }
+.log-line .dtype-UI_EVENT { color: #7c2d12; background: #ffedd5; }
+.log-line .dtype-RESPONSE { color: #5b21b6; background: #ede9fe; }
+.log-line .dtype-EXECUTION { color: #0f766e; background: #ccfbf1; }
+.log-line .dtype-TERMINAL { color: #be123c; background: #ffe4e6; }
 .log-line .msg { color: var(--fg-secondary); }
 .log-line .json-inline { color: var(--fg-tertiary); }
 .log-line .lineno {
@@ -155,23 +176,24 @@ body {
   display: inline-block;
   width: 3em;
   text-align: right;
-  margin-right: 8px;
+  margin-right: 12px;
   user-select: none;
-  font-size: 11px;
+  font-size: 16px;
 }
 .log-line .badge {
   display: inline-block;
   padding: 1px 6px;
   margin: 0 3px;
   border-radius: var(--radius-sm);
-  font-size: 11px;
-  font-family: var(--font-mono);
-  font-weight: 500;
+  font-size: 16px;
+  font-family: var(--font-sans);
+  font-weight: 700;
   line-height: 18px;
   vertical-align: middle;
   background: var(--bg-surface);
   color: var(--fg-secondary);
   border: 1px solid var(--border);
+  box-shadow: 0 1px 1px rgba(0,0,0,0.02);
 }
 .log-line.hidden { display: none; }
 
@@ -182,145 +204,160 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--bg-surface);
+  border-left: 1px solid var(--border);
 }
 #right-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
+  gap: 8px;
+  
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+
 }
 #right-toolbar .label {
   color: var(--fg);
-  font-family: var(--font-serif);
-  font-size: 13px;
-  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 700;
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .action-btn {
-  background: var(--bg);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   color: var(--fg-secondary);
-  padding: 4px 12px;
-  border-radius: var(--radius);
-  font-size: 12px;
-  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 700;
   font-family: var(--font-sans);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s ease;
   white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
-.action-btn:hover { background: var(--bg-hover); color: var(--fg); border-color: var(--border-strong); }
+.action-btn:hover { background: var(--bg-hover); color: var(--fg); border-color: var(--border-strong); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 #btn-copy {
   background: var(--fg);
-  color: var(--bg);
+  color: var(--bg-surface);
   border-color: var(--fg);
 }
 #btn-copy:hover {
-  background: var(--accent-strong);
-  border-color: var(--accent-strong);
-  color: var(--bg);
+  background: var(--fg-secondary);
+  border-color: var(--fg-secondary);
 }
 
 /* JSON viewer */
 #json-view {
   flex: 1;
   overflow: auto;
-  padding: 0;
+  padding: 12px 8px;
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1;
+  font-size: 16px;
+  line-height: 1.4;
   background: var(--bg-surface);
 }
 #json-view .empty-hint {
   color: var(--fg-tertiary);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 16px;
   display: block;
-  padding: 20px 16px 16px;
-  line-height: 1.4;
+  padding: 20px 16px;
+  text-align: center;
+  margin-top: 40px;
 }
 
 /* JSON tree */
 .jt-row {
   display: flex;
   align-items: flex-start;
-  line-height: 24px;
+  line-height: 22px;
   padding: 0 12px 0 0;
+  border-radius: 4px;
 }
 .jt-row:hover { background: var(--bg-hover); }
 .jt-lineno {
   color: var(--fg-tertiary);
   min-width: 3em;
   text-align: right;
-  padding-right: 8px;
+  padding-right: 12px;
   flex-shrink: 0;
   user-select: none;
-  font-size: 11px;
+  font-size: 16px;
 }
 .jt-indent { display: inline-block; flex-shrink: 0; }
 .jt-arrow {
-  width: 16px;
+  width: 18px;
   flex-shrink: 0;
   cursor: pointer;
   user-select: none;
   color: var(--fg-tertiary);
-  font-size: 10px;
+  font-size: 8px;
   text-align: center;
-  line-height: 24px;
+  line-height: 22px;
+  transition: color 0.1s;
 }
-.jt-arrow-ph { width: 16px; flex-shrink: 0; }
-.jt-key { color: var(--code-key); font-weight: 600; }
-.jt-colon { color: var(--fg-tertiary); margin-right: 4px; }
+.jt-arrow:hover { color: var(--fg); }
+.jt-arrow-ph { width: 18px; flex-shrink: 0; }
+.jt-key { color: var(--code-key); }
+.jt-colon { color: var(--fg-tertiary); margin-right: 6px; }
 .jt-str { color: var(--code-str); word-break: break-all; white-space: pre-wrap; }
 .jt-str.clamped { display: -webkit-box; -webkit-line-clamp: 10; -webkit-box-orient: vertical; overflow: hidden; }
 .jt-str-toggle {
   color: var(--fg-tertiary);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 16px;
   font-family: var(--font-sans);
-  display: block;
-  padding: 2px 0;
+  display: inline-block;
+  padding: 2px 6px;
+  margin-top: 2px;
+  background: var(--bg);
+  border-radius: 4px;
+  border: 1px solid var(--border);
 }
-.jt-str-toggle:hover { color: var(--fg-secondary); }
+.jt-str-toggle:hover { color: var(--fg); background: var(--border); }
 .jt-num { color: var(--code-num); }
-.jt-bool { color: var(--code-bool); }
+.jt-bool { color: var(--code-bool); font-weight: 600; }
 .jt-null { color: var(--fg-tertiary); }
-.jt-summary { color: var(--fg-tertiary); }
+.jt-summary { color: var(--fg-tertiary); font-size: 16px; }
 .jt-copy {
   opacity: 0;
   cursor: pointer;
   color: var(--fg-tertiary);
-  margin-left: 6px;
+  margin-left: 8px;
   flex-shrink: 0;
-  transition: opacity 0.1s;
+  transition: opacity 0.15s, color 0.15s;
   display: inline-flex;
   align-items: center;
   line-height: 0;
 }
-.jt-row:hover > .jt-copy { opacity: 0.5; }
-.jt-copy:hover { opacity: 1 !important; }
+.jt-row:hover > .jt-copy { opacity: 0.6; }
+.jt-copy:hover { opacity: 1 !important; color: var(--fg); }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--bg-deep); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-tertiary); border: 2px solid transparent; background-clip: padding-box; }
 
 /* Resize handle */
 #resize-handle {
-  width: 3px;
+  width: 4px;
   cursor: col-resize;
-  background: var(--bg-hover);
+  background: transparent;
   flex-shrink: 0;
-  transition: background 0.15s;
+  transition: background 0.2s ease;
+  z-index: 10;
+  position: relative;
+  /* Shift slightly to overlap the border visually */
+  margin-left: -2px;
+  margin-right: -2px;
 }
-#resize-handle:hover, #resize-handle.dragging { background: var(--accent); }
+#resize-handle:hover, #resize-handle.dragging { background: var(--border-strong); }
 </style>
 </head>
 <body>
@@ -372,6 +409,7 @@ async function loadLog() {
     const text = await resp.text();
     parseLog(text);
     renderLogList();
+    // Do not call applyFilters() here anymore since renderLogList already calculates initial visibility
   } catch (e) {
     document.getElementById('log-title').textContent = 'Error: ' + e.message;
   }
@@ -467,8 +505,18 @@ function renderLogList() {
   list.innerHTML = '';
   const frag = document.createDocumentFragment();
   logLines.forEach((entry, idx) => {
+    let visible = true;
+    if (activeFilters.size > 0 && entry.type && !activeFilters.has(entry.type)) {
+      visible = false;
+    }
+    if (visible && searchQuery) {
+      const hay = entry.raw.toLowerCase();
+      if (!hay.includes(searchQuery)) visible = false;
+    }
+    
     const div = document.createElement('div');
     div.className = 'log-line';
+    if (!visible) div.classList.add('hidden');
     div.dataset.idx = idx;
 
     let html = '<span class="lineno">' + entry.lineNo + '</span>';
@@ -476,7 +524,7 @@ function renderLogList() {
       // Show only time part (trim date)
       const timePart = entry.ts.includes(' ') ? entry.ts.split(' ')[1] : entry.ts;
       html += '<span class="ts">' + esc(timePart) + '</span> ';
-      html += '<span class="dtype dtype-' + entry.type + '">' + esc(entry.type.padEnd(12)) + '</span> ';
+      html += '<span class="dtype-wrapper"><span class="dtype dtype-' + entry.type + '">' + esc(entry.type) + '</span></span> ';
       html += '<span class="msg">' + badgeify(entry.text) + '</span>';
       const summary = summarizeJson(entry);
       if (summary) {
@@ -783,7 +831,9 @@ async function pollForUpdates() {
     const text = await resp.text();
     if (text === lastContent) return;
     lastContent = text;
-
+    
+    // Check if initial load
+    const isInitial = (logLines.length === 0);
     const prevCount = logLines.length;
     parseLog(text);
 
@@ -792,14 +842,24 @@ async function pollForUpdates() {
     const frag = document.createDocumentFragment();
     for (let idx = prevCount; idx < logLines.length; idx++) {
       const entry = logLines[idx];
+      let visible = true;
+      if (activeFilters.size > 0 && entry.type && !activeFilters.has(entry.type)) {
+        visible = false;
+      }
+      if (visible && searchQuery) {
+        const hay = entry.raw.toLowerCase();
+        if (!hay.includes(searchQuery)) visible = false;
+      }
+
       const div = document.createElement('div');
       div.className = 'log-line';
+      if (!visible) div.classList.add('hidden');
       div.dataset.idx = idx;
       let html = '<span class="lineno">' + entry.lineNo + '</span>';
       if (entry.ts) {
         const timePart = entry.ts.includes(' ') ? entry.ts.split(' ')[1] : entry.ts;
         html += '<span class="ts">' + esc(timePart) + '</span> ';
-        html += '<span class="dtype dtype-' + entry.type + '">' + esc(entry.type.padEnd(12)) + '</span> ';
+        html += '<span class="dtype-wrapper"><span class="dtype dtype-' + entry.type + '">' + esc(entry.type) + '</span></span> ';
         html += '<span class="msg">' + badgeify(entry.text) + '</span>';
         const summary = summarizeJson(entry);
         if (summary) {
