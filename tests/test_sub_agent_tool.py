@@ -9,8 +9,8 @@ from typing import Any
 import pytest
 
 from klaude_code.core.tool.context import RunSubtask, TodoContext, ToolContext
-from klaude_code.core.tool.sub_agent.image_gen import ImageGenTool
-from klaude_code.core.tool.sub_agent.task import TaskTool
+from klaude_code.core.tool.image_gen_tool import ImageGenTool
+from klaude_code.core.tool.task_tool import TaskTool
 from klaude_code.protocol import tools
 from klaude_code.protocol.sub_agent import SubAgentProfile, _default_prompt_builder
 

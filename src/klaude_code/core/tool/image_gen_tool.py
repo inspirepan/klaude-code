@@ -69,7 +69,7 @@ class ImageGenTool(ToolABC):
         return llm_param.ToolSchema(
             name=tools.IMAGE_GEN,
             type="function",
-            description=load_desc(Path(__file__).parent / "image_gen.md"),
+            description=load_desc(Path(__file__).parent / "image_gen_tool.md"),
             parameters=IMAGE_GEN_PARAMETERS,
         )
 

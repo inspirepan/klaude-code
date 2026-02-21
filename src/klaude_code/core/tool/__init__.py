@@ -4,17 +4,18 @@ from .file.apply_patch_tool import ApplyPatchTool
 from .file.edit_tool import EditTool
 from .file.read_tool import ReadTool
 from .file.write_tool import WriteTool
+from .image_gen_tool import ImageGenTool
+from .mermaid_tool import MermaidTool
 from .report_back_tool import ReportBackTool
-from .rewind.rewind_tool import RewindTool
+from .rewind_tool import RewindTool
 from .shell.bash_tool import BashTool
 from .shell.command_safety import SafetyCheckResult, is_safe_command
-from .sub_agent import ImageGenTool, TaskTool
+from .task_tool import TaskTool
 from .todo.todo_write_tool import TodoWriteTool
 from .todo.update_plan_tool import UpdatePlanTool
 from .tool_abc import ToolABC
 from .tool_registry import get_registry, get_tool_schemas
 from .tool_runner import run_tool
-from .web.mermaid_tool import MermaidTool
 from .web.web_fetch_tool import WebFetchTool
 from .web.web_search_tool import WebSearchTool
 

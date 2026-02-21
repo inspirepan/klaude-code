@@ -36,7 +36,7 @@ def _task_description() -> str:
 
     types_section = "\n".join(type_lines) if type_lines else "- general-purpose"
 
-    return load_desc(Path(__file__).parent / "task.md", {"types_section": types_section})
+    return load_desc(Path(__file__).parent / "task_tool.md", {"types_section": types_section})
 
 
 TASK_SCHEMA = llm_param.ToolSchema(
