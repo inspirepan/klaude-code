@@ -38,6 +38,9 @@ def _build_metadata_content(
         content.append_text(Text(metadata.description, style=ThemeKey.METADATA_ITALIC))
         content.append_text(Text(" ", style=ThemeKey.METADATA))
     content.append_text(Text(metadata.model_name, style=ThemeKey.METADATA))
+    if metadata.provider:
+        sub_provider = metadata.provider.rsplit("/", 1)[-1] if "/" in metadata.provider else metadata.provider
+        content.append_text(Text(f" via {sub_provider}", style=ThemeKey.METADATA_DIM))
 
     parts: list[Text] = []
 
