@@ -75,6 +75,7 @@ class TaskMetadata(BaseModel):
     usage: Usage | None = None
     model_name: str = ""
     provider: str | None = None
+    sub_agent_name: str | None = None
     description: str | None = None
     task_duration_s: float | None = None
     turn_count: int = 0

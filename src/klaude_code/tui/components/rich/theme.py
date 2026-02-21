@@ -143,6 +143,11 @@ class ThemeKey(str, Enum):
     METADATA_DIM = "metadata.dim"
     METADATA_BOLD = "metadata.bold"
     METADATA_ITALIC = "metadata.italic"
+    METADATA_TOKEN = "metadata.token"
+    METADATA_MAIN_AGENT_NAME = "metadata.main_agent_name"
+    METADATA_SUB_AGENT_NAME = "metadata.sub_agent_name"
+    METADATA_GREEN = "metadata.green"
+    METADATA_GREEN_DIM = "metadata.green.dim"
     # SPINNER_STATUS
     STATUS_SPINNER = "spinner.status"
     STATUS_TEXT = "spinner.status.text"
@@ -278,7 +283,12 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.METADATA.value: palette.grey1,
                 ThemeKey.METADATA_DIM.value: "dim " + palette.grey1,
                 ThemeKey.METADATA_BOLD.value: "bold " + palette.grey1,
-                ThemeKey.METADATA_ITALIC.value: "italic " + palette.grey1,
+                ThemeKey.METADATA_ITALIC.value: "italic " + palette.purple,
+                ThemeKey.METADATA_TOKEN.value: palette.grey1 + " on " + palette.green_background,
+                ThemeKey.METADATA_MAIN_AGENT_NAME.value: palette.blue + " on " + palette.blue_sub_background,
+                ThemeKey.METADATA_SUB_AGENT_NAME.value: palette.purple + " on " + palette.purple_background,
+                ThemeKey.METADATA_GREEN.value: palette.green,
+                ThemeKey.METADATA_GREEN_DIM.value: palette.grey_green,
                 # STATUS
                 ThemeKey.STATUS_SPINNER.value: palette.grey1,
                 ThemeKey.STATUS_TEXT.value: palette.grey1,

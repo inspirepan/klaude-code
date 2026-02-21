@@ -23,6 +23,7 @@ from klaude_code.const import (
     STATUS_SHIMMER_ENABLED,
     STATUS_SHIMMER_PADDING,
 )
+from klaude_code.tui.components.common import format_elapsed_compact
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 # Use an existing Rich spinner name; BreathingSpinner overrides its rendering
@@ -63,19 +64,6 @@ def _task_elapsed_seconds(now: float | None = None) -> float | None:
     return max(0.0, current - _task_start)
 
 
-def _format_elapsed_compact(seconds: float) -> str:
-    total_seconds = max(0, int(seconds))
-    if total_seconds < 60:
-        return f"{total_seconds}s"
-
-    minutes, sec = divmod(total_seconds, 60)
-    if minutes < 60:
-        return f"{minutes}m{sec:02d}s"
-
-    hours, minute = divmod(minutes, 60)
-    return f"{hours}h{minute:02d}m{sec:02d}s"
-
-
 def current_hint_text(*, min_time_width: int = 0) -> str:
     """Return the full hint string shown on the status line.
 
@@ -96,7 +84,7 @@ def current_elapsed_text(*, min_time_width: int = 0) -> str | None:
     elapsed = _task_elapsed_seconds()
     if elapsed is None:
         return None
-    time_text = _format_elapsed_compact(elapsed)
+    time_text = format_elapsed_compact(elapsed)
     if min_time_width > 0:
         time_text = time_text.rjust(min_time_width)
     return time_text

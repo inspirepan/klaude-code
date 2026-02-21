@@ -1,23 +1,26 @@
+from __future__ import annotations
+
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from typing import ClassVar
 
 from rich.console import Group, RenderableType
 from rich.text import Text
 from rich.tree import Tree
-
-
-class _RoundedTree(Tree):
-    TREE_GUIDES = [
-        ("    ", "│   ", "├── ", "╰── "),
-        ("    ", "│   ", "├── ", "╰── "),
-        ("    ", "│   ", "├── ", "╰── "),
-    ]
 
 from klaude_code.log import is_debug_enabled
 from klaude_code.protocol import events
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.ui.common import format_model_params
+
+
+class _RoundedTree(Tree):
+    TREE_GUIDES: ClassVar[list[tuple[str, str, str, str]]] = [
+        ("    ", "│   ", "├── ", "╰── "),
+        ("    ", "│   ", "├── ", "╰── "),
+        ("    ", "│   ", "├── ", "╰── "),
+    ]
 
 _LABEL_WIDTH = len("[project]")
 

@@ -55,6 +55,8 @@ class MetadataAccumulator:
             acc_usage.context_size = usage.context_size
         if usage.context_limit is not None:
             acc_usage.context_limit = usage.context_limit
+        if usage.max_tokens is not None:
+            acc_usage.max_tokens = usage.max_tokens
 
         if usage.first_token_latency_ms is not None:
             self._first_token_latency_sum += usage.first_token_latency_ms

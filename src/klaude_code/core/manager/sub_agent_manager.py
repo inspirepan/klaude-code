@@ -120,6 +120,7 @@ class SubAgentManager:
         def _get_partial_metadata() -> model.TaskMetadata | None:
             metadata = child_agent.get_partial_metadata()
             if metadata is not None:
+                metadata.sub_agent_name = state.sub_agent_type
                 metadata.description = state.sub_agent_desc or None
             return metadata
 
@@ -174,6 +175,7 @@ class SubAgentManager:
                 # Capture TaskMetadataEvent for metadata propagation
                 elif isinstance(event, events.TaskMetadataEvent):
                     task_metadata = event.metadata.main_agent
+                    task_metadata.sub_agent_name = state.sub_agent_type
                     task_metadata.description = state.sub_agent_desc or None
                 await self.emit_event(event)
 

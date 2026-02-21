@@ -14,6 +14,20 @@ from klaude_code.const import (
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 
+def format_elapsed_compact(seconds: float) -> str:
+    """Format seconds into a compact human-readable duration string (e.g. 11s, 1m02s, 3h32m05s)."""
+    total_seconds = max(0, int(seconds))
+    if total_seconds < 60:
+        return f"{total_seconds}s"
+
+    minutes, sec = divmod(total_seconds, 60)
+    if minutes < 60:
+        return f"{minutes}m{sec:02d}s"
+
+    hours, minute = divmod(minutes, 60)
+    return f"{hours}h{minute:02d}m{sec:02d}s"
+
+
 def create_grid(*, overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "fold") -> Table:
     grid = Table.grid(padding=(0, 1))
     grid.add_column(no_wrap=True)

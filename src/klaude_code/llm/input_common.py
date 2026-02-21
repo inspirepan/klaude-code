@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMCallParameter, LLMConfigParameter
 
-from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
+from klaude_code.const import DEFAULT_MAX_TOKENS, EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.llm.image import image_file_to_data_url
 from klaude_code.protocol import message
 
@@ -284,6 +284,8 @@ def apply_config_defaults(param: "LLMCallParameter", config: "LLMConfigParameter
         param.temperature = config.temperature
     if param.max_tokens is None:
         param.max_tokens = config.max_tokens
+    if param.max_tokens is None:
+        param.max_tokens = DEFAULT_MAX_TOKENS
     if param.context_limit is None:
         param.context_limit = config.context_limit
     if param.verbosity is None:

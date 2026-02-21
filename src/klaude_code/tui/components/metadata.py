@@ -1,68 +1,46 @@
+from typing import ClassVar
+
 from rich.console import Group, RenderableType
 from rich.text import Text
+from rich.tree import Tree
 
 from klaude_code.const import DEFAULT_MAX_TOKENS
 from klaude_code.protocol import events, model
-from klaude_code.tui.components.common import create_grid
+from klaude_code.tui.components.common import create_grid, format_elapsed_compact
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.ui.common import format_number
 
 
-def _render_task_metadata_block(
+class _RoundedTree(Tree):
+    TREE_GUIDES: ClassVar[list[tuple[str, str, str, str]]] = [
+        ("      ", "  │   ", "  ├── ", "  ╰── "),
+        ("      ", "  │   ", "  ├── ", "  ╰── "),
+        ("      ", "  │   ", "  ├── ", "  ╰── "),
+    ]
+
+
+def _build_metadata_content(
     metadata: model.TaskMetadata,
     *,
-    mark: Text,
     show_context_and_time: bool = True,
-) -> RenderableType:
-    """Render a single TaskMetadata block.
-
-    Args:
-        metadata: The TaskMetadata to render.
-        mark: The mark to display in the first column.
-        show_context_and_time: Whether to show context usage percent and time.
-
-    Returns:
-        A renderable for this metadata block.
-    """
-    grid = create_grid()
-
-    # Get currency symbol
+    show_turn_count: bool = True,
+    show_duration: bool = True,
+) -> Text:
+    """Build the content Text for a single metadata block."""
     currency = metadata.usage.currency if metadata.usage else "USD"
     currency_symbol = "¥" if currency == "CNY" else "$"
 
-    # Second column: provider/model description / tokens / cost / …
     content = Text()
-    content.append_text(Text(metadata.model_name, style=ThemeKey.METADATA))
+    if metadata.sub_agent_name:
+        content.append_text(Text(f" {metadata.sub_agent_name} ", style=ThemeKey.METADATA_SUB_AGENT_NAME))
+        content.append_text(Text(" ", style=ThemeKey.METADATA))
     if metadata.description:
-        content.append_text(Text(" ", style=ThemeKey.METADATA)).append_text(
-            Text(metadata.description, style=ThemeKey.METADATA_ITALIC)
-        )
+        content.append_text(Text(metadata.description, style=ThemeKey.METADATA_ITALIC))
+        content.append_text(Text(" ", style=ThemeKey.METADATA))
+    content.append_text(Text(metadata.model_name, style=ThemeKey.METADATA))
 
-    # All info parts (tokens, cost, context, etc.)
     parts: list[Text] = []
 
-    if metadata.usage is not None:
-        # Tokens: ↑37k ◎5k ↓907 ∿45k ⌗ 100
-        token_text = Text()
-        input_tokens = max(metadata.usage.input_tokens - metadata.usage.cached_tokens, 0)
-        output_tokens = max(metadata.usage.output_tokens - metadata.usage.reasoning_tokens, 0)
-
-        token_text.append("↑", style=ThemeKey.METADATA)
-        token_text.append(format_number(input_tokens), style=ThemeKey.METADATA)
-        if metadata.usage.cached_tokens > 0:
-            token_text.append(" ◎", style=ThemeKey.METADATA)
-            token_text.append(format_number(metadata.usage.cached_tokens), style=ThemeKey.METADATA)
-        token_text.append(" ↓", style=ThemeKey.METADATA)
-        token_text.append(format_number(output_tokens), style=ThemeKey.METADATA)
-        if metadata.usage.reasoning_tokens > 0:
-            token_text.append(" ∿", style=ThemeKey.METADATA)
-            token_text.append(format_number(metadata.usage.reasoning_tokens), style=ThemeKey.METADATA)
-        if metadata.usage.image_tokens > 0:
-            token_text.append(" ⊡", style=ThemeKey.METADATA)
-            token_text.append(format_number(metadata.usage.image_tokens), style=ThemeKey.METADATA)
-        parts.append(token_text)
-
-    # Cost
     if metadata.usage is not None and metadata.usage.total_cost is not None:
         parts.append(
             Text.assemble(
@@ -70,8 +48,27 @@ def _render_task_metadata_block(
                 (f"{metadata.usage.total_cost:.4f}", ThemeKey.METADATA),
             )
         )
+
     if metadata.usage is not None:
-        # Context usage: 31k/168k(18.4%)
+        token_text = Text()
+        input_tokens = max(metadata.usage.input_tokens - metadata.usage.cached_tokens, 0)
+        output_tokens = max(metadata.usage.output_tokens - metadata.usage.reasoning_tokens, 0)
+
+        token_text.append("↑", style=ThemeKey.METADATA_TOKEN)
+        token_text.append(format_number(input_tokens), style=ThemeKey.METADATA_TOKEN)
+        if metadata.usage.cached_tokens > 0:
+            token_text.append(" ◎", style=ThemeKey.METADATA_TOKEN)
+            token_text.append(format_number(metadata.usage.cached_tokens), style=ThemeKey.METADATA_TOKEN)
+        token_text.append(" ↓", style=ThemeKey.METADATA_TOKEN)
+        token_text.append(format_number(output_tokens), style=ThemeKey.METADATA_TOKEN)
+        if metadata.usage.reasoning_tokens > 0:
+            token_text.append(" ∿", style=ThemeKey.METADATA_TOKEN)
+            token_text.append(format_number(metadata.usage.reasoning_tokens), style=ThemeKey.METADATA_TOKEN)
+        if metadata.usage.image_tokens > 0:
+            token_text.append(" ⊡", style=ThemeKey.METADATA_TOKEN)
+            token_text.append(format_number(metadata.usage.image_tokens), style=ThemeKey.METADATA_TOKEN)
+        parts.append(token_text)
+
         if show_context_and_time and metadata.usage.context_usage_percent is not None:
             context_size = format_number(metadata.usage.context_size or 0)
             effective_limit = (metadata.usage.context_limit or 0) - (metadata.usage.max_tokens or DEFAULT_MAX_TOKENS)
@@ -85,7 +82,6 @@ def _render_task_metadata_block(
                 )
             )
 
-        # TPS: 45.2tps
         if metadata.usage.throughput_tps is not None:
             parts.append(
                 Text.assemble(
@@ -94,28 +90,7 @@ def _render_task_metadata_block(
                 )
             )
 
-        # First token latency: 100ms-ftl / 2.1s-ftl
-        if metadata.usage.first_token_latency_ms is not None:
-            ftl_ms = metadata.usage.first_token_latency_ms
-            ftl_str = f"{ftl_ms / 1000:.1f}s" if ftl_ms >= 1000 else f"{ftl_ms:.0f}ms"
-            parts.append(
-                Text.assemble(
-                    (ftl_str, ThemeKey.METADATA),
-                    ("-ftl", ThemeKey.METADATA),
-                )
-            )
-
-    # Duration: 12.5s
-    if show_context_and_time and metadata.task_duration_s is not None:
-        parts.append(
-            Text.assemble(
-                (f"{metadata.task_duration_s:.1f}", ThemeKey.METADATA),
-                ("s", ThemeKey.METADATA),
-            )
-        )
-
-    # Turn count: 1step / 3steps
-    if show_context_and_time and metadata.turn_count > 0:
+    if show_turn_count and show_context_and_time and metadata.turn_count > 0:
         suffix = "step" if metadata.turn_count == 1 else "steps"
         parts.append(
             Text.assemble(
@@ -124,49 +99,70 @@ def _render_task_metadata_block(
             )
         )
 
+    if show_duration and show_context_and_time and metadata.task_duration_s is not None:
+        parts.append(Text(format_elapsed_compact(metadata.task_duration_s), style=ThemeKey.METADATA))
+
     if parts:
         content.append_text(Text(" ", style=ThemeKey.METADATA))
         content.append_text(Text(" ", style=ThemeKey.METADATA_DIM).join(parts))
 
-    grid.add_row(mark, content)
-    return grid
+    return content
 
 
 def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     """Render task metadata including main agent and sub-agents."""
     renderables: list[RenderableType] = []
 
+    # "Worked for Xs, N steps" line
+    main = e.metadata.main_agent
+    duration_s = main.task_duration_s
+    if duration_s is not None:
+        parts: list[tuple[str, ThemeKey]] = [
+            ("✔ ", ThemeKey.METADATA_GREEN),
+            ("Worked for ", ThemeKey.METADATA_GREEN),
+            (format_elapsed_compact(duration_s), ThemeKey.METADATA_GREEN),
+        ]
+        if main.turn_count > 0:
+            suffix = "step" if main.turn_count == 1 else "steps"
+            parts.append((f" in {main.turn_count} {suffix}", ThemeKey.METADATA_GREEN_DIM))
+        renderables.append(Text.assemble(*parts))
+        renderables.append(Text(""))
+
     has_sub_agents = len(e.metadata.sub_agent_task_metadata) > 0
-    main_mark_text = "•"
-    main_mark = Text(main_mark_text, style=ThemeKey.METADATA)
+    main_content = _build_metadata_content(main, show_context_and_time=True, show_turn_count=False, show_duration=False)
 
-    renderables.append(_render_task_metadata_block(e.metadata.main_agent, mark=main_mark, show_context_and_time=True))
-
-    # Render each sub-agent metadata block
-    for meta in e.metadata.sub_agent_task_metadata:
-        sub_mark = Text("  •", style=ThemeKey.METADATA)
-        renderables.append(_render_task_metadata_block(meta, mark=sub_mark, show_context_and_time=True))
-
-    # Add total cost line when there are sub-agents
     if has_sub_agents:
+        root_label = Text.assemble(("• ", ThemeKey.METADATA))
+        root_label.append_text(Text(" Main ", style=ThemeKey.METADATA_MAIN_AGENT_NAME))
+        root_label.append_text(Text(" ", style=ThemeKey.METADATA))
+        root_label.append_text(main_content)
+        tree = _RoundedTree(root_label, guide_style=ThemeKey.METADATA_DIM)
+
+        for meta in e.metadata.sub_agent_task_metadata:
+            tree.add(_build_metadata_content(meta, show_context_and_time=True))
+
+        # Total cost
         total_cost = 0.0
         currency = "USD"
-        # Sum up costs from main agent and all sub-agents
-        if e.metadata.main_agent.usage and e.metadata.main_agent.usage.total_cost:
-            total_cost += e.metadata.main_agent.usage.total_cost
-            currency = e.metadata.main_agent.usage.currency
+        if main.usage and main.usage.total_cost:
+            total_cost += main.usage.total_cost
+            currency = main.usage.currency
         for meta in e.metadata.sub_agent_task_metadata:
             if meta.usage and meta.usage.total_cost:
                 total_cost += meta.usage.total_cost
 
         currency_symbol = "¥" if currency == "CNY" else "$"
-        total_line = Text.assemble(
-            ("  •", ThemeKey.METADATA),
-            (" total ", ThemeKey.METADATA),
-            (currency_symbol, ThemeKey.METADATA),
-            (f"{total_cost:.4f}", ThemeKey.METADATA),
+        tree.add(
+            Text.assemble(
+                ("total ", ThemeKey.METADATA),
+                (currency_symbol, ThemeKey.METADATA),
+                (f"{total_cost:.4f}", ThemeKey.METADATA),
+            )
         )
-
-        renderables.append(total_line)
+        renderables.append(tree)
+    else:
+        grid = create_grid()
+        grid.add_row(Text("•", style=ThemeKey.METADATA), main_content)
+        renderables.append(grid)
 
     return Group(*renderables)
