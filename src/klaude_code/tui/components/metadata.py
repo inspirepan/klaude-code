@@ -182,8 +182,8 @@ def render_cache_hit_warn(e: events.CacheHitWarnEvent) -> RenderableType:
     msg = Text.assemble(
         ("Low cache hit rate: ", ThemeKey.WARN),
         (f"{e.cache_hit_rate:.0%}", ThemeKey.WARN_BOLD),
-        (f" (cached ◎{format_number(e.cached_tokens)}", ThemeKey.WARN),
-        (f" / prev input ↑{format_number(e.prev_turn_input_tokens)})", ThemeKey.WARN),
+        (f" (cached {format_number(e.cached_tokens)}", ThemeKey.WARN),
+        (f" / prev input {format_number(e.prev_turn_input_tokens)})", ThemeKey.WARN),
     )
     grid.add_row(Text("!", style=ThemeKey.WARN_BOLD), msg)
     return grid
