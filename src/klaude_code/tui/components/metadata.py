@@ -4,7 +4,7 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 from rich.tree import Tree
 
-from klaude_code.const import DEFAULT_MAX_TOKENS
+from klaude_code.const import DEFAULT_MAX_TOKENS, LOW_CACHE_HIT_RATE_THRESHOLD
 from klaude_code.protocol import events, model
 from klaude_code.tui.components.common import create_grid, format_elapsed_compact
 from klaude_code.tui.components.rich.theme import ThemeKey
@@ -63,7 +63,7 @@ def _build_metadata_content(
             if metadata.usage.cache_hit_rate is not None:
                 if metadata.usage.cache_hit_rate >= 0.995:
                     rate_style = ThemeKey.METADATA_TOKEN_OK
-                elif metadata.usage.cache_hit_rate >= 0.9:
+                elif metadata.usage.cache_hit_rate >= LOW_CACHE_HIT_RATE_THRESHOLD:
                     rate_style = ThemeKey.METADATA_TOKEN
                 else:
                     rate_style = ThemeKey.METADATA_TOKEN_WARN

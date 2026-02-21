@@ -732,7 +732,8 @@ class DisplayStateMachine:
 
             case events.CacheHitWarnEvent() as e:
                 cmds.append(RenderCacheHitWarn(e))
-                cmds.append(PrintBlankLine())
+                if not s.is_sub_agent:
+                    cmds.append(PrintBlankLine())
                 return cmds
 
             case events.TurnEndEvent():

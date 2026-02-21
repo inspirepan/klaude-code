@@ -636,7 +636,11 @@ class TUICommandRenderer:
             self.print(c_errors.render_error(Text(event.error_message)))
 
     def display_cache_hit_warn(self, event: events.CacheHitWarnEvent) -> None:
-        self.print(c_metadata.render_cache_hit_warn(event))
+        if event.session_id:
+            with self.session_print_context(event.session_id):
+                self.print(c_metadata.render_cache_hit_warn(event))
+        else:
+            self.print(c_metadata.render_cache_hit_warn(event))
 
     def display_compaction_summary(self, summary: str, kept_items_brief: tuple[tuple[str, int, str], ...] = ()) -> None:
         stripped = summary.strip()

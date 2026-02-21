@@ -21,7 +21,6 @@ from klaude_code.llm.input_common import (
 )
 from klaude_code.protocol import message
 from klaude_code.protocol.model_id import is_claude_model as is_claude_model
-from klaude_code.protocol.model_id import is_gemini_model as is_gemini_model
 from klaude_code.protocol.model_id import is_glm_model as is_glm_model
 from klaude_code.protocol.model_id import is_xai_model as is_xai_model
 
@@ -93,7 +92,7 @@ def convert_history_to_input(
     model_name: str | None = None,
 ) -> list[chat.ChatCompletionMessageParam]:
     """Convert a list of messages to chat completion params."""
-    use_cache_control = is_claude_model(model_name) or is_gemini_model(model_name)
+    use_cache_control = is_claude_model(model_name)
 
     messages: list[chat.ChatCompletionMessageParam] = (
         [

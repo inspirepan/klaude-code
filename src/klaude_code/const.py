@@ -53,6 +53,7 @@ CODEX_USER_AGENT = "codex_cli_rs/0.0.0-klaude"  # Codex user agent string
 
 SUPPORTED_IMAGE_SIZES = {"1K", "2K", "4K"}  # Supported image sizes for ImageGen tool
 
+LOW_CACHE_HIT_RATE_THRESHOLD = 0.9  # Cache hit rate below this triggers a warning
 THROUGHPUT_MIN_DURATION_SEC = 0.15  # Minimum duration (seconds) for throughput calculation
 INITIAL_RETRY_DELAY_S = 1.0  # Initial delay before retrying a failed turn (seconds)
 MAX_RETRY_DELAY_S = 30.0  # Maximum delay between retries (seconds)

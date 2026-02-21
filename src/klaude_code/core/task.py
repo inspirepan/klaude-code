@@ -5,7 +5,12 @@ import time
 from collections.abc import AsyncGenerator, Callable, Sequence
 from dataclasses import dataclass
 
-from klaude_code.const import INITIAL_RETRY_DELAY_S, MAX_FAILED_TURN_RETRIES, MAX_RETRY_DELAY_S
+from klaude_code.const import (
+    INITIAL_RETRY_DELAY_S,
+    LOW_CACHE_HIT_RATE_THRESHOLD,
+    MAX_FAILED_TURN_RETRIES,
+    MAX_RETRY_DELAY_S,
+)
 from klaude_code.core.agent_profile import AgentProfile, Reminder
 from klaude_code.core.compaction import (
     CompactionReason,
@@ -378,7 +383,7 @@ class TaskExecutor:
                                 yield e
                                 if (
                                     metadata_accumulator.last_turn_cache_hit_rate is not None
-                                    and metadata_accumulator.last_turn_cache_hit_rate < 0.9
+                                    and metadata_accumulator.last_turn_cache_hit_rate < LOW_CACHE_HIT_RATE_THRESHOLD
                                 ):
                                     warn_entry = message.CacheHitWarnEntry(
                                         cache_hit_rate=metadata_accumulator.last_turn_cache_hit_rate,
