@@ -5,6 +5,14 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 from rich.tree import Tree
 
+
+class _RoundedTree(Tree):
+    TREE_GUIDES = [
+        ("    ", "│   ", "├── ", "╰── "),
+        ("    ", "│   ", "├── ", "╰── "),
+        ("    ", "│   ", "├── ", "╰── "),
+    ]
+
 from klaude_code.log import is_debug_enabled
 from klaude_code.protocol import events
 from klaude_code.tui.components.rich.quote import Quote
@@ -40,7 +48,7 @@ def _build_grouped_tree(
     groups: list[tuple[str, str]],
 ) -> Tree:
     """Build a Tree with grouped children (e.g. skills, context)."""
-    tree = Tree(Text(title, style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
+    tree = _RoundedTree(Text(title, style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
     for label, content in groups:
         tree.add(Text(f"{label.ljust(_LABEL_WIDTH)} {content}", style=ThemeKey.WELCOME_INFO))
     return tree
@@ -65,7 +73,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     )
     param_strings = format_model_params(e.llm_config)
     if param_strings:
-        model_tree = Tree(model_label, guide_style=ThemeKey.LINES)
+        model_tree = _RoundedTree(model_label, guide_style=ThemeKey.LINES)
         for param_str in param_strings:
             model_tree.add(Text(param_str, style=ThemeKey.WELCOME_INFO))
         renderables.append(model_tree)
