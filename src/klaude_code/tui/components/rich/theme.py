@@ -357,8 +357,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.WELCOME_INFO.value: palette.grey1,
                 ThemeKey.WELCOME_INFO_BOLD.value: "bold " + palette.grey1,
                 # WELCOME DEBUG
-                ThemeKey.WELCOME_DEBUG_TITLE.value: "bold " + palette.red,
-                ThemeKey.WELCOME_DEBUG_BORDER.value: palette.red,
+                ThemeKey.WELCOME_DEBUG_TITLE.value: "bold " + palette.purple,
+                ThemeKey.WELCOME_DEBUG_BORDER.value: palette.purple,
                 # RESUME
                 ThemeKey.RESUME_FLAG.value: "bold reverse " + palette.green,
                 ThemeKey.RESUME_INFO.value: palette.green,

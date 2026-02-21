@@ -344,12 +344,12 @@ def main_callback(
         )
 
         if log_path:
-            log(f"Debug log: {log_path}", style="red")
+            log(f"Debug log: {log_path}", style="yellow")
 
             from klaude_code.cli.log_server import start_log_viewer
 
             viewer_url = start_log_viewer(log_path)
-            log(f"Log viewer: {viewer_url}", style="red")
+            log(f"Log viewer: {viewer_url}", style="yellow")
 
         asyncio.run(
             run_interactive(
