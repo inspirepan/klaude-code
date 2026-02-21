@@ -91,6 +91,11 @@ class RenderInterrupt(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderCacheHitWarn(RenderCommand):
+    event: events.CacheHitWarnEvent
+
+
+@dataclass(frozen=True, slots=True)
 class RenderError(RenderCommand):
     event: events.ErrorEvent
 

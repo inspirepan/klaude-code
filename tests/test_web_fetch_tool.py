@@ -150,7 +150,7 @@ class TestHelperFunctions:
     def test_html_to_markdown_fallback_decodes_entities(self) -> None:
         html = "<p>A &amp; B &lt; C &gt; D &quot;E&quot; &#39;F&#39;</p>"
         result = _html_to_markdown_fallback(html)
-        assert 'A & B < C > D "E" \'F\'' in result
+        assert "A & B < C > D \"E\" 'F'" in result
 
     def test_html_to_markdown_fallback_collapses_newlines(self) -> None:
         html = "<p>First</p><p></p><p></p><p></p><p>Second</p>"

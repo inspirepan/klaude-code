@@ -28,6 +28,7 @@ class Usage(BaseModel):
 
     throughput_tps: float | None = None
     first_token_latency_ms: float | None = None
+    cache_hit_rate: float | None = None  # cached_tokens[N] / input_tokens[N-1] averaged across turns
 
     # Cost (calculated from token counts and cost config)
     input_cost: float | None = None  # Cost for non-cached input tokens

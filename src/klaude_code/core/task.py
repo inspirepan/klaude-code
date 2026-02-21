@@ -38,6 +38,13 @@ class MetadataAccumulator:
         self._first_token_latency_sum: float = 0.0
         self._first_token_latency_count: int = 0
         self._turn_count: int = 0
+        self._prev_turn_input_tokens: int = 0
+        self._cache_hit_rate_sum: float = 0.0
+        self._cache_hit_rate_count: int = 0
+        # Per-turn cache info set by the most recent add() call.
+        self.last_turn_cache_hit_rate: float | None = None
+        self.last_turn_cached_tokens: int = 0
+        self.last_turn_prev_input_tokens: int = 0
 
     def add(self, turn_usage: model.Usage) -> None:
         """Merge a turn's usage into the accumulated state."""
@@ -68,6 +75,19 @@ class MetadataAccumulator:
                 self._throughput_weighted_sum += usage.throughput_tps * current_output
                 self._throughput_tracked_tokens += current_output
 
+        if self._prev_turn_input_tokens > 0 and usage.cached_tokens > 0:
+            hit_rate = usage.cached_tokens / self._prev_turn_input_tokens
+            self._cache_hit_rate_sum += hit_rate
+            self._cache_hit_rate_count += 1
+            self.last_turn_cache_hit_rate = hit_rate
+            self.last_turn_cached_tokens = usage.cached_tokens
+            self.last_turn_prev_input_tokens = self._prev_turn_input_tokens
+        else:
+            self.last_turn_cache_hit_rate = None
+            self.last_turn_cached_tokens = 0
+            self.last_turn_prev_input_tokens = 0
+        self._prev_turn_input_tokens = usage.input_tokens
+
         if usage.provider is not None:
             self._main_agent.provider = usage.provider
         if usage.model_name:
@@ -97,6 +117,11 @@ class MetadataAccumulator:
             usage_copy.first_token_latency_ms = self._first_token_latency_sum / self._first_token_latency_count
         else:
             usage_copy.first_token_latency_ms = None
+
+        if self._cache_hit_rate_count > 0:
+            usage_copy.cache_hit_rate = self._cache_hit_rate_sum / self._cache_hit_rate_count
+        else:
+            usage_copy.cache_hit_rate = None
 
         return model.TaskMetadata(
             model_name=self._main_agent.model_name,
@@ -134,6 +159,11 @@ class MetadataAccumulator:
                 )
             else:
                 self._main_agent.usage.first_token_latency_ms = None
+
+            if self._cache_hit_rate_count > 0:
+                self._main_agent.usage.cache_hit_rate = self._cache_hit_rate_sum / self._cache_hit_rate_count
+            else:
+                self._main_agent.usage.cache_hit_rate = None
 
         self._main_agent.task_duration_s = task_duration_s
         self._main_agent.turn_count = self._turn_count
@@ -342,6 +372,22 @@ class TaskExecutor:
                             case events.UsageEvent() as e:
                                 metadata_accumulator.add(e.usage)
                                 yield e
+                                if (
+                                    metadata_accumulator.last_turn_cache_hit_rate is not None
+                                    and metadata_accumulator.last_turn_cache_hit_rate < 0.9
+                                ):
+                                    warn_entry = message.CacheHitWarnEntry(
+                                        cache_hit_rate=metadata_accumulator.last_turn_cache_hit_rate,
+                                        cached_tokens=metadata_accumulator.last_turn_cached_tokens,
+                                        prev_turn_input_tokens=metadata_accumulator.last_turn_prev_input_tokens,
+                                    )
+                                    session_ctx.append_history([warn_entry])
+                                    yield events.CacheHitWarnEvent(
+                                        session_id=session_ctx.session_id,
+                                        cache_hit_rate=metadata_accumulator.last_turn_cache_hit_rate,
+                                        cached_tokens=metadata_accumulator.last_turn_cached_tokens,
+                                        prev_turn_input_tokens=metadata_accumulator.last_turn_prev_input_tokens,
+                                    )
                             case events.ToolResultEvent() as e:
                                 # Collect sub-agent task metadata from tool results
                                 if e.task_metadata is not None:

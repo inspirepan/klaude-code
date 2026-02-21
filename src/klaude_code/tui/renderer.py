@@ -37,6 +37,7 @@ from klaude_code.tui.commands import (
     RenderAssistantImage,
     RenderBashCommandEnd,
     RenderBashCommandStart,
+    RenderCacheHitWarn,
     RenderCommand,
     RenderCommandOutput,
     RenderCompactionSummary,
@@ -634,6 +635,9 @@ class TUICommandRenderer:
         else:
             self.print(c_errors.render_error(Text(event.error_message)))
 
+    def display_cache_hit_warn(self, event: events.CacheHitWarnEvent) -> None:
+        self.print(c_metadata.render_cache_hit_warn(event))
+
     def display_compaction_summary(self, summary: str, kept_items_brief: tuple[tuple[str, int, str], ...] = ()) -> None:
         stripped = summary.strip()
         if not stripped:
@@ -877,6 +881,8 @@ class TUICommandRenderer:
                     self.display_interrupt()
                 case RenderError(event=event):
                     self.display_error(event)
+                case RenderCacheHitWarn(event=event):
+                    self.display_cache_hit_warn(event)
                 case RenderCompactionSummary(summary=summary, kept_items_brief=kept_items_brief):
                     self.display_compaction_summary(summary, kept_items_brief)
                 case RenderRewind(

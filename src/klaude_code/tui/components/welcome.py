@@ -22,6 +22,7 @@ class _RoundedTree(Tree):
         ("    ", "│   ", "├── ", "╰── "),
     ]
 
+
 _LABEL_WIDTH = len("[project]")
 
 
@@ -90,9 +91,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     for scope in ("user", "project"):
         paths = loaded_memories.get(scope) or []
         if paths:
-            memory_items.append(
-                (f"[{scope}]", ", ".join(_format_memory_path(p, work_dir=work_dir) for p in paths))
-            )
+            memory_items.append((f"[{scope}]", ", ".join(_format_memory_path(p, work_dir=work_dir) for p in paths)))
     if memory_items:
         renderables.append(Text())
         renderables.append(_build_grouped_tree("context", memory_items))

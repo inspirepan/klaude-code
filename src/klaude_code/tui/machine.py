@@ -27,6 +27,7 @@ from klaude_code.tui.commands import (
     RenderAssistantImage,
     RenderBashCommandEnd,
     RenderBashCommandStart,
+    RenderCacheHitWarn,
     RenderCommand,
     RenderCommandOutput,
     RenderCompactionSummary,
@@ -727,6 +728,12 @@ class DisplayStateMachine:
                 if not is_replay and context_percent is not None:
                     self._spinner.set_context_percent(context_percent)
                     cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.CacheHitWarnEvent() as e:
+                if is_replay or s.is_sub_agent:
+                    return []
+                cmds.append(RenderCacheHitWarn(e))
                 return cmds
 
             case events.TurnEndEvent():

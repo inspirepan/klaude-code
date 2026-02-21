@@ -137,6 +137,8 @@ class ThemeKey(str, Enum):
     ERROR = "error"
     ERROR_BOLD = "error.bold"
     ERROR_DIM = "error.dim"
+    WARN = "warn"
+    WARN_BOLD = "warn.bold"
     INTERRUPT = "interrupt"
     # METADATA
     METADATA = "metadata"
@@ -144,6 +146,8 @@ class ThemeKey(str, Enum):
     METADATA_BOLD = "metadata.bold"
     METADATA_ITALIC = "metadata.italic"
     METADATA_TOKEN = "metadata.token"
+    METADATA_TOKEN_OK = "metadata.token.ok"
+    METADATA_TOKEN_WARN = "metadata.token.warn"
     METADATA_MAIN_AGENT_NAME = "metadata.main_agent_name"
     METADATA_SUB_AGENT_NAME = "metadata.sub_agent_name"
     METADATA_GREEN = "metadata.green"
@@ -270,6 +274,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.ERROR.value: palette.red,
                 ThemeKey.ERROR_BOLD.value: "bold " + palette.red,
                 ThemeKey.ERROR_DIM.value: "dim " + palette.red,
+                ThemeKey.WARN.value: palette.yellow,
+                ThemeKey.WARN_BOLD.value: "bold " + palette.yellow,
                 ThemeKey.INTERRUPT.value: palette.red,
                 # USER_INPUT
                 ThemeKey.USER_INPUT.value: f"{palette.cyan} on {palette.user_message_background}",
@@ -285,6 +291,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.METADATA_BOLD.value: "bold " + palette.grey1,
                 ThemeKey.METADATA_ITALIC.value: "italic " + palette.purple,
                 ThemeKey.METADATA_TOKEN.value: palette.grey1 + " on " + palette.green_background,
+                ThemeKey.METADATA_TOKEN_OK.value: palette.green + " on " + palette.green_background,
+                ThemeKey.METADATA_TOKEN_WARN.value: palette.red + " on " + palette.red_background,
                 ThemeKey.METADATA_MAIN_AGENT_NAME.value: palette.blue + " on " + palette.blue_sub_background,
                 ThemeKey.METADATA_SUB_AGENT_NAME.value: palette.purple + " on " + palette.purple_background,
                 ThemeKey.METADATA_GREEN.value: palette.green,

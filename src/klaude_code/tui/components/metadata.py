@@ -59,6 +59,14 @@ def _build_metadata_content(
         if metadata.usage.cached_tokens > 0:
             token_text.append(" ◎", style=ThemeKey.METADATA_TOKEN)
             token_text.append(format_number(metadata.usage.cached_tokens), style=ThemeKey.METADATA_TOKEN)
+            if metadata.usage.cache_hit_rate is not None:
+                if metadata.usage.cache_hit_rate >= 0.995:
+                    rate_style = ThemeKey.METADATA_TOKEN_OK
+                elif metadata.usage.cache_hit_rate >= 0.9:
+                    rate_style = ThemeKey.METADATA_TOKEN
+                else:
+                    rate_style = ThemeKey.METADATA_TOKEN_WARN
+                token_text.append(f"(cache-hit {metadata.usage.cache_hit_rate:.0%})", style=rate_style)
         token_text.append(" ↓", style=ThemeKey.METADATA_TOKEN)
         token_text.append(format_number(output_tokens), style=ThemeKey.METADATA_TOKEN)
         if metadata.usage.reasoning_tokens > 0:
@@ -166,3 +174,16 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
         renderables.append(grid)
 
     return Group(*renderables)
+
+
+def render_cache_hit_warn(e: events.CacheHitWarnEvent) -> RenderableType:
+    """Render a warning when per-turn cache hit rate drops below 90%."""
+    grid = create_grid()
+    msg = Text.assemble(
+        ("Low cache hit rate: ", ThemeKey.WARN),
+        (f"{e.cache_hit_rate:.0%}", ThemeKey.WARN_BOLD),
+        (f" (cached ◎{format_number(e.cached_tokens)}", ThemeKey.WARN),
+        (f" / prev input ↑{format_number(e.prev_turn_input_tokens)})", ThemeKey.WARN),
+    )
+    grid.add_row(Text("!", style=ThemeKey.WARN_BOLD), msg)
+    return grid
