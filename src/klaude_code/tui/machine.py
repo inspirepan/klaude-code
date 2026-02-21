@@ -731,8 +731,6 @@ class DisplayStateMachine:
                 return cmds
 
             case events.CacheHitWarnEvent() as e:
-                if is_replay or s.is_sub_agent:
-                    return []
                 cmds.append(RenderCacheHitWarn(e))
                 cmds.append(PrintBlankLine())
                 return cmds
