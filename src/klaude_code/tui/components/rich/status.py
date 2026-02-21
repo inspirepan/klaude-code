@@ -239,6 +239,58 @@ def truncate_left(text: Text, max_cells: int, *, console: Console, ellipsis: str
     return Text.assemble(Text(ellipsis + " ", style=ellipsis_style), suffix)
 
 
+def truncate_status(text: Text, max_cells: int, *, console: Console, ellipsis: str = "…") -> Text:
+    """Smart truncate Text to fit within max_cells.
+
+    If the text contains ' | ', it right-truncates the part before ' | '
+    while keeping the part after ' | ' intact.
+    Otherwise, it falls back to left-truncating the entire text.
+    """
+    max_cells = max(0, int(max_cells))
+    if max_cells == 0:
+        return Text("")
+
+    if cell_len(text.plain) <= max_cells:
+        return text
+
+    idx = text.plain.rfind(" | ")
+    if idx != -1:
+        left_part = text[:idx]
+        right_part = text[idx:]
+
+        right_cells = cell_len(right_part.plain)
+
+        if right_cells + cell_len(ellipsis) <= max_cells:
+            left_budget = max_cells - right_cells
+            ellipsis_cells = cell_len(ellipsis)
+
+            if left_budget <= ellipsis_cells:
+                clipped_left = Text(ellipsis, style=left_part.style or text.style)
+                clipped_left.truncate(left_budget, overflow="crop", pad=False)
+                return Text.assemble(clipped_left, right_part)
+
+            prefix_budget = left_budget - ellipsis_cells
+            prefix_cells = 0
+            end_index = 0
+            plain_left = left_part.plain
+            for i in range(len(plain_left)):
+                ch_cells = cell_len(plain_left[i])
+                if prefix_cells + ch_cells > prefix_budget:
+                    break
+                prefix_cells += ch_cells
+                end_index = i + 1
+
+            prefix = left_part[:end_index]
+            try:
+                ellipsis_style = prefix.get_style_at_offset(console, max(0, end_index - 1))
+            except Exception:
+                ellipsis_style = prefix.style or text.style
+
+            return Text.assemble(prefix, Text(ellipsis, style=ellipsis_style), right_part)
+
+    return truncate_left(text, max_cells, console=console, ellipsis=ellipsis)
+
+
 class ShimmerStatusText:
     """Renderable status line with shimmer effect on the main text and hint.
 
@@ -298,11 +350,11 @@ class _StatusLeftText:
         # If the hint itself can't fit, fall back to truncating the combined text.
         if max_width <= hint_cells:
             combined = Text.assemble(main_text, hint_text)
-            yield truncate_left(combined, max(1, max_width), console=console)
+            yield truncate_status(combined, max(1, max_width), console=console)
             return
 
         main_budget = max_width - hint_cells
-        main_text = truncate_left(main_text, max(1, main_budget), console=console)
+        main_text = truncate_status(main_text, max(1, main_budget), console=console)
         yield Text.assemble(main_text, hint_text)
 
 
