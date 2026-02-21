@@ -21,6 +21,7 @@ from klaude_code.tui.command.status_cmd import format_cost, format_tokens
 ASCII_HORIZONAL = Box(" -- \n    \n -- \n    \n -- \n -- \n    \n -- \n")
 COST_CACHE_VERSION = 1
 COST_CACHE_PATH = Path.home() / ".klaude" / "cache" / "cost_cache.json"
+SPLIT_SUB_PROVIDER = False
 
 
 @dataclass
@@ -86,12 +87,16 @@ def _sort_by_cost(stats: ModelUsageStats) -> tuple[float, float]:
     return (-stats.cost_usd, -stats.cost_cny)
 
 
-def group_models_by_provider(models: dict[ModelKey, ModelUsageStats]) -> dict[str, ProviderGroup]:
-    """Group models by provider with three-level hierarchy.
+def group_models_by_provider(
+    models: dict[ModelKey, ModelUsageStats],
+    *,
+    split_sub_provider: bool = SPLIT_SUB_PROVIDER,
+) -> dict[str, ProviderGroup]:
+    """Group models by provider hierarchy.
 
-    Provider strings like "openrouter/Anthropic" are split into:
-    - Top-level: "openrouter"
-    - Sub-provider: "Anthropic"
+    When split_sub_provider is True, provider strings like "openrouter/Anthropic"
+    are split into top-level "openrouter" and sub-provider "Anthropic".
+    When False (default), the full string is used as the top-level provider.
 
     Returns dict of ProviderGroup sorted by cost desc.
     """
@@ -100,10 +105,9 @@ def group_models_by_provider(models: dict[ModelKey, ModelUsageStats]) -> dict[st
     for stats in models.values():
         provider_raw = stats.provider or "(unknown)"
 
-        # Split provider by first "/"
         if "/" in provider_raw:
-            parts = provider_raw.split("/", 1)
-            top_provider, sub_provider = parts[0], parts[1]
+            top_provider, raw_sub = provider_raw.split("/", 1)
+            sub_provider = raw_sub if split_sub_provider else ""
         else:
             top_provider, sub_provider = provider_raw, ""
 
@@ -141,8 +145,16 @@ def group_models_by_provider(models: dict[ModelKey, ModelUsageStats]) -> dict[st
             sub_group.total.cost_usd += stats.cost_usd
             sub_group.total.cost_cny += stats.cost_cny
         else:
-            # No sub-provider, add directly to models
-            group.models.append(stats)
+            # No sub-provider, merge by model_name
+            existing = next((m for m in group.models if m.model_name == stats.model_name), None)
+            if existing:
+                existing.input_tokens += stats.input_tokens
+                existing.output_tokens += stats.output_tokens
+                existing.cached_tokens += stats.cached_tokens
+                existing.cost_usd += stats.cost_usd
+                existing.cost_cny += stats.cost_cny
+            else:
+                group.models.append(stats)
 
     # Sort everything by cost
     for group in provider_groups.values():
@@ -448,22 +460,17 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
     sorted_dates = sorted(daily_stats.keys())
     global_by_model: dict[ModelKey, ModelUsageStats] = {}
 
-    def add_stats_row(stats: ModelUsageStats, date_label: str = "", prefix: str = "", bold: bool = False) -> None:
+    def add_stats_row(stats: ModelUsageStats, date_label: str = "", prefix: str = "", row_style: str = "") -> None:
         """Add a single stats row to the table."""
         usd_str, cny_str = format_cost_dual(stats.cost_usd, stats.cost_cny)
-        if prefix:
-            model_col = f"[bright_black dim]{prefix}[/bright_black dim]{stats.model_name}"
-        elif bold:
-            model_col = f"[bold]{stats.model_name}[/bold]"
-        else:
-            model_col = stats.model_name
+        model_col = f"[bright_black dim]{prefix}[/bright_black dim]{stats.model_name}" if prefix else stats.model_name
 
         def fmt(val: str) -> str:
-            return f"[bold]{val}[/bold]" if bold else val
+            return f"[{row_style}]{val}[/{row_style}]" if row_style else val
 
         table.add_row(
             date_label,
-            model_col,
+            fmt(model_col),
             fmt(format_tokens(stats.non_cached_input_tokens)),
             fmt(format_tokens(stats.cached_tokens)),
             fmt(format_tokens(stats.output_tokens)),
@@ -477,13 +484,13 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
         date_label: str = "",
         show_subtotal: bool = True,
     ) -> None:
-        """Render models grouped by provider with three-level tree structure."""
+        """Render models grouped by provider with tree structure."""
         provider_groups = group_models_by_provider(models)
 
         first_row = True
         for group in provider_groups.values():
             # Top-level provider
-            add_stats_row(group.total, date_label=date_label if first_row else "", bold=True)
+            add_stats_row(group.total, date_label=date_label if first_row else "")
             first_row = False
 
             if group.sub_providers:
@@ -494,23 +501,22 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
                     sub_prefix = " ╰─ " if is_last_sub else " ├─ "
 
                     # Sub-provider row
-                    add_stats_row(sub_group.total, prefix=sub_prefix, bold=True)
+                    add_stats_row(sub_group.total, prefix=sub_prefix)
 
                     # Models under sub-provider
                     for model_idx, stats in enumerate(sub_group.models):
                         is_last_model = model_idx == len(sub_group.models) - 1
-                        # Indent based on whether sub-provider is last
                         if is_last_sub:
                             model_prefix = "     ╰─ " if is_last_model else "     ├─ "
                         else:
                             model_prefix = " │   ╰─ " if is_last_model else " │   ├─ "
-                        add_stats_row(stats, prefix=model_prefix)
+                        add_stats_row(stats, prefix=model_prefix, row_style="dim")
             else:
                 # No sub-providers: render two-level tree (direct models)
                 for model_idx, stats in enumerate(group.models):
                     is_last_model = model_idx == len(group.models) - 1
                     model_prefix = " ╰─ " if is_last_model else " ├─ "
-                    add_stats_row(stats, prefix=model_prefix)
+                    add_stats_row(stats, prefix=model_prefix, row_style="dim")
 
         if show_subtotal:
             subtotal = ModelUsageStats(model_name="(subtotal)")
@@ -520,7 +526,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
                 subtotal.cached_tokens += stats.cached_tokens
                 subtotal.cost_usd += stats.cost_usd
                 subtotal.cost_cny += stats.cost_cny
-            add_stats_row(subtotal, bold=True)
+            add_stats_row(subtotal, row_style="bold")
 
     for date_str in sorted_dates:
         day = daily_stats[date_str]
@@ -564,7 +570,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
         grand_total.cached_tokens += stats.cached_tokens
         grand_total.cost_usd += stats.cost_usd
         grand_total.cost_cny += stats.cost_cny
-    add_stats_row(grand_total, bold=True)
+    add_stats_row(grand_total, row_style="bold")
 
     return table
 
