@@ -54,10 +54,11 @@ def _build_metadata_content(
         input_tokens = max(metadata.usage.input_tokens - metadata.usage.cached_tokens, 0)
         output_tokens = max(metadata.usage.output_tokens - metadata.usage.reasoning_tokens, 0)
 
-        token_text.append("↑", style=ThemeKey.METADATA_TOKEN)
+        # Token pill (green bg): "↑ 2.3k, cache 46.5k (100%), ↓ 490, thought 86"
+        token_text.append("↑ ", style=ThemeKey.METADATA_TOKEN)
         token_text.append(format_number(input_tokens), style=ThemeKey.METADATA_TOKEN)
         if metadata.usage.cached_tokens > 0:
-            token_text.append(" ◎", style=ThemeKey.METADATA_TOKEN)
+            token_text.append(", cache ", style=ThemeKey.METADATA_TOKEN)
             token_text.append(format_number(metadata.usage.cached_tokens), style=ThemeKey.METADATA_TOKEN)
             if metadata.usage.cache_hit_rate is not None:
                 if metadata.usage.cache_hit_rate >= 0.995:
@@ -66,27 +67,29 @@ def _build_metadata_content(
                     rate_style = ThemeKey.METADATA_TOKEN
                 else:
                     rate_style = ThemeKey.METADATA_TOKEN_WARN
-                token_text.append(f"(cache-hit {metadata.usage.cache_hit_rate:.0%})", style=rate_style)
-        token_text.append(" ↓", style=ThemeKey.METADATA_TOKEN)
+                token_text.append(f" (hit {metadata.usage.cache_hit_rate:.0%})", style=rate_style)
+        token_text.append(", ↓ ", style=ThemeKey.METADATA_TOKEN)
         token_text.append(format_number(output_tokens), style=ThemeKey.METADATA_TOKEN)
         if metadata.usage.reasoning_tokens > 0:
-            token_text.append(" ∿", style=ThemeKey.METADATA_TOKEN)
+            token_text.append(", thought ", style=ThemeKey.METADATA_TOKEN)
             token_text.append(format_number(metadata.usage.reasoning_tokens), style=ThemeKey.METADATA_TOKEN)
         if metadata.usage.image_tokens > 0:
-            token_text.append(" ⊡", style=ThemeKey.METADATA_TOKEN)
+            token_text.append(", img ", style=ThemeKey.METADATA_TOKEN)
             token_text.append(format_number(metadata.usage.image_tokens), style=ThemeKey.METADATA_TOKEN)
         parts.append(token_text)
 
+        # Context pill (blue-grey bg): "ctx 25.1k/168k (14.9%)"
         if show_context_and_time and metadata.usage.context_usage_percent is not None:
             context_size = format_number(metadata.usage.context_size or 0)
             effective_limit = (metadata.usage.context_limit or 0) - (metadata.usage.max_tokens or DEFAULT_MAX_TOKENS)
             effective_limit_str = format_number(effective_limit) if effective_limit > 0 else "?"
             parts.append(
                 Text.assemble(
-                    (context_size, ThemeKey.METADATA),
-                    ("/", ThemeKey.METADATA),
-                    (effective_limit_str, ThemeKey.METADATA),
-                    (f"({metadata.usage.context_usage_percent:.1f}%)", ThemeKey.METADATA),
+                    ("ctx ", ThemeKey.METADATA_CONTEXT),
+                    (context_size, ThemeKey.METADATA_CONTEXT),
+                    ("/", ThemeKey.METADATA_CONTEXT),
+                    (effective_limit_str, ThemeKey.METADATA_CONTEXT),
+                    (f" ({metadata.usage.context_usage_percent:.1f}%)", ThemeKey.METADATA_CONTEXT),
                 )
             )
 
@@ -94,12 +97,12 @@ def _build_metadata_content(
             parts.append(
                 Text.assemble(
                     (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA),
-                    ("tps", ThemeKey.METADATA),
+                    (" tok/s", ThemeKey.METADATA),
                 )
             )
 
     if show_turn_count and show_context_and_time and metadata.turn_count > 0:
-        suffix = "step" if metadata.turn_count == 1 else "steps"
+        suffix = " step" if metadata.turn_count == 1 else " steps"
         parts.append(
             Text.assemble(
                 (str(metadata.turn_count), ThemeKey.METADATA),
@@ -112,7 +115,7 @@ def _build_metadata_content(
 
     if parts:
         content.append_text(Text(" ", style=ThemeKey.METADATA))
-        content.append_text(Text(" ", style=ThemeKey.METADATA_DIM).join(parts))
+        content.append_text(Text(", ", style=ThemeKey.METADATA_DIM).join(parts))
 
     return content
 

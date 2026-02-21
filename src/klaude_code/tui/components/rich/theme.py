@@ -148,6 +148,7 @@ class ThemeKey(str, Enum):
     METADATA_TOKEN = "metadata.token"
     METADATA_TOKEN_OK = "metadata.token.ok"
     METADATA_TOKEN_WARN = "metadata.token.warn"
+    METADATA_CONTEXT = "metadata.context"
     METADATA_MAIN_AGENT_NAME = "metadata.main_agent_name"
     METADATA_SUB_AGENT_NAME = "metadata.sub_agent_name"
     METADATA_GREEN = "metadata.green"
@@ -293,6 +294,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.METADATA_TOKEN.value: palette.grey1 + " on " + palette.green_background,
                 ThemeKey.METADATA_TOKEN_OK.value: palette.green + " on " + palette.green_background,
                 ThemeKey.METADATA_TOKEN_WARN.value: palette.red + " on " + palette.red_background,
+                ThemeKey.METADATA_CONTEXT.value: palette.grey1 + " on " + palette.blue_grey_background,
                 ThemeKey.METADATA_MAIN_AGENT_NAME.value: palette.blue + " on " + palette.blue_sub_background,
                 ThemeKey.METADATA_SUB_AGENT_NAME.value: palette.purple + " on " + palette.purple_background,
                 ThemeKey.METADATA_GREEN.value: palette.green,
