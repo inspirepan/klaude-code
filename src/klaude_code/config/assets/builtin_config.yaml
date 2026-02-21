@@ -108,7 +108,9 @@ provider_list:
     context_limit: 262144
     provider_routing:
       only:
-      - baseten/fp4
+      - fireworks
+      - moonshotai/int4
+      - novita
     cost: { input: 0.6, output: 3, cache_read: 0.1 }
 
   - model_name: kimi-no-thinking
@@ -116,7 +118,9 @@ provider_list:
     context_limit: 262144
     provider_routing:
       only:
-      - baseten/fp4
+      - fireworks
+      - moonshotai/int4
+      - novita
     cost: { input: 0.6, output: 3, cache_read: 0.1 }
 
   - model_name: qwen
@@ -222,6 +226,7 @@ provider_list:
     context_limit: 202752
     provider_routing:
       only:
+      - fireworks
       - z-ai
     cost: { input: 1, output: 3.2, cache_read: 0.1 }
 
@@ -329,7 +334,7 @@ provider_list:
   base_url: https://opencode.ai/zen/v1
   model_list:
 
-  - model_name: minimax-free
+  - model_name: minimax
     model_id: minimax-m2.5-free
     context_limit: 204800
     thinking:
@@ -337,7 +342,7 @@ provider_list:
       budget_tokens: 2048
     cost: { input: 0, output: 0 }
 
-  - model_name: kimi-free
+  - model_name: kimi
     model_id: kimi-k2.5-free
     context_limit: 262144
     cost: { input: 0, output: 0 }

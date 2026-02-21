@@ -143,11 +143,13 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     main_content = _build_metadata_content(main, show_context_and_time=True, show_turn_count=False, show_duration=False)
 
     if has_sub_agents:
-        root_label = Text.assemble(("• ", ThemeKey.METADATA))
-        root_label.append_text(Text(" Main ", style=ThemeKey.METADATA_MAIN_AGENT_NAME))
-        root_label.append_text(Text(" ", style=ThemeKey.METADATA))
-        root_label.append_text(main_content)
-        tree = _RoundedTree(root_label, guide_style=ThemeKey.METADATA_DIM)
+        root_content = Text()
+        root_content.append_text(Text(" Main ", style=ThemeKey.METADATA_MAIN_AGENT_NAME))
+        root_content.append_text(Text(" ", style=ThemeKey.METADATA))
+        root_content.append_text(main_content)
+        root_grid = create_grid()
+        root_grid.add_row(Text("•", style=ThemeKey.METADATA), root_content)
+        tree = _RoundedTree(root_grid, guide_style=ThemeKey.METADATA_DIM)
 
         for meta in e.metadata.sub_agent_task_metadata:
             tree.add(_build_metadata_content(meta, show_context_and_time=True))
