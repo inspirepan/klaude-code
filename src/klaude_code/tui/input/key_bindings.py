@@ -596,21 +596,6 @@ def create_key_bindings(
 
         event.current_buffer.insert_text("\n")  # type: ignore
 
-    @kb.add("c", filter=enabled)
-    def _(event: KeyPressEvent) -> None:
-        """Copy selected text to system clipboard, or insert 'c' if no selection."""
-        buf = event.current_buffer  # type: ignore
-        if buf.selection_state:  # type: ignore[reportUnknownMemberType]
-            doc = buf.document  # type: ignore[reportUnknownMemberType]
-            start, end = doc.selection_range()  # type: ignore[reportUnknownMemberType]
-            selected_text: str = doc.text[start:end]  # type: ignore[reportUnknownMemberType]
-
-            if selected_text:
-                copy_to_clipboard(selected_text)
-            buf.exit_selection()  # type: ignore[reportUnknownMemberType]
-        else:
-            buf.insert_text("c")  # type: ignore[reportUnknownMemberType]
-
     @kb.add("backspace", filter=enabled)
     def _(event: KeyPressEvent) -> None:
         """Ensure completions refresh on backspace when editing an @token.
