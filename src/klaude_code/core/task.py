@@ -75,7 +75,7 @@ class MetadataAccumulator:
                 self._throughput_weighted_sum += usage.throughput_tps * current_output
                 self._throughput_tracked_tokens += current_output
 
-        if self._prev_turn_input_tokens > 0 and usage.cached_tokens > 0:
+        if self._prev_turn_input_tokens > 0:
             hit_rate = usage.cached_tokens / self._prev_turn_input_tokens
             self._cache_hit_rate_sum += hit_rate
             self._cache_hit_rate_count += 1
