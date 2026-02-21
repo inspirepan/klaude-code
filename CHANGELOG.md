@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-02-21
+
+### Added
+
+- enable web tools by default, remove --web flag (`aeee151b`)
+- display cache token hit rate in metadata (`8385572e`)
+- add session-logs skill for searching conversation history (`cb929ae8`)
+- update default Gemini pro model to 3.1-pro-preview (`5a615505`)
+- add large HTML protection and extraction fallback (`5baaa392`)
+
+### Changed
+
+- extract cache hit threshold constant and improve sub-agent warning rendering (`cc0d0c13`)
+- improve metadata readability with labels and comma separators (`a13cb333`)
+- remove special symbols from cache hit warning message (`268e2924`)
+- rename cancel hooks to on_interrupt (`c53aaf6d`)
+- flatten rewind, sub_agent, mermaid into tool top level (`7af50ad1`)
+- darken background colors in dark theme palette (`0cf9b8b1`)
+- reorganize metadata display and extract shared utility (`bea2dac9`)
+- simplify cost display provider grouping and row styling (`21d34b5e`)
+- use rounded tree guides in welcome panel (`b2bb4a7c`)
+- use Rich Tree for welcome panel layout (`b3036748`)
+
+### Fixed
+
+- include zero-cache turns in cache hit rate calculation (`3e2de3e1`)
+- ensure correct vertical spacing for interrupted tasks (`c09d83aa`)
+- preserve status hint during truncation (`f7826b24`)
+- remove 'c' key binding to prevent input swallowing (`e6c5bc0c`)
+
+### Other
+
+- format (`756e2b54`)
+
 ## [2.14.0] - 2026-02-18
 
 ### Added
@@ -1747,7 +1781,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.14.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.15.0...HEAD
+[2.15.0]: https://github.com/inspirepan/klaude-code/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/inspirepan/klaude-code/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/inspirepan/klaude-code/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/inspirepan/klaude-code/compare/v2.11.2...v2.12.0
