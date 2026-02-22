@@ -197,7 +197,12 @@ class CopilotClient(LLMClientABC):
 
     def _ensure_clients(self) -> None:
         token, base_url = self._oauth.ensure_valid_token()
-        if token == self._access_token and base_url == self._base_url and self._openai_client and self._anthropic_client:
+        if (
+            token == self._access_token
+            and base_url == self._base_url
+            and self._openai_client
+            and self._anthropic_client
+        ):
             return
 
         self._access_token = token
@@ -228,7 +233,9 @@ class CopilotClient(LLMClientABC):
             try:
                 anthropic_client = self._anthropic_client
                 if anthropic_client is None:
-                    return error_llm_stream(metadata_tracker, error="RuntimeError Copilot Anthropic client not initialized")
+                    return error_llm_stream(
+                        metadata_tracker, error="RuntimeError Copilot Anthropic client not initialized"
+                    )
                 stream = anthropic_client.beta.messages.create(
                     **payload,
                     extra_headers=extra_headers,

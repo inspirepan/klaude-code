@@ -20,7 +20,9 @@ TODO_FREQUENT_USAGE_INST = """- Use `TodoWrite` frequently for planning and trac
 TODO_COMPLETE_IMMEDIATELY_INST = """- Mark todos completed immediately when finished. Do not batch-complete later."""
 
 UPDATE_PLAN_USAGE_INST = """- Use `update_plan` for non-trivial tasks with meaningful, verifiable steps."""
-UPDATE_PLAN_STATUS_INST = """- Keep exactly one step `in_progress`, update status as work progresses, and mark completed promptly."""
+UPDATE_PLAN_STATUS_INST = (
+    """- Keep exactly one step `in_progress`, update status as work progresses, and mark completed promptly."""
+)
 
 WRITE_CREATE_WHEN_NEEDED_INST = """- NEVER create files unless necessary for the task. Prefer editing existing files."""
 
