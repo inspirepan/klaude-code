@@ -4,7 +4,11 @@
       "Bash(jj status:*)",
       "Bash(jj diff:*)",
       "WebSearch",
-      "Bash(jj log -n 5)"
+      "Bash(jj log -n 5)",
+      "Bash(EDITOR=true jj split -- src/klaude_code/update.py tests/test_update.py src/klaude_code/cli/oauth_usage.py)",
+      "Bash(EDITOR=true jj split -- src/klaude_code/config/builtin_config.py tests/test_builtin_config_api_keys.py src/klaude_code/core/tool/web/web_search_tool.py tests/test_web_search_tool.py)",
+      "Bash(EDITOR=true jj split -- src/klaude_code/tui/components/rich/theme.py src/klaude_code/cli/list_model.py)",
+      "Bash(EDITOR=true jj split -- src/klaude_code/tui/components/metadata.py tests/test_tui_metadata_layout.py)"
     ]
   }
 }

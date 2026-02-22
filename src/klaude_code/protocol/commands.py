@@ -14,6 +14,8 @@ class CommandInfo:
 
 class CommandName(str, Enum):
     INIT = "init"
+    LOGIN = "login"
+    LOGOUT = "logout"
     DEBUG = "debug"
     MODEL = "model"
     SUB_AGENT_MODEL = "sub-agent-model"

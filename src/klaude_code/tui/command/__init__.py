@@ -37,6 +37,8 @@ def ensure_commands_loaded() -> None:
     from .export_cmd import ExportCommand
     from .export_online_cmd import ExportOnlineCommand
     from .fork_session_cmd import ForkSessionCommand
+    from .login_cmd import LoginCommand
+    from .logout_cmd import LogoutCommand
     from .model_cmd import ModelCommand
     from .refresh_cmd import RefreshTerminalCommand
     from .resume_cmd import ResumeCommand
@@ -50,6 +52,8 @@ def ensure_commands_loaded() -> None:
     register(CompactCommand())
     register(ContinueCommand())
     register(RefreshTerminalCommand())
+    register(LoginCommand())
+    register(LogoutCommand())
     register(ModelCommand())
     register(SubAgentModelCommand())
     register(ThinkingCommand())
@@ -75,6 +79,8 @@ def __getattr__(name: str) -> object:
         "ExportCommand": "export_cmd",
         "ExportOnlineCommand": "export_online_cmd",
         "ForkSessionCommand": "fork_session_cmd",
+        "LoginCommand": "login_cmd",
+        "LogoutCommand": "logout_cmd",
         "ModelCommand": "model_cmd",
         "RefreshTerminalCommand": "refresh_cmd",
         "ResumeCommand": "resume_cmd",
