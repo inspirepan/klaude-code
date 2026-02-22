@@ -28,22 +28,22 @@ def _build_metadata_content(
     show_context_and_time: bool = True,
     show_turn_count: bool = True,
     show_duration: bool = True,
-) -> Text:
-    """Build the content Text for a single metadata block."""
+) -> RenderableType:
+    """Build the content renderable for a single metadata block."""
     currency = metadata.usage.currency if metadata.usage else "USD"
     currency_symbol = "¥" if currency == "CNY" else "$"
 
-    content = Text()
+    identity = Text()
     if metadata.sub_agent_name:
-        content.append_text(Text(f" {metadata.sub_agent_name} ", style=ThemeKey.METADATA_SUB_AGENT_NAME))
-        content.append_text(Text(" ", style=ThemeKey.METADATA))
+        identity.append_text(Text(f" {metadata.sub_agent_name} ", style=ThemeKey.METADATA_SUB_AGENT_NAME))
+        identity.append_text(Text(" ", style=ThemeKey.METADATA))
     if metadata.description:
-        content.append_text(Text(metadata.description, style=ThemeKey.METADATA_ITALIC))
-        content.append_text(Text(" ", style=ThemeKey.METADATA))
-    content.append_text(Text(metadata.model_name, style=ThemeKey.METADATA))
+        identity.append_text(Text(metadata.description, style=ThemeKey.METADATA_ITALIC))
+        identity.append_text(Text(" ", style=ThemeKey.METADATA))
+    identity.append_text(Text(metadata.model_name, style=ThemeKey.METADATA))
     if metadata.provider:
         sub_provider = metadata.provider.rsplit("/", 1)[-1] if "/" in metadata.provider else metadata.provider
-        content.append_text(Text(f" via {sub_provider}", style=ThemeKey.METADATA_DIM))
+        identity.append_text(Text(f" via {sub_provider}", style=ThemeKey.METADATA_DIM))
 
     parts: list[Text] = []
 
@@ -60,28 +60,27 @@ def _build_metadata_content(
         input_tokens = max(metadata.usage.input_tokens - metadata.usage.cached_tokens, 0)
         output_tokens = max(metadata.usage.output_tokens - metadata.usage.reasoning_tokens, 0)
 
-        # Token pill (green bg): "↑ 2.3k, cache 46.5k (100%), ↓ 490, thought 86"
-        token_text.append("↑ ", style=ThemeKey.METADATA_TOKEN)
-        token_text.append(format_number(input_tokens), style=ThemeKey.METADATA_TOKEN)
+        token_text.append("↑ ", style=ThemeKey.METADATA)
+        token_text.append(format_number(input_tokens), style=ThemeKey.METADATA)
         if metadata.usage.cached_tokens > 0:
-            token_text.append(", cache ", style=ThemeKey.METADATA_TOKEN)
-            token_text.append(format_number(metadata.usage.cached_tokens), style=ThemeKey.METADATA_TOKEN)
+            token_text.append(", cache ", style=ThemeKey.METADATA)
+            token_text.append(format_number(metadata.usage.cached_tokens), style=ThemeKey.METADATA)
             if metadata.usage.cache_hit_rate is not None:
                 if metadata.usage.cache_hit_rate >= 0.995:
-                    rate_style = ThemeKey.METADATA_TOKEN_OK
+                    rate_style = ThemeKey.METADATA_GREEN
                 elif metadata.usage.cache_hit_rate >= LOW_CACHE_HIT_RATE_THRESHOLD:
-                    rate_style = ThemeKey.METADATA_TOKEN
+                    rate_style = ThemeKey.METADATA
                 else:
-                    rate_style = ThemeKey.METADATA_TOKEN_WARN
+                    rate_style = ThemeKey.WARN
                 token_text.append(f" (hit {metadata.usage.cache_hit_rate:.0%})", style=rate_style)
-        token_text.append(", ↓ ", style=ThemeKey.METADATA_TOKEN)
-        token_text.append(format_number(output_tokens), style=ThemeKey.METADATA_TOKEN)
+        token_text.append(", ↓ ", style=ThemeKey.METADATA)
+        token_text.append(format_number(output_tokens), style=ThemeKey.METADATA)
         if metadata.usage.reasoning_tokens > 0:
-            token_text.append(", thought ", style=ThemeKey.METADATA_TOKEN)
-            token_text.append(format_number(metadata.usage.reasoning_tokens), style=ThemeKey.METADATA_TOKEN)
+            token_text.append(", thought ", style=ThemeKey.METADATA)
+            token_text.append(format_number(metadata.usage.reasoning_tokens), style=ThemeKey.METADATA)
         if metadata.usage.image_tokens > 0:
-            token_text.append(", img ", style=ThemeKey.METADATA_TOKEN)
-            token_text.append(format_number(metadata.usage.image_tokens), style=ThemeKey.METADATA_TOKEN)
+            token_text.append(", img ", style=ThemeKey.METADATA)
+            token_text.append(format_number(metadata.usage.image_tokens), style=ThemeKey.METADATA)
         parts.append(token_text)
 
         # Context pill (blue-grey bg): "ctx 25.1k/168k (14.9%)"
@@ -91,7 +90,6 @@ def _build_metadata_content(
             effective_limit_str = format_number(effective_limit) if effective_limit > 0 else "?"
             parts.append(
                 Text.assemble(
-                    ("ctx ", ThemeKey.METADATA_CONTEXT),
                     (context_size, ThemeKey.METADATA_CONTEXT),
                     ("/", ThemeKey.METADATA_CONTEXT),
                     (effective_limit_str, ThemeKey.METADATA_CONTEXT),
@@ -119,11 +117,13 @@ def _build_metadata_content(
     if show_duration and show_context_and_time and metadata.task_duration_s is not None:
         parts.append(Text(format_elapsed_compact(metadata.task_duration_s), style=ThemeKey.METADATA))
 
-    if parts:
-        content.append_text(Text(" ", style=ThemeKey.METADATA))
-        content.append_text(Text(", ", style=ThemeKey.METADATA_DIM).join(parts))
+    if not parts:
+        return identity
 
-    return content
+    details = Text(", ", style=ThemeKey.METADATA_DIM).join(parts)
+    content_grid = create_grid()
+    content_grid.add_row(identity, details)
+    return content_grid
 
 
 def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
@@ -133,12 +133,8 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     # "Worked for Xs, N steps" line
     main = e.metadata.main_agent
     duration_s = main.task_duration_s
-    should_show_worked_line = (
-        duration_s is not None
-        and (
-            duration_s > WORKED_LINE_DURATION_THRESHOLD_S
-            or main.turn_count > WORKED_LINE_TURN_COUNT_THRESHOLD
-        )
+    should_show_worked_line = duration_s is not None and (
+        duration_s > WORKED_LINE_DURATION_THRESHOLD_S or main.turn_count > WORKED_LINE_TURN_COUNT_THRESHOLD
     )
     if should_show_worked_line and duration_s is not None:
         parts: list[tuple[str, ThemeKey]] = [
@@ -161,10 +157,8 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     )
 
     if has_sub_agents:
-        root_content = Text()
-        root_content.append_text(Text(" Main ", style=ThemeKey.METADATA_MAIN_AGENT_NAME))
-        root_content.append_text(Text(" ", style=ThemeKey.METADATA))
-        root_content.append_text(main_content)
+        root_content = create_grid()
+        root_content.add_row(Text(" Main ", style=ThemeKey.METADATA_MAIN_AGENT_NAME), main_content)
         root_grid = create_grid()
         root_grid.add_row(Text("•", style=ThemeKey.METADATA), root_content)
         tree = _RoundedTree(root_grid, guide_style=ThemeKey.METADATA_DIM)
