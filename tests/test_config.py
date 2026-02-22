@@ -221,6 +221,42 @@ class TestConfig:
         assert llm_config.protocol == llm_param.LLMClientProtocol.CLAUDE_OAUTH
         assert llm_config.api_key is None
 
+    def test_get_model_config_copilot_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """COPILOT protocol should not require api_key to resolve model config."""
+        from klaude_code.auth.copilot.token_manager import CopilotAuthState, CopilotTokenManager
+
+        def _mock_get_state(_self: CopilotTokenManager) -> CopilotAuthState:
+            return CopilotAuthState(
+                access_token="access",
+                refresh_token="refresh",
+                expires_at=4102444800,
+                enterprise_domain=None,
+                copilot_base_url="https://api.individual.githubcopilot.com",
+            )
+
+        monkeypatch.setattr(
+            CopilotTokenManager,
+            "get_state",
+            _mock_get_state,
+        )
+
+        provider = ProviderConfig(
+            provider_name="copilot",
+            protocol=llm_param.LLMClientProtocol.COPILOT_OAUTH,
+            api_key=None,
+            model_list=[
+                ModelConfig(
+                    model_name="gpt-5.3-codex",
+                    model_id="gpt-5.3-codex",
+                )
+            ],
+        )
+        config = Config(provider_list=[provider], main_model="gpt-5.3-codex@copilot")
+
+        llm_config = config.get_model_config("gpt-5.3-codex@copilot")
+        assert llm_config.protocol == llm_param.LLMClientProtocol.COPILOT_OAUTH
+        assert llm_config.api_key is None
+
     def test_get_model_config_unknown_model(self, sample_config: Config) -> None:
         """Test getting config for unknown model raises error."""
         with pytest.raises(ValueError, match="Unknown model: nonexistent-model"):

@@ -9,6 +9,7 @@ from typing import Literal
 
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.model_id import (
+    is_claude_model_any,
     is_codex_max_model,
     is_gemini_flash_model,
     is_gpt51_model,
@@ -47,6 +48,10 @@ def get_levels_for_responses(model_name: str | None) -> list[str]:
     return RESPONSES_LEVELS
 
 
+def _is_copilot_anthropic_model(model_name: str | None) -> bool:
+    return is_claude_model_any(model_name)
+
+
 def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
     """Format the current thinking configuration for display."""
     thinking = config.thinking
@@ -58,8 +63,20 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
     if protocol in (
         llm_param.LLMClientProtocol.RESPONSES,
         llm_param.LLMClientProtocol.CODEX_OAUTH,
-        llm_param.LLMClientProtocol.COPILOT_OAUTH,
     ):
+        if thinking.reasoning_effort:
+            return f"reasoning_effort={thinking.reasoning_effort}"
+        return "not set"
+
+    if protocol == llm_param.LLMClientProtocol.COPILOT_OAUTH:
+        if _is_copilot_anthropic_model(config.model_id):
+            if thinking.type == "disabled":
+                return "off"
+            if thinking.type == "adaptive":
+                return "adaptive"
+            if thinking.type == "enabled":
+                return f"enabled (budget_tokens={thinking.budget_tokens})"
+            return "not set"
         if thinking.reasoning_effort:
             return f"reasoning_effort={thinking.reasoning_effort}"
         return "not set"
@@ -195,8 +212,28 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
     if protocol in (
         llm_param.LLMClientProtocol.RESPONSES,
         llm_param.LLMClientProtocol.CODEX_OAUTH,
-        llm_param.LLMClientProtocol.COPILOT_OAUTH,
     ):
+        levels = get_levels_for_responses(model_name)
+        return ThinkingPickerData(
+            options=_build_effort_options(levels),
+            message="Select reasoning effort:",
+            current_value=_get_current_effort_value(thinking),
+        )
+
+    if protocol == llm_param.LLMClientProtocol.COPILOT_OAUTH:
+        if _is_copilot_anthropic_model(model_name):
+            if supports_adaptive_thinking(model_name):
+                return ThinkingPickerData(
+                    options=_build_budget_with_adaptive_options(),
+                    message="Select thinking level:",
+                    current_value=_get_current_budget_or_adaptive_value(thinking),
+                )
+            return ThinkingPickerData(
+                options=_build_budget_options(),
+                message="Select thinking level:",
+                current_value=_get_current_budget_value(thinking),
+            )
+
         levels = get_levels_for_responses(model_name)
         return ThinkingPickerData(
             options=_build_effort_options(levels),

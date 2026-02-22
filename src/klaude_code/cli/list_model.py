@@ -132,6 +132,59 @@ def _get_claude_status_rows() -> list[tuple[Text, Text]]:
     return rows
 
 
+def _get_copilot_status_rows() -> list[tuple[Text, Text]]:
+    """Get Copilot OAuth login status as (label, value) tuples for table display."""
+    from klaude_code.auth.copilot.token_manager import CopilotTokenManager
+
+    rows: list[tuple[Text, Text]] = []
+    token_manager = CopilotTokenManager()
+    state = token_manager.get_state()
+
+    if state is None:
+        rows.append(
+            (
+                Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
+                Text.assemble(
+                    ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
+                    (" (run 'klaude login copilot' to authenticate)", "dim"),
+                ),
+            )
+        )
+    elif state.is_expired():
+        rows.append(
+            (
+                Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
+                Text.assemble(
+                    ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
+                    (" (run 'klaude login copilot' to re-authenticate)", "dim"),
+                ),
+            )
+        )
+    else:
+        expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
+        domain = state.enterprise_domain or "github.com"
+        rows.append(
+            (
+                Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
+                Text.assemble(
+                    ("Logged in", ThemeKey.CONFIG_STATUS_OK),
+                    (f" (domain: {domain}, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+                ),
+            )
+        )
+
+    rows.append(
+        (
+            Text("Usage", style="dim"),
+            Text(
+                "https://github.com/settings/copilot",
+                style="blue link https://github.com/settings/copilot",
+            ),
+        )
+    )
+    return rows
+
+
 def mask_api_key(api_key: str | None) -> str:
     """Mask API key to show only first 6 and last 6 characters with *** in between"""
     if not api_key:
@@ -250,6 +303,9 @@ def _build_provider_info_panel(provider: ProviderConfig, available: bool, *, dis
     if provider.protocol == LLMClientProtocol.CLAUDE_OAUTH:
         for label, value in _get_claude_status_rows():
             info_table.add_row(label, value)
+    if provider.protocol == LLMClientProtocol.COPILOT_OAUTH:
+        for label, value in _get_copilot_status_rows():
+            info_table.add_row(label, value)
 
     return Quote(
         Group(title, info_table),
@@ -292,6 +348,7 @@ def _build_models_tree(
     models_tree = _RoundedTree(Text("Models", style=ThemeKey.CONFIG_PARAM_LABEL), guide_style=ThemeKey.LINES)
 
     for model in provider.model_list:
+        params: Text | None = None
 
         if provider_disabled:
             name = Text.assemble(
@@ -340,9 +397,8 @@ def _build_models_tree(
         if status is not None:
             model_node.add(status)
 
-        if provider_available and (not provider_disabled):
-            if params.plain:
-                model_node.add(Text.assemble(("params: ", ThemeKey.CONFIG_PARAM_LABEL), params))
+        if provider_available and (not provider_disabled) and params is not None and params.plain:
+            model_node.add(Text.assemble(("params: ", ThemeKey.CONFIG_PARAM_LABEL), params))
 
     return models_tree
 

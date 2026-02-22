@@ -69,7 +69,6 @@ CODEX_HEADERS = {
     "OpenAI-Beta": "responses=experimental",
 }
 
-
 @register(llm_param.LLMClientProtocol.CODEX_OAUTH)
 class CodexClient(LLMClientABC):
     """LLM client for Codex API using ChatGPT subscription."""

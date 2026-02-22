@@ -24,6 +24,11 @@ def _select_provider() -> str | None:
             value="codex",
             search_text="codex",
         ),
+        SelectItem(
+            title=[("", "GitHub Copilot Subscription "), ("ansibrightblack", "[OAuth]\n")],
+            value="copilot",
+            search_text="copilot",
+        ),
     ]
     # Add API key options
     for key_info in SUPPORTED_API_KEYS:
@@ -71,7 +76,7 @@ def _build_provider_help() -> str:
     from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
 
     # Use first word of name for brevity (e.g., "google" instead of "google gemini")
-    names = ["codex", "claude"] + [k.name.split()[0].lower() for k in SUPPORTED_API_KEYS]
+    names = ["codex", "claude", "copilot"] + [k.name.split()[0].lower() for k in SUPPORTED_API_KEYS]
     return f"Provider name ({', '.join(names)})"
 
 
@@ -149,6 +154,51 @@ def login_command(
             except Exception as e:
                 log((f"Login failed: {e}", "red"))
                 raise typer.Exit(1) from None
+        case "copilot":
+            from klaude_code.auth.copilot.oauth import CopilotOAuth
+            from klaude_code.auth.copilot.token_manager import CopilotTokenManager
+
+            token_manager = CopilotTokenManager()
+
+            if token_manager.is_logged_in():
+                state = token_manager.get_state()
+                if state and not state.is_expired():
+                    log(("You are already logged in to Copilot.", "green"))
+                    domain = state.enterprise_domain or "github.com"
+                    expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
+                    log(f"  Domain: {domain}")
+                    log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+                    if not typer.confirm("Do you want to re-login?"):
+                        return
+
+            enterprise_input = typer.prompt(
+                "GitHub Enterprise URL/domain (leave empty for github.com)",
+                default="",
+                show_default=False,
+            )
+            log("Starting GitHub Copilot OAuth device flow…")
+
+            try:
+                oauth = CopilotOAuth(token_manager)
+
+                def _on_auth(url: str, code: str) -> None:
+                    log(f"Open this URL in your browser: {url}")
+                    log(f"Enter this code: {code}")
+                    webbrowser.open(url)
+
+                state = oauth.login(
+                    enterprise_input=enterprise_input,
+                    on_auth=_on_auth,
+                    on_progress=lambda msg: log(msg),
+                )
+                log(("Login successful!", "green"))
+                domain = state.enterprise_domain or "github.com"
+                expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
+                log(f"  Domain: {domain}")
+                log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+            except Exception as e:
+                log((f"Login failed: {e}", "red"))
+                raise typer.Exit(1) from None
         case _:
             from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
 
@@ -174,7 +224,7 @@ def login_command(
 
 
 def logout_command(
-    provider: str = typer.Argument("codex", help="Provider to logout (codex|claude)"),
+    provider: str = typer.Argument("codex", help="Provider to logout (codex|claude|copilot)"),
 ) -> None:
     """Logout from a provider."""
     match provider.lower():
@@ -202,8 +252,20 @@ def logout_command(
             if typer.confirm("Are you sure you want to logout from Claude?"):
                 token_manager.delete()
                 log(("Logged out from Claude.", "green"))
+        case "copilot":
+            from klaude_code.auth.copilot.token_manager import CopilotTokenManager
+
+            token_manager = CopilotTokenManager()
+
+            if not token_manager.is_logged_in():
+                log("You are not logged in to Copilot.")
+                return
+
+            if typer.confirm("Are you sure you want to logout from Copilot?"):
+                token_manager.delete()
+                log(("Logged out from Copilot.", "green"))
         case _:
-            log((f"Error: Unknown provider '{provider}'. Supported: codex, claude", "red"))
+            log((f"Error: Unknown provider '{provider}'. Supported: codex, claude, copilot", "red"))
             raise typer.Exit(1)
 
 

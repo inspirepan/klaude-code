@@ -13,6 +13,8 @@ Adding a new OAuth provider requires changes in these areas:
 5. **CLI Commands** - Add login/logout support
 6. **Model List Display** - Show OAuth status in `klaude list`
 7. **Builtin Config** - Add provider and models to builtin config
+8. **Thinking Integration** - Ensure thinking/reasoning UI supports the new protocol
+9. **Tests** - Add regression tests for config/auth wiring
 
 ---
 
@@ -86,6 +88,11 @@ class <Provider>OAuth:
     def get_api_key_json(self) -> str: ...  # For JSON-encoded credentials
 ```
 
+Notes:
+
+- Not all providers use PKCE. Device-code flow providers (for example, Copilot-like flows) should implement polling logic in `oauth.py` instead.
+- OAuth state is persisted in `~/.klaude/klaude-auth.json` via `BaseTokenManager`; choose a unique `storage_key`.
+
 ### `src/klaude_code/auth/<provider>/__init__.py`
 
 Export public API:
@@ -106,7 +113,14 @@ Add exports for the new provider.
 
 ## 3. LLM Client
 
-Create a new directory under `src/klaude_code/llm/<provider>/` with these files:
+You have two valid patterns:
+
+1. Create a dedicated module under `src/klaude_code/llm/<provider>/`.
+2. Reuse an existing protocol module (for example `llm/openai_codex`) and add a new client class for the new OAuth protocol.
+
+Choose based on how much payload/stream logic can be reused.
+
+If creating a new directory, include these files:
 
 ### `src/klaude_code/llm/<provider>/input.py`
 
@@ -289,17 +303,59 @@ Add provider and models:
 
 ---
 
+## 8. Thinking Integration
+
+### `src/klaude_code/config/thinking.py`
+
+Many OAuth protocols share reasoning/thinking behavior with existing protocols.
+Add the new protocol to the correct branch so:
+
+- current thinking is displayed correctly,
+- picker options are generated correctly,
+- selected values can be parsed back into `llm_param.Thinking`.
+
+Example:
+
+```python
+if protocol in (
+    llm_param.LLMClientProtocol.RESPONSES,
+    llm_param.LLMClientProtocol.CODEX_OAUTH,
+    llm_param.LLMClientProtocol.<PROVIDER>,
+):
+    ...
+```
+
+---
+
+## 9. Tests
+
+At minimum, add config-level regression coverage.
+
+### `tests/test_config.py`
+
+Add a test verifying the OAuth provider resolves model config without API key text,
+using token-manager state as availability source.
+
+Recommended additional tests:
+
+- OAuth flow unit tests (token exchange / refresh / polling branches).
+- LLM client header tests for provider-specific required headers.
+
+---
+
 ## Checklist
 
 When adding a new OAuth provider, ensure you've completed:
 
 - [ ] Add protocol enum to `llm_param.py`
-- [ ] Create `auth/<provider>/` module (pkce, exceptions, token_manager, oauth, __init__)
+- [ ] Create `auth/<provider>/` module (exceptions, token_manager, oauth, __init__; add `pkce.py` only if needed)
 - [ ] Update `auth/__init__.py` exports
-- [ ] Create `llm/<provider>/` module (input, client, __init__)
+- [ ] Add LLM client implementation (new module or existing reusable module)
 - [ ] Register protocol in `llm/registry.py`
 - [ ] Update `config.py` - `is_api_key_missing()` method
 - [ ] Update `auth_cmd.py` - provider selection, login, logout
 - [ ] Update `list_model.py` - status display function and panel
 - [ ] Add provider/models to `builtin_config.yaml`
+- [ ] Update `thinking.py` protocol mapping if the provider supports reasoning/thinking
+- [ ] Add/adjust tests (at least `tests/test_config.py`)
 - [ ] Run `make lint` to verify all changes
