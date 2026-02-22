@@ -10,6 +10,9 @@ from klaude_code.tui.components.common import create_grid, format_elapsed_compac
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.ui.common import format_number
 
+WORKED_LINE_DURATION_THRESHOLD_S = 60
+WORKED_LINE_TURN_COUNT_THRESHOLD = 4
+
 
 class _RoundedTree(Tree):
     TREE_GUIDES: ClassVar[list[tuple[str, str, str, str]]] = [
@@ -130,7 +133,14 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     # "Worked for Xs, N steps" line
     main = e.metadata.main_agent
     duration_s = main.task_duration_s
-    if duration_s is not None:
+    should_show_worked_line = (
+        duration_s is not None
+        and (
+            duration_s > WORKED_LINE_DURATION_THRESHOLD_S
+            or main.turn_count > WORKED_LINE_TURN_COUNT_THRESHOLD
+        )
+    )
+    if should_show_worked_line and duration_s is not None:
         parts: list[tuple[str, ThemeKey]] = [
             ("✔ ", ThemeKey.METADATA_GREEN),
             ("Worked for ", ThemeKey.METADATA_GREEN),
@@ -143,7 +153,12 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
         renderables.append(Text(""))
 
     has_sub_agents = len(e.metadata.sub_agent_task_metadata) > 0
-    main_content = _build_metadata_content(main, show_context_and_time=True, show_turn_count=False, show_duration=False)
+    main_content = _build_metadata_content(
+        main,
+        show_context_and_time=True,
+        show_turn_count=not should_show_worked_line,
+        show_duration=not should_show_worked_line,
+    )
 
     if has_sub_agents:
         root_content = Text()
