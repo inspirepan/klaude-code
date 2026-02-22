@@ -75,7 +75,8 @@ def load_oauth_usage_summary(
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         tasks = {
-            executor.submit(_fetch_usage_snapshot, auth=auth, timeout_seconds=timeout_seconds): auth.protocol for auth in auths
+            executor.submit(_fetch_usage_snapshot, auth=auth, timeout_seconds=timeout_seconds): auth.protocol
+            for auth in auths
         }
         for future in as_completed(tasks):
             protocol = tasks[future]

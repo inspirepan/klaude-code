@@ -13,7 +13,7 @@ import threading
 import time
 import urllib.request
 from importlib.metadata import PackageNotFoundError, distribution
-from typing import NamedTuple
+from typing import Any, NamedTuple, cast
 from urllib.parse import urlparse
 
 PACKAGE_NAME = "klaude-code"
@@ -136,11 +136,13 @@ def _run_auto_upgrade(target_version: str) -> None:
         _last_check_time = time.time()
 
 
-def _classify_install_kind(source_url: str | None, direct_url_data: object) -> str:
+def _classify_install_kind(source_url: str | None, direct_url_data: dict[str, Any] | None) -> str:
     if isinstance(direct_url_data, dict):
         dir_info = direct_url_data.get("dir_info")
-        if isinstance(dir_info, dict) and dir_info.get("editable") is True:
-            return INSTALL_KIND_EDITABLE
+        if isinstance(dir_info, dict):
+            dir_info_typed = cast(dict[str, Any], dir_info)
+            if dir_info_typed.get("editable") is True:
+                return INSTALL_KIND_EDITABLE
 
     if source_url is None:
         return INSTALL_KIND_INDEX
@@ -164,12 +166,13 @@ def get_installation_info() -> InstallationInfo:
         return info
 
     source_url: str | None = None
-    direct_url_data: object = None
+    direct_url_data: dict[str, Any] | None = None
     direct_url_text = dist.read_text("direct_url.json")
     if direct_url_text:
         try:
-            direct_url_data = json.loads(direct_url_text)
-            if isinstance(direct_url_data, dict):
+            parsed = json.loads(direct_url_text)
+            if isinstance(parsed, dict):
+                direct_url_data = cast(dict[str, Any], parsed)
                 url = direct_url_data.get("url")
                 if isinstance(url, str):
                     source_url = url
