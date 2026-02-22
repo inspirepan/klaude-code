@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import ClassVar
 
@@ -13,6 +12,7 @@ from klaude_code.protocol import events
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.ui.common import format_model_params
+from klaude_code.update import get_display_version
 
 
 class _RoundedTree(Tree):
@@ -39,14 +39,6 @@ def _format_memory_path(path: str, *, work_dir: Path) -> str:
         return path
 
 
-def _get_version() -> str:
-    """Get the current version of klaude-code."""
-    try:
-        return version("klaude-code")
-    except PackageNotFoundError:
-        return "unknown"
-
-
 def _build_grouped_tree(
     title: str,
     groups: list[tuple[str, str]],
@@ -66,7 +58,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     if e.show_klaude_code_info:
         klaude_code_style = ThemeKey.WELCOME_DEBUG_TITLE if debug_mode else ThemeKey.WELCOME_HIGHLIGHT_BOLD
         renderables.append(
-            Text.assemble(("Klaude Code", klaude_code_style), (f" v{_get_version()}", ThemeKey.WELCOME_INFO))
+            Text.assemble(("Klaude Code", klaude_code_style), (f" v{get_display_version()}", ThemeKey.WELCOME_INFO))
         )
 
     # Model tree: model @ provider with params as children

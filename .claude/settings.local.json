@@ -3,7 +3,8 @@
     "allow": [
       "Bash(jj status:*)",
       "Bash(jj diff:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(jj log -n 5)"
     ]
   }
 }
