@@ -13,6 +13,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from klaude_code.auth.env import get_auth_env
 from klaude_code.const import WEB_SEARCH_DEFAULT_MAX_RESULTS, WEB_SEARCH_MAX_RESULTS_LIMIT
 from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
@@ -190,7 +191,7 @@ class WebSearchTool(ToolABC):
             return message.ToolResultMessage(status="success", output_text=cached)
 
         try:
-            brave_api_key = os.environ.get("BRAVE_API_KEY", "")
+            brave_api_key = os.environ.get("BRAVE_API_KEY") or get_auth_env("BRAVE_API_KEY") or ""
             if brave_api_key:
                 results = await asyncio.to_thread(_search_brave, query, max_results, brave_api_key)
             else:
