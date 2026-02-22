@@ -17,7 +17,7 @@ class CompactCommand(CommandABC):
 
     @property
     def placeholder(self) -> str:
-        return "optional focus for the summary"
+        return "additional instructions"
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         focus = user_input.text.strip() if user_input.text else None

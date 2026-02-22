@@ -48,7 +48,7 @@ def build_authorize_url(code_challenge: str, state: str) -> str:
         "state": state,
         "id_token_add_organizations": "true",
         "codex_cli_simplified_flow": "true",
-        "originator": "codex_cli_rs",
+        "originator": "pi",
     }
     return f"{AUTHORIZE_URL}?{urlencode(params)}"
 

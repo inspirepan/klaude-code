@@ -49,7 +49,7 @@ CLAUDE_CODE_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"  # OpenRouter API base URL
 
 CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"  # Codex API base URL
-CODEX_USER_AGENT = "codex_cli_rs/0.0.0-klaude"  # Codex user agent string
+CODEX_USER_AGENT = "pi"  # Codex user agent string
 
 SUPPORTED_IMAGE_SIZES = {"1K", "2K", "4K"}  # Supported image sizes for ImageGen tool
 

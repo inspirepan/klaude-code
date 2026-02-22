@@ -64,7 +64,7 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsStre
 
 
 CODEX_HEADERS = {
-    "originator": "codex_cli_rs",
+    "originator": "pi",
     "User-Agent": CODEX_USER_AGENT,
     "OpenAI-Beta": "responses=experimental",
 }

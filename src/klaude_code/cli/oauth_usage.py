@@ -200,7 +200,7 @@ def _fetch_codex_usage(*, token: str, account_id: str | None, timeout_seconds: f
         "Authorization": f"Bearer {token}",
         "Accept": "application/json",
         "User-Agent": CODEX_USER_AGENT,
-        "originator": "codex_cli_rs",
+        "originator": "pi",
     }
     if account_id:
         headers["chatgpt-account-id"] = account_id

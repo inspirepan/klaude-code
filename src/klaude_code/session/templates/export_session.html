@@ -136,7 +136,7 @@
       .meta-label {
         font-size: var(--font-size-sm);
         font-weight: var(--font-weight-bold);
-        text-transform: uppercase;
+        text-transform: lowercase;
         color: var(--text-dim);
         font-family: var(--font-mono);
       }
@@ -167,7 +167,7 @@
         padding: 10px 14px;
         font-family: var(--font-mono);
         font-size: var(--font-size-xs);
-        text-transform: uppercase;
+        text-transform: lowercase;
         font-weight: var(--font-weight-bold);
         cursor: pointer;
         user-select: none;
@@ -235,7 +235,7 @@
       .role-label {
         font-size: var(--font-size-xs);
         font-weight: var(--font-weight-bold);
-        text-transform: uppercase;
+        text-transform: lowercase;
         margin-bottom: 4px;
         color: var(--text-dim);
         display: flex;
@@ -272,7 +272,7 @@
         padding: 10px 14px;
         font-family: var(--font-mono);
         font-size: var(--font-size-xs);
-        text-transform: uppercase;
+        text-transform: lowercase;
         font-weight: var(--font-weight-bold);
         cursor: pointer;
         user-select: none;
@@ -343,7 +343,7 @@
         color: var(--text-dim);
         font-family: var(--font-mono);
         font-size: var(--font-size-xs);
-        text-transform: uppercase;
+        text-transform: lowercase;
         padding: 2px 10px;
         border-radius: 999px;
         cursor: pointer;
@@ -367,7 +367,7 @@
         color: var(--text-dim);
         font-family: var(--font-mono);
         font-size: var(--font-size-xs);
-        text-transform: uppercase;
+        text-transform: lowercase;
         padding: 2px 10px;
         border-radius: 999px;
         cursor: pointer;
@@ -436,7 +436,7 @@
         color: var(--text-dim);
         font-family: var(--font-mono);
         font-size: var(--font-size-xs);
-        text-transform: uppercase;
+        text-transform: lowercase;
         padding: 2px 10px;
         border-radius: 999px;
         cursor: pointer;
@@ -455,7 +455,7 @@
         color: var(--text-dim);
         font-family: var(--font-mono);
         font-size: var(--font-size-xs);
-        text-transform: uppercase;
+        text-transform: lowercase;
         padding: 2px 10px;
         border-radius: 999px;
         cursor: pointer;
@@ -583,7 +583,7 @@
         font-weight: var(--font-weight-bold);
         font-family: var(--font-sans);
         color: var(--tool-color);
-        text-transform: uppercase;
+        text-transform: lowercase;
       }
       .tool-id {
         color: var(--tool-color);
@@ -630,7 +630,7 @@
         padding: 6px 10px;
         font-family: var(--font-mono);
         font-size: var(--font-size-xs);
-        text-transform: uppercase;
+        text-transform: lowercase;
         font-weight: var(--font-weight-bold);
         cursor: pointer;
         user-select: none;
@@ -1117,7 +1117,7 @@
         padding: 4px 0;
         font-family: var(--font-mono);
         font-size: var(--font-size-xs);
-        text-transform: uppercase;
+        text-transform: lowercase;
         font-weight: var(--font-weight-bold);
         cursor: pointer;
         user-select: none;
@@ -1263,7 +1263,7 @@
         padding: 10px 14px;
         font-family: var(--font-mono);
         font-size: var(--font-size-sm);
-        text-transform: uppercase;
+        text-transform: lowercase;
         font-weight: var(--font-weight-bold);
         cursor: pointer;
         user-select: none;
@@ -1378,7 +1378,7 @@
       .tool-params-title {
         font-size: var(--font-size-xs);
         font-weight: var(--font-weight-bold);
-        text-transform: uppercase;
+        text-transform: lowercase;
         color: var(--text-dim);
         margin-bottom: 8px;
       }
@@ -1687,7 +1687,7 @@
       </div>
 
       <details class="collapsible-section">
-        <summary>System Prompt</summary>
+        <summary>system prompt</summary>
         <div
           class="details-content system-prompt-content"
           style="font-family: var(--font-mono); white-space: pre-wrap"
@@ -1697,7 +1697,7 @@
       </details>
 
       <details class="collapsible-section">
-        <summary>Available Tools</summary>
+        <summary>available tools</summary>
         <div class="details-content">$tools_html</div>
       </details>
 
@@ -2144,12 +2144,12 @@
         const sysPrompt = document.querySelector(
           ".collapsible-section summary"
         );
-        if (sysPrompt && sysPrompt.textContent.includes("System Prompt")) {
+        if (sysPrompt && sysPrompt.textContent.includes("system prompt")) {
           const details = sysPrompt.parentElement;
           details.id = details.id || "section-system-prompt";
           sections.push({
             id: details.id,
-            label: "System Prompt",
+            label: "system prompt",
             el: details,
           });
         }
@@ -2173,7 +2173,7 @@
                   if (contentEl) {
                     preview = contentEl.textContent.trim().replace(/\s+/g, ' ').substring(0, 80);
                   }
-                  label = preview || `User $${userCount}`;
+                  label = preview || `user $${userCount}`;
                   idPrefix = "user";
                 } else if (roleLabel.classList.contains("assistant")) {
                   assistantCount++;
@@ -2182,7 +2182,7 @@
                   if (contentEl) {
                     preview = contentEl.textContent.trim().replace(/\s+/g, ' ').substring(0, 80);
                   }
-                  label = preview || `Assistant $${assistantCount}`;
+                  label = preview || `assistant $${assistantCount}`;
                   idPrefix = "assistant";
                 } else {
                   label = roleLabel.textContent.trim();
