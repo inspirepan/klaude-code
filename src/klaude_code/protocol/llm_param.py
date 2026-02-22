@@ -15,6 +15,7 @@ class LLMClientProtocol(Enum):
     CLAUDE_OAUTH = "claude_oauth"
     BEDROCK = "bedrock"
     CODEX_OAUTH = "codex_oauth"
+    COPILOT_OAUTH = "copilot_oauth"
     GOOGLE = "google"
 
 

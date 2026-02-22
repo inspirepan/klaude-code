@@ -55,7 +55,11 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
 
     protocol = config.protocol
 
-    if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX_OAUTH):
+    if protocol in (
+        llm_param.LLMClientProtocol.RESPONSES,
+        llm_param.LLMClientProtocol.CODEX_OAUTH,
+        llm_param.LLMClientProtocol.COPILOT_OAUTH,
+    ):
         if thinking.reasoning_effort:
             return f"reasoning_effort={thinking.reasoning_effort}"
         return "not set"
@@ -188,7 +192,11 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
     model_name = config.model_id
     thinking = config.thinking
 
-    if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX_OAUTH):
+    if protocol in (
+        llm_param.LLMClientProtocol.RESPONSES,
+        llm_param.LLMClientProtocol.CODEX_OAUTH,
+        llm_param.LLMClientProtocol.COPILOT_OAUTH,
+    ):
         levels = get_levels_for_responses(model_name)
         return ThinkingPickerData(
             options=_build_effort_options(levels),

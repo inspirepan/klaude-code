@@ -333,10 +333,12 @@ body {
   transition: opacity 0.15s, color 0.15s;
   display: inline-flex;
   align-items: center;
+  align-self: center;
   line-height: 0;
 }
 .jt-row:hover > .jt-copy { opacity: 0.6; }
 .jt-copy:hover { opacity: 1 !important; color: var(--fg); }
+.jt-copy svg { display: block; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
