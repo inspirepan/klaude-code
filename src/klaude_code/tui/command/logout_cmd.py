@@ -1,8 +1,11 @@
+import asyncio
+
 import typer
 
 from klaude_code.app.auth_flow import execute_logout
 from klaude_code.protocol import commands, events, message
 
+from .auth_selector import select_provider
 from .command_abc import Agent, CommandABC, CommandResult
 
 
@@ -30,7 +33,27 @@ class LogoutCommand(CommandABC):
         return "provider"
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
-        provider = user_input.text.strip() or "codex"
+        provider = user_input.text.strip() or None
+
+        if provider is None:
+            try:
+                provider = await asyncio.to_thread(
+                    select_provider,
+                    include_api_keys=False,
+                    prompt="Select provider to logout:",
+                )
+            except KeyboardInterrupt:
+                provider = None
+            if provider is None:
+                return CommandResult(
+                    events=[
+                        events.CommandOutputEvent(
+                            session_id=agent.session.id,
+                            command_name=self.name,
+                            content="(cancelled)",
+                        )
+                    ]
+                )
 
         try:
             execute_logout(provider)

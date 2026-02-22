@@ -61,7 +61,7 @@ def _api_key_title(label: str, env_var: str) -> list[tuple[str, str]]:
     return title
 
 
-def select_provider() -> str | None:
+def select_provider(*, include_api_keys: bool = True, prompt: str = "Select provider to login:") -> str | None:
     """Display provider selection menu and return selected provider."""
     items: list[SelectItem[str]] = [
         SelectItem(
@@ -81,17 +81,18 @@ def select_provider() -> str | None:
         ),
     ]
 
-    for key_info in SUPPORTED_API_KEYS:
-        items.append(
-            SelectItem(
-                title=_api_key_title(key_info.name, key_info.env_var),
-                value=key_info.env_var,
-                search_text=key_info.env_var,
+    if include_api_keys:
+        for key_info in SUPPORTED_API_KEYS:
+            items.append(
+                SelectItem(
+                    title=_api_key_title(key_info.name, key_info.env_var),
+                    value=key_info.env_var,
+                    search_text=key_info.env_var,
+                )
             )
-        )
 
     return select_one(
-        message="Select provider to login:",
+        message=prompt,
         items=items,
         pointer="→",
         style=DEFAULT_PICKER_STYLE,

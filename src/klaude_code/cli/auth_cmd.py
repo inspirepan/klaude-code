@@ -26,9 +26,14 @@ def login_command(
 
 
 def logout_command(
-    provider: str = typer.Argument("codex", help="Provider to logout (codex|claude|copilot)"),
+    provider: str | None = typer.Argument(None, help="Provider to logout (codex|claude|copilot)"),
 ) -> None:
     """Logout from a provider."""
+    if provider is None:
+        provider = select_provider(include_api_keys=False, prompt="Select provider to logout:")
+        if provider is None:
+            return
+
     execute_logout(provider)
 
 
