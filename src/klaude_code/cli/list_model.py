@@ -247,7 +247,7 @@ def format_api_key_display(provider: ProviderConfig) -> Text:
         if resolved_key:
             return Text.assemble(
                 (f"${{{env_var}}} = ", "dim"),
-                (mask_api_key(resolved_key), ""),
+                (mask_api_key(resolved_key), ThemeKey.CONFIG_PARAM_VALUE),
             )
         else:
             return Text.assemble(
@@ -256,7 +256,7 @@ def format_api_key_display(provider: ProviderConfig) -> Text:
             )
     elif provider.api_key:
         # Plain API key
-        return Text(mask_api_key(provider.api_key))
+        return Text(mask_api_key(provider.api_key), style=ThemeKey.CONFIG_PARAM_VALUE)
     else:
         return Text("")
 
@@ -270,7 +270,7 @@ def format_env_var_display(value: str | None) -> Text:
         if resolved:
             return Text.assemble(
                 (f"${{{env_var}}} = ", "dim"),
-                (mask_api_key(resolved), ""),
+                (mask_api_key(resolved), ThemeKey.CONFIG_PARAM_VALUE),
             )
         else:
             return Text.assemble(
@@ -279,7 +279,7 @@ def format_env_var_display(value: str | None) -> Text:
             )
     elif value:
         # Plain value
-        return Text(mask_api_key(value))
+        return Text(mask_api_key(value), style=ThemeKey.CONFIG_PARAM_VALUE)
     else:
         return Text("")
 
@@ -326,31 +326,31 @@ def _build_provider_info_panel(
     # Build info table with two columns
     info_table = Table.grid(padding=(0, 2))
     info_table.add_column("Label", style=ThemeKey.CONFIG_PARAM_LABEL)
-    info_table.add_column("Value")
+    info_table.add_column("Value", style=ThemeKey.CONFIG_PARAM_VALUE)
 
     # Protocol
-    info_table.add_row(Text("Protocol"), Text(provider.protocol.value))
+    info_table.add_row(Text("Protocol"), Text(provider.protocol.value, style=ThemeKey.CONFIG_PARAM_VALUE))
 
     # Base URL (if set)
     if provider.base_url:
-        info_table.add_row(Text("Base URL"), Text(provider.base_url))
+        info_table.add_row(Text("Base URL"), Text(provider.base_url, style=ThemeKey.CONFIG_PARAM_VALUE))
 
     # API key (if set)
     if provider.api_key:
-        info_table.add_row(Text("API key"), format_api_key_display(provider))
+        info_table.add_row(Text("API Key"), format_api_key_display(provider))
 
     # AWS Bedrock parameters
     if provider.protocol == LLMClientProtocol.BEDROCK:
         if provider.aws_access_key:
-            info_table.add_row(Text("AWS key"), format_env_var_display(provider.aws_access_key))
+            info_table.add_row(Text("AWS Access Key"), format_env_var_display(provider.aws_access_key))
         if provider.aws_secret_key:
-            info_table.add_row(Text("AWS secret"), format_env_var_display(provider.aws_secret_key))
+            info_table.add_row(Text("AWS Secret Key"), format_env_var_display(provider.aws_secret_key))
         if provider.aws_region:
-            info_table.add_row(Text("AWS region"), format_env_var_display(provider.aws_region))
+            info_table.add_row(Text("AWS Region"), format_env_var_display(provider.aws_region))
         if provider.aws_session_token:
-            info_table.add_row(Text("AWS token"), format_env_var_display(provider.aws_session_token))
+            info_table.add_row(Text("AWS Session Token"), format_env_var_display(provider.aws_session_token))
         if provider.aws_profile:
-            info_table.add_row(Text("AWS profile"), format_env_var_display(provider.aws_profile))
+            info_table.add_row(Text("AWS Profile"), format_env_var_display(provider.aws_profile))
 
     # OAuth status rows
     usage_summary = oauth_usage_by_protocol.get(provider.protocol)
@@ -437,13 +437,12 @@ def _build_models_tree(
             if selector in model_to_agents:
                 roles.extend(role.lower() for role in model_to_agents[selector])
 
+            name = Text()
             if roles:
-                name = Text.assemble(
-                    (model.model_name, ThemeKey.CONFIG_STATUS_PRIMARY),
-                    (f" ({', '.join(roles)})", "dim"),
-                )
+                name.append(model.model_name, style=ThemeKey.CONFIG_STATUS_PRIMARY)
+                name.append(f" ({', '.join(roles)})", style="dim")
             else:
-                name = Text(model.model_name, style=ThemeKey.CONFIG_ITEM_NAME)
+                name.append(model.model_name, style=ThemeKey.CONFIG_ITEM_NAME)
             model_id = Text(model.model_id or "", style=ThemeKey.CONFIG_MODEL_ID)
             params = Text(" · ").join(_get_model_params_display(model))
             status = None
@@ -456,7 +455,7 @@ def _build_models_tree(
         model_line = _pad_text_right(name, name_width)
 
         if model_id.plain:
-            model_line.append(" · ", style="dim")
+            model_line.append(" → ", style="dim")
             model_line.append_text(model_id)
 
         if provider_available and (not provider_disabled) and params is not None and params.plain:

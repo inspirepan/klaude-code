@@ -234,6 +234,7 @@ class ThemeKey(str, Enum):
     CONFIG_ITEM_NAME = "config.item.name"
     CONFIG_MODEL_ID = "config.model.id"
     CONFIG_PARAM_LABEL = "config.param.label"
+    CONFIG_PARAM_VALUE = "config.param.value"
 
     def __str__(self) -> str:
         return self.value
@@ -294,7 +295,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.METADATA_TOKEN.value: palette.grey1 + " on " + palette.green_background,
                 ThemeKey.METADATA_TOKEN_OK.value: palette.green + " on " + palette.green_background,
                 ThemeKey.METADATA_TOKEN_WARN.value: palette.red + " on " + palette.red_background,
-                ThemeKey.METADATA_CONTEXT.value: palette.grey1 + " on " + palette.blue_grey_background,
+                ThemeKey.METADATA_CONTEXT.value: "dim " + palette.grey1,
                 ThemeKey.METADATA_MAIN_AGENT_NAME.value: palette.blue + " on " + palette.blue_sub_background,
                 ThemeKey.METADATA_SUB_AGENT_NAME.value: palette.purple + " on " + palette.purple_background,
                 ThemeKey.METADATA_GREEN.value: palette.green,
@@ -370,6 +371,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.CONFIG_ITEM_NAME.value: palette.cyan,
                 ThemeKey.CONFIG_MODEL_ID.value: palette.blue,
                 ThemeKey.CONFIG_PARAM_LABEL.value: "dim",
+                ThemeKey.CONFIG_PARAM_VALUE.value: palette.grey1,
                 ThemeKey.CONFIG_PROVIDER.value: palette.cyan + " bold",
             }
         ),
