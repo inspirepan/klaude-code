@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-02-22
+
+### Added
+
+- switch skill metadata to XML blocks (`4bad30cd`)
+- consolidate system prompt assembly (`bdb9f566`)
+- add copilot oauth provider support (`51fa6fae`)
+- render model list with rich tree (`28c9c862`)
+- display model provider in metadata component (`d370da92`)
+- update model provider routing (`6f9fe61d`)
+
+### Changed
+
+- set markdown code color to cyan (`51d23af0`)
+- refresh log viewer and export session styles (`63d578b7`)
+- change debug mode colors from red to purple/yellow (`4c307f40`)
+
+### Fixed
+
+- log viewer jt_copy align (`c6cb2c22`)
+
+### Other
+
+- format (`8676cc03`)
+
 ## [2.15.0] - 2026-02-21
 
 ### Added
@@ -1781,7 +1806,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.15.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.16.0...HEAD
+[2.16.0]: https://github.com/inspirepan/klaude-code/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/inspirepan/klaude-code/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/inspirepan/klaude-code/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/inspirepan/klaude-code/compare/v2.12.0...v2.13.0
