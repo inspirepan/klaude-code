@@ -578,6 +578,12 @@ def select_one[T](
         dont_extend_height=Always(),
         always_hide_cursor=Always(),
     )
+    top_spacer_window = Window(
+        FormattedTextControl([("", "")]),
+        height=1,
+        dont_extend_height=Always(),
+        always_hide_cursor=Always(),
+    )
     spacer_window = Window(
         FormattedTextControl([("", "")]),
         height=1,
@@ -610,7 +616,7 @@ def select_one[T](
     )
     merged_style = merge_styles([base_style, style] if style is not None else [base_style])
 
-    root_children: list[Container] = [header_window, spacer_window, list_window]
+    root_children: list[Container] = [top_spacer_window, header_window, spacer_window, list_window]
     if search_container is not None:
         root_children.append(search_container)
 
