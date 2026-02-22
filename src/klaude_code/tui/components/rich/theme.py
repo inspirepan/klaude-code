@@ -375,7 +375,7 @@ def get_theme(theme: str | None = None) -> Themes:
         ),
         markdown_theme=Theme(
             styles={
-                "markdown.code": palette.purple,
+                "markdown.code": palette.cyan,
                 # Render degraded `<thinking>...</thinking>` blocks inside assistant markdown.
                 # This must live in markdown_theme (not just thinking_markdown_theme) because
                 # it is used while rendering assistant output.
