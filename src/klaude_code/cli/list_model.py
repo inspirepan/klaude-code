@@ -1,9 +1,12 @@
 import datetime
+from typing import ClassVar
 
 from rich.box import HORIZONTALS
 from rich.console import Console, Group
+from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
+from rich.tree import Tree
 
 from klaude_code.config import Config
 from klaude_code.config.config import ModelConfig, ProviderConfig, parse_env_var_syntax
@@ -12,6 +15,14 @@ from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.ui.common import format_model_params
+
+
+class _RoundedTree(Tree):
+    TREE_GUIDES: ClassVar[list[tuple[str, str, str, str]]] = [
+        ("    ", "│   ", "├── ", "╰── "),
+        ("    ", "│   ", "├── ", "╰── "),
+        ("    ", "│   ", "├── ", "╰── "),
+    ]
 
 
 def _get_codex_status_rows() -> list[tuple[Text, Text]]:
@@ -183,8 +194,8 @@ def _get_model_params_display(model: ModelConfig) -> list[Text]:
     """Get display elements for model parameters."""
     param_strings = format_model_params(model)
     if param_strings:
-        return [Text(s) for s in param_strings]
-    return [Text("")]
+        return [Text(s, style=ThemeKey.CONFIG_PARAM_LABEL) for s in param_strings]
+    return [Text("", style=ThemeKey.CONFIG_PARAM_LABEL)]
 
 
 def _build_provider_info_panel(provider: ProviderConfig, available: bool, *, disabled: bool) -> Quote:
@@ -247,11 +258,11 @@ def _build_provider_info_panel(provider: ProviderConfig, available: bool, *, dis
     )
 
 
-def _build_models_table(
+def _build_models_tree(
     provider: ProviderConfig,
     config: Config,
-) -> Table:
-    """Build a table for models under a provider."""
+) -> Tree:
+    """Build a tree for models under a provider."""
     provider_disabled = provider.disabled
     provider_available = (not provider_disabled) and (not provider.is_api_key_missing())
 
@@ -278,37 +289,28 @@ def _build_models_table(
             model_to_agents[selector] = []
         model_to_agents[selector].append(agent_role)
 
-    models_table = Table.grid(
-        padding=(0, 2),
-    )
-    models_table.add_column("Model Name", min_width=12)
-    models_table.add_column("Model ID", min_width=20, style=ThemeKey.CONFIG_MODEL_ID)
-    models_table.add_column("Params", style="dim")
+    models_tree = _RoundedTree(Text("Models", style=ThemeKey.CONFIG_PARAM_LABEL), guide_style=ThemeKey.LINES)
 
-    model_count = len(provider.model_list)
-    for i, model in enumerate(provider.model_list):
-        is_last = i == model_count - 1
-        prefix = " ╰─ " if is_last else " ├─ "
+    for model in provider.model_list:
 
         if provider_disabled:
             name = Text.assemble(
-                (prefix, ThemeKey.LINES),
                 (model.model_name, "dim strike"),
                 (" (provider disabled)", "dim"),
             )
             model_id = Text(model.model_id or "", style="dim")
-            params = Text("(disabled)", style="dim")
+            status = Text("status: disabled", style="dim")
         elif not provider_available:
-            name = Text.assemble((prefix, ThemeKey.LINES), (model.model_name, "dim"))
+            name = Text(model.model_name, style="dim")
             model_id = Text(model.model_id or "", style="dim")
-            params = Text("(unavailable)", style="dim")
+            status = Text("status: unavailable", style="dim")
         elif model.disabled:
             name = Text.assemble(
-                (prefix, ThemeKey.LINES),
                 (model.model_name, "dim strike"),
                 (" (disabled)", "dim"),
             )
             model_id = Text(model.model_id or "", style="dim")
+            status = Text("status: disabled", style="dim")
             params = Text(" · ").join(_get_model_params_display(model))
         else:
             # Build role tags for this model
@@ -321,18 +323,28 @@ def _build_models_table(
 
             if roles:
                 name = Text.assemble(
-                    (prefix, ThemeKey.LINES),
                     (model.model_name, ThemeKey.CONFIG_STATUS_PRIMARY),
                     (f" ({', '.join(roles)})", "dim"),
                 )
             else:
-                name = Text.assemble((prefix, ThemeKey.LINES), (model.model_name, ThemeKey.CONFIG_ITEM_NAME))
-            model_id = Text(model.model_id or "")
+                name = Text(model.model_name, style=ThemeKey.CONFIG_ITEM_NAME)
+            model_id = Text(model.model_id or "", style=ThemeKey.CONFIG_MODEL_ID)
             params = Text(" · ").join(_get_model_params_display(model))
+            status = None
 
-        models_table.add_row(name, model_id, params)
+        model_node = models_tree.add(name)
 
-    return models_table
+        if model_id.plain:
+            model_node.add(Text.assemble(("id: ", ThemeKey.CONFIG_PARAM_LABEL), model_id))
+
+        if status is not None:
+            model_node.add(status)
+
+        if provider_available and (not provider_disabled):
+            if params.plain:
+                model_node.add(Text.assemble(("params: ", ThemeKey.CONFIG_PARAM_LABEL), params))
+
+    return models_tree
 
 
 def _display_agent_models_table(config: Config, console: Console) -> None:
@@ -390,7 +402,7 @@ def display_models_and_providers(config: Config, *, show_all: bool = False):
         provider_panel = _build_provider_info_panel(provider, provider_available, disabled=provider.disabled)
         console.print(provider_panel)
 
-        # Models table for this provider
-        models_table = _build_models_table(provider, config)
-        console.print(models_table)
+        # Models tree for this provider
+        models_tree = _build_models_tree(provider, config)
+        console.print(Padding(models_tree, (0, 0, 0, 2)))
         console.print("\n")
