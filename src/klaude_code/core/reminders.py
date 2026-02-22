@@ -434,21 +434,13 @@ async def skill_reminder(session: Session) -> message.DeveloperMessage | None:
     args = ReadTool.ReadArguments(file_path=str(skill.skill_path))
     tool_result = await ReadTool.call_with_args(args, tool_context)
 
-    tool_args = args.model_dump_json(exclude_none=True)
-    skill_file_str = f"""Called the {tools.READ} tool with the following input: {tool_args}
-Result of calling the {tools.READ} tool:
-{tool_result.output_text}
-"""
-
-    base_dir = str(skill.base_dir)
     content = f"""<system-reminder>The user activated the "{skill.name}" skill.
 
 <skill>
 <name>{skill.name}</name>
-<base_dir>{base_dir}</base_dir>
 <location>{skill.skill_path}</location>
 
-{skill_file_str}
+{tool_result.output_text}
 </skill>
 </system-reminder>"""
 

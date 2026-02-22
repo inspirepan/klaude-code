@@ -80,9 +80,10 @@ def format_available_skills_for_system_prompt() -> str:
 
     try:
         loader = _ensure_initialized()
-        skills_yaml = loader.get_skills_yaml().strip()
-        if not skills_yaml:
+        skills_xml_raw = loader.get_skills_xml()
+        if not skills_xml_raw.strip():
             return ""
+        skills_xml = skills_xml_raw.rstrip()
 
         return f"""
 
@@ -102,7 +103,7 @@ Important:
 The list below is metadata only (name/description/location). The full instructions live in the referenced file.
 
 <available_skills>
-{skills_yaml}
+{skills_xml}
 </available_skills>"""
     except Exception:
         # Skills are an optional enhancement; do not fail prompt construction if discovery breaks.

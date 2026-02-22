@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
+from xml.sax.saxutils import escape
 
 import yaml
 
@@ -214,21 +215,30 @@ class SkillLoader:
         """Get list of all loaded skill names"""
         return list(self.loaded_skills.keys())
 
-    def get_skills_yaml(self) -> str:
-        """Generate skill metadata in YAML format for system prompt.
+    def get_skills_xml(self) -> str:
+        """Generate skill metadata in XML-like format for system prompt.
 
         Returns:
-            YAML string with all skill metadata
+            XML-like string with all skill metadata entries.
         """
-        yaml_parts: list[str] = []
+        xml_parts: list[str] = []
         location_order = {"project": 0, "user": 1, "system": 2}
         for skill in sorted(self.loaded_skills.values(), key=lambda s: location_order.get(s.location, 3)):
-            # Escape description for YAML (handle multi-line and special chars)
-            desc = skill.description.replace("\n", " ").strip()
-            yaml_parts.append(
-                f"- name: {skill.name}\n"
-                f"  description: {desc}\n"
-                f"  scope: {skill.location}\n"
-                f"  location: {skill.skill_path}"
+            name = escape(skill.name)
+            description = escape(skill.description.replace("\n", " ").strip())
+            location = escape(str(skill.skill_path))
+            xml_parts.append(
+                "  <skill>\n"
+                f"    <name>{name}</name>\n"
+                f"    <description>{description}</description>\n"
+                f"    <location>{location}</location>\n"
+                "  </skill>"
             )
-        return "\n".join(yaml_parts)
+        return "\n".join(xml_parts)
+
+    def get_skills_yaml(self) -> str:
+        """Backward-compatible alias for previous method name.
+
+        Returns XML-like metadata used in the system prompt.
+        """
+        return self.get_skills_xml()
