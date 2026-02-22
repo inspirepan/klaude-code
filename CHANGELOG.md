@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-02-22
+
+### Added
+
+- add login/logout commands and auth selector (`54c874a4`)
+- update model list display styles (`ecb3bbd0`)
+- add API key providers and Brave search auth env (`952ae1a9`)
+- detect install kind and auto-upgrade from PyPI (`4f2ed6a6`)
+- show oauth usage in list output (`0c815a5f`)
+
+### Changed
+
+- rename volceng to ark and update models (`7cfe80d0`)
+- rework metadata layout with grid (`8589c06b`)
+- format and type annotations (`6eaa5e48`)
+- increase TRUNCATE_DISPLAY_MAX_LINES from 4 to 10 (`5b6619c6`)
+
+### Fixed
+
+- add blank line before standalone selector prompt (`5668a43e`)
+- support interactive provider selection for logout (`3cc7465d`)
+- gate worked summary by thresholds (`b4915014`)
+
+### Other
+
+- update UI (`7a266e60`)
+
 ## [2.16.0] - 2026-02-22
 
 ### Added
@@ -1806,7 +1833,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.16.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.17.0...HEAD
+[2.17.0]: https://github.com/inspirepan/klaude-code/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/inspirepan/klaude-code/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/inspirepan/klaude-code/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/inspirepan/klaude-code/compare/v2.13.0...v2.14.0
