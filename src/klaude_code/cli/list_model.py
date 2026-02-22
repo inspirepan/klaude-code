@@ -1,4 +1,5 @@
 import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import ClassVar
 
 from rich.box import HORIZONTALS
@@ -8,6 +9,11 @@ from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
+from klaude_code.cli.oauth_usage import (
+    format_oauth_usage_summary,
+    load_oauth_usage_summary,
+    resolve_oauth_usage_protocol,
+)
 from klaude_code.config import Config
 from klaude_code.config.config import ModelConfig, ProviderConfig, parse_env_var_syntax
 from klaude_code.protocol.llm_param import LLMClientProtocol
@@ -25,7 +31,15 @@ class _RoundedTree(Tree):
     ]
 
 
-def _get_codex_status_rows() -> list[tuple[Text, Text]]:
+def _append_usage_suffix(value: Text, usage_summary: str | None) -> Text:
+    if not usage_summary:
+        return value
+    out = value.copy()
+    out.append(f" · usage: {usage_summary}", style="blue")
+    return out
+
+
+def _get_codex_status_rows(*, usage_summary: str | None = None) -> list[tuple[Text, Text]]:
     """Get Codex OAuth login status as (label, value) tuples for table display."""
     from klaude_code.auth.codex.token_manager import CodexTokenManager
 
@@ -37,9 +51,12 @@ def _get_codex_status_rows() -> list[tuple[Text, Text]]:
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
-                Text.assemble(
-                    ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
-                    (" (run 'klaude login codex' to authenticate)", "dim"),
+                _append_usage_suffix(
+                    Text.assemble(
+                        ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
+                        (" (run 'klaude login codex' to authenticate)", "dim"),
+                    ),
+                    usage_summary,
                 ),
             )
         )
@@ -47,9 +64,12 @@ def _get_codex_status_rows() -> list[tuple[Text, Text]]:
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
-                Text.assemble(
-                    ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
-                    (" (run 'klaude login codex' to re-authenticate)", "dim"),
+                _append_usage_suffix(
+                    Text.assemble(
+                        ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
+                        (" (run 'klaude login codex' to re-authenticate)", "dim"),
+                    ),
+                    usage_summary,
                 ),
             )
         )
@@ -58,12 +78,15 @@ def _get_codex_status_rows() -> list[tuple[Text, Text]]:
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
-                Text.assemble(
-                    ("Logged in", ThemeKey.CONFIG_STATUS_OK),
-                    (
-                        f" (account: {state.account_id[:8]}…, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})",
-                        "dim",
+                _append_usage_suffix(
+                    Text.assemble(
+                        ("Logged in", ThemeKey.CONFIG_STATUS_OK),
+                        (
+                            f" (account: {state.account_id[:8]}…, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})",
+                            "dim",
+                        ),
                     ),
+                    usage_summary,
                 ),
             )
         )
@@ -80,7 +103,7 @@ def _get_codex_status_rows() -> list[tuple[Text, Text]]:
     return rows
 
 
-def _get_claude_status_rows() -> list[tuple[Text, Text]]:
+def _get_claude_status_rows(*, usage_summary: str | None = None) -> list[tuple[Text, Text]]:
     """Get Claude OAuth login status as (label, value) tuples for table display."""
     from klaude_code.auth.claude.token_manager import ClaudeTokenManager
 
@@ -92,9 +115,12 @@ def _get_claude_status_rows() -> list[tuple[Text, Text]]:
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
-                Text.assemble(
-                    ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
-                    (" (run 'klaude login claude' to authenticate)", "dim"),
+                _append_usage_suffix(
+                    Text.assemble(
+                        ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
+                        (" (run 'klaude login claude' to authenticate)", "dim"),
+                    ),
+                    usage_summary,
                 ),
             )
         )
@@ -102,9 +128,12 @@ def _get_claude_status_rows() -> list[tuple[Text, Text]]:
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
-                Text.assemble(
-                    ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
-                    (" (will refresh automatically on use; run 'klaude login claude' if refresh fails)", "dim"),
+                _append_usage_suffix(
+                    Text.assemble(
+                        ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
+                        (" (will refresh automatically on use; run 'klaude login claude' if refresh fails)", "dim"),
+                    ),
+                    usage_summary,
                 ),
             )
         )
@@ -113,9 +142,12 @@ def _get_claude_status_rows() -> list[tuple[Text, Text]]:
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
-                Text.assemble(
-                    ("Logged in", ThemeKey.CONFIG_STATUS_OK),
-                    (f" (expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+                _append_usage_suffix(
+                    Text.assemble(
+                        ("Logged in", ThemeKey.CONFIG_STATUS_OK),
+                        (f" (expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+                    ),
+                    usage_summary,
                 ),
             )
         )
@@ -132,7 +164,7 @@ def _get_claude_status_rows() -> list[tuple[Text, Text]]:
     return rows
 
 
-def _get_copilot_status_rows() -> list[tuple[Text, Text]]:
+def _get_copilot_status_rows(*, usage_summary: str | None = None) -> list[tuple[Text, Text]]:
     """Get Copilot OAuth login status as (label, value) tuples for table display."""
     from klaude_code.auth.copilot.token_manager import CopilotTokenManager
 
@@ -144,9 +176,12 @@ def _get_copilot_status_rows() -> list[tuple[Text, Text]]:
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
-                Text.assemble(
-                    ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
-                    (" (run 'klaude login copilot' to authenticate)", "dim"),
+                _append_usage_suffix(
+                    Text.assemble(
+                        ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
+                        (" (run 'klaude login copilot' to authenticate)", "dim"),
+                    ),
+                    usage_summary,
                 ),
             )
         )
@@ -154,9 +189,12 @@ def _get_copilot_status_rows() -> list[tuple[Text, Text]]:
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
-                Text.assemble(
-                    ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
-                    (" (run 'klaude login copilot' to re-authenticate)", "dim"),
+                _append_usage_suffix(
+                    Text.assemble(
+                        ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
+                        (" (run 'klaude login copilot' to re-authenticate)", "dim"),
+                    ),
+                    usage_summary,
                 ),
             )
         )
@@ -166,9 +204,12 @@ def _get_copilot_status_rows() -> list[tuple[Text, Text]]:
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
-                Text.assemble(
-                    ("Logged in", ThemeKey.CONFIG_STATUS_OK),
-                    (f" (domain: {domain}, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+                _append_usage_suffix(
+                    Text.assemble(
+                        ("Logged in", ThemeKey.CONFIG_STATUS_OK),
+                        (f" (domain: {domain}, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+                    ),
+                    usage_summary,
                 ),
             )
         )
@@ -251,7 +292,22 @@ def _get_model_params_display(model: ModelConfig) -> list[Text]:
     return [Text("", style=ThemeKey.CONFIG_PARAM_LABEL)]
 
 
-def _build_provider_info_panel(provider: ProviderConfig, available: bool, *, disabled: bool) -> Quote:
+def _pad_text_right(text: Text, width: int) -> Text:
+    """Pad rich Text to a fixed display width (monospace cells)."""
+    out = text.copy()
+    pad = max(0, width - out.cell_len)
+    if pad:
+        out.append(" " * pad)
+    return out
+
+
+def _build_provider_info_panel(
+    provider: ProviderConfig,
+    available: bool,
+    *,
+    disabled: bool,
+    oauth_usage_by_protocol: dict[LLMClientProtocol, str],
+) -> Quote:
     """Build a Quote containing provider name and information using a two-column grid."""
     # Provider name as title
     if disabled:
@@ -297,14 +353,15 @@ def _build_provider_info_panel(provider: ProviderConfig, available: bool, *, dis
             info_table.add_row(Text("AWS profile"), format_env_var_display(provider.aws_profile))
 
     # OAuth status rows
+    usage_summary = oauth_usage_by_protocol.get(provider.protocol)
     if provider.protocol == LLMClientProtocol.CODEX_OAUTH:
-        for label, value in _get_codex_status_rows():
+        for label, value in _get_codex_status_rows(usage_summary=usage_summary):
             info_table.add_row(label, value)
     if provider.protocol == LLMClientProtocol.CLAUDE_OAUTH:
-        for label, value in _get_claude_status_rows():
+        for label, value in _get_claude_status_rows(usage_summary=usage_summary):
             info_table.add_row(label, value)
     if provider.protocol == LLMClientProtocol.COPILOT_OAUTH:
-        for label, value in _get_copilot_status_rows():
+        for label, value in _get_copilot_status_rows(usage_summary=usage_summary):
             info_table.add_row(label, value)
 
     return Quote(
@@ -346,6 +403,8 @@ def _build_models_tree(
         model_to_agents[selector].append(agent_role)
 
     models_tree = _RoundedTree(Text("Models", style=ThemeKey.CONFIG_PARAM_LABEL), guide_style=ThemeKey.LINES)
+
+    model_rows: list[tuple[Text, Text, Text | None, Text | None]] = []
 
     for model in provider.model_list:
         params: Text | None = None
@@ -389,16 +448,26 @@ def _build_models_tree(
             params = Text(" · ").join(_get_model_params_display(model))
             status = None
 
-        model_node = models_tree.add(name)
+        model_rows.append((name, model_id, status, params))
+
+    name_width = max((name.cell_len for name, _, _, _ in model_rows), default=0)
+
+    for name, model_id, status, params in model_rows:
+        model_line = _pad_text_right(name, name_width)
 
         if model_id.plain:
-            model_node.add(Text.assemble(("id: ", ThemeKey.CONFIG_PARAM_LABEL), model_id))
-
-        if status is not None:
-            model_node.add(status)
+            model_line.append(" · ", style="dim")
+            model_line.append_text(model_id)
 
         if provider_available and (not provider_disabled) and params is not None and params.plain:
-            model_node.add(Text.assemble(("params: ", ThemeKey.CONFIG_PARAM_LABEL), params))
+            model_line.append(" · ", style="dim")
+            model_line.append_text(params)
+
+        if status is not None:
+            model_line.append(" · ", style="dim")
+            model_line.append_text(status)
+
+        models_tree.add(model_line)
 
     return models_tree
 
@@ -450,15 +519,58 @@ def display_models_and_providers(config: Config, *, show_all: bool = False):
     if not show_all:
         sorted_providers = [p for p in sorted_providers if (not p.disabled) and (not p.is_api_key_missing())]
 
-    # Display each provider with its models table
-    for provider in sorted_providers:
+    def _print_provider(provider: ProviderConfig, usage_map: dict[LLMClientProtocol, str]) -> None:
         provider_available = (not provider.disabled) and (not provider.is_api_key_missing())
 
         # Provider info panel
-        provider_panel = _build_provider_info_panel(provider, provider_available, disabled=provider.disabled)
+        provider_panel = _build_provider_info_panel(
+            provider,
+            provider_available,
+            disabled=provider.disabled,
+            oauth_usage_by_protocol=usage_map,
+        )
         console.print(provider_panel)
 
         # Models tree for this provider
         models_tree = _build_models_tree(provider, config)
         console.print(Padding(models_tree, (0, 0, 0, 2)))
         console.print("\n")
+
+    oauth_provider_groups: dict[LLMClientProtocol, list[ProviderConfig]] = {}
+    non_oauth_providers: list[ProviderConfig] = []
+
+    for provider in sorted_providers:
+        usage_protocol = resolve_oauth_usage_protocol(provider.protocol)
+        if usage_protocol is None:
+            non_oauth_providers.append(provider)
+        else:
+            oauth_provider_groups.setdefault(usage_protocol, []).append(provider)
+
+    # Non-OAuth providers are printed immediately.
+    for provider in non_oauth_providers:
+        _print_provider(provider, usage_map={})
+
+    # OAuth providers are printed as soon as their usage snapshot is loaded.
+    if oauth_provider_groups:
+        with ThreadPoolExecutor(max_workers=min(len(oauth_provider_groups), 3)) as executor:
+            future_to_protocol = {
+                executor.submit(load_oauth_usage_summary, protocols={protocol}, timeout_seconds=3.5): protocol
+                for protocol in oauth_provider_groups
+            }
+
+            for future in as_completed(future_to_protocol):
+                protocol = future_to_protocol[future]
+                usage_map: dict[LLMClientProtocol, str] = {}
+                try:
+                    snapshots = future.result()
+                    snapshot = snapshots.get(protocol)
+                    if snapshot is not None:
+                        usage_summary = format_oauth_usage_summary(snapshot, max_windows=2)
+                        if usage_summary:
+                            usage_map[protocol] = usage_summary
+                except Exception:
+                    # Usage display must never break `klaude list`.
+                    usage_map = {}
+
+                for provider in oauth_provider_groups.get(protocol, []):
+                    _print_provider(provider, usage_map)
