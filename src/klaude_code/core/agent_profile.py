@@ -4,8 +4,6 @@ import datetime
 import shutil
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from functools import cache
-from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -13,6 +11,7 @@ if TYPE_CHECKING:
     from klaude_code.config.config import Config
 
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
+from klaude_code.core.prompts.system_prompt import build_main_system_prompt, load_prompt_by_path
 from klaude_code.core.reminders import (
     at_file_reader_reminder,
     empty_todo_reminder,
@@ -27,11 +26,7 @@ from klaude_code.core.tool.tool_registry import get_tool_schemas
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.model_id import (
-    is_gemini_model_any,
     is_gpt5_model,
-    is_gpt52_codex_model,
-    is_gpt52_model,
-    is_gpt53_codex_model,
 )
 from klaude_code.protocol.sub_agent import AVAILABILITY_IMAGE_MODEL, get_sub_agent_profile
 from klaude_code.session import Session
@@ -58,6 +53,11 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
     "jj": "jujutsu - Git-compatible version control system",
 }
 
+MAIN_AGENT_COMMON_BASE_TOOLS: list[str] = [tools.BASH, tools.READ]
+MAIN_AGENT_GPT5_DIFF_TOOLS: list[str] = [tools.APPLY_PATCH, tools.UPDATE_PLAN]
+MAIN_AGENT_NON_GPT5_DIFF_TOOLS: list[str] = [tools.EDIT, tools.WRITE, tools.TODO_WRITE]
+MAIN_AGENT_COMMON_TOOLS: list[str] = [tools.REWIND, tools.TASK, tools.WEB_FETCH, tools.WEB_SEARCH, tools.MERMAID]
+
 
 STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT = """\
 
@@ -66,29 +66,6 @@ You have a `report_back` tool available. When you complete the task,\
 you MUST call `report_back` with the structured result matching the required schema.\
 Only the content passed to `report_back` will be returned to user.\
 """
-
-
-@cache
-def _load_prompt_by_path(prompt_path: str) -> str:
-    """Load and cache prompt content from a file path relative to core package."""
-
-    return files(__package__).joinpath(prompt_path).read_text(encoding="utf-8").strip()
-
-
-def _load_prompt_by_model(model_name: str) -> str:
-    """Load base prompt content based on model name."""
-
-    if is_gpt53_codex_model(model_name):
-        return _load_prompt_by_path("prompts/prompt-codex-gpt-5-3-codex.md")
-    if is_gpt52_codex_model(model_name):
-        return _load_prompt_by_path("prompts/prompt-codex-gpt-5-2-codex.md")
-    if is_gpt52_model(model_name):
-        return _load_prompt_by_path("prompts/prompt-codex-gpt-5-2.md")
-    if is_gpt5_model(model_name):
-        return _load_prompt_by_path("prompts/prompt-codex.md")
-    if is_gemini_model_any(model_name):
-        return _load_prompt_by_path("prompts/prompt-gemini.md")
-    return _load_prompt_by_path("prompts/prompt-claude-code.md")
 
 
 def _build_env_info(model_name: str) -> str:
@@ -105,6 +82,12 @@ def _build_env_info(model_name: str) -> str:
             available_tools.append(f"{command}: {desc}")
 
     cwd_display = f"{cwd} (empty)" if is_empty_dir else str(cwd)
+    git_repo_line = (
+        "Current directory is a git repo"
+        if is_git_repo
+        else "Current directory is not a git repo (Exercise caution when modifying files; back up when necessary)"
+    )
+
     env_lines: list[str] = [
         "",
         "",
@@ -112,7 +95,7 @@ def _build_env_info(model_name: str) -> str:
         "<env>",
         f"Working directory: {cwd_display}",
         f"Today's Date: {today}",
-        f"Is directory a git repo: {is_git_repo}",
+        git_repo_line,
         f"You are powered by the model: {model_name}",
     ]
 
@@ -130,14 +113,17 @@ def load_system_prompt(
     protocol: llm_param.LLMClientProtocol,
     sub_agent_type: str | None = None,
     config: Config | None = None,
+    available_tools: list[llm_param.ToolSchema] | None = None,
 ) -> str:
     """Get system prompt content for the given model and sub-agent type."""
 
+    del protocol, config
+
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)
-        base_prompt = _load_prompt_by_path(profile.prompt_file)
+        base_prompt = load_prompt_by_path(profile.prompt_file)
     else:
-        base_prompt = _load_prompt_by_model(model_name)
+        base_prompt = build_main_system_prompt(model_name, available_tools or [])
 
     skills_prompt = ""
     if sub_agent_type is None:
@@ -166,13 +152,14 @@ def load_agent_tools(
         profile = get_sub_agent_profile(sub_agent_type)
         return get_tool_schemas(list(profile.tool_set))
 
-    # Main agent tools
-    if is_gpt5_model(model_name):
-        tool_names: list[str] = [tools.BASH, tools.READ, tools.APPLY_PATCH, tools.UPDATE_PLAN, tools.REWIND]
-    else:
-        tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE, tools.REWIND]
+    # Main agent tools = common + model-specific diff + common
+    model_diff_tools = MAIN_AGENT_GPT5_DIFF_TOOLS if is_gpt5_model(model_name) else MAIN_AGENT_NON_GPT5_DIFF_TOOLS
+    tool_names: list[str] = [
+        *MAIN_AGENT_COMMON_BASE_TOOLS,
+        *model_diff_tools,
+        *MAIN_AGENT_COMMON_TOOLS,
+    ]
 
-    tool_names.append(tools.TASK)
     if config is not None:
         helper = SubAgentModelHelper(config)
         if helper.check_availability_requirement(AVAILABILITY_IMAGE_MODEL):
@@ -180,26 +167,29 @@ def load_agent_tools(
     else:
         tool_names.append(tools.IMAGE_GEN)
 
-    tool_names.extend([tools.WEB_FETCH, tools.WEB_SEARCH])
-    tool_names.append(tools.MERMAID)
     return get_tool_schemas(tool_names)
 
 
 def load_agent_reminders(
     model_name: str,
     sub_agent_type: str | None = None,
+    available_tools: list[llm_param.ToolSchema] | None = None,
 ) -> list[Reminder]:
     """Get reminders for an agent based on model and agent type.
 
     Args:
         model_name: The model name.
         sub_agent_type: If None, returns main agent reminders. Otherwise returns sub-agent reminders.
+        available_tools: Tools available to the active profile.
     """
 
-    reminders: list[Reminder] = []
+    del model_name
 
-    # Only main agent (not sub-agent) gets todo reminders, and not for GPT-5/Gemini
-    if sub_agent_type is None and not is_gpt5_model(model_name) and not is_gemini_model_any(model_name):
+    reminders: list[Reminder] = []
+    tool_name_set = {tool_schema.name for tool_schema in (available_tools or [])}
+
+    # Enable todo reminders only when TodoWrite is actually available.
+    if sub_agent_type is None and tools.TODO_WRITE in tool_name_set:
         reminders.append(empty_todo_reminder)
         reminders.append(todo_not_used_recently_reminder)
 
@@ -262,11 +252,15 @@ class DefaultModelProfileProvider(ModelProfileProvider):
             agent_tools: list[llm_param.ToolSchema] = []
             agent_reminders: list[Reminder] = [at_file_reader_reminder, image_reminder]
         else:
-            agent_system_prompt = load_system_prompt(
-                model_name, llm_client.protocol, sub_agent_type, config=self._config
-            )
             agent_tools = load_agent_tools(model_name, sub_agent_type, config=self._config)
-            agent_reminders = load_agent_reminders(model_name, sub_agent_type)
+            agent_system_prompt = load_system_prompt(
+                model_name,
+                llm_client.protocol,
+                sub_agent_type,
+                config=self._config,
+                available_tools=agent_tools,
+            )
+            agent_reminders = load_agent_reminders(model_name, sub_agent_type, available_tools=agent_tools)
 
         profile = AgentProfile(
             llm_client=llm_client,
