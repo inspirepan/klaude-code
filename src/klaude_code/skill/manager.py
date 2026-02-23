@@ -94,7 +94,7 @@ Skills are optional task-specific instructions stored as `SKILL.md` files.
 How to use skills:
 - Use the metadata in <available_skills> to decide whether a skill applies.
 - When the task matches a skill's description, use the `Read` tool to load the `SKILL.md` at the given <location>.
-- If the user explicitly activates a skill by starting their message with `$skill-name`, prioritize that skill.
+- If the user explicitly activates a skill by starting their message with `/skill-name` (or `//skill-name`), prioritize that skill.
 
 Important:
 - Only use skills listed in <available_skills> below.

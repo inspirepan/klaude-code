@@ -1,15 +1,15 @@
-"""REPL completion handlers for @ file paths, / slash commands, and $ skills.
+"""REPL completion handlers for @ file paths, / slash commands, and skills.
 
 This module provides completers for the REPL input:
-- _SlashCommandCompleter: Completes slash commands on the first line
-- _SkillCompleter: Completes skill names on the first line with $ prefix
+- _SlashCommandCompleter: Completes slash commands/skills on the first line
+- _SkillCompleter: Completes inline skill names with / or // prefixes
 - _AtFilesCompleter: Completes @path segments using fd or ripgrep
 - _ComboCompleter: Combines all completers with priority logic
 
 Public API:
 - create_repl_completer(): Factory function to create the combined completer
 - AT_TOKEN_PATTERN: Regex pattern for @token matching (used by key bindings)
-- SKILL_TOKEN_PATTERN: Regex pattern for $skill matching (used by key bindings)
+- SKILL_TOKEN_PATTERN: Regex pattern for skill tokens (used by key bindings)
 """
 
 from __future__ import annotations
@@ -37,9 +37,25 @@ from klaude_code.protocol.commands import CommandInfo
 # single logical token.
 AT_TOKEN_PATTERN = re.compile(r'(^|\s)@(?P<frag>"[^"]*"|[^\s]*)$')
 
-# Pattern to match $skill or ¥skill token for skill completion (used by key bindings).
+# Pattern to match inline /skill (or //skill) token for skill completion
+# (used by key bindings).
 # Supports inline matching: after whitespace or at start of line.
-SKILL_TOKEN_PATTERN = re.compile(r"(^|\s)[$¥](?P<frag>\S*)$")
+SKILL_TOKEN_PATTERN = re.compile(r"(^|\s)(?P<prefix>//|/)(?P<frag>[^\s/]*)$")
+
+_SKILL_LOCATION_STYLE = {
+    "project": "ansimagenta",
+    "user": "ansiblue",
+    "system": "ansiyellow",
+}
+
+
+def _skill_display(name: str, location: str) -> FormattedText:
+    bullet_style = _SKILL_LOCATION_STYLE.get(location, "ansibrightblack")
+    return FormattedText([(bullet_style, "•"), ("", f" {name}")])
+
+
+def _command_display(name: str, hint: str) -> FormattedText:
+    return FormattedText([("ansibrightblack", "•"), ("", f" {name}"), ("ansibrightblack", hint)])
 
 
 def create_repl_completer(
@@ -64,15 +80,15 @@ class _CmdResult(NamedTuple):
 
 
 class _SlashCommandCompleter(Completer):
-    """Complete slash commands at the beginning of the first line.
+    """Complete slash commands/skills at the beginning of the first line.
 
     Behavior:
-    - Only triggers when cursor is on first line and text matches /…
-    - Shows available slash commands with descriptions
+    - `/...`: shows command + skill completions (command first)
+    - `//...`: shows only skill completions
     - Inserts trailing space after completion
     """
 
-    _SLASH_TOKEN_RE = re.compile(r"^/(?P<frag>\S*)$")
+    _SLASH_TOKEN_RE = re.compile(r"^(?P<prefix>//|/)(?P<frag>[^\s/]*)$")
 
     def __init__(self, command_info_provider: Callable[[], list[CommandInfo]] | None = None) -> None:
         self._command_info_provider = command_info_provider
@@ -87,59 +103,80 @@ class _SlashCommandCompleter(Completer):
             return
 
         if self._command_info_provider is None:
-            return
+            command_infos: list[CommandInfo] = []
+        else:
+            command_infos = self._command_info_provider()
 
         text_before = document.current_line_before_cursor
         m = self._SLASH_TOKEN_RE.search(text_before)
         if not m:
             return
 
+        prefix = m.group("prefix")
         frag = m.group("frag")
-        token_start = len(text_before) - len(f"/{frag}")
+        token_start = len(text_before) - len(f"{prefix}{frag}")
         start_position = token_start - len(text_before)  # negative offset
 
-        # Get available commands from provider
-        command_infos = self._command_info_provider()
+        command_names = {cmd_info.name for cmd_info in command_infos}
 
-        # Filter commands that match the fragment (preserve registration order)
-        matched: list[tuple[str, CommandInfo, str]] = []
-        for cmd_info in command_infos:
-            if cmd_info.name.startswith(frag):
+        skills = self._get_available_skills()
+        frag_lower = frag.lower()
+        matched_skills: list[tuple[str, str, str]] = []
+        for name, desc, location in skills:
+            if prefix == "/" and name in command_names:
+                continue
+            if frag_lower in name.lower() or frag_lower in desc.lower():
+                matched_skills.append((name, desc, location))
+
+        if prefix == "/":
+            for cmd_info in command_infos:
+                if not cmd_info.name.startswith(frag):
+                    continue
                 hint = f" [{cmd_info.placeholder}]" if cmd_info.support_addition_params else ""
-                matched.append((cmd_info.name, cmd_info, hint))
+                yield Completion(
+                    text=f"/{cmd_info.name} ",
+                    start_position=start_position,
+                    display=_command_display(cmd_info.name, hint),
+                    display_meta=cmd_info.summary,
+                )
 
-        if not matched:
-            return
-
-        for cmd_name, cmd_info, hint in matched:
-            completion_text = f"/{cmd_name} "
-            # Use FormattedText to style the hint (placeholder) in bright black
-            display = FormattedText([("", cmd_name), ("ansibrightblack", hint)]) if hint else cmd_name
+        for name, desc, location in matched_skills:
             yield Completion(
-                text=completion_text,
+                text=f"{prefix}{name} ",
                 start_position=start_position,
-                display=display,
-                display_meta=cmd_info.summary,
+                display=_skill_display(name, location),
+                display_meta=desc,
             )
 
     def is_slash_command_context(self, document: Document) -> bool:
-        """Check if current context is a slash command."""
+        """Check if current context is first-line slash completion."""
         if document.cursor_position_row != 0:
             return False
         text_before = document.current_line_before_cursor
         return bool(self._SLASH_TOKEN_RE.search(text_before))
 
+    def _get_available_skills(self) -> list[tuple[str, str, str]]:
+        try:
+            from klaude_code.skill import get_available_skills
+
+            return get_available_skills()
+        except (ImportError, RuntimeError):
+            return []
+
 
 class _SkillCompleter(Completer):
-    """Complete skill names with $ or ¥ prefix.
+    """Complete skill names with / or // prefix.
 
     Behavior:
-    - Triggers when cursor is after $ or ¥ (at start of line or after whitespace)
+    - Triggers when cursor is after / or // (at start of line or after whitespace)
     - Shows available skills with descriptions
     - Inserts trailing space after completion
     """
 
     _SKILL_TOKEN_RE = SKILL_TOKEN_PATTERN
+
+    def __init__(self, command_info_provider: Callable[[], list[CommandInfo]] | None = None) -> None:
+        self._command_info_provider = command_info_provider
 
     def get_completions(
         self,
@@ -151,10 +188,10 @@ class _SkillCompleter(Completer):
         if not m:
             return
 
+        prefix = m.group("prefix")
         frag = m.group("frag").lower()
         # Calculate token start: the match includes optional leading whitespace
-        # The actual token is $frag or ¥frag (1 char prefix + frag)
-        token_len = 1 + len(m.group("frag"))  # $ or ¥ + frag
+        token_len = len(prefix) + len(m.group("frag"))
         token_start = len(text_before) - token_len
         start_position = token_start - len(text_before)  # negative offset
 
@@ -163,27 +200,26 @@ class _SkillCompleter(Completer):
         if not skills:
             return
 
+        command_names = self._get_command_names()
+
         # Filter skills that match the fragment (case-insensitive)
         matched: list[tuple[str, str, str]] = []  # (name, description, location)
         for name, desc, location in skills:
+            if prefix in {"/", "//"} and name in command_names:
+                continue
             if frag in name.lower() or frag in desc.lower():
                 matched.append((name, desc, location))
 
         if not matched:
             return
 
-        # Calculate max location length for alignment
-        max_loc_len = max(len(loc) for _, _, loc in matched)
-
         for name, desc, location in matched:
-            completion_text = f"${name} "
-            # Pad location to align descriptions
-            padded_location = f"[{location}]".ljust(max_loc_len + 2)  # +2 for brackets
+            completion_text = f"{prefix}{name} "
             yield Completion(
                 text=completion_text,
                 start_position=start_position,
-                display=name,
-                display_meta=f"{padded_location} {desc}",
+                display=_skill_display(name, location),
+                display_meta=desc,
             )
 
     def _get_available_skills(self) -> list[tuple[str, str, str]]:
@@ -205,14 +241,19 @@ class _SkillCompleter(Completer):
         text_before = document.current_line_before_cursor
         return bool(self._SKILL_TOKEN_RE.search(text_before))
 
+    def _get_command_names(self) -> set[str]:
+        if self._command_info_provider is None:
+            return set()
+        return {cmd.name for cmd in self._command_info_provider()}
+
 
 class _ComboCompleter(Completer):
-    """Combined completer that handles @ file paths, / slash commands, and $ skills."""
+    """Combined completer that handles @ file paths, slash commands, and skills."""
 
     def __init__(self, command_info_provider: Callable[[], list[CommandInfo]] | None = None) -> None:
         self._at_completer = _AtFilesCompleter()
         self._slash_completer = _SlashCommandCompleter(command_info_provider=command_info_provider)
-        self._skill_completer = _SkillCompleter()
+        self._skill_completer = _SkillCompleter(command_info_provider=command_info_provider)
 
     def get_completions(
         self,
@@ -232,7 +273,7 @@ class _ComboCompleter(Completer):
             yield from self._slash_completer.get_completions(document, complete_event)
             return
 
-        # Try skill completion (with $ or ¥ prefix)
+        # Try inline skill completion
         if self._skill_completer.is_skill_context(document):
             yield from self._skill_completer.get_completions(document, complete_event)
             return

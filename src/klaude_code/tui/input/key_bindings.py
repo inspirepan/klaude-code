@@ -56,6 +56,7 @@ def copy_to_clipboard(text: str) -> None:
 def create_key_bindings(
     capture_clipboard_tag: Callable[[], str | None],
     at_token_pattern: re.Pattern[str],
+    skill_token_pattern: re.Pattern[str],
     *,
     input_enabled: Filter | None = None,
     open_model_picker: Callable[[], None] | None = None,
@@ -66,6 +67,7 @@ def create_key_bindings(
     Args:
         capture_clipboard_tag: Callable to capture clipboard image and return [image ...] marker
         at_token_pattern: Pattern to match @token for completion refresh
+        skill_token_pattern: Pattern to match skill tokens for completion refresh
 
     Returns:
         KeyBindings instance with all REPL handlers configured
@@ -628,14 +630,14 @@ def create_key_bindings(
         # If the token pattern still applies, refresh completion popup
         try:
             text_before = buf.document.text_before_cursor  # type: ignore[reportUnknownMemberType, reportUnknownVariableType]
-            # Check for both @ tokens and / tokens (slash commands on first line only)
+            line_before = buf.document.current_line_before_cursor  # type: ignore[reportUnknownMemberType, reportUnknownVariableType]
+            # Check @ tokens, first-line / command tokens, and inline skill tokens.
             should_refresh = False
-            if at_token_pattern.search(text_before):  # type: ignore[reportUnknownArgumentType]
+            if at_token_pattern.search(text_before) or skill_token_pattern.search(line_before):  # type: ignore[reportUnknownArgumentType]
                 should_refresh = True
             elif buf.document.cursor_position_row == 0:  # type: ignore[reportUnknownMemberType]
-                # Check for slash command pattern without accessing protected attribute
-                text_before_str = text_before or ""
-                if text_before_str.strip().startswith("/") and " " not in text_before_str:
+                text_before_str = line_before or ""
+                if re.search(r"^//?[^\s/]*$", text_before_str):
                     should_refresh = True
 
             if should_refresh:

@@ -174,12 +174,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         ):
             active_display.wrapped_display.hide_progress_ui()
 
-    is_light_background: bool | None = None
-    if theme == "light":
-        is_light_background = True
-    elif theme == "dark":
-        is_light_background = False
-
     def _get_active_session_id() -> str | None:
         """Get the current active session ID dynamically.
 
@@ -225,7 +219,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     input_provider: ui.InputProviderABC = PromptToolkitInput(
         status_provider=_status_provider,
         pre_prompt=_stop_rich_bottom_ui,
-        is_light_background=is_light_background,
         get_current_model_config_name=lambda: (
             components.executor.context.current_agent.session.model_config_name
             if components.executor.context.current_agent is not None

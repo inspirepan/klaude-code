@@ -37,7 +37,7 @@ from klaude_code.protocol import llm_param
 from klaude_code.protocol.commands import CommandInfo
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
-from klaude_code.tui.input.completers import AT_TOKEN_PATTERN, create_repl_completer
+from klaude_code.tui.input.completers import AT_TOKEN_PATTERN, SKILL_TOKEN_PATTERN, create_repl_completer
 from klaude_code.tui.input.drag_drop import convert_dropped_text
 from klaude_code.tui.input.images import (
     capture_clipboard_tag,
@@ -45,7 +45,6 @@ from klaude_code.tui.input.images import (
 )
 from klaude_code.tui.input.key_bindings import create_key_bindings
 from klaude_code.tui.input.paste import expand_paste_markers
-from klaude_code.tui.terminal.color import is_light_terminal_background
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 from klaude_code.ui.core.input import InputProviderABC
 
@@ -57,18 +56,12 @@ class REPLStatusSnapshot(NamedTuple):
     debug_log_path: str | None = None
 
 
-COMPLETION_SELECTED_DARK_BG = "ansigreen"
-COMPLETION_SELECTED_LIGHT_BG = "ansigreen"
-COMPLETION_SELECTED_UNKNOWN_BG = "ansigreen"
+COMPLETION_SELECTED_BG = "ansigreen"
 COMPLETION_MENU = "ansibrightblack"
 INPUT_PROMPT_STYLE = "ansicyan bold"
 INPUT_PROMPT_BASH_STYLE = "ansigreen bold"
-PLACEHOLDER_TEXT_STYLE_DARK_BG = "fg:#5a5a5a"
-PLACEHOLDER_TEXT_STYLE_LIGHT_BG = "fg:#7a7a7a"
-PLACEHOLDER_TEXT_STYLE_UNKNOWN_BG = "fg:#8a8a8a"
-PLACEHOLDER_SYMBOL_STYLE_DARK_BG = "fg:ansiblue"
-PLACEHOLDER_SYMBOL_STYLE_LIGHT_BG = "fg:ansiblue"
-PLACEHOLDER_SYMBOL_STYLE_UNKNOWN_BG = "fg:ansiblue"
+PLACEHOLDER_TEXT_STYLE = "fg:ansibrightblack"
+PLACEHOLDER_SYMBOL_STYLE = "fg:ansiblue"
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +231,6 @@ class PromptToolkitInput(InputProviderABC):
         status_provider: Callable[[], REPLStatusSnapshot] | None = None,
         pre_prompt: Callable[[], None] | None = None,
         post_prompt: Callable[[], None] | None = None,
-        is_light_background: bool | None = None,
         on_change_model: Callable[[str], Awaitable[None]] | None = None,
         get_current_model_config_name: Callable[[], str | None] | None = None,
         on_change_thinking: Callable[[llm_param.Thinking], Awaitable[None]] | None = None,
@@ -254,12 +246,6 @@ class PromptToolkitInput(InputProviderABC):
         self._on_change_thinking = on_change_thinking
         self._get_current_llm_config = get_current_llm_config
         self._command_info_provider = command_info_provider
-
-        # Use provided value if available to avoid redundant TTY queries that may interfere
-        # with prompt_toolkit's terminal state after interactive UIs have been used.
-        self._is_light_terminal_background = (
-            is_light_background if is_light_background is not None else is_light_terminal_background(timeout=0.2)
-        )
 
         self._session = self._build_prompt_session(prompt)
         self._setup_model_picker()
@@ -284,18 +270,13 @@ class PromptToolkitInput(InputProviderABC):
         kb = create_key_bindings(
             capture_clipboard_tag=capture_clipboard_tag,
             at_token_pattern=AT_TOKEN_PATTERN,
+            skill_token_pattern=SKILL_TOKEN_PATTERN,
             input_enabled=input_enabled,
             open_model_picker=self._open_model_picker,
             open_thinking_picker=self._open_thinking_picker,
         )
 
-        # Select completion selected color based on terminal background
-        if self._is_light_terminal_background is True:
-            completion_selected = COMPLETION_SELECTED_LIGHT_BG
-        elif self._is_light_terminal_background is False:
-            completion_selected = COMPLETION_SELECTED_DARK_BG
-        else:
-            completion_selected = COMPLETION_SELECTED_UNKNOWN_BG
+        completion_selected = COMPLETION_SELECTED_BG
 
         return PromptSession(
             # Use a stable prompt string; we override the style dynamically in prompt_async.
@@ -667,25 +648,18 @@ class PromptToolkitInput(InputProviderABC):
     # -------------------------------------------------------------------------
 
     def _render_shortcut_hints(self) -> FormattedText:
-        if self._is_light_terminal_background is True:
-            text_style = PLACEHOLDER_TEXT_STYLE_LIGHT_BG
-            symbol_style = PLACEHOLDER_SYMBOL_STYLE_LIGHT_BG
-        elif self._is_light_terminal_background is False:
-            text_style = PLACEHOLDER_TEXT_STYLE_DARK_BG
-            symbol_style = PLACEHOLDER_SYMBOL_STYLE_DARK_BG
-        else:
-            text_style = PLACEHOLDER_TEXT_STYLE_UNKNOWN_BG
-            symbol_style = PLACEHOLDER_SYMBOL_STYLE_UNKNOWN_BG
+        text_style = PLACEHOLDER_TEXT_STYLE
+        symbol_style = PLACEHOLDER_SYMBOL_STYLE
 
         return FormattedText(
             [
                 (text_style, " "),
                 (symbol_style, "@"),
                 (text_style, " files • "),
-                (symbol_style, "$"),
-                (text_style, " skills • "),
                 (symbol_style, "/"),
-                (text_style, " commands • "),
+                (text_style, " commands · "),
+                (symbol_style, "//"),
+                (text_style, " skills • "),
                 (symbol_style, "!"),
                 (text_style, " shell • "),
                 (symbol_style, "ctrl-l"),

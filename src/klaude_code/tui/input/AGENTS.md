@@ -29,9 +29,9 @@ User Input (keyboard/paste/drag)
 | `drag_drop.py` | `file://` URI and path list to `@`/`[image]` conversion |
 | `images.py` | Image handling: marker syntax, Ctrl+V capture, `extract_images_from_text()` |
 | `paste.py` | `[paste #N ...]` fold/expand for large pastes |
-| `completers.py` | `@`/`/`/`$` completion providers |
+| `completers.py` | `@`/`/` completion providers |
 
-## Special Syntax Features (`@file`, `$skill`)
+## Special Syntax Features (`@file`, `/skill`)
 
 These features span three modules that must stay in sync:
 

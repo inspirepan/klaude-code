@@ -13,7 +13,7 @@ Minimal code agent CLI.
 - **External file sync**: Monitoring for external edits (linter, manual)
 - **Interrupt handling**: Ctrl+C preserves partial responses and synthesizes tool cancellation results
 - **Output truncation**: Large outputs saved to file system with snapshot links
-- **Agent Skills**: Built-in + user + project Agent Skills (with implicit invocation by Skill tool or explicit invocation by typing `$`)
+- **Agent Skills**: Built-in + user + project Agent Skills (with implicit invocation by Skill tool or explicit invocation by typing `//skill` or `/skill`)
 - **Sessions**: Resumable with `--continue`
 - **Mermaid diagrams**: Terminal image preview and Interactive local HTML viewer with zoom, pan, and SVG export
 - **Extras**: Slash commands, sub-agents, image paste, terminal notifications, auto-theming
@@ -210,6 +210,9 @@ klaude cost --recent 7
 ### Slash Commands
 
 Inside the interactive session (`klaude`), use these commands to streamline your workflow:
+
+- `/...` supports mixed completion for commands + skills (command names take priority on conflicts).
+- `//...` shows skill-only completion and triggers skills explicitly.
 
 - `/model` - Switch the active LLM during the session.
 - `/thinking` - Configure model thinking/reasoning level.

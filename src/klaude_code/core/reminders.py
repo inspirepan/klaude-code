@@ -17,13 +17,15 @@ from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import message, model, tools
 from klaude_code.session import Session
 from klaude_code.skill import get_skill
+from klaude_code.tui.command import get_command_names
 
 # Match @ preceded by whitespace, start of line, or → (ReadTool line number arrow)
 AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>\S+))')
 
-# Match $skill or ¥skill inline (at start of line or after whitespace)
-SKILL_PATTERN = re.compile(r"(?:^|\s)[$¥](?P<skill>\S+)")
-
+# Match /skill or //skill inline (at start of line or after whitespace).
+# Require token boundary after the skill name to avoid matching paths like
+# /Users/root/code.
+SLASH_SKILL_PATTERN = re.compile(r"(?:^|\s)(?P<prefix>//|/)(?P<skill>[^\s/]+)(?=\s|$)")
 
 @dataclass
 class AtPatternSource:
@@ -69,15 +71,17 @@ def get_at_patterns_with_source(session: Session) -> list[AtPatternSource]:
 
 
 def get_skill_from_user_input(session: Session) -> str | None:
-    """Get $skill reference from last user input (first match wins)."""
+    """Get explicit skill reference from last user input (first match wins)."""
     for item in reversed(session.conversation_history):
         if isinstance(item, message.ToolResultMessage):
             return None
         if isinstance(item, message.UserMessage):
             content = message.join_text_parts(item.parts)
-            m = SKILL_PATTERN.search(content)
-            if m:
-                return m.group("skill")
+            command_names = set(get_command_names())
+            for m in SLASH_SKILL_PATTERN.finditer(content):
+                skill_name = m.group("skill")
+                if skill_name not in command_names:
+                    return skill_name
             return None
     return None
 
@@ -413,7 +417,7 @@ async def image_reminder(session: Session) -> message.DeveloperMessage | None:
 
 
 async def skill_reminder(session: Session) -> message.DeveloperMessage | None:
-    """Load skill content when user references a skill with $skill syntax."""
+    """Load skill content when user references a skill with explicit skill syntax."""
     skill_name = get_skill_from_user_input(session)
     if not skill_name:
         return None
@@ -478,12 +482,17 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
     """CLAUDE.md AGENTS.md"""
     memory_paths = get_memory_paths(work_dir=session.work_dir)
     memories: list[Memory] = []
+    seen_dirs: set[Path] = set()
     for memory_path, instruction in memory_paths:
+        parent = memory_path.parent.resolve()
+        if parent in seen_dirs:
+            continue
         path_str = str(memory_path)
         if memory_path.exists() and memory_path.is_file() and not _is_memory_loaded(session, path_str):
             try:
                 text = memory_path.read_text(encoding="utf-8", errors="replace")
                 _mark_memory_loaded(session, path_str)
+                seen_dirs.add(parent)
                 memories.append(Memory(path=path_str, instruction=instruction, content=text))
             except (PermissionError, UnicodeDecodeError, OSError):
                 continue
