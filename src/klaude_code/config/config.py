@@ -521,11 +521,12 @@ def _merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Co
     # Build lookup for builtin providers
     builtin_providers: dict[str, ProviderConfig] = {p.provider_name: p for p in builtin_config.provider_list}
 
-    # Merge provider_list
-    merged_providers: dict[str, ProviderConfig] = dict(builtin_providers)
+    # Merge provider_list: user providers come first (higher priority in model resolution),
+    # followed by builtin-only providers.
+    merged_providers: dict[str, ProviderConfig] = {}
     for user_provider in user_config.provider_list:
         if user_provider.provider_name in builtin_providers:
-            # Merge with builtin provider
+            # Merge with builtin provider; place merged entry first (user priority)
             merged_providers[user_provider.provider_name] = _merge_provider(
                 builtin_providers[user_provider.provider_name], user_provider
             )
@@ -536,6 +537,10 @@ def _merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Co
                     f"Provider '{user_provider.provider_name}' requires 'protocol' field (not a builtin provider)"
                 )
             merged_providers[user_provider.provider_name] = ProviderConfig.model_validate(user_provider.model_dump())
+    # Append builtin providers not referenced by user config
+    for name, provider in builtin_providers.items():
+        if name not in merged_providers:
+            merged_providers[name] = provider
 
     # Merge sub_agent_models
     merged_sub_agent_models = {**builtin_config.sub_agent_models, **user_config.sub_agent_models}
