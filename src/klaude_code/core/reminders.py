@@ -17,7 +17,7 @@ from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import message, model, tools
 from klaude_code.session import Session
 from klaude_code.skill import get_skill
-from klaude_code.tui.command import get_command_names
+from klaude_code.protocol.commands import CommandName
 
 # Match @ preceded by whitespace, start of line, or → (ReadTool line number arrow)
 AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>\S+))')
@@ -77,7 +77,7 @@ def get_skill_from_user_input(session: Session) -> str | None:
             return None
         if isinstance(item, message.UserMessage):
             content = message.join_text_parts(item.parts)
-            command_names = set(get_command_names())
+            command_names = {name.value for name in CommandName}
             for m in SLASH_SKILL_PATTERN.finditer(content):
                 skill_name = m.group("skill")
                 if skill_name not in command_names:

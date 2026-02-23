@@ -6,10 +6,10 @@ import pytest
 from prompt_toolkit.document import Document
 
 from klaude_code.protocol.commands import CommandInfo
-from klaude_code.tui.input.completers import (  # pyright: ignore[reportPrivateUsage]
-    _ComboCompleter,
-    _SkillCompleter,
-    _SlashCommandCompleter,
+from klaude_code.tui.input.completers import (
+    _ComboCompleter,  # pyright: ignore[reportPrivateUsage]
+    _SkillCompleter,  # pyright: ignore[reportPrivateUsage]
+    _SlashCommandCompleter,  # pyright: ignore[reportPrivateUsage]
 )
 
 
@@ -21,13 +21,13 @@ def _command_info_provider() -> list[CommandInfo]:
 
 
 @pytest.fixture(autouse=True)
-def _mock_skills(monkeypatch: pytest.MonkeyPatch) -> None:
-    skills = [
+def _mock_skills(monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
+    skills: list[tuple[str, str, str]] = [
         ("copy", "copy skill", "project"),
         ("publish", "publish skill", "user"),
     ]
-    monkeypatch.setattr(_SkillCompleter, "_get_available_skills", lambda _self: skills)
-    monkeypatch.setattr(_SlashCommandCompleter, "_get_available_skills", lambda _self: skills)
+    monkeypatch.setattr(_SkillCompleter, "_get_available_skills", lambda _self: skills)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+    monkeypatch.setattr(_SlashCommandCompleter, "_get_available_skills", lambda _self: skills)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
 
 def test_slash_mixed_completion_prioritizes_command_and_hides_same_name_skill() -> None:

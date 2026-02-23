@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import pytest
 import typer
 from typer.testing import CliRunner
 
 from klaude_code.cli import auth_cmd
 
 
-def test_cli_logout_without_provider_uses_selector(monkeypatch) -> None:
+def test_cli_logout_without_provider_uses_selector(monkeypatch: pytest.MonkeyPatch) -> None:
     selector_calls: list[tuple[bool, str]] = []
     logout_calls: list[str] = []
 
@@ -29,7 +30,7 @@ def test_cli_logout_without_provider_uses_selector(monkeypatch) -> None:
     assert logout_calls == ["copilot"]
 
 
-def test_cli_logout_cancelled_when_selector_returns_none(monkeypatch) -> None:
+def test_cli_logout_cancelled_when_selector_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     logout_calls: list[str] = []
 
     def _select_provider(*, include_api_keys: bool = True, prompt: str = "") -> str | None:
