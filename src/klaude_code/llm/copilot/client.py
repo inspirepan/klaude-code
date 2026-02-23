@@ -167,7 +167,7 @@ class CopilotClient(LLMClientABC):
         self._oauth = CopilotOAuth(self._token_manager)
 
         if not self._token_manager.is_logged_in():
-            raise CopilotNotLoggedInError("Copilot authentication required. Run 'klaude login copilot' first.")
+            raise CopilotNotLoggedInError("Copilot authentication required. Run 'klaude auth login copilot' first.")
 
         self._openai_client: AsyncOpenAI | None = None
         self._anthropic_client: anthropic.AsyncAnthropic | None = None

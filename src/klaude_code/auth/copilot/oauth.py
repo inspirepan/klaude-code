@@ -224,7 +224,7 @@ class CopilotOAuth:
         """Ensure we have a valid Copilot token and return (token, base_url)."""
         state = self.token_manager.get_state()
         if state is None:
-            raise CopilotNotLoggedInError("Not logged in to Copilot. Run 'klaude login copilot' first.")
+            raise CopilotNotLoggedInError("Not logged in to Copilot. Run 'klaude auth login copilot' first.")
 
         if state.is_expired():
             state = self.refresh()

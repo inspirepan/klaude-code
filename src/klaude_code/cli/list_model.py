@@ -54,7 +54,7 @@ def _get_codex_status_rows(*, usage_summary: str | None = None) -> list[tuple[Te
                 _append_usage_suffix(
                     Text.assemble(
                         ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
-                        (" (run 'klaude login codex' to authenticate)", "dim"),
+                        (" (run 'klaude auth login codex' to authenticate)", "dim"),
                     ),
                     usage_summary,
                 ),
@@ -67,7 +67,7 @@ def _get_codex_status_rows(*, usage_summary: str | None = None) -> list[tuple[Te
                 _append_usage_suffix(
                     Text.assemble(
                         ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
-                        (" (run 'klaude login codex' to re-authenticate)", "dim"),
+                        (" (run 'klaude auth login codex' to re-authenticate)", "dim"),
                     ),
                     usage_summary,
                 ),
@@ -118,7 +118,7 @@ def _get_claude_status_rows(*, usage_summary: str | None = None) -> list[tuple[T
                 _append_usage_suffix(
                     Text.assemble(
                         ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
-                        (" (run 'klaude login claude' to authenticate)", "dim"),
+                        (" (run 'klaude auth login claude' to authenticate)", "dim"),
                     ),
                     usage_summary,
                 ),
@@ -131,7 +131,7 @@ def _get_claude_status_rows(*, usage_summary: str | None = None) -> list[tuple[T
                 _append_usage_suffix(
                     Text.assemble(
                         ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
-                        (" (will refresh automatically on use; run 'klaude login claude' if refresh fails)", "dim"),
+                        (" (will refresh automatically on use; run 'klaude auth login claude' if refresh fails)", "dim"),
                     ),
                     usage_summary,
                 ),
@@ -179,7 +179,7 @@ def _get_copilot_status_rows(*, usage_summary: str | None = None) -> list[tuple[
                 _append_usage_suffix(
                     Text.assemble(
                         ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
-                        (" (run 'klaude login copilot' to authenticate)", "dim"),
+                        (" (run 'klaude auth login copilot' to authenticate)", "dim"),
                     ),
                     usage_summary,
                 ),
@@ -192,7 +192,7 @@ def _get_copilot_status_rows(*, usage_summary: str | None = None) -> list[tuple[
                 _append_usage_suffix(
                     Text.assemble(
                         ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
-                        (" (run 'klaude login copilot' to re-authenticate)", "dim"),
+                        (" (run 'klaude auth login copilot' to re-authenticate)", "dim"),
                     ),
                     usage_summary,
                 ),

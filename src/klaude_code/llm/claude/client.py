@@ -44,7 +44,7 @@ class ClaudeClient(LLMClientABC):
         self._oauth = ClaudeOAuth(self._token_manager)
 
         if not self._token_manager.is_logged_in():
-            raise ClaudeNotLoggedInError("Claude authentication required. Run 'klaude login claude' first.")
+            raise ClaudeNotLoggedInError("Claude authentication required. Run 'klaude auth login claude' first.")
 
         self.client = self._create_client()
 
@@ -58,7 +58,7 @@ class ClaudeClient(LLMClientABC):
     def _ensure_valid_token(self) -> None:
         state = self._token_manager.get_state()
         if state is None:
-            raise ClaudeNotLoggedInError("Not logged in to Claude. Run 'klaude login claude' first.")
+            raise ClaudeNotLoggedInError("Not logged in to Claude. Run 'klaude auth login claude' first.")
 
         if state.is_expired():
             self._oauth.refresh()

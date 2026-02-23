@@ -80,7 +80,7 @@ class CodexClient(LLMClientABC):
         self._oauth = CodexOAuth(self._token_manager)
 
         if not self._token_manager.is_logged_in():
-            raise CodexNotLoggedInError("Codex authentication required. Run 'klaude login codex' first.")
+            raise CodexNotLoggedInError("Codex authentication required. Run 'klaude auth login codex' first.")
 
         self.client = self._create_client()
 
@@ -88,7 +88,7 @@ class CodexClient(LLMClientABC):
         """Create OpenAI client with Codex configuration."""
         state = self._token_manager.get_state()
         if state is None:
-            raise CodexNotLoggedInError("Not logged in to Codex. Run 'klaude login codex' first.")
+            raise CodexNotLoggedInError("Not logged in to Codex. Run 'klaude auth login codex' first.")
 
         return AsyncOpenAI(
             api_key=state.access_token,
@@ -104,7 +104,7 @@ class CodexClient(LLMClientABC):
         """Ensure token is valid, refresh if needed."""
         state = self._token_manager.get_state()
         if state is None:
-            raise CodexNotLoggedInError("Not logged in to Codex. Run 'klaude login codex' first.")
+            raise CodexNotLoggedInError("Not logged in to Codex. Run 'klaude auth login codex' first.")
 
         if state.is_expired():
             self._oauth.refresh()

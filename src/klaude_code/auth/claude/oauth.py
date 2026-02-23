@@ -169,7 +169,7 @@ class ClaudeOAuth:
         """Ensure we have a valid access token, refreshing if needed."""
         state = self.token_manager.get_state()
         if state is None:
-            raise ClaudeNotLoggedInError("Not logged in to Claude. Run 'klaude login claude' first.")
+            raise ClaudeNotLoggedInError("Not logged in to Claude. Run 'klaude auth login claude' first.")
 
         if state.is_expired():
             state = self.refresh()

@@ -225,7 +225,7 @@ class CodexOAuth:
         if state is None:
             from klaude_code.auth.codex.exceptions import CodexNotLoggedInError
 
-            raise CodexNotLoggedInError("Not logged in to Codex. Run 'klaude login codex' first.")
+            raise CodexNotLoggedInError("Not logged in to Codex. Run 'klaude auth login codex' first.")
 
         if state.is_expired():
             state = self.refresh()
