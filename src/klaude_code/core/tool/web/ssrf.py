@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 
 _BLOCKED_HOSTNAMES = frozenset({"localhost", "metadata.google.internal"})
 _BLOCKED_SUFFIXES = (".localhost", ".local", ".internal")
+_BENCHMARK_NETWORK = ipaddress.ip_network("198.18.0.0/15")
 
 
 class SSRFBlockedError(Exception):
@@ -36,6 +37,13 @@ def _is_blocked_hostname(hostname: str) -> bool:
     return any(normalized.endswith(suffix) for suffix in _BLOCKED_SUFFIXES)
 
 
+def _is_benchmark_ip(ip_str: str) -> bool:
+    try:
+        return ipaddress.ip_address(ip_str) in _BENCHMARK_NETWORK
+    except ValueError:
+        return False
+
+
 def check_ssrf(url: str) -> None:
     """Validate that a URL does not target private/internal resources.
 
@@ -50,13 +58,8 @@ def check_ssrf(url: str) -> None:
         raise SSRFBlockedError(f"Blocked hostname: {hostname}")
 
     # Check if hostname is already an IP literal
-    try:
-        if _is_private_ip(hostname):
-            raise SSRFBlockedError(f"Blocked: private/internal IP address ({hostname})")
-    except SSRFBlockedError:
-        raise
-    except Exception:
-        pass
+    if _is_private_ip(hostname):
+        raise SSRFBlockedError(f"Blocked: private/internal IP address ({hostname})")
 
     # Resolve hostname and check all resulting IPs
     try:
@@ -66,5 +69,7 @@ def check_ssrf(url: str) -> None:
 
     for _family, _type, _proto, _canonname, sockaddr in addrinfos:
         ip = str(sockaddr[0])
+        if _is_benchmark_ip(ip):
+            continue
         if _is_private_ip(ip):
             raise SSRFBlockedError(f"Blocked: {hostname} resolves to private IP ({ip})")

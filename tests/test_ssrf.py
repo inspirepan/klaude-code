@@ -41,6 +41,9 @@ class TestIsPrivateIp:
         assert _is_private_ip("1.1.1.1") is False
         assert _is_private_ip("93.184.216.34") is False
 
+    def test_benchmark_network_is_private(self) -> None:
+        assert _is_private_ip("198.18.1.129") is True
+
     def test_unparseable(self) -> None:
         assert _is_private_ip("not-an-ip") is False
 
@@ -110,6 +113,10 @@ class TestCheckSsrf:
         with pytest.raises(SSRFBlockedError, match="private/internal IP"):
             check_ssrf("http://10.0.0.1/internal")
 
+    def test_ip_literal_benchmark_range(self) -> None:
+        with pytest.raises(SSRFBlockedError, match="private/internal IP"):
+            check_ssrf("http://198.18.1.129/")
+
     def test_dns_resolves_to_private(self) -> None:
         fake_addrinfo = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("127.0.0.1", 0))]
         with (
@@ -122,6 +129,11 @@ class TestCheckSsrf:
         fake_addrinfo = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 0))]
         with patch("klaude_code.core.tool.web.ssrf.socket.getaddrinfo", return_value=fake_addrinfo):
             check_ssrf("http://example.com/")  # should not raise
+
+    def test_dns_resolves_to_benchmark_network(self) -> None:
+        fake_addrinfo = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("198.18.1.129", 0))]
+        with patch("klaude_code.core.tool.web.ssrf.socket.getaddrinfo", return_value=fake_addrinfo):
+            check_ssrf("http://adhx.com/")
 
     def test_dns_failure(self) -> None:
         with (
