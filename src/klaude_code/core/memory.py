@@ -22,8 +22,8 @@ class Memory(BaseModel):
 
 def get_memory_paths(*, work_dir: Path) -> list[tuple[Path, str]]:
     """Return all possible memory file paths with their descriptions."""
-    user_dirs = [Path.home() / ".claude", Path.home() / ".codex"]
-    project_dirs = [work_dir, work_dir / ".claude"]
+    user_dirs = [Path.home() / ".claude", Path.home() / ".codex", Path.home() / ".klaude", Path.home() / ".agents"]
+    project_dirs = [work_dir, work_dir / ".claude", work_dir / ".agents"]
 
     paths: list[tuple[Path, str]] = []
     for d in user_dirs:
