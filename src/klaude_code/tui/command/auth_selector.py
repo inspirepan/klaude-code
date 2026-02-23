@@ -61,6 +61,29 @@ def _api_key_title(label: str, env_var: str) -> list[tuple[str, str]]:
     return title
 
 
+def _is_google_vertex_configured() -> bool:
+    try:
+        vars = (
+            "GOOGLE_APPLICATION_CREDENTIALS",
+            "GOOGLE_CLOUD_PROJECT",
+            "GOOGLE_CLOUD_LOCATION",
+        )
+        return all(bool((os.environ.get(v) or get_auth_env(v) or "").strip()) for v in vars)
+    except Exception:
+        return False
+
+
+def _google_vertex_title() -> list[tuple[str, str]]:
+    title: list[tuple[str, str]] = [
+        ("", "Google Vertex "),
+        ("ansibrightblack", "[Cloud credentials]"),
+    ]
+    if _is_google_vertex_configured():
+        title.append(("ansigreen", " ✓ configured"))
+    title.append(("", "\n"))
+    return title
+
+
 def select_provider(*, include_api_keys: bool = True, prompt: str = "Select provider to login:") -> str | None:
     """Display provider selection menu and return selected provider."""
     items: list[SelectItem[str]] = [
@@ -82,6 +105,13 @@ def select_provider(*, include_api_keys: bool = True, prompt: str = "Select prov
     ]
 
     if include_api_keys:
+        items.append(
+            SelectItem(
+                title=_google_vertex_title(),
+                value="google-vertex",
+                search_text="google-vertex vertex google cloud",
+            )
+        )
         for key_info in SUPPORTED_API_KEYS:
             items.append(
                 SelectItem(

@@ -17,6 +17,7 @@ class LLMClientProtocol(Enum):
     CODEX_OAUTH = "codex_oauth"
     COPILOT_OAUTH = "copilot_oauth"
     GOOGLE = "google"
+    GOOGLE_VERTEX = "google_vertex"
 
 
 class ToolSchema(BaseModel):
@@ -117,6 +118,10 @@ class LLMConfigProviderParameter(BaseModel):
     aws_region: str | None = None
     aws_session_token: str | None = None
     aws_profile: str | None = None
+    # Google Vertex AI configuration
+    google_application_credentials: str | None = None
+    google_cloud_project: str | None = None
+    google_cloud_location: str | None = None
 
 
 class LLMConfigModelParameter(BaseModel):

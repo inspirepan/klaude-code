@@ -157,6 +157,53 @@ class TestConfig:
         assert llm_config.protocol == llm_param.LLMClientProtocol.OPENAI
         assert llm_config.api_key == "test-api-key"
 
+    def test_google_vertex_provider_requires_all_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        provider = ProviderConfig(
+            provider_name="google-vertex",
+            protocol=llm_param.LLMClientProtocol.GOOGLE_VERTEX,
+            google_application_credentials="${GOOGLE_APPLICATION_CREDENTIALS}",
+            google_cloud_project="${GOOGLE_CLOUD_PROJECT}",
+            google_cloud_location="${GOOGLE_CLOUD_LOCATION}",
+        )
+
+        monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+        monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+        monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
+        assert provider.is_api_key_missing() is True
+
+        monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/service-account.json")
+        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project")
+        assert provider.is_api_key_missing() is True
+
+        monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+        assert provider.is_api_key_missing() is False
+
+    def test_get_model_config_resolves_google_vertex_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        provider = ProviderConfig(
+            provider_name="google-vertex",
+            protocol=llm_param.LLMClientProtocol.GOOGLE_VERTEX,
+            google_application_credentials="${GOOGLE_APPLICATION_CREDENTIALS}",
+            google_cloud_project="${GOOGLE_CLOUD_PROJECT}",
+            google_cloud_location="${GOOGLE_CLOUD_LOCATION}",
+            model_list=[
+                ModelConfig(
+                    model_name="gemini-flash",
+                    model_id="gemini-3-flash-preview",
+                )
+            ],
+        )
+        config = Config(provider_list=[provider], main_model="gemini-flash")
+
+        monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/service-account.json")
+        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project")
+        monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+
+        llm_config = config.get_model_config("gemini-flash")
+        assert llm_config.protocol == llm_param.LLMClientProtocol.GOOGLE_VERTEX
+        assert llm_config.google_application_credentials == "/tmp/service-account.json"
+        assert llm_config.google_cloud_project == "my-project"
+        assert llm_config.google_cloud_location == "us-central1"
+
     def test_provider_disabled_excluded_from_available_models(self, sample_model_config: ModelConfig) -> None:
         provider = ProviderConfig(
             provider_name="test-provider",
@@ -1254,6 +1301,34 @@ class TestOutOfBoxExperience:
         assert "openrouter" in available_providers
         # Others should not be available
         assert "anthropic" not in available_providers
+
+    def test_google_vertex_provider_available(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Google Vertex provider should be available when all Vertex env vars are set."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/service-account.json")
+        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project")
+        monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+
+        for env in [
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "OPENROUTER_API_KEY",
+            "GOOGLE_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "MOONSHOT_API_KEY",
+        ]:
+            monkeypatch.delenv(env, raising=False)
+
+        load_config.cache_clear()
+        config = load_config()
+
+        available = config.iter_model_entries(only_available=True)
+        available_providers = {m.provider for m in available}
+
+        assert "google-vertex" in available_providers
+        assert "google" not in available_providers
 
     def test_all_providers_available(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Multiple providers should be available when their API keys are set."""

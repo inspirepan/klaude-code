@@ -283,6 +283,45 @@ provider_list:
     - text
     cost: { input: 0.3, output: 2.5, cache_read: 0.03, image: 30 }
 
+- provider_name: google-vertex
+  protocol: google_vertex
+  google_application_credentials: ${GOOGLE_APPLICATION_CREDENTIALS}
+  google_cloud_project: ${GOOGLE_CLOUD_PROJECT}
+  google_cloud_location: ${GOOGLE_CLOUD_LOCATION}
+  model_list:
+
+  - model_name: gemini-pro
+    model_id: gemini-3.1-pro-preview
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: high
+    cost: { input: 2, output: 12, cache_read: 0.2 }
+
+  - model_name: gemini-flash
+    model_id: gemini-3-flash-preview
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: medium
+    cost: { input: 0.5, output: 3, cache_read: 0.05 }
+
+  - model_name: nano-banana-pro
+    model_id: gemini-3-pro-image-preview
+    context_limit: 66000
+    modalities:
+    - image
+    - text
+    image_config:
+      image_size: "4K"
+    cost: { input: 2, output: 12, cache_read: 0.2, image: 120 }
+
+  - model_name: nano-banana
+    model_id: gemini-2.5-flash-image
+    context_limit: 33000
+    modalities:
+    - image
+    - text
+    cost: { input: 0.3, output: 2.5, cache_read: 0.03, image: 30 }
+
 - provider_name: bedrock
   protocol: bedrock
   aws_access_key: ${AWS_ACCESS_KEY_ID}

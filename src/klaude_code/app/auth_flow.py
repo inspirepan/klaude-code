@@ -42,6 +42,34 @@ def _configure_api_key(env_var: str) -> None:
     log((f"{env_var} saved successfully!", "green"))
 
 
+def _configure_google_vertex() -> None:
+    import os
+
+    from klaude_code.auth.env import get_auth_env, set_auth_env
+
+    fields: list[tuple[str, str]] = [
+        ("GOOGLE_APPLICATION_CREDENTIALS", "Enter GOOGLE_APPLICATION_CREDENTIALS"),
+        ("GOOGLE_CLOUD_PROJECT", "Enter GOOGLE_CLOUD_PROJECT"),
+        ("GOOGLE_CLOUD_LOCATION", "Enter GOOGLE_CLOUD_LOCATION"),
+    ]
+
+    for env_var, prompt in fields:
+        current_value = os.environ.get(env_var) or get_auth_env(env_var)
+        if current_value:
+            log(f"Current {env_var}: {current_value}")
+            if not typer.confirm("Do you want to update it?"):
+                continue
+
+        value = typer.prompt(prompt)
+        if not value.strip():
+            log((f"Error: {env_var} cannot be empty", "red"))
+            raise typer.Exit(1)
+
+        set_auth_env(env_var, value.strip())
+
+    log(("Google Vertex credentials saved successfully!", "green"))
+
+
 def execute_login(provider: str) -> None:
     """Login to an OAuth provider or configure an API key provider."""
     match provider.lower():
@@ -153,6 +181,8 @@ def execute_login(provider: str) -> None:
             except Exception as e:
                 log((f"Login failed: {e}", "red"))
                 raise typer.Exit(1) from None
+        case "google-vertex" | "google_vertex" | "vertex":
+            _configure_google_vertex()
         case _:
             from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
 

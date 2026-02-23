@@ -80,6 +80,7 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
 
         For codex protocol, checks OAuth login status instead of API key.
         For bedrock protocol, checks AWS credentials instead of API key.
+        For google_vertex protocol, checks Vertex credentials instead of API key.
         """
         from klaude_code.protocol.llm_param import LLMClientProtocol
 
@@ -123,6 +124,13 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
             _, resolved_secret_key = parse_env_var_syntax(self.aws_secret_key)
             return resolved_region is None or resolved_access_key is None or resolved_secret_key is None
 
+        if self.protocol == LLMClientProtocol.GOOGLE_VERTEX:
+            # Vertex AI requires credentials file, project, and location.
+            _, resolved_credentials = parse_env_var_syntax(self.google_application_credentials)
+            _, resolved_project = parse_env_var_syntax(self.google_cloud_project)
+            _, resolved_location = parse_env_var_syntax(self.google_cloud_location)
+            return resolved_credentials is None or resolved_project is None or resolved_location is None
+
         return self.get_resolved_api_key() is None
 
 
@@ -138,6 +146,9 @@ class UserProviderConfig(BaseModel):
     disabled: bool = False
     base_url: str | None = None
     api_key: str | None = None
+    google_application_credentials: str | None = None
+    google_cloud_project: str | None = None
+    google_cloud_location: str | None = None
     is_azure: bool = False
     azure_api_version: str | None = None
     model_list: list[ModelConfig] = Field(default_factory=lambda: [])
@@ -334,6 +345,17 @@ class Config(BaseModel):
 
                 provider_dump = provider.model_dump(exclude={"model_list", "disabled"})
                 provider_dump["api_key"] = provider.get_resolved_api_key()
+                for field in (
+                    "aws_access_key",
+                    "aws_secret_key",
+                    "aws_region",
+                    "aws_session_token",
+                    "aws_profile",
+                    "google_application_credentials",
+                    "google_cloud_project",
+                    "google_cloud_location",
+                ):
+                    _, provider_dump[field] = parse_env_var_syntax(provider_dump.get(field))
                 return llm_param.LLMConfigParameter(
                     **provider_dump,
                     **model.model_dump(exclude={"model_name"}),

@@ -352,6 +352,17 @@ def _build_provider_info_panel(
         if provider.aws_profile:
             info_table.add_row(Text("AWS Profile"), format_env_var_display(provider.aws_profile))
 
+    if provider.protocol == LLMClientProtocol.GOOGLE_VERTEX:
+        if provider.google_application_credentials:
+            info_table.add_row(
+                Text("Google Application Credentials"),
+                format_env_var_display(provider.google_application_credentials),
+            )
+        if provider.google_cloud_project:
+            info_table.add_row(Text("Google Cloud Project"), format_env_var_display(provider.google_cloud_project))
+        if provider.google_cloud_location:
+            info_table.add_row(Text("Google Cloud Location"), format_env_var_display(provider.google_cloud_location))
+
     # OAuth status rows
     usage_summary = oauth_usage_by_protocol.get(provider.protocol)
     if provider.protocol == LLMClientProtocol.CODEX_OAUTH:

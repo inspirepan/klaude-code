@@ -313,6 +313,8 @@ def _truncate_debug_str(value: str, *, prefix_chars: int = _DEBUG_TRUNCATE_PREFI
 
 
 def _sanitize_debug_value(value: object) -> object:
+    if isinstance(value, datetime):
+        return value.isoformat()
     if isinstance(value, (bytes, bytearray)):
         encoded = b64encode(bytes(value)).decode("ascii")
         return _truncate_debug_str(encoded)
