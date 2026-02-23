@@ -37,10 +37,12 @@ from klaude_code.protocol.commands import CommandInfo
 # single logical token.
 AT_TOKEN_PATTERN = re.compile(r'(^|\s)@(?P<frag>"[^"]*"|[^\s]*)$')
 
-# Pattern to match inline /skill (or //skill) token for skill completion
+# Pattern to match inline /skill token for skill completion
 # (used by key bindings).
 # Supports inline matching: after whitespace or at start of line.
 SKILL_TOKEN_PATTERN = re.compile(r"(^|\s)(?P<prefix>//|/)(?P<frag>[^\s/]*)$")
+
+_SKILL_PREFIX = "skill:"
 
 _SKILL_LOCATION_STYLE = {
     "project": "ansimagenta",
@@ -51,7 +53,7 @@ _SKILL_LOCATION_STYLE = {
 
 def _skill_display(name: str, location: str) -> FormattedText:
     bullet_style = _SKILL_LOCATION_STYLE.get(location, "ansibrightblack")
-    return FormattedText([(bullet_style, "•"), ("", f" {name}")])
+    return FormattedText([(bullet_style, "•"), ("ansibrightblack", f" {_SKILL_PREFIX}"), ("", name)])
 
 
 def _command_display(name: str, hint: str) -> FormattedText:
@@ -117,15 +119,12 @@ class _SlashCommandCompleter(Completer):
         token_start = len(text_before) - len(f"{prefix}{frag}")
         start_position = token_start - len(text_before)  # negative offset
 
-        command_names = {cmd_info.name for cmd_info in command_infos}
-
         skills = self._get_available_skills()
         frag_lower = frag.lower()
         matched_skills: list[tuple[str, str, str]] = []
         for name, desc, location in skills:
-            if prefix == "/" and name in command_names:
-                continue
-            if frag_lower in name.lower() or frag_lower in desc.lower():
+            skill_token = f"{_SKILL_PREFIX}{name}"
+            if frag_lower in skill_token.lower() or frag_lower in name.lower() or frag_lower in desc.lower():
                 matched_skills.append((name, desc, location))
 
         if prefix == "/":
@@ -142,7 +141,7 @@ class _SlashCommandCompleter(Completer):
 
         for name, desc, location in matched_skills:
             yield Completion(
-                text=f"{prefix}{name} ",
+                text=f"{prefix}{_SKILL_PREFIX}{name} ",
                 start_position=start_position,
                 display=_skill_display(name, location),
                 display_meta=desc,
@@ -175,9 +174,6 @@ class _SkillCompleter(Completer):
 
     _SKILL_TOKEN_RE = SKILL_TOKEN_PATTERN
 
-    def __init__(self, command_info_provider: Callable[[], list[CommandInfo]] | None = None) -> None:
-        self._command_info_provider = command_info_provider
-
     def get_completions(
         self,
         document: Document,
@@ -200,21 +196,18 @@ class _SkillCompleter(Completer):
         if not skills:
             return
 
-        command_names = self._get_command_names()
-
         # Filter skills that match the fragment (case-insensitive)
         matched: list[tuple[str, str, str]] = []  # (name, description, location)
         for name, desc, location in skills:
-            if prefix in {"/", "//"} and name in command_names:
-                continue
-            if frag in name.lower() or frag in desc.lower():
+            skill_token = f"{_SKILL_PREFIX}{name}"
+            if frag in skill_token.lower() or frag in name.lower() or frag in desc.lower():
                 matched.append((name, desc, location))
 
         if not matched:
             return
 
         for name, desc, location in matched:
-            completion_text = f"{prefix}{name} "
+            completion_text = f"{prefix}{_SKILL_PREFIX}{name} "
             yield Completion(
                 text=completion_text,
                 start_position=start_position,
@@ -241,19 +234,13 @@ class _SkillCompleter(Completer):
         text_before = document.current_line_before_cursor
         return bool(self._SKILL_TOKEN_RE.search(text_before))
 
-    def _get_command_names(self) -> set[str]:
-        if self._command_info_provider is None:
-            return set()
-        return {cmd.name for cmd in self._command_info_provider()}
-
-
 class _ComboCompleter(Completer):
     """Combined completer that handles @ file paths, slash commands, and skills."""
 
     def __init__(self, command_info_provider: Callable[[], list[CommandInfo]] | None = None) -> None:
         self._at_completer = _AtFilesCompleter()
         self._slash_completer = _SlashCommandCompleter(command_info_provider=command_info_provider)
-        self._skill_completer = _SkillCompleter(command_info_provider=command_info_provider)
+        self._skill_completer = _SkillCompleter()
 
     def get_completions(
         self,

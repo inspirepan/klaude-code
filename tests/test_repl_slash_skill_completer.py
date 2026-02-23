@@ -38,7 +38,8 @@ def test_slash_mixed_completion_prioritizes_command_and_hides_same_name_skill() 
     assert texts[0] == "/copy "
     assert "/copy " in texts
     assert "/model " in texts
-    assert "/publish " in texts
+    assert "/skill:copy " in texts
+    assert "/skill:publish " in texts
     assert texts.count("/copy ") == 1
 
 
@@ -47,8 +48,8 @@ def test_double_slash_completion_shows_only_skills() -> None:
     completions = list(completer.get_completions(Document(text="//", cursor_position=2), cast(Any, None)))
     texts = [completion.text for completion in completions]
 
-    assert "//copy " in texts
-    assert "//publish " in texts
+    assert "//skill:copy " in texts
+    assert "//skill:publish " in texts
     assert "/copy " not in texts
     assert "/model " not in texts
 
@@ -59,15 +60,15 @@ def test_inline_slash_skill_completion_works() -> None:
     completions = list(completer.get_completions(doc, cast(Any, None)))
     texts = [completion.text for completion in completions]
 
-    assert "/publish " in texts
+    assert "/skill:publish " in texts
 
 
 def test_skill_display_uses_colored_marker_and_plain_description() -> None:
     completer = _ComboCompleter(command_info_provider=_command_info_provider)
     completions = list(completer.get_completions(Document(text="//", cursor_position=2), cast(Any, None)))
-    publish = next(completion for completion in completions if completion.text == "//publish ")
+    publish = next(completion for completion in completions if completion.text == "//skill:publish ")
 
-    assert publish.display_text == "• publish"
+    assert publish.display_text == "• skill:publish"
     assert publish.display_meta_text == "publish skill"
 
 

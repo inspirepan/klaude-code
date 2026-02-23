@@ -12,12 +12,12 @@ def _build_session_with_user_text(text: str) -> Session:
 
 
 def test_get_skill_from_slash_token() -> None:
-    session = _build_session_with_user_text("please /commit now")
+    session = _build_session_with_user_text("please /skill:commit now")
     assert get_skill_from_user_input(session) == "commit"
 
 
 def test_get_skill_from_double_slash_token() -> None:
-    session = _build_session_with_user_text("please //commit now")
+    session = _build_session_with_user_text("please //skill:commit now")
     assert get_skill_from_user_input(session) == "commit"
 
 
@@ -29,6 +29,11 @@ def test_get_skill_ignores_path_like_slash_token() -> None:
 def test_get_skill_ignores_command_name_for_slash_token() -> None:
     session = _build_session_with_user_text("/model")
     assert get_skill_from_user_input(session) is None
+
+
+def test_get_skill_with_prefix_can_match_command_name() -> None:
+    session = _build_session_with_user_text("/skill:model")
+    assert get_skill_from_user_input(session) == "model"
 
 
 def test_get_skill_ignores_legacy_dollar_token() -> None:

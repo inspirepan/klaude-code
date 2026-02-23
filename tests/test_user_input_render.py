@@ -50,27 +50,27 @@ class TestRenderAtAndSkillPatterns:
 
     def test_skill_highlighted_when_available(self):
         result = render_at_and_skill_patterns(
-            "/commit",
+            "/skill:commit",
             at_style="AT",
             skill_style="SKILL",
             other_style="OTHER",
             available_skill_names={"commit"},
         )
-        assert get_spans_by_style(result, "SKILL") == ["/commit"]
+        assert get_spans_by_style(result, "SKILL") == ["/skill:commit"]
 
     def test_skill_namespace_matches_short_name(self):
         result = render_at_and_skill_patterns(
-            "/user:commit",
+            "/skill:user:commit",
             at_style="AT",
             skill_style="SKILL",
             other_style="OTHER",
             available_skill_names={"commit"},
         )
-        assert get_spans_by_style(result, "SKILL") == ["/user:commit"]
+        assert get_spans_by_style(result, "SKILL") == ["/skill:user:commit"]
 
     def test_skill_not_highlighted_if_only_namespaced_available(self):
         result = render_at_and_skill_patterns(
-            "/commit",
+            "/skill:commit",
             at_style="AT",
             skill_style="SKILL",
             other_style="OTHER",
@@ -80,7 +80,7 @@ class TestRenderAtAndSkillPatterns:
 
     def test_skill_not_highlighted_when_invalid(self):
         result = render_at_and_skill_patterns(
-            "do /unknown now",
+            "do /skill:unknown now",
             at_style="AT",
             skill_style="SKILL",
             other_style="OTHER",
@@ -90,23 +90,23 @@ class TestRenderAtAndSkillPatterns:
 
     def test_slash_skill_highlighted_when_available(self):
         result = render_at_and_skill_patterns(
-            "run /commit now",
+            "run /skill:commit now",
             at_style="AT",
             skill_style="SKILL",
             other_style="OTHER",
             available_skill_names={"commit"},
         )
-        assert get_spans_by_style(result, "SKILL") == ["/commit"]
+        assert get_spans_by_style(result, "SKILL") == ["/skill:commit"]
 
     def test_double_slash_skill_highlighted_when_available(self):
         result = render_at_and_skill_patterns(
-            "run //commit now",
+            "run //skill:commit now",
             at_style="AT",
             skill_style="SKILL",
             other_style="OTHER",
             available_skill_names={"commit"},
         )
-        assert get_spans_by_style(result, "SKILL") == ["//commit"]
+        assert get_spans_by_style(result, "SKILL") == ["//skill:commit"]
 
     def test_slash_path_not_highlighted_as_skill(self):
         result = render_at_and_skill_patterns(
@@ -120,14 +120,13 @@ class TestRenderAtAndSkillPatterns:
 
     def test_slash_skill_conflicting_with_command_not_highlighted(self):
         result = render_at_and_skill_patterns(
-            "/model",
+            "/skill:model",
             at_style="AT",
             skill_style="SKILL",
             other_style="OTHER",
             available_skill_names={"model"},
-            available_command_names={"model"},
         )
-        assert get_spans_by_style(result, "SKILL") == []
+        assert get_spans_by_style(result, "SKILL") == ["/skill:model"]
 
     def test_legacy_dollar_skill_not_highlighted(self):
         result = render_at_and_skill_patterns(
@@ -141,7 +140,7 @@ class TestRenderAtAndSkillPatterns:
 
     def test_requires_whitespace_boundary(self):
         result = render_at_and_skill_patterns(
-            "x/commit y @src/app.py",
+            "x/skill:commit y @src/app.py",
             at_style="AT",
             skill_style="SKILL",
             other_style="OTHER",

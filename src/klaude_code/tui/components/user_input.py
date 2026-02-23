@@ -6,7 +6,7 @@ from rich.text import Text
 
 from klaude_code.const import TAB_EXPAND_WIDTH
 from klaude_code.skill import list_skill_names
-from klaude_code.tui.command import get_command_names, is_slash_command_name
+from klaude_code.tui.command import is_slash_command_name
 from klaude_code.tui.components.bash_syntax import highlight_bash_command
 from klaude_code.tui.components.rich.theme import ThemeKey
 
@@ -14,10 +14,10 @@ from klaude_code.tui.components.rich.theme import ThemeKey
 # or immediately after whitespace, to avoid treating mid-word email-like
 # patterns such as foo@bar.com as file references.
 # Group "skill_token" captures one of:
-# - /skill
-# - //skill
+# - /skill:skill-name
+# - //skill:skill-name
 INLINE_RENDER_PATTERN = re.compile(
-    r'(?<!\S)(?:@(?:"[^"]+"|\S+)|(?P<skill_token>//[^\s/]+(?=\s|$)|/[^\s/]+(?=\s|$)))'
+    r'(?<!\S)(?:@(?:"[^"]+"|\S+)|(?P<skill_token>//skill:[^\s/]+(?=\s|$)|/skill:[^\s/]+(?=\s|$)))'
 )
 USER_MESSAGE_MARK = "❯ "
 
@@ -28,7 +28,6 @@ def render_at_and_skill_patterns(
     skill_style: str = ThemeKey.USER_INPUT_SKILL,
     other_style: str = ThemeKey.USER_INPUT,
     available_skill_names: set[str] | None = None,
-    available_command_names: set[str] | None = None,
 ) -> Text:
     """Render text with highlighted @file and skill patterns."""
     result = Text(text, style=other_style, overflow="fold")
@@ -38,16 +37,10 @@ def render_at_and_skill_patterns(
             result.stylize(at_style, match.start(), match.end())
             continue
 
-        skill_name = skill_token[2:] if skill_token.startswith("//") else skill_token[1:]
+        skill_name = skill_token.removeprefix("//skill:").removeprefix("/skill:")
 
         if available_skill_names is None:
             available_skill_names = set(list_skill_names())
-
-        if skill_token.startswith("/"):
-            if available_command_names is None:
-                available_command_names = set(get_command_names())
-            if skill_name in available_command_names:
-                continue
 
         short = skill_name.split(":")[-1] if ":" in skill_name else skill_name
         if skill_name in available_skill_names or short in available_skill_names:
@@ -67,7 +60,6 @@ def render_user_input(content: str) -> RenderableType:
     is_bash_mode = bool(lines) and lines[0].startswith("!")
 
     available_skill_names: set[str] | None = None
-    available_command_names: set[str] | None = None
 
     renderables: list[RenderableType] = []
     for i, line in enumerate(lines):
@@ -85,8 +77,6 @@ def render_user_input(content: str) -> RenderableType:
 
         if available_skill_names is None and "/" in line:
             available_skill_names = set(list_skill_names())
-        if available_command_names is None and "/" in line:
-            available_command_names = set(get_command_names())
         # Handle slash command on first line
         if i == 0 and line.startswith("/"):
             splits = line.split(" ", maxsplit=1)
@@ -98,7 +88,6 @@ def render_user_input(content: str) -> RenderableType:
                     render_at_and_skill_patterns(
                         splits[1],
                         available_skill_names=available_skill_names,
-                        available_command_names=available_command_names,
                     )
                     if len(splits) > 1
                     else Text(""),
@@ -112,7 +101,6 @@ def render_user_input(content: str) -> RenderableType:
             render_at_and_skill_patterns(
                 line,
                 available_skill_names=available_skill_names,
-                available_command_names=available_command_names,
             )
         )
 
