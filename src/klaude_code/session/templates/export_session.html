@@ -9,10 +9,10 @@
       href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%233c6f9f%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%2216 18 22 12 16 6%22></polyline><polyline points=%228 6 2 12 8 18%22></polyline></svg>"
     />
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/Iosevka/6.0.0/iosevka/iosevka.min.css"
-      rel="stylesheet"
-    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
     <style>
       :root {
         --bg-body: #f0ede9;
@@ -43,22 +43,28 @@
         --bg-tool: #e6eee7;
         --bg-tool-args: #eef3ef;
         --border-tool: #d6ddd8;
-        --font-sans: "Iosevka Web", "Iosevka", "TX-02", "JetBrains Mono", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        --font-mono: "Iosevka Web", "Iosevka", "TX-02", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+        --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         --font-markdown-mono: var(--font-mono);
         --font-markdown: var(--font-sans);
-        --font-weight-bold: 700;
-        --font-size-xs: 16px;
-        --font-size-sm: 16px;
-        --font-size-base: 16px;
-        --font-size-lg: 18px;
+        --font-weight-normal: 400;
+        --font-weight-medium: 500;
+        --font-weight-bold: 600;
+        --font-size-xs: 12px;
+        --font-size-sm: 13px;
+        --font-size-base: 14px;
+        --font-size-lg: 16px;
         --spacing-xs: 4px;
         --spacing-sm: 8px;
         --spacing-md: 12px;
         --spacing-lg: 16px;
         --spacing-xl: 24px;
-        --radius-sm: 4px;
-        --radius-md: 6px;
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
       }
 
       * {
@@ -80,7 +86,7 @@
 
       ::-webkit-scrollbar-thumb {
         background: var(--border);
-        border-radius: 4px;
+        border-radius: 999px;
       }
 
       ::-webkit-scrollbar-thumb:hover {
@@ -91,14 +97,14 @@
         background-color: var(--bg-body);
         color: var(--text);
         font-family: var(--font-sans);
-        line-height: 1.3;
+        line-height: 1.4;
         font-size: var(--font-size-base);
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
 
       .container {
-        max-width: 1040px;
+        max-width: 1100px;
         margin: 0 auto;
         padding: 24px;
       }
@@ -110,6 +116,7 @@
         border: 1px solid var(--border);
         border-radius: var(--radius-md);
         background: var(--bg-card);
+        box-shadow: var(--shadow-sm);
       }
 
       .header h1 {
@@ -179,7 +186,7 @@
         line-height: 1.2;
         color: var(--text-dim);
         transition: color 0.2s, background 0.2s;
-        background: var(--bg-container);
+        background: var(--bg-card);
       }
 
       details.collapsible-section > summary:hover,
@@ -191,14 +198,17 @@
         display: none;
       }
       details.collapsible-section > summary::before {
-        content: "[+]";
+        content: "▶";
+        font-size: 0.8em;
+        
         color: var(--accent);
         font-family: var(--font-mono);
         display: inline-block;
-        min-width: 24px;
+        width: 16px;
+        text-align: center;
       }
       details.collapsible-section[open] > summary::before {
-        content: "[-]";
+        content: "▼";
       }
 
       details.collapsible-section > .details-content {
@@ -296,14 +306,17 @@
         display: none;
       }
       details.developer-message > summary::before {
-        content: "[+]";
+        content: "▶";
+        font-size: 0.8em;
+        
         color: var(--accent);
         font-family: var(--font-mono);
         display: inline-block;
-        min-width: 24px;
+        width: 16px;
+        text-align: center;
       }
       details.developer-message[open] > summary::before {
-        content: "[-]";
+        content: "▼";
       }
 
       details.developer-message > .details-content {
@@ -321,9 +334,10 @@
       .message-content {
         background: var(--bg-code);
         border: 1px solid var(--border);
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-lg);
         padding: 12px 20px;
-        box-shadow: none;
+        box-shadow: var(--shadow-sm);
+        transition: box-shadow 0.2s ease;
         font-size: var(--font-size-base);
         --mask-bg: var(--bg-code);
       }
@@ -492,7 +506,8 @@
         border: 1px solid var(--user-border);
         color: var(--accent);
         font-family: var(--font-markdown);
-        box-shadow: none;
+        box-shadow: var(--shadow-sm);
+        border-bottom-right-radius: var(--radius-sm);
         --mask-bg: var(--user-bg);
       }
 
@@ -501,6 +516,7 @@
         border-color: var(--assistant-border);
         color: var(--assistant-text);
         --mask-bg: var(--assistant-bg);
+        border-bottom-left-radius: var(--radius-sm);
       }
 
       .thinking-block {
@@ -567,6 +583,7 @@
         /* Ensure background color to avoid gaps being transparent */
         background: var(--bg-tool);
         --mask-bg: var(--bg-tool);
+        box-shadow: var(--shadow-sm);
       }
 
       .tool-header {
@@ -655,14 +672,17 @@
         display: none;
       }
       details.tool-args-collapsible > summary::before {
-        content: "[+]";
+        content: "▶";
+        font-size: 0.8em;
+        
         color: var(--tool-color);
         font-family: var(--font-mono);
         display: inline-block;
-        min-width: 24px;
+        width: 16px;
+        text-align: center;
       }
       details.tool-args-collapsible[open] > summary::before {
-        content: "[-]";
+        content: "▼";
       }
       details.tool-args-collapsible > .tool-args-content {
         padding: 10px;
@@ -774,7 +794,10 @@
         right: 12px;
         width: 24px;
         height: 24px;
-        border-radius: 50%;
+        border-radius: var(--radius-md);
+        width: 28px;
+        height: 28px;
+        background: var(--bg-card);
         background: var(--bg-tool);
         border: 1px solid var(--border-tool);
         color: var(--text-dim);
@@ -895,7 +918,7 @@
       /* Markdown Elements */
       .markdown-body {
         font-family: var(--font-markdown);
-        line-height: 1.3;
+        line-height: 1.4;
         font-size: var(--font-size-base);
       }
       .markdown-body > *:first-child {
@@ -1019,7 +1042,8 @@
       
       .markdown-body table th {
         font-weight: var(--font-weight-bold);
-        background-color: rgba(0, 0, 0, 0.04);
+        background-color: var(--bg-code);
+        color: var(--text-dim);
       }
 
       .markdown-body hr {
@@ -1042,7 +1066,7 @@
         font-size: 85%;
         padding: 2px 4px;
         border-radius: var(--radius-sm);
-        background-color: rgba(0, 0, 0, 0.05); /* Slight bg for inline code */
+        background-color: var(--bg-code); /* Slight bg for inline code */
       }
       .markdown-body pre code {
         background: transparent;
@@ -1136,14 +1160,17 @@
         display: none;
       }
       details.diff-collapsible > summary::before {
-        content: "[+]";
+        content: "▶";
+        font-size: 0.8em;
+        
         color: var(--accent);
         font-family: var(--font-mono);
         display: inline-block;
-        min-width: 24px;
+        width: 16px;
+        text-align: center;
       }
       details.diff-collapsible[open] > summary::before {
-        content: "[-]";
+        content: "▼";
       }
       details.diff-collapsible > .diff-view {
         margin-top: 8px;
@@ -1285,15 +1312,18 @@
         display: none;
       }
       details.sub-agent-session > summary::before {
-        content: "[+]";
+        content: "▶";
+        font-size: 0.8em;
+        
         color: var(--accent);
         font-family: var(--font-mono);
         margin-right: 4px;
         display: inline-block;
-        min-width: 24px;
+        width: 16px;
+        text-align: center;
       }
       details.sub-agent-session[open] > summary::before {
-        content: "[-]";
+        content: "▼";
       }
       details.sub-agent-session > .sub-agent-content {
         padding: 12px 16px 16px 16px;
@@ -1359,12 +1389,15 @@
         color: var(--tool-color);
       }
       .tool-details summary::before {
-        content: "[+]";
-        min-width: 24px;
+        content: "▶";
+        font-size: 0.8em;
+        
+        width: 16px;
+        text-align: center;
         display: inline-block;
       }
       .tool-details[open] summary::before {
-        content: "[-]";
+        content: "▼";
       }
       .tool-description {
         white-space: pre-wrap;
@@ -1451,8 +1484,8 @@
         padding: 3px 10px;
         margin-bottom: 1px;
         font-family: var(--font-mono);
-        font-size: 16px;
-        line-height: 1.3;
+        font-size: 12px;
+        line-height: 1.4;
         color: var(--text-dim);
         text-decoration: none;
         cursor: pointer;
@@ -1460,7 +1493,7 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        border-radius: 4px;
+        border-radius: 0;
       }
 
       .toc-item:hover {
@@ -1472,7 +1505,8 @@
         color: var(--text);
         background: var(--bg-card);
         font-weight: bold;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        box-shadow: var(--shadow-sm);
+        color: var(--accent);
       }
 
       .toc-item.toc-user {
@@ -1483,7 +1517,7 @@
       .toc-item.toc-assistant {
         border-left: 2px solid var(--assistant-border);
         padding-left: 8px;
-        font-size: 16px;
+        font-size: 12px;
         opacity: 0.7;
       }
 
@@ -1680,7 +1714,7 @@
         <div class="header-controls">
           <label class="verbose-btn" id="verbose-label">
             <input type="checkbox" id="verbose-toggle" />
-            <span class="verbose-icon">[+]</span>
+            <span class="verbose-icon">▶</span>
             <span class="verbose-text">Verbose</span>
           </label>
         </div>
@@ -2324,7 +2358,7 @@
           btn.classList.toggle('expanded', isHidden);
           
           const icon = btn.querySelector('.collapse-icon');
-          if (icon) icon.textContent = isHidden ? '[-]' : '[+]';
+          if (icon) icon.textContent = isHidden ? '▼' : '▶';
         });
       });
 
@@ -2352,11 +2386,11 @@
         if (isVerbose) {
           document.body.classList.add('verbose-mode');
           if (verboseLabel) verboseLabel.classList.add('active');
-          if (icon) icon.textContent = '[-]';
+          if (icon) icon.textContent = '▼';
         } else {
           document.body.classList.remove('verbose-mode');
           if (verboseLabel) verboseLabel.classList.remove('active');
-          if (icon) icon.textContent = '[+]';
+          if (icon) icon.textContent = '▶';
           // Enforce collapsing of details when switching to non-verbose
           document.querySelectorAll('details.tool-args-collapsible, details.diff-collapsible, details.sub-agent-session').forEach(el => {
             el.removeAttribute('open');

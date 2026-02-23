@@ -73,6 +73,8 @@ def create_key_bindings(
     kb = KeyBindings()
     enabled = input_enabled if input_enabled is not None else Always()
 
+    has_text = Condition(lambda: bool(get_app().current_buffer.text))
+
     term_program = os.environ.get("TERM_PROGRAM", "").lower()
     swallow_next_control_j = False
 
@@ -595,6 +597,20 @@ def create_key_bindings(
             return
 
         event.current_buffer.insert_text("\n")  # type: ignore
+
+    # Some IME/terminal combinations occasionally emit spurious forward-delete
+    # keypresses (e.g. Ctrl-D) while composing/switching input methods.
+    # In our REPL, Ctrl-D is primarily useful for EOF on an empty buffer;
+    # forward-delete is not essential, and accidental deletes are very disruptive.
+    @kb.add("c-d", filter=enabled & has_text, eager=True)
+    def _(event: KeyPressEvent) -> None:
+        del event
+        return
+
+    @kb.add("delete", filter=enabled & has_text, eager=True)
+    def _(event: KeyPressEvent) -> None:
+        del event
+        return
 
     @kb.add("backspace", filter=enabled)
     def _(event: KeyPressEvent) -> None:
