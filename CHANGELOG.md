@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.18.0] - 2026-02-23
+
+### Added
+
+- replace dollar-sign skill syntax with slash invocation (`d41f6372`)
+- add .klaude and .agents memory search paths (`d88d8c2f`)
+
+### Changed
+
+- modernize session export UI and block spurious delete keys (`79091411`)
+- revise system prompt and polish UI details (`3ccc8d5f`)
+
+### Fixed
+
+- prioritize user providers in merge order (`ae19973e`)
+- correct login command hints to use 'klaude auth login' (`29144964`)
+- allow benchmark DNS answers in SSRF check (`22a60c8b`)
+
 ## [2.17.0] - 2026-02-22
 
 ### Added
@@ -1833,7 +1851,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.17.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.18.0...HEAD
+[2.18.0]: https://github.com/inspirepan/klaude-code/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/inspirepan/klaude-code/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/inspirepan/klaude-code/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/inspirepan/klaude-code/compare/v2.14.0...v2.15.0
