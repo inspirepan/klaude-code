@@ -705,6 +705,8 @@ class DisplayStateMachine:
             case events.TaskMetadataEvent() as e:
                 cmds.append(EndThinkingStream(e.session_id))
                 cmds.append(EndAssistantStream(e.session_id))
+                if e.is_partial:
+                    cmds.append(PrintBlankLine())
                 cmds.append(RenderTaskMetadata(e))
                 if is_replay or e.is_partial:
                     cmds.append(PrintBlankLine())
