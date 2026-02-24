@@ -150,7 +150,7 @@ def _select_model_for_compact_sync(
 
 
 class SubAgentModelCommand(CommandABC):
-    """Configure models for sub-agents (Task, Explore, Web, ImageGen) and compact model."""
+    """Configure models for sub-agents (Task, Explore, ImageGen) and compact model."""
 
     @property
     def name(self) -> commands.CommandName:

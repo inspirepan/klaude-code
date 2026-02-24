@@ -16,7 +16,6 @@ from klaude_code.session.session import Session
 TASK_TYPE_TO_SUB_AGENT: dict[str, str] = {
     "general-purpose": "Task",
     "explore": "Explore",
-    "web": "Web",
 }
 
 

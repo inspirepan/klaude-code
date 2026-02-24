@@ -331,15 +331,15 @@ class TestConfig:
         config = Config(
             provider_list=[sample_provider],
             main_model="test-model",
-            sub_agent_models={"task": "model-a", "web": "model-b"},
+            sub_agent_models={"task": "model-a", "explore": "model-b"},
         )
 
         # Keys should be normalized to canonical form (matching SubAgentProfile names)
-        # Based on sub_agent profiles, the canonical names are "Task", "Web", etc.
+        # Based on sub_agent profiles, the canonical names are "Task", "Explore", etc.
         assert "Task" in config.sub_agent_models
-        assert "Web" in config.sub_agent_models
+        assert "Explore" in config.sub_agent_models
         assert config.sub_agent_models["Task"] == "model-a"
-        assert config.sub_agent_models["Web"] == "model-b"
+        assert config.sub_agent_models["Explore"] == "model-b"
 
     def test_sub_agent_models_empty(self, sample_provider: ProviderConfig) -> None:
         """Test that empty sub_agent_models is handled correctly."""
@@ -1357,16 +1357,16 @@ class TestOutOfBoxExperience:
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
         test_config_path.parent.mkdir(parents=True)
 
-        user_config = {"sub_agent_models": {"explore": "my-fast-model", "web": "my-web-model"}}
+        user_config = {"sub_agent_models": {"explore": "my-fast-model", "task": "my-task-model"}}
         test_config_path.write_text(str(yaml.dump(user_config) or ""))
 
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
         load_config.cache_clear()
         config = load_config()
 
-        # Keys are normalized to canonical form (Explore, Web)
+        # Keys are normalized to canonical form (Explore, Task)
         assert config.sub_agent_models.get("Explore") == "my-fast-model"
-        assert config.sub_agent_models.get("Web") == "my-web-model"
+        assert config.sub_agent_models.get("Task") == "my-task-model"
 
     def test_commented_config_uses_builtin(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Fully commented config should use builtin config."""

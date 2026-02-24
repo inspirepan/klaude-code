@@ -444,7 +444,7 @@ def get_example_config() -> UserConfig:
     return UserConfig(
         main_model="opus",
         compact_model="gemini-flash",
-        sub_agent_models={"Explore": "haiku", "Web": "sonnet", "Task": "sonnet"},
+        sub_agent_models={"Explore": "haiku", "Task": "sonnet"},
         provider_list=[
             UserProviderConfig(
                 provider_name="my-provider",

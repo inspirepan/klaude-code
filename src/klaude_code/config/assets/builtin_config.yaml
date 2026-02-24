@@ -511,4 +511,3 @@ compact_model: gemini-flash
 
 sub_agent_models:
   Explore: sonnet-no-thinking
-  Web: sonnet-no-thinking

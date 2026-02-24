@@ -149,4 +149,4 @@ class TestSubAgentRegistration:
         profiles = iter_sub_agent_profiles()
         assert len(profiles) > 0
         names = {p.name for p in profiles}
-        assert {"Task", "Explore", "Web", "ImageGen"}.issubset(names)
+        assert {"Task", "Explore", "ImageGen"}.issubset(names)
