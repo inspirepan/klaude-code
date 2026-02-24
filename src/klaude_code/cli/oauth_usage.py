@@ -226,7 +226,7 @@ def _fetch_codex_usage(*, token: str, account_id: str | None, timeout_seconds: f
             hours = max(1, round(window_seconds / 3600.0))
             windows.append(
                 UsageWindowSnapshot(
-                    label=f"{hours}h",
+                    label=_hours_to_label(hours),
                     used_percent=_clamp_percent(_as_float(primary.get("used_percent")) or 0.0),
                     reset_at_epoch_ms=_parse_epoch_seconds_to_ms(primary.get("reset_at")),
                 )
@@ -235,7 +235,7 @@ def _fetch_codex_usage(*, token: str, account_id: str | None, timeout_seconds: f
         if secondary:
             window_seconds = _as_float(secondary.get("limit_window_seconds")) or 86400.0
             hours = max(1, round(window_seconds / 3600.0))
-            label = "Day" if hours >= 24 else f"{hours}h"
+            label = _hours_to_label(hours)
             windows.append(
                 UsageWindowSnapshot(
                     label=label,
@@ -482,6 +482,16 @@ def _parse_epoch_seconds_to_ms(value: object) -> int | None:
     if seconds is None:
         return None
     return int(seconds * 1000)
+
+
+def _hours_to_label(hours: int) -> str:
+    if hours >= 168:
+        weeks = round(hours / 168)
+        return f"{weeks}w" if weeks > 1 else "Week"
+    if hours >= 24:
+        days = round(hours / 24)
+        return f"{days}d" if days > 1 else "Day"
+    return f"{hours}h"
 
 
 def _parse_iso_datetime_to_ms(value: str | None) -> int | None:

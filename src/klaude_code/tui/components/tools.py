@@ -214,7 +214,14 @@ def render_read_tool_call(arguments: str) -> RenderableType:
         limit = json_dict.get("limit", None)
         offset = json_dict.get("offset", None)
         if isinstance(file_path, str) and file_path:
-            details.append_text(render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
+            if Path(file_path).name == "SKILL.md":
+                tool_name = "Read Skill"
+            path_style = (
+                ThemeKey.TOOL_PARAM_FILE_PATH_SKILL
+                if Path(file_path).name == "SKILL.md"
+                else ThemeKey.TOOL_PARAM_FILE_PATH
+            )
+            details.append_text(render_path(file_path, path_style))
         else:
             details.append("(no file_path)", style=ThemeKey.TOOL_PARAM)
         if limit is not None and offset is not None:

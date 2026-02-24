@@ -176,6 +176,7 @@ class ThemeKey(str, Enum):
     INVALID_TOOL_CALL_ARGS = "tool.invalid_tool_call_args"
     TOOL_NAME = "tool.name"
     TOOL_PARAM_FILE_PATH = "tool.param.file_path"
+    TOOL_PARAM_FILE_PATH_SKILL = "tool.param.file_path_skill"
     TOOL_PARAM = "tool.param"
     TOOL_PARAM_BOLD = "tool.param.bold"
     TOOL_RESULT = "tool.result"
@@ -314,6 +315,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.INVALID_TOOL_CALL_ARGS.value: palette.yellow,
                 ThemeKey.TOOL_NAME.value: "bold",
                 ThemeKey.TOOL_PARAM_FILE_PATH.value: palette.green,
+                ThemeKey.TOOL_PARAM_FILE_PATH_SKILL.value: palette.orange,
                 ThemeKey.TOOL_PARAM.value: palette.green,
                 ThemeKey.TOOL_PARAM_BOLD.value: "bold " + palette.green,
                 ThemeKey.TOOL_RESULT.value: palette.grey_green,
