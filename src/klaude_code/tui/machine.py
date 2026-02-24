@@ -481,6 +481,7 @@ class DisplayStateMachine:
         self._primary_session_id: str | None = None
         self._spinner = SpinnerStatusState()
         self._model_name: str | None = None
+        self._had_sub_agent_status_lines: bool = False
 
     def set_model_name(self, model_name: str | None) -> None:
         self._model_name = model_name
@@ -489,6 +490,7 @@ class DisplayStateMachine:
         self._sessions = {}
         self._primary_session_id = None
         self._spinner.reset()
+        self._had_sub_agent_status_lines = False
 
     def _session(self, session_id: str) -> _SessionState:
         existing = self._sessions.get(session_id)
@@ -531,18 +533,18 @@ class DisplayStateMachine:
         visible.append(Text(f"+{hidden} more...", style=ThemeKey.STATUS_HINT))
         return tuple(visible)
 
-    def _status_lines_for_spinner(self) -> tuple[Text, ...]:
-        sub_agent_lines = self._sub_agent_status_lines()
-        if sub_agent_lines:
-            return sub_agent_lines
-        return (self._spinner.get_status(),)
-
     def _spinner_update_commands(self) -> list[RenderCommand]:
+        sub_agent_lines = self._sub_agent_status_lines()
+        status_lines = sub_agent_lines if sub_agent_lines else (self._spinner.get_status(),)
+        reset_bottom_height = self._had_sub_agent_status_lines and not sub_agent_lines
+        self._had_sub_agent_status_lines = bool(sub_agent_lines)
         return [
             SpinnerUpdate(
                 status_text=self._spinner.get_todo_status(),
                 right_text=self._spinner.get_right_text(),
-                status_lines=self._status_lines_for_spinner(),
+                status_lines=status_lines,
+                reset_bottom_height=reset_bottom_height,
+                leading_blank_line=bool(sub_agent_lines),
             )
         ]
 

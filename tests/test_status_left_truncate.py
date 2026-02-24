@@ -103,6 +103,25 @@ def test_shimmer_status_without_primary_line_renders_only_second_and_third() -> 
     assert "esc to interrupt · 95.1%" in second_line
 
 
+def test_stacked_status_adds_leading_blank_line_when_enabled() -> None:
+    console = Console(file=io.StringIO(), force_terminal=True, width=120, theme=get_theme().app_theme)
+    status = StackedStatusText(
+        "",
+        Text("95.1%", style=ThemeKey.METADATA_DIM),
+        (Text("Exploring: searching", style=ThemeKey.STATUS_TEXT),),
+        leading_blank_line=True,
+    )
+    lines = console.render_lines(status, console.options.update(no_wrap=True, overflow="ellipsis"), pad=False)
+
+    assert len(lines) == 3
+    first_line = "".join(segment.text for segment in lines[0] if segment.text)
+    second_line = "".join(segment.text for segment in lines[1] if segment.text)
+    third_line = "".join(segment.text for segment in lines[2] if segment.text)
+    assert first_line == ""
+    assert "Exploring: searching" in second_line
+    assert "esc to interrupt · 95.1%" in third_line
+
+
 def test_third_line_drops_hint_when_width_is_tight() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(

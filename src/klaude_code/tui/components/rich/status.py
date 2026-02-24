@@ -313,6 +313,7 @@ class StackedStatusText:
         todo_text: str | Text,
         metadata_text: RenderableType | None = None,
         status_lines: tuple[RenderableType, ...] = (),
+        leading_blank_line: bool = False,
         main_style: ThemeKey = ThemeKey.STATUS_TEXT,
     ) -> None:
         if isinstance(todo_text, Text):
@@ -325,6 +326,7 @@ class StackedStatusText:
         self._hint_style = ThemeKey.STATUS_HINT
         self._metadata_text = metadata_text
         self._status_lines = status_lines
+        self._leading_blank_line = leading_blank_line
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         max_width = max(1, getattr(options, "max_width", options.size.width))
@@ -360,6 +362,8 @@ class StackedStatusText:
         )
 
         lines: list[Text] = []
+        if self._leading_blank_line and rendered_status_lines:
+            lines.append(Text(""))
         if todo_line.plain:
             lines.append(todo_line)
         lines.extend(rendered_status_lines)

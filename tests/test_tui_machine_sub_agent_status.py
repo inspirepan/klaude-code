@@ -44,6 +44,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     update = _last_spinner_update(cmds)
 
     assert _line_plain(update.status_text) == ""
+    assert update.leading_blank_line is True
     lines = [_line_plain(line) for line in update.status_lines]
     assert lines == ["Exploring: searching xxxxx"]
 
@@ -115,3 +116,35 @@ def test_sub_agent_status_lines_cap_with_more_indicator() -> None:
     assert lines[0] == "Exploring: searching 0"
     assert lines[4] == "Exploring: searching 4"
     assert lines[5] == "+2 more..."
+
+
+def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    sub_session = "sub-1"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    start_cmds = machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=model.SubAgentState(
+                sub_agent_type="Explore",
+                sub_agent_desc="searching",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+    start_update = _last_spinner_update(start_cmds)
+    assert start_update.reset_bottom_height is False
+
+    finish_cmds = machine.transition(
+        events.TaskFinishEvent(
+            session_id=sub_session,
+            task_result="done",
+            has_structured_output=False,
+        )
+    )
+    finish_update = _last_spinner_update(finish_cmds)
+    assert finish_update.reset_bottom_height is True
+    assert finish_update.leading_blank_line is False

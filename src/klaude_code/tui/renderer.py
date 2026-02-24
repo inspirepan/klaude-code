@@ -160,7 +160,8 @@ class TUICommandRenderer:
         self._stream_last_height: int = 0
         self._stream_last_width: int = 0
         self._spinner_visible: bool = False
-        self._spinner_last_update_key: tuple[object, object, object] | None = None
+        self._spinner_last_update_key: tuple[object, object, object, object, object] | None = None
+        self._bottom_last_height: int = 0
 
         self._status_text: StackedStatusText = StackedStatusText(
             "",
@@ -273,11 +274,18 @@ class TUICommandRenderer:
         todo_text: str | Text,
         metadata_text: RenderableType | None = None,
         status_lines: tuple[RenderableType, ...] = (),
+        reset_bottom_height: bool = False,
+        leading_blank_line: bool = False,
     ) -> None:
+        if reset_bottom_height:
+            self._bottom_last_height = 0
+
         new_key = (
             self._spinner_text_key(todo_text),
             self._spinner_right_text_key(metadata_text),
             tuple(self._spinner_right_text_key(line) for line in status_lines),
+            reset_bottom_height,
+            leading_blank_line,
         )
         if self._spinner_last_update_key == new_key:
             return
@@ -287,6 +295,7 @@ class TUICommandRenderer:
             todo_text=todo_text,
             metadata_text=metadata_text,
             status_lines=status_lines,
+            leading_blank_line=leading_blank_line,
         )
         self._status_spinner.update(text=self._status_text, style=ThemeKey.STATUS_SPINNER)
         self._refresh_bottom_live()
@@ -378,7 +387,15 @@ class TUICommandRenderer:
                 )
 
         status_part: RenderableType = self._status_spinner if self._spinner_visible else Group()
-        return Group(stream_part, gap_part, status_part)
+        renderable = Group(stream_part, gap_part, status_part)
+        height = len(self.console.render_lines(renderable, self.console.options, pad=False))
+        if height <= 0:
+            self._bottom_last_height = 0
+            return renderable
+        if height < self._bottom_last_height:
+            return Padding(renderable, (self._bottom_last_height - height, 0, 0, 0))
+        self._bottom_last_height = height
+        return renderable
 
     def _refresh_bottom_live(self) -> None:
         if self._bottom_live is None:
@@ -393,6 +410,7 @@ class TUICommandRenderer:
             self._bottom_live.transient = False
             self._bottom_live.stop()
         self._bottom_live = None
+        self._bottom_last_height = 0
 
     # ---------------------------------------------------------------------
     # Stream helpers (MarkdownStream)
@@ -924,8 +942,14 @@ class TUICommandRenderer:
                     self.spinner_start()
                 case SpinnerStop():
                     self.spinner_stop()
-                case SpinnerUpdate(status_text=todo_text, right_text=metadata_text, status_lines=status_lines):
-                    self.spinner_update(todo_text, metadata_text, status_lines)
+                case SpinnerUpdate(
+                    status_text=todo_text,
+                    right_text=metadata_text,
+                    status_lines=status_lines,
+                    reset_bottom_height=reset_bottom_height,
+                    leading_blank_line=leading_blank_line,
+                ):
+                    self.spinner_update(todo_text, metadata_text, status_lines, reset_bottom_height, leading_blank_line)
                 case PrintBlankLine():
                     self.print()
                 case PrintRuleLine():
