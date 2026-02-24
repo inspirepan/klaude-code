@@ -152,7 +152,7 @@ class SpinnerStop(RenderCommand):
 class SpinnerUpdate(RenderCommand):
     status_text: str | Text
     right_text: RenderableType | None
-    secondary_text: RenderableType | None = None
+    status_lines: tuple[RenderableType, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

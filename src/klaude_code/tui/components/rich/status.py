@@ -305,14 +305,14 @@ def truncate_status(text: Text, max_cells: int, *, console: Console, ellipsis: s
     return truncate_left(text, max_cells, console=console, ellipsis=ellipsis)
 
 
-class ThreeLineStatusText:
-    """Renderable [todo, status, metadata] lines with shimmer on todo/status."""
+class StackedStatusText:
+    """Renderable [todo, status..., metadata] with shimmer on todo/status lines."""
 
     def __init__(
         self,
         todo_text: str | Text,
         metadata_text: RenderableType | None = None,
-        status_text: RenderableType | None = None,
+        status_lines: tuple[RenderableType, ...] = (),
         main_style: ThemeKey = ThemeKey.STATUS_TEXT,
     ) -> None:
         if isinstance(todo_text, Text):
@@ -324,68 +324,51 @@ class ThreeLineStatusText:
             self._todo_text = Text(todo_text, style=main_style)
         self._hint_style = ThemeKey.STATUS_HINT
         self._metadata_text = metadata_text
-        self._status_text = status_text
+        self._status_lines = status_lines
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         max_width = max(1, getattr(options, "max_width", options.size.width))
         line_options = options.update(no_wrap=True, overflow="ellipsis", height=1)
+
         todo_line = _render_single_line_text(
             _StatusShimmerLine(main=self._todo_text),
             console=console,
             options=line_options.update(max_width=max_width),
         )
 
-        hint_text = Text(current_hint_text().strip(), style=console.get_style(str(self._hint_style)))
-
-        if self._status_text is None:
-            status_line = Text("")
-        else:
-            status_base_line = _render_single_line_text(
-                self._status_text,
+        rendered_status_lines: list[Text] = []
+        for status_line in self._status_lines:
+            line = _render_single_line_text(
+                status_line,
                 console=console,
                 options=line_options.update(max_width=max_width),
             )
-            status_line = _render_single_line_text(
-                _StatusShimmerLine(main=status_base_line),
+            line = _render_single_line_text(
+                _StatusShimmerLine(main=line),
                 console=console,
                 options=line_options.update(max_width=max_width),
             )
+            if line.plain:
+                rendered_status_lines.append(line)
 
-        if self._metadata_text is None:
-            metadata_line = truncate_left(hint_text, max(1, max_width), console=console)
-        else:
-            metadata_text = _render_right_text(self._metadata_text, console=console, options=line_options, compact=False)
-            if cell_len(metadata_text.plain) == 0:
-                metadata_line = truncate_left(hint_text, max(1, max_width), console=console)
-            else:
-                separator = Text(" · ", style=ThemeKey.STATUS_HINT)
-                with_hint = Text.assemble(hint_text, separator, metadata_text)
-                if cell_len(with_hint.plain) <= max_width:
-                    metadata_line = with_hint
-                elif cell_len(metadata_text.plain) <= max_width:
-                    metadata_line = metadata_text
-                else:
-                    compact_metadata_text = _render_right_text(
-                        self._metadata_text,
-                        console=console,
-                        options=line_options,
-                        compact=True,
-                    )
-                    if cell_len(compact_metadata_text.plain) <= max_width:
-                        metadata_line = compact_metadata_text
-                    else:
-                        metadata_line = truncate_left(compact_metadata_text, max(1, max_width), console=console)
+        metadata_line = _build_metadata_line(
+            metadata_text=self._metadata_text,
+            hint_style=self._hint_style,
+            max_width=max_width,
+            console=console,
+            line_options=line_options,
+        )
 
+        lines: list[Text] = []
         if todo_line.plain:
-            if status_line.plain:
-                yield Group(todo_line, status_line, metadata_line)
-            else:
-                yield Group(todo_line, metadata_line)
+            lines.append(todo_line)
+        lines.extend(rendered_status_lines)
+        lines.append(metadata_line)
+
+        if len(lines) == 1:
+            yield lines[0]
         else:
-            if status_line.plain:
-                yield Group(status_line, metadata_line)
-            else:
-                yield metadata_line
+            yield Group(*lines)
 
 
 def _render_single_line_text(renderable: RenderableType, *, console: Console, options: ConsoleOptions) -> Text:
@@ -412,6 +395,35 @@ def _render_right_text(
     if isinstance(renderable, ResponsiveDynamicText):
         return renderable.render(compact=compact)
     return _render_single_line_text(renderable, console=console, options=options)
+
+
+def _build_metadata_line(
+    *,
+    metadata_text: RenderableType | None,
+    hint_style: ThemeKey,
+    max_width: int,
+    console: Console,
+    line_options: ConsoleOptions,
+) -> Text:
+    hint_text = Text(current_hint_text().strip(), style=console.get_style(str(hint_style)))
+    if metadata_text is None:
+        return truncate_left(hint_text, max(1, max_width), console=console)
+
+    full_metadata_text = _render_right_text(metadata_text, console=console, options=line_options, compact=False)
+    if cell_len(full_metadata_text.plain) == 0:
+        return truncate_left(hint_text, max(1, max_width), console=console)
+
+    separator = Text(" · ", style=ThemeKey.STATUS_HINT)
+    with_hint = Text.assemble(hint_text, separator, full_metadata_text)
+    if cell_len(with_hint.plain) <= max_width:
+        return with_hint
+    if cell_len(full_metadata_text.plain) <= max_width:
+        return full_metadata_text
+
+    compact_metadata_text = _render_right_text(metadata_text, console=console, options=line_options, compact=True)
+    if cell_len(compact_metadata_text.plain) <= max_width:
+        return compact_metadata_text
+    return truncate_left(compact_metadata_text, max(1, max_width), console=console)
 
 
 class _StatusShimmerLine:

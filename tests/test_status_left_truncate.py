@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.text import Text
 
 from klaude_code.protocol import model
-from klaude_code.tui.components.rich.status import ThreeLineStatusText, truncate_left, truncate_status
+from klaude_code.tui.components.rich.status import StackedStatusText, truncate_left, truncate_status
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.machine import SpinnerStatusState
 
@@ -74,10 +74,10 @@ def test_truncate_status_when_pipe_right_part_too_long() -> None:
 
 def test_shimmer_status_with_right_text_renders_three_lines() -> None:
     console = Console(file=io.StringIO(), force_terminal=True, width=120, theme=get_theme().app_theme)
-    status = ThreeLineStatusText(
+    status = StackedStatusText(
         "Thinking",
         Text("95.1%", style=ThemeKey.METADATA_DIM),
-        Text("Loading …", style=ThemeKey.STATUS_TEXT),
+        (Text("Loading …", style=ThemeKey.STATUS_TEXT),),
     )
     lines = console.render_lines(status, console.options.update(no_wrap=True, overflow="ellipsis"), pad=False)
     assert len(lines) == 3
@@ -93,7 +93,7 @@ def test_shimmer_status_with_right_text_renders_three_lines() -> None:
 
 def test_shimmer_status_without_primary_line_renders_only_second_and_third() -> None:
     console = Console(file=io.StringIO(), force_terminal=True, width=120, theme=get_theme().app_theme)
-    status = ThreeLineStatusText("", Text("95.1%", style=ThemeKey.METADATA_DIM), Text("Typing …", style=ThemeKey.STATUS_TEXT))
+    status = StackedStatusText("", Text("95.1%", style=ThemeKey.METADATA_DIM), (Text("Typing …", style=ThemeKey.STATUS_TEXT),))
     lines = console.render_lines(status, console.options.update(no_wrap=True, overflow="ellipsis"), pad=False)
 
     assert len(lines) == 2
@@ -118,7 +118,7 @@ def test_third_line_drops_hint_when_width_is_tight() -> None:
 
     width = cell_len(right_text.plain)
     console = Console(file=io.StringIO(), force_terminal=True, width=width, theme=get_theme().app_theme)
-    status = ThreeLineStatusText("", right_text, Text("Loading …", style=ThemeKey.STATUS_TEXT))
+    status = StackedStatusText("", right_text, (Text("Loading …", style=ThemeKey.STATUS_TEXT),))
     lines = console.render_lines(
         status,
         console.options.update(no_wrap=True, overflow="ellipsis", max_width=width),
@@ -153,7 +153,7 @@ def test_third_line_compacts_tokens_after_dropping_hint() -> None:
 
     width = cell_len(compact_plain)
     console = Console(file=io.StringIO(), force_terminal=True, width=width, theme=get_theme().app_theme)
-    status = ThreeLineStatusText("", right_text, Text("Loading …", style=ThemeKey.STATUS_TEXT))
+    status = StackedStatusText("", right_text, (Text("Loading …", style=ThemeKey.STATUS_TEXT),))
     lines = console.render_lines(
         status,
         console.options.update(no_wrap=True, overflow="ellipsis", max_width=width),
