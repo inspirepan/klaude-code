@@ -313,7 +313,6 @@ class TestLoadAgentToolsWithAvailability:
 
         assert "Task" in tool_names
         assert "Explore" not in tool_names
-        assert "Web" not in tool_names
 
     def test_imagegen_excluded_when_no_config_provided(self) -> None:
         """When config is None, ImageGen should still be included (backward compatibility)."""

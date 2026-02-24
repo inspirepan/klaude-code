@@ -33,13 +33,11 @@ def test_main_agent_tools_include_registered_sub_agents() -> None:
     assert tools.TASK in gpt5_tool_names
     assert tools.IMAGE_GEN in gpt5_tool_names
     assert "Explore" not in gpt5_tool_names
-    assert "Web" not in gpt5_tool_names
     assert "Oracle" not in gpt5_tool_names
 
     assert tools.TASK in claude_tool_names
     assert tools.IMAGE_GEN in claude_tool_names
     assert "Explore" not in claude_tool_names
-    assert "Web" not in claude_tool_names
     assert "Oracle" not in claude_tool_names
 
 

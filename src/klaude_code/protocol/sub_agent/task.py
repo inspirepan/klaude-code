@@ -9,7 +9,7 @@ register_sub_agent(
     SubAgentProfile(
         name="Task",
         prompt_file="prompts/prompt-sub-agent.md",
-        tool_set=(tools.BASH, tools.READ, tools.EDIT, tools.WRITE),
+        tool_set=(tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.WEB_FETCH, tools.WEB_SEARCH),
         invoker_type="general-purpose",
         invoker_summary=TASK_SUMMARY,
         active_form="Tasking",
