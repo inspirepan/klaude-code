@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from rich.cells import cell_len
 from rich.text import Text
 
 from klaude_code.const import (
@@ -251,6 +252,11 @@ class SpinnerStatusState:
                 activity_text = prefixed
 
         if base_status:
+            base_status_cells = cell_len(base_status)
+            min_status_cells = cell_len(STATUS_DEFAULT_TEXT)
+            if base_status_cells < min_status_cells:
+                base_status = base_status + " " * (min_status_cells - base_status_cells)
+
             if activity_text:
                 result = Text()
                 result.append(base_status, style=ThemeKey.STATUS_TEXT)
@@ -260,6 +266,10 @@ class SpinnerStatusState:
                 result = Text(base_status, style=ThemeKey.STATUS_TEXT)
         elif activity_text:
             activity_text.append(" …")
+            activity_cells = cell_len(activity_text.plain)
+            min_status_cells = cell_len(STATUS_DEFAULT_TEXT)
+            if activity_cells < min_status_cells:
+                activity_text.append(" " * (min_status_cells - activity_cells), style=ThemeKey.STATUS_TEXT)
             result = activity_text
         else:
             result = Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT)

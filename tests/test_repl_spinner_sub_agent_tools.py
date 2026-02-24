@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from rich.cells import cell_len
+
+from klaude_code.const import STATUS_DEFAULT_TEXT
 from klaude_code.tui.machine import SpinnerStatusState
 
 
@@ -55,3 +58,21 @@ def test_custom_reasoning_is_shown_as_activity_when_todo_present() -> None:
 
     status = state.get_status()
     assert status.plain == "Implement feature | Plan"
+
+
+def test_short_reasoning_status_keeps_min_loading_width() -> None:
+    state = SpinnerStatusState()
+    state.set_reasoning_status("Typing")
+
+    status = state.get_status()
+    assert cell_len(status.plain) == cell_len(STATUS_DEFAULT_TEXT)
+    assert status.plain.startswith("Typing")
+
+
+def test_composing_status_keeps_min_loading_width() -> None:
+    state = SpinnerStatusState()
+    state.set_composing(True)
+
+    status = state.get_status()
+    assert status.plain.startswith("Typing …")
+    assert cell_len(status.plain) == cell_len(STATUS_DEFAULT_TEXT)

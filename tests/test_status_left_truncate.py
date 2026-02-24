@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import io
+
 from rich.console import Console
 from rich.text import Text
 
-from klaude_code.tui.components.rich.status import truncate_left, truncate_status
+from klaude_code.tui.components.rich.status import ShimmerStatusText, truncate_left, truncate_status
+from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 
 
 def test_truncate_left_noop_when_fits() -> None:
@@ -64,3 +67,12 @@ def test_truncate_status_when_pipe_right_part_too_long() -> None:
     # Ellipsis takes 2 chars. suffix budget 18.
     # "ht hand activity" = 16. "ght hand activity" = 17.
     assert result.plain == "… ight hand activity"
+
+
+def test_shimmer_status_with_right_text_does_not_expand_to_terminal_width() -> None:
+    console = Console(file=io.StringIO(), force_terminal=True, width=120, theme=get_theme().app_theme)
+    status = ShimmerStatusText("Thinking", Text("95.1%", style=ThemeKey.METADATA_DIM))
+    lines = console.render_lines(status, console.options.update(no_wrap=True, overflow="ellipsis", height=1), pad=False)
+    plain = "".join(segment.text for segment in lines[0] if segment.text)
+    assert len(plain) < console.width
+    assert "Thinking (esc to interrupt) · 95.1%" in plain

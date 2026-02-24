@@ -41,11 +41,11 @@ def _build_metadata_content(
         identity.append_text(Text(metadata.description, style=ThemeKey.METADATA_ITALIC))
         identity.append_text(Text(" ", style=ThemeKey.METADATA))
     identity.append_text(Text(metadata.model_name, style=ThemeKey.METADATA))
-    if metadata.provider:
-        sub_provider = metadata.provider.rsplit("/", 1)[-1] if "/" in metadata.provider else metadata.provider
-        identity.append_text(Text(f" via {sub_provider}", style=ThemeKey.METADATA_DIM))
 
     parts: list[Text] = []
+    if metadata.provider:
+        sub_provider = metadata.provider.rsplit("/", 1)[-1] if "/" in metadata.provider else metadata.provider
+        parts.append(Text(f"via {sub_provider}", style=ThemeKey.METADATA_DIM))
 
     if metadata.usage is not None and metadata.usage.total_cost is not None:
         parts.append(
@@ -60,7 +60,7 @@ def _build_metadata_content(
         input_tokens = max(metadata.usage.input_tokens - metadata.usage.cached_tokens, 0)
         output_tokens = max(metadata.usage.output_tokens - metadata.usage.reasoning_tokens, 0)
 
-        token_text.append("↑ ", style=ThemeKey.METADATA)
+        token_text.append("input ", style=ThemeKey.METADATA)
         token_text.append(format_number(input_tokens), style=ThemeKey.METADATA)
         if metadata.usage.cached_tokens > 0:
             token_text.append(", cache ", style=ThemeKey.METADATA)
@@ -73,7 +73,7 @@ def _build_metadata_content(
                 else:
                     rate_style = ThemeKey.WARN
                 token_text.append(f" (hit {metadata.usage.cache_hit_rate:.0%})", style=rate_style)
-        token_text.append(", ↓ ", style=ThemeKey.METADATA)
+        token_text.append(", output ", style=ThemeKey.METADATA)
         token_text.append(format_number(output_tokens), style=ThemeKey.METADATA)
         if metadata.usage.reasoning_tokens > 0:
             token_text.append(", thought ", style=ThemeKey.METADATA)
@@ -83,7 +83,7 @@ def _build_metadata_content(
             token_text.append(format_number(metadata.usage.image_tokens), style=ThemeKey.METADATA)
         parts.append(token_text)
 
-        # Context pill (blue-grey bg): "ctx 25.1k/168k (14.9%)"
+        # Context pill (blue-grey bg): "25.1k/168k (14.9%)"
         if show_context_and_time and metadata.usage.context_usage_percent is not None:
             context_size = format_number(metadata.usage.context_size or 0)
             effective_limit = (metadata.usage.context_limit or 0) - (metadata.usage.max_tokens or DEFAULT_MAX_TOKENS)

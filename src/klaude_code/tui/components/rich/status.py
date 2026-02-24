@@ -12,7 +12,6 @@ from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.measure import Measurement
 from rich.spinner import Spinner as RichSpinner
 from rich.style import Style
-from rich.table import Table
 from rich.text import Text
 
 from klaude_code.const import (
@@ -294,7 +293,7 @@ def truncate_status(text: Text, max_cells: int, *, console: Console, ellipsis: s
 class ShimmerStatusText:
     """Renderable status line with shimmer effect on the main text and hint.
 
-    Supports optional right-aligned text that stays fixed at the right edge.
+    Supports optional right-side text while prioritizing single-line stability.
     """
 
     def __init__(
@@ -320,12 +319,47 @@ class ShimmerStatusText:
             yield left_text
             return
 
-        # Use Table.grid to create left-right aligned layout with a stable gap.
-        table = Table.grid(expand=True, padding=(0, 1, 0, 0), collapse_padding=True, pad_edge=False)
-        table.add_column(justify="left", ratio=1)
-        table.add_column(justify="right")
-        table.add_row(left_text, self._right_text)
-        yield table
+        max_width = getattr(options, "max_width", options.size.width)
+        line_options = options.update(no_wrap=True, overflow="ellipsis", height=1)
+
+        right_text = _render_single_line_text(self._right_text, console=console, options=line_options)
+        right_cells = cell_len(right_text.plain)
+        if right_cells == 0:
+            yield left_text
+            return
+
+        if max_width <= right_cells:
+            yield truncate_left(right_text, max(1, max_width), console=console)
+            return
+
+        separator = " · "
+        separator_cells = cell_len(separator)
+        left_budget = max_width - right_cells - separator_cells
+        if left_budget <= 0:
+            yield truncate_left(right_text, max(1, max_width), console=console)
+            return
+
+        left_line = _render_single_line_text(left_text, console=console, options=line_options.update(max_width=left_budget))
+
+        if not left_line.plain:
+            yield truncate_left(right_text, max(1, max_width), console=console)
+            return
+
+        yield Text.assemble(left_line, Text(separator, style=ThemeKey.STATUS_HINT), right_text)
+
+
+def _render_single_line_text(renderable: RenderableType, *, console: Console, options: ConsoleOptions) -> Text:
+    lines = console.render_lines(renderable, options, pad=False)
+    if not lines:
+        return Text("")
+
+    text = Text()
+    for segment in lines[0]:
+        if segment.control:
+            continue
+        if segment.text:
+            text.append(segment.text, style=segment.style)
+    return text
 
 
 class _StatusLeftText:
