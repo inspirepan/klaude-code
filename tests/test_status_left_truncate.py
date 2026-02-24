@@ -86,8 +86,8 @@ def test_shimmer_status_with_right_text_renders_three_lines() -> None:
     second_line = "".join(segment.text for segment in lines[1] if segment.text)
     third_line = "".join(segment.text for segment in lines[2] if segment.text)
 
-    assert "Thinking" in first_line
-    assert "Loading …" in second_line
+    assert "Loading …" in first_line
+    assert "Thinking" in second_line
     assert "esc to interrupt · 95.1%" in third_line
 
 

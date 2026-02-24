@@ -364,9 +364,9 @@ class StackedStatusText:
         lines: list[Text] = []
         if self._leading_blank_line and rendered_status_lines:
             lines.append(Text(""))
+        lines.extend(rendered_status_lines)
         if todo_line.plain:
             lines.append(todo_line)
-        lines.extend(rendered_status_lines)
         lines.append(metadata_line)
 
         if len(lines) == 1:

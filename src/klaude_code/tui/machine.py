@@ -160,16 +160,16 @@ class ActivityState:
                 first = True
                 for name, count in counts.items():
                     if not first:
-                        activity_text.append(", ")
+                        activity_text.append(", ", style=ThemeKey.STATUS_TEXT)
                     activity_text.append(Text(name, style=ThemeKey.STATUS_TEXT))
                     if count > 1:
-                        activity_text.append(f" x {count}")
+                        activity_text.append(f" x {count}", style=ThemeKey.STATUS_TEXT)
                     first = False
 
             if self._sub_agent_tool_calls:
                 _append_counts(self._sub_agent_tool_calls)
                 if self._tool_calls:
-                    activity_text.append(", ")
+                    activity_text.append(", ", style=ThemeKey.STATUS_TEXT)
 
             if self._tool_calls:
                 _append_counts(self._tool_calls)
@@ -296,7 +296,7 @@ class SpinnerStatusState:
         min_status_cells = STATUS_LEFT_MIN_WIDTH_CELLS
         if todo_status_cells < min_status_cells:
             todo_status = todo_status + " " * (min_status_cells - todo_status_cells)
-        return Text(todo_status, style=ThemeKey.STATUS_TEXT)
+        return Text(todo_status, style=ThemeKey.STATUS_TODO)
 
     def get_status(self) -> Text:
         if self._toast_status:
@@ -313,7 +313,7 @@ class SpinnerStatusState:
         elif activity_text:
             status_text = activity_text
             if self._todo_status is None:
-                activity_text.append(" …")
+                activity_text.append(" …", style=ThemeKey.STATUS_TEXT)
         else:
             status_text = Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT)
 
@@ -400,6 +400,14 @@ class _SessionState:
     status_composing: bool = False
     status_tool_calls: dict[str, int] = field(default_factory=_empty_status_tool_counts)
     status_tool_calls_by_id: dict[str, str] = field(default_factory=_empty_status_tool_ids)
+    status_token_input: int | None = None
+    status_token_cached: int | None = None
+    status_token_output: int | None = None
+    status_token_thought: int | None = None
+    status_token_image: int | None = None
+    status_context_size: int | None = None
+    status_context_effective_limit: int | None = None
+    status_context_percent: float | None = None
 
     @property
     def is_sub_agent(self) -> bool:
@@ -421,6 +429,40 @@ class _SessionState:
         self.status_composing = False
         self.status_tool_calls = {}
         self.status_tool_calls_by_id = {}
+
+    def clear_status_metadata(self) -> None:
+        self.status_token_input = None
+        self.status_token_cached = None
+        self.status_token_output = None
+        self.status_token_thought = None
+        self.status_token_image = None
+        self.status_context_size = None
+        self.status_context_effective_limit = None
+        self.status_context_percent = None
+
+    def set_status_usage(self, usage: model.Usage) -> None:
+        has_token_usage = any(
+            (
+                usage.input_tokens,
+                usage.cached_tokens,
+                usage.output_tokens,
+                usage.reasoning_tokens,
+                usage.image_tokens,
+            )
+        )
+        if has_token_usage:
+            self.status_token_input = (self.status_token_input or 0) + max(usage.input_tokens - usage.cached_tokens, 0)
+            self.status_token_cached = (self.status_token_cached or 0) + usage.cached_tokens
+            self.status_token_output = (self.status_token_output or 0) + max(usage.output_tokens - usage.reasoning_tokens, 0)
+            self.status_token_thought = (self.status_token_thought or 0) + usage.reasoning_tokens
+            self.status_token_image = (self.status_token_image or 0) + usage.image_tokens
+
+        context_percent = usage.context_usage_percent
+        if context_percent is not None:
+            effective_limit = (usage.context_limit or 0) - (usage.max_tokens or DEFAULT_MAX_TOKENS)
+            self.status_context_size = usage.context_size
+            self.status_context_effective_limit = effective_limit if effective_limit > 0 else None
+            self.status_context_percent = context_percent
 
     def add_status_tool_call(self, tool_call_id: str, tool_name: str) -> None:
         if tool_call_id in self.status_tool_calls_by_id:
@@ -468,6 +510,35 @@ class _SessionState:
         if self.thinking_stream_active:
             return STATUS_THINKING_TEXT
         return None
+
+    def status_metadata_text(self) -> str | None:
+        parts: list[str] = []
+        if self.status_token_input is not None and self.status_token_output is not None:
+            token_parts: list[str] = [f"↑{format_number(self.status_token_input)}"]
+            if self.status_token_cached and self.status_token_cached > 0:
+                token_parts.append(f"◎{format_number(self.status_token_cached)}")
+            token_parts.append(f"↓{format_number(self.status_token_output)}")
+            if self.status_token_thought and self.status_token_thought > 0:
+                token_parts.append(f"∿{format_number(self.status_token_thought)}")
+            if self.status_token_image and self.status_token_image > 0:
+                token_parts.append(f"▣{format_number(self.status_token_image)}")
+            parts.append(" ".join(token_parts))
+
+        if (
+            self.status_context_size is not None
+            and self.status_context_effective_limit is not None
+            and self.status_context_percent is not None
+        ):
+            if parts:
+                parts.append(" · ")
+            parts.append(
+                f"{format_number(self.status_context_size)}/{format_number(self.status_context_effective_limit)} "
+                f"({self.status_context_percent:.1f}%)"
+            )
+
+        if not parts:
+            return None
+        return "".join(parts)
 
 
 class DisplayStateMachine:
@@ -519,6 +590,11 @@ class DisplayStateMachine:
                 line = Text(f"{title}: {description}", style=ThemeKey.STATUS_TEXT)
             else:
                 line = Text(title, style=ThemeKey.STATUS_TEXT)
+
+            metadata = session.status_metadata_text()
+            if metadata:
+                line.append(" · ")
+                line.append(metadata, style=ThemeKey.METADATA_DIM)
 
             activity = session.status_activity_text()
             if activity:
@@ -631,6 +707,7 @@ class DisplayStateMachine:
                 s.model_id = e.model_id
                 s.task_active = True
                 s.clear_status_activity()
+                s.clear_status_metadata()
                 if not s.is_sub_agent:
                     # Keep primary session tracking in sync even if the session id changes
                     # during the process lifetime (e.g., /clear).
@@ -871,7 +948,9 @@ class DisplayStateMachine:
                     if s.is_sub_agent:
                         s.add_status_tool_call(e.tool_call_id, tool_active_form)
                     else:
-                        if not is_sub_agent_tool(e.tool_name):
+                        if is_sub_agent_tool(e.tool_name):
+                            self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
+                        else:
                             self._spinner.add_tool_call(tool_active_form)
 
                 if not is_replay:
@@ -894,6 +973,10 @@ class DisplayStateMachine:
                     tool_active_form = get_task_active_form(e.arguments)
                     s.add_status_tool_call(e.tool_call_id, tool_active_form)
                     cmds.extend(self._spinner_update_commands())
+                elif not is_replay and not s.is_sub_agent and e.tool_name == tools.TASK and not s.should_skip_tool_activity(e.tool_name):
+                    tool_active_form = get_task_active_form(e.arguments)
+                    self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
+                    cmds.extend(self._spinner_update_commands())
 
                 cmds.append(RenderToolCall(e))
                 return cmds
@@ -901,6 +984,9 @@ class DisplayStateMachine:
             case events.ToolResultEvent() as e:
                 if not is_replay and s.is_sub_agent:
                     s.finish_status_tool_call(e.tool_call_id)
+                    cmds.extend(self._spinner_update_commands())
+                elif not is_replay and is_sub_agent_tool(e.tool_name):
+                    self._spinner.finish_sub_agent_tool_call(e.tool_call_id)
                     cmds.extend(self._spinner_update_commands())
 
                 if s.is_sub_agent and not e.is_error:
@@ -930,7 +1016,10 @@ class DisplayStateMachine:
             case events.UsageEvent() as e:
                 # UsageEvent is not rendered, but it drives context % display.
                 if s.is_sub_agent:
-                    return []
+                    if not is_replay:
+                        s.set_status_usage(e.usage)
+                        cmds.extend(self._spinner_update_commands())
+                    return cmds
                 if not self._is_primary(e.session_id):
                     return []
                 if not is_replay:
@@ -957,6 +1046,7 @@ class DisplayStateMachine:
             case events.TaskFinishEvent() as e:
                 s.task_active = False
                 s.clear_status_activity()
+                s.clear_status_metadata()
                 cmds.append(RenderTaskFinish(e))
 
                 # Defensive: finalize any open streams so buffered markdown is flushed.
@@ -998,6 +1088,7 @@ class DisplayStateMachine:
                     cmds.append(SpinnerStop())
                 s.task_active = False
                 s.clear_status_activity()
+                s.clear_status_metadata()
                 cmds.append(EndThinkingStream(session_id=e.session_id))
                 cmds.append(EndAssistantStream(session_id=e.session_id))
                 if not is_replay:

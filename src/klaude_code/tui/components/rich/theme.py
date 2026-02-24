@@ -156,6 +156,7 @@ class ThemeKey(str, Enum):
     # SPINNER_STATUS
     STATUS_SPINNER = "spinner.status"
     STATUS_TEXT = "spinner.status.text"
+    STATUS_TODO = "spinner.status.todo"
     STATUS_TEXT_BOLD = "spinner.status.text.bold"
     STATUS_TEXT_BOLD_ITALIC = "spinner.status.text.bold_italic"
     STATUS_TOAST = "spinner.status.toast"
@@ -304,6 +305,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 # STATUS
                 ThemeKey.STATUS_SPINNER.value: palette.grey1,
                 ThemeKey.STATUS_TEXT.value: palette.grey1,
+                ThemeKey.STATUS_TODO.value: palette.blue,
                 ThemeKey.STATUS_TEXT_BOLD.value: "bold " + palette.grey1,
                 ThemeKey.STATUS_TEXT_BOLD_ITALIC.value: "bold italic " + palette.grey1,
                 ThemeKey.STATUS_TOAST.value: "bold " + palette.yellow,
