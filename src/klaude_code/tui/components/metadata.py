@@ -33,16 +33,21 @@ def _build_metadata_content(
     currency = metadata.usage.currency if metadata.usage else "USD"
     currency_symbol = "¥" if currency == "CNY" else "$"
 
+    sub_agent_description_in_details = bool(metadata.sub_agent_name and metadata.description)
+
     identity = Text()
     if metadata.sub_agent_name:
         identity.append_text(Text(f" {metadata.sub_agent_name} ", style=ThemeKey.METADATA_SUB_AGENT_NAME))
         identity.append_text(Text(" ", style=ThemeKey.METADATA))
-    if metadata.description:
+    if metadata.description and not sub_agent_description_in_details:
         identity.append_text(Text(metadata.description, style=ThemeKey.METADATA_ITALIC))
         identity.append_text(Text(" ", style=ThemeKey.METADATA))
     identity.append_text(Text(metadata.model_name, style=ThemeKey.METADATA))
 
     parts: list[Text] = []
+    if sub_agent_description_in_details:
+        parts.append(Text(metadata.description, style=ThemeKey.METADATA_ITALIC))
+
     if metadata.provider:
         sub_provider = metadata.provider.rsplit("/", 1)[-1] if "/" in metadata.provider else metadata.provider
         parts.append(Text(f"via {sub_provider}", style=ThemeKey.METADATA_DIM))

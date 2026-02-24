@@ -2,6 +2,7 @@ from rich.console import Console
 
 from klaude_code.protocol import events, model
 from klaude_code.tui.components.metadata import render_task_metadata
+from klaude_code.tui.components.rich.theme import get_theme
 
 
 def test_task_metadata_wraps_details_under_identity_column() -> None:
@@ -35,3 +36,34 @@ def test_task_metadata_wraps_details_under_identity_column() -> None:
 
     indent = len(lines[1]) - len(lines[1].lstrip(" "))
     assert indent > 2
+
+
+def test_sub_agent_description_shows_before_token_details() -> None:
+    event = events.TaskMetadataEvent(
+        session_id="test",
+        metadata=model.TaskMetadataItem(
+            main_agent=model.TaskMetadata(model_name="main-model"),
+            sub_agent_task_metadata=[
+                model.TaskMetadata(
+                    sub_agent_name="research",
+                    description="scan repo",
+                    model_name="sub-model",
+                    usage=model.Usage(input_tokens=1000, output_tokens=200),
+                )
+            ],
+        ),
+    )
+
+    console = Console(width=120, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_task_metadata(event))
+    output = console.export_text(styles=False)
+
+    model_idx = output.find("sub-model")
+    description_idx = output.find("scan repo")
+    token_idx = output.find("input 1k")
+
+    assert model_idx != -1
+    assert description_idx != -1
+    assert token_idx != -1
+    assert model_idx < description_idx < token_idx
+    assert "sub-model scan repo, input 1k" in output
