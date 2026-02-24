@@ -210,6 +210,54 @@ def test_responses_history_includes_image_inputs():
     assert second_tool_part["type"] == "input_image"
 
 
+def test_responses_history_function_call_output_can_be_string():
+    history: list[message.Message] = [
+        message.ToolResultMessage(
+            call_id="tool-1",
+            tool_name="Read",
+            status="success",
+            output_text="done",
+        ),
+    ]
+
+    items = responses_history(
+        history,
+        model_name=None,
+        function_call_output_string=True,
+        include_input_status=True,
+    )
+    tool_item = _ensure_dict(items[0])
+    assert tool_item["type"] == "function_call_output"
+    assert tool_item["output"] == "done"
+    assert tool_item["status"] == "completed"
+
+
+def test_responses_history_assistant_and_reasoning_include_status_in_string_mode():
+    history: list[message.Message] = [
+        message.AssistantMessage(
+            parts=_parts(
+                message.ThinkingTextPart(text="reasoning"),
+                message.TextPart(text="answer"),
+            )
+        ),
+    ]
+
+    items = responses_history(
+        history,
+        model_name=None,
+        function_call_output_string=True,
+        include_input_status=True,
+    )
+    reasoning_item = _ensure_dict(items[0])
+    assert reasoning_item["type"] == "reasoning"
+    assert reasoning_item["status"] == "completed"
+
+    assistant_item = _ensure_dict(items[1])
+    assert assistant_item["type"] == "message"
+    assert assistant_item["role"] == "assistant"
+    assert assistant_item["status"] == "completed"
+
+
 def test_developer_message_images_propagate_to_user_group():
     image_part = _make_image_part()
     history: list[message.Message] = [

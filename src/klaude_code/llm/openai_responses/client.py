@@ -33,26 +33,37 @@ if TYPE_CHECKING:
 OPENAI_BETA_RESPONSES_WEBSOCKETS = "responses_websockets=2026-02-06"
 
 
-def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase:
+def build_payload(
+    param: llm_param.LLMCallParameter,
+    *,
+    is_volces_base_url: bool = False,
+) -> ResponseCreateParamsBase:
     """Build OpenAI Responses API request parameters."""
-    inputs = convert_history_to_input(param.input, param.model_id)
+    inputs = convert_history_to_input(
+        param.input,
+        param.model_id,
+        function_call_output_string=is_volces_base_url,
+        include_input_status=is_volces_base_url,
+    )
     tools = convert_tool_schema(param.tools)
 
     payload: ResponseCreateParamsBase = {
         "model": str(param.model_id),
         "tool_choice": "auto",
         "parallel_tool_calls": True,
-        "include": [
-            "reasoning.encrypted_content",
-        ],
         "store": False,
         "temperature": param.temperature,
         "max_output_tokens": param.max_tokens,
         "input": inputs,
         "instructions": param.system,
         "tools": tools,
-        "prompt_cache_key": param.session_id or "",
     }
+
+    if not is_volces_base_url:
+        payload["prompt_cache_key"] = param.session_id or ""
+
+    if not is_volces_base_url:
+        payload["include"] = ["reasoning.encrypted_content"]
 
     if param.thinking and param.thinking.reasoning_effort:
         payload["reasoning"] = {
@@ -437,6 +448,7 @@ class ResponsesLLMStream(LLMStreamABC):
 class ResponsesClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter):
         super().__init__(config)
+        self._is_volces_base_url = bool(config.base_url and "volces.com" in config.base_url.lower())
         if config.is_azure:
             if not config.base_url:
                 raise ValueError("Azure endpoint is required")
@@ -472,7 +484,7 @@ class ResponsesClient(LLMClientABC):
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        payload = build_payload(param)
+        payload = build_payload(param, is_volces_base_url=self._is_volces_base_url)
 
         log_debug(
             json.dumps(payload, ensure_ascii=False, default=str),

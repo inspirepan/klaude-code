@@ -373,6 +373,7 @@ class TurnExecutor:
                                 usage=metadata,
                             )
                     case message.StreamErrorItem() as msg:
+                        log_debug(msg.error, debug_type=DebugType.LLM_STREAM)
                         turn_result.stream_error = msg
                     case message.ToolCallStartDelta() as msg:
                         if thinking_active:

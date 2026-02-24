@@ -478,7 +478,7 @@ provider_list:
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
 - provider_name: ark-api
-  protocol: openai
+  protocol: responses
   api_key: ${ARK_API_KEY}
   base_url: https://ark.cn-beijing.volces.com/api/v3
   model_list:
@@ -486,17 +486,23 @@ provider_list:
   - model_name: seed-pro
     model_id: doubao-seed-2-0-pro-260215
     context_limit: 256000
+    thinking:
+      type: enabled
+      budget_tokens: 8192
     cost: { input: 4.8, output: 24, cache_read: 0.96, currency: CNY }
 
   - model_name: seed-code
     model_id: doubao-seed-2-0-code-preview-260215
     context_limit: 256000
+    thinking:
+      type: enabled
+      budget_tokens: 8192
     cost: { input: 4.8, output: 24, cache_read: 0.96, currency: CNY }
 
 - provider_name: ark-coding-plan
-  protocol: openai
+  protocol: anthropic
   api_key: ${ARK_API_KEY}
-  base_url: https://ark.cn-beijing.volces.com/api/coding/v3
+  base_url: https://ark.cn-beijing.volces.com/api/coding/
   model_list:
 
   - model_name: seed-code

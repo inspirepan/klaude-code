@@ -55,18 +55,29 @@ def _build_user_content_parts(
 def _build_tool_result_item(
     tool: message.ToolResultMessage,
     attachment: DeveloperAttachment,
+    *,
+    function_call_output_string: bool = False,
+    include_input_status: bool = False,
 ) -> responses.ResponseInputItemParam:
-    content_parts: list[responses.ResponseInputContentParam] = []
     text_output = merge_reminder_text(
         tool.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
     )
-    if text_output:
-        content_parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": text_output}))
     images: list[message.ImageURLPart | message.ImageFilePart] = [
         part for part in tool.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))
     ]
     images.extend(attachment.images)
+
+    item: dict[str, Any] = {"type": "function_call_output", "call_id": tool.call_id}
+    if function_call_output_string:
+        item["output"] = text_output
+        if include_input_status:
+            item["status"] = "completed"
+        return cast(responses.ResponseInputItemParam, item)
+
+    content_parts: list[responses.ResponseInputContentParam] = []
+    if text_output:
+        content_parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": text_output}))
     for image in images:
         content_parts.append(
             cast(
@@ -74,20 +85,25 @@ def _build_tool_result_item(
                 {"type": "input_image", "detail": "auto", "image_url": _image_to_url(image)},
             )
         )
-
-    item: dict[str, Any] = {
-        "type": "function_call_output",
-        "call_id": tool.call_id,
-        "output": content_parts,
-    }
+    item["output"] = content_parts
     return cast(responses.ResponseInputItemParam, item)
 
 
 def convert_history_to_input(
     history: list[message.Message],
     model_name: str | None = None,
+    *,
+    function_call_output_string: bool = False,
+    include_input_status: bool = False,
 ) -> responses.ResponseInputParam:
-    """Convert a list of messages to response input params."""
+    """Convert messages to Responses API input.
+
+    If ``function_call_output_string`` is True, tool results are encoded as string
+    ``function_call_output.output`` instead of structured content arrays.
+
+    If ``include_input_status`` is True, status is set to ``completed`` on input
+    items that support it.
+    """
     items: list[responses.ResponseInputItemParam] = []
 
     for msg, attachment in attach_developer_messages(history):
@@ -106,7 +122,14 @@ def convert_history_to_input(
                     )
                 )
             case message.ToolResultMessage():
-                items.append(_build_tool_result_item(msg, attachment))
+                items.append(
+                    _build_tool_result_item(
+                        msg,
+                        attachment,
+                        function_call_output_string=function_call_output_string,
+                        include_input_status=include_input_status,
+                    )
+                )
             case message.AssistantMessage():
                 assistant_text_parts: list[responses.ResponseOutputTextParam] = []
                 pending_thinking_text: str | None = None
@@ -126,14 +149,17 @@ def convert_history_to_input(
                     nonlocal assistant_text_parts
                     if not assistant_text_parts:
                         return
+                    assistant_item: dict[str, Any] = {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": assistant_text_parts,
+                    }
+                    if include_input_status:
+                        assistant_item["status"] = "completed"
                     items.append(
                         cast(
                             responses.ResponseInputItemParam,
-                            {
-                                "type": "message",
-                                "role": "assistant",
-                                "content": assistant_text_parts,
-                            },
+                            assistant_item,
                         )
                     )
                     assistant_text_parts = []
@@ -142,7 +168,13 @@ def convert_history_to_input(
                     nonlocal pending_thinking_text, pending_signature
                     if pending_thinking_text is None and pending_signature is None:
                         return
-                    items.append(convert_reasoning_inputs(pending_thinking_text, pending_signature))
+                    items.append(
+                        convert_reasoning_inputs(
+                            pending_thinking_text,
+                            pending_signature,
+                            include_status=include_input_status,
+                        )
+                    )
                     pending_thinking_text = None
                     pending_signature = None
 
@@ -190,8 +222,13 @@ def convert_history_to_input(
     return items
 
 
-def convert_reasoning_inputs(text_content: str | None, signature: str | None) -> responses.ResponseInputItemParam:
-    result: dict[str, Any] = {"type": "reasoning", "content": None}
+def convert_reasoning_inputs(
+    text_content: str | None,
+    signature: str | None,
+    *,
+    include_status: bool = False,
+) -> responses.ResponseInputItemParam:
+    result: dict[str, Any] = {"type": "reasoning"}
     result["summary"] = [
         {
             "type": "summary_text",
@@ -200,6 +237,8 @@ def convert_reasoning_inputs(text_content: str | None, signature: str | None) ->
     ]
     if signature:
         result["encrypted_content"] = signature
+    if include_status:
+        result["status"] = "completed"
     return cast(responses.ResponseInputItemParam, result)
 
 
