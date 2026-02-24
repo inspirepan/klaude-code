@@ -457,7 +457,7 @@ class ResponsesClient(LLMClientABC):
                     LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
                 ),
             )
-            ws_transport = ResponsesWebSocketTransport(client)
+            ws_transport = ResponsesWebSocketTransport(client) if not config.base_url else None
         self.client: AsyncAzureOpenAI | AsyncOpenAI = client
         self._ws_transport = ws_transport
 

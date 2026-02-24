@@ -17,11 +17,13 @@ def arun(coro: object) -> object:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
     fake_home = tmp_path / "home"
     fake_home.mkdir(exist_ok=True)
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+
 
 
 def test_task_interrupt_persists_interrupt_entry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -110,7 +112,7 @@ def test_task_interrupt_does_not_duplicate_when_aborted_message_exists(
                 )
                 return []
 
-        executor._current_turn = cast(Any, _StubTurn())
+        executor._current_turn = cast(Any, _StubTurn())  # pyright: ignore[reportPrivateUsage]
 
         _ = executor.on_interrupt()
         await session.wait_for_flush()
