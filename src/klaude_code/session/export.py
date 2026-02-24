@@ -570,7 +570,7 @@ def _build_messages_html(
             blocks.append(
                 f'<div class="turn-collapsible">'
                 f'<button class="turn-collapse-btn" title="Show/hide intermediate steps">'
-                f'<span class="collapse-icon">[+]</span>'
+                f'<span class="collapse-icon">▶</span>'
                 f'<span class="collapse-count">{step_label}</span>'
                 f"</button>"
                 f'<div class="turn-steps" style="display: none;">'
