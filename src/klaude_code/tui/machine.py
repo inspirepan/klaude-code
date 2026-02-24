@@ -29,7 +29,6 @@ from klaude_code.tui.commands import (
     RenderAssistantImage,
     RenderBashCommandEnd,
     RenderBashCommandStart,
-    RenderCacheHitWarn,
     RenderCommand,
     RenderCommandOutput,
     RenderCompactionSummary,
@@ -183,6 +182,7 @@ class SpinnerStatusState:
         self._token_output: int | None = None
         self._token_thought: int | None = None
         self._token_image: int | None = None
+        self._cache_hit_rate: float | None = None
         self._context_size: int | None = None
         self._context_effective_limit: int | None = None
         self._context_percent: float | None = None
@@ -197,6 +197,7 @@ class SpinnerStatusState:
         self._token_output = None
         self._token_thought = None
         self._token_image = None
+        self._cache_hit_rate = None
         self._context_size = None
         self._context_effective_limit = None
         self._context_percent = None
@@ -261,6 +262,9 @@ class SpinnerStatusState:
             self._context_size = usage.context_size
             self._context_effective_limit = effective_limit if effective_limit > 0 else None
             self._context_percent = context_percent
+
+    def set_cache_hit_rate(self, cache_hit_rate: float) -> None:
+        self._cache_hit_rate = cache_hit_rate
 
     def get_activity_text(self) -> Text | None:
         """Expose current activity for tests and UI composition."""
@@ -336,7 +340,10 @@ class SpinnerStatusState:
             if self._token_input is not None and self._token_output is not None:
                 token_parts: list[str] = [f"↑{format_number(self._token_input)}"]
                 if self._token_cached and self._token_cached > 0:
-                    token_parts.append(f"◎{format_number(self._token_cached)}")
+                    cache_text = f"◎{format_number(self._token_cached)}"
+                    if self._cache_hit_rate is not None:
+                        cache_text += f"·{self._cache_hit_rate:.0%}"
+                    token_parts.append(cache_text)
                 token_parts.append(f"↓{format_number(self._token_output)}")
                 if self._token_thought and self._token_thought > 0:
                     token_parts.append(f"∿{format_number(self._token_thought)}")
@@ -809,11 +816,18 @@ class DisplayStateMachine:
                     cmds.extend(self._spinner_update_commands())
                 return cmds
 
-            case events.CacheHitWarnEvent() as e:
-                cmds.append(RenderCacheHitWarn(e))
-                if not s.is_sub_agent:
-                    cmds.append(PrintBlankLine())
+            case events.CacheHitRateEvent() as e:
+                if s.is_sub_agent:
+                    return []
+                if not self._is_primary(e.session_id):
+                    return []
+                if not is_replay:
+                    self._spinner.set_cache_hit_rate(e.cache_hit_rate)
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
+
+            case events.CacheHitWarnEvent():
+                return []
 
             case events.TurnEndEvent():
                 return []

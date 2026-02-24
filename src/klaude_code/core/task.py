@@ -7,7 +7,6 @@ from dataclasses import dataclass
 
 from klaude_code.const import (
     INITIAL_RETRY_DELAY_S,
-    LOW_CACHE_HIT_RATE_THRESHOLD,
     MAX_FAILED_TURN_RETRIES,
     MAX_RETRY_DELAY_S,
 )
@@ -391,17 +390,14 @@ class TaskExecutor:
                             case events.UsageEvent() as e:
                                 metadata_accumulator.add(e.usage)
                                 yield e
-                                if (
-                                    metadata_accumulator.last_turn_cache_hit_rate is not None
-                                    and metadata_accumulator.last_turn_cache_hit_rate < LOW_CACHE_HIT_RATE_THRESHOLD
-                                ):
-                                    warn_entry = message.CacheHitWarnEntry(
+                                if metadata_accumulator.last_turn_cache_hit_rate is not None:
+                                    cache_hit_entry = message.CacheHitRateEntry(
                                         cache_hit_rate=metadata_accumulator.last_turn_cache_hit_rate,
                                         cached_tokens=metadata_accumulator.last_turn_cached_tokens,
                                         prev_turn_input_tokens=metadata_accumulator.last_turn_prev_input_tokens,
                                     )
-                                    session_ctx.append_history([warn_entry])
-                                    yield events.CacheHitWarnEvent(
+                                    session_ctx.append_history([cache_hit_entry])
+                                    yield events.CacheHitRateEvent(
                                         session_id=session_ctx.session_id,
                                         cache_hit_rate=metadata_accumulator.last_turn_cache_hit_rate,
                                         cached_tokens=metadata_accumulator.last_turn_cached_tokens,

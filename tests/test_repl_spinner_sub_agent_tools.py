@@ -107,6 +107,23 @@ def test_right_text_shows_context_limit_format() -> None:
     assert right_text.plain.startswith("↑10k ◎20k ↓10k ∿2k ▣300 · 46k/200k (23.0%)")
 
 
+def test_right_text_shows_cache_hit_rate_next_to_cached_tokens() -> None:
+    state = SpinnerStatusState()
+    state.set_context_usage(
+        model.Usage(
+            input_tokens=30_000,
+            cached_tokens=20_000,
+            output_tokens=12_000,
+            reasoning_tokens=2_000,
+        )
+    )
+    state.set_cache_hit_rate(0.91)
+
+    right_text = state.get_right_text()
+    assert right_text is not None
+    assert right_text.plain.startswith("↑10k ◎20k·91% ↓10k ∿2k")
+
+
 def test_right_text_tokens_accumulate_across_usage_events() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(

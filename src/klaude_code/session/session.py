@@ -567,6 +567,13 @@ class Session(BaseModel):
                         cached_tokens=cw.cached_tokens,
                         prev_turn_input_tokens=cw.prev_turn_input_tokens,
                     )
+                case message.CacheHitRateEntry() as cr:
+                    yield events.CacheHitRateEvent(
+                        session_id=self.id,
+                        cache_hit_rate=cr.cache_hit_rate,
+                        cached_tokens=cr.cached_tokens,
+                        prev_turn_input_tokens=cr.prev_turn_input_tokens,
+                    )
                 case message.SystemMessage():
                     pass
             prev_item = it

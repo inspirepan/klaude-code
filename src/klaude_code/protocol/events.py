@@ -17,6 +17,7 @@ __all__ = [
     "BashCommandEndEvent",
     "BashCommandOutputDeltaEvent",
     "BashCommandStartEvent",
+    "CacheHitRateEvent",
     "CacheHitWarnEvent",
     "CommandOutputEvent",
     "CompactionEndEvent",
@@ -143,6 +144,12 @@ class UsageEvent(ResponseEvent):
     usage: model.Usage
 
 
+class CacheHitRateEvent(Event):
+    cache_hit_rate: float
+    cached_tokens: int
+    prev_turn_input_tokens: int
+
+
 class CacheHitWarnEvent(Event):
     """Warning emitted when a turn's cache hit rate drops below 90%."""
 
@@ -242,6 +249,7 @@ type ReplayEventUnion = (
     | CompactionStartEvent
     | CompactionEndEvent
     | RewindEvent
+    | CacheHitRateEvent
     | CacheHitWarnEvent
 )
 
