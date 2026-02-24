@@ -38,7 +38,6 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
     payload: ResponseCreateParamsBase = {
         "model": str(param.model_id),
         "store": False,
-        "stream": True,  # type: ignore[typeddict-item]
         "input": inputs,
         "tool_choice": "auto",
         "parallel_tool_calls": True,
@@ -160,6 +159,7 @@ class CodexClient(LLMClientABC):
         try:
             stream = await self.client.responses.create(
                 **payload,
+                stream=True,
                 extra_headers=extra_headers,
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:

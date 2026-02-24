@@ -6,6 +6,7 @@ from rich.cells import cell_len
 from rich.text import Text
 
 from klaude_code.const import (
+    DEFAULT_MAX_TOKENS,
     SIGINT_DOUBLE_PRESS_EXIT_TEXT,
     STATUS_COMPACTING_TEXT,
     STATUS_COMPOSING_TEXT,
@@ -56,6 +57,7 @@ from klaude_code.tui.commands import (
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import get_task_active_form, get_tool_active_form, is_sub_agent_tool
+from klaude_code.ui.common import format_number
 
 # Tools that complete quickly and don't benefit from streaming activity display.
 # For models without fine-grained tool JSON streaming (e.g., Gemini), showing these
@@ -73,6 +75,8 @@ FAST_TOOLS: frozenset[str] = frozenset(
         tools.REWIND,
     }
 )
+
+STATUS_LEFT_MIN_WIDTH_CELLS = 10
 
 
 class ActivityState:
@@ -174,6 +178,13 @@ class SpinnerStatusState:
         self._reasoning_status: str | None = None
         self._toast_status: str | None = None
         self._activity = ActivityState()
+        self._token_input: int | None = None
+        self._token_cached: int | None = None
+        self._token_output: int | None = None
+        self._token_thought: int | None = None
+        self._token_image: int | None = None
+        self._context_size: int | None = None
+        self._context_effective_limit: int | None = None
         self._context_percent: float | None = None
 
     def reset(self) -> None:
@@ -181,6 +192,13 @@ class SpinnerStatusState:
         self._reasoning_status = None
         self._toast_status = None
         self._activity.reset()
+        self._token_input = None
+        self._token_cached = None
+        self._token_output = None
+        self._token_thought = None
+        self._token_image = None
+        self._context_size = None
+        self._context_effective_limit = None
         self._context_percent = None
 
     def set_toast_status(self, status: str | None) -> None:
@@ -220,8 +238,29 @@ class SpinnerStatusState:
     def clear_for_new_turn(self) -> None:
         self._activity.clear_for_new_turn()
 
-    def set_context_percent(self, percent: float) -> None:
-        self._context_percent = percent
+    def set_context_usage(self, usage: model.Usage) -> None:
+        has_token_usage = any(
+            (
+                usage.input_tokens,
+                usage.cached_tokens,
+                usage.output_tokens,
+                usage.reasoning_tokens,
+                usage.image_tokens,
+            )
+        )
+        if has_token_usage:
+            self._token_input = (self._token_input or 0) + max(usage.input_tokens - usage.cached_tokens, 0)
+            self._token_cached = (self._token_cached or 0) + usage.cached_tokens
+            self._token_output = (self._token_output or 0) + max(usage.output_tokens - usage.reasoning_tokens, 0)
+            self._token_thought = (self._token_thought or 0) + usage.reasoning_tokens
+            self._token_image = (self._token_image or 0) + usage.image_tokens
+
+        context_percent = usage.context_usage_percent
+        if context_percent is not None:
+            effective_limit = (usage.context_limit or 0) - (usage.max_tokens or DEFAULT_MAX_TOKENS)
+            self._context_size = usage.context_size
+            self._context_effective_limit = effective_limit if effective_limit > 0 else None
+            self._context_percent = context_percent
 
     def get_activity_text(self) -> Text | None:
         """Expose current activity for tests and UI composition."""
@@ -253,7 +292,7 @@ class SpinnerStatusState:
 
         if base_status:
             base_status_cells = cell_len(base_status)
-            min_status_cells = cell_len(STATUS_DEFAULT_TEXT)
+            min_status_cells = STATUS_LEFT_MIN_WIDTH_CELLS
             if base_status_cells < min_status_cells:
                 base_status = base_status + " " * (min_status_cells - base_status_cells)
 
@@ -267,25 +306,54 @@ class SpinnerStatusState:
         elif activity_text:
             activity_text.append(" …")
             activity_cells = cell_len(activity_text.plain)
-            min_status_cells = cell_len(STATUS_DEFAULT_TEXT)
+            min_status_cells = STATUS_LEFT_MIN_WIDTH_CELLS
             if activity_cells < min_status_cells:
                 activity_text.append(" " * (min_status_cells - activity_cells), style=ThemeKey.STATUS_TEXT)
             result = activity_text
         else:
-            result = Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT)
+            default_status = STATUS_DEFAULT_TEXT
+            default_status_cells = cell_len(default_status)
+            min_status_cells = STATUS_LEFT_MIN_WIDTH_CELLS
+            if default_status_cells < min_status_cells:
+                default_status = default_status + " " * (min_status_cells - default_status_cells)
+            result = Text(default_status, style=ThemeKey.STATUS_TEXT)
 
         return result
 
     def get_right_text(self) -> r_status.DynamicText | None:
         elapsed_text = r_status.current_elapsed_text()
-        has_context = self._context_percent is not None
-        if elapsed_text is None and not has_context:
+        has_tokens = self._token_input is not None and self._token_output is not None
+        has_context = (
+            self._context_size is not None
+            and self._context_effective_limit is not None
+            and self._context_percent is not None
+        )
+        if elapsed_text is None and not has_tokens and not has_context:
             return None
 
         def _render() -> Text:
             parts: list[str] = []
-            if self._context_percent is not None:
-                parts.append(f"{self._context_percent:.1f}%")
+            if self._token_input is not None and self._token_output is not None:
+                token_parts: list[str] = [f"↑{format_number(self._token_input)}"]
+                if self._token_cached and self._token_cached > 0:
+                    token_parts.append(f"◎{format_number(self._token_cached)}")
+                token_parts.append(f"↓{format_number(self._token_output)}")
+                if self._token_thought and self._token_thought > 0:
+                    token_parts.append(f"∿{format_number(self._token_thought)}")
+                if self._token_image and self._token_image > 0:
+                    token_parts.append(f"▣{format_number(self._token_image)}")
+                parts.append(" ".join(token_parts))
+            if (
+                self._context_size is not None
+                and self._context_effective_limit is not None
+                and self._context_percent is not None
+            ):
+                if parts:
+                    parts.append(" · ")
+                parts.append(
+                    f"{format_number(self._context_size)}/{format_number(self._context_effective_limit)} "
+                    f"({self._context_percent:.1f}%)"
+                )
             current_elapsed = r_status.current_elapsed_text()
             if current_elapsed is not None:
                 if parts:
@@ -736,9 +804,8 @@ class DisplayStateMachine:
                     return []
                 if not self._is_primary(e.session_id):
                     return []
-                context_percent = e.usage.context_usage_percent
-                if not is_replay and context_percent is not None:
-                    self._spinner.set_context_percent(context_percent)
+                if not is_replay:
+                    self._spinner.set_context_usage(e.usage)
                     cmds.extend(self._spinner_update_commands())
                 return cmds
 

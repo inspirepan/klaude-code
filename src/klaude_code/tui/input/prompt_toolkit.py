@@ -293,6 +293,7 @@ class PromptToolkitInput(InputProviderABC):
             reserve_space_for_menu=0,
             erase_when_done=True,
             mouse_support=False,
+            prompt_continuation="  ",
             style=Style.from_dict(
                 {
                     "completion-menu": "bg:default",
