@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-02-24
+
+### Added
+
+- track and display token usage in sub-agent status lines (`667499dc`)
+- add SpinnerStatusLine with per-session color for sub-agent lines (`e6763348`)
+- add leading blank line and bottom height reset for sub-agent status (`8fb12561`)
+- show sub-agent description before token details in metadata (`4a313696`)
+- add per-session sub-agent status lines with tool activity tracking (`8fe85539`)
+- refactor status bar to three-line todo/status/metadata layout (`aa2d307a`)
+- display cache hit rate next to cached tokens in status bar (`d64a21e7`)
+- add detailed token and context usage display in status bar (`8d37ff06`)
+- add support for volces ark responses api (`445dc134`)
+- support web socket connection for openai responses protocok (`c133bd47`)
+- change activation syntax to /skill:name format (`8babaaa6`)
+- support google-vertex (`f10f7e5b`)
+- add haiku via copilot (`48c58202`)
+
+### Changed
+
+- format long lines and fix nullable description access (`8c79d6e7`)
+- update cost command style (`5a621122`)
+- improve status layout rendering and metadata formatting (`1e0378d0`)
+- highlight SKILL.md file reads with special theme styling (`f51b9891`)
+
+### Fixed
+
+- improve status line layout under tight width (`3c49420c`)
+- only enabled web socket for openai offical responses api (`08331e5d`)
+- persist replayable interrupt events (`967792f0`)
+
+### Other
+
+- fix lint (`df371812`)
+
 ## [2.18.0] - 2026-02-23
 
 ### Added
@@ -1851,7 +1886,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.18.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.19.0...HEAD
+[2.19.0]: https://github.com/inspirepan/klaude-code/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/inspirepan/klaude-code/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/inspirepan/klaude-code/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/inspirepan/klaude-code/compare/v2.15.0...v2.16.0
