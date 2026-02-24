@@ -19,6 +19,7 @@ dependencies = [
     "openai>=1.102.0",
     "prompt-toolkit>=3.0.52",
     "pydantic>=2.11.7",
+    "python-socks>=2.8.1",
     "pyyaml>=6.0.2",
     "rich>=14.1.0",
     "trafilatura>=2.0.0",

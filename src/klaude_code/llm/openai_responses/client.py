@@ -1,12 +1,15 @@
 import json
-from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, override
+from collections.abc import AsyncGenerator, AsyncIterable
+from typing import TYPE_CHECKING, Any, cast, override
 
 import httpx
 import openai
 from openai import AsyncAzureOpenAI, AsyncOpenAI
+from openai._models import construct_type_unchecked
 from openai.types import responses
-from openai.types.responses.response_create_params import ResponseCreateParamsStreaming
+from openai.types.responses.response_create_params import ResponseCreateParamsBase
+from websockets.asyncio.client import ClientConnection as AsyncWebsocketConnection
+from websockets.exceptions import ConnectionClosed, WebSocketException
 
 from klaude_code.const import LLM_HTTP_TIMEOUT_CONNECT, LLM_HTTP_TIMEOUT_READ, LLM_HTTP_TIMEOUT_TOTAL
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
@@ -24,16 +27,18 @@ from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message, model
 
 if TYPE_CHECKING:
-    from openai import AsyncStream
     from openai.types.responses import ResponseStreamEvent
 
 
-def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsStreaming:
+OPENAI_BETA_RESPONSES_WEBSOCKETS = "responses_websockets=2026-02-06"
+
+
+def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase:
     """Build OpenAI Responses API request parameters."""
     inputs = convert_history_to_input(param.input, param.model_id)
     tools = convert_tool_schema(param.tools)
 
-    payload: ResponseCreateParamsStreaming = {
+    payload: ResponseCreateParamsBase = {
         "model": str(param.model_id),
         "tool_choice": "auto",
         "parallel_tool_calls": True,
@@ -41,7 +46,6 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsStre
             "reasoning.encrypted_content",
         ],
         "store": False,
-        "stream": True,
         "temperature": param.temperature,
         "max_output_tokens": param.max_tokens,
         "input": inputs,
@@ -141,8 +145,89 @@ class ResponsesStreamStateManager:
         return build_partial_message(self.assistant_parts, response_id=self.response_id)
 
 
+class ResponsesWebSocketTransport:
+    def __init__(
+        self,
+        client: AsyncOpenAI,
+        connect_headers: dict[str, str] | None = None,
+        connect_kwargs: dict[str, Any] | None = None,
+    ) -> None:
+        self._client = client
+        self._connection: AsyncWebsocketConnection | None = None
+        self._connect_headers = connect_headers or {}
+        self._connect_kwargs = connect_kwargs or {}
+
+    def _prepare_url(self) -> httpx.URL:
+        if self._client.websocket_base_url is not None:
+            base_url = httpx.URL(self._client.websocket_base_url)
+        else:
+            base_url = self._client.base_url.copy_with(scheme="wss")
+        return base_url.copy_with(raw_path=base_url.raw_path.rstrip(b"/") + b"/responses")
+
+    async def _ensure_connection(self) -> AsyncWebsocketConnection:
+        connection = self._connection
+        if connection is not None:
+            return connection
+
+        from websockets.asyncio.client import connect
+
+        headers = dict(self._client.auth_headers)
+        if self._client.organization:
+            headers["OpenAI-Organization"] = self._client.organization
+        if self._client.project:
+            headers["OpenAI-Project"] = self._client.project
+        headers.update(self._connect_headers)
+        headers.setdefault("OpenAI-Beta", OPENAI_BETA_RESPONSES_WEBSOCKETS)
+
+        user_agent = headers.pop("User-Agent", self._client.user_agent)
+
+        log_debug(
+            "[responses websocket] connecting",
+            str(self._prepare_url()),
+            style="blue",
+            debug_type=DebugType.LLM_STREAM,
+        )
+        self._connection = await connect(
+            str(self._prepare_url()),
+            user_agent_header=user_agent,
+            additional_headers=headers,
+            **self._connect_kwargs,
+        )
+        log_debug(
+            "[responses websocket] connected",
+            style="blue",
+            debug_type=DebugType.LLM_STREAM,
+        )
+        return self._connection
+
+    async def stream(self, payload: ResponseCreateParamsBase) -> AsyncGenerator[responses.ResponseStreamEvent]:
+        connection = await self._ensure_connection()
+        request = json.dumps({"type": "response.create", **payload})
+        try:
+            await connection.send(request)
+        except ConnectionClosed:
+            self._connection = None
+            connection = await self._ensure_connection()
+            await connection.send(request)
+
+        try:
+            while True:
+                raw_message = await connection.recv(decode=False)
+                raw_event = json.loads(raw_message)
+                event = cast(
+                    responses.ResponseStreamEvent,
+                    construct_type_unchecked(value=raw_event, type_=cast(Any, responses.ResponseStreamEvent)),
+                )
+                yield event
+                if raw_event.get("type") in {"response.completed", "response.failed", "response.incomplete", "error"}:
+                    return
+        except ConnectionClosed:
+            self._connection = None
+            raise
+
+
 async def parse_responses_stream(
-    stream: "AsyncStream[ResponseStreamEvent]",
+    stream: AsyncIterable["ResponseStreamEvent"],
     *,
     state: ResponsesStreamStateManager,
     param: llm_param.LLMCallParameter,
@@ -165,6 +250,27 @@ async def parse_responses_stream(
             return "error"
         return None
 
+    def record_response_done(response: responses.Response) -> str | None:
+        error_reason: str | None = None
+        if response.incomplete_details is not None:
+            error_reason = response.incomplete_details.reason
+        if response.usage is not None:
+            metadata_tracker.set_usage(
+                model.Usage(
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
+                    cached_tokens=response.usage.input_tokens_details.cached_tokens,
+                    reasoning_tokens=response.usage.output_tokens_details.reasoning_tokens,
+                    context_size=response.usage.total_tokens,
+                    context_limit=param.context_limit,
+                    max_tokens=param.max_tokens,
+                )
+            )
+        metadata_tracker.set_model_name(str(param.model_id))
+        metadata_tracker.set_response_id(state.response_id)
+        state.stop_reason = map_stop_reason(response.status, error_reason)
+        return error_reason
+
     try:
         async for event in stream:
             log_debug(
@@ -176,6 +282,20 @@ async def parse_responses_stream(
             match event:
                 case responses.ResponseCreatedEvent() as event:
                     state.response_id = event.response.id
+                case responses.ResponseErrorEvent() as event:
+                    nested_raw = getattr(event, "error", None)
+                    nested: dict[str, object] | None = cast(dict[str, object], nested_raw) if isinstance(nested_raw, dict) else None
+                    nested_message = nested.get("message") if nested else None
+                    nested_code = nested.get("code") if nested else None
+                    if not isinstance(nested_message, str):
+                        nested_message = None
+                    if not isinstance(nested_code, str):
+                        nested_code = None
+                    error_message = event.message or nested_message or "LLM response failed"
+                    if event.code or nested_code:
+                        error_message = f"{error_message} ({event.code or nested_code})"
+                    yield message.StreamErrorItem(error=error_message)
+                    state.stop_reason = "error"
                 case responses.ResponseReasoningSummaryPartAddedEvent():
                     # New reasoning summary part started, ensure it becomes a new ThinkingTextPart
                     needs_separator = state.start_new_thinking_part()
@@ -232,24 +352,7 @@ async def parse_responses_stream(
                         case _:
                             pass
                 case responses.ResponseCompletedEvent() as event:
-                    error_reason: str | None = None
-                    if event.response.incomplete_details is not None:
-                        error_reason = event.response.incomplete_details.reason
-                    if event.response.usage is not None:
-                        metadata_tracker.set_usage(
-                            model.Usage(
-                                input_tokens=event.response.usage.input_tokens,
-                                output_tokens=event.response.usage.output_tokens,
-                                cached_tokens=event.response.usage.input_tokens_details.cached_tokens,
-                                reasoning_tokens=event.response.usage.output_tokens_details.reasoning_tokens,
-                                context_size=event.response.usage.total_tokens,
-                                context_limit=param.context_limit,
-                                max_tokens=param.max_tokens,
-                            )
-                        )
-                    metadata_tracker.set_model_name(str(param.model_id))
-                    metadata_tracker.set_response_id(state.response_id)
-                    state.stop_reason = map_stop_reason(event.response.status, error_reason)
+                    error_reason = record_response_done(event.response)
                     if event.response.status != "completed":
                         error_message = f"LLM response finished with status '{event.response.status}'"
                         if error_reason:
@@ -261,6 +364,16 @@ async def parse_responses_stream(
                             debug_type=DebugType.LLM_STREAM,
                         )
                         yield message.StreamErrorItem(error=error_message)
+                case responses.ResponseFailedEvent() as event:
+                    record_response_done(event.response)
+                    error_message = event.response.error.message if event.response.error else "LLM response failed"
+                    yield message.StreamErrorItem(error=error_message)
+                case responses.ResponseIncompleteEvent() as event:
+                    error_reason = record_response_done(event.response)
+                    error_message = "LLM response incomplete"
+                    if error_reason:
+                        error_message = f"{error_message}: {error_reason}"
+                    yield message.StreamErrorItem(error=error_message)
                 case _:
                     log_debug(
                         "[Unhandled stream event]",
@@ -268,7 +381,7 @@ async def parse_responses_stream(
                         style="red",
                         debug_type=DebugType.LLM_STREAM,
                     )
-    except (openai.OpenAIError, httpx.HTTPError) as e:
+    except (openai.OpenAIError, httpx.HTTPError, WebSocketException, json.JSONDecodeError, ImportError) as e:
         yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
         state.stop_reason = "error"
 
@@ -289,7 +402,7 @@ class ResponsesLLMStream(LLMStreamABC):
 
     def __init__(
         self,
-        stream: "AsyncStream[ResponseStreamEvent]",
+        stream: AsyncIterable["ResponseStreamEvent"],
         *,
         param: llm_param.LLMCallParameter,
         metadata_tracker: MetadataTracker,
@@ -335,6 +448,7 @@ class ResponsesClient(LLMClientABC):
                     LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
                 ),
             )
+            ws_transport: ResponsesWebSocketTransport | None = None
         else:
             client = AsyncOpenAI(
                 api_key=config.api_key,
@@ -343,7 +457,9 @@ class ResponsesClient(LLMClientABC):
                     LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
                 ),
             )
+            ws_transport = ResponsesWebSocketTransport(client)
         self.client: AsyncAzureOpenAI | AsyncOpenAI = client
+        self._ws_transport = ws_transport
 
     @classmethod
     @override
@@ -363,13 +479,24 @@ class ResponsesClient(LLMClientABC):
             style="yellow",
             debug_type=DebugType.LLM_PAYLOAD,
         )
-        try:
-            stream = await self.client.responses.create(
-                **payload,
-                extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
+        ws_transport = self._ws_transport
+        if ws_transport is not None:
+            log_debug(
+                "[responses websocket] enabled",
+                f"model={param.model_id}",
+                style="yellow",
+                debug_type=DebugType.LLM_CONFIG,
             )
-        except (openai.OpenAIError, httpx.HTTPError) as e:
-            error_message = f"{e.__class__.__name__} {e!s}"
-            return error_llm_stream(metadata_tracker, error=error_message)
+            stream = ws_transport.stream(payload)
+        else:
+            try:
+                stream = await self.client.responses.create(
+                    **payload,
+                    stream=True,
+                    extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
+                )
+            except (openai.OpenAIError, httpx.HTTPError) as e:
+                error_message = f"{e.__class__.__name__} {e!s}"
+                return error_llm_stream(metadata_tracker, error=error_message)
 
         return ResponsesLLMStream(stream, param=param, metadata_tracker=metadata_tracker)

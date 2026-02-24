@@ -5,6 +5,8 @@ from collections.abc import AsyncIterator
 from typing import Any, cast
 
 import httpx
+from openai._models import construct_type_unchecked
+from openai.types import responses
 
 from klaude_code.llm.anthropic.client import AnthropicLLMStream
 from klaude_code.llm.openai_compatible.stream import DefaultReasoningHandler, OpenAILLMStream
@@ -44,6 +46,30 @@ class _AwaitRaisesRemoteProtocolError:
             )
 
         return _coro().__await__()
+
+
+class _ImportErrorAsyncIterator:
+    def __aiter__(self) -> _ImportErrorAsyncIterator:
+        return self
+
+    async def __anext__(self) -> object:
+        raise ImportError("python-socks is required to use a SOCKS proxy")
+
+
+class _ListAsyncIterator:
+    def __init__(self, items: list[object]) -> None:
+        self._items = items
+        self._index = 0
+
+    def __aiter__(self) -> _ListAsyncIterator:
+        return self
+
+    async def __anext__(self) -> object:
+        if self._index >= len(self._items):
+            raise StopAsyncIteration
+        item = self._items[self._index]
+        self._index += 1
+        return item
 
 
 def _basic_call_param(*, model_id: str) -> llm_param.LLMCallParameter:
@@ -120,3 +146,46 @@ def test_responses_stream_remote_protocol_error_becomes_stream_error_item() -> N
     items = _collect_stream(stream)
     assert any(isinstance(item, message.StreamErrorItem) for item in items)
     assert any(isinstance(item, message.AssistantMessage) for item in items)
+
+
+def test_responses_stream_websocket_error_event_becomes_stream_error_item() -> None:
+    event = cast(
+        responses.ResponseStreamEvent,
+        construct_type_unchecked(
+            value={
+                "type": "error",
+                "status": 400,
+                "error": {
+                    "code": "previous_response_not_found",
+                    "message": "Previous response with id 'resp_abc' not found.",
+                    "param": "previous_response_id",
+                },
+            },
+            type_=cast(Any, responses.ResponseStreamEvent),
+        ),
+    )
+    param = _basic_call_param(model_id="gpt-4.1-mini")
+    stream = ResponsesLLMStream(
+        cast(Any, _ListAsyncIterator([event])),
+        param=param,
+        metadata_tracker=MetadataTracker(),
+    )
+
+    items = _collect_stream(stream)
+    error_items = [item for item in items if isinstance(item, message.StreamErrorItem)]
+    assert error_items
+    assert "previous_response_not_found" in error_items[0].error
+
+
+def test_responses_stream_import_error_becomes_stream_error_item() -> None:
+    param = _basic_call_param(model_id="gpt-4.1-mini")
+    stream = ResponsesLLMStream(
+        cast(Any, _ImportErrorAsyncIterator()),
+        param=param,
+        metadata_tracker=MetadataTracker(),
+    )
+
+    items = _collect_stream(stream)
+    error_items = [item for item in items if isinstance(item, message.StreamErrorItem)]
+    assert error_items
+    assert "python-socks is required" in error_items[0].error

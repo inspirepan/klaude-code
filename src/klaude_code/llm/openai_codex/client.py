@@ -6,7 +6,7 @@ from typing import override
 import httpx
 import openai
 from openai import AsyncOpenAI
-from openai.types.responses.response_create_params import ResponseCreateParamsStreaming
+from openai.types.responses.response_create_params import ResponseCreateParamsBase
 
 from klaude_code.auth.codex.exceptions import CodexNotLoggedInError
 from klaude_code.auth.codex.oauth import CodexOAuth
@@ -28,33 +28,52 @@ from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param
 
 
-def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsStreaming:
+def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase:
     """Build Codex API request parameters."""
     inputs = convert_history_to_input(param.input, param.model_id)
     tools = convert_tool_schema(param.tools)
 
-    session_id = param.session_id or ""
+    session_id = param.session_id
 
-    payload: ResponseCreateParamsStreaming = {
+    payload: ResponseCreateParamsBase = {
         "model": str(param.model_id),
+        "store": False,
+        "stream": True,  # type: ignore[typeddict-item]
+        "input": inputs,
         "tool_choice": "auto",
         "parallel_tool_calls": True,
         "include": [
             "reasoning.encrypted_content",
         ],
-        "store": False,
-        "stream": True,
-        "input": inputs,
-        "instructions": param.system,
-        "tools": tools,
-        "prompt_cache_key": session_id,
         # max_output_token and temperature is not supported in Codex API
     }
 
+    if param.system:
+        payload["instructions"] = param.system
+
+    if session_id:
+        payload["prompt_cache_key"] = session_id
+
+    verbosity = "high" if param.verbosity == "max" else (param.verbosity or "medium")
+    payload["text"] = {"verbosity": verbosity}  # type: ignore[typeddict-item]
+
+    if tools:
+        payload["tools"] = tools
+
     if param.thinking and param.thinking.reasoning_effort:
+        effort = param.thinking.reasoning_effort
+        model_id = str(param.model_id)
+        if (model_id.startswith("gpt-5.2") or model_id.startswith("gpt-5.3")) and effort == "minimal":
+            effort = "low"
+        if model_id == "gpt-5.1" and effort == "xhigh":
+            effort = "high"
+        if model_id == "gpt-5.1-codex-mini" and effort in {"high", "xhigh"}:
+            effort = "high"
+        if model_id == "gpt-5.1-codex-mini" and effort in {"none", "minimal", "low"}:
+            effort = "medium"
         payload["reasoning"] = {
-            "effort": param.thinking.reasoning_effort,
-            "summary": param.thinking.reasoning_summary,
+            "effort": effort,
+            "summary": param.thinking.reasoning_summary or "auto",
         }
 
     if param.verbosity:
@@ -126,7 +145,6 @@ class CodexClient(LLMClientABC):
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
         payload = build_payload(param)
-
         session_id = param.session_id or ""
         extra_headers: dict[str, str] = {}
         if session_id:
