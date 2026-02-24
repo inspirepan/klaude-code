@@ -448,7 +448,6 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
         box=ASCII_HORIZONAL,
     )
 
-    table.add_column("Date", style="cyan")
     table.add_column("Model", overflow="ellipsis")
     table.add_column("Input", justify="right")
     table.add_column("Cache", justify="right")
@@ -460,7 +459,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
     sorted_dates = sorted(daily_stats.keys())
     global_by_model: dict[ModelKey, ModelUsageStats] = {}
 
-    def add_stats_row(stats: ModelUsageStats, date_label: str = "", prefix: str = "", row_style: str = "") -> None:
+    def add_stats_row(stats: ModelUsageStats, prefix: str = "", row_style: str = "") -> None:
         """Add a single stats row to the table."""
         usd_str, cny_str = format_cost_dual(stats.cost_usd, stats.cost_cny)
         model_col = f"[bright_black dim]{prefix}[/bright_black dim]{stats.model_name}" if prefix else stats.model_name
@@ -469,7 +468,6 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
             return f"[{row_style}]{val}[/{row_style}]" if row_style else val
 
         table.add_row(
-            date_label,
             fmt(model_col),
             fmt(format_tokens(stats.non_cached_input_tokens)),
             fmt(format_tokens(stats.cached_tokens)),
@@ -481,17 +479,14 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
 
     def render_grouped(
         models: dict[ModelKey, ModelUsageStats],
-        date_label: str = "",
         show_subtotal: bool = True,
     ) -> None:
         """Render models grouped by provider with tree structure."""
         provider_groups = group_models_by_provider(models)
 
-        first_row = True
         for group in provider_groups.values():
             # Top-level provider
-            add_stats_row(group.total, date_label=date_label if first_row else "")
-            first_row = False
+            add_stats_row(group.total)
 
             if group.sub_providers:
                 # Has sub-providers: render three-level tree
@@ -541,7 +536,8 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
             global_by_model[model_key].cost_usd += stats.cost_usd
             global_by_model[model_key].cost_cny += stats.cost_cny
 
-        render_grouped(day.by_model, date_label=format_date_display(date_str))
+        table.add_row(f"[cyan]{format_date_display(date_str)}[/cyan]", "", "", "", "", "", "")
+        render_grouped(day.by_model)
 
         if date_str != sorted_dates[-1]:
             table.add_section()
@@ -559,7 +555,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
     else:
         total_label = "[bold]Total[/bold]"
 
-    table.add_row(total_label, "", "", "", "", "", "", "")
+    table.add_row(total_label, "", "", "", "", "", "")
     render_grouped(global_by_model, show_subtotal=False)
 
     # Grand total
