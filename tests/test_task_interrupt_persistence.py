@@ -24,8 +24,6 @@ def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:  # p
     monkeypatch.setattr(Path, "home", lambda: fake_home)
 
 
-
-
 def test_task_interrupt_persists_interrupt_entry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()

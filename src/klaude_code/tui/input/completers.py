@@ -234,6 +234,7 @@ class _SkillCompleter(Completer):
         text_before = document.current_line_before_cursor
         return bool(self._SKILL_TOKEN_RE.search(text_before))
 
+
 class _ComboCompleter(Completer):
     """Combined completer that handles @ file paths, slash commands, and skills."""
 

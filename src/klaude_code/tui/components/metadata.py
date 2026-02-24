@@ -46,7 +46,7 @@ def _build_metadata_content(
 
     parts: list[Text] = []
     if sub_agent_description_in_details:
-        parts.append(Text(metadata.description, style=ThemeKey.METADATA_ITALIC))
+        parts.append(Text(metadata.description or "", style=ThemeKey.METADATA_ITALIC))
 
     if metadata.provider:
         sub_provider = metadata.provider.rsplit("/", 1)[-1] if "/" in metadata.provider else metadata.provider

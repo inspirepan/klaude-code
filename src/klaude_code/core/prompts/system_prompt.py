@@ -10,7 +10,9 @@ PARALLEL_TOOL_CALLS_INST = """- Parallelize independent tool calls in a single m
 BASH_SPECIALIZED_TOOL_INST = """- Use specialized file tools for reads/edits instead of Bash fallbacks."""
 BASH_RG_SEARCH_INST = """- For file and text search in Bash, prefer `rg` and `rg --files`."""
 BASH_NO_PYTHON_IO_INST = """- Do not use Python for simple file read/write operations."""
-BASH_GIT_HISTORY_INST = """- Use `git log` and `git blame` to search codebase history when additional context is required."""
+BASH_GIT_HISTORY_INST = (
+    """- Use `git log` and `git blame` to search codebase history when additional context is required."""
+)
 
 READ_BEFORE_EDIT_INST = """- NEVER propose changes to code you haven't read. Read a file before editing it."""
 

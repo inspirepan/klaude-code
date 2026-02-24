@@ -131,7 +131,10 @@ def _get_claude_status_rows(*, usage_summary: str | None = None) -> list[tuple[T
                 _append_usage_suffix(
                     Text.assemble(
                         ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
-                        (" (will refresh automatically on use; run 'klaude auth login claude' if refresh fails)", "dim"),
+                        (
+                            " (will refresh automatically on use; run 'klaude auth login claude' if refresh fails)",
+                            "dim",
+                        ),
                     ),
                     usage_summary,
                 ),

@@ -26,6 +26,7 @@ AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P
 # /Users/root/code.
 SLASH_SKILL_PATTERN = re.compile(r"(?:^|\s)(?://|/)skill:(?P<skill>[^\s/]+)(?=\s|$)")
 
+
 @dataclass
 class AtPatternSource:
     """Represents an @ pattern with its source file (if from a memory file)."""

@@ -93,7 +93,9 @@ def test_shimmer_status_with_right_text_renders_three_lines() -> None:
 
 def test_shimmer_status_without_primary_line_renders_only_second_and_third() -> None:
     console = Console(file=io.StringIO(), force_terminal=True, width=120, theme=get_theme().app_theme)
-    status = StackedStatusText("", Text("95.1%", style=ThemeKey.METADATA_DIM), (Text("Typing …", style=ThemeKey.STATUS_TEXT),))
+    status = StackedStatusText(
+        "", Text("95.1%", style=ThemeKey.METADATA_DIM), (Text("Typing …", style=ThemeKey.STATUS_TEXT),)
+    )
     lines = console.render_lines(status, console.options.update(no_wrap=True, overflow="ellipsis"), pad=False)
 
     assert len(lines) == 2

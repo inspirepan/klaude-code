@@ -453,7 +453,9 @@ class _SessionState:
         if has_token_usage:
             self.status_token_input = (self.status_token_input or 0) + max(usage.input_tokens - usage.cached_tokens, 0)
             self.status_token_cached = (self.status_token_cached or 0) + usage.cached_tokens
-            self.status_token_output = (self.status_token_output or 0) + max(usage.output_tokens - usage.reasoning_tokens, 0)
+            self.status_token_output = (self.status_token_output or 0) + max(
+                usage.output_tokens - usage.reasoning_tokens, 0
+            )
             self.status_token_thought = (self.status_token_thought or 0) + usage.reasoning_tokens
             self.status_token_image = (self.status_token_image or 0) + usage.image_tokens
 
@@ -969,11 +971,21 @@ class DisplayStateMachine:
                         primary.thinking_stream_active = False
                         cmds.append(EndThinkingStream(session_id=primary.session_id))
 
-                if not is_replay and s.is_sub_agent and e.tool_name == tools.TASK and not s.should_skip_tool_activity(e.tool_name):
+                if (
+                    not is_replay
+                    and s.is_sub_agent
+                    and e.tool_name == tools.TASK
+                    and not s.should_skip_tool_activity(e.tool_name)
+                ):
                     tool_active_form = get_task_active_form(e.arguments)
                     s.add_status_tool_call(e.tool_call_id, tool_active_form)
                     cmds.extend(self._spinner_update_commands())
-                elif not is_replay and not s.is_sub_agent and e.tool_name == tools.TASK and not s.should_skip_tool_activity(e.tool_name):
+                elif (
+                    not is_replay
+                    and not s.is_sub_agent
+                    and e.tool_name == tools.TASK
+                    and not s.should_skip_tool_activity(e.tool_name)
+                ):
                     tool_active_form = get_task_active_form(e.arguments)
                     self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
                     cmds.extend(self._spinner_update_commands())

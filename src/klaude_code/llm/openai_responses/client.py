@@ -295,7 +295,9 @@ async def parse_responses_stream(
                     state.response_id = event.response.id
                 case responses.ResponseErrorEvent() as event:
                     nested_raw = getattr(event, "error", None)
-                    nested: dict[str, object] | None = cast(dict[str, object], nested_raw) if isinstance(nested_raw, dict) else None
+                    nested: dict[str, object] | None = (
+                        cast(dict[str, object], nested_raw) if isinstance(nested_raw, dict) else None
+                    )
                     nested_message = nested.get("message") if nested else None
                     nested_code = nested.get("code") if nested else None
                     if not isinstance(nested_message, str):
