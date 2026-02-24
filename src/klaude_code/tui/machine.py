@@ -270,61 +270,43 @@ class SpinnerStatusState:
         """Expose current activity for tests and UI composition."""
         return self._activity.get_activity_text()
 
+    def get_todo_status(self) -> Text:
+        todo_status = self._todo_status
+        if todo_status is None:
+            return Text("")
+
+        todo_status_cells = cell_len(todo_status)
+        min_status_cells = STATUS_LEFT_MIN_WIDTH_CELLS
+        if todo_status_cells < min_status_cells:
+            todo_status = todo_status + " " * (min_status_cells - todo_status_cells)
+        return Text(todo_status, style=ThemeKey.STATUS_TEXT)
+
     def get_status(self) -> Text:
         if self._toast_status:
             return Text(self._toast_status, style=ThemeKey.STATUS_TOAST)
 
-        activity_text = self._activity.get_activity_text()
-        todo_status = self._todo_status
         reasoning_status = self._reasoning_status
+        activity_text = self._activity.get_activity_text()
 
-        if todo_status is not None:
-            base_status = todo_status
-            extra_reasoning = None if reasoning_status in (None, STATUS_THINKING_TEXT) else reasoning_status
-        else:
-            base_status = reasoning_status
-            extra_reasoning = None
-
-        if extra_reasoning is not None:
-            if activity_text is None:
-                activity_text = Text(extra_reasoning, style=ThemeKey.STATUS_TEXT)
-            else:
-                prefixed = Text(extra_reasoning, style=ThemeKey.STATUS_TEXT)
-                prefixed.append(" , ")
-                prefixed.append_text(activity_text)
-                activity_text = prefixed
-
-        if base_status:
-            base_status_cells = cell_len(base_status)
-            min_status_cells = STATUS_LEFT_MIN_WIDTH_CELLS
-            if base_status_cells < min_status_cells:
-                base_status = base_status + " " * (min_status_cells - base_status_cells)
-
+        if reasoning_status is not None:
+            status_text = Text(reasoning_status, style=ThemeKey.STATUS_TEXT)
             if activity_text:
-                result = Text()
-                result.append(base_status, style=ThemeKey.STATUS_TEXT)
-                result.append(" | ")
-                result.append_text(activity_text)
-            else:
-                result = Text(base_status, style=ThemeKey.STATUS_TEXT)
+                status_text.append(" | ")
+                status_text.append_text(activity_text)
         elif activity_text:
-            activity_text.append(" …")
-            activity_cells = cell_len(activity_text.plain)
-            min_status_cells = STATUS_LEFT_MIN_WIDTH_CELLS
-            if activity_cells < min_status_cells:
-                activity_text.append(" " * (min_status_cells - activity_cells), style=ThemeKey.STATUS_TEXT)
-            result = activity_text
+            status_text = activity_text
+            if self._todo_status is None:
+                activity_text.append(" …")
         else:
-            default_status = STATUS_DEFAULT_TEXT
-            default_status_cells = cell_len(default_status)
-            min_status_cells = STATUS_LEFT_MIN_WIDTH_CELLS
-            if default_status_cells < min_status_cells:
-                default_status = default_status + " " * (min_status_cells - default_status_cells)
-            result = Text(default_status, style=ThemeKey.STATUS_TEXT)
+            status_text = Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT)
 
-        return result
+        status_cells = cell_len(status_text.plain)
+        min_status_cells = STATUS_LEFT_MIN_WIDTH_CELLS
+        if status_cells < min_status_cells:
+            status_text.append(" " * (min_status_cells - status_cells), style=ThemeKey.STATUS_TEXT)
+        return status_text
 
-    def get_right_text(self) -> r_status.DynamicText | None:
+    def get_right_text(self) -> r_status.ResponsiveDynamicText | None:
         elapsed_text = r_status.current_elapsed_text()
         has_tokens = self._token_input is not None and self._token_output is not None
         has_context = (
@@ -335,21 +317,36 @@ class SpinnerStatusState:
         if elapsed_text is None and not has_tokens and not has_context:
             return None
 
-        def _render() -> Text:
+        def _render(*, compact: bool) -> Text:
             parts: list[str] = []
             if self._token_input is not None and self._token_output is not None:
-                token_parts: list[str] = [f"↑{format_number(self._token_input)}"]
+                if compact:
+                    token_parts: list[str] = [f"↑{format_number(self._token_input)}"]
+                else:
+                    token_parts = [f"in {format_number(self._token_input)}"]
                 if self._token_cached and self._token_cached > 0:
-                    cache_text = f"◎{format_number(self._token_cached)}"
-                    if self._cache_hit_rate is not None:
-                        cache_text += f"·{self._cache_hit_rate:.0%}"
+                    if compact:
+                        cache_text = f"◎{format_number(self._token_cached)}"
+                    else:
+                        cache_text = f"cache {format_number(self._token_cached)}"
+                    if not compact and self._cache_hit_rate is not None:
+                        cache_text += f" ({self._cache_hit_rate:.0%})"
                     token_parts.append(cache_text)
-                token_parts.append(f"↓{format_number(self._token_output)}")
+                if compact:
+                    token_parts.append(f"↓{format_number(self._token_output)}")
+                else:
+                    token_parts.append(f"out {format_number(self._token_output)}")
                 if self._token_thought and self._token_thought > 0:
-                    token_parts.append(f"∿{format_number(self._token_thought)}")
+                    if compact:
+                        token_parts.append(f"∿{format_number(self._token_thought)}")
+                    else:
+                        token_parts.append(f"thought {format_number(self._token_thought)}")
                 if self._token_image and self._token_image > 0:
-                    token_parts.append(f"▣{format_number(self._token_image)}")
-                parts.append(" ".join(token_parts))
+                    if compact:
+                        token_parts.append(f"▣{format_number(self._token_image)}")
+                    else:
+                        token_parts.append(f"image {format_number(self._token_image)}")
+                parts.append(" ".join(token_parts) if compact else " · ".join(token_parts))
             if (
                 self._context_size is not None
                 and self._context_effective_limit is not None
@@ -368,7 +365,10 @@ class SpinnerStatusState:
                 parts.append(current_elapsed)
             return Text("".join(parts), style=ThemeKey.METADATA_DIM)
 
-        return r_status.DynamicText(_render)
+        return r_status.ResponsiveDynamicText(
+            lambda: _render(compact=False),
+            lambda: _render(compact=True),
+        )
 
 
 @dataclass
@@ -437,8 +437,9 @@ class DisplayStateMachine:
     def _spinner_update_commands(self) -> list[RenderCommand]:
         return [
             SpinnerUpdate(
-                status_text=self._spinner.get_status(),
+                status_text=self._spinner.get_todo_status(),
                 right_text=self._spinner.get_right_text(),
+                secondary_text=self._spinner.get_status(),
             )
         ]
 

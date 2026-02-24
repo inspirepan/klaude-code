@@ -75,10 +75,10 @@ from klaude_code.tui.components import user_input as c_user_input
 from klaude_code.tui.components import welcome as c_welcome
 from klaude_code.tui.components.common import create_grid, truncate_head
 from klaude_code.tui.components.rich import status as r_status
-from klaude_code.tui.components.rich.live import CropAboveLive, SingleLine
+from klaude_code.tui.components.rich.live import CropAboveLive
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
-from klaude_code.tui.components.rich.status import BreathingSpinner, ShimmerStatusText
+from klaude_code.tui.components.rich.status import BreathingSpinner, ThreeLineStatusText
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.terminal.image import print_kitty_image
 from klaude_code.tui.terminal.notifier import (
@@ -160,12 +160,16 @@ class TUICommandRenderer:
         self._stream_last_height: int = 0
         self._stream_last_width: int = 0
         self._spinner_visible: bool = False
-        self._spinner_last_update_key: tuple[object, object] | None = None
+        self._spinner_last_update_key: tuple[object, object, object] | None = None
 
-        self._status_text: ShimmerStatusText = ShimmerStatusText(STATUS_DEFAULT_TEXT)
+        self._status_text: ThreeLineStatusText = ThreeLineStatusText(
+            "",
+            None,
+            Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT),
+        )
         self._status_spinner: Spinner = BreathingSpinner(
             r_status.spinner_name(),
-            text=SingleLine(self._status_text),
+            text=self._status_text,
             style=ThemeKey.STATUS_SPINNER,
         )
 
@@ -264,14 +268,27 @@ class TUICommandRenderer:
         self._spinner_visible = False
         self._refresh_bottom_live()
 
-    def spinner_update(self, status_text: str | Text, right_text: RenderableType | None = None) -> None:
-        new_key = (self._spinner_text_key(status_text), self._spinner_right_text_key(right_text))
+    def spinner_update(
+        self,
+        todo_text: str | Text,
+        metadata_text: RenderableType | None = None,
+        status_text: RenderableType | None = None,
+    ) -> None:
+        new_key = (
+            self._spinner_text_key(todo_text),
+            self._spinner_right_text_key(metadata_text),
+            self._spinner_right_text_key(status_text),
+        )
         if self._spinner_last_update_key == new_key:
             return
         self._spinner_last_update_key = new_key
 
-        self._status_text = ShimmerStatusText(status_text, right_text)
-        self._status_spinner.update(text=SingleLine(self._status_text), style=ThemeKey.STATUS_SPINNER)
+        self._status_text = ThreeLineStatusText(
+            todo_text=todo_text,
+            metadata_text=metadata_text,
+            status_text=status_text,
+        )
+        self._status_spinner.update(text=self._status_text, style=ThemeKey.STATUS_SPINNER)
         self._refresh_bottom_live()
 
     @staticmethod
@@ -360,7 +377,7 @@ class TUICommandRenderer:
                     else Group()
                 )
 
-        status_part: RenderableType = SingleLine(self._status_spinner) if self._spinner_visible else Group()
+        status_part: RenderableType = self._status_spinner if self._spinner_visible else Group()
         return Group(stream_part, gap_part, status_part)
 
     def _refresh_bottom_live(self) -> None:
@@ -907,8 +924,8 @@ class TUICommandRenderer:
                     self.spinner_start()
                 case SpinnerStop():
                     self.spinner_stop()
-                case SpinnerUpdate(status_text=status_text, right_text=right_text):
-                    self.spinner_update(status_text, right_text)
+                case SpinnerUpdate(status_text=todo_text, right_text=metadata_text, secondary_text=status_text):
+                    self.spinner_update(todo_text, metadata_text, status_text)
                 case PrintBlankLine():
                     self.print()
                 case PrintRuleLine():

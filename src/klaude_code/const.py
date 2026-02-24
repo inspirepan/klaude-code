@@ -171,7 +171,7 @@ MARKDOWN_RIGHT_MARGIN = 0  # Right margin (columns) for markdown rendering
 # UI - Spinner / Status
 # =============================================================================
 
-STATUS_HINT_TEXT = " (esc to interrupt)"  # Status hint text shown after spinner
+STATUS_HINT_TEXT = "esc to interrupt"  # Status hint text shown after spinner
 
 # Spinner status texts
 STATUS_WAITING_TEXT = "Loading …"
