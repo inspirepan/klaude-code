@@ -743,6 +743,28 @@ class TestSessionPersistence:
 
         arun(_test())
 
+    def test_replay_interrupt_entry_emits_interrupt_event(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session.create(id="interrupt-session", work_dir=project_dir)
+            session.append_history(
+                [
+                    message.UserMessage(parts=message.text_parts_from_str("hello")),
+                    message.InterruptEntry(),
+                ]
+            )
+            await session.wait_for_flush()
+
+            reloaded = Session.load(session.id)
+            events_list = list(reloaded.get_history_item())
+            assert any(isinstance(e, events.InterruptEvent) for e in events_list)
+            await close_default_store()
+
+        arun(_test())
+
 
 class TestSessionListAndClean:
     """Tests for Session.list_sessions and clean methods."""

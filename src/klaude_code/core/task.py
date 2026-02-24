@@ -235,6 +235,8 @@ class TaskExecutor:
         task, but it does not cancel the outer asyncio task.
         """
         ui_events: list[events.Event] = []
+        had_aborted_assistant_message = False
+        history_len_before = len(self._context.session.conversation_history)
         if self._current_turn is not None:
             for evt in self._current_turn.on_interrupt():
                 # Collect sub-agent task metadata from cancelled tool results
@@ -246,6 +248,14 @@ class TaskExecutor:
                     self._metadata_accumulator.add_sub_agent_metadata(evt.task_metadata)
                 ui_events.append(evt)
             self._current_turn = None
+
+            new_items = self._context.session.conversation_history[history_len_before:]
+            had_aborted_assistant_message = any(
+                isinstance(item, message.AssistantMessage) and item.stop_reason == "aborted" for item in new_items
+            )
+
+        if not had_aborted_assistant_message:
+            self._context.session_ctx.append_history([message.InterruptEntry()])
 
         # Emit partial metadata on cancellation
         if self._metadata_accumulator is not None and self._started_at > 0:

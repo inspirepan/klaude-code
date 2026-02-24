@@ -785,7 +785,11 @@ class DisplayStateMachine:
                 cmds.append(EndAssistantStream(session_id=e.session_id))
                 if not is_replay:
                     cmds.append(TaskClockClear())
+                else:
+                    cmds.append(PrintBlankLine())
                 cmds.append(RenderInterrupt(session_id=e.session_id))
+                if is_replay:
+                    cmds.append(PrintBlankLine())
                 return cmds
 
             case events.ErrorEvent() as e:

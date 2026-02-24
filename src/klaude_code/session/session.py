@@ -537,6 +537,8 @@ class Session(BaseModel):
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm)
                 case message.StreamErrorItem() as se:
                     yield events.ErrorEvent(error_message=se.error, can_retry=False, session_id=self.id)
+                case message.InterruptEntry():
+                    yield events.InterruptEvent(session_id=self.id)
                 case message.RewindEntry() as be:
                     yield events.RewindEvent(
                         session_id=self.id,

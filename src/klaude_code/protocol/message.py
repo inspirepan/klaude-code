@@ -63,6 +63,10 @@ class StreamErrorItem(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class InterruptEntry(BaseModel):
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class CompactionDetails(BaseModel):
     read_files: list[str] = Field(default_factory=list)
     modified_files: list[str] = Field(default_factory=list)
@@ -215,7 +219,7 @@ class ToolResultMessage(MessageBase):
 
 Message = SystemMessage | DeveloperMessage | UserMessage | AssistantMessage | ToolResultMessage
 
-HistoryEvent = Message | StreamErrorItem | TaskMetadataItem | CompactionEntry | RewindEntry | CacheHitWarnEntry
+HistoryEvent = Message | StreamErrorItem | InterruptEntry | TaskMetadataItem | CompactionEntry | RewindEntry | CacheHitWarnEntry
 
 StreamItem = AssistantTextDelta | AssistantImageDelta | ThinkingTextDelta | ToolCallStartDelta
 

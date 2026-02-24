@@ -64,6 +64,13 @@ def stream_error_items() -> st.SearchStrategy["message.StreamErrorItem"]:
     return st.builds(StreamErrorItem, error=st.text(min_size=1, max_size=100), created_at=st.just(datetime.now()))
 
 
+def interrupt_entries() -> st.SearchStrategy["message.InterruptEntry"]:
+    """Generate InterruptEntry instances."""
+    from klaude_code.protocol.message import InterruptEntry
+
+    return st.builds(InterruptEntry, created_at=st.just(datetime.now()))
+
+
 def task_metadata_items() -> st.SearchStrategy["model.TaskMetadataItem"]:
     """Generate TaskMetadataItem instances."""
     from klaude_code.protocol.model import TaskMetadataItem
@@ -76,6 +83,7 @@ history_items = st.one_of(
     assistant_message_items(),
     tool_result_messages(),
     stream_error_items(),
+    interrupt_entries(),
     task_metadata_items(),
 )
 
