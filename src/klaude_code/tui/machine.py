@@ -588,10 +588,12 @@ class DisplayStateMachine:
                 continue
             title = session.status_title()
             description = session.status_description()
+            line = Text(title, style=ThemeKey.STATUS_TEXT)
             if description:
-                line = Text(f"{title}: {description}", style=ThemeKey.STATUS_TEXT)
-            else:
-                line = Text(title, style=ThemeKey.STATUS_TEXT)
+                line.append(" ", style=ThemeKey.STATUS_TEXT)
+                description_start = len(line)
+                line.append(description, style=ThemeKey.STATUS_TEXT)
+                line.stylize("italic", description_start, len(line))
 
             metadata = session.status_metadata_text()
             if metadata:

@@ -417,14 +417,23 @@ def _build_metadata_line(
     if cell_len(full_metadata_text.plain) == 0:
         return truncate_left(hint_text, max(1, max_width), console=console)
 
+    compact_trigger_width = max(1, max_width - 4)
+    compact_metadata_text: Text | None = None
+    metadata_line = full_metadata_text
+    if cell_len(full_metadata_text.plain) > compact_trigger_width:
+        compact_metadata_text = _render_right_text(metadata_text, console=console, options=line_options, compact=True)
+        if 0 < cell_len(compact_metadata_text.plain) < cell_len(full_metadata_text.plain):
+            metadata_line = compact_metadata_text
+
     separator = Text(" · ", style=ThemeKey.STATUS_HINT)
-    with_hint = Text.assemble(hint_text, separator, full_metadata_text)
+    with_hint = Text.assemble(metadata_line, separator, hint_text)
     if cell_len(with_hint.plain) <= max_width:
         return with_hint
-    if cell_len(full_metadata_text.plain) <= max_width:
-        return full_metadata_text
+    if cell_len(metadata_line.plain) <= max_width:
+        return metadata_line
 
-    compact_metadata_text = _render_right_text(metadata_text, console=console, options=line_options, compact=True)
+    if compact_metadata_text is None:
+        compact_metadata_text = _render_right_text(metadata_text, console=console, options=line_options, compact=True)
     if cell_len(compact_metadata_text.plain) <= max_width:
         return compact_metadata_text
     return truncate_left(compact_metadata_text, max(1, max_width), console=console)
