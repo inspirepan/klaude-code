@@ -506,7 +506,7 @@ class _SessionState:
 
     def status_activity_text(self) -> str | None:
         if self.status_tool_calls:
-            return ", ".join(f"{name}×{count}" for name, count in self.status_tool_calls.items())
+            return ", ".join(f"{name} × {count}" for name, count in self.status_tool_calls.items())
         if self.status_composing:
             return STATUS_COMPOSING_TEXT
         if self.thinking_stream_active:

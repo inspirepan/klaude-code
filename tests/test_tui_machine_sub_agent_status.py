@@ -85,7 +85,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     )
     update = _last_spinner_update(cmds)
     lines = [_line_plain(line) for line in update.status_lines]
-    assert lines == ["Exploring searching yyyyy | Bashing×1"]
+    assert lines == ["Exploring searching yyyyy | Bashing × 1"]
 
     cmds = machine.transition(
         events.ToolCallStartEvent(
@@ -96,7 +96,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     )
     update = _last_spinner_update(cmds)
     lines = [_line_plain(line) for line in update.status_lines]
-    assert lines == ["Exploring searching yyyyy | Bashing×2"]
+    assert lines == ["Exploring searching yyyyy | Bashing × 2"]
 
 
 def test_sub_agent_status_lines_cap_with_more_indicator() -> None:
@@ -207,7 +207,7 @@ def test_sub_agent_metadata_is_shown_before_tool_activity() -> None:
 
     update = _last_spinner_update(cmds)
     line = _line_plain(update.status_lines[0])
-    assert "46k/200k (23.0%) | Bashing×1" in line
+    assert "46k/200k (23.0%) | Bashing × 1" in line
 
 
 def test_sub_agent_finish_triggers_bottom_height_reset() -> None:

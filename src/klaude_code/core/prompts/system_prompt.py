@@ -29,12 +29,6 @@ UPDATE_PLAN_STATUS_INST = (
 
 WRITE_CREATE_WHEN_NEEDED_INST = """- NEVER create files unless necessary for the task. Prefer editing existing files."""
 
-WEB_QUERY_CONCISE_INST = """- Keep search queries concise (1-6 words). Start broad, then narrow if needed."""
-WEB_FETCH_FOR_FULL_CONTENT_INST = """- Search snippets are brief summaries. Always use `WebFetch` for full page content before drawing conclusions."""
-WEB_DATE_IN_QUERY_INST = """- Include year/date in search queries for time-sensitive topics to avoid outdated results."""
-WEB_NO_INVENT_FACTS_INST = """- Never invent facts from web research. If you cannot verify something, say so clearly."""
-WEB_CITE_SOURCES_INST = """- After using web search, always include a "Sources:" section listing relevant URLs as markdown links."""
-
 
 @cache
 def load_prompt_by_path(prompt_path: str) -> str:
@@ -82,15 +76,6 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
 
     if tools.WRITE in tool_name_set:
         strategy_lines.append(WRITE_CREATE_WHEN_NEEDED_INST)
-
-    if tools.WEB_SEARCH in tool_name_set or tools.WEB_FETCH in tool_name_set:
-        strategy_lines.extend([
-            WEB_QUERY_CONCISE_INST,
-            WEB_FETCH_FOR_FULL_CONTENT_INST,
-            WEB_DATE_IN_QUERY_INST,
-            WEB_NO_INVENT_FACTS_INST,
-            WEB_CITE_SOURCES_INST,
-        ])
 
     lines = ["", "", "## Tool Strategy"]
     lines.extend(strategy_lines)
