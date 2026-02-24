@@ -46,6 +46,7 @@ from klaude_code.tui.commands import (
     RenderUserMessage,
     RenderWelcome,
     SpinnerStart,
+    SpinnerStatusLine,
     SpinnerStop,
     SpinnerUpdate,
     StartAssistantStream,
@@ -507,8 +508,8 @@ class DisplayStateMachine:
         if self._primary_session_id is None:
             self._primary_session_id = session_id
 
-    def _sub_agent_status_lines(self) -> tuple[Text, ...]:
-        lines: list[Text] = []
+    def _sub_agent_status_lines(self) -> tuple[SpinnerStatusLine, ...]:
+        lines: list[SpinnerStatusLine] = []
         for session in self._sessions.values():
             if not session.is_sub_agent or not session.task_active:
                 continue
@@ -523,19 +524,19 @@ class DisplayStateMachine:
             if activity:
                 line.append(" | ")
                 line.append(activity, style=ThemeKey.STATUS_TEXT)
-            lines.append(line)
+            lines.append(SpinnerStatusLine(text=line, session_id=session.session_id))
 
         if len(lines) <= SUB_AGENT_STATUS_MAX_LINES:
             return tuple(lines)
 
         hidden = len(lines) - SUB_AGENT_STATUS_MAX_LINES
         visible = lines[:SUB_AGENT_STATUS_MAX_LINES]
-        visible.append(Text(f"+{hidden} more...", style=ThemeKey.STATUS_HINT))
+        visible.append(SpinnerStatusLine(text=Text(f"+{hidden} more...", style=ThemeKey.STATUS_HINT)))
         return tuple(visible)
 
     def _spinner_update_commands(self) -> list[RenderCommand]:
         sub_agent_lines = self._sub_agent_status_lines()
-        status_lines = sub_agent_lines if sub_agent_lines else (self._spinner.get_status(),)
+        status_lines = sub_agent_lines if sub_agent_lines else (SpinnerStatusLine(text=self._spinner.get_status()),)
         reset_bottom_height = self._had_sub_agent_status_lines and not sub_agent_lines
         self._had_sub_agent_status_lines = bool(sub_agent_lines)
         return [

@@ -55,6 +55,7 @@ from klaude_code.tui.commands import (
     RenderUserMessage,
     RenderWelcome,
     SpinnerStart,
+    SpinnerStatusLine,
     SpinnerStop,
     SpinnerUpdate,
     StartAssistantStream,
@@ -273,7 +274,7 @@ class TUICommandRenderer:
         self,
         todo_text: str | Text,
         metadata_text: RenderableType | None = None,
-        status_lines: tuple[RenderableType, ...] = (),
+        status_lines: tuple[SpinnerStatusLine, ...] = (),
         reset_bottom_height: bool = False,
         leading_blank_line: bool = False,
     ) -> None:
@@ -283,7 +284,7 @@ class TUICommandRenderer:
         new_key = (
             self._spinner_text_key(todo_text),
             self._spinner_right_text_key(metadata_text),
-            tuple(self._spinner_right_text_key(line) for line in status_lines),
+            tuple((line.session_id, self._spinner_text_key(line.text)) for line in status_lines),
             reset_bottom_height,
             leading_blank_line,
         )
@@ -291,14 +292,30 @@ class TUICommandRenderer:
             return
         self._spinner_last_update_key = new_key
 
+        rendered_status_lines = tuple(self._render_status_line(line) for line in status_lines)
+
         self._status_text = StackedStatusText(
             todo_text=todo_text,
             metadata_text=metadata_text,
-            status_lines=status_lines,
+            status_lines=rendered_status_lines,
             leading_blank_line=leading_blank_line,
         )
         self._status_spinner.update(text=self._status_text, style=ThemeKey.STATUS_SPINNER)
         self._refresh_bottom_live()
+
+    def _render_status_line(self, line: SpinnerStatusLine) -> RenderableType:
+        text = line.text
+        session_id = line.session_id
+        if session_id is None or not self.is_sub_agent_session(session_id):
+            return text
+
+        color = self._get_session_sub_agent_color(session_id)
+        if isinstance(text, Text):
+            colored = text.copy()
+            if colored.plain:
+                colored.stylize(color, 0, len(colored))
+            return colored
+        return Text(text, style=color)
 
     @staticmethod
     def _spinner_text_key(text: str | Text) -> object:

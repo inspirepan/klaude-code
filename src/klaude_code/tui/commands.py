@@ -149,10 +149,16 @@ class SpinnerStop(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class SpinnerStatusLine:
+    text: str | Text
+    session_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class SpinnerUpdate(RenderCommand):
     status_text: str | Text
     right_text: RenderableType | None
-    status_lines: tuple[RenderableType, ...] = ()
+    status_lines: tuple[SpinnerStatusLine, ...] = ()
     reset_bottom_height: bool = False
     leading_blank_line: bool = False
 

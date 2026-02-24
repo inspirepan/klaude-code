@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from rich.text import Text
 
 from klaude_code.protocol import events, model, tools
-from klaude_code.tui.commands import RenderCommand, SpinnerUpdate
+from klaude_code.tui.commands import RenderCommand, SpinnerStatusLine, SpinnerUpdate
 from klaude_code.tui.machine import DisplayStateMachine
 
 
@@ -17,6 +17,8 @@ def _last_spinner_update(cmds: Sequence[RenderCommand]) -> SpinnerUpdate:
 
 
 def _line_plain(line: object) -> str:
+    if isinstance(line, SpinnerStatusLine):
+        return _line_plain(line.text)
     if isinstance(line, Text):
         return line.plain
     return str(line)
@@ -45,6 +47,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
 
     assert _line_plain(update.status_text) == ""
     assert update.leading_blank_line is True
+    assert update.status_lines[0].session_id == sub_session
     lines = [_line_plain(line) for line in update.status_lines]
     assert lines == ["Exploring: searching xxxxx"]
 
