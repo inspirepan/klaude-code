@@ -24,26 +24,20 @@ def _run_and_collect_output(*, session: Session, session_id: str, command: str) 
 
     arun(run_bash_command(emit_event=_emit, session=session, session_id=session_id, command=command))
 
-    chunks = [
-        evt.content
-        for evt in emitted
-        if isinstance(evt, events.BashCommandOutputDeltaEvent)
-    ]
+    chunks = [evt.content for evt in emitted if isinstance(evt, events.BashCommandOutputDeltaEvent)]
     return "".join(chunks)
 
 
-def test_bash_mode_pwd_uses_session_work_dir_and_avoids_interactive_shell(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bash_mode_pwd_uses_session_work_dir_and_avoids_interactive_shell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     real_bash = shutil.which("bash")
     if real_bash is None:
         pytest.skip("bash is required")
 
     fake_shell = tmp_path / "bash"
     fake_shell.write_text(
-        "#!/bin/sh\n"
-        "case \"$1\" in\n"
-        "  *i*) cd / ;;\n"
-        "esac\n"
-        f"exec {real_bash} \"$@\"\n",
+        f'#!/bin/sh\ncase "$1" in\n  *i*) cd / ;;\nesac\nexec {real_bash} "$@"\n',
         encoding="utf-8",
     )
     fake_shell.chmod(0o755)
