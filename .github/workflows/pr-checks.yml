@@ -1,0 +1,35 @@
+name: PR Checks
+
+on:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync --frozen --dev
+
+      - name: Lint
+        run: make lint
+
+      - name: Format
+        run: make format
+
+      - name: Verify formatting changes committed
+        run: git diff --exit-code
+
+      - name: Test
+        run: make test
