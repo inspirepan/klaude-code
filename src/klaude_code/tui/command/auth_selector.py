@@ -88,7 +88,7 @@ def select_provider(*, include_api_keys: bool = True, prompt: str = "Select prov
     """Display provider selection menu and return selected provider."""
     items: list[SelectItem[str]] = [
         SelectItem(
-            title=_oauth_title("Claude Max/Pro Subscription", "claude"),
+            title=_oauth_title("Claude Max/Pro Subscription (not recommended, use at your own risk)", "claude"),
             value="claude",
             search_text="claude",
         ),
