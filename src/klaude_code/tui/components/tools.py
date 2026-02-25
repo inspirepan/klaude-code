@@ -231,35 +231,48 @@ def render_read_tool_call(arguments: str) -> RenderableType:
     limit_int = limit if isinstance(limit, int) and not isinstance(limit, bool) else None
 
     if isinstance(file_path, str) and file_path:
-        if Path(file_path).name == "SKILL.md":
+        path_obj = Path(file_path)
+        is_skill = path_obj.name == "SKILL.md"
+        if is_skill:
             tool_name = "Read Skill"
-        path_style = (
-            ThemeKey.TOOL_PARAM_FILE_PATH_SKILL if Path(file_path).name == "SKILL.md" else ThemeKey.TOOL_PARAM_FILE_PATH
-        )
-        details.append_text(render_path(file_path, path_style))
+            path_text = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
+            skill_suffix = "SKILL.md"
+            if path_obj.parent.name:
+                skill_suffix = f"{path_obj.parent.name}/SKILL.md"
+            style_start = path_text.plain.rfind(skill_suffix)
+            style_length = len(skill_suffix)
+            if style_start == -1:
+                skill_suffix = "SKILL.md"
+                style_start = path_text.plain.rfind(skill_suffix)
+                style_length = len(skill_suffix)
+            if style_start != -1:
+                path_text.stylize(ThemeKey.TOOL_PARAM_FILE_PATH_SKILL, style_start, style_start + style_length)
+            details.append_text(path_text)
+        else:
+            details.append_text(render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
     else:
         details.append("(no file_path)", style=ThemeKey.TOOL_PARAM)
 
     if limit_int is not None and offset_int is not None:
         details = (
             details.append_text(Text(" "))
-            .append_text(Text(str(offset_int), ThemeKey.TOOL_PARAM_BOLD))
+            .append_text(Text(str(offset_int), ThemeKey.TOOL_PARAM))
             .append_text(Text(":", ThemeKey.TOOL_PARAM))
-            .append_text(Text(str(offset_int + limit_int - 1), ThemeKey.TOOL_PARAM_BOLD))
+            .append_text(Text(str(offset_int + limit_int - 1), ThemeKey.TOOL_PARAM))
         )
     elif limit_int is not None and offset is None:
         details = (
             details.append_text(Text(" "))
-            .append_text(Text("1", ThemeKey.TOOL_PARAM_BOLD))
+            .append_text(Text("1", ThemeKey.TOOL_PARAM))
             .append_text(Text(":", ThemeKey.TOOL_PARAM))
-            .append_text(Text(str(limit_int), ThemeKey.TOOL_PARAM_BOLD))
+            .append_text(Text(str(limit_int), ThemeKey.TOOL_PARAM))
         )
     elif offset_int is not None and limit is None:
         details = (
             details.append_text(Text(" "))
-            .append_text(Text(str(offset_int), ThemeKey.TOOL_PARAM_BOLD))
+            .append_text(Text(str(offset_int), ThemeKey.TOOL_PARAM))
             .append_text(Text(":", ThemeKey.TOOL_PARAM))
-            .append_text(Text("-", ThemeKey.TOOL_PARAM_BOLD))
+            .append_text(Text("-", ThemeKey.TOOL_PARAM))
         )
     elif offset is not None or limit is not None:
         invalid_parts: list[str] = []
