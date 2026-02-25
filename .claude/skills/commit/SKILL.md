@@ -5,16 +5,28 @@ metadata:
   short-description: Commit current changes
 ---
 
-Please follow the steps below to commit your changes with `jj` (describe current changes).
+Use the workflow below to commit changes with either `jj` or `git`.
 
-Run `jj log -n 5` to see working copy changes and all current changes.
+## Workflow
 
-For each non-empty change without a description (shows as "(no description set)"):
-1. Run `jj diff -r <change_id> --git` to view the diff
-2. Read related files if needed to understand the context
-3. Use `jj describe -r <change_id>` to add a meaningful description
+1. Detect VCS mode:
+   - If `.jj/` exists and `jj` is available, use **jj mode**.
+   - Otherwise, use **git mode**.
 
-If changes were made during this conversation, use conversation context to write accurate descriptions.
+2. **jj mode**
+   - Run `jj log -n 5` to inspect working-copy and recent changes.
+   - For each non-empty change without a description (`(no description set)`):
+     1. Run `jj diff -r <change_id> --git`.
+     2. Read related files if needed.
+     3. Set description with `jj describe -r <change_id> -m "<message>"`.
+
+3. **git mode**
+   - Run `git status --short`.
+   - Review diff with `git diff` (and `git diff --staged` if needed).
+   - Stage changes (`git add -A` or targeted files).
+   - Commit with `git commit -m "<message>"`.
+
+If changes were made during this conversation, use conversation context to write accurate descriptions/messages.
 
 ## Commit Message Format
 
@@ -22,6 +34,11 @@ Pass the commit message directly with `-m` flag. For multi-line messages, use qu
 
 ```bash
 jj describe -m "feat(scope): short description
+
+- Detail line 1
+- Detail line 2"
+
+git commit -m "feat(scope): short description
 
 - Detail line 1
 - Detail line 2"

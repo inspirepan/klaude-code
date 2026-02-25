@@ -230,8 +230,20 @@ class TestConfig:
         with pytest.raises(ValueError, match=r"Provider 'p' is disabled"):
             _ = config.get_model_config(f"{sample_model_config.model_name}@p")
 
-    def test_get_model_config_codex_without_api_key(self) -> None:
+    def test_get_model_config_codex_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Codex protocol should not require api_key to resolve model config."""
+        from klaude_code.auth.codex.token_manager import CodexAuthState, CodexTokenManager
+
+        def _mock_get_state(_self: CodexTokenManager) -> CodexAuthState:
+            return CodexAuthState(
+                access_token="access",
+                refresh_token="refresh",
+                expires_at=4102444800,
+                account_id="test-account",
+            )
+
+        monkeypatch.setattr(CodexTokenManager, "get_state", _mock_get_state)
+
         provider = ProviderConfig(
             provider_name="codex",
             protocol=llm_param.LLMClientProtocol.CODEX_OAUTH,
@@ -249,8 +261,19 @@ class TestConfig:
         assert llm_config.protocol == llm_param.LLMClientProtocol.CODEX_OAUTH
         assert llm_config.api_key is None
 
-    def test_get_model_config_claude_without_api_key(self) -> None:
+    def test_get_model_config_claude_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """CLAUDE protocol should not require api_key to resolve model config."""
+        from klaude_code.auth.claude.token_manager import ClaudeAuthState, ClaudeTokenManager
+
+        def _mock_get_state(_self: ClaudeTokenManager) -> ClaudeAuthState:
+            return ClaudeAuthState(
+                access_token="access",
+                refresh_token="refresh",
+                expires_at=4102444800,
+            )
+
+        monkeypatch.setattr(ClaudeTokenManager, "get_state", _mock_get_state)
+
         provider = ProviderConfig(
             provider_name="claude",
             protocol=llm_param.LLMClientProtocol.CLAUDE_OAUTH,

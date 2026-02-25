@@ -4,6 +4,7 @@ import asyncio
 import json
 import socket
 import urllib.error
+from typing import cast
 from unittest.mock import patch
 
 from klaude_code.core.tool import WebFetchTool
@@ -295,13 +296,13 @@ class TestFetchUrlRedirectHandling:
             def open(self, req: object, timeout: int = 30) -> MockResponse:
                 del timeout
                 self.calls += 1
-                url = req.full_url  # type: ignore[attr-defined]
+                url = cast(str, req.full_url)  # type: ignore[attr-defined]
                 if self.calls == 1:
                     raise urllib.error.HTTPError(
                         url=url,
                         code=302,
                         msg="Found",
-                        hdrs={"Location": "https://accounts.feishu.cn/login"},
+                        hdrs={"Location": "https://accounts.feishu.cn/login"},  # pyright: ignore[reportArgumentType]
                         fp=None,
                     )
                 if self.calls == 2:
@@ -309,7 +310,7 @@ class TestFetchUrlRedirectHandling:
                         url=url,
                         code=302,
                         msg="Found",
-                        hdrs={"Location": "https://my.feishu.cn/wiki/doc?login_redirect_times=1"},
+                        hdrs={"Location": "https://my.feishu.cn/wiki/doc?login_redirect_times=1"},  # pyright: ignore[reportArgumentType]
                         fp=None,
                     )
                 return MockResponse(
@@ -321,7 +322,9 @@ class TestFetchUrlRedirectHandling:
         mock_opener = MockOpener()
 
         with (
-            patch("klaude_code.core.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=mock_opener) as patched_build,
+            patch(
+                "klaude_code.core.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=mock_opener
+            ) as patched_build,
             patch("klaude_code.core.tool.web.web_fetch_tool.check_ssrf", return_value=None),
         ):
             content_type, data, charset = _fetch_url("https://my.feishu.cn/wiki/doc")
@@ -336,12 +339,12 @@ class TestFetchUrlRedirectHandling:
         class LoopOpener:
             def open(self, req: object, timeout: int = 30) -> object:
                 del timeout
-                url = req.full_url  # type: ignore[attr-defined]
+                url = cast(str, req.full_url)  # type: ignore[attr-defined]
                 raise urllib.error.HTTPError(
                     url=url,
                     code=302,
                     msg="Found",
-                    hdrs={"Location": "https://my.feishu.cn/wiki/doc"},
+                    hdrs={"Location": "https://my.feishu.cn/wiki/doc"},  # pyright: ignore[reportArgumentType]
                     fp=None,
                 )
 
@@ -351,7 +354,7 @@ class TestFetchUrlRedirectHandling:
         ):
             try:
                 _fetch_url("https://my.feishu.cn/wiki/doc", max_redirects=2)
-                assert False, "Expected URLError"
+                raise AssertionError("Expected URLError")
             except urllib.error.URLError as e:
                 assert "Too many redirects" in str(e.reason)
 
@@ -388,7 +391,7 @@ class TestFetchUrlRedirectHandling:
             def open(self, req: object, timeout: int = 30) -> MockResponse:
                 del timeout
                 self.calls += 1
-                url = req.full_url  # type: ignore[attr-defined]
+                url = cast(str, req.full_url)  # type: ignore[attr-defined]
                 self.requested_urls.append(url)
 
                 if self.calls <= len(redirects):
@@ -396,7 +399,7 @@ class TestFetchUrlRedirectHandling:
                         url=url,
                         code=302,
                         msg="Found",
-                        hdrs={"Location": redirects[self.calls - 1]},
+                        hdrs={"Location": redirects[self.calls - 1]},  # pyright: ignore[reportArgumentType]
                         fp=None,
                     )
 

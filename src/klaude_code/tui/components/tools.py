@@ -208,48 +208,68 @@ def render_update_plan_tool_call(arguments: str) -> RenderableType:
 def render_read_tool_call(arguments: str) -> RenderableType:
     tool_name = "Read"
     details = Text("", ThemeKey.TOOL_PARAM)
+
     try:
-        json_dict = json.loads(arguments)
-        file_path = json_dict.get("file_path")
-        limit = json_dict.get("limit", None)
-        offset = json_dict.get("offset", None)
-        if isinstance(file_path, str) and file_path:
-            if Path(file_path).name == "SKILL.md":
-                tool_name = "Read Skill"
-            path_style = (
-                ThemeKey.TOOL_PARAM_FILE_PATH_SKILL
-                if Path(file_path).name == "SKILL.md"
-                else ThemeKey.TOOL_PARAM_FILE_PATH
-            )
-            details.append_text(render_path(file_path, path_style))
-        else:
-            details.append("(no file_path)", style=ThemeKey.TOOL_PARAM)
-        if limit is not None and offset is not None:
-            details = (
-                details.append_text(Text(" "))
-                .append_text(Text(str(offset), ThemeKey.TOOL_PARAM_BOLD))
-                .append_text(Text(":", ThemeKey.TOOL_PARAM))
-                .append_text(Text(str(offset + limit - 1), ThemeKey.TOOL_PARAM_BOLD))
-            )
-        elif limit is not None:
-            details = (
-                details.append_text(Text(" "))
-                .append_text(Text("1", ThemeKey.TOOL_PARAM_BOLD))
-                .append_text(Text(":", ThemeKey.TOOL_PARAM))
-                .append_text(Text(str(limit), ThemeKey.TOOL_PARAM_BOLD))
-            )
-        elif offset is not None:
-            details = (
-                details.append_text(Text(" "))
-                .append_text(Text(str(offset), ThemeKey.TOOL_PARAM_BOLD))
-                .append_text(Text(":", ThemeKey.TOOL_PARAM))
-                .append_text(Text("-", ThemeKey.TOOL_PARAM_BOLD))
-            )
+        payload_raw: Any = json.loads(arguments)
     except json.JSONDecodeError:
         details = Text(
             arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
+
+        return _render_tool_call_tree(mark=MARK_READ, tool_name=tool_name, details=details)
+
+    if not isinstance(payload_raw, dict):
+        details = Text(str(payload_raw)[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+        return _render_tool_call_tree(mark=MARK_READ, tool_name=tool_name, details=details)
+
+    payload = cast(dict[str, Any], payload_raw)
+    file_path = payload.get("file_path")
+    limit = payload.get("limit", None)
+    offset = payload.get("offset", None)
+    offset_int = offset if isinstance(offset, int) and not isinstance(offset, bool) else None
+    limit_int = limit if isinstance(limit, int) and not isinstance(limit, bool) else None
+
+    if isinstance(file_path, str) and file_path:
+        if Path(file_path).name == "SKILL.md":
+            tool_name = "Read Skill"
+        path_style = (
+            ThemeKey.TOOL_PARAM_FILE_PATH_SKILL if Path(file_path).name == "SKILL.md" else ThemeKey.TOOL_PARAM_FILE_PATH
+        )
+        details.append_text(render_path(file_path, path_style))
+    else:
+        details.append("(no file_path)", style=ThemeKey.TOOL_PARAM)
+
+    if limit_int is not None and offset_int is not None:
+        details = (
+            details.append_text(Text(" "))
+            .append_text(Text(str(offset_int), ThemeKey.TOOL_PARAM_BOLD))
+            .append_text(Text(":", ThemeKey.TOOL_PARAM))
+            .append_text(Text(str(offset_int + limit_int - 1), ThemeKey.TOOL_PARAM_BOLD))
+        )
+    elif limit_int is not None and offset is None:
+        details = (
+            details.append_text(Text(" "))
+            .append_text(Text("1", ThemeKey.TOOL_PARAM_BOLD))
+            .append_text(Text(":", ThemeKey.TOOL_PARAM))
+            .append_text(Text(str(limit_int), ThemeKey.TOOL_PARAM_BOLD))
+        )
+    elif offset_int is not None and limit is None:
+        details = (
+            details.append_text(Text(" "))
+            .append_text(Text(str(offset_int), ThemeKey.TOOL_PARAM_BOLD))
+            .append_text(Text(":", ThemeKey.TOOL_PARAM))
+            .append_text(Text("-", ThemeKey.TOOL_PARAM_BOLD))
+        )
+    elif offset is not None or limit is not None:
+        invalid_parts: list[str] = []
+        if offset is not None and (offset_int is None or limit is not None):
+            invalid_parts.append(f"offset={offset}")
+        if limit is not None and (limit_int is None or offset is not None):
+            invalid_parts.append(f"limit={limit}")
+        if invalid_parts:
+            details.append_text(Text(f" ({', '.join(invalid_parts)})", ThemeKey.INVALID_TOOL_CALL_ARGS))
+
     return _render_tool_call_tree(mark=MARK_READ, tool_name=tool_name, details=details)
 
 
