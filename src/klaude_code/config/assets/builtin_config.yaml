@@ -60,8 +60,8 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
-  - model_name: gpt-5.2-codex
-    model_id: gpt-5.2-codex
+  - model_name: gpt-5.3-codex
+    model_id: gpt-5.3-codex
     thinking:
       reasoning_effort: high
       reasoning_summary: auto
@@ -74,8 +74,8 @@ provider_list:
   api_key: ${OPENROUTER_API_KEY}
   model_list:
 
-  - model_name: gpt-5.2-codex
-    model_id: gpt-5.2-codex
+  - model_name: gpt-5.3-codex
+    model_id: gpt-5.3-codex
     thinking:
       reasoning_effort: high
       reasoning_summary: auto
