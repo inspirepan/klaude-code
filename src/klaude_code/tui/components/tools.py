@@ -233,7 +233,9 @@ def render_read_tool_call(arguments: str) -> RenderableType:
     if isinstance(file_path, str) and file_path:
         if Path(file_path).name == "SKILL.md":
             tool_name = "Read Skill"
-        path_style = ThemeKey.TOOL_PARAM_FILE_PATH_SKILL if Path(file_path).name == "SKILL.md" else ThemeKey.TOOL_PARAM_FILE_PATH
+        path_style = (
+            ThemeKey.TOOL_PARAM_FILE_PATH_SKILL if Path(file_path).name == "SKILL.md" else ThemeKey.TOOL_PARAM_FILE_PATH
+        )
         details.append_text(render_path(file_path, path_style))
     else:
         details.append("(no file_path)", style=ThemeKey.TOOL_PARAM)

@@ -599,7 +599,7 @@ class TestBashToolFileTracking(BaseTempDirTest):
             f.write("foo\n")
 
         # In-place edit via sed should update file_tracker so subsequent edits won't error.
-        res = arun(BashTool.call(json.dumps({"command": f"sed -i '' 's/foo/bar/' {p}"}), self.tool_context))
+        res = arun(BashTool.call(json.dumps({"command": f"sed -i.bak 's/foo/bar/' {p}"}), self.tool_context))
         self.assertEqual(res.status, "success")
 
         status = self.session.file_tracker.get(p)

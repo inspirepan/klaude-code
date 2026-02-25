@@ -474,7 +474,10 @@ class _AtFilesCompleter(Completer):
                 results = [p for p in all_files if kn in p.lower()]
                 # For rg fallback, we don't implement any priority sorting.
             else:
-                return []
+                results, truncated = self._python_paths_for_keyword(cwd, key_norm, max_results=max_scan_results)
+
+        if not results:
+            return []
 
         # Update caches
         self._last_cmd_time = now
@@ -654,6 +657,33 @@ class _AtFilesCompleter(Completer):
         r = self._run_cmd(cmd, cwd=cwd, timeout_sec=self._cmd_timeout_sec)
         lines = r.lines if r.ok else []
         return lines, (len(lines) >= max_results)
+
+    def _python_paths_for_keyword(self, cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
+        excluded = {".git", ".venv", "node_modules"}
+        paths: list[str] = []
+        try:
+            for root, dirs, files in os.walk(cwd):
+                dirs[:] = [d for d in dirs if d not in excluded]
+                root_path = Path(root)
+
+                for d in dirs:
+                    rel_dir = (root_path / d).relative_to(cwd).as_posix()
+                    rel = f"{rel_dir}/"
+                    if keyword_norm in rel.lower():
+                        paths.append(rel)
+                        if len(paths) >= max_results:
+                            return paths, True
+
+                for f in files:
+                    rel = (root_path / f).relative_to(cwd).as_posix()
+                    if keyword_norm in rel.lower():
+                        paths.append(rel)
+                        if len(paths) >= max_results:
+                            return paths, True
+        except OSError:
+            return [], False
+
+        return paths, False
 
     def _git_paths_for_keyword(self, cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
         """Get path suggestions from the git index (fast for large repos).
