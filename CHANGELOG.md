@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.20.0] - 2026-02-25
+
+### Added
+
+- upgrade openai and openrouter codex model to gpt-5.3 (`256a4034`)
+- add web search skill (`96b6d98a`)
+
+### Changed
+
+- update export style (`cd87f5cd`)
+
+### Other
+
+- Merge pull request #3 from inspirepan/claude/reorganize-agent-tools-d1Lsm (`71813911`)
+- Add web tool strategy instructions for WebSearch/WebFetch (`df786720`)
+- Remove Web sub-agent; add WebFetch/WebSearch to general-purpose Task agent (`66bc1ae4`)
+
 ## [2.19.0] - 2026-02-24
 
 ### Added
@@ -1886,7 +1903,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.19.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.20.0...HEAD
+[2.20.0]: https://github.com/inspirepan/klaude-code/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/inspirepan/klaude-code/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/inspirepan/klaude-code/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/inspirepan/klaude-code/compare/v2.16.0...v2.17.0
