@@ -73,9 +73,8 @@ def _resolve_shell_command(command_text: str) -> list[str]:
     shell_path = os.environ.get("SHELL")
     shell_name = Path(shell_path).name.lower() if shell_path else ""
     if shell_path and shell_name in {"bash", "zsh", "fish"}:
-        # Use -lic to load both login profile and interactive config (e.g. aliases from .zshrc)
-        return [shell_path, "-lic", command_text]
-    return ["bash", "-lic", command_text]
+        return [shell_path, "-lc", command_text]
+    return ["bash", "-lc", command_text]
 
 
 async def _terminate_process(proc: asyncio.subprocess.Process) -> None:
@@ -171,6 +170,7 @@ async def run_bash_command(
             "stdout": asyncio.subprocess.PIPE,
             "stderr": asyncio.subprocess.STDOUT,
             "env": env,
+            "cwd": str(session.work_dir),
         }
         if os.name == "posix":
             kwargs["start_new_session"] = True
