@@ -1,4 +1,5 @@
 import asyncio
+import http.cookiejar
 import json
 import re
 import urllib.error
@@ -47,14 +48,17 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
         return None
 
 
-_opener = urllib.request.build_opener(_NoRedirectHandler)
+def _build_opener() -> urllib.request.OpenerDirector:
+    """Build opener with manual redirect handling and per-request cookie jar."""
+    cookie_jar = http.cookiejar.CookieJar()
+    return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar), _NoRedirectHandler)
 
 
 def _encode_url(url: str) -> str:
     """Encode non-ASCII characters in URL to make it safe for HTTP requests."""
     parsed = urlparse(url)
-    encoded_path = quote(parsed.path, safe="/-_.~")
-    encoded_query = quote(parsed.query, safe="=&-_.~")
+    encoded_path = quote(parsed.path, safe="/%-_.~")
+    encoded_query = quote(parsed.query, safe="=&/%:+?-_.~")
     try:
         netloc = parsed.netloc.encode("idna").decode("ascii")
     except UnicodeError:
@@ -210,14 +214,11 @@ def _fetch_url(
 ) -> tuple[str, bytes, str | None]:
     """Fetch URL content with SSRF protection and redirect control."""
     current_url = url
-    seen_urls: set[str] = set()
+    opener = _build_opener()
+    redirect_status_codes = (301, 302, 303, 307, 308)
 
     for _ in range(max_redirects + 1):
         check_ssrf(current_url)
-
-        if current_url in seen_urls:
-            raise urllib.error.URLError(f"Redirect loop detected: {current_url}")
-        seen_urls.add(current_url)
 
         headers = {
             "Accept": "text/markdown, */*",
@@ -226,15 +227,25 @@ def _fetch_url(
         encoded_url = _encode_url(current_url)
         request = urllib.request.Request(encoded_url, headers=headers)
 
-        response = _opener.open(request, timeout=timeout)
+        try:
+            response = opener.open(request, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            if e.code in redirect_status_codes:
+                location = e.headers.get("Location")
+                if not location:
+                    raise urllib.error.URLError("Redirect without Location header") from e
+                # Resolve relative redirects
+                current_url = urljoin(current_url, location)
+                e.close()
+                continue
+            raise
 
-        if response.status in (301, 302, 303, 307, 308):
+        if response.status in redirect_status_codes:
             location = response.getheader("Location")
             if not location:
                 raise urllib.error.URLError("Redirect without Location header")
             # Resolve relative redirects
-            location = urljoin(current_url, location)
-            current_url = location
+            current_url = urljoin(current_url, location)
             response.close()
             continue
 

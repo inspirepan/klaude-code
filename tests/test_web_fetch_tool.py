@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import socket
+import urllib.error
 from unittest.mock import patch
 
 from klaude_code.core.tool import WebFetchTool
@@ -16,7 +17,9 @@ from klaude_code.core.tool.web.web_fetch_tool import (
     _READABILITY_MAX_HTML_CHARS,  # pyright: ignore[reportPrivateUsage]
     _convert_html_to_markdown,  # pyright: ignore[reportPrivateUsage]
     _decode_content,  # pyright: ignore[reportPrivateUsage]
+    _encode_url,  # pyright: ignore[reportPrivateUsage]
     _extract_content_type_and_charset,  # pyright: ignore[reportPrivateUsage]
+    _fetch_url,  # pyright: ignore[reportPrivateUsage]
     _format_json,  # pyright: ignore[reportPrivateUsage]
     _html_to_markdown_fallback,  # pyright: ignore[reportPrivateUsage]
     _is_pdf_url,  # pyright: ignore[reportPrivateUsage]
@@ -40,6 +43,12 @@ class TestHelperFunctions:
         content_type, charset = _extract_content_type_and_charset(MockResponse())  # type: ignore[arg-type]
         assert content_type == "text/html"
         assert charset is None
+
+    def test_encode_url_preserves_percent_encoded_query(self) -> None:
+        url = "https://accounts.feishu.cn/accounts/page/login?redirect_uri=https%3A%2F%2Fmy.feishu.cn%2Fwiki%2Fx"
+        encoded = _encode_url(url)
+        assert "%253A" not in encoded
+        assert "%252F" not in encoded
 
     def test_extract_content_type_with_charset(self) -> None:
         class MockResponse:
@@ -260,3 +269,164 @@ class TestWebFetchTool:
             assert result1.status == "success"
             assert result2.status == "success"
             assert call_count == 1  # Only fetched once
+
+
+class TestFetchUrlRedirectHandling:
+    def test_follow_redirect_http_errors_and_reuse_single_opener(self) -> None:
+        class MockResponse:
+            def __init__(self, status: int, headers: dict[str, str], data: bytes) -> None:
+                self.status = status
+                self._headers = headers
+                self._data = data
+
+            def getheader(self, name: str, default: str = "") -> str:
+                return self._headers.get(name, default)
+
+            def read(self, _size: int = -1) -> bytes:
+                return self._data
+
+            def close(self) -> None:
+                return None
+
+        class MockOpener:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def open(self, req: object, timeout: int = 30) -> MockResponse:
+                del timeout
+                self.calls += 1
+                url = req.full_url  # type: ignore[attr-defined]
+                if self.calls == 1:
+                    raise urllib.error.HTTPError(
+                        url=url,
+                        code=302,
+                        msg="Found",
+                        hdrs={"Location": "https://accounts.feishu.cn/login"},
+                        fp=None,
+                    )
+                if self.calls == 2:
+                    raise urllib.error.HTTPError(
+                        url=url,
+                        code=302,
+                        msg="Found",
+                        hdrs={"Location": "https://my.feishu.cn/wiki/doc?login_redirect_times=1"},
+                        fp=None,
+                    )
+                return MockResponse(
+                    status=200,
+                    headers={"Content-Type": "text/plain; charset=utf-8"},
+                    data=b"ok",
+                )
+
+        mock_opener = MockOpener()
+
+        with (
+            patch("klaude_code.core.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=mock_opener) as patched_build,
+            patch("klaude_code.core.tool.web.web_fetch_tool.check_ssrf", return_value=None),
+        ):
+            content_type, data, charset = _fetch_url("https://my.feishu.cn/wiki/doc")
+
+        assert content_type == "text/plain"
+        assert charset == "utf-8"
+        assert data == b"ok"
+        assert mock_opener.calls == 3
+        assert patched_build.call_count == 1
+
+    def test_too_many_redirects_returns_error(self) -> None:
+        class LoopOpener:
+            def open(self, req: object, timeout: int = 30) -> object:
+                del timeout
+                url = req.full_url  # type: ignore[attr-defined]
+                raise urllib.error.HTTPError(
+                    url=url,
+                    code=302,
+                    msg="Found",
+                    hdrs={"Location": "https://my.feishu.cn/wiki/doc"},
+                    fp=None,
+                )
+
+        with (
+            patch("klaude_code.core.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=LoopOpener()),
+            patch("klaude_code.core.tool.web.web_fetch_tool.check_ssrf", return_value=None),
+        ):
+            try:
+                _fetch_url("https://my.feishu.cn/wiki/doc", max_redirects=2)
+                assert False, "Expected URLError"
+            except urllib.error.URLError as e:
+                assert "Too many redirects" in str(e.reason)
+
+    def test_feishu_style_multi_hop_redirect_chain(self) -> None:
+        class MockResponse:
+            def __init__(self, status: int, headers: dict[str, str], data: bytes) -> None:
+                self.status = status
+                self._headers = headers
+                self._data = data
+
+            def getheader(self, name: str, default: str = "") -> str:
+                return self._headers.get(name, default)
+
+            def read(self, _size: int = -1) -> bytes:
+                return self._data
+
+            def close(self) -> None:
+                return None
+
+        start_url = "https://my.feishu.cn/wiki/Pi3ZwnUUziWu3NkDi0acXrnInRg"
+        redirects = [
+            "https://accounts.feishu.cn/accounts/page/login?app_id=2&query_scope=all&redirect_uri=https%3A%2F%2Fmy.feishu.cn%2Fwiki%2FPi3ZwnUUziWu3NkDi0acXrnInRg%3Flogin_redirect_times%3D1&with_guest=1",
+            "https://login.feishu.cn/accounts/trap?app_id=2&query_scope=all&redirect_uri=https%3A%2F%2Fmy.feishu.cn%2Fwiki%2FPi3ZwnUUziWu3NkDi0acXrnInRg%3Flogin_redirect_times%3D1&with_guest=1",
+            "https://accounts.feishu.cn/accounts/page/login?app_id=2&no_trap=1&query_scope=all&redirect_uri=https%3A%2F%2Fmy.feishu.cn%2Fwiki%2FPi3ZwnUUziWu3NkDi0acXrnInRg%3Flogin_redirect_times%3D1&with_guest=1",
+            "https://my.feishu.cn/wiki/Pi3ZwnUUziWu3NkDi0acXrnInRg?login_redirect_times=1",
+            start_url,
+        ]
+
+        class MockOpener:
+            def __init__(self) -> None:
+                self.calls = 0
+                self.requested_urls: list[str] = []
+
+            def open(self, req: object, timeout: int = 30) -> MockResponse:
+                del timeout
+                self.calls += 1
+                url = req.full_url  # type: ignore[attr-defined]
+                self.requested_urls.append(url)
+
+                if self.calls <= len(redirects):
+                    raise urllib.error.HTTPError(
+                        url=url,
+                        code=302,
+                        msg="Found",
+                        hdrs={"Location": redirects[self.calls - 1]},
+                        fp=None,
+                    )
+
+                return MockResponse(
+                    status=200,
+                    headers={"Content-Type": "text/html; charset=utf-8"},
+                    data=b"<html><body>ok</body></html>",
+                )
+
+        mock_opener = MockOpener()
+
+        with (
+            patch("klaude_code.core.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=mock_opener),
+            patch("klaude_code.core.tool.web.web_fetch_tool.check_ssrf", return_value=None),
+        ):
+            content_type, data, charset = _fetch_url(start_url)
+
+        assert content_type == "text/html"
+        assert charset == "utf-8"
+        assert data == b"<html><body>ok</body></html>"
+
+        assert mock_opener.requested_urls == [
+            start_url,
+            redirects[0],
+            redirects[1],
+            redirects[2],
+            redirects[3],
+            redirects[4],
+        ]
+
+        # Ensure redirect_uri query was not double-encoded while hopping across login endpoints.
+        assert "%253A" not in redirects[0]
+        assert "%253A" not in mock_opener.requested_urls[1]
