@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Iterable, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -53,7 +54,8 @@ class JsonlSessionWriter:
         if task is None:
             return
         await self._queue.put(None)
-        await task
+        with suppress(asyncio.CancelledError):
+            await task
         self._task = None
 
     async def _run(self) -> None:
