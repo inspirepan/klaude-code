@@ -11,6 +11,8 @@ import sys
 from datetime import date
 from pathlib import Path
 
+REPO_BASE_URL = "https://github.com/inspirepan/klaude-code"
+
 
 def get_last_tag() -> str | None:
     """Get the most recent git tag."""
@@ -24,31 +26,48 @@ def get_last_tag() -> str | None:
     return result.stdout.strip()
 
 
-def get_commits_since_tag(tag: str | None) -> list[tuple[str, str]]:
-    """Get commits since the given tag. Returns list of (hash, message) tuples."""
+def get_commits_since_tag(tag: str | None) -> list[tuple[str, str, str]]:
+    """Get commits since the given tag. Returns list of (hash, subject, body) tuples."""
     if tag:
-        cmd = ["git", "log", f"{tag}..HEAD", "--oneline", "--no-decorate"]
+        cmd = [
+            "git",
+            "log",
+            f"{tag}..HEAD",
+            "--first-parent",
+            "--no-decorate",
+            "--pretty=format:%h%x1f%s%x1f%b%x1e",
+        ]
     else:
-        cmd = ["git", "log", "--oneline", "--no-decorate"]
+        cmd = ["git", "log", "--first-parent", "--no-decorate", "--pretty=format:%h%x1f%s%x1f%b%x1e"]
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         return []
 
-    commits: list[tuple[str, str]] = []
-    for line in result.stdout.strip().split("\n"):
-        if line:
-            parts = line.split(" ", 1)
-            if len(parts) == 2:
-                commits.append((parts[0], parts[1]))
+    commits: list[tuple[str, str, str]] = []
+    for entry in result.stdout.strip("\x1e\n").split("\x1e"):
+        if not entry.strip():
+            continue
+        parts = entry.split("\x1f", 2)
+        if len(parts) == 3:
+            commit_hash, subject, body = parts
+            commits.append((commit_hash.strip(), subject.strip(), body.strip()))
     return commits
 
 
+def extract_pr_metadata(subject: str) -> tuple[str | None, str | None]:
+    """Extract PR number and user from a merge commit subject."""
+    match = re.match(r"^Merge pull request #(\d+) from ([^/\s]+)/", subject)
+    if not match:
+        return None, None
+    return match.group(1), match.group(2)
+
+
 def categorize_commits(
-    commits: list[tuple[str, str]],
-) -> dict[str, list[tuple[str, str]]]:
+    commits: list[tuple[str, str, str]],
+) -> dict[str, list[tuple[str, str, str | None, str | None]]]:
     """Categorize commits by conventional commit type."""
-    categories: dict[str, list[tuple[str, str]]] = {
+    categories: dict[str, list[tuple[str, str, str | None, str | None]]] = {
         "Added": [],
         "Changed": [],
         "Fixed": [],
@@ -69,7 +88,14 @@ def categorize_commits(
         "ci": "Other",
     }
 
-    for commit_hash, message in commits:
+    for commit_hash, subject, body in commits:
+        pr_number, pr_user = extract_pr_metadata(subject)
+        if pr_number:
+            body_lines = [line.strip() for line in body.splitlines() if line.strip()]
+            message = body_lines[0] if body_lines else subject
+        else:
+            message = subject
+
         match = re.match(r"^(\w+)(?:\([^)]+\))?:\s*(.+)$", message)
         if match:
             commit_type = match.group(1).lower()
@@ -79,12 +105,15 @@ def categorize_commits(
             description = message
             category = "Other"
 
-        categories[category].append((commit_hash, description))
+        categories[category].append((commit_hash, description, pr_number, pr_user))
 
     return {k: v for k, v in categories.items() if v}
 
 
-def format_changelog_section(version: str, categories: dict[str, list[tuple[str, str]]]) -> str:
+def format_changelog_section(
+    version: str,
+    categories: dict[str, list[tuple[str, str, str | None, str | None]]],
+) -> str:
     """Format a changelog section for the given version."""
     today = date.today().isoformat()
     lines = [f"## [{version}] - {today}", ""]
@@ -93,8 +122,13 @@ def format_changelog_section(version: str, categories: dict[str, list[tuple[str,
         if commits:
             lines.append(f"### {category}")
             lines.append("")
-            for commit_hash, description in commits:
-                lines.append(f"- {description} (`{commit_hash}`)")
+            for commit_hash, description, pr_number, pr_user in commits:
+                if pr_number and pr_user:
+                    pr_link = f"{REPO_BASE_URL}/pull/{pr_number}"
+                    user_link = f"https://github.com/{pr_user}"
+                    lines.append(f"- {description} ([#{pr_number}]({pr_link}) by [@{pr_user}]({user_link}))")
+                else:
+                    lines.append(f"- {description} (`{commit_hash}`)")
             lines.append("")
 
     return "\n".join(lines) + "\n"
@@ -142,20 +176,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     tag_name = f"v{version}"
     last_tag_name = last_tag if last_tag else f"v{version}"
 
-    link_section = f"\n[{version}]: https://github.com/inspirepan/klaude-code/compare/{last_tag_name}...{tag_name}"
+    link_section = f"\n[{version}]: {REPO_BASE_URL}/compare/{last_tag_name}...{tag_name}"
 
     if re.search(r"\[Unreleased\]:", content):
         content = re.sub(
             r"(\[Unreleased\]:.*?)$",
-            f"[Unreleased]: https://github.com/inspirepan/klaude-code/compare/{tag_name}...HEAD{link_section}",
+            f"[Unreleased]: {REPO_BASE_URL}/compare/{tag_name}...HEAD{link_section}",
             content,
             flags=re.MULTILINE,
         )
     else:
-        content = (
-            content.rstrip()
-            + f"\n\n[Unreleased]: https://github.com/inspirepan/klaude-code/compare/{tag_name}...HEAD{link_section}\n"
-        )
+        content = content.rstrip() + f"\n\n[Unreleased]: {REPO_BASE_URL}/compare/{tag_name}...HEAD{link_section}\n"
 
     changelog_path.write_text(content)
 

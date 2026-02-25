@@ -100,6 +100,7 @@ git push -u origin <branch-name>
 
 7. Create PR with `gh pr create`.
    - Prefer `--body-file` to avoid shell escaping and command substitution issues.
+   - Always add the `klaude` label when creating the PR.
    - Example:
 
 ```bash
@@ -116,6 +117,7 @@ gh pr create \
   --base main \
   --head <branch-name> \
   --title "<conventional-commit-style title>" \
+  --label "klaude" \
   --body-file .pr_body.md
 
 rm .pr_body.md
