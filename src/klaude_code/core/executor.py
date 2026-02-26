@@ -20,7 +20,10 @@ from klaude_code.core.agent import Agent
 from klaude_code.core.agent_profile import DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.bash_mode import run_bash_command
 from klaude_code.core.compaction import CompactionReason, run_compaction
-from klaude_code.core.loaded_skills import get_loaded_skill_names_by_location
+from klaude_code.core.loaded_skills import (
+    get_loaded_skill_names_by_location,
+    get_loaded_skill_warnings_by_location,
+)
 from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.core.memory import get_existing_memory_paths_by_location
 from klaude_code.llm.registry import create_llm_client
@@ -142,6 +145,7 @@ class AgentRuntime:
                 work_dir=str(session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
                 loaded_skills=get_loaded_skill_names_by_location(),
+                loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=session.work_dir),
             )
         )
@@ -250,6 +254,7 @@ class AgentRuntime:
                 work_dir=str(agent.session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
                 loaded_skills=get_loaded_skill_names_by_location(),
+                loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=agent.session.work_dir),
             )
         )
@@ -276,6 +281,7 @@ class AgentRuntime:
                 work_dir=str(target_session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
                 loaded_skills=get_loaded_skill_names_by_location(),
+                loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=target_session.work_dir),
             )
         )

@@ -54,6 +54,7 @@ class SkillLoader:
     def __init__(self) -> None:
         """Initialize the skill loader"""
         self.loaded_skills: dict[str, Skill] = {}
+        self.skill_warnings_by_location: dict[str, list[str]] = {"system": [], "user": [], "project": []}
 
     def load_skill(self, skill_path: Path, location: str) -> Skill | None:
         """Load single skill from SKILL.md file
@@ -82,11 +83,19 @@ class SkillLoader:
                         frontmatter = dict(loaded)  # type: ignore[arg-type]
 
             # Extract skill metadata
-            name = str(frontmatter.get("name", ""))
+            name_val = frontmatter.get("name")
             description = str(frontmatter.get("description", ""))
+            parent_dir_name = skill_path.parent.name
+            name = str(name_val).strip() if name_val is not None else ""
+            if not name:
+                name = parent_dir_name
 
-            if not name or not description:
+            if not description:
                 return None
+
+            if name != parent_dir_name:
+                warning = f'{skill_path}: name "{name}" does not match parent directory "{parent_dir_name}"'
+                self.skill_warnings_by_location.setdefault(location, []).append(warning)
 
             # Create Skill object
             license_val = frontmatter.get("license")
@@ -133,6 +142,7 @@ class SkillLoader:
         """
         skills: list[Skill] = []
         priority = {"system": 0, "user": 1, "project": 2}
+        self.skill_warnings_by_location = {"system": [], "user": [], "project": []}
 
         def register(skill: Skill) -> None:
             existing = self.loaded_skills.get(skill.name)

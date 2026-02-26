@@ -210,6 +210,7 @@ class WelcomeEvent(Event):
     llm_config: llm_param.LLMConfigParameter
     show_klaude_code_info: bool = True
     loaded_skills: dict[str, list[str]] = Field(default_factory=dict)
+    loaded_skill_warnings: dict[str, list[str]] = Field(default_factory=dict)
     loaded_memories: dict[str, list[str]] = Field(default_factory=dict)
 
 

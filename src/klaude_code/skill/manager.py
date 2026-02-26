@@ -61,6 +61,20 @@ def get_available_skills() -> list[tuple[str, str, str]]:
     return skills
 
 
+def get_skill_warnings_by_location() -> dict[str, list[str]]:
+    """Get skill discovery warnings grouped by location."""
+    loader = _ensure_initialized()
+    warnings = loader.skill_warnings_by_location
+    result = {
+        "user": sorted(warnings.get("user", [])),
+        "project": sorted(warnings.get("project", [])),
+        "system": sorted(warnings.get("system", [])),
+    }
+    if not result["user"] and not result["project"] and not result["system"]:
+        return {}
+    return result
+
+
 def list_skill_names() -> list[str]:
     """Get list of all loaded skill names.
 
