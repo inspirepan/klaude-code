@@ -28,3 +28,26 @@ def test_render_welcome_shows_skill_warnings_section() -> None:
 
     assert "skill warnings" in output
     assert "name mismatch" in output
+
+
+def test_render_welcome_shows_skills_as_tree_list() -> None:
+    llm_config = LLMConfigParameter(
+        protocol=LLMClientProtocol.OPENAI,
+        provider_name="demo",
+        model_id="gpt-demo",
+    )
+    event = events.WelcomeEvent(
+        session_id="s1",
+        work_dir="/tmp",
+        llm_config=llm_config,
+        loaded_skills={"system": ["deslop", "web-search"]},
+    )
+
+    out = io.StringIO()
+    console = Console(file=out, force_terminal=False, width=120, theme=get_theme().app_theme)
+    console.print(render_welcome(event))
+    output = out.getvalue()
+
+    assert "[system skills]" in output
+    assert "deslop" in output
+    assert "web-search" in output

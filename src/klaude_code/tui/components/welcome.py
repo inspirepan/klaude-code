@@ -50,6 +50,15 @@ def _build_grouped_tree(
     return tree
 
 
+def _build_skills_tree(grouped_skills: list[tuple[str, list[str]]]) -> Tree:
+    tree = _RoundedTree(Text("skills", style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
+    for scope, skills in grouped_skills:
+        scope_branch = tree.add(Text(f"[{scope} skills]", style=ThemeKey.WELCOME_INFO))
+        for skill in skills:
+            scope_branch.add(Text(skill, style=ThemeKey.WELCOME_INFO))
+    return tree
+
+
 def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     """Render the welcome panel with model info and settings."""
     debug_mode = is_debug_enabled()
@@ -90,14 +99,14 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
 
     # Skills tree
     loaded_skills = e.loaded_skills or {}
-    skill_items: list[tuple[str, str]] = []
+    grouped_skills: list[tuple[str, list[str]]] = []
     for scope in ("user", "project", "system"):
         skills = loaded_skills.get(scope) or []
         if skills:
-            skill_items.append((f"[{scope}]", ", ".join(skills)))
-    if skill_items:
+            grouped_skills.append((scope, skills))
+    if grouped_skills:
         renderables.append(Text())
-        renderables.append(_build_grouped_tree("skills", skill_items))
+        renderables.append(_build_skills_tree(grouped_skills))
 
     loaded_skill_warnings = e.loaded_skill_warnings or {}
     warning_items: list[tuple[str, str]] = []
