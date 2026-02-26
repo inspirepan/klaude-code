@@ -216,13 +216,7 @@ class ToolResultMessage(MessageBase):
 Message = SystemMessage | DeveloperMessage | UserMessage | AssistantMessage | ToolResultMessage
 
 HistoryEvent = (
-    Message
-    | StreamErrorItem
-    | InterruptEntry
-    | TaskMetadataItem
-    | CompactionEntry
-    | RewindEntry
-    | CacheHitRateEntry
+    Message | StreamErrorItem | InterruptEntry | TaskMetadataItem | CompactionEntry | RewindEntry | CacheHitRateEntry
 )
 
 StreamItem = AssistantTextDelta | ThinkingTextDelta | ToolCallStartDelta

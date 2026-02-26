@@ -5,7 +5,7 @@ import shutil
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from rich import box
 from rich.console import Console, Group, RenderableType
@@ -623,7 +623,7 @@ class TUICommandRenderer:
         if not self.is_sub_agent_session(event.session_id):
             self.print()
 
-    def display_image(self, file_path: str) -> None:
+    def display_image(self, file_path: str, caption: str | None = None) -> None:
         # Suspend the Live status bar while emitting raw terminal output.
         had_live = self._bottom_live is not None
         was_spinner_visible = self._spinner_visible
@@ -636,6 +636,13 @@ class TUICommandRenderer:
             self._bottom_live = None
 
         try:
+            if caption:
+                caption_style = self.console.get_style("markdown.image.placeholder", default="dim")
+                caption_text = caption_style.render(
+                    f"\n↓ {caption}",
+                    color_system=cast(Any, self.console.color_system),
+                )
+                print(caption_text, file=self.console.file, flush=True)
             print_kitty_image(file_path, file=self.console.file)
         finally:
             if resume_live:
@@ -864,8 +871,8 @@ class TUICommandRenderer:
                         self._sub_agent_thinking_buffers[session_id] = ""
                     elif not self._thinking_stream.is_active:
                         self._thinking_stream.start(self._new_thinking_mdstream())
+                        self._thinking_stream.append("Thinking…  \n")
                         if not self._replay_mode:
-                            self._thinking_stream.append("Thinking…  \n")
                             self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
                 case AppendThinking(session_id=session_id, content=content):
                     if self.is_sub_agent_session(session_id):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 from pathlib import Path
 
 from rich.console import Console
@@ -9,6 +10,8 @@ from rich.theme import Theme
 
 from klaude_code.tui.components.rich.live import SingleLine
 from klaude_code.tui.components.rich.markdown import MarkdownStream
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 def _make_stream(*, width: int = 80) -> MarkdownStream:
@@ -145,7 +148,13 @@ def test_update_invokes_image_callback_for_local_svg(tmp_path: Path) -> None:
     out = io.StringIO()
     console = Console(file=out, force_terminal=True, width=80, theme=theme)
     displayed: list[str] = []
-    stream = MarkdownStream(console=console, theme=theme, left_margin=0, image_callback=displayed.append)
+    captions: list[str | None] = []
+
+    def _on_image(path: str, caption: str | None) -> None:
+        displayed.append(path)
+        captions.append(caption)
+
+    stream = MarkdownStream(console=console, theme=theme, left_margin=0, image_callback=_on_image)
 
     svg_path = tmp_path / "render-mermaid-arch.svg"
     svg_path.write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
@@ -153,3 +162,105 @@ def test_update_invokes_image_callback_for_local_svg(tmp_path: Path) -> None:
     stream.update(f"![Mermaid 架构图]({svg_path})", final=True)
 
     assert displayed == [str(svg_path)]
+    assert captions == ["Mermaid 架构图"]
+
+
+def test_update_renders_local_image_markdown_placeholder_with_name(tmp_path: Path) -> None:
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+    out = io.StringIO()
+    console = Console(file=out, force_terminal=True, width=80, theme=theme)
+    displayed: list[str] = []
+    captions: list[str | None] = []
+
+    def _on_image(path: str, caption: str | None) -> None:
+        displayed.append(path)
+        captions.append(caption)
+
+    stream = MarkdownStream(console=console, theme=theme, left_margin=0, image_callback=_on_image)
+
+    svg_path = tmp_path / "render-mermaid-test-flow.png"
+    svg_path.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    alt = "FlowCaption"
+    stream.update(f"![{alt}]({svg_path})", final=True)
+
+    rendered_compact = "".join(out.getvalue().split())
+    expected_compact = "".join(f"![{alt}]({svg_path})".split())
+    assert expected_compact in rendered_compact
+    assert displayed == [str(svg_path)]
+    assert captions == [alt]
+
+
+def test_render_stable_ansi_preserves_ordered_item_before_local_image(tmp_path: Path) -> None:
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+    out = io.StringIO()
+    console = Console(file=out, force_terminal=True, width=120, theme=theme)
+    stream = MarkdownStream(console=console, theme=theme, left_margin=0)
+
+    flow = tmp_path / "flow.png"
+    seq = tmp_path / "seq.png"
+    flow.write_bytes(b"\x89PNG\r\n\x1a\n")
+    seq.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    source = f"1) Flowchart\n![Flow]({flow})\n2) Sequence Diagram\n![Sequence]({seq})\n"
+
+    ansi, _ = stream.render_stable_ansi(source, has_live_suffix=False, final=True)
+    compact = "".join(_ANSI_ESCAPE_RE.sub("", ansi).split())
+    flow_text_idx = compact.index("Flowchart")
+    flow_image_idx = compact.index("".join(f"![Flow]({flow})".split()))
+    seq_text_idx = compact.index("SequenceDiagram")
+    seq_image_idx = compact.index("".join(f"![Sequence]({seq})".split()))
+
+    assert flow_text_idx < flow_image_idx < seq_text_idx < seq_image_idx
+
+
+def test_update_does_not_invoke_image_callback_for_live_only_image_block(tmp_path: Path) -> None:
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+    out = io.StringIO()
+    console = Console(file=out, force_terminal=True, width=80, theme=theme)
+    live_calls: list[object] = []
+    displayed: list[str] = []
+    captions: list[str | None] = []
+
+    def _sink(renderable: object) -> None:
+        live_calls.append(renderable)
+
+    def _on_image(path: str, caption: str | None) -> None:
+        displayed.append(path)
+        captions.append(caption)
+
+    stream = MarkdownStream(console=console, theme=theme, live_sink=_sink, left_margin=0, image_callback=_on_image)
+    stream.min_delay = 0
+
+    svg_path = tmp_path / "live-image.svg"
+    svg_path.write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+
+    stream.update(f"![Live 图]({svg_path})", final=False)
+
+    assert displayed == []
+    assert captions == []
+    assert live_calls == []

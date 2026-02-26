@@ -65,7 +65,11 @@ def test_skill_reminder_tracks_skill_file(tmp_path: Path, monkeypatch: pytest.Mo
         skill_path=skill_path,
         base_dir=skill_dir,
     )
-    monkeypatch.setattr(reminders, "get_skill", lambda _: skill)
+
+    def _mock_get_skill(_: str) -> Skill | None:
+        return skill
+
+    monkeypatch.setattr(reminders, "get_skill", _mock_get_skill)
 
     session = _build_session_with_user_text("/skill:demo")
     reminder = _arun(reminders.skill_reminder(session))

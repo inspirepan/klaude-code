@@ -36,6 +36,8 @@ _HTML_COMMENT_BLOCK_RE = re.compile(r"\A\s*<!--.*?-->\s*\Z", flags=re.DOTALL)
 
 _CHECKBOX_UNCHECKED_RE = re.compile(r"^\[ \]\s*")
 _CHECKBOX_CHECKED_RE = re.compile(r"^\[x\]\s*", re.IGNORECASE)
+_ORDERED_LIST_LINE_RE = re.compile(r"^\s{0,3}\d+[.)]\s+.+")
+_LOCAL_IMAGE_MARKDOWN_LINE_RE = re.compile(r"^\s*!\[[^\]]*\]\((?P<path>/[^)]+)\)\s*$")
 
 
 class ThinkingHTMLBlock(MarkdownElement):
@@ -220,18 +222,24 @@ class CheckboxListItem(ListItem):
 class LocalImageItem(ImageItem):
     """Image element that collects local file paths for external rendering."""
 
+    def __init__(self, destination: str, hyperlinks: bool, alt_text: str = "") -> None:
+        super().__init__(destination, hyperlinks)
+        self._alt_text = alt_text
+
     @classmethod
     def create(cls, markdown: Markdown, token: Token) -> MarkdownElement:
         src = str(token.attrs.get("src", ""))
-        instance = cls(src, markdown.hyperlinks)
+        alt_text = token.content or ""
+        instance = cls(src, markdown.hyperlinks, alt_text)
         if src.startswith("/") and Path(src).exists():
             collected = getattr(markdown, "collected_images", None)
             if collected is not None:
-                collected.append(src)
+                collected.append((src, alt_text))
         return instance
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         if self.destination.startswith("/") and Path(self.destination).exists():
+            yield Text(f"![{self._alt_text}]({self.destination})", style="markdown.image.placeholder")
             return
         yield from super().__rich_console__(console, options)
 
@@ -253,7 +261,7 @@ class NoInsetMarkdown(Markdown):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.collected_images: list[str] = []
+        self.collected_images: list[tuple[str, str]] = []
 
 
 class ThinkingMarkdown(Markdown):
@@ -273,7 +281,7 @@ class ThinkingMarkdown(Markdown):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.collected_images: list[str] = []
+        self.collected_images: list[tuple[str, str]] = []
 
 
 class MarkdownStream:
@@ -299,7 +307,7 @@ class MarkdownStream:
         left_margin: int = 0,
         right_margin: int = 0,
         markdown_class: Callable[..., Markdown] | None = None,
-        image_callback: Callable[[str], None] | None = None,
+        image_callback: Callable[[str, str | None], None] | None = None,
     ) -> None:
         """Initialize the markdown stream.
 
@@ -312,7 +320,7 @@ class MarkdownStream:
             left_margin (int, optional): Number of columns to reserve on the left side
             right_margin (int, optional): Number of columns to reserve on the right side
             markdown_class: Markdown class to use for rendering (defaults to NoInsetMarkdown)
-            image_callback: Callback to display local images (called with file path)
+            image_callback: Callback to display local images (called with file path and optional caption)
         """
         self._stable_rendered_lines: list[str] = []
         self._stable_source_line_count: int = 0
@@ -454,7 +462,9 @@ class MarkdownStream:
             return "", text, 0
         return stable_source, live_source, stable_line
 
-    def render_stable_ansi(self, stable_source: str, *, has_live_suffix: bool, final: bool) -> tuple[str, list[str]]:
+    def render_stable_ansi(
+        self, stable_source: str, *, has_live_suffix: bool, final: bool
+    ) -> tuple[str, list[tuple[str, str]]]:
         """Render stable prefix to ANSI, preserving inter-block spacing.
 
         Returns:
@@ -490,7 +500,7 @@ class MarkdownStream:
             return stable_source + "\n<!-- -->"
         return stable_source + "\n\n<!-- -->"
 
-    def _render_markdown_to_lines(self, text: str, *, apply_mark: bool) -> tuple[list[str], list[str]]:
+    def _render_markdown_to_lines(self, text: str, *, apply_mark: bool) -> tuple[list[str], list[tuple[str, str]]]:
         """Render markdown text to a list of lines.
 
         Args:
@@ -515,7 +525,7 @@ class MarkdownStream:
             width=effective_width,
         )
 
-        markdown = self.markdown_class(text, **self.mdargs)
+        markdown = self.markdown_class(self._normalize_ordered_list_local_image_spacing(text), **self.mdargs)
         temp_console.print(markdown)
         output = string_io.getvalue()
 
@@ -561,6 +571,49 @@ class MarkdownStream:
 
         return processed_lines, list(collected_images)
 
+    def _normalize_ordered_list_local_image_spacing(self, text: str) -> str:
+        if "![" not in text:
+            return text
+
+        lines = text.splitlines()
+        if not lines:
+            return text
+
+        had_trailing_newline = text.endswith("\n")
+        normalized: list[str] = []
+
+        for index, line in enumerate(lines):
+            stripped = line.strip()
+            image_match = _LOCAL_IMAGE_MARKDOWN_LINE_RE.match(stripped)
+            if image_match is None:
+                normalized.append(line)
+                continue
+
+            path = image_match.group("path")
+            if not Path(path).exists():
+                normalized.append(line)
+                continue
+
+            prev_nonempty = next((candidate for candidate in reversed(normalized) if candidate.strip()), "")
+            next_nonempty = next((candidate for candidate in lines[index + 1 :] if candidate.strip()), "")
+            adjacent_ordered = _ORDERED_LIST_LINE_RE.match(prev_nonempty) or _ORDERED_LIST_LINE_RE.match(next_nonempty)
+            if not adjacent_ordered:
+                normalized.append(line)
+                continue
+
+            if normalized and normalized[-1].strip():
+                normalized.append("")
+            normalized.append(line)
+
+            has_next_content = index + 1 < len(lines) and bool(lines[index + 1].strip())
+            if has_next_content:
+                normalized.append("")
+
+        result = "\n".join(normalized)
+        if had_trailing_newline:
+            result += "\n"
+        return result
+
     def __del__(self) -> None:
         """Destructor to ensure Live display is properly cleaned up."""
         if self._live_sink is None:
@@ -587,7 +640,7 @@ class MarkdownStream:
         start = time.time()
 
         stable_chunk_to_print: str | None = None
-        new_images: list[str] = []
+        new_images: list[tuple[str, str]] = []
         stable_changed = final or stable_line > self._stable_source_line_count
         if stable_changed and stable_source:
             stable_ansi, collected_images = self.render_stable_ansi(
@@ -599,10 +652,10 @@ class MarkdownStream:
                 stable_chunk_to_print = "".join(new_lines)
             self._stable_rendered_lines = stable_lines
             self._stable_source_line_count = stable_line
-            for img in collected_images:
-                if img not in self._displayed_images:
-                    new_images.append(img)
-                    self._displayed_images.add(img)
+            for img_path, img_alt in collected_images:
+                if img_path not in self._displayed_images:
+                    new_images.append((img_path, img_alt))
+                    self._displayed_images.add(img_path)
         elif final and not stable_source:
             self._stable_rendered_lines = []
             self._stable_source_line_count = stable_line
@@ -654,8 +707,9 @@ class MarkdownStream:
                 self.console.print(Text.from_ansi(stable_chunk_to_print), end="\n")
 
             if new_images and self._image_callback:
-                for img_path in new_images:
-                    self._image_callback(img_path)
+                for img_path, img_alt in new_images:
+                    caption = img_alt.strip() or None
+                    self._image_callback(img_path, caption)
 
         elapsed = time.time() - start
         self.min_delay = min(max(elapsed * 6, 1.0 / 30), 0.5)
