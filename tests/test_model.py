@@ -278,6 +278,66 @@ def test_developer_message_images_propagate_to_user_group():
     assert _ensure_dict(user_parts[2])["type"] == "input_image"
 
 
+def test_developer_message_with_prepend_marker_prepends_user_content_across_providers():
+    history: list[message.Message] = [
+        message.UserMessage(parts=_parts(message.TextPart(text="USER"))),
+        message.DeveloperMessage(
+            parts=_parts(message.TextPart(text="MEMORY")),
+            attachment_position="prepend",
+        ),
+    ]
+
+    anthropic_messages = anthropic_history(history, model_name=None)
+    anth_user_content = _ensure_list(_ensure_dict(anthropic_messages[0])["content"])
+    assert _ensure_dict(anth_user_content[0])["text"] == "MEMORY\n"
+    assert _ensure_dict(anth_user_content[1])["text"] == "USER"
+
+    openai_messages = openai_history(history, system=None, model_name=None)
+    openai_user_content = _ensure_list(_ensure_dict(openai_messages[0])["content"])
+    assert _ensure_dict(openai_user_content[0])["text"] == "MEMORY\n"
+    assert _ensure_dict(openai_user_content[1])["text"] == "USER"
+
+    openrouter_messages = openrouter_history(history, system=None, model_name=None)
+    openrouter_user_content = _ensure_list(_ensure_dict(openrouter_messages[0])["content"])
+    assert _ensure_dict(openrouter_user_content[0])["text"] == "MEMORY\n"
+    assert _ensure_dict(openrouter_user_content[1])["text"] == "USER"
+
+    responses_items = responses_history(history, model_name=None)
+    responses_user_item = _ensure_dict(responses_items[0])
+    responses_user_content = _ensure_list(responses_user_item["content"])
+    assert _ensure_dict(responses_user_content[0])["text"] == "MEMORY\n"
+    assert _ensure_dict(responses_user_content[1])["text"] == "USER"
+
+
+def test_developer_message_with_prepend_marker_prepends_tool_output_across_providers():
+    history: list[message.Message] = [
+        message.ToolResultMessage(call_id="call-1", tool_name="Read", status="success", output_text="TOOL"),
+        message.DeveloperMessage(
+            parts=_parts(message.TextPart(text="MEMORY")),
+            attachment_position="prepend",
+        ),
+    ]
+
+    anthropic_messages = anthropic_history(history, model_name=None)
+    anth_tool_message = _ensure_dict(anthropic_messages[0])
+    anth_tool_entry = _ensure_dict(_ensure_list(anth_tool_message["content"])[0])
+    anth_tool_blocks = _ensure_list(anth_tool_entry["content"])
+    assert _ensure_dict(anth_tool_blocks[0])["text"] == "MEMORY\n\nTOOL"
+
+    openai_messages = openai_history(history, system=None, model_name=None)
+    openai_tool_content = _ensure_list(_ensure_dict(openai_messages[0])["content"])
+    assert _ensure_dict(openai_tool_content[0])["text"] == "MEMORY\n\nTOOL"
+
+    openrouter_messages = openrouter_history(history, system=None, model_name=None)
+    openrouter_tool_content = _ensure_list(_ensure_dict(openrouter_messages[0])["content"])
+    assert _ensure_dict(openrouter_tool_content[0])["text"] == "MEMORY\n\nTOOL"
+
+    responses_items = responses_history(history, model_name=None)
+    responses_tool_item = _ensure_dict(responses_items[0])
+    responses_tool_output = _ensure_list(responses_tool_item["output"])
+    assert _ensure_dict(responses_tool_output[0])["text"] == "MEMORY\n\nTOOL"
+
+
 def test_anthropic_tool_group_includes_developer_images():
     image_part = _make_image_part()
     history: list[message.Message] = [

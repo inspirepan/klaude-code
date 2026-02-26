@@ -28,6 +28,8 @@ def _build_user_content_parts(
     attachment: DeveloperAttachment,
 ) -> list[responses.ResponseInputContentParam]:
     parts: list[responses.ResponseInputContentParam] = []
+    if attachment.prefix_text:
+        parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": attachment.prefix_text}))
     for part in user.parts:
         if isinstance(part, message.TextPart):
             parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": part.text}))
@@ -62,6 +64,7 @@ def _build_tool_result_item(
     text_output = merge_reminder_text(
         tool.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
+        prefix_text=attachment.prefix_text,
     )
     images: list[message.ImageURLPart | message.ImageFilePart] = [
         part for part in tool.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))
