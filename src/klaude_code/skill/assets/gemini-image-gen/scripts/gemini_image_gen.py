@@ -61,7 +61,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_MODEL = "gemini-2.5-flash-image"
 DEFAULT_ASPECT_RATIO = "1:1"
 DEFAULT_RESOLUTION = "1K"
