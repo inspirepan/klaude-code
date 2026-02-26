@@ -181,6 +181,10 @@ class DeveloperMessage(MessageBase):
     role: Literal["developer"] = "developer"
     parts: list[Part]
 
+    # How this developer content should be attached to the nearest user/tool
+    # message when constructing LLM input.
+    attachment_position: Literal["append", "prepend"] = "append"
+
     # Structured UI-only metadata (never sent to the LLM).
     ui_extra: DeveloperUIExtra | None = None
 

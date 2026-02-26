@@ -20,6 +20,7 @@ def _empty_image_parts() -> list[ImagePart]:
 
 @dataclass
 class DeveloperAttachment:
+    prefix_text: str = ""
     text: str = ""
     images: list[ImagePart] = field(default_factory=_empty_image_parts)
 
@@ -56,7 +57,10 @@ def attach_developer_messages(
                 continue
             dev_text, dev_images = _extract_developer_content(msg)
             attachment = attachments[last_user_tool_idx]
-            attachment.text += dev_text
+            if msg.attachment_position == "prepend":
+                attachment.prefix_text += dev_text
+            else:
+                attachment.text += dev_text
             attachment.images.extend(dev_images)
 
     result: list[tuple[message.Message, DeveloperAttachment]] = []
@@ -68,11 +72,13 @@ def attach_developer_messages(
     return result
 
 
-def merge_reminder_text(tool_output: str | None, reminder_text: str) -> str:
+def merge_reminder_text(tool_output: str | None, reminder_text: str, *, prefix_text: str = "") -> str:
     """Merge tool output with reminder text."""
     base = tool_output or ""
+    if prefix_text:
+        base = f"{prefix_text}\n{base}" if base else prefix_text
     if reminder_text:
-        base += "\n" + reminder_text
+        base = f"{base}\n{reminder_text}" if base else reminder_text
     return base
 
 
@@ -85,6 +91,8 @@ def build_chat_content_parts(
     attachment: DeveloperAttachment,
 ) -> list[dict[str, object]]:
     parts: list[dict[str, object]] = []
+    if attachment.prefix_text:
+        parts.append({"type": "text", "text": attachment.prefix_text})
     for part in msg.parts:
         if isinstance(part, message.TextPart):
             parts.append({"type": "text", "text": part.text})
@@ -114,6 +122,7 @@ def build_tool_message(
     merged_text = merge_reminder_text(
         msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
+        prefix_text=attachment.prefix_text,
     )
     content: list[dict[str, object]] = [{"type": "text", "text": merged_text}]
     for part in msg.parts:
@@ -149,6 +158,7 @@ def build_tool_message_for_chat_completions(
     merged_text = merge_reminder_text(
         msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
+        prefix_text=attachment.prefix_text,
     )
 
     # Collect all images

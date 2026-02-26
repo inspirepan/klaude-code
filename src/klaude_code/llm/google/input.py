@@ -47,6 +47,8 @@ def _image_part_to_function_response_part(image: ImagePart) -> types.FunctionRes
 
 def _user_message_to_content(msg: message.UserMessage, attachment: DeveloperAttachment) -> types.Content:
     parts: list[types.Part] = []
+    if attachment.prefix_text:
+        parts.append(types.Part(text=attachment.prefix_text))
     for part in msg.parts:
         if isinstance(part, message.TextPart):
             parts.append(types.Part(text=part.text))
@@ -73,6 +75,7 @@ def _tool_messages_to_contents(
         merged_text = merge_reminder_text(
             msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
             attachment.text,
+            prefix_text=attachment.prefix_text,
         )
         has_text = merged_text.strip() != ""
 

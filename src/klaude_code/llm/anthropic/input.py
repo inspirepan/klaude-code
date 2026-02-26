@@ -63,6 +63,8 @@ def _user_message_to_message(
     attachment: DeveloperAttachment,
 ) -> BetaMessageParam:
     blocks: list[BetaTextBlockParam | BetaImageBlockParam] = []
+    if attachment.prefix_text:
+        blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": attachment.prefix_text}))
     for part in msg.parts:
         if isinstance(part, message.TextPart):
             blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": part.text}))
@@ -86,6 +88,7 @@ def _tool_message_to_block(
     merged_text = merge_reminder_text(
         msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
+        prefix_text=attachment.prefix_text,
     )
     tool_content.append(cast(BetaTextBlockParam, {"type": "text", "text": merged_text}))
     for image in [part for part in msg.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))]:

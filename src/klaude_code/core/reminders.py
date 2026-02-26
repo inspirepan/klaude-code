@@ -525,6 +525,7 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
                 reminder_text = f"<system-reminder>{auto_memory_hint}\n</system-reminder>"
         return message.DeveloperMessage(
             parts=message.text_parts_from_str(reminder_text),
+            attachment_position="prepend",
             ui_extra=model.DeveloperUIExtra(items=ui_items),
         )
     return None
@@ -556,6 +557,7 @@ async def last_path_memory_reminder(
         ]
         return message.DeveloperMessage(
             parts=message.text_parts_from_str(format_memories_reminder(memories, include_header=False)),
+            attachment_position="prepend",
             ui_extra=model.DeveloperUIExtra(items=[model.MemoryLoadedUIItem(files=loaded_files)]),
         )
     return None
