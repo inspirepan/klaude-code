@@ -206,12 +206,8 @@ def _shimmer_style(console: Console, base_style: Style, intensity: float) -> Sty
     return base_style + Style(color=shimmer_color)
 
 
-def truncate_left(text: Text, max_cells: int, *, console: Console, ellipsis: str = "…") -> Text:
-    """Left-truncate Text to fit within max_cells.
-
-    Keeps the rightmost part of the text and prepends an ellipsis when truncation occurs.
-    Uses cell width so wide characters are handled reasonably.
-    """
+def truncate_right(text: Text, max_cells: int, *, console: Console, ellipsis: str = "…") -> Text:
+    """Right-truncate Text to fit within max_cells."""
 
     max_cells = max(0, int(max_cells))
     if max_cells == 0:
@@ -220,37 +216,13 @@ def truncate_left(text: Text, max_cells: int, *, console: Console, ellipsis: str
     if cell_len(text.plain) <= max_cells:
         return text
 
-    ellipsis_cells = cell_len(ellipsis) + 1  # +1 for trailing space
-    if max_cells <= ellipsis_cells:
-        # Not enough space to show any meaningful suffix.
-        clipped = Text(ellipsis, style=text.style)
-        clipped.truncate(max_cells, overflow="crop", pad=False)
-        return clipped
-
-    suffix_budget = max_cells - ellipsis_cells
-    plain = text.plain
-
-    suffix_cells = 0
-    start_index = len(plain)
-    for i in range(len(plain) - 1, -1, -1):
-        ch_cells = cell_len(plain[i])
-        if suffix_cells + ch_cells > suffix_budget:
-            break
-        suffix_cells += ch_cells
-        start_index = i
-        if suffix_cells == suffix_budget:
-            break
-
-    if start_index >= len(plain):
-        return Text(ellipsis, style=text.style)
-
-    suffix = text[start_index:]
-    try:
-        ellipsis_style = suffix.get_style_at_offset(console, 0)
-    except Exception:
-        ellipsis_style = suffix.style or text.style
-
-    return Text.assemble(Text(ellipsis + " ", style=ellipsis_style), suffix)
+    truncated = text.copy()
+    truncated.truncate(max_cells, overflow="ellipsis", pad=False)
+    if ellipsis != "…":
+        plain = truncated.plain
+        if plain.endswith("…"):
+            truncated = Text.assemble(truncated[:-1], Text(ellipsis, style=truncated.style or text.style))
+    return truncated
 
 
 def truncate_status(text: Text, max_cells: int, *, console: Console, ellipsis: str = "…") -> Text:
@@ -258,7 +230,7 @@ def truncate_status(text: Text, max_cells: int, *, console: Console, ellipsis: s
 
     If the text contains ' | ', it right-truncates the part before ' | '
     while keeping the part after ' | ' intact.
-    Otherwise, it falls back to left-truncating the entire text.
+    Otherwise, it falls back to right-truncating the entire text.
     """
     max_cells = max(0, int(max_cells))
     if max_cells == 0:
@@ -302,7 +274,7 @@ def truncate_status(text: Text, max_cells: int, *, console: Console, ellipsis: s
 
             return Text.assemble(prefix, Text(ellipsis, style=ellipsis_style), right_part)
 
-    return truncate_left(text, max_cells, console=console, ellipsis=ellipsis)
+    return truncate_right(text, max_cells, console=console, ellipsis=ellipsis)
 
 
 class StackedStatusText:
@@ -411,11 +383,11 @@ def _build_metadata_line(
 ) -> Text:
     hint_text = Text(current_hint_text().strip(), style=console.get_style(str(hint_style)))
     if metadata_text is None:
-        return truncate_left(hint_text, max(1, max_width), console=console)
+        return truncate_right(hint_text, max(1, max_width), console=console)
 
     full_metadata_text = _render_right_text(metadata_text, console=console, options=line_options, compact=False)
     if cell_len(full_metadata_text.plain) == 0:
-        return truncate_left(hint_text, max(1, max_width), console=console)
+        return truncate_right(hint_text, max(1, max_width), console=console)
 
     compact_trigger_width = max(1, max_width - 4)
     compact_metadata_text: Text | None = None
@@ -436,7 +408,7 @@ def _build_metadata_line(
         compact_metadata_text = _render_right_text(metadata_text, console=console, options=line_options, compact=True)
     if cell_len(compact_metadata_text.plain) <= max_width:
         return compact_metadata_text
-    return truncate_left(compact_metadata_text, max(1, max_width), console=console)
+    return truncate_right(compact_metadata_text, max(1, max_width), console=console)
 
 
 class _StatusShimmerLine:
