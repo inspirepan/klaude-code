@@ -15,36 +15,45 @@ Create a GitHub pull request for current repository changes using `gh` with eith
 - User asks to push current branch and open a PR
 - User asks to create a GitHub pull request from current changes
 
-## Workflow
+## Router Workflow
 
 1. Detect VCS mode:
    - If `.jj/` exists and `jj` is available, use **jj mode**.
    - Otherwise, use **git mode**.
 
-2. Check repository state:
-
-Common:
+2. Run common checks first:
 
 ```bash
 git remote -v
 gh auth status
 ```
 
-jj mode:
+3. Route by mode:
+   - **jj mode**: Read `jj.md` and follow it exactly.
+   - **git mode**: Follow the Git workflow below.
 
-```bash
-jj status
-jj log -n 5
-```
+## Git Workflow
 
-git mode:
+1. Check status and branch:
 
 ```bash
 git status --short
 git rev-parse --abbrev-ref HEAD
 ```
 
-3. Run pre-PR checks:
+2. Determine whether there is PR content:
+
+```bash
+git fetch origin main
+git log --oneline origin/main..HEAD
+```
+
+Decision rule:
+
+- Clean working tree means only "no uncommitted changes".
+- Treat "nothing to submit" as true only when there are no uncommitted changes and `origin/main..HEAD` is empty.
+
+3. Run checks:
 
 ```bash
 make lint
@@ -52,56 +61,25 @@ make format
 make test
 ```
 
-   - If `make format` updates files, include those updates in your commit.
+If `make format` changes files, commit them first with a Conventional Commit message.
 
-4. Ensure changes are committed.
-   - If there are uncommitted changes, commit them first.
-   - In jj mode, ensure relevant changes have meaningful descriptions.
-   - Use a Conventional Commit message:
-
-```text
-<type>(<scope>): <description>
-```
-
-5. Show commits that will be included in the PR:
-
-jj mode:
-
-```bash
-jj git fetch --remote origin
-git log --oneline origin/main..HEAD
-```
-
-git mode:
+4. Ensure changes are committed, then show included commits:
 
 ```bash
 git fetch origin main
 git log --oneline origin/main..HEAD
 ```
 
-6. Prepare branch/bookmark and push:
-
-jj mode:
-
-```bash
-jj bookmark set <branch-name> -r @
-jj git push --bookmark <branch-name>
-```
-
-git mode:
+5. Push branch:
 
 ```bash
 # If current branch is main, create a feature branch first
 # git checkout -b <type>/<short-topic>
 
-# Push the branch you plan to use for PR
 git push -u origin <branch-name>
 ```
 
-7. Create PR with `gh pr create`.
-   - Prefer `--body-file` to avoid shell escaping and command substitution issues.
-   - Always add the `klaude` label when creating the PR.
-   - Example:
+6. Create PR:
 
 ```bash
 cat > .pr_body.md <<'EOF'
@@ -110,7 +88,9 @@ cat > .pr_body.md <<'EOF'
 - change 2
 
 ## Validation
-- command and result
+- make lint
+- make format
+- make test
 EOF
 
 gh pr create \
@@ -123,23 +103,11 @@ gh pr create \
 rm .pr_body.md
 ```
 
-8. Verify and return PR link:
+7. Verify:
 
 ```bash
 gh pr view --json url,title,headRefName,baseRefName
 ```
-
-## Common Fixes
-
-- If SSH push permission fails but `gh` auth is valid, run:
-
-```bash
-gh auth setup-git
-```
-
-- If remote is HTTPS and push cannot prompt for credentials, run `gh auth setup-git` again.
-
-- If teammates use both jj and git: this is fine. PR is based on remote Git branches, so both tools interoperate through the same remote refs.
 
 ## Output Requirements
 
@@ -150,3 +118,13 @@ gh auth setup-git
 - Report PR URL
 - Report validation commands and outcomes (`make lint`, `make format`, `make test`)
 - Report any blockers clearly
+
+## Common Fixes
+
+If SSH/HTTPS push auth mismatches with `gh` auth:
+
+```bash
+gh auth setup-git
+```
+
+If teammates use both jj and git, this is fine because PRs are based on remote Git refs.
