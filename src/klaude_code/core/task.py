@@ -272,6 +272,7 @@ class TaskExecutor:
         ctx = self._context
         session_ctx = ctx.session_ctx
         self._started_at = time.perf_counter()
+        has_user_input = bool(user_input.text.strip() or user_input.images)
 
         if ctx.sub_agent_state is None:
             self._rewind_manager = RewindManager()
@@ -288,6 +289,12 @@ class TaskExecutor:
         profile = ctx.profile
         self._metadata_accumulator = MetadataAccumulator(model_name=profile.llm_client.model_name)
         metadata_accumulator = self._metadata_accumulator
+
+        if self._rewind_manager is not None and has_user_input:
+            checkpoint_id = ctx.session.create_checkpoint()
+            self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+            user_msg = ctx.session.get_user_message_before_checkpoint(checkpoint_id) or ""
+            self._rewind_manager.register_checkpoint(checkpoint_id, user_msg)
 
         while True:
             # Process reminders at the start of each turn
@@ -357,12 +364,6 @@ class TaskExecutor:
                         aborted=True,
                         will_retry=False,
                     )
-
-            if self._rewind_manager is not None:
-                checkpoint_id = ctx.session.create_checkpoint()
-                self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                user_msg = ctx.session.get_user_message_before_checkpoint(checkpoint_id) or ""
-                self._rewind_manager.register_checkpoint(checkpoint_id, user_msg)
 
             turn_context = TurnExecutionContext(
                 session_ctx=session_ctx,
