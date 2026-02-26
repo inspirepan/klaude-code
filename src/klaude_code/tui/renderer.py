@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
-import json
+
 from rich import box
 from rich.console import Console, Group, RenderableType
 from rich.padding import Padding

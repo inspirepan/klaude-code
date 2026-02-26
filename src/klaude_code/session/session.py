@@ -409,7 +409,18 @@ class Session(BaseModel):
             return False
         if prev_item is None:
             return True
-        return isinstance(prev_item, (message.UserMessage, message.ToolResultMessage, message.DeveloperMessage))
+        return isinstance(
+            prev_item,
+            (
+                message.UserMessage,
+                message.ToolResultMessage,
+                message.DeveloperMessage,
+                message.CacheHitRateEntry,
+                message.CompactionEntry,
+                message.InterruptEntry,
+                message.RewindEntry,
+            ),
+        )
 
     def get_history_item(self) -> Iterable[events.ReplayEventUnion]:
         seen_sub_agent_sessions: set[str] = set()
