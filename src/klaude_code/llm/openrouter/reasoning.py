@@ -32,6 +32,7 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
             return ReasoningDeltaResult(handled=False, outputs=[])
 
         outputs: list[str | message.Part] = []
+        reasoning_format: str | None = None
         for item in reasoning_details:
             try:
                 detail = ReasoningDetail.model_validate(item)
@@ -39,11 +40,13 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
                     outputs.append(detail.text)
                 if detail.summary:
                     outputs.append(detail.summary)
+                if detail.format:
+                    reasoning_format = detail.format
                 outputs.extend(self._on_detail(detail))
             except Exception as e:
                 log("reasoning_details error", str(e), style="red")
 
-        return ReasoningDeltaResult(handled=True, outputs=outputs)
+        return ReasoningDeltaResult(handled=True, outputs=outputs, reasoning_format=reasoning_format)
 
     def _on_detail(self, detail: ReasoningDetail) -> list[message.Part]:
         """Process a single reasoning detail and return streamable parts."""

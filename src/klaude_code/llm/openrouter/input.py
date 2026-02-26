@@ -22,6 +22,7 @@ from klaude_code.llm.input_common import (
 from klaude_code.protocol import message
 from klaude_code.protocol.model_id import is_claude_model as is_claude_model
 from klaude_code.protocol.model_id import is_glm_model as is_glm_model
+from klaude_code.protocol.model_id import is_gpt5_model as is_gpt5_model
 from klaude_code.protocol.model_id import is_xai_model as is_xai_model
 
 
@@ -34,14 +35,23 @@ def _assistant_message_to_openrouter(
     native_thinking_parts, degraded_thinking_texts = split_thinking_parts(msg, model_name)
     for part in native_thinking_parts:
         if isinstance(part, message.ThinkingTextPart):
-            detail: dict[str, object] = {
-                "id": part.id,
-                "type": "reasoning.text",
-                "text": part.text,
-                "index": len(reasoning_details),
-            }
-            if part.format:
-                detail["format"] = part.format
+            if is_gpt5_model(model_name):
+                detail: dict[str, object] = {
+                    "id": part.id,
+                    "type": "reasoning.summary",
+                    "summary": part.text,
+                    "format": "openai-responses-v1",
+                    "index": len(reasoning_details),
+                }
+            else:
+                detail: dict[str, object] = {
+                    "id": part.id,
+                    "type": "reasoning.text",
+                    "text": part.text,
+                    "index": len(reasoning_details),
+                }
+                if part.format:
+                    detail["format"] = part.format
             reasoning_details.append(detail)
         elif isinstance(part, message.ThinkingSignaturePart) and part.signature:
             if is_claude_model(model_name):

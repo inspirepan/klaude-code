@@ -10,7 +10,6 @@ from typing import Literal
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.model_id import (
     is_claude_model_any,
-    is_codex_max_model,
     is_gemini_flash_model,
     is_gpt51_model,
     is_gpt52_model,
@@ -24,7 +23,6 @@ ReasoningEffort = Literal["high", "medium", "low", "minimal", "none", "xhigh"]
 RESPONSES_LEVELS = ["low", "medium", "high"]
 RESPONSES_GPT51_LEVELS = ["none", "low", "medium", "high"]
 RESPONSES_GPT52_LEVELS = ["none", "low", "medium", "high", "xhigh"]
-RESPONSES_CODEX_MAX_LEVELS = ["medium", "high", "xhigh"]
 RESPONSES_GEMINI_FLASH_LEVELS = ["minimal", "low", "medium", "high"]
 
 ANTHROPIC_LEVELS: list[tuple[str, int | None]] = [
@@ -37,8 +35,6 @@ ANTHROPIC_LEVELS: list[tuple[str, int | None]] = [
 
 def get_levels_for_responses(model_name: str | None) -> list[str]:
     """Get thinking levels for responses protocol."""
-    if is_codex_max_model(model_name):
-        return RESPONSES_CODEX_MAX_LEVELS
     if is_gpt52_model(model_name):
         return RESPONSES_GPT52_LEVELS
     if is_gpt51_model(model_name):
