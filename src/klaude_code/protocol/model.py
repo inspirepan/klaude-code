@@ -207,13 +207,6 @@ class SessionIdUIExtra(BaseModel):
     session_id: str
 
 
-class MermaidLinkUIExtra(BaseModel):
-    type: Literal["mermaid_link"] = "mermaid_link"
-    code: str = ""
-    link: str
-    line_count: int
-
-
 class ImageUIExtra(BaseModel):
     type: Literal["image"] = "image"
     file_path: str
@@ -247,7 +240,6 @@ MultiUIExtraItem = (
     DiffUIExtra
     | TodoListUIExtra
     | SessionIdUIExtra
-    | MermaidLinkUIExtra
     | ImageUIExtra
     | MarkdownDocUIExtra
     | SessionStatusUIExtra
@@ -270,7 +262,6 @@ ToolResultUIExtra = Annotated[
     DiffUIExtra
     | TodoListUIExtra
     | SessionIdUIExtra
-    | MermaidLinkUIExtra
     | ImageUIExtra
     | MarkdownDocUIExtra
     | SessionStatusUIExtra

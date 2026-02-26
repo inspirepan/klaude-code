@@ -105,7 +105,6 @@ WEB_SEARCH_DEFAULT_MAX_RESULTS = 10  # Default number of search results
 WEB_SEARCH_MAX_RESULTS_LIMIT = 20  # Maximum number of search results allowed
 WEB_CACHE_TTL_SECONDS = 900  # TTL for web search/fetch cache (15 minutes)
 WEB_CACHE_MAX_ENTRIES = 100  # Maximum entries in web cache
-MERMAID_LIVE_PREFIX = "https://mermaid.live/view#pako:"  # Mermaid.live URL prefix
 
 
 # =============================================================================

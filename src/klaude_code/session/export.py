@@ -492,19 +492,8 @@ def _render_event_item(
     return "".join(blocks)
 
 
-def _has_non_mermaid_tool(msg: message.AssistantMessage) -> bool:
-    has_non_mermaid = False
-    for part in msg.parts:
-        if isinstance(part, message.ToolCallPart):
-            if part.tool_name != "Mermaid":
-                has_non_mermaid = True
-            else:
-                # If it has Mermaid, we treat it as visible, overriding the non-mermaid flag
-                # for the purpose of finding the BARRIER.
-                # Logic: We want to find the LAST item that is STRICTLY non-mermaid/intermediate.
-                # If an item has Mermaid, it belongs to the visible chain.
-                return False
-    return has_non_mermaid
+def _has_tool_call(msg: message.AssistantMessage) -> bool:
+    return any(isinstance(part, message.ToolCallPart) for part in msg.parts)
 
 
 def _build_messages_html(
@@ -533,10 +522,10 @@ def _build_messages_html(
             continue
 
         # 2. Identify split point (barrier)
-        # Find the LAST AssistantMessage that has a non-Mermaid tool call (and NO Mermaid tool call).
+        # Find the LAST AssistantMessage that has a tool call.
         barrier_index = -1
         for i, item in enumerate(turn.body_items):
-            if isinstance(item, message.AssistantMessage) and _has_non_mermaid_tool(item):
+            if isinstance(item, message.AssistantMessage) and _has_tool_call(item):
                 barrier_index = i
 
         # If barrier found, everything up to it is collapsible.
@@ -549,10 +538,8 @@ def _build_messages_html(
             collapsible_items = turn.body_items[: barrier_index + 1]
             visible_items = turn.body_items[barrier_index + 1 :]
         else:
-            # No barrier found (no non-Mermaid tools).
-            # If purely conversational, all visible?
-            # Or should we fold intermediate chat steps?
-            # Current logic: If no tools used, assume chat mode -> All visible.
+            # No barrier found (no tools).
+            # If purely conversational, keep all visible.
             collapsible_items = []
             visible_items = turn.body_items
 
@@ -818,108 +805,6 @@ def _build_add_only_diff(text: str, file_path: str) -> model.DiffUIExtra:
     return model.DiffUIExtra(files=[file_diff])
 
 
-def _get_mermaid_link_html(
-    ui_extra: model.ToolResultUIExtra | None, tool_call: message.ToolCallPart | None = None
-) -> str | None:
-    code = ""
-    link: str | None = None
-    line_count = 0
-
-    if isinstance(ui_extra, model.MermaidLinkUIExtra):
-        code = ui_extra.code
-        link = ui_extra.link
-        line_count = ui_extra.line_count
-
-    if not code and tool_call and tool_call.tool_name == "Mermaid":
-        try:
-            args = json.loads(tool_call.arguments_json)
-            code = args.get("code", "")
-        except (json.JSONDecodeError, TypeError):
-            code = ""
-        line_count = code.count("\n") + 1 if code else 0
-
-    if not code and not link:
-        return None
-
-    # Prepare code for rendering and copy
-    escaped_code = _escape_html(code) if code else ""
-
-    # Build Toolbar
-    toolbar_items: list[str] = []
-
-    if line_count > 0:
-        toolbar_items.append(f"<span>Lines: {line_count}</span>")
-
-    buttons_html: list[str] = []
-    if code:
-        buttons_html.append(
-            f'<button type="button" class="copy-mermaid-btn" data-code="{escaped_code}" title="Copy Mermaid Code">Copy Code</button>'
-        )
-        buttons_html.append(
-            '<button type="button" class="fullscreen-mermaid-btn" title="View Fullscreen">Fullscreen</button>'
-        )
-
-    if link:
-        link_url = _escape_html(link)
-        buttons_html.append(
-            f'<a href="{link_url}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: underline; margin-left: 8px;">View Online</a>'
-        )
-
-    toolbar_items.append(f"<div>{''.join(buttons_html)}</div>")
-
-    toolbar_html = (
-        '<div style="display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);">'
-        f"{''.join(toolbar_items)}"
-        "</div>"
-    )
-
-    # If we have code, render the diagram
-    if code:
-        return f'<div class="mermaid-container"><div class="mermaid">{escaped_code}</div>{toolbar_html}</div>'
-
-    # Fallback to just link/toolbar if no code available (legacy support behavior)
-    return toolbar_html
-
-
-def _format_mermaid_tool_call(
-    tool_call: message.ToolCallPart,
-    result: message.ToolResultMessage | None,
-    timestamp: datetime,
-    mermaid_html: str,
-    args_html: str,
-    ts_str: str,
-) -> str:
-    # Build standard tool details but hidden
-    should_collapse = _should_collapse(args_html)
-    open_attr = "" if should_collapse else " open"
-
-    details_html = (
-        f'<div class="mermaid-meta" style="display: none;">'
-        f'<div class="tool-header">'
-        f'<span class="tool-name">{_escape_html(tool_call.tool_name)}</span>'
-        f'<div class="tool-header-right">'
-        f'<span class="tool-id">{_escape_html(tool_call.call_id)}</span>'
-        f'<span class="timestamp">{ts_str}</span>'
-        f"</div>"
-        f"</div>"
-        f'<details class="tool-args-collapsible"{open_attr}>'
-        f"<summary>Arguments</summary>"
-        f'<div class="tool-args-content">{args_html}</div>'
-        f"</details>"
-        f"</div>"
-    )
-
-    return (
-        f'<div class="tool-call mermaid-tool-call">'
-        f'<div class="mermaid-view">'
-        f'<button class="mermaid-info-btn" title="Show/Hide Details">i</button>'
-        f"{mermaid_html}"
-        f"</div>"
-        f"{details_html}"
-        f"</div>"
-    )
-
-
 def _format_tool_call(
     tool_call: message.ToolCallPart,
     result: message.ToolResultMessage | None,
@@ -946,22 +831,12 @@ def _format_tool_call(
     if not args_html:
         args_html = '<span style="color: var(--text-dim); font-style: italic;">(no arguments)</span>'
 
-    # Special handling for Mermaid
-    if tool_call.tool_name == "Mermaid" and result:
-        extras = _collect_ui_extras(result.ui_extra)
-        mermaid_extra = next((x for x in extras if isinstance(x, model.MermaidLinkUIExtra)), None)
-        mermaid_source = mermaid_extra if mermaid_extra else result.ui_extra
-        mermaid_html = _get_mermaid_link_html(mermaid_source, tool_call)
-
-        if mermaid_html:
-            return _format_mermaid_tool_call(tool_call, result, timestamp, mermaid_html, args_html, ts_str)
-
     # Wrap tool-args with collapsible details element (except for TodoWrite which renders as a list)
     if is_todo_list:
         args_section = f'<div class="tool-args">{args_html}</div>'
     else:
-        # Always collapse Mermaid, Edit, Write tools by default
-        always_collapse_tools = {"Mermaid", "Edit", "Write"}
+        # Always collapse Edit, Write tools by default
+        always_collapse_tools = {"Edit", "Write"}
         force_collapse = tool_call.tool_name in always_collapse_tools
 
         # Collapse Memory tool for write operations
@@ -996,10 +871,6 @@ def _format_tool_call(
 
     if result:
         extras = _collect_ui_extras(result.ui_extra)
-
-        mermaid_extra = next((x for x in extras if isinstance(x, model.MermaidLinkUIExtra)), None)
-        mermaid_source = mermaid_extra if mermaid_extra else result.ui_extra
-        mermaid_html = _get_mermaid_link_html(mermaid_source, tool_call)
 
         should_hide_text = tool_call.tool_name in ("TodoWrite", "update_plan") and result.status != "error"
 
@@ -1046,9 +917,6 @@ def _format_tool_call(
                 items_to_render.append(_render_diff_block(extra))
             elif isinstance(extra, model.MarkdownDocUIExtra):
                 items_to_render.append(_render_markdown_doc(extra))
-
-        if mermaid_html:
-            items_to_render.append(mermaid_html)
 
         if not items_to_render and not result.output_text and not should_hide_text:
             items_to_render.append('<div style="color: var(--text-dim); font-style: italic;">(empty output)</div>')
