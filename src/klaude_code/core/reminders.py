@@ -440,6 +440,7 @@ async def skill_reminder(session: Session) -> message.DeveloperMessage | None:
 <skill>
 <name>{skill.name}</name>
 <location>{skill.skill_path}</location>
+<base_dir>{skill.base_dir}</base_dir>
 
 {tool_result.output_text}
 </skill>

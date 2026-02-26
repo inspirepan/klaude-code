@@ -273,11 +273,13 @@ class SkillLoader:
             name = escape(skill.name)
             description = escape(skill.description.replace("\n", " ").strip())
             location = escape(str(skill.skill_path))
+            base_dir = escape(str(skill.base_dir))
             xml_parts.append(
                 "  <skill>\n"
                 f"    <name>{name}</name>\n"
                 f"    <description>{description}</description>\n"
                 f"    <location>{location}</location>\n"
+                f"    <base_dir>{base_dir}</base_dir>\n"
                 "  </skill>"
             )
         return "\n".join(xml_parts)
