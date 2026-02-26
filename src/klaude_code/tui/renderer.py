@@ -5,7 +5,7 @@ import shutil
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from rich import box
 from rich.console import Console, Group, RenderableType
@@ -23,6 +23,7 @@ from klaude_code.const import (
     STATUS_DEFAULT_TEXT,
     STREAM_MAX_HEIGHT_SHRINK_RESET_LINES,
 )
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, model
 from klaude_code.tui.commands import (
     AppendAssistant,
@@ -36,7 +37,6 @@ from klaude_code.tui.commands import (
     PrintRuleLine,
     RenderBashCommandEnd,
     RenderBashCommandStart,
-    RenderCacheHitWarn,
     RenderCommand,
     RenderCommandOutput,
     RenderCompactionSummary,
@@ -623,7 +623,7 @@ class TUICommandRenderer:
         if not self.is_sub_agent_session(event.session_id):
             self.print()
 
-    def display_image(self, file_path: str) -> None:
+    def display_image(self, file_path: str, caption: str | None = None) -> None:
         # Suspend the Live status bar while emitting raw terminal output.
         had_live = self._bottom_live is not None
         was_spinner_visible = self._spinner_visible
@@ -636,6 +636,13 @@ class TUICommandRenderer:
             self._bottom_live = None
 
         try:
+            if caption:
+                caption_style = self.console.get_style("markdown.image.placeholder", default="dim")
+                caption_text = caption_style.render(
+                    f"\n↓ {caption}",
+                    color_system=cast(Any, self.console.color_system),
+                )
+                print(caption_text, file=self.console.file, flush=True)
             print_kitty_image(file_path, file=self.console.file)
         finally:
             if resume_live:
@@ -675,13 +682,6 @@ class TUICommandRenderer:
                 self.print(c_errors.render_error(Text(event.error_message)))
         else:
             self.print(c_errors.render_error(Text(event.error_message)))
-
-    def display_cache_hit_warn(self, event: events.CacheHitWarnEvent) -> None:
-        if event.session_id:
-            with self.session_print_context(event.session_id):
-                self.print(c_metadata.render_cache_hit_warn(event))
-        else:
-            self.print(c_metadata.render_cache_hit_warn(event))
 
     def display_compaction_summary(self, summary: str, kept_items_brief: tuple[tuple[str, int, str], ...] = ()) -> None:
         stripped = summary.strip()
@@ -841,6 +841,12 @@ class TUICommandRenderer:
 
     async def execute(self, commands: list[RenderCommand]) -> None:
         for cmd in commands:
+            log_debug(
+                f"{'[Cmd] [Replay]' if self._replay_mode else '[Cmd]'} [{cmd.__class__.__name__}]",
+                str(cmd),
+                style="magenta",
+                debug_type=DebugType.UI_EVENT,
+            )
             match cmd:
                 case RenderWelcome(event=event):
                     self.display_welcome(event)
@@ -865,8 +871,8 @@ class TUICommandRenderer:
                         self._sub_agent_thinking_buffers[session_id] = ""
                     elif not self._thinking_stream.is_active:
                         self._thinking_stream.start(self._new_thinking_mdstream())
+                        self._thinking_stream.append("Thinking…  \n")
                         if not self._replay_mode:
-                            self._thinking_stream.append("Thinking…  \n")
                             self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
                 case AppendThinking(session_id=session_id, content=content):
                     if self.is_sub_agent_session(session_id):
@@ -919,13 +925,12 @@ class TUICommandRenderer:
                     self.display_task_metadata(event)
                 case RenderTaskFinish() as cmd_finish:
                     self.display_task_finish(cmd_finish.event)
-                    self._maybe_notify_task_finish(cmd_finish)
+                    if not self._replay_mode:
+                        self._maybe_notify_task_finish(cmd_finish)
                 case RenderInterrupt():
                     self.display_interrupt()
                 case RenderError(event=event):
                     self.display_error(event)
-                case RenderCacheHitWarn(event=event):
-                    self.display_cache_hit_warn(event)
                 case RenderCompactionSummary(summary=summary, kept_items_brief=kept_items_brief):
                     self.display_compaction_summary(summary, kept_items_brief)
                 case RenderRewind(

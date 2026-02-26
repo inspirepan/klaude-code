@@ -409,7 +409,18 @@ class Session(BaseModel):
             return False
         if prev_item is None:
             return True
-        return isinstance(prev_item, (message.UserMessage, message.ToolResultMessage, message.DeveloperMessage))
+        return isinstance(
+            prev_item,
+            (
+                message.UserMessage,
+                message.ToolResultMessage,
+                message.DeveloperMessage,
+                message.CacheHitRateEntry,
+                message.CompactionEntry,
+                message.InterruptEntry,
+                message.RewindEntry,
+            ),
+        )
 
     def get_history_item(self) -> Iterable[events.ReplayEventUnion]:
         seen_sub_agent_sessions: set[str] = set()
@@ -551,13 +562,6 @@ class Session(BaseModel):
                         kept_from_index=ce.first_kept_index,
                         summary=ce.summary,
                         kept_items_brief=ce.kept_items_brief,
-                    )
-                case message.CacheHitWarnEntry() as cw:
-                    yield events.CacheHitWarnEvent(
-                        session_id=self.id,
-                        cache_hit_rate=cw.cache_hit_rate,
-                        cached_tokens=cw.cached_tokens,
-                        prev_turn_input_tokens=cw.prev_turn_input_tokens,
                     )
                 case message.CacheHitRateEntry() as cr:
                     yield events.CacheHitRateEvent(

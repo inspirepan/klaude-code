@@ -29,7 +29,7 @@ Use Pro when the user needs: 4K resolution, accurate text rendering, Search grou
 2. Collect inputs: prompt, input images (if any), constraints, text to render (verbatim).
 3. Choose model: Flash (default) or Pro (see model selection above).
 4. Augment prompt into a structured spec (see prompt augmentation below); do not invent new creative requirements.
-5. Run the bundled CLI (`scripts/gemini_image_gen.py`). See `references/cli.md` for commands and flags.
+5. Run the bundled CLI (`scripts/gemini_image_gen.py`). See `--help` for commands and flags.
 6. Inspect outputs and validate: subject, style, composition, text accuracy.
 7. Iterate: make a single targeted change, re-run, re-check.
 8. Save final outputs and note the final prompt + flags used.
@@ -40,18 +40,8 @@ Use Pro when the user needs: 4K resolution, accurate text rendering, Search grou
 
 ## Dependencies
 ```
-uv run --with google-genai --with google-auth --with pillow scripts/gemini_image_gen.py generate --prompt "test" --dry-run
+cd {SKILL_BASE_DIR} && uv run --with google-genai --with google-auth --with pillow scripts/gemini_image_gen.py generate --prompt "test" --dry-run
 ```
-
-## Authentication
-The CLI auto-detects credentials in this order:
-1. **API key**: `GEMINI_API_KEY` -- simplest option, get one at https://aistudio.google.com/apikey
-2. **Vertex AI**: `GOOGLE_APPLICATION_CREDENTIALS` + `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION` -- for enterprise/GCP users with service account credentials.
-
-If no credentials are found, the CLI gives setup instructions for both options.
-Never ask the user to paste keys in chat. Ask them to set env vars locally.
-
-For Vertex AI setup details: `references/vertex-setup.md`.
 
 ## Defaults & rules
 - Model: `gemini-2.5-flash-image` unless user asks for Pro or needs Pro features.
@@ -99,7 +89,7 @@ Edit:
 - multi-image-composition -- combine multiple reference images
 - sketch-to-render -- drawing/line art to photoreal render
 
-## Prompting best practices (short list)
+## Prompting best practices
 - Describe the scene narratively; do not just list keywords.
 - Use photography language for photorealism (lens, lighting, framing).
 - For text in images: quote exact text, specify font style descriptively, use Pro model.
@@ -108,12 +98,6 @@ Edit:
 - For edits, repeat invariants ("change only X; keep Y unchanged").
 - Iterate with single-change follow-ups.
 
-More principles: `references/prompting.md`. Copy/paste specs: `references/sample-prompts.md`.
-
-## CLI + environment notes
-- CLI commands + examples: `references/cli.md`
-- API parameter quick reference: `references/gemini-api.md`
-- Vertex AI setup guide: `references/vertex-setup.md`
 
 ## Reference map
 - **`references/cli.md`**: how to run generation/edits via `scripts/gemini_image_gen.py` (commands, flags, recipes).

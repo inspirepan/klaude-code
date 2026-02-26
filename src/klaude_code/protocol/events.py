@@ -17,7 +17,6 @@ __all__ = [
     "BashCommandOutputDeltaEvent",
     "BashCommandStartEvent",
     "CacheHitRateEvent",
-    "CacheHitWarnEvent",
     "CommandOutputEvent",
     "CompactionEndEvent",
     "CompactionStartEvent",
@@ -149,14 +148,6 @@ class CacheHitRateEvent(Event):
     prev_turn_input_tokens: int
 
 
-class CacheHitWarnEvent(Event):
-    """Warning emitted when a turn's cache hit rate drops below 90%."""
-
-    cache_hit_rate: float
-    cached_tokens: int
-    prev_turn_input_tokens: int
-
-
 class TaskMetadataEvent(Event):
     metadata: model.TaskMetadataItem
     # True when emitted as a best-effort snapshot (e.g. task cancellation/interrupt).
@@ -245,7 +236,6 @@ type ReplayEventUnion = (
     | CompactionEndEvent
     | RewindEvent
     | CacheHitRateEvent
-    | CacheHitWarnEvent
 )
 
 

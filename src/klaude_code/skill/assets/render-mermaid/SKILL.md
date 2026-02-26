@@ -12,7 +12,7 @@ description: "Use when the user asks you to analyze a repository, draw an archit
 4. Run the command to render:
 
 ```bash
-bun scripts/render_mermaid.js \
+cd {SKILL_BASE_DIR} && bun scripts/render_mermaid.js \
   --output "<OUTPUT_PATH>.png" <<'MERMAID'
 <MERMAID_TEXT>
 MERMAID

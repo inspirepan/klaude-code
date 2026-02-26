@@ -90,13 +90,6 @@ class RewindEntry(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
-class CacheHitWarnEntry(BaseModel):
-    cache_hit_rate: float
-    cached_tokens: int
-    prev_turn_input_tokens: int
-    created_at: datetime = Field(default_factory=datetime.now)
-
-
 class CacheHitRateEntry(BaseModel):
     cache_hit_rate: float
     cached_tokens: int
@@ -223,14 +216,7 @@ class ToolResultMessage(MessageBase):
 Message = SystemMessage | DeveloperMessage | UserMessage | AssistantMessage | ToolResultMessage
 
 HistoryEvent = (
-    Message
-    | StreamErrorItem
-    | InterruptEntry
-    | TaskMetadataItem
-    | CompactionEntry
-    | RewindEntry
-    | CacheHitRateEntry
-    | CacheHitWarnEntry
+    Message | StreamErrorItem | InterruptEntry | TaskMetadataItem | CompactionEntry | RewindEntry | CacheHitRateEntry
 )
 
 StreamItem = AssistantTextDelta | ThinkingTextDelta | ToolCallStartDelta
