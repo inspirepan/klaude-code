@@ -276,6 +276,7 @@ def _save_response_images(response: Any, out_path: Path, force: bool) -> list[Pa
             image_data = part.inline_data.data
             if isinstance(image_data, str):
                 import base64
+
                 image_data = base64.b64decode(image_data)
 
             image = PILImage.open(BytesIO(image_data))
@@ -424,13 +425,15 @@ def _edit(args: argparse.Namespace) -> None:
 
 def _add_shared_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--model", "-m",
+        "--model",
+        "-m",
         default=DEFAULT_MODEL,
         choices=[DEFAULT_MODEL, PRO_MODEL],
         help=f"Model to use (default: {DEFAULT_MODEL})",
     )
     parser.add_argument(
-        "--prompt", "-p",
+        "--prompt",
+        "-p",
         help="Text prompt for image generation/editing",
     )
     parser.add_argument(
@@ -439,14 +442,16 @@ def _add_shared_args(parser: argparse.ArgumentParser) -> None:
         help="Read prompt from a file (mutually exclusive with --prompt)",
     )
     parser.add_argument(
-        "--aspect-ratio", "-a",
+        "--aspect-ratio",
+        "-a",
         default=DEFAULT_ASPECT_RATIO,
         metavar="RATIO",
         help=f"Output aspect ratio (default: {DEFAULT_ASPECT_RATIO}). "
-             f"Options: {', '.join(sorted(ALLOWED_ASPECT_RATIOS))}",
+        f"Options: {', '.join(sorted(ALLOWED_ASPECT_RATIOS))}",
     )
     parser.add_argument(
-        "--resolution", "-r",
+        "--resolution",
+        "-r",
         default=DEFAULT_RESOLUTION,
         choices=sorted(ALLOWED_RESOLUTIONS),
         help=f"Output resolution, Pro model only (default: {DEFAULT_RESOLUTION}). Must be uppercase K.",
@@ -462,13 +467,15 @@ def _add_shared_args(parser: argparse.ArgumentParser) -> None:
         help="Enable Google Search grounding (best with Pro model)",
     )
     parser.add_argument(
-        "--out", "-o",
+        "--out",
+        "-o",
         default="output.png",
         metavar="PATH",
         help="Output file path (default: output.png)",
     )
     parser.add_argument(
-        "--force", "-f",
+        "--force",
+        "-f",
         action="store_true",
         help="Overwrite existing output files",
     )
@@ -547,7 +554,8 @@ authentication (auto-detected, checked in order):
     )
     _add_shared_args(edit_parser)
     edit_parser.add_argument(
-        "--image", "-i",
+        "--image",
+        "-i",
         action="append",
         metavar="PATH",
         help="Input image path. Can be specified multiple times (up to 14 images).",

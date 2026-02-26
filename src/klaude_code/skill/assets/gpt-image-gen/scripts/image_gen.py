@@ -91,9 +91,7 @@ def _normalize_output_format(fmt: str | None) -> str:
 
 def _validate_size(size: str) -> None:
     if size not in ALLOWED_SIZES:
-        _die(
-            "size must be one of 1024x1024, 1536x1024, 1024x1536, or auto for GPT image models."
-        )
+        _die("size must be one of 1024x1024, 1536x1024, 1024x1536, or auto for GPT image models.")
 
 
 def _validate_quality(quality: str) -> None:
@@ -147,17 +145,12 @@ def _build_output_paths(
     if out_path.suffix == "":
         out_path = out_path.with_suffix(ext)
     elif output_format and out_path.suffix.lstrip(".").lower() != output_format:
-        _warn(
-            f"Output extension {out_path.suffix} does not match output-format {output_format}."
-        )
+        _warn(f"Output extension {out_path.suffix} does not match output-format {output_format}.")
 
     if count == 1:
         return [out_path]
 
-    return [
-        out_path.with_name(f"{out_path.stem}-{i}{out_path.suffix}")
-        for i in range(1, count + 1)
-    ]
+    return [out_path.with_name(f"{out_path.stem}-{i}{out_path.suffix}") for i in range(1, count + 1)]
 
 
 def _augment_prompt(args: argparse.Namespace, prompt: str) -> str:
@@ -188,7 +181,7 @@ def _augment_prompt_fields(augment: bool, prompt: str, fields: dict[str, str | N
     if fields.get("materials"):
         sections.append(f"Materials/textures: {fields['materials']}")
     if fields.get("text"):
-        sections.append(f"Text (verbatim): \"{fields['text']}\"")
+        sections.append(f'Text (verbatim): "{fields["text"]}"')
     if fields.get("constraints"):
         sections.append(f"Constraints: {fields['constraints']}")
     if fields.get("negative"):
@@ -239,9 +232,7 @@ def _downscale_image_bytes(image_bytes: bytes, *, max_dim: int, output_format: s
     try:
         from PIL import Image
     except Exception:
-        _die(
-            "Downscaling requires Pillow. Install with `uv pip install pillow` (then re-run)."
-        )
+        _die("Downscaling requires Pillow. Install with `uv pip install pillow` (then re-run).")
 
     if max_dim < 1:
         _die("--downscale-max-dim must be >= 1")
@@ -320,9 +311,7 @@ def _create_async_client():
             import openai as _openai  # noqa: F401
         except ImportError:
             _die("openai SDK not installed. Install with `uv pip install openai`.")
-        _die(
-            "AsyncOpenAI not available in this openai SDK version. Upgrade with `uv pip install -U openai`."
-        )
+        _die("AsyncOpenAI not available in this openai SDK version. Upgrade with `uv pip install -U openai`.")
     return AsyncOpenAI()
 
 
@@ -393,9 +382,7 @@ def _job_output_paths(
         if base.suffix == "":
             base = base.with_suffix(ext)
         elif base.suffix.lstrip(".").lower() != output_format:
-            _warn(
-                f"Job {idx}: output extension {base.suffix} does not match output-format {output_format}."
-            )
+            _warn(f"Job {idx}: output extension {base.suffix} does not match output-format {output_format}.")
         base = out_dir / base.name
     else:
         slug = _slugify(prompt[:80])
@@ -403,10 +390,7 @@ def _job_output_paths(
 
     if n == 1:
         return [base]
-    return [
-        base.with_name(f"{base.stem}-{i}{base.suffix}")
-        for i in range(1, n + 1)
-    ]
+    return [base.with_name(f"{base.stem}-{i}{base.suffix}") for i in range(1, n + 1)]
 
 
 def _extract_retry_after_seconds(exc: Exception) -> float | None:
@@ -517,9 +501,7 @@ async def _run_generate_batch(args: argparse.Namespace) -> int:
             )
             downscaled = None
             if args.downscale_max_dim is not None:
-                downscaled = [
-                    str(_derive_downscale_path(p, args.downscale_suffix)) for p in outputs
-                ]
+                downscaled = [str(_derive_downscale_path(p, args.downscale_suffix)) for p in outputs]
             _print_request(
                 {
                     "endpoint": "/v1/images/generations",
