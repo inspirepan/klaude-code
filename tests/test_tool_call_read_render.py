@@ -67,3 +67,21 @@ def test_render_read_skill_path_segment_styles() -> None:
     assert style_at(suffix_start) == skill_name_style
     assert style_at(suffix_start + len("commit")) == slash_style
     assert style_at(suffix_start + len("commit/")) == skill_file_style
+
+
+def test_render_read_tool_call_long_path_folds_without_ellipsis() -> None:
+    console = Console(width=40, record=True, force_terminal=False, theme=get_theme().app_theme)
+    arguments = json.dumps(
+        {
+            "file_path": "/tmp/very/long/path/for/read/tool/call/that/should/fold/instead/of/truncate/output.txt",
+            "offset": 1,
+            "limit": 400,
+        }
+    )
+
+    console.print(render_read_tool_call(arguments))
+    output = console.export_text()
+
+    assert "…" not in output
+    assert "output.txt" in output
+    assert "1:400" in output
