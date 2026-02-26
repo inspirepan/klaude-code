@@ -106,7 +106,7 @@ For step-by-step visual guides or comics:
 - Request interleaved text and image output (default `TEXT,IMAGE` modality)
 
 ## Search-grounded generation
-Use `gemini-3-pro-image-preview` with `tools=[{"google_search": {}}]`.
+Use `gemini-3.1-flash-image-preview` or `gemini-3-pro-image-preview` with `tools=[{"google_search": {}}]`.
 - Describe what real-time data to visualize (weather forecast, recent event, stock data)
 - The model fetches current information and incorporates it into the image
 - Image-based search results are NOT passed to the model (text-only grounding)
@@ -125,9 +125,10 @@ Use `gemini-3-pro-image-preview` with `tools=[{"google_search": {}}]`.
 - For 3D/illustration: name the finish ("matte", "paper grain", "ink texture", "flat color with soft shadow")
 
 ## Model-specific tips
-### Flash (gemini-2.5-flash-image)
+### Flash (gemini-3.1-flash-image-preview)
 - Optimized for speed; great for iteration and high-volume tasks
-- Best with simple to moderate prompts
+- Supports Thinking and Search grounding
+- Supports low-latency `512px` output and extreme aspect ratios (`1:4`, `1:8`, `4:1`, `8:1`)
 - Use for quick prototyping before switching to Pro for final output
 
 ### Pro (gemini-3-pro-image-preview)

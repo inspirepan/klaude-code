@@ -36,7 +36,7 @@ uv run scripts/gemini_image_gen.py generate --prompt "A cozy alpine cabin at daw
 ```
 uv run scripts/gemini_image_gen.py generate \
   --prompt "A minimalist hero image of a ceramic coffee mug" \
-  --model gemini-2.5-flash-image \
+  --model gemini-3.1-flash-image-preview \
   --aspect-ratio 16:9 \
   --out output/hero.png
 ```
@@ -61,9 +61,9 @@ uv run scripts/gemini_image_gen.py edit \
 ```
 
 ## Defaults (unless overridden)
-- Model: `gemini-2.5-flash-image`
+- Model: `gemini-3.1-flash-image-preview`
 - Aspect ratio: `1:1`
-- Resolution: `1K` (Pro model only; auto-detected from input images when editing)
+- Resolution: `1K` (supports `512px, 1K, 2K, 4K`; `512px` is Flash-only)
 - Response modalities: `TEXT,IMAGE`
 - Output: `output.png`
 - Augment: enabled (use `--no-augment` to skip)
@@ -72,12 +72,12 @@ uv run scripts/gemini_image_gen.py edit \
 
 | Flag | Values | Notes |
 |---|---|---|
-| `--model` | `gemini-2.5-flash-image`, `gemini-3-pro-image-preview` | Model selection |
+| `--model` | `gemini-3.1-flash-image-preview`, `gemini-3-pro-image-preview` | Model selection |
 | `--prompt` | text | Required. The generation/edit prompt |
 | `--prompt-file` | path | Read prompt from file (mutually exclusive with --prompt) |
 | `--image` | path | Input image(s) for editing. Repeatable, up to 14 |
-| `--aspect-ratio` | `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9` | Output aspect ratio |
-| `--resolution` | `1K`, `2K`, `4K` | Output resolution (Pro model only) |
+| `--aspect-ratio` | `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` | Output aspect ratio (`1:4/1:8/4:1/8:1` are Flash-only) |
+| `--resolution` | `512px`, `1K`, `2K`, `4K` | Output resolution (`512px` is Flash-only) |
 | `--image-only` | flag | Only return image, no text |
 | `--google-search` | flag | Enable Google Search grounding |
 | `--out` | path | Output file path (default: output.png) |
@@ -120,9 +120,18 @@ Search-grounded generation:
 ```
 uv run scripts/gemini_image_gen.py generate \
   --prompt "Visualize the current weather forecast for San Francisco as a modern chart" \
-  --model gemini-3-pro-image-preview \
+  --model gemini-3.1-flash-image-preview \
   --google-search \
   --aspect-ratio 16:9
+```
+
+Low-latency 512px mode (Nano Banana 2):
+```
+uv run scripts/gemini_image_gen.py generate \
+  --prompt "A cute pixel art robot" \
+  --model gemini-3.1-flash-image-preview \
+  --resolution 512px \
+  --image-only
 ```
 
 Style transfer with reference image:

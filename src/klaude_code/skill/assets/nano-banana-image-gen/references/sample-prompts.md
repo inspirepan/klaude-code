@@ -100,7 +100,7 @@ Style/medium: soft refined textures with realistic PBR materials, gentle lifelik
 Composition/framing: isometric miniature diorama, clean minimalistic, soft solid-colored background
 Text (verbatim): "London" (title, large bold at top-center), weather icon, date (small), temperature (medium)
 Constraints: centered text with consistent spacing; integrate real weather conditions
-Note: requires --google-search flag and Pro model
+Note: requires --google-search flag and a Gemini 3 model (Nano Banana 2 or Pro)
 ```
 
 ## Edit

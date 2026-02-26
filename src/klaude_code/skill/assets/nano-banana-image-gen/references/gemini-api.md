@@ -3,7 +3,7 @@
 ## Models
 | Model | ID | Best for |
 |---|---|---|
-| Nano Banana (Flash) | `gemini-2.5-flash-image` | Speed, low-latency, high-volume; <=3 input images |
+| Nano Banana / Nano Banana 2 (Flash) | `gemini-3.1-flash-image-preview` | Speed-quality balance, Thinking, Search grounding, 512px mode; <=3 input images |
 | Nano Banana Pro | `gemini-3-pro-image-preview` | Professional assets, 4K, text rendering, Search grounding, Thinking; up to 14 input images |
 
 ## Authentication
@@ -30,7 +30,7 @@ client = genai.Client(vertexai=True, credentials=credentials,
 
 # Generate (same for both):
 response = client.models.generate_content(
-    model="gemini-2.5-flash-image",
+    model="gemini-3.1-flash-image-preview",
     contents=[prompt],  # or [prompt, image1, image2, ...]
     config=types.GenerateContentConfig(
         response_modalities=['TEXT', 'IMAGE'],
@@ -60,16 +60,24 @@ for part in response.parts:
 - `['Image']`: image-only output
 
 ### `image_config`
-- `aspect_ratio`: `1:1` (default), `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`
-- `image_size` (Pro only): `1K` (default), `2K`, `4K`. Must be uppercase `K`.
+- `aspect_ratio`: `1:1` (default), `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9`
+  - `1:4`, `1:8`, `4:1`, `8:1` are Nano Banana 2 only.
+- `image_size`:
+  - Nano Banana 2: `512px`, `1K`, `2K`, `4K`
+  - Pro: `1K`, `2K`, `4K`
 
 ### `tools`
-- `[{"google_search": {}}]`: enables Google Search grounding (Pro only recommended)
+- `[{"google_search": {}}]`: enables Google Search grounding (supported by Nano Banana 2 + Pro)
 
 ## Input constraints
-- Flash model: best with <=3 input images
+- Nano Banana 2: best with <=3 input images
 - Pro model: up to 14 input images total (up to 5 humans high-fidelity, up to 6 objects high-fidelity)
 - No audio/video input supported for image generation
+
+## Nano Banana 2 specifics
+- Supports Thinking and Thinking Levels via `thinking_config`.
+- Supports low-latency `512px` image size.
+- Supports image-grounding search mode (`google_search.search_types.image_search`) in addition to web text grounding.
 
 ## Output
 - Response parts contain `text` and/or `inline_data` (image bytes)
@@ -89,4 +97,5 @@ EN, ar-EG, de-DE, es-MX, fr-FR, hi-IN, id-ID, it-IT, ja-JP, ko-KR, pt-BR, ru-RU,
 ## Limitations
 - Output image count is not strictly guaranteed to match user request.
 - Pro model Thinking adds latency but improves complex prompt adherence.
+- `response_modalities=['Image']` may not work reliably with Search grounding.
 - Use rights compliance required for uploaded images (Prohibited Use Policy).

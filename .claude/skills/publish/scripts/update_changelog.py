@@ -12,6 +12,7 @@ import subprocess
 import sys
 from datetime import date
 from pathlib import Path
+from typing import cast
 from urllib.request import Request, urlopen
 
 REPO_BASE_URL = "https://github.com/inspirepan/klaude-code"
@@ -83,10 +84,15 @@ def fetch_pr_author(pr_number: str) -> str | None:
     except Exception:
         return None
 
-    user = payload.get("user")
+    if not isinstance(payload, dict):
+        return None
+    payload_dict = cast(dict[str, object], payload)
+
+    user = payload_dict.get("user")
     if not isinstance(user, dict):
         return None
-    login = user.get("login")
+    user_dict = cast(dict[str, object], user)
+    login = user_dict.get("login")
     if not isinstance(login, str) or not login:
         return None
     return login
