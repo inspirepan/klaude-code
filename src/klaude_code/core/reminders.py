@@ -9,7 +9,9 @@ from klaude_code.core.memory import (
     Memory,
     discover_memory_files_near_paths,
     format_memories_reminder,
+    get_auto_memory_path,
     get_memory_paths,
+    load_auto_memory,
 )
 from klaude_code.core.tool import BashTool, ReadTool, build_todo_context
 from klaude_code.core.tool.context import ToolContext
@@ -477,7 +479,7 @@ def _mark_memory_loaded(session: Session, path: str) -> None:
 
 
 async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
-    """CLAUDE.md AGENTS.md"""
+    """CLAUDE.md AGENTS.md and per-project MEMORY.md"""
     memory_paths = get_memory_paths(work_dir=session.work_dir)
     memories: list[Memory] = []
     seen_dirs: set[Path] = set()
@@ -494,14 +496,36 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
                 memories.append(Memory(path=path_str, instruction=instruction, content=text))
             except (PermissionError, UnicodeDecodeError, OSError):
                 continue
-    if len(memories) > 0:
+
+    auto_mem = load_auto_memory()
+    auto_memory_hint = ""
+    if auto_mem is not None:
+        if not _is_memory_loaded(session, auto_mem.path):
+            _mark_memory_loaded(session, auto_mem.path)
+            memories.append(auto_mem)
+    else:
+        auto_memory_path = get_auto_memory_path()
+        path_str = str(auto_memory_path)
+        if not _is_memory_loaded(session, path_str):
+            _mark_memory_loaded(session, path_str)
+            auto_memory_hint = f"\n\nNo auto memory file yet for this project. Create {auto_memory_path} when you need to persist memories."
+
+    if memories or auto_memory_hint:
         loaded_files = [
             model.MemoryFileLoaded(path=memory.path, mentioned_patterns=_extract_at_patterns(memory.content))
             for memory in memories
         ]
+        ui_items: list[model.DeveloperUIItem] = [model.MemoryLoadedUIItem(files=loaded_files)] if loaded_files else []
+        reminder_text = format_memories_reminder(memories, include_header=True) if memories else ""
+        if auto_memory_hint:
+            if reminder_text:
+                # Insert hint before closing </system-reminder> tag
+                reminder_text = reminder_text.replace("</system-reminder>", f"{auto_memory_hint}\n</system-reminder>")
+            else:
+                reminder_text = f"<system-reminder>{auto_memory_hint}\n</system-reminder>"
         return message.DeveloperMessage(
-            parts=message.text_parts_from_str(format_memories_reminder(memories, include_header=True)),
-            ui_extra=model.DeveloperUIExtra(items=[model.MemoryLoadedUIItem(files=loaded_files)]),
+            parts=message.text_parts_from_str(reminder_text),
+            ui_extra=model.DeveloperUIExtra(items=ui_items),
         )
     return None
 
