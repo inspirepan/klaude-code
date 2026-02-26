@@ -918,7 +918,8 @@ class TUICommandRenderer:
                     self.display_task_metadata(event)
                 case RenderTaskFinish() as cmd_finish:
                     self.display_task_finish(cmd_finish.event)
-                    self._maybe_notify_task_finish(cmd_finish)
+                    if not self._replay_mode:
+                        self._maybe_notify_task_finish(cmd_finish)
                 case RenderInterrupt():
                     self.display_interrupt()
                 case RenderError(event=event):
