@@ -173,4 +173,4 @@ def load_system_prompt(
         auto_memory_prompt = _build_auto_memory_prompt()
         skills_prompt = format_available_skills_for_system_prompt()
 
-    return base_prompt + auto_memory_prompt + _build_env_info(model_name) + skills_prompt
+    return base_prompt + auto_memory_prompt + skills_prompt + _build_env_info(model_name)
