@@ -25,4 +25,6 @@ def test_bottom_height_shrink_padding_not_applied_with_live_stream() -> None:
     renderable = renderer._bottom_renderable()
 
     assert not isinstance(renderable, Padding)
-    assert renderer._bottom_last_height == len(renderer.console.render_lines(renderable, renderer.console.options, pad=False))
+    assert renderer._bottom_last_height == len(
+        renderer.console.render_lines(renderable, renderer.console.options, pad=False)
+    )
