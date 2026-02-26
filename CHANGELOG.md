@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - switch render-mermaid PNG export to puppeteer-core ([#27](https://github.com/inspirepan/klaude-code/pull/27) by [@inspirepan](https://github.com/inspirepan))
 - add developer attachment position marker ([#26](https://github.com/inspirepan/klaude-code/pull/26) by [@inspirepan](https://github.com/inspirepan))
-- add bundled pdf system skill ([#25](https://github.com/inspirepan/klaude-code/pull/25) by [@inspirepan](https://github.com/inspirepan))
+- add bundled pdf system skill ([#25](https://github.com/inspirepan/klaude-code/pull/25) by [@ustc-taoyang](https://github.com/ustc-taoyang))
 - auto-memory and system improvements ([#24](https://github.com/inspirepan/klaude-code/pull/24) by [@inspirepan](https://github.com/inspirepan))
 - convert Mermaid from tool to skill ([#22](https://github.com/inspirepan/klaude-code/pull/22) by [@inspirepan](https://github.com/inspirepan))
 - rename gemini-image-gen assets to nano-banana-image-gen ([#18](https://github.com/inspirepan/klaude-code/pull/18) by [@inspirepan](https://github.com/inspirepan))
@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - support symlinked skill subdirectories + tui improvements ([#16](https://github.com/inspirepan/klaude-code/pull/16) by [@inspirepan](https://github.com/inspirepan))
 - enrich changelog with PR links ([#10](https://github.com/inspirepan/klaude-code/pull/10) by [@inspirepan](https://github.com/inspirepan))
 - add frontend-design skill ([#8](https://github.com/inspirepan/klaude-code/pull/8) by [@inspirepan](https://github.com/inspirepan))
-- add submit-pr workflow skill ([#5](https://github.com/inspirepan/klaude-code/pull/5) by [@inspirepan](https://github.com/inspirepan))
+- add submit-pr workflow skill ([#5](https://github.com/inspirepan/klaude-code/pull/5) by [@ustc-taoyang](https://github.com/ustc-taoyang))
 
 ### Changed
 

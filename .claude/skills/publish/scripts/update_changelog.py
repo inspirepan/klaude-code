@@ -5,13 +5,17 @@
 # ///
 """Update CHANGELOG.md with commits since the last tag."""
 
+import json
+import os
 import re
 import subprocess
 import sys
 from datetime import date
 from pathlib import Path
+from urllib.request import Request, urlopen
 
 REPO_BASE_URL = "https://github.com/inspirepan/klaude-code"
+REPO_API_BASE_URL = "https://api.github.com/repos/inspirepan/klaude-code"
 
 
 def get_last_tag() -> str | None:
@@ -55,12 +59,37 @@ def get_commits_since_tag(tag: str | None) -> list[tuple[str, str, str]]:
     return commits
 
 
-def extract_pr_metadata(subject: str) -> tuple[str | None, str | None]:
-    """Extract PR number and user from a merge commit subject."""
+def extract_pr_number(subject: str) -> str | None:
+    """Extract PR number from a merge commit subject."""
     match = re.match(r"^Merge pull request #(\d+) from ([^/\s]+)/", subject)
     if not match:
-        return None, None
-    return match.group(1), match.group(2)
+        return None
+    return match.group(1)
+
+
+def fetch_pr_author(pr_number: str) -> str | None:
+    """Fetch PR author login from GitHub API."""
+    request = Request(
+        f"{REPO_API_BASE_URL}/pulls/{pr_number}",
+        headers={"Accept": "application/vnd.github+json"},
+    )
+    token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+    if token:
+        request.add_header("Authorization", f"Bearer {token}")
+
+    try:
+        with urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        return None
+
+    user = payload.get("user")
+    if not isinstance(user, dict):
+        return None
+    login = user.get("login")
+    if not isinstance(login, str) or not login:
+        return None
+    return login
 
 
 def categorize_commits(
@@ -88,9 +117,18 @@ def categorize_commits(
         "ci": "Other",
     }
 
+    pr_author_cache: dict[str, str | None] = {}
+
     for commit_hash, subject, body in commits:
-        pr_number, pr_user = extract_pr_metadata(subject)
+        pr_number = extract_pr_number(subject)
+        pr_user: str | None = None
         if pr_number:
+            if pr_number in pr_author_cache:
+                pr_user = pr_author_cache[pr_number]
+            else:
+                pr_user = fetch_pr_author(pr_number)
+                pr_author_cache[pr_number] = pr_user
+
             body_lines = [line.strip() for line in body.splitlines() if line.strip()]
             message = body_lines[0] if body_lines else subject
         else:
@@ -123,10 +161,13 @@ def format_changelog_section(
             lines.append(f"### {category}")
             lines.append("")
             for commit_hash, description, pr_number, pr_user in commits:
-                if pr_number and pr_user:
+                if pr_number:
                     pr_link = f"{REPO_BASE_URL}/pull/{pr_number}"
-                    user_link = f"https://github.com/{pr_user}"
-                    lines.append(f"- {description} ([#{pr_number}]({pr_link}) by [@{pr_user}]({user_link}))")
+                    if pr_user:
+                        user_link = f"https://github.com/{pr_user}"
+                        lines.append(f"- {description} ([#{pr_number}]({pr_link}) by [@{pr_user}]({user_link}))")
+                    else:
+                        lines.append(f"- {description} ([#{pr_number}]({pr_link}))")
                 else:
                     lines.append(f"- {description} (`{commit_hash}`)")
             lines.append("")
