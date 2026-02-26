@@ -45,7 +45,7 @@ def test_copy_command_copies_last_assistant_message(monkeypatch: pytest.MonkeyPa
     assert copied == ["a2"]
 
 
-def test_copy_command_formats_saved_images(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_copy_command_ignores_assistant_images_without_text(monkeypatch: pytest.MonkeyPatch) -> None:
     session = Session.create(work_dir=Path.cwd())
     session.conversation_history = [
         message.AssistantMessage(
@@ -64,9 +64,10 @@ def test_copy_command_formats_saved_images(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(copy_cmd, "copy_to_clipboard", _copy)
 
     cmd = copy_cmd.CopyCommand()
-    _ = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="")))
+    result = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="")))
 
-    assert copied == ["Saved image at /tmp/foo.png"]
+    assert copied == []
+    assert result.events is not None
 
 
 def test_copy_command_merges_across_mermaid_calls(monkeypatch: pytest.MonkeyPatch) -> None:

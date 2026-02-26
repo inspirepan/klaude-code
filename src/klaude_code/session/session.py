@@ -429,9 +429,7 @@ class Session(BaseModel):
                 yield events.TurnStartEvent(session_id=self.id)
             match it:
                 case message.AssistantMessage() as am:
-                    all_images = [part for part in am.parts if isinstance(part, message.ImageFilePart)]
-                    full_content = message.join_text_parts(am.parts)
-                    last_assistant_content = message.format_saved_images(all_images, full_content)
+                    last_assistant_content = message.join_text_parts(am.parts)
 
                     # Reconstruct streaming boundaries from saved parts.
                     # This allows replay to reuse the same TUI state machine as live events.
@@ -477,12 +475,6 @@ class Session(BaseModel):
                                     response_id=am.response_id,
                                     session_id=self.id,
                                 )
-                        elif isinstance(part, message.ImageFilePart):
-                            yield events.AssistantImageDeltaEvent(
-                                file_path=part.file_path,
-                                response_id=am.response_id,
-                                session_id=self.id,
-                            )
 
                     if thinking_open:
                         yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id)

@@ -10,7 +10,6 @@ from klaude_code.protocol import llm_param, message, model
 from klaude_code.protocol.commands import CommandName
 
 __all__ = [
-    "AssistantImageDeltaEvent",
     "AssistantTextDeltaEvent",
     "AssistantTextEndEvent",
     "AssistantTextStartEvent",
@@ -189,10 +188,6 @@ class AssistantTextEndEvent(ResponseEvent):
     pass
 
 
-class AssistantImageDeltaEvent(ResponseEvent):
-    file_path: str
-
-
 class ToolCallStartEvent(ResponseEvent):
     tool_call_id: str
     tool_name: str
@@ -239,7 +234,6 @@ type ReplayEventUnion = (
     | AssistantTextStartEvent
     | AssistantTextDeltaEvent
     | AssistantTextEndEvent
-    | AssistantImageDeltaEvent
     | ToolCallEvent
     | ToolResultEvent
     | UserMessageEvent

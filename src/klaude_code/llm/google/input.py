@@ -11,7 +11,7 @@ from typing import Any, cast
 from google.genai import types
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
-from klaude_code.llm.image import assistant_image_to_data_url, image_file_to_data_url, parse_data_url
+from klaude_code.llm.image import image_file_to_data_url, parse_data_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
     ImagePart,
@@ -174,14 +174,6 @@ def _assistant_message_to_content(msg: message.AssistantMessage, model_name: str
                     function_call=types.FunctionCall(id=part.call_id, name=part.tool_name, args=args),
                 )
             )
-
-        elif isinstance(part, message.ImageFilePart):
-            # Convert saved image back to inline_data for multi-turn
-            try:
-                data_url = assistant_image_to_data_url(part)
-                parts.append(_image_part_to_part(message.ImageURLPart(url=data_url)))
-            except (ValueError, FileNotFoundError):
-                pass  # Skip if image cannot be loaded
 
     if degraded_thinking_texts:
         parts.insert(0, types.Part(text="<thinking>\n" + "\n".join(degraded_thinking_texts) + "\n</thinking>"))

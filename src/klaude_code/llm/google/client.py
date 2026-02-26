@@ -24,13 +24,9 @@ from google.genai.types import (
     ThinkingLevel,
     ToolConfig,
 )
-from google.genai.types import (
-    ImageConfig as GoogleImageConfig,
-)
 
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.google.input import convert_history_to_contents, convert_tool_schema
-from klaude_code.llm.image import save_assistant_image
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.json_stable import dumps_canonical_json
 from klaude_code.llm.registry import register
@@ -47,10 +43,6 @@ from klaude_code.protocol.model_id import supports_google_thinking
 
 # Unified format for Google thought signatures
 GOOGLE_THOUGHT_SIGNATURE_FORMAT = "google"
-
-# Synthetic signature for image parts that need one but don't have it.
-# See: https://ai.google.dev/gemini-api/docs/thought-signatures
-SYNTHETIC_THOUGHT_SIGNATURE = b"skip_thought_signature_validator"
 
 
 def support_thinking(model_id: str | None) -> bool:
@@ -95,14 +87,6 @@ def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
             if param.thinking.reasoning_effort:
                 thinking_config.thinking_level = convert_gemini_thinking_level(param.thinking.reasoning_effort)
 
-    # Per-call image generation overrides
-    image_config: GoogleImageConfig | None = None
-    if param.image_config is not None:
-        image_config = GoogleImageConfig(
-            aspect_ratio=param.image_config.aspect_ratio,
-            image_size=param.image_config.image_size,
-        )
-
     return GenerateContentConfig(
         system_instruction=param.system,
         temperature=param.temperature,
@@ -110,7 +94,6 @@ def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
         tools=cast(Any, tool_list) if tool_list else None,
         tool_config=tool_config,
         thinking_config=thinking_config,
-        image_config=image_config,
     )
 
 
@@ -130,13 +113,6 @@ def _usage_from_metadata(
     response = usage.candidates_token_count or 0
     thoughts = usage.thoughts_token_count or 0
 
-    # Extract image tokens from candidates_tokens_details
-    image_tokens = 0
-    if usage.candidates_tokens_details:
-        for detail in usage.candidates_tokens_details:
-            if detail.modality and detail.modality.name == "IMAGE" and detail.token_count:
-                image_tokens += detail.token_count
-
     total = usage.total_token_count
     if total is None:
         total = prompt + response + thoughts
@@ -146,7 +122,6 @@ def _usage_from_metadata(
         cached_tokens=cached,
         output_tokens=response + thoughts,
         reasoning_tokens=thoughts,
-        image_tokens=image_tokens,
         context_size=total,
         context_limit=context_limit,
         max_tokens=max_tokens,
@@ -237,10 +212,6 @@ class GoogleStreamStateManager:
             )
         )
 
-    def append_image(self, image_part: message.ImageFilePart) -> None:
-        """Append an ImageFilePart."""
-        self.assistant_parts.append(image_part)
-
     def append_tool_call(self, call_id: str, name: str, arguments_json: str) -> None:
         """Append a ToolCallPart."""
         self.assistant_parts.append(
@@ -277,9 +248,6 @@ async def parse_google_stream(
     started_tool_calls: dict[str, tuple[str, bytes | None]] = {}  # call_id -> (name, thought_signature)
     started_tool_items: set[str] = set()
     completed_tool_items: set[str] = set()
-
-    # Track image index for unique filenames
-    image_index = 0
 
     last_usage_metadata: GenerateContentResponseUsageMetadata | None = None
 
@@ -328,42 +296,6 @@ async def parse_google_stream(
                         if encoded_sig:
                             state.append_thinking_signature(encoded_sig)
                     yield message.AssistantTextDelta(content=text, response_id=state.response_id)
-
-            # Handle inline_data (image generation responses)
-            inline_data = part.inline_data
-            if inline_data is not None and inline_data.data:
-                # Thought images (interim images produced during thinking) do not
-                # carry thought signatures and must not be treated as response
-                # images for multi-turn history.
-                if part.thought is True:
-                    continue
-                mime_type = inline_data.mime_type or "image/png"
-                encoded_data = b64encode(inline_data.data).decode("ascii")
-                data_url = f"data:{mime_type};base64,{encoded_data}"
-                try:
-                    image_part = save_assistant_image(
-                        data_url=data_url,
-                        session_id=param.session_id,
-                        response_id=state.response_id,
-                        image_index=image_index,
-                    )
-                    image_index += 1
-                    state.append_image(image_part)
-                    # Add ThinkingSignaturePart after image if present, or synthetic signature for thinking models
-                    if part.thought_signature:
-                        encoded_sig = _encode_thought_signature(part.thought_signature)
-                        if encoded_sig:
-                            state.append_thinking_signature(encoded_sig)
-                    elif support_thinking(param.model_id):
-                        encoded_sig = _encode_thought_signature(SYNTHETIC_THOUGHT_SIGNATURE)
-                        if encoded_sig:
-                            state.append_thinking_signature(encoded_sig)
-                    yield message.AssistantImageDelta(
-                        response_id=state.response_id,
-                        file_path=image_part.file_path,
-                    )
-                except ValueError:
-                    pass  # Skip invalid images
 
             # Handle function calls
             function_call = part.function_call

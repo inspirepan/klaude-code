@@ -34,7 +34,6 @@ from klaude_code.tui.commands import (
     EndThinkingStream,
     PrintBlankLine,
     PrintRuleLine,
-    RenderAssistantImage,
     RenderBashCommandEnd,
     RenderBashCommandStart,
     RenderCacheHitWarn,
@@ -921,8 +920,6 @@ class TUICommandRenderer:
                 case RenderThinkingHeader(session_id=session_id, header=header):
                     with self.session_print_context(session_id):
                         self.display_thinking_header(header)
-                case RenderAssistantImage(file_path=file_path):
-                    self.display_image(file_path)
                 case RenderToolCall(event=event):
                     with self.session_print_context(event.session_id):
                         self.display_tool_call(event)

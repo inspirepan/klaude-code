@@ -383,20 +383,6 @@ class Config(BaseModel):
             if include_disabled or not model.disabled
         ]
 
-    def has_available_image_model(self) -> bool:
-        """Check if any image generation model is available."""
-        for entry in self.iter_model_entries(only_available=True, include_disabled=False):
-            if entry.modalities and "image" in entry.modalities:
-                return True
-        return False
-
-    def get_first_available_image_model(self) -> str | None:
-        """Get the first available image generation model, or None."""
-        for entry in self.iter_model_entries(only_available=True, include_disabled=False):
-            if entry.modalities and "image" in entry.modalities:
-                return entry.model_name
-        return None
-
     async def save(self) -> None:
         """Save user config to file (excludes builtin providers).
 

@@ -66,9 +66,7 @@ def _collect_assistant_text(history: list[message.HistoryEvent]) -> str:
 
 
 def _format_assistant(msg: message.AssistantMessage) -> str:
-    content = message.join_text_parts(msg.parts)
-    images = [p for p in msg.parts if isinstance(p, message.ImageFilePart)]
-    formatted = message.format_saved_images(images, content)
+    formatted = message.join_text_parts(msg.parts)
 
     for part in msg.parts:
         if isinstance(part, message.ToolCallPart) and part.tool_name == tools.MERMAID:

@@ -54,11 +54,6 @@ class SelectItem[T]:
 # ---------------------------------------------------------------------------
 
 
-def _is_image_model(m: Any) -> bool:
-    modalities = getattr(m, "modalities", None)
-    return bool(modalities and "image" in modalities)
-
-
 def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
     """Build SelectItem list from ModelEntry objects.
 
@@ -71,23 +66,16 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
     if not models:
         return []
 
-    # Separate image generation models from regular models.
-    regular_models = [m for m in models if not _is_image_model(m)]
-    image_models = [m for m in models if _is_image_model(m)]
-
     max_model_name_length = max(len(m.model_name) for m in models)
     num_width = len(str(len(models)))
 
-    # Group regular models by provider in stable insertion order.
+    # Group models by provider in stable insertion order.
     provider_grouped: dict[str, list[Any]] = {}
-    for m in regular_models:
+    for m in models:
         provider = str(getattr(m, "provider", ""))
         provider_grouped.setdefault(provider, []).append(m)
 
-    # Collect all groups: provider groups + optional image generation group.
     all_groups: list[tuple[str, list[Any]]] = list(provider_grouped.items())
-    if image_models:
-        all_groups.append(("image generation", image_models))
 
     # Calculate max header width for alignment across all groups.
     max_header_len = max(len(f"{name.upper()} ({len(ms)})") for name, ms in all_groups)

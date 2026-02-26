@@ -166,24 +166,6 @@ provider_list:
       reasoning_effort: medium
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
-  - model_name: nano-banana-pro
-    model_id: google/gemini-3-pro-image-preview
-    context_limit: 66000
-    modalities:
-    - image
-    - text
-    image_config:
-      image_size: "4K"
-    cost: { input: 2, output: 12, cache_read: 0.2, image: 120 }
-
-  - model_name: nano-banana
-    model_id: google/gemini-2.5-flash-image
-    context_limit: 33000
-    modalities:
-    - image
-    - text
-    cost: { input: 0.3, output: 2.5, cache_read: 0.03, image: 30 }
-
   - model_name: aurora
     model_id: openrouter/aurora-alpha
     context_limit: 128000
@@ -220,22 +202,6 @@ provider_list:
       - z-ai
     cost: { input: 1, output: 3.2, cache_read: 0.1 }
 
-  - model_name: seedream
-    model_id: bytedance-seed/seedream-4.5
-    context_limit: 4000
-    cost: { input: 0, output: 9.581, image: 9.581 }
-    modalities:
-    - image
-    - text
-
-  - model_name: flux
-    model_id: black-forest-labs/flux.2-max
-    context_limit: 47000
-    cost: { input: 7.32, output: 7.32, image: 7.32 }
-    modalities:
-    - image
-    - text
-
 - provider_name: google
   protocol: google
   api_key: ${GOOGLE_API_KEY}
@@ -254,24 +220,6 @@ provider_list:
     thinking:
       reasoning_effort: medium
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
-
-  - model_name: nano-banana-pro
-    model_id: gemini-3-pro-image-preview
-    context_limit: 66000
-    modalities:
-    - image
-    - text
-    image_config:
-      image_size: "4K"
-    cost: { input: 2, output: 12, cache_read: 0.2, image: 120 }
-
-  - model_name: nano-banana
-    model_id: gemini-2.5-flash-image
-    context_limit: 33000
-    modalities:
-    - image
-    - text
-    cost: { input: 0.3, output: 2.5, cache_read: 0.03, image: 30 }
 
 - provider_name: google-vertex
   protocol: google_vertex
@@ -293,24 +241,6 @@ provider_list:
     thinking:
       reasoning_effort: medium
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
-
-  - model_name: nano-banana-pro
-    model_id: gemini-3-pro-image-preview
-    context_limit: 66000
-    modalities:
-    - image
-    - text
-    image_config:
-      image_size: "4K"
-    cost: { input: 2, output: 12, cache_read: 0.2, image: 120 }
-
-  - model_name: nano-banana
-    model_id: gemini-2.5-flash-image
-    context_limit: 33000
-    modalities:
-    - image
-    - text
-    cost: { input: 0.3, output: 2.5, cache_read: 0.03, image: 30 }
 
 - provider_name: bedrock
   protocol: bedrock

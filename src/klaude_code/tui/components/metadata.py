@@ -83,9 +83,6 @@ def _build_metadata_content(
         if metadata.usage.reasoning_tokens > 0:
             token_text.append(", thought ", style=ThemeKey.METADATA)
             token_text.append(format_number(metadata.usage.reasoning_tokens), style=ThemeKey.METADATA)
-        if metadata.usage.image_tokens > 0:
-            token_text.append(", img ", style=ThemeKey.METADATA)
-            token_text.append(format_number(metadata.usage.image_tokens), style=ThemeKey.METADATA)
         parts.append(token_text)
 
         # Context pill (blue-grey bg): "25.1k/168k (14.9%)"

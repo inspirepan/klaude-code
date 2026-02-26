@@ -138,7 +138,7 @@ def test_openrouter_history_includes_image_url_parts():
     assert image_url["url"] == SAMPLE_DATA_URL
 
 
-def test_openrouter_history_includes_assistant_images_for_multi_turn_editing():
+def test_openrouter_history_ignores_assistant_images():
     with tempfile.TemporaryDirectory() as tmpdir:
         img_path = Path(tmpdir) / "assistant.png"
         img_bytes = b64decode(SAMPLE_IMAGE_BASE64)
@@ -152,13 +152,10 @@ def test_openrouter_history_includes_assistant_images_for_multi_turn_editing():
         messages = openrouter_history(history, system=None, model_name=None)
         first = _ensure_dict(messages[0])
         assert first["role"] == "assistant"
-        images = _ensure_list(first["images"])
-        first_image = _ensure_dict(images[0])
-        image_url = _ensure_dict(first_image["image_url"])
-        assert image_url["url"] == SAMPLE_DATA_URL
+        assert "images" not in first
 
 
-def test_openai_compatible_history_includes_assistant_images_for_multi_turn_editing():
+def test_openai_compatible_history_ignores_assistant_images():
     with tempfile.TemporaryDirectory() as tmpdir:
         img_path = Path(tmpdir) / "assistant.png"
         img_bytes = b64decode(SAMPLE_IMAGE_BASE64)
@@ -172,10 +169,7 @@ def test_openai_compatible_history_includes_assistant_images_for_multi_turn_edit
         messages = openai_history(history, system=None, model_name=None)
         first = _ensure_dict(messages[0])
         assert first["role"] == "assistant"
-        images = _ensure_list(first["images"])
-        first_image = _ensure_dict(images[0])
-        image_url = _ensure_dict(first_image["image_url"])
-        assert image_url["url"] == SAMPLE_DATA_URL
+        assert "images" not in first
 
 
 def test_responses_history_includes_image_inputs():
