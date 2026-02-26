@@ -40,7 +40,7 @@ def load_prompt_by_path(prompt_path: str) -> str:
 def load_main_base_prompt(model_name: str) -> str:
     """Load base prompt content for main agents.
 
-    Main non-image models share a single simplified prompt.
+    Main models share a single simplified prompt.
     """
 
     del model_name

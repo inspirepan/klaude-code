@@ -30,9 +30,6 @@ def calculate_cost(usage: model.Usage, cost_config: llm_param.Cost | None) -> No
     # Cache read cost
     usage.cache_read_cost = (usage.cached_tokens / 1_000_000) * (cost_config.cache_read or cost_config.input)
 
-    # Image generation cost
-    usage.image_cost = (usage.image_tokens / 1_000_000) * cost_config.image
-
 
 class MetadataTracker:
     """Tracks timing and metadata for LLM responses."""
@@ -147,16 +144,12 @@ def convert_usage(
     representing the actual context window usage for this turn.
     """
     completion_details = usage.completion_tokens_details
-    image_tokens = 0
-    if completion_details is not None:
-        image_tokens = getattr(completion_details, "image_tokens", 0) or 0
 
     return model.Usage(
         input_tokens=usage.prompt_tokens,
         cached_tokens=(usage.prompt_tokens_details.cached_tokens if usage.prompt_tokens_details else 0) or 0,
         reasoning_tokens=(completion_details.reasoning_tokens if completion_details else 0) or 0,
         output_tokens=usage.completion_tokens,
-        image_tokens=image_tokens,
         context_size=usage.total_tokens,
         context_limit=context_limit,
         max_tokens=max_tokens,

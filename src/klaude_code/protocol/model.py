@@ -19,7 +19,6 @@ class Usage(BaseModel):
     cached_tokens: int = 0
     reasoning_tokens: int = 0
     output_tokens: int = 0
-    image_tokens: int = 0  # Image generation tokens
 
     # Context window tracking
     context_size: int | None = None  # Peak total_tokens seen (for context usage display)
@@ -34,7 +33,6 @@ class Usage(BaseModel):
     input_cost: float | None = None  # Cost for non-cached input tokens
     output_cost: float | None = None  # Cost for output tokens (including reasoning)
     cache_read_cost: float | None = None  # Cost for cached tokens
-    image_cost: float | None = None  # Cost for image generation tokens
     currency: str = "USD"  # Currency for cost display (USD or CNY)
     response_id: str | None = None
     model_name: str = ""
@@ -51,8 +49,8 @@ class Usage(BaseModel):
     @computed_field
     @property
     def total_cost(self) -> float | None:
-        """Total cost computed from input + output + cache_read + image costs."""
-        costs = [self.input_cost, self.output_cost, self.cache_read_cost, self.image_cost]
+        """Total cost computed from input + output + cache_read costs."""
+        costs = [self.input_cost, self.output_cost, self.cache_read_cost]
         non_none = [c for c in costs if c is not None]
         return sum(non_none) if non_none else None
 
@@ -93,7 +91,6 @@ class TaskMetadata(BaseModel):
         dst.cached_tokens += src.cached_tokens
         dst.reasoning_tokens += src.reasoning_tokens
         dst.output_tokens += src.output_tokens
-        dst.image_tokens += src.image_tokens
 
         if src.input_cost is not None:
             dst.input_cost = (dst.input_cost or 0.0) + src.input_cost
@@ -101,8 +98,6 @@ class TaskMetadata(BaseModel):
             dst.output_cost = (dst.output_cost or 0.0) + src.output_cost
         if src.cache_read_cost is not None:
             dst.cache_read_cost = (dst.cache_read_cost or 0.0) + src.cache_read_cost
-        if src.image_cost is not None:
-            dst.image_cost = (dst.image_cost or 0.0) + src.image_cost
 
     @staticmethod
     def aggregate_by_model(metadata_list: list["TaskMetadata"]) -> list["TaskMetadata"]:

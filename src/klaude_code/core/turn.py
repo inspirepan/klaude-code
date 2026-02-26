@@ -147,9 +147,7 @@ class TurnExecutor:
             return self._turn_result.report_back_result
         if self._turn_result is not None and self._turn_result.assistant_message is not None:
             assistant_message = self._turn_result.assistant_message
-            text = message.join_text_parts(assistant_message.parts)
-            images = [part for part in assistant_message.parts if isinstance(part, message.ImageFilePart)]
-            return message.format_saved_images(images, text)
+            return message.join_text_parts(assistant_message.parts)
         return ""
 
     @property
@@ -295,18 +293,6 @@ class TurnExecutor:
                             )
                         yield events.AssistantTextDeltaEvent(
                             content=delta.content,
-                            response_id=delta.response_id,
-                            session_id=session_ctx.session_id,
-                        )
-                    case message.AssistantImageDelta() as delta:
-                        if thinking_active:
-                            thinking_active = False
-                            yield events.ThinkingEndEvent(
-                                response_id=delta.response_id,
-                                session_id=session_ctx.session_id,
-                            )
-                        yield events.AssistantImageDeltaEvent(
-                            file_path=delta.file_path,
                             response_id=delta.response_id,
                             session_id=session_ctx.session_id,
                         )

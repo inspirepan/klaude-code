@@ -1,5 +1,3 @@
-import pytest
-
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.protocol import llm_param, message
 
@@ -8,100 +6,58 @@ def _dummy_history() -> list[message.Message]:
     return [message.UserMessage(parts=[message.TextPart(text="hi")])]
 
 
-def test_apply_config_defaults_applies_modalities_when_missing() -> None:
+def test_apply_config_defaults_applies_missing_fields() -> None:
     config = llm_param.LLMConfigParameter(
-        protocol=llm_param.LLMClientProtocol.GOOGLE,
-        model_id="gemini-3-pro-image-preview",
-        modalities=["image", "text"],
+        protocol=llm_param.LLMClientProtocol.OPENROUTER,
+        model_id="openai/gpt-5.3-codex",
+        temperature=0.2,
+        max_tokens=4096,
+        context_limit=200000,
+        verbosity="high",
+        thinking=llm_param.Thinking(reasoning_effort="high"),
+        provider_routing=llm_param.OpenRouterProviderRouting(sort="latency"),
     )
     param = llm_param.LLMCallParameter(input=_dummy_history())
 
     param = apply_config_defaults(param, config)
 
-    assert param.modalities == ["image", "text"]
+    assert param.model_id == "openai/gpt-5.3-codex"
+    assert param.temperature == 0.2
+    assert param.max_tokens == 4096
+    assert param.context_limit == 200000
+    assert param.verbosity == "high"
+    assert param.thinking is not None and param.thinking.reasoning_effort == "high"
+    assert param.provider_routing is not None and param.provider_routing.sort == "latency"
 
 
-def test_apply_config_defaults_does_not_override_modalities_when_set() -> None:
+def test_apply_config_defaults_does_not_override_existing_fields() -> None:
     config = llm_param.LLMConfigParameter(
-        protocol=llm_param.LLMClientProtocol.GOOGLE,
-        model_id="gemini-3-pro-image-preview",
-        modalities=["image", "text"],
+        protocol=llm_param.LLMClientProtocol.OPENROUTER,
+        model_id="openai/gpt-5.3-codex",
+        temperature=0.2,
+        max_tokens=4096,
+        context_limit=200000,
+        verbosity="high",
+        thinking=llm_param.Thinking(reasoning_effort="high"),
+        provider_routing=llm_param.OpenRouterProviderRouting(sort="latency"),
     )
-    param = llm_param.LLMCallParameter(input=_dummy_history(), modalities=["text"])
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="openai/gpt-5.2",
+        temperature=0.9,
+        max_tokens=1024,
+        context_limit=100000,
+        verbosity="low",
+        thinking=llm_param.Thinking(reasoning_effort="minimal"),
+        provider_routing=llm_param.OpenRouterProviderRouting(sort="throughput"),
+    )
 
     param = apply_config_defaults(param, config)
 
-    assert param.modalities == ["text"]
-
-
-def test_apply_config_defaults_uses_image_config_from_model_when_missing() -> None:
-    config = llm_param.LLMConfigParameter(
-        protocol=llm_param.LLMClientProtocol.GOOGLE,
-        model_id="gemini-3-pro-image-preview",
-        image_config=llm_param.ImageConfig(image_size="4K", aspect_ratio="16:9"),
-    )
-    param = llm_param.LLMCallParameter(input=_dummy_history())
-
-    param = apply_config_defaults(param, config)
-
-    assert param.image_config is not None
-    assert param.image_config.image_size == "4K"
-    assert param.image_config.aspect_ratio == "16:9"
-
-
-@pytest.mark.parametrize(
-    ("param_cfg", "model_cfg", "expected_aspect", "expected_size"),
-    [
-        (
-            llm_param.ImageConfig(aspect_ratio="1:1"),
-            llm_param.ImageConfig(image_size="4K"),
-            "1:1",
-            "4K",
-        ),
-        (
-            llm_param.ImageConfig(image_size="1K"),
-            llm_param.ImageConfig(aspect_ratio="16:9"),
-            "16:9",
-            "1K",
-        ),
-        (
-            llm_param.ImageConfig(image_size="2K", aspect_ratio="3:2"),
-            llm_param.ImageConfig(image_size="4K", aspect_ratio="16:9"),
-            "3:2",
-            "2K",
-        ),
-    ],
-)
-def test_apply_config_defaults_merges_image_config_field_level(
-    param_cfg: llm_param.ImageConfig,
-    model_cfg: llm_param.ImageConfig,
-    expected_aspect: str | None,
-    expected_size: str | None,
-) -> None:
-    config = llm_param.LLMConfigParameter(
-        protocol=llm_param.LLMClientProtocol.GOOGLE,
-        model_id="gemini-3-pro-image-preview",
-        image_config=model_cfg,
-    )
-    param = llm_param.LLMCallParameter(input=_dummy_history(), image_config=param_cfg)
-
-    param = apply_config_defaults(param, config)
-
-    assert param.image_config is not None
-    assert param.image_config.aspect_ratio == expected_aspect
-    assert param.image_config.image_size == expected_size
-
-
-def test_apply_config_defaults_does_not_fill_image_config_when_model_has_none() -> None:
-    config = llm_param.LLMConfigParameter(
-        protocol=llm_param.LLMClientProtocol.GOOGLE,
-        model_id="gemini-3-pro-image-preview",
-        image_config=None,
-    )
-    param = llm_param.LLMCallParameter(input=_dummy_history(), image_config=llm_param.ImageConfig(aspect_ratio="1:1"))
-
-    param = apply_config_defaults(param, config)
-
-    assert param.image_config is not None
-    assert param.image_config.aspect_ratio == "1:1"
-    assert param.image_config.image_size is None
+    assert param.model_id == "openai/gpt-5.2"
+    assert param.temperature == 0.9
+    assert param.max_tokens == 1024
+    assert param.context_limit == 100000
+    assert param.verbosity == "low"
+    assert param.thinking is not None and param.thinking.reasoning_effort == "minimal"
+    assert param.provider_routing is not None and param.provider_routing.sort == "throughput"

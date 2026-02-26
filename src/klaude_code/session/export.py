@@ -52,7 +52,7 @@ def _render_image_html(file_path: str, max_width: int = _IMAGE_MAX_DISPLAY_WIDTH
         short_path = _shorten_path(file_path)
         return (
             f'<div class="assistant-image" style="margin: 8px 0;">'
-            f'<img src="{data_url}" alt="Generated image" '
+            f'<img src="{data_url}" alt="Image" '
             f'style="max-width: {max_width}px; border-radius: 4px; border: 1px solid var(--border);" />'
             f'<div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">{_escape_html(short_path)}</div>'
             f"</div>"
@@ -627,60 +627,18 @@ def _try_render_todo_args(arguments: str, tool_name: str) -> str | None:
         return None
 
 
-def _extract_saved_images(content: str) -> tuple[str, list[str]]:
-    """Extract image paths from 'Saved images:' section in content.
-
-    Returns:
-        Tuple of (remaining_text, list_of_image_paths).
-    """
-    image_paths: list[str] = []
-    lines = content.splitlines()
-    result_lines: list[str] = []
-    in_saved_images = False
-
-    for line in lines:
-        stripped = line.strip()
-        if stripped == "Saved images:":
-            in_saved_images = True
-            continue
-        if in_saved_images:
-            if stripped.startswith("- "):
-                path = stripped[2:].strip()
-                if path:
-                    image_paths.append(path)
-                continue
-            # End of saved images section (non-list line)
-            in_saved_images = False
-        result_lines.append(line)
-
-    return "\n".join(result_lines).strip(), image_paths
-
-
 def _render_sub_agent_result(content: str, description: str | None = None) -> str:
-    # Extract saved images from content
-    text_content, image_paths = _extract_saved_images(content)
-
-    # Render images first
-    images_html = ""
-    if image_paths:
-        images_parts = [_render_image_html(path) for path in image_paths]
-        images_html = "".join(images_parts)
-
-    # Try to format remaining text as JSON for better readability
+    # Try to format text as JSON for better readability
     try:
-        parsed = json.loads(text_content)
+        parsed = json.loads(content)
         formatted = "```json\n" + json.dumps(parsed, ensure_ascii=False, indent=2) + "\n```"
     except (json.JSONDecodeError, TypeError):
-        formatted = text_content
+        formatted = content
 
     if description:
         formatted = f"# {description}\n\n{formatted}"
 
     encoded = _escape_html(formatted)
-
-    # If we have images but no text, just show images
-    if images_html and not formatted.strip():
-        return f'<div class="sub-agent-result-container">{images_html}</div>'
 
     # Check if content needs collapsing (approx > 20 lines or > 2000 chars)
     # Using a simpler metric since we don't know rendered height
@@ -709,7 +667,6 @@ def _render_sub_agent_result(content: str, description: str | None = None) -> st
 
     return (
         f'<div class="sub-agent-result-container">'
-        f"{images_html}"
         f'<div class="sub-agent-toolbar">'
         f'<button type="button" class="raw-toggle" aria-pressed="false" title="Toggle raw text view">Raw</button>'
         f'<button type="button" class="copy-raw-btn" title="Copy raw content">Copy</button>'

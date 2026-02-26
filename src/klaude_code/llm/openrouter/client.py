@@ -37,15 +37,6 @@ def build_payload(
         "usage": {"include": True},  # To get the cache tokens at the end of the response
     }
 
-    if param.modalities:
-        extra_body["modalities"] = list(param.modalities)
-    if param.image_config is not None:
-        image_config = param.image_config.model_dump(exclude_none=True)
-        extra_raw = image_config.pop("extra", None)
-        extra_dict: dict[str, Any] | None = cast(dict[str, Any], extra_raw) if isinstance(extra_raw, dict) else None
-        if extra_dict is not None and extra_dict:
-            image_config.update(extra_dict)
-        extra_body["image_config"] = image_config
     if is_debug_enabled():
         extra_body["debug"] = {
             "echo_upstream_body": True

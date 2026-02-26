@@ -27,7 +27,6 @@ from klaude_code.tui.commands import (
     EndAssistantStream,
     EndThinkingStream,
     PrintBlankLine,
-    RenderAssistantImage,
     RenderBashCommandEnd,
     RenderBashCommandStart,
     RenderCommand,
@@ -198,7 +197,6 @@ class SpinnerStatusState:
         self._token_cached: int | None = None
         self._token_output: int | None = None
         self._token_thought: int | None = None
-        self._token_image: int | None = None
         self._cache_hit_rate: float | None = None
         self._context_size: int | None = None
         self._context_effective_limit: int | None = None
@@ -213,7 +211,6 @@ class SpinnerStatusState:
         self._token_cached = None
         self._token_output = None
         self._token_thought = None
-        self._token_image = None
         self._cache_hit_rate = None
         self._context_size = None
         self._context_effective_limit = None
@@ -263,7 +260,6 @@ class SpinnerStatusState:
                 usage.cached_tokens,
                 usage.output_tokens,
                 usage.reasoning_tokens,
-                usage.image_tokens,
             )
         )
         if has_token_usage:
@@ -271,7 +267,6 @@ class SpinnerStatusState:
             self._token_cached = (self._token_cached or 0) + usage.cached_tokens
             self._token_output = (self._token_output or 0) + max(usage.output_tokens - usage.reasoning_tokens, 0)
             self._token_thought = (self._token_thought or 0) + usage.reasoning_tokens
-            self._token_image = (self._token_image or 0) + usage.image_tokens
 
         context_percent = usage.context_usage_percent
         if context_percent is not None:
@@ -358,11 +353,6 @@ class SpinnerStatusState:
                         token_parts.append(f"∿{format_number(self._token_thought)}")
                     else:
                         token_parts.append(f"thought {format_number(self._token_thought)}")
-                if self._token_image and self._token_image > 0:
-                    if compact:
-                        token_parts.append(f"▣{format_number(self._token_image)}")
-                    else:
-                        token_parts.append(f"image {format_number(self._token_image)}")
                 parts.append(" ".join(token_parts) if compact else " · ".join(token_parts))
             if (
                 self._context_size is not None
@@ -404,7 +394,6 @@ class _SessionState:
     status_token_cached: int | None = None
     status_token_output: int | None = None
     status_token_thought: int | None = None
-    status_token_image: int | None = None
     status_context_size: int | None = None
     status_context_effective_limit: int | None = None
     status_context_percent: float | None = None
@@ -435,7 +424,6 @@ class _SessionState:
         self.status_token_cached = None
         self.status_token_output = None
         self.status_token_thought = None
-        self.status_token_image = None
         self.status_context_size = None
         self.status_context_effective_limit = None
         self.status_context_percent = None
@@ -447,7 +435,6 @@ class _SessionState:
                 usage.cached_tokens,
                 usage.output_tokens,
                 usage.reasoning_tokens,
-                usage.image_tokens,
             )
         )
         if has_token_usage:
@@ -457,7 +444,6 @@ class _SessionState:
                 usage.output_tokens - usage.reasoning_tokens, 0
             )
             self.status_token_thought = (self.status_token_thought or 0) + usage.reasoning_tokens
-            self.status_token_image = (self.status_token_image or 0) + usage.image_tokens
 
         context_percent = usage.context_usage_percent
         if context_percent is not None:
@@ -522,8 +508,6 @@ class _SessionState:
             token_parts.append(f"↓{format_number(self.status_token_output)}")
             if self.status_token_thought and self.status_token_thought > 0:
                 token_parts.append(f"∿{format_number(self.status_token_thought)}")
-            if self.status_token_image and self.status_token_image > 0:
-                token_parts.append(f"▣{format_number(self.status_token_image)}")
             parts.append(" ".join(token_parts))
 
         if (
@@ -882,10 +866,6 @@ class DisplayStateMachine:
                 if not is_replay:
                     cmds.append(SpinnerStart())
                     cmds.extend(self._spinner_update_commands())
-                return cmds
-
-            case events.AssistantImageDeltaEvent() as e:
-                cmds.append(RenderAssistantImage(session_id=e.session_id, file_path=e.file_path))
                 return cmds
 
             case events.ResponseCompleteEvent() as e:

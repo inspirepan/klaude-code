@@ -26,7 +26,6 @@ from openai import AsyncStream
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from klaude_code.llm.client import LLMStreamABC
-from klaude_code.llm.image import save_assistant_image
 from klaude_code.llm.stream_parts import (
     append_text_part,
     append_thinking_text_part,
@@ -67,7 +66,6 @@ class StreamStateManager:
         self.param_model = param_model
         self.response_id = response_id
         self.assistant_parts: list[message.Part] = []
-        self._image_index: int = 0
         self._tool_part_index_by_tc_index: dict[int, int] = {}
         self._emitted_tool_start_indices: set[int] = set()
         self.stop_reason: model.StopReason | None = None
@@ -97,10 +95,6 @@ class StreamStateManager:
     def append_text(self, text: str) -> None:
         """Append assistant text, merging with the previous TextPart when possible."""
         append_text_part(self.assistant_parts, text)
-
-    def append_image(self, image_part: message.ImageFilePart) -> None:
-        self.assistant_parts.append(image_part)
-        self._image_index += 1
 
     def upsert_tool_call(self, *, tc_index: int, call_id: str | None, name: str | None, arguments: str | None) -> None:
         """Insert a ToolCallPart at first sight and keep updating its fields.
@@ -138,9 +132,6 @@ class StreamStateManager:
             return False
         self._emitted_tool_start_indices.add(tc_index)
         return True
-
-    def next_image_index(self) -> int:
-        return self._image_index
 
     def get_partial_parts(self) -> list[message.Part]:
         """Get accumulated parts excluding tool calls, with thinking degraded.
@@ -324,20 +315,6 @@ async def parse_chat_completions_stream(
     for cancellation scenarios.
     """
 
-    def _extract_image_url(image_obj: object) -> str | None:
-        image_url = getattr(image_obj, "image_url", None)
-        if image_url is not None:
-            url = getattr(image_url, "url", None)
-            return str(url) if isinstance(url, str) else None
-        if isinstance(image_obj, dict):
-            image_dict = cast(dict[str, Any], image_obj)
-            url_dict_raw = image_dict.get("image_url")
-            if isinstance(url_dict_raw, dict):
-                url_dict = cast(dict[str, Any], url_dict_raw)
-                url_raw = url_dict.get("url")
-                return url_raw if isinstance(url_raw, str) else None
-        return None
-
     try:
         async for event in stream:
             if on_event is not None:
@@ -392,33 +369,6 @@ async def parse_chat_completions_stream(
                         yield message.ThinkingTextDelta(content=output, response_id=state.response_id)
                     else:
                         state.assistant_parts.append(output)
-
-            # Assistant
-            images = getattr(delta, "images", None)
-            if isinstance(images, list) and images:
-                images_list = cast(list[object], images)
-                metadata_tracker.record_token()
-                for image_obj in images_list:
-                    url = _extract_image_url(image_obj)
-                    if not url:
-                        continue
-                    if not url.startswith("data:"):
-                        # Only data URLs are supported for now.
-                        continue
-                    try:
-                        assistant_image = save_assistant_image(
-                            data_url=url,
-                            session_id=param.session_id,
-                            response_id=state.response_id,
-                            image_index=state.next_image_index(),
-                        )
-                    except ValueError as exc:
-                        yield message.StreamErrorItem(error=str(exc))
-                        return
-                    state.append_image(assistant_image)
-                    yield message.AssistantImageDelta(
-                        response_id=state.response_id, file_path=assistant_image.file_path
-                    )
 
             content_str = str(content) if (content := getattr(delta, "content", None)) is not None else ""
 

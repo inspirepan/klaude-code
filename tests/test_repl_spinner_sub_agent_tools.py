@@ -152,7 +152,6 @@ def test_right_text_shows_context_limit_format() -> None:
             cached_tokens=20_000,
             output_tokens=12_000,
             reasoning_tokens=2_000,
-            image_tokens=300,
             context_size=46_000,
             context_limit=300_000,
             max_tokens=100_000,
@@ -161,7 +160,7 @@ def test_right_text_shows_context_limit_format() -> None:
 
     right_text = state.get_right_text()
     assert right_text is not None
-    assert right_text.plain.startswith("in 10k · cache 20k · out 10k · thought 2k · image 300 · 46k/200k (23.0%)")
+    assert right_text.plain.startswith("in 10k · cache 20k · out 10k · thought 2k · 46k/200k (23.0%)")
 
 
 def test_right_text_shows_cache_hit_rate_next_to_cached_tokens() -> None:
@@ -189,7 +188,6 @@ def test_right_text_tokens_accumulate_across_usage_events() -> None:
             cached_tokens=20_000,
             output_tokens=12_000,
             reasoning_tokens=2_000,
-            image_tokens=300,
         )
     )
     state.set_context_usage(
@@ -198,13 +196,12 @@ def test_right_text_tokens_accumulate_across_usage_events() -> None:
             cached_tokens=1_000,
             output_tokens=7_000,
             reasoning_tokens=2_000,
-            image_tokens=700,
         )
     )
 
     right_text = state.get_right_text()
     assert right_text is not None
-    assert right_text.plain.startswith("in 20k · cache 21k · out 15k · thought 4k · image 1k")
+    assert right_text.plain.startswith("in 20k · cache 21k · out 15k · thought 4k")
 
 
 def test_right_text_keeps_last_context_when_current_usage_has_no_context() -> None:

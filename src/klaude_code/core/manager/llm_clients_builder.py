@@ -22,7 +22,7 @@ def build_llm_clients(
     Args:
         config: Application configuration.
         model_override: Override for the main model name.
-        skip_sub_agents: If True, skip initializing sub-agent clients (e.g., for vanilla/banana modes).
+        skip_sub_agents: If True, skip initializing sub-agent clients.
     """
 
     # Resolve main agent LLM config

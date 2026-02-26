@@ -35,7 +35,6 @@ def _build_env_help() -> str:
             "  KLAUDE_READ_GLOBAL_LINE_CAP    Max lines to read (default: 2000)",
             "  KLAUDE_READ_MAX_CHARS          Max total chars to read (default: 50000)",
             "  KLAUDE_READ_MAX_IMAGE_BYTES    Max image bytes to read (default: 64MB)",
-            "  KLAUDE_IMAGE_OUTPUT_MAX_BYTES  Max decoded image bytes (default: 64MB)",
         ]
     )
     return "\n\n".join(lines)
@@ -188,12 +187,6 @@ def main_callback(
         "--vanilla",
         help="Minimal mode: basic tools only, no system prompts",
     ),
-    banana: bool = typer.Option(
-        False,
-        "--banana",
-        help="Image generation mode (alias for --model banana)",
-        rich_help_panel="LLM",
-    ),
     version: bool = typer.Option(
         False,
         "--version",
@@ -207,10 +200,6 @@ def main_callback(
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
         from klaude_code.log import log
-
-        if vanilla and banana:
-            log(("Error: --banana cannot be combined with --vanilla", "red"))
-            raise typer.Exit(2)
 
         resume_by_id_value = resume_by_id.strip() if resume_by_id is not None else None
         if resume_by_id_value == "":
@@ -249,18 +238,7 @@ def main_callback(
         update_terminal_title()
 
         chosen_model = model
-        if banana:
-            keywords = ["gemini-3-pro-image", "gemini-2.5-flash-image"]
-            model_result = select_model_interactive(keywords=keywords)
-            if model_result.status == ModelSelectStatus.SELECTED and model_result.model is not None:
-                chosen_model = model_result.model
-            elif model_result.status == ModelSelectStatus.CANCELLED:
-                return
-            else:
-                log(("Error: no available nano-banana model", "red"))
-                log(("Hint: set OPENROUTER_API_KEY or GOOGLE_API_KEY to enable nano-banana models", "yellow"))
-                raise typer.Exit(2)
-        elif model or select_model:
+        if model or select_model:
             model_result = select_model_interactive(preferred=model)
             if model_result.status == ModelSelectStatus.SELECTED and model_result.model is not None:
                 chosen_model = model_result.model

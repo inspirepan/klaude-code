@@ -7,7 +7,6 @@ from typing import cast
 
 from openai.types import chat
 
-from klaude_code.llm.image import assistant_image_to_data_url
 from klaude_code.llm.input_common import (
     attach_developer_messages,
     build_assistant_common_fields,
@@ -25,7 +24,7 @@ def _assistant_message_to_openai(msg: message.AssistantMessage) -> chat.ChatComp
     if text_content:
         assistant_message["content"] = text_content
 
-    assistant_message.update(build_assistant_common_fields(msg, image_to_data_url=assistant_image_to_data_url))
+    assistant_message.update(build_assistant_common_fields(msg))
     return cast(chat.ChatCompletionMessageParam, assistant_message)
 
 

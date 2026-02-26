@@ -10,7 +10,6 @@ from typing import cast
 
 from openai.types import chat
 
-from klaude_code.llm.image import assistant_image_to_data_url
 from klaude_code.llm.input_common import (
     attach_developer_messages,
     build_assistant_common_fields,
@@ -30,7 +29,7 @@ def _assistant_message_to_openrouter(
     msg: message.AssistantMessage, model_name: str | None
 ) -> chat.ChatCompletionMessageParam:
     assistant_message: dict[str, object] = {"role": "assistant"}
-    assistant_message.update(build_assistant_common_fields(msg, image_to_data_url=assistant_image_to_data_url))
+    assistant_message.update(build_assistant_common_fields(msg))
     reasoning_details: list[dict[str, object]] = []
     native_thinking_parts, degraded_thinking_texts = split_thinking_parts(msg, model_name)
     for part in native_thinking_parts:

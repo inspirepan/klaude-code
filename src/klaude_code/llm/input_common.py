@@ -1,6 +1,6 @@
 """Common utilities for converting message history to LLM input formats."""
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -189,22 +189,8 @@ def build_tool_message_for_chat_completions(
     return tool_message, user_message
 
 
-def build_assistant_common_fields(
-    msg: message.AssistantMessage,
-    *,
-    image_to_data_url: Callable[[message.ImageFilePart], str],
-) -> dict[str, object]:
+def build_assistant_common_fields(msg: message.AssistantMessage) -> dict[str, object]:
     result: dict[str, object] = {}
-    images = [part for part in msg.parts if isinstance(part, message.ImageFilePart)]
-    if images:
-        result["images"] = [
-            {
-                "image_url": {
-                    "url": image_to_data_url(image),
-                }
-            }
-            for image in images
-        ]
 
     tool_calls = [part for part in msg.parts if isinstance(part, message.ToolCallPart)]
     if tool_calls:
@@ -292,16 +278,6 @@ def apply_config_defaults(param: "LLMCallParameter", config: "LLMConfigParameter
         param.verbosity = config.verbosity
     if param.thinking is None:
         param.thinking = config.thinking
-    if param.modalities is None:
-        param.modalities = config.modalities
     if param.provider_routing is None:
         param.provider_routing = config.provider_routing
-    if param.image_config is None:
-        param.image_config = config.image_config
-    elif config.image_config is not None:
-        # Merge field-level: param overrides config defaults
-        if param.image_config.aspect_ratio is None:
-            param.image_config.aspect_ratio = config.image_config.aspect_ratio
-        if param.image_config.image_size is None:
-            param.image_config.image_size = config.image_config.image_size
     return param

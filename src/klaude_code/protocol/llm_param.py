@@ -41,18 +41,6 @@ class Thinking(BaseModel):
     budget_tokens: int | None = None
 
 
-class ImageConfig(BaseModel):
-    """Image generation config (OpenRouter-compatible fields).
-
-    This is intentionally small and extensible. Additional vendor/model
-    parameters can be stored in `extra`.
-    """
-
-    aspect_ratio: str | None = None
-    image_size: Literal["1K", "2K", "4K"] | None = None
-    extra: dict[str, Any] | None = None
-
-
 class Cost(BaseModel):
     """Cost configuration per million tokens."""
 
@@ -60,7 +48,6 @@ class Cost(BaseModel):
     output: float  # Output token price per million tokens
     cache_read: float = 0.0  # Cache read price per million tokens
     cache_write: float = 0.0  # Cache write price per million tokens (ignored in calculation for now)
-    image: float = 0.0  # Image generation token price per million tokens
     currency: Literal["USD", "CNY"] = "USD"  # Currency for cost display
 
 
@@ -133,11 +120,6 @@ class LLMConfigModelParameter(BaseModel):
 
     # OpenAI GPT-5 / OpenRouter output_config.effort
     verbosity: Literal["low", "medium", "high", "max"] | None = None
-
-    # Multimodal output control (OpenRouter image generation)
-    modalities: list[Literal["text", "image"]] | None = None
-
-    image_config: ImageConfig | None = None
 
     # Unified Thinking & Reasoning
     thinking: Thinking | None = None

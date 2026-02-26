@@ -59,12 +59,6 @@ class RenderTurnStart(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
-class RenderAssistantImage(RenderCommand):
-    session_id: str
-    file_path: str
-
-
-@dataclass(frozen=True, slots=True)
 class RenderToolCall(RenderCommand):
     event: events.ToolCallEvent
 

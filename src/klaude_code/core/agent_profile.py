@@ -144,7 +144,7 @@ def load_agent_tools(
     Args:
         model_name: The model name.
         sub_agent_type: If None, returns main agent tools. Otherwise returns sub-agent tools.
-        config: Config for checking sub-agent availability (e.g., image model availability).
+        config: Config for optional tool decisions.
     """
 
     if sub_agent_type is not None:
@@ -237,24 +237,15 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         output_schema: dict[str, Any] | None = None,
     ) -> AgentProfile:
         model_name = llm_client.model_name
-        llm_config = llm_client.get_llm_config()
-
-        # Image generation models should not have system prompt, tools, or reminders
-        is_image_model = llm_config.modalities and "image" in llm_config.modalities
-        if is_image_model:
-            agent_system_prompt: str | None = None
-            agent_tools: list[llm_param.ToolSchema] = []
-            agent_reminders: list[Reminder] = [at_file_reader_reminder, image_reminder]
-        else:
-            agent_tools = load_agent_tools(model_name, sub_agent_type, config=self._config)
-            agent_system_prompt = load_system_prompt(
-                model_name,
-                llm_client.protocol,
-                sub_agent_type,
-                config=self._config,
-                available_tools=agent_tools,
-            )
-            agent_reminders = load_agent_reminders(model_name, sub_agent_type, available_tools=agent_tools)
+        agent_tools = load_agent_tools(model_name, sub_agent_type, config=self._config)
+        agent_system_prompt = load_system_prompt(
+            model_name,
+            llm_client.protocol,
+            sub_agent_type,
+            config=self._config,
+            available_tools=agent_tools,
+        )
+        agent_reminders = load_agent_reminders(model_name, sub_agent_type, available_tools=agent_tools)
 
         profile = AgentProfile(
             llm_client=llm_client,

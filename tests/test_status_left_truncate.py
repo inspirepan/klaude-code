@@ -155,7 +155,6 @@ def test_third_line_compacts_tokens_after_dropping_hint() -> None:
             cached_tokens=200_000,
             output_tokens=120_000,
             reasoning_tokens=20_000,
-            image_tokens=3_000,
             context_size=460_000,
             context_limit=900_000,
             max_tokens=100_000,
