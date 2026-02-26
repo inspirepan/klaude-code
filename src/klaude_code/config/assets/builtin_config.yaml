@@ -42,24 +42,6 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
-  - model_name: gpt-5.2-medium
-    model_id: gpt-5.2
-    context_limit: 400000
-    verbosity: high
-    thinking:
-      reasoning_effort: medium
-      reasoning_summary: concise
-    cost: { input: 1.75, output: 14, cache_read: 0.17 }
-
-  - model_name: gpt-5.2-low
-    model_id: gpt-5.2
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: low
-      reasoning_summary: concise
-    cost: { input: 1.75, output: 14, cache_read: 0.17 }
-
   - model_name: gpt-5.3-codex
     model_id: gpt-5.3-codex
     thinking:
@@ -108,16 +90,6 @@ provider_list:
     verbosity: high
     thinking:
       reasoning_effort: high
-      reasoning_summary: concise
-    cost: { input: 1.75, output: 14, cache_read: 0.17 }
-
-  - model_name: gpt-5.2-medium
-    model_id: openai/gpt-5.2
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: high
-    thinking:
-      reasoning_effort: medium
       reasoning_summary: concise
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
