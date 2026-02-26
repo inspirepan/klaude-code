@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-02-27
+
+### Added
+
+- switch render-mermaid PNG export to puppeteer-core ([#27](https://github.com/inspirepan/klaude-code/pull/27) by [@inspirepan](https://github.com/inspirepan))
+- add developer attachment position marker ([#26](https://github.com/inspirepan/klaude-code/pull/26) by [@inspirepan](https://github.com/inspirepan))
+- add bundled pdf system skill ([#25](https://github.com/inspirepan/klaude-code/pull/25) by [@inspirepan](https://github.com/inspirepan))
+- auto-memory and system improvements ([#24](https://github.com/inspirepan/klaude-code/pull/24) by [@inspirepan](https://github.com/inspirepan))
+- convert Mermaid from tool to skill ([#22](https://github.com/inspirepan/klaude-code/pull/22) by [@inspirepan](https://github.com/inspirepan))
+- rename gemini-image-gen assets to nano-banana-image-gen ([#18](https://github.com/inspirepan/klaude-code/pull/18) by [@inspirepan](https://github.com/inspirepan))
+- add gemini and gpt image generation skills ([#17](https://github.com/inspirepan/klaude-code/pull/17) by [@inspirepan](https://github.com/inspirepan))
+- support symlinked skill subdirectories + tui improvements ([#16](https://github.com/inspirepan/klaude-code/pull/16) by [@inspirepan](https://github.com/inspirepan))
+- enrich changelog with PR links ([#10](https://github.com/inspirepan/klaude-code/pull/10) by [@inspirepan](https://github.com/inspirepan))
+- add frontend-design skill ([#8](https://github.com/inspirepan/klaude-code/pull/8) by [@inspirepan](https://github.com/inspirepan))
+- add submit-pr workflow skill ([#5](https://github.com/inspirepan/klaude-code/pull/5) by [@inspirepan](https://github.com/inspirepan))
+
+### Changed
+
+- remove model image output support ([#19](https://github.com/inspirepan/klaude-code/pull/19) by [@inspirepan](https://github.com/inspirepan))
+
+### Fixed
+
+- preserve ordered list image layout and image captions ([#28](https://github.com/inspirepan/klaude-code/pull/28) by [@inspirepan](https://github.com/inspirepan))
+- render loaded skills as tree list ([#23](https://github.com/inspirepan/klaude-code/pull/23) by [@inspirepan](https://github.com/inspirepan))
+- improve filter button states ([#21](https://github.com/inspirepan/klaude-code/pull/21) by [@inspirepan](https://github.com/inspirepan))
+- create checkpoints only after new user input ([#20](https://github.com/inspirepan/klaude-code/pull/20) by [@inspirepan](https://github.com/inspirepan))
+- style Read Skill path segments ([#15](https://github.com/inspirepan/klaude-code/pull/15) by [@inspirepan](https://github.com/inspirepan))
+- openrouter gpt-5.3-codex reasoning summary ([#12](https://github.com/inspirepan/klaude-code/pull/12) by [@inspirepan](https://github.com/inspirepan))
+- refine skill read path highlighting ([#11](https://github.com/inspirepan/klaude-code/pull/11) by [@inspirepan](https://github.com/inspirepan))
+- run shell commands in session work dir ([#7](https://github.com/inspirepan/klaude-code/pull/7) by [@inspirepan](https://github.com/inspirepan))
+- support cookie-backed redirect chains ([#4](https://github.com/inspirepan/klaude-code/pull/4) by [@inspirepan](https://github.com/inspirepan))
+
+### Other
+
+- Merge pull request #14 from inspirepan/claude/add-codex-xhigh-variant-Cm46S ([#14](https://github.com/inspirepan/klaude-code/pull/14) by [@inspirepan](https://github.com/inspirepan))
+- Merge pull request #13 from inspirepan/claude/add-agent-skills-path-90jor ([#13](https://github.com/inspirepan/klaude-code/pull/13) by [@inspirepan](https://github.com/inspirepan))
+- add risk note for Claude Pro/Max login ([#9](https://github.com/inspirepan/klaude-code/pull/9) by [@inspirepan](https://github.com/inspirepan))
+- add pull request checks workflow ([#6](https://github.com/inspirepan/klaude-code/pull/6) by [@inspirepan](https://github.com/inspirepan))
+
 ## [2.20.0] - 2026-02-25
 
 ### Added
@@ -1903,7 +1942,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.20.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.21.0...HEAD
+[2.21.0]: https://github.com/inspirepan/klaude-code/compare/v2.20.0...v2.21.0
 [2.20.0]: https://github.com/inspirepan/klaude-code/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/inspirepan/klaude-code/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/inspirepan/klaude-code/compare/v2.17.0...v2.18.0
