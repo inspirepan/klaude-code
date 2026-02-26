@@ -93,10 +93,13 @@ body {
   flex-wrap: wrap;
 }
 .filter-btn {
-  background: transparent;
-  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
   color: var(--fg-secondary);
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 6px;
   font-size: 16px;
   font-weight: 700;
@@ -105,12 +108,22 @@ body {
   transition: all 0.2s ease;
   line-height: 1.2;
 }
-.filter-btn:hover { background: #e6f0fa; color: #005fcc; }
+.filter-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+  border-color: var(--fg-tertiary);
+}
 .filter-btn.active { 
   background: #dbeafe; 
   color: #1e3a8a; 
-  border-color: transparent; 
+  border-color: #bfdbfe;
   box-shadow: none; 
+}
+.filter-btn.active::after {
+  content: '\00d7';
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.85;
 }
 
 #search-box {
