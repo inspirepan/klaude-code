@@ -1,11 +1,11 @@
 ---
-name: "gemini-image-gen"
-description: "Use when the user asks to generate or edit images via the Google Gemini Image API (Nano Banana). Supports text-to-image, image editing, multi-image composition, style transfer, Google Search grounding, and up to 4K resolution. Run the bundled CLI (`scripts/gemini_image_gen.py`). Supports both GEMINI_API_KEY (AI Studio) and Vertex AI (GOOGLE_APPLICATION_CREDENTIALS + GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION) authentication. Do not use for Imagen-only requests."
+name: "nano-banana-image-gen"
+description: "Use when the user asks to generate or edit images with Nano Banana / Nano Banana Pro (users often call these models 'banana'). Nano Banana maps to `gemini-2.5-flash-image`; Nano Banana Pro maps to `gemini-3-pro-image`."
 ---
 
-# Gemini Image Generation Skill
+# Nano Banana Image Generation Skill
 
-Generate or edit images using Google's Gemini native image generation (Nano Banana). Defaults to `gemini-2.5-flash-image` for fast generation and supports `gemini-3-pro-image-preview` for professional-grade output with Thinking, 4K resolution, and Google Search grounding.
+Generate or edit images using Google's Gemini native image generation. Naming note: **Nano Banana** is the marketing name for `gemini-2.5-flash-image`, and **Nano Banana Pro** maps to `gemini-3-pro-image` (currently exposed in this CLI as `gemini-3-pro-image-preview`).
 
 ## When to use
 - Generate a new image (concept art, product shot, cover, hero, sticker, icon)
@@ -14,8 +14,8 @@ Generate or edit images using Google's Gemini native image generation (Nano Bana
 - Search-grounded generation (real-time data like weather, events, charts)
 
 ## Model selection
-- `gemini-2.5-flash-image` (default): fast, low-latency, high-volume. Best with <=3 input images.
-- `gemini-3-pro-image-preview`: professional asset production, advanced text rendering, Thinking mode, up to 4K, Google Search grounding. Supports up to 14 input images (5 humans high-fidelity, 6 objects high-fidelity).
+- `gemini-2.5-flash-image` (Nano Banana, default): fast, low-latency, high-volume. Best with <=3 input images.
+- `gemini-3-pro-image-preview` (Nano Banana Pro / `gemini-3-pro-image`): professional asset production, advanced text rendering, Thinking mode, up to 4K, Google Search grounding. Supports up to 14 input images (5 humans high-fidelity, 6 objects high-fidelity).
 
 Use Pro when the user needs: 4K resolution, accurate text rendering, Search grounding, complex multi-image composition, or explicitly requests "pro" / "high quality".
 
