@@ -95,7 +95,7 @@ def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
             if param.thinking.reasoning_effort:
                 thinking_config.thinking_level = convert_gemini_thinking_level(param.thinking.reasoning_effort)
 
-    # ImageGen per-call overrides
+    # Per-call image generation overrides
     image_config: GoogleImageConfig | None = None
     if param.image_config is not None:
         image_config = GoogleImageConfig(

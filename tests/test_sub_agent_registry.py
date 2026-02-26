@@ -21,7 +21,6 @@ def _tool_context() -> ToolContext:
 
 def test_sub_agent_tool_visibility() -> None:
     assert is_sub_agent_tool(tools.TASK) is True
-    assert is_sub_agent_tool(tools.IMAGE_GEN) is True
     assert is_sub_agent_tool("Explore") is False
 
 
@@ -31,12 +30,10 @@ def test_main_agent_tools_include_registered_sub_agents() -> None:
     claude_tool_names = {schema.name for schema in load_agent_tools("claude-3")}
 
     assert tools.TASK in gpt5_tool_names
-    assert tools.IMAGE_GEN in gpt5_tool_names
     assert "Explore" not in gpt5_tool_names
     assert "Oracle" not in gpt5_tool_names
 
     assert tools.TASK in claude_tool_names
-    assert tools.IMAGE_GEN in claude_tool_names
     assert "Explore" not in claude_tool_names
     assert "Oracle" not in claude_tool_names
 

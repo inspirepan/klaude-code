@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from klaude_code.const import RETRY_PRESERVE_PARTIAL_MESSAGE, SUPPORTED_IMAGE_SIZES
+from klaude_code.const import RETRY_PRESERVE_PARTIAL_MESSAGE
 from klaude_code.core.rewind import RewindManager
 from klaude_code.core.tool import ToolABC
 from klaude_code.core.tool.context import SubAgentResumeClaims, ToolContext
@@ -257,20 +257,6 @@ class TurnExecutor:
             tools=ctx.tools,
             session_id=session_ctx.session_id,
         )
-
-        # ImageGen per-call overrides (tool-level `generation` parameters)
-        if ctx.sub_agent_state is not None and ctx.sub_agent_state.sub_agent_type == tools.IMAGE_GEN:
-            call_param.modalities = ["image", "text"]
-            generation = ctx.sub_agent_state.generation or {}
-            image_config = llm_param.ImageConfig()
-            aspect_ratio = generation.get("aspect_ratio")
-            if isinstance(aspect_ratio, str) and aspect_ratio.strip():
-                image_config.aspect_ratio = aspect_ratio.strip()
-            image_size = generation.get("image_size")
-            if image_size in SUPPORTED_IMAGE_SIZES:
-                image_config.image_size = image_size
-            if image_config.model_dump(exclude_none=True):
-                call_param.image_config = image_config
 
         self._llm_stream = await ctx.llm_client.call(call_param)
         try:

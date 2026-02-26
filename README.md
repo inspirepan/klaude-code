@@ -7,7 +7,7 @@ Minimal code agent CLI.
 - **Keep reasoning item in context**: Interleaved thinking support
 - **Model-aware tools**: Claude Code tool set for Opus, `apply_patch` for GPT-5/Codex
 - **Reminders**: Cooldown-based todo tracking, instruction reinforcement and external file change reminder
-- **Sub-agents**: Task, Explore, Web, ImageGen
+- **Sub-agents**: Task, Explore, Web
 - **Structured sub-agent output**: Main agent defines JSON schema and get schema-compliant responses via constrained decoding
 - **Recursive `@file` mentions**: Circular dependency protection, relative path resolution
 - **External file sync**: Monitoring for external edits (linter, manual)
@@ -253,4 +253,3 @@ The main agent can spawn specialized sub-agents for specific tasks:
 | **Explore** | Fast codebase exploration - find files, search code, answer questions about the codebase |
 | **Task** | Handle complex multi-step tasks autonomously |
 | **WebAgent** | Search the web, fetch pages, and analyze content. Uses Brave LLM Context API when `BRAVE_API_KEY` is set, otherwise falls back to DuckDuckGo |
-| **ImageGen** | Generate images from text prompts via OpenRouter Nano Banana Pro |

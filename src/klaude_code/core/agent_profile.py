@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     from klaude_code.config.config import Config
 
-from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
 from klaude_code.core.prompts.system_prompt import build_main_system_prompt, load_prompt_by_path
 from klaude_code.core.reminders import (
     at_file_reader_reminder,
@@ -28,7 +27,7 @@ from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.model_id import (
     is_gpt5_model,
 )
-from klaude_code.protocol.sub_agent import AVAILABILITY_IMAGE_MODEL, get_sub_agent_profile
+from klaude_code.protocol.sub_agent import get_sub_agent_profile
 from klaude_code.session import Session
 
 type Reminder = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
@@ -160,12 +159,7 @@ def load_agent_tools(
         *MAIN_AGENT_COMMON_TOOLS,
     ]
 
-    if config is not None:
-        helper = SubAgentModelHelper(config)
-        if helper.check_availability_requirement(AVAILABILITY_IMAGE_MODEL):
-            tool_names.append(tools.IMAGE_GEN)
-    else:
-        tool_names.append(tools.IMAGE_GEN)
+    del config
 
     return get_tool_schemas(tool_names)
 

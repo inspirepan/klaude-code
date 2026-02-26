@@ -36,6 +36,7 @@ def test_get_skills_xml_uses_requested_skill_block_format() -> None:
     assert "<name>project-skill</name>" in output
     assert "<description>project desc line2 &amp; &lt;xml&gt;</description>" in output
     assert "<location>/project/SKILL.md</location>" in output
+    assert "<base_dir>/project</base_dir>" in output
 
     # Skills should keep project > user > system order.
     project_pos = output.index("<name>project-skill</name>")

@@ -93,7 +93,6 @@ class SubAgentManager:
             child_session.sub_agent_state.sub_agent_prompt = state.sub_agent_prompt
             child_session.sub_agent_state.resume = resume_session_id
             child_session.sub_agent_state.output_schema = state.output_schema
-            child_session.sub_agent_state.generation = state.generation
         else:
             # Create a new child session under the same workdir
             child_session = Session(work_dir=parent_session.work_dir)

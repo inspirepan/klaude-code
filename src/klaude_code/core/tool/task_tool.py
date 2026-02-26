@@ -127,12 +127,6 @@ class TaskTool(ToolABC):
                 )
 
             resume_sub_agent_type = resume_session.sub_agent_state.sub_agent_type
-            if resume_sub_agent_type == tools.IMAGE_GEN:
-                return message.ToolResultMessage(
-                    status="error",
-                    output_text="This resume id belongs to ImageGen; use the ImageGen tool to resume it.",
-                )
-
             claims = context.sub_agent_resume_claims
             if claims is not None:
                 ok = await claims.claim(resume_session_id)
@@ -188,7 +182,6 @@ class TaskTool(ToolABC):
                     sub_agent_prompt=sub_agent_prompt,
                     resume=resume_session_id,
                     output_schema=output_schema,
-                    generation=None,
                 ),
                 context.record_sub_agent_session_id,
                 context.register_sub_agent_metadata_getter,

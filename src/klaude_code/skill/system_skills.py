@@ -17,7 +17,7 @@ from klaude_code.log import log_debug
 SYSTEM_SKILLS_MARKER_FILENAME = ".klaude-system-skills.marker"
 
 # Salt for fingerprint calculation (increment to force re-extraction)
-SYSTEM_SKILLS_MARKER_SALT = "v1"
+SYSTEM_SKILLS_MARKER_SALT = "v2"
 
 
 def get_system_skills_dir() -> Path:
@@ -155,7 +155,7 @@ def install_system_skills() -> bool:
             for item in assets_path.iterdir():
                 if item.is_dir() and not item.name.startswith("."):
                     dest_skill_dir = dest_dir / item.name
-                    shutil.copytree(item, dest_skill_dir)
+                    shutil.copytree(item, dest_skill_dir, ignore=shutil.ignore_patterns("LICENSE.txt"))
                     log_debug(f"Installed system skill: {item.name}")
         except OSError as e:
             log_debug(f"Failed to copy system skills: {e}")

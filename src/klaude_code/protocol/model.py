@@ -357,7 +357,6 @@ class SubAgentState(BaseModel):
     sub_agent_prompt: str
     resume: str | None = None
     output_schema: dict[str, Any] | None = None
-    generation: dict[str, Any] | None = None
 
 
 def todo_list_str(todos: list[TodoItem]) -> str:

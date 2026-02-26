@@ -1,5 +1,5 @@
 # pyright: reportPrivateUsage=false
-"""Tests for Task and ImageGen tools plus sub-agent profile basics."""
+"""Tests for Task tool plus sub-agent profile basics."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from typing import Any
 import pytest
 
 from klaude_code.core.tool.context import RunSubtask, TodoContext, ToolContext
-from klaude_code.core.tool.image_gen_tool import ImageGenTool
 from klaude_code.core.tool.task_tool import TaskTool
 from klaude_code.protocol import tools
 from klaude_code.protocol.sub_agent import SubAgentProfile, _default_prompt_builder
@@ -34,14 +33,6 @@ def test_task_tool_schema() -> None:
     assert "prompt" in schema.parameters["required"]
     assert "type" in schema.parameters["properties"]
     assert "general-purpose" in schema.parameters["properties"]["type"]["enum"]
-
-
-def test_image_gen_tool_schema() -> None:
-    schema = ImageGenTool.schema()
-
-    assert schema.name == tools.IMAGE_GEN
-    assert schema.type == "function"
-    assert "prompt" in schema.parameters["required"]
 
 
 def test_task_tool_call_invalid_json() -> None:
@@ -95,8 +86,6 @@ class TestSubAgentProfile:
         assert profile.active_form == ""
         assert profile.invoker_type is None
         assert profile.invoker_summary == ""
-        assert profile.standalone_tool is False
-        assert profile.availability_requirement is None
 
     def test_custom_prompt_builder(self) -> None:
         def custom_builder(args: dict[str, Any]) -> str:
@@ -126,7 +115,6 @@ class TestSubAgentRegistration:
         from klaude_code.protocol.sub_agent import is_sub_agent_tool
 
         assert is_sub_agent_tool(tools.TASK) is True
-        assert is_sub_agent_tool(tools.IMAGE_GEN) is True
         assert is_sub_agent_tool("Explore") is False
 
     def test_get_sub_agent_profile(self) -> None:
@@ -149,4 +137,4 @@ class TestSubAgentRegistration:
         profiles = iter_sub_agent_profiles()
         assert len(profiles) > 0
         names = {p.name for p in profiles}
-        assert {"Task", "Explore", "ImageGen"}.issubset(names)
+        assert {"Task", "Explore"}.issubset(names)

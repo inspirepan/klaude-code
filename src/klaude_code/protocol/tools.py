@@ -11,7 +11,6 @@ WEB_FETCH = "WebFetch"
 WEB_SEARCH = "WebSearch"
 REPORT_BACK = "report_back"
 TASK = "Task"
-IMAGE_GEN = "ImageGen"
 REWIND = "Rewind"
 
 # SubAgentType is just a string alias now; agent types are defined via SubAgentProfile

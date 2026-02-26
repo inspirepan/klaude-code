@@ -415,7 +415,7 @@ class _SessionState:
 
     @property
     def should_show_sub_agent_thinking_header(self) -> bool:
-        return bool(self.sub_agent_state and self.sub_agent_state.sub_agent_type == tools.IMAGE_GEN)
+        return False
 
     def should_skip_tool_activity(self, tool_name: str) -> bool:
         """Check if tool activity should be skipped for non-streaming models."""

@@ -65,6 +65,17 @@ Every SKILL.md consists of:
 
 #### Bundled Resources (optional)
 
+Use bundled resources to keep SKILL.md lean via **progressive disclosure**: load information
+only when the agent needs it.
+
+Key rules for all bundled resources:
+- Keep files **one level deep** only (e.g., `references/schema.md`, not
+  `references/db/v1/schema.md`).
+- Always use **relative paths** with forward slashes (`/`), regardless of OS.
+- Use **Just-in-Time loading** -- explicitly instruct the agent in SKILL.md when to read a
+  file. The agent will not see these resources unless directed to. Example: *"Read
+  `references/auth-flow.md` for the complete error code table."*
+
 ##### Scripts (`scripts/`)
 
 Executable code (Python/Bash/etc.) for tasks that require deterministic reliability or are
@@ -73,7 +84,11 @@ repeatedly rewritten.
 - **When to include**: When the same code is being rewritten repeatedly or deterministic
   reliability is needed
 - **Example**: `scripts/rotate_pdf.py` for PDF rotation tasks
-- **Benefits**: Token efficient, deterministic, may be executed without loading into context
+- **Error messages matter**: The agent relies on stdout/stderr to determine success or
+  failure. Write scripts that return descriptive, human-readable error messages so the agent
+  can self-correct without user intervention.
+- Do not bundle long-lived library code here; skills should contain tiny, single-purpose
+  scripts only.
 
 ##### References (`references/`)
 
@@ -82,15 +97,16 @@ Documentation and reference material intended to be loaded as needed into contex
 - **When to include**: For documentation that the agent should reference while working
 - **Examples**: `references/schema.md` for database schemas, `references/api_docs.md` for
   API specifications
-- **Benefits**: Keeps SKILL.md lean, loaded only when needed
 
 ##### Assets (`assets/`)
 
-Files not intended to be loaded into context, but rather used within the output.
+Files not intended to be loaded into context, but rather used within the output. Agents
+pattern-match exceptionally well -- prefer placing a concrete template in `assets/` over
+writing paragraphs that describe the desired output format.
 
-- **When to include**: When the skill needs files that will be used in the final output
+- **When to include**: When the skill needs files that will be used in the final output, or
+  concrete templates the agent should copy the structure of
 - **Examples**: `assets/logo.png` for brand assets, `assets/template.html` for HTML templates
-- **Benefits**: Separates output resources from documentation
 
 ## Skill Creation Process
 
@@ -101,7 +117,23 @@ Skill creation involves these steps:
 3. Create the skill directory structure
 4. Write SKILL.md with proper frontmatter
 5. Add bundled resources as needed
-6. Test and iterate based on real usage
+6. Present verification suggestions to the user (see below)
+
+### Post-Creation Verification Suggestions
+
+After creating or updating a skill, generate a short list of **concrete, actionable
+verification suggestions** tailored to the specific skill, so the user can test it themselves.
+Cover three angles:
+
+1. **Discovery** -- suggest 2-3 example prompts the user can try to confirm the skill
+   triggers correctly, and 1-2 similar-but-different prompts that should NOT trigger it.
+2. **Logic** -- suggest a realistic end-to-end task the user can run to check whether the
+   agent follows each step without getting stuck or hallucinating missing information.
+3. **Edge cases** -- name 1-2 tricky scenarios specific to this skill's domain that the user
+   should try to make sure the skill handles them (or fails gracefully).
+
+Present these as a checklist the user can walk through. Keep it brief and specific to the
+skill just created -- not generic advice.
 
 ### Skill Naming
 
@@ -118,14 +150,40 @@ Always use imperative/infinitive form.
 Write the YAML frontmatter with `name` and `description`:
 
 - `name`: The skill name (required)
-- `description`: This is the primary triggering mechanism for your skill. Include both what
-  the Skill does and specific triggers/contexts for when to use it. Include all "when to use"
-  information here - Not in the body.
+- `description`: This is the primary triggering mechanism for your skill. The agent sees
+  **only** this field when deciding whether to load the skill. Include both what the skill
+  does and specific triggers for when to use it. Include "negative triggers" to prevent
+  false matches on similar-sounding requests.
+  - **Bad:** `"React skills."` -- too vague, triggers on everything React-adjacent.
+  - **Good:** `"Creates and builds React components using Tailwind CSS. Use when the user
+    wants to update component styles or UI logic. Do not use for Vue, Svelte, or vanilla
+    CSS projects."` -- states capability, trigger context, and exclusions.
 
 #### Body
 
 Write instructions for using the skill and its bundled resources. Keep SKILL.md body to the
 essentials and under 500 lines to minimize context bloat.
+
+Skills are instructions for agents, not documentation for humans. Follow these writing rules:
+
+- **Use numbered steps, not prose.** Define workflows as strict chronological sequences. For
+  decision trees, map branches explicitly (e.g., *"Step 2: If source maps are needed, run
+  `ng build --source-map`. Otherwise, skip to Step 3."*).
+- **Write in third-person imperative.** Frame instructions as direct commands: *"Extract the
+  text..."* rather than *"I will extract..."* or *"You should extract..."*.
+- **Prefer templates over descriptions.** Place concrete output templates in `assets/` and
+  instruct the agent to copy the structure, instead of describing the format in paragraphs.
+- **Use consistent terminology.** Pick one term per concept and use it everywhere. Prefer
+  domain-native terms (e.g., Angular "template" instead of "html" or "markup").
+
+### What NOT to Create
+
+Do not create files that waste tokens or duplicate what the agent already knows:
+
+- **Documentation files** (`README.md`, `CHANGELOG.md`) -- skills are not human-facing docs.
+- **Redundant instructions** -- if the agent handles a task reliably without guidance, omit it.
+- **Library code** -- long-lived library code belongs in standard repo directories, not in
+  `scripts/`.
 
 ## Skill Storage Locations
 

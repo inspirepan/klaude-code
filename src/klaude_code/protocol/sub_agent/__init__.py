@@ -11,9 +11,6 @@ if TYPE_CHECKING:
 
 PromptBuilder = Callable[[dict[str, Any]], str]
 
-# Availability requirement constants
-AVAILABILITY_IMAGE_MODEL = "image_model"
-
 
 @dataclass
 class SubAgentResult:
@@ -39,7 +36,7 @@ class SubAgentProfile:
     """
 
     # Identity - single name used for type, config_key, and prompt_key
-    name: str  # e.g., "Task", "Explore", "ImageGen"
+    name: str  # e.g., "Task", "Explore"
 
     # Sub-agent run configuration
     prompt_file: str = ""  # Resource file path relative to core package (e.g., "prompts/prompt-sub-agent.md")
@@ -49,14 +46,9 @@ class SubAgentProfile:
     # Entry-point metadata for Task tool (RunSubAgent)
     invoker_type: str | None = None  # Tool-level type mapping (e.g., "general-purpose", "explore")
     invoker_summary: str = ""  # Short description shown under Task tool supported types
-    standalone_tool: bool = False  # True for sub-agents invoked by dedicated tools (e.g., ImageGen)
 
     # UI display
     active_form: str = ""  # Active form for spinner status (e.g., "Tasking", "Exploring")
-
-    # Config-based availability requirement (e.g., "image_model" means requires an image model)
-    # The actual check is performed in the core layer to avoid circular imports.
-    availability_requirement: str | None = None
 
 
 _PROFILES: dict[str, SubAgentProfile] = {}
@@ -82,10 +74,9 @@ def iter_sub_agent_profiles() -> list[SubAgentProfile]:
 def is_sub_agent_tool(tool_name: str) -> bool:
     from klaude_code.protocol import tools
 
-    return tool_name in {tools.TASK, tools.IMAGE_GEN}
+    return tool_name in {tools.TASK}
 
 
 # Import sub-agent modules to trigger registration
 from klaude_code.protocol.sub_agent import explore as explore  # noqa: E402
-from klaude_code.protocol.sub_agent import image_gen as image_gen  # noqa: E402
 from klaude_code.protocol.sub_agent import task as task  # noqa: E402
