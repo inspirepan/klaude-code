@@ -236,17 +236,17 @@ def render_read_tool_call(arguments: str) -> RenderableType:
         if is_skill:
             tool_name = "Read Skill"
             path_text = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
-            skill_suffix = "SKILL.md"
-            if path_obj.parent.name:
-                skill_suffix = f"{path_obj.parent.name}/SKILL.md"
-            style_start = path_text.plain.rfind(skill_suffix)
-            style_length = len(skill_suffix)
-            if style_start == -1:
-                skill_suffix = "SKILL.md"
-                style_start = path_text.plain.rfind(skill_suffix)
-                style_length = len(skill_suffix)
-            if style_start != -1:
-                path_text.stylize(ThemeKey.TOOL_PARAM_FILE_PATH_SKILL, style_start, style_start + style_length)
+            skill_file = "SKILL.md"
+            skill_file_start = path_text.plain.rfind(skill_file)
+            if skill_file_start != -1:
+                skill_file_end = skill_file_start + len(skill_file)
+                path_text.stylize(ThemeKey.TOOL_PARAM_FILE_PATH_SKILL_FILE, skill_file_start, skill_file_end)
+
+                slash_index = skill_file_start - 1
+                if slash_index >= 0 and path_text.plain[slash_index] == "/":
+                    skill_name_start = path_text.plain.rfind("/", 0, slash_index) + 1
+                    if skill_name_start < slash_index:
+                        path_text.stylize(ThemeKey.TOOL_PARAM_FILE_PATH_SKILL_NAME, skill_name_start, slash_index)
             details.append_text(path_text)
         else:
             details.append_text(render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
