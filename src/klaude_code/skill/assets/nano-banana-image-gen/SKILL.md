@@ -1,11 +1,11 @@
 ---
 name: "nano-banana-image-gen"
-description: "Use when the user asks to generate or edit images with Nano Banana / Nano Banana Pro (users often call these models 'banana'). Nano Banana maps to `gemini-2.5-flash-image`; Nano Banana Pro maps to `gemini-3-pro-image`."
+description: "Use when the user asks to generate or edit images with Nano Banana / Nano Banana Pro (users often call these models 'banana'). Nano Banana (aka Nano Banana 2) maps to `gemini-3.1-flash-image-preview`; Nano Banana Pro maps to `gemini-3-pro-image`."
 ---
 
 # Nano Banana Image Generation Skill
 
-Generate or edit images using Google's Gemini native image generation. Naming note: **Nano Banana** is the marketing name for `gemini-2.5-flash-image`, and **Nano Banana Pro** maps to `gemini-3-pro-image` (currently exposed in this CLI as `gemini-3-pro-image-preview`).
+Generate or edit images using Google's Gemini native image generation. Naming note: **Nano Banana** (aka **Nano Banana 2**) maps to `gemini-3.1-flash-image-preview`, and **Nano Banana Pro** maps to `gemini-3-pro-image` (currently exposed in this CLI as `gemini-3-pro-image-preview`).
 
 ## When to use
 - Generate a new image (concept art, product shot, cover, hero, sticker, icon)
@@ -14,10 +14,10 @@ Generate or edit images using Google's Gemini native image generation. Naming no
 - Search-grounded generation (real-time data like weather, events, charts)
 
 ## Model selection
-- `gemini-2.5-flash-image` (Nano Banana, default): fast, low-latency, high-volume. Best with <=3 input images.
+- `gemini-3.1-flash-image-preview` (Nano Banana / Nano Banana 2, default): best speed/quality balance, supports Thinking + Search Grounding, and supports `512px` low-latency mode. Best with <=3 input images.
 - `gemini-3-pro-image-preview` (Nano Banana Pro / `gemini-3-pro-image`): professional asset production, advanced text rendering, Thinking mode, up to 4K, Google Search grounding. Supports up to 14 input images (5 humans high-fidelity, 6 objects high-fidelity).
 
-Use Pro when the user needs: 4K resolution, accurate text rendering, Search grounding, complex multi-image composition, or explicitly requests "pro" / "high quality".
+Use Pro when the user needs: highest text rendering quality, complex multi-image composition, or explicitly requests "pro" / "high quality".
 
 ## Decision tree
 - If the user provides input image(s) or says "edit/retouch/change/modify/localize" -> **edit**
@@ -44,9 +44,9 @@ cd {SKILL_BASE_DIR} && uv run --with google-genai --with google-auth --with pill
 ```
 
 ## Defaults & rules
-- Model: `gemini-2.5-flash-image` unless user asks for Pro or needs Pro features.
-- Aspect ratio: `1:1` (default). Supported: `1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9`.
-- Resolution: `1K` (default). Pro model supports `1K, 2K, 4K`. Must use uppercase `K`.
+- Model: `gemini-3.1-flash-image-preview` unless user asks for Pro or needs Pro features.
+- Aspect ratio: `1:1` (default). Supported: `1:1, 1:4, 1:8, 2:3, 3:2, 3:4, 4:1, 4:3, 4:5, 5:4, 8:1, 9:16, 16:9, 21:9` (`1:4/1:8/4:1/8:1` are Nano Banana 2 only).
+- Resolution: `1K` (default). Supported: `512px, 1K, 2K, 4K`; `512px` is Nano Banana 2 only.
 - Response modalities: `TEXT,IMAGE` by default. Use `--image-only` for image-only output.
 - Output format: PNG (default).
 - Prefer the bundled CLI over writing new scripts.
@@ -93,6 +93,7 @@ Edit:
 - Describe the scene narratively; do not just list keywords.
 - Use photography language for photorealism (lens, lighting, framing).
 - For text in images: quote exact text, specify font style descriptively, use Pro model.
+- Nano Banana 2 also supports Thinking and Search Grounding; use it when speed matters.
 - For Pro model: let Thinking work; complex prompts get better results.
 - For Search grounding: describe what real-time data to visualize.
 - For edits, repeat invariants ("change only X; keep Y unchanged").

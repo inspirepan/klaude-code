@@ -19,7 +19,7 @@ Authentication (auto-detected, checked in order):
      GOOGLE_CLOUD_LOCATION
 
 Models:
-  gemini-2.5-flash-image         Fast, low-latency (default)
+  gemini-3.1-flash-image-preview Fast, low-latency (Nano Banana 2, default)
   gemini-3-pro-image-preview     Professional: 4K, text rendering, Search, Thinking
 
 Examples:
@@ -61,13 +61,32 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-DEFAULT_MODEL = "gemini-2.5-flash-image"
+FLASH_MODEL = "gemini-3.1-flash-image-preview"
+PRO_MODEL = "gemini-3-pro-image-preview"
+
+DEFAULT_MODEL = FLASH_MODEL
 DEFAULT_ASPECT_RATIO = "1:1"
 DEFAULT_RESOLUTION = "1K"
 
-ALLOWED_ASPECT_RATIOS = {"1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"}
-ALLOWED_RESOLUTIONS = {"1K", "2K", "4K"}
-PRO_MODEL = "gemini-3-pro-image-preview"
+ALLOWED_ASPECT_RATIOS = {
+    "1:1",
+    "1:4",
+    "1:8",
+    "2:3",
+    "3:2",
+    "3:4",
+    "4:1",
+    "4:3",
+    "4:5",
+    "5:4",
+    "8:1",
+    "9:16",
+    "16:9",
+    "21:9",
+}
+NB2_ONLY_ASPECT_RATIOS = {"1:4", "1:8", "4:1", "8:1"}
+ALLOWED_RESOLUTIONS = {"512px", "1K", "2K", "4K"}
+RESOLUTION_CHOICES = ["512px", "1K", "2K", "4K"]
 MAX_INPUT_IMAGES = 14
 
 _GOOGLE_CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
@@ -135,16 +154,18 @@ def _check_image_paths(paths: list[str] | None) -> list[Path]:
     return resolved
 
 
-def _validate_aspect_ratio(ratio: str) -> None:
+def _validate_aspect_ratio(ratio: str, model: str) -> None:
     if ratio not in ALLOWED_ASPECT_RATIOS:
         _die(f"aspect-ratio must be one of: {', '.join(sorted(ALLOWED_ASPECT_RATIOS))}")
+    if ratio in NB2_ONLY_ASPECT_RATIOS and model != FLASH_MODEL:
+        _die(f"aspect-ratio {ratio} is only supported by {FLASH_MODEL}.")
 
 
 def _validate_resolution(resolution: str, model: str) -> None:
     if resolution not in ALLOWED_RESOLUTIONS:
         _die(f"resolution must be one of: {', '.join(sorted(ALLOWED_RESOLUTIONS))}")
-    if resolution != "1K" and model != PRO_MODEL:
-        _warn(f"Resolution {resolution} is only supported by {PRO_MODEL}. Switching model.")
+    if resolution == "512px" and model != FLASH_MODEL:
+        _die(f"resolution {resolution} is only supported by {FLASH_MODEL}.")
 
 
 def _auto_detect_resolution(image_paths: list[Path], explicit_resolution: str) -> str:
@@ -216,7 +237,7 @@ def _build_config(args: argparse.Namespace) -> dict[str, Any]:
     image_config_kwargs: dict[str, Any] = {}
     if args.aspect_ratio != DEFAULT_ASPECT_RATIO:
         image_config_kwargs["aspect_ratio"] = args.aspect_ratio
-    if args.model == PRO_MODEL and args.resolution != DEFAULT_RESOLUTION:
+    if args.resolution != DEFAULT_RESOLUTION:
         image_config_kwargs["image_size"] = args.resolution
 
     config_kwargs: dict[str, Any] = {
@@ -301,12 +322,8 @@ def _generate(args: argparse.Namespace) -> None:
     prompt = _read_prompt(args.prompt, args.prompt_file)
     prompt = _augment_prompt(args, prompt)
 
-    _validate_aspect_ratio(args.aspect_ratio)
-    if args.model == PRO_MODEL:
-        _validate_resolution(args.resolution, args.model)
-
-    if args.google_search and args.model != PRO_MODEL:
-        _warn(f"Google Search grounding works best with {PRO_MODEL}. Consider switching.")
+    _validate_aspect_ratio(args.aspect_ratio, args.model)
+    _validate_resolution(args.resolution, args.model)
 
     out_path = Path(args.out)
     if out_path.suffix == "":
@@ -316,7 +333,7 @@ def _generate(args: argparse.Namespace) -> None:
         "model": args.model,
         "prompt": prompt,
         "aspect_ratio": args.aspect_ratio,
-        "resolution": args.resolution if args.model == PRO_MODEL else "N/A (Flash)",
+        "resolution": args.resolution,
         "image_only": args.image_only,
         "google_search": args.google_search,
         "output": str(out_path),
@@ -358,7 +375,8 @@ def _edit(args: argparse.Namespace) -> None:
     if not image_paths:
         _die("edit requires at least one --image.")
 
-    _validate_aspect_ratio(args.aspect_ratio)
+    _validate_aspect_ratio(args.aspect_ratio, args.model)
+    _validate_resolution(args.resolution, args.model)
 
     # Auto-detect resolution for Pro model
     if args.model == PRO_MODEL:
@@ -374,7 +392,7 @@ def _edit(args: argparse.Namespace) -> None:
         "prompt": prompt,
         "input_images": [str(p) for p in image_paths],
         "aspect_ratio": args.aspect_ratio,
-        "resolution": args.resolution if args.model == PRO_MODEL else "N/A (Flash)",
+        "resolution": args.resolution,
         "image_only": args.image_only,
         "google_search": args.google_search,
         "output": str(out_path),
@@ -453,8 +471,8 @@ def _add_shared_args(parser: argparse.ArgumentParser) -> None:
         "--resolution",
         "-r",
         default=DEFAULT_RESOLUTION,
-        choices=sorted(ALLOWED_RESOLUTIONS),
-        help=f"Output resolution, Pro model only (default: {DEFAULT_RESOLUTION}). Must be uppercase K.",
+        choices=RESOLUTION_CHOICES,
+        help=f"Output resolution (default: {DEFAULT_RESOLUTION}). 512px is only supported by {FLASH_MODEL}.",
     )
     parser.add_argument(
         "--image-only",
@@ -464,7 +482,7 @@ def _add_shared_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--google-search",
         action="store_true",
-        help="Enable Google Search grounding (best with Pro model)",
+        help="Enable Google Search grounding (supported by Gemini 3 Flash/Pro)",
     )
     parser.add_argument(
         "--out",
@@ -517,7 +535,7 @@ def main() -> int:
         description="Generate or edit images via the Google Gemini Image API (Nano Banana).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""models:
-  gemini-2.5-flash-image         Fast, low-latency generation (default)
+  gemini-3.1-flash-image-preview Fast, low-latency generation (Nano Banana 2, default)
   gemini-3-pro-image-preview     Professional: 4K, text rendering, Thinking, Search
 
 examples:
