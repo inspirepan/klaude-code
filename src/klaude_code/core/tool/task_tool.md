@@ -13,6 +13,7 @@ Usage notes:
 - Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses
 - Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, etc.), since it is not aware of the user's intent
 - Provide clear, detailed prompts so the agent can work autonomously and return exactly the information you need.
+- When asking a sub-agent to execute a skill, include the skill's full `location` and `base_dir` in your prompt, since sub-agents do not automatically load `<available_skills>` metadata.
 - Agents can be resumed using the `resume` parameter by passing the agent ID from a previous invocation. When resumed, the agent continues with its full previous context preserved. When NOT resuming, each invocation starts fresh and you should provide a detailed task description with all necessary context.
 - When the agent is done, it will return a single message back to you along with its agent ID. You can use this ID to resume the agent later if needed for follow-up work.
 - If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.

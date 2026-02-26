@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 from rich.console import Console
 from rich.text import Text
@@ -129,3 +130,26 @@ def test_update_applies_mark_to_live_when_all_live() -> None:
 
     # Same as above: without any stable block, we don't emit a live renderable.
     assert live_calls == []
+
+
+def test_update_invokes_image_callback_for_local_svg(tmp_path: Path) -> None:
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+    out = io.StringIO()
+    console = Console(file=out, force_terminal=True, width=80, theme=theme)
+    displayed: list[str] = []
+    stream = MarkdownStream(console=console, theme=theme, left_margin=0, image_callback=displayed.append)
+
+    svg_path = tmp_path / "render-mermaid-arch.svg"
+    svg_path.write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+
+    stream.update(f"![Mermaid 架构图]({svg_path})", final=True)
+
+    assert displayed == [str(svg_path)]
