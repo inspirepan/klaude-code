@@ -552,13 +552,6 @@ class Session(BaseModel):
                         summary=ce.summary,
                         kept_items_brief=ce.kept_items_brief,
                     )
-                case message.CacheHitWarnEntry() as cw:
-                    yield events.CacheHitWarnEvent(
-                        session_id=self.id,
-                        cache_hit_rate=cw.cache_hit_rate,
-                        cached_tokens=cw.cached_tokens,
-                        prev_turn_input_tokens=cw.prev_turn_input_tokens,
-                    )
                 case message.CacheHitRateEntry() as cr:
                     yield events.CacheHitRateEvent(
                         session_id=self.id,

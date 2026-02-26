@@ -1031,9 +1031,6 @@ class DisplayStateMachine:
                     cmds.extend(self._spinner_update_commands())
                 return cmds
 
-            case events.CacheHitWarnEvent():
-                return []
-
             case events.TurnEndEvent():
                 return []
 
