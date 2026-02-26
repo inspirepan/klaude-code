@@ -10,6 +10,8 @@ description: >
 
 Push changes and create a GitHub PR via two bundled scripts. Both scripts auto-detect jj/git mode and print actionable error messages on failure -- follow their guidance to resolve issues.
 
+**Only run the 3 steps below. Do not run any extra commands between steps (no `jj log`, `git log`, `jj status`, `gh pr list`, etc.). The scripts handle all checks internally and report errors with fix instructions.**
+
 ## Workflow
 
 ### 1. Run pre-PR checks
@@ -30,11 +32,11 @@ If `make format` changes files, commit them first:
 .claude/skills/submit-pr/scripts/get_pr_diff.sh
 ```
 
-Review the output. Determine a conventional-commit-style PR title and write a PR body covering: summary of changes, validation steps run.
+The script output contains all metadata, commits, and diff. Use it directly to compose a conventional-commit-style PR title and body (summary of changes + validation steps).
 
 ### 3. Submit PR
 
-Write the PR body to a temp file, then run:
+Write the PR body to a temp file and submit in one step:
 
 ```bash
 cat > /tmp/pr_body.md <<'EOF'
