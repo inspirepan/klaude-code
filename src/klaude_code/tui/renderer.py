@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
-
+import json
 from rich import box
 from rich.console import Console, Group, RenderableType
 from rich.padding import Padding
@@ -23,6 +23,7 @@ from klaude_code.const import (
     STATUS_DEFAULT_TEXT,
     STREAM_MAX_HEIGHT_SHRINK_RESET_LINES,
 )
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, model
 from klaude_code.tui.commands import (
     AppendAssistant,
@@ -833,6 +834,12 @@ class TUICommandRenderer:
 
     async def execute(self, commands: list[RenderCommand]) -> None:
         for cmd in commands:
+            log_debug(
+                f"{'[Cmd] [Replay]' if self._replay_mode else '[Cmd]'} [{cmd.__class__.__name__}]",
+                str(cmd),
+                style="magenta",
+                debug_type=DebugType.UI_EVENT,
+            )
             match cmd:
                 case RenderWelcome(event=event):
                     self.display_welcome(event)

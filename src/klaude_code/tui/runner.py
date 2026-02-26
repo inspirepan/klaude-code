@@ -144,8 +144,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     tui_display = TUIDisplay(theme=theme)
     display: ui.DisplayABC = tui_display
-    if init_config.debug:
-        display = ui.DebugEventDisplay(display)
 
     def _on_model_change(model_name: str) -> None:
         update_terminal_title(model_name)
@@ -167,12 +165,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         active_display = components.display
         if isinstance(active_display, TUIDisplay):
             active_display.hide_progress_ui()
-        elif (
-            isinstance(active_display, ui.DebugEventDisplay)
-            and active_display.wrapped_display
-            and isinstance(active_display.wrapped_display, TUIDisplay)
-        ):
-            active_display.wrapped_display.hide_progress_ui()
 
     def _get_active_session_id() -> str | None:
         """Get the current active session ID dynamically.
@@ -236,12 +228,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         active_display = components.display
         if isinstance(active_display, TUIDisplay):
             return active_display
-        if (
-            isinstance(active_display, ui.DebugEventDisplay)
-            and active_display.wrapped_display
-            and isinstance(active_display.wrapped_display, TUIDisplay)
-        ):
-            return active_display.wrapped_display
         return None
 
     @contextlib.contextmanager

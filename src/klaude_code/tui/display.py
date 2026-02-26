@@ -5,6 +5,7 @@ import contextlib
 from collections.abc import Coroutine
 from typing import Any, override
 
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
 from klaude_code.tui.machine import DisplayStateMachine
 from klaude_code.tui.renderer import TUICommandRenderer
@@ -39,6 +40,13 @@ class TUIDisplay(DisplayABC):
             try:
                 await self._renderer.execute(self._machine.begin_replay())
                 for item in event.events:
+                    log_debug(
+                        f"[Replay] [{item.__class__.__name__}]",
+                        item.model_dump_json(exclude_none=True),
+                        style="magenta",
+                        debug_type=DebugType.UI_EVENT,
+                    )
+
                     commands = self._machine.transition_replay(item)
                     if commands:
                         await self._renderer.execute(commands)
@@ -47,6 +55,12 @@ class TUIDisplay(DisplayABC):
                 self._renderer.set_replay_mode(False)
             return
 
+        log_debug(
+            f"[{event.__class__.__name__}]",
+            event.model_dump_json(exclude_none=True),
+            style="magenta",
+            debug_type=DebugType.UI_EVENT,
+        )
         commands = self._machine.transition(event)
         if commands:
             await self._renderer.execute(commands)
