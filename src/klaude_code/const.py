@@ -51,8 +51,6 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"  # OpenRouter API base URL
 CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"  # Codex API base URL
 CODEX_USER_AGENT = "pi"  # Codex user agent string
 
-SUPPORTED_IMAGE_SIZES = {"1K", "2K", "4K"}  # Supported image sizes for ImageGen tool
-
 LOW_CACHE_HIT_RATE_THRESHOLD = 0.9  # Cache hit rate below this triggers a warning
 THROUGHPUT_MIN_DURATION_SEC = 0.15  # Minimum duration (seconds) for throughput calculation
 INITIAL_RETRY_DELAY_S = 1.0  # Initial delay before retrying a failed turn (seconds)

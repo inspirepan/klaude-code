@@ -685,15 +685,8 @@ class ExecutorContext:
                 main_model_name=self.llm_clients.main.model_name,
             )
 
-            resolved = helper.resolve_default_model_override(sub_agent_type)
-            if resolved is None:
-                # Default: inherit from main client.
-                self.llm_clients.sub_clients.pop(sub_agent_type, None)
-            else:
-                # Default: use a dedicated model (e.g. first available image model).
-                llm_config = config.get_model_config(resolved)
-                new_client = create_llm_client(llm_config)
-                self.llm_clients.sub_clients[sub_agent_type] = new_client
+            # Default: inherit from Task/main client behavior.
+            self.llm_clients.sub_clients.pop(sub_agent_type, None)
 
             display_model = f"({behavior.description})"
         else:

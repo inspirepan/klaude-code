@@ -153,8 +153,7 @@ class ChangeSubAgentModelOperation(Operation):
     session_id: str
     sub_agent_type: str
     # When None, clear explicit override and fall back to the sub-agent's default
-    # behavior (usually inherit from main agent; some sub-agents auto-resolve a
-    # suitable model, e.g. ImageGen).
+    # behavior.
     model_name: str | None
     save_as_default: bool = False
 
