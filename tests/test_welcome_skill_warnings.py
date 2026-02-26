@@ -48,7 +48,7 @@ def test_render_welcome_shows_skills_as_tree_list() -> None:
     console.print(render_welcome(event))
     output = out.getvalue()
 
-    assert "[system skills]" in output
+    assert "[system]" in output
     assert "deslop" in output
     assert "web-search" in output
     assert "── deslop" not in output
