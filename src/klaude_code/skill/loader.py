@@ -43,6 +43,7 @@ class SkillLoader:
         Path("~/.claude/skills"),
         Path("~/.klaude/skills"),
         Path("~/.agents/skills"),
+        Path("~/.config/agents/skills"),
     ]
     # Project-level skills directories (checked in order, later ones override earlier ones with same name)
     PROJECT_SKILLS_DIRS: ClassVar[list[Path]] = [
@@ -124,7 +125,7 @@ class SkillLoader:
 
         Loading order (lower priority first, higher priority overrides):
         1. System skills (~/.klaude/skills/.system/) - built-in, lowest priority
-        2. User skills (~/.claude/skills/, ~/.klaude/skills/, ~/.agents/skills/) - user-level
+        2. User skills (~/.claude/skills/, ~/.klaude/skills/, ~/.agents/skills/, ~/.config/agents/skills/) - user-level
         3. Project skills (./.claude/skills/, ./.agents/skills/) - project-level, highest priority
 
         Returns:
