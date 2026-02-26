@@ -6,7 +6,6 @@ from rich import box
 from rich.console import Group, RenderableType
 from rich.padding import Padding
 from rich.panel import Panel
-from rich.style import Style
 from rich.text import Text
 
 from klaude_code.const import (
@@ -20,7 +19,6 @@ from klaude_code.const import (
 from klaude_code.protocol import events, model, tools
 from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
 from klaude_code.tui.components import diffs as r_diffs
-from klaude_code.tui.components import mermaid_viewer as r_mermaid_viewer
 from klaude_code.tui.components.bash_syntax import highlight_bash_command
 from klaude_code.tui.components.common import create_grid, truncate_middle
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
@@ -34,7 +32,6 @@ MARK_PLAN = "◈"
 MARK_READ = "→"
 MARK_EDIT = "±"
 MARK_WRITE = "+"
-MARK_MERMAID = "⧉"
 MARK_WEB_FETCH = "→"
 MARK_WEB_SEARCH = "✱"
 MARK_DONE = "✔"
@@ -432,34 +429,6 @@ def render_read_preview(ui_extra: model.ReadPreviewUIExtra) -> RenderableType:
     return grid
 
 
-def _extract_mermaid_link(
-    ui_extra: model.ToolResultUIExtra | None,
-) -> model.MermaidLinkUIExtra | None:
-    return ui_extra if isinstance(ui_extra, model.MermaidLinkUIExtra) else None
-
-
-def render_mermaid_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Mermaid"
-    summary = Text("", ThemeKey.TOOL_PARAM)
-
-    try:
-        payload: dict[str, str] = json.loads(arguments)
-    except json.JSONDecodeError:
-        summary = Text(
-            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
-            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
-        )
-    else:
-        code = payload.get("code", "")
-        if code:
-            line_count = len(code.splitlines())
-            summary = Text(f"{line_count} lines", ThemeKey.TOOL_PARAM)
-        else:
-            summary = Text("0 lines", ThemeKey.TOOL_PARAM)
-
-    return _render_tool_call_tree(mark=MARK_MERMAID, tool_name=tool_name, details=summary)
-
-
 def _truncate_url(url: str, max_length: int = URL_TRUNCATE_MAX_LENGTH) -> str:
     """Truncate URL for display, preserving domain and path structure."""
     if len(url) <= max_length:
@@ -474,36 +443,6 @@ def _truncate_url(url: str, max_length: int = URL_TRUNCATE_MAX_LENGTH) -> str:
         return display_url
     # Truncate with ellipsis
     return display_url[: max_length - 1] + "…"
-
-
-def _render_mermaid_viewer_link(
-    tr: events.ToolResultEvent,
-    link_info: model.MermaidLinkUIExtra,
-    *,
-    use_osc8: bool,
-) -> RenderableType:
-    viewer_path = r_mermaid_viewer.build_viewer(code=link_info.code, link=link_info.link, tool_call_id=tr.tool_call_id)
-    if viewer_path is None:
-        return Text(link_info.link, style=ThemeKey.TOOL_RESULT_MERMAID, overflow="ellipsis", no_wrap=True)
-
-    display_path = str(viewer_path)
-
-    file_url = ""
-    if use_osc8:
-        try:
-            file_url = viewer_path.resolve().as_uri()
-        except ValueError:
-            file_url = f"file://{viewer_path.as_posix()}"
-
-    rendered = Text.assemble(("View diagram in ", ThemeKey.TOOL_RESULT), " ")
-    start = len(rendered)
-    rendered.append(display_path, ThemeKey.TOOL_RESULT_MERMAID)
-    end = len(rendered)
-
-    if use_osc8 and file_url:
-        rendered.stylize(Style(link=file_url), start, end)
-
-    return rendered
 
 
 def render_web_fetch_tool_call(arguments: str) -> RenderableType:
@@ -555,23 +494,6 @@ def render_web_search_tool_call(arguments: str) -> RenderableType:
     return _render_tool_call_tree(mark=MARK_WEB_SEARCH, tool_name=tool_name, details=summary)
 
 
-def render_mermaid_tool_result(
-    tr: events.ToolResultEvent,
-    *,
-    session_id: str | None = None,
-) -> RenderableType:
-    from klaude_code.tui.terminal import supports_osc8_hyperlinks
-
-    link_info = _extract_mermaid_link(tr.ui_extra)
-    if link_info is None:
-        return render_generic_tool_result(tr.result, is_error=tr.is_error)
-
-    use_osc8 = supports_osc8_hyperlinks()
-    viewer = _render_mermaid_viewer_link(tr, link_info, use_osc8=use_osc8)
-
-    return viewer
-
-
 def render_report_back_tool_call() -> RenderableType:
     return _render_tool_call_tree(mark=MARK_DONE, tool_name="Report Back", details=None)
 
@@ -612,7 +534,6 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.WRITE: "Writing",
     tools.TODO_WRITE: "Planning",
     tools.UPDATE_PLAN: "Planning",
-    tools.MERMAID: "Diagramming",
     tools.WEB_FETCH: "Fetching Web",
     tools.WEB_SEARCH: "Searching Web",
     tools.REPORT_BACK: "Reporting",
@@ -656,8 +577,6 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_generic_tool_call("Update To-Dos", "", MARK_PLAN)
         case tools.UPDATE_PLAN:
             return render_update_plan_tool_call(e.arguments)
-        case tools.MERMAID:
-            return render_mermaid_tool_call(e.arguments)
         case tools.REPORT_BACK:
             return render_report_back_tool_call()
         case tools.REWIND:
@@ -715,7 +634,6 @@ def render_tool_result(
     e: events.ToolResultEvent,
     *,
     code_theme: str = "monokai",
-    session_id: str | None = None,
 ) -> RenderableType | None:
     """Unified entry point for rendering tool results.
 
@@ -772,8 +690,6 @@ def render_tool_result(
             return _render_fallback()
         case tools.TODO_WRITE | tools.UPDATE_PLAN:
             return wrap(render_todo(e))
-        case tools.MERMAID:
-            return wrap(render_mermaid_tool_result(e, session_id=session_id))
         case tools.BASH:
             return _render_fallback()
         case _:

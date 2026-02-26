@@ -23,7 +23,7 @@ from klaude_code.const import (
     STATUS_DEFAULT_TEXT,
     STREAM_MAX_HEIGHT_SHRINK_RESET_LINES,
 )
-from klaude_code.protocol import events, model, tools
+from klaude_code.protocol import events, model
 from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
@@ -66,7 +66,6 @@ from klaude_code.tui.commands import (
 from klaude_code.tui.components import command_output as c_command_output
 from klaude_code.tui.components import developer as c_developer
 from klaude_code.tui.components import errors as c_errors
-from klaude_code.tui.components import mermaid_viewer as c_mermaid_viewer
 from klaude_code.tui.components import metadata as c_metadata
 from klaude_code.tui.components import sub_agent as c_sub_agent
 from klaude_code.tui.components import thinking as c_thinking
@@ -500,20 +499,10 @@ class TUICommandRenderer:
             self.print(c_errors.render_tool_error(error_msg))
             return
 
-        if not is_sub_agent and e.tool_name == tools.MERMAID and isinstance(e.ui_extra, model.MermaidLinkUIExtra):
-            image_path = c_mermaid_viewer.download_mermaid_png(
-                code=e.ui_extra.code,
-                link=e.ui_extra.link,
-                tool_call_id=e.tool_call_id,
-                session_id=e.session_id,
-            )
-            if image_path is not None:
-                self.display_image(str(image_path))
-
         if not is_sub_agent and isinstance(e.ui_extra, model.ImageUIExtra):
             self.display_image(e.ui_extra.file_path)
 
-        renderable = c_tools.render_tool_result(e, code_theme=self.themes.code_theme, session_id=e.session_id)
+        renderable = c_tools.render_tool_result(e, code_theme=self.themes.code_theme)
         if renderable is not None:
             self.print(renderable)
 
