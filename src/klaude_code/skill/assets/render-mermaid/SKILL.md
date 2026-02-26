@@ -1,6 +1,6 @@
 ---
 name: "render-mermaid"
-description: "Use when the user needs to visualize information as Mermaid diagrams, especially for system architecture/component relationships, workflows or data flows, algorithms and complex processes, class hierarchies or ER relationships, state transitions, sequence relationships, and decision trees or conditional branches. This skill uses `scripts/render_mermaid.js` to render Mermaid text into SVG images and return the path. Do not use for general image generation or non-Mermaid charting tools."
+description: "Use when the user asks you to analyze a repository, draw an architecture diagram, analyze a workflow/process, or explain something through a visual diagram. Prefer this skill whenever structured relationships, flows, states, sequences, or decision paths need to be communicated clearly. Do not use for general image generation or non-Mermaid charting tools."
 ---
 
 # Render Mermaid Skill
