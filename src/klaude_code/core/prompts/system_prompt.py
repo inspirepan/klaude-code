@@ -1,9 +1,22 @@
 from __future__ import annotations
 
+import datetime
+import shutil
 from functools import cache
 from importlib.resources import files
+from pathlib import Path
 
 from klaude_code.protocol import llm_param, tools
+from klaude_code.protocol.sub_agent import get_sub_agent_profile
+
+COMMAND_DESCRIPTIONS: dict[str, str] = {
+    "rg": "ripgrep - fast text search",
+    "fd": "simple and fast alternative to find",
+    "tree": "directory listing as a tree",
+    "sg": "ast-grep - AST-aware code search",
+    "jq": "command-line JSON processor",
+    "jj": "jujutsu - Git-compatible version control system",
+}
 
 PARALLEL_TOOL_CALLS_INST = """- Parallelize independent tool calls in a single message whenever possible."""
 
@@ -77,7 +90,7 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
     if tools.WRITE in tool_name_set:
         strategy_lines.append(WRITE_CREATE_WHEN_NEEDED_INST)
 
-    lines = ["", "", "## Tool Strategy"]
+    lines = ["", "", "# Using your tools"]
     lines.extend(strategy_lines)
     return "\n".join(lines)
 
@@ -87,3 +100,66 @@ def build_main_system_prompt(model_name: str, available_tools: list[llm_param.To
 
     base_prompt = load_main_base_prompt(model_name)
     return base_prompt + build_dynamic_tool_strategy_prompt(available_tools)
+
+
+def _build_env_info(model_name: str) -> str:
+    """Build environment info section with dynamic runtime values."""
+
+    cwd = Path.cwd()
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    is_git_repo = (cwd / ".git").exists()
+    is_empty_dir = not any(cwd.iterdir())
+
+    available_commands: list[str] = []
+    for command, desc in COMMAND_DESCRIPTIONS.items():
+        if shutil.which(command) is not None:
+            available_commands.append(f"{command}: {desc}")
+
+    cwd_display = f"{cwd} (empty)" if is_empty_dir else str(cwd)
+    git_repo_line = (
+        "Current directory is a git repo"
+        if is_git_repo
+        else "Current directory is not a git repo (Exercise caution when modifying files; back up when necessary)"
+    )
+
+    env_lines: list[str] = [
+        "",
+        "",
+        "# Enviroment",
+        "Here is useful information about the environment you are running in:",
+        "<env>",
+        f"Working directory: {cwd_display}",
+        f"Today's Date: {today}",
+        git_repo_line,
+        f"You are powered by the model: {model_name}",
+    ]
+
+    if available_commands:
+        env_lines.append("Available bash commands (use with `Bash` tool):")
+        for command in available_commands:
+            env_lines.append(f"- {command}")
+
+    env_lines.append("</env>")
+    return "\n".join(env_lines)
+
+
+def load_system_prompt(
+    model_name: str,
+    sub_agent_type: tools.SubAgentType | None = None,
+    available_tools: list[llm_param.ToolSchema] | None = None,
+) -> str:
+    """Get system prompt content for the given model and sub-agent type."""
+
+    if sub_agent_type is not None:
+        profile = get_sub_agent_profile(sub_agent_type)
+        base_prompt = load_prompt_by_path(profile.prompt_file)
+    else:
+        base_prompt = build_main_system_prompt(model_name, available_tools or [])
+
+    skills_prompt = ""
+    if sub_agent_type is None:
+        from klaude_code.skill.manager import format_available_skills_for_system_prompt
+
+        skills_prompt = format_available_skills_for_system_prompt()
+
+    return base_prompt + _build_env_info(model_name) + skills_prompt

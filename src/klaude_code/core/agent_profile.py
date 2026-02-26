@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import datetime
-import shutil
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from klaude_code.config.config import Config
 
-from klaude_code.core.prompts.system_prompt import build_main_system_prompt, load_prompt_by_path
+from klaude_code.core.prompts.system_prompt import load_system_prompt
 from klaude_code.core.reminders import (
     at_file_reader_reminder,
     empty_todo_reminder,
@@ -43,15 +40,6 @@ class AgentProfile:
     reminders: list[Reminder]
 
 
-COMMAND_DESCRIPTIONS: dict[str, str] = {
-    "rg": "ripgrep - fast text search",
-    "fd": "simple and fast alternative to find",
-    "tree": "directory listing as a tree",
-    "sg": "ast-grep - AST-aware code search",
-    "jq": "command-line JSON processor",
-    "jj": "jujutsu - Git-compatible version control system",
-}
-
 MAIN_AGENT_COMMON_BASE_TOOLS: list[str] = [tools.BASH, tools.READ]
 MAIN_AGENT_GPT5_DIFF_TOOLS: list[str] = [tools.APPLY_PATCH, tools.UPDATE_PLAN]
 MAIN_AGENT_NON_GPT5_DIFF_TOOLS: list[str] = [tools.EDIT, tools.WRITE, tools.TODO_WRITE]
@@ -65,73 +53,6 @@ You have a `report_back` tool available. When you complete the task,\
 you MUST call `report_back` with the structured result matching the required schema.\
 Only the content passed to `report_back` will be returned to user.\
 """
-
-
-def _build_env_info(model_name: str) -> str:
-    """Build environment info section with dynamic runtime values."""
-
-    cwd = Path.cwd()
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-    is_git_repo = (cwd / ".git").exists()
-    is_empty_dir = not any(cwd.iterdir())
-
-    available_tools: list[str] = []
-    for command, desc in COMMAND_DESCRIPTIONS.items():
-        if shutil.which(command) is not None:
-            available_tools.append(f"{command}: {desc}")
-
-    cwd_display = f"{cwd} (empty)" if is_empty_dir else str(cwd)
-    git_repo_line = (
-        "Current directory is a git repo"
-        if is_git_repo
-        else "Current directory is not a git repo (Exercise caution when modifying files; back up when necessary)"
-    )
-
-    env_lines: list[str] = [
-        "",
-        "",
-        "Here is useful information about the environment you are running in:",
-        "<env>",
-        f"Working directory: {cwd_display}",
-        f"Today's Date: {today}",
-        git_repo_line,
-        f"You are powered by the model: {model_name}",
-    ]
-
-    if available_tools:
-        env_lines.append("Available bash commands (use with `Bash` tool):")
-        for tool in available_tools:
-            env_lines.append(f"- {tool}")
-
-    env_lines.append("</env>")
-    return "\n".join(env_lines)
-
-
-def load_system_prompt(
-    model_name: str,
-    protocol: llm_param.LLMClientProtocol,
-    sub_agent_type: str | None = None,
-    config: Config | None = None,
-    available_tools: list[llm_param.ToolSchema] | None = None,
-) -> str:
-    """Get system prompt content for the given model and sub-agent type."""
-
-    del protocol, config
-
-    if sub_agent_type is not None:
-        profile = get_sub_agent_profile(sub_agent_type)
-        base_prompt = load_prompt_by_path(profile.prompt_file)
-    else:
-        base_prompt = build_main_system_prompt(model_name, available_tools or [])
-
-    skills_prompt = ""
-    if sub_agent_type is None:
-        # Skills are progressive-disclosure: keep only metadata in the system prompt.
-        from klaude_code.skill.manager import format_available_skills_for_system_prompt
-
-        skills_prompt = format_available_skills_for_system_prompt()
-
-    return base_prompt + _build_env_info(model_name) + skills_prompt
 
 
 def load_agent_tools(
@@ -238,13 +159,7 @@ class DefaultModelProfileProvider(ModelProfileProvider):
     ) -> AgentProfile:
         model_name = llm_client.model_name
         agent_tools = load_agent_tools(model_name, sub_agent_type, config=self._config)
-        agent_system_prompt = load_system_prompt(
-            model_name,
-            llm_client.protocol,
-            sub_agent_type,
-            config=self._config,
-            available_tools=agent_tools,
-        )
+        agent_system_prompt = load_system_prompt(model_name, sub_agent_type, available_tools=agent_tools)
         agent_reminders = load_agent_reminders(model_name, sub_agent_type, available_tools=agent_tools)
 
         profile = AgentProfile(
