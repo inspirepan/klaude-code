@@ -373,6 +373,7 @@ class TUICommandRenderer:
 
     def _bottom_renderable(self) -> RenderableType:
         stream_part: RenderableType = Group()
+        has_stream_renderable = MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._stream_renderable is not None
         # Keep a visible separation between the bottom status line (spinner)
         # and the main terminal output.
         gap_part: RenderableType = Text(" ") if (self._spinner_visible and self._bash_stream_active) else Group()
@@ -409,7 +410,7 @@ class TUICommandRenderer:
         if height <= 0:
             self._bottom_last_height = 0
             return renderable
-        if height < self._bottom_last_height:
+        if not has_stream_renderable and height < self._bottom_last_height:
             return Padding(renderable, (self._bottom_last_height - height, 0, 0, 0))
         self._bottom_last_height = height
         return renderable

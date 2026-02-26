@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from rich import box
 from rich.console import Group, RenderableType
@@ -86,7 +86,7 @@ def render_path(path: str, style: str, is_directory: bool = False) -> Text:
         path = "./" + path
     if is_directory:
         path = path.rstrip("/") + "/"
-    return Text(path, style=style)
+    return Text(path, style=style, overflow="fold")
 
 
 def _render_tool_call_tree(
@@ -94,8 +94,9 @@ def _render_tool_call_tree(
     mark: str,
     tool_name: str,
     details: RenderableType | None,
+    overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "ellipsis",
 ) -> RenderableType:
-    grid = create_grid(overflow="ellipsis")
+    grid = create_grid(overflow=overflow)
     grid.add_row(
         Text(tool_name, style=ThemeKey.TOOL_NAME),
         details if details is not None else Text(""),
@@ -217,11 +218,11 @@ def render_read_tool_call(arguments: str) -> RenderableType:
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
 
-        return _render_tool_call_tree(mark=MARK_READ, tool_name=tool_name, details=details)
+        return _render_tool_call_tree(mark=MARK_READ, tool_name=tool_name, details=details, overflow="fold")
 
     if not isinstance(payload_raw, dict):
         details = Text(str(payload_raw)[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
-        return _render_tool_call_tree(mark=MARK_READ, tool_name=tool_name, details=details)
+        return _render_tool_call_tree(mark=MARK_READ, tool_name=tool_name, details=details, overflow="fold")
 
     payload = cast(dict[str, Any], payload_raw)
     file_path = payload.get("file_path")
@@ -283,7 +284,7 @@ def render_read_tool_call(arguments: str) -> RenderableType:
         if invalid_parts:
             details.append_text(Text(f" ({', '.join(invalid_parts)})", ThemeKey.INVALID_TOOL_CALL_ARGS))
 
-    return _render_tool_call_tree(mark=MARK_READ, tool_name=tool_name, details=details)
+    return _render_tool_call_tree(mark=MARK_READ, tool_name=tool_name, details=details, overflow="fold")
 
 
 def render_edit_tool_call(arguments: str) -> RenderableType:

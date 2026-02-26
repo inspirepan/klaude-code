@@ -7,36 +7,36 @@ from rich.console import Console
 from rich.text import Text
 
 from klaude_code.protocol import model
-from klaude_code.tui.components.rich.status import StackedStatusText, truncate_left, truncate_status
+from klaude_code.tui.components.rich.status import StackedStatusText, truncate_right, truncate_status
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.machine import SpinnerStatusState
 
 
-def test_truncate_left_noop_when_fits() -> None:
+def test_truncate_right_noop_when_fits() -> None:
     console = Console()
     text = Text("abc")
-    result = truncate_left(text, 3, console=console)
+    result = truncate_right(text, 3, console=console)
     assert result.plain == "abc"
 
 
-def test_truncate_left_keeps_suffix_with_ellipsis() -> None:
+def test_truncate_right_keeps_prefix_with_ellipsis() -> None:
     console = Console()
     text = Text("abcdef")
-    result = truncate_left(text, 4, console=console)
-    assert result.plain == "… ef"
+    result = truncate_right(text, 4, console=console)
+    assert result.plain == "abc…"
 
 
-def test_truncate_left_uses_cell_width_for_wide_chars() -> None:
+def test_truncate_right_uses_cell_width_for_wide_chars() -> None:
     console = Console()
     text = Text("你好世界")
-    result = truncate_left(text, 5, console=console)
-    assert result.plain == "… 界"
+    result = truncate_right(text, 5, console=console)
+    assert result.plain == "你好…"
 
 
-def test_truncate_left_tiny_width_returns_ellipsis_only() -> None:
+def test_truncate_right_tiny_width_returns_ellipsis_only() -> None:
     console = Console()
     text = Text("abcdef")
-    result = truncate_left(text, 1, console=console)
+    result = truncate_right(text, 1, console=console)
     assert result.plain == "…"
 
 
@@ -56,20 +56,14 @@ def test_truncate_status_without_pipe_falls_back() -> None:
     console = Console()
     text = Text("very long status description")
     result = truncate_status(text, 15, console=console)
-    # Falls back to truncate_left. ellipsis+space = 2. suffix budget = 13.
-    # suffix is "s description".
-    assert result.plain == "… s description"
+    assert result.plain == "very long stat…"
 
 
 def test_truncate_status_when_pipe_right_part_too_long() -> None:
     console = Console()
     text = Text("todo | super long tool right hand activity")
     result = truncate_status(text, 20, console=console)
-    # right part " | super long tool right hand activity" is 38 chars
-    # It does not fit. So it falls back to truncate_left(text).
-    # Ellipsis takes 2 chars. suffix budget 18.
-    # "ht hand activity" = 16. "ght hand activity" = 17.
-    assert result.plain == "… ight hand activity"
+    assert result.plain == "todo | super long t…"
 
 
 def test_shimmer_status_with_right_text_renders_three_lines() -> None:

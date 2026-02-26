@@ -34,3 +34,17 @@ def get_loaded_skill_names_by_location() -> dict[str, list[str]]:
     result["project"].sort()
     result["system"].sort()
     return result
+
+
+def get_loaded_skill_warnings_by_location() -> dict[str, list[str]]:
+    """Return skill discovery warnings grouped by location."""
+
+    try:
+        from klaude_code.skill.manager import get_skill_warnings_by_location
+    except Exception:
+        return {}
+
+    try:
+        return get_skill_warnings_by_location()
+    except Exception:
+        return {}

@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
@@ -54,6 +55,41 @@ class SkillLoader:
     def __init__(self) -> None:
         """Initialize the skill loader"""
         self.loaded_skills: dict[str, Skill] = {}
+        self.skill_warnings_by_location: dict[str, list[str]] = {"system": [], "user": [], "project": []}
+
+    def _iter_skill_files(self, root_dir: Path) -> list[Path]:
+        skill_files: list[Path] = []
+        visited_dirs: set[Path] = set()
+
+        for dirpath, dirnames, filenames in os.walk(root_dir, topdown=True, followlinks=True):
+            current_dir = Path(dirpath)
+            try:
+                current_real = current_dir.resolve()
+            except OSError:
+                dirnames[:] = []
+                continue
+
+            if current_real in visited_dirs:
+                dirnames[:] = []
+                continue
+            visited_dirs.add(current_real)
+
+            kept_dirnames: list[str] = []
+            for dirname in dirnames:
+                child_dir = current_dir / dirname
+                try:
+                    child_real = child_dir.resolve()
+                except OSError:
+                    continue
+                if child_real in visited_dirs:
+                    continue
+                kept_dirnames.append(dirname)
+            dirnames[:] = kept_dirnames
+
+            if "SKILL.md" in filenames:
+                skill_files.append(current_dir / "SKILL.md")
+
+        return skill_files
 
     def load_skill(self, skill_path: Path, location: str) -> Skill | None:
         """Load single skill from SKILL.md file
@@ -82,11 +118,19 @@ class SkillLoader:
                         frontmatter = dict(loaded)  # type: ignore[arg-type]
 
             # Extract skill metadata
-            name = str(frontmatter.get("name", ""))
+            name_val = frontmatter.get("name")
             description = str(frontmatter.get("description", ""))
+            parent_dir_name = skill_path.parent.name
+            name = str(name_val).strip() if name_val is not None else ""
+            if not name:
+                name = parent_dir_name
 
-            if not name or not description:
+            if not description:
                 return None
+
+            if name != parent_dir_name:
+                warning = f'{skill_path}: name "{name}" does not match parent directory "{parent_dir_name}"'
+                self.skill_warnings_by_location.setdefault(location, []).append(warning)
 
             # Create Skill object
             license_val = frontmatter.get("license")
@@ -133,6 +177,7 @@ class SkillLoader:
         """
         skills: list[Skill] = []
         priority = {"system": 0, "user": 1, "project": 2}
+        self.skill_warnings_by_location = {"system": [], "user": [], "project": []}
 
         def register(skill: Skill) -> None:
             existing = self.loaded_skills.get(skill.name)
@@ -145,7 +190,7 @@ class SkillLoader:
         # Load system-level skills first (lowest priority, can be overridden)
         system_dir = self.SYSTEM_SKILLS_DIR.expanduser()
         if system_dir.exists():
-            for skill_file in system_dir.rglob("SKILL.md"):
+            for skill_file in self._iter_skill_files(system_dir):
                 skill = self.load_skill(skill_file, location="system")
                 if skill:
                     skills.append(skill)
@@ -155,7 +200,7 @@ class SkillLoader:
         for user_dir in self.USER_SKILLS_DIRS:
             expanded_dir = user_dir.expanduser()
             if expanded_dir.exists():
-                for skill_file in expanded_dir.rglob("SKILL.md"):
+                for skill_file in self._iter_skill_files(expanded_dir):
                     # Skip files under .system directory (already loaded above)
                     if ".system" in skill_file.parts:
                         continue
@@ -168,7 +213,7 @@ class SkillLoader:
         for project_dir in self.PROJECT_SKILLS_DIRS:
             resolved_dir = project_dir.resolve()
             if resolved_dir.exists():
-                for skill_file in resolved_dir.rglob("SKILL.md"):
+                for skill_file in self._iter_skill_files(resolved_dir):
                     skill = self.load_skill(skill_file, location="project")
                     if skill:
                         skills.append(skill)

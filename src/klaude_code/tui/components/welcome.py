@@ -99,6 +99,22 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
         renderables.append(Text())
         renderables.append(_build_grouped_tree("skills", skill_items))
 
+    loaded_skill_warnings = e.loaded_skill_warnings or {}
+    warning_items: list[tuple[str, str]] = []
+    for scope in ("user", "project", "system"):
+        warnings = loaded_skill_warnings.get(scope) or []
+        if warnings:
+            warning_items.append((f"[{scope}]", " | ".join(warnings)))
+    if warning_items:
+        warning_tree = _RoundedTree(
+            Text("skill warnings", style=ThemeKey.WARN_BOLD),
+            guide_style=ThemeKey.LINES,
+        )
+        for label, content in warning_items:
+            warning_tree.add(Text(f"{label.ljust(_LABEL_WIDTH)} {content}", style=ThemeKey.WARN))
+        renderables.append(Text())
+        renderables.append(warning_tree)
+
     border_style = ThemeKey.WELCOME_DEBUG_BORDER if debug_mode else ThemeKey.LINES
     panel_content = Quote(Group(*renderables), style=border_style, prefix="▌ ")
 
