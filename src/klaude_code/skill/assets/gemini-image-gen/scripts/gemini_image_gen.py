@@ -265,10 +265,7 @@ def _save_response_images(response: Any, out_path: Path, force: bool) -> list[Pa
             print(f"Model: {part.text}")
         elif part.inline_data is not None:
             image_idx += 1
-            if image_idx == 1:
-                target = out_path
-            else:
-                target = out_path.with_name(f"{out_path.stem}-{image_idx}{out_path.suffix}")
+            target = out_path if image_idx == 1 else out_path.with_name(f"{out_path.stem}-{image_idx}{out_path.suffix}")
 
             if target.exists() and not force:
                 _die(f"Output already exists: {target} (use --force to overwrite)")

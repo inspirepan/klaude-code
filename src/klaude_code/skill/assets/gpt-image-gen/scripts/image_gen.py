@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import contextlib
 import json
 import os
 import re
@@ -249,7 +250,7 @@ def _downscale_image_bytes(image_bytes: bytes, *, max_dim: int, output_format: s
         img.load()
         w, h = img.size
         scale = min(1.0, float(max_dim) / float(max(w, h)))
-        target = (max(1, int(round(w * scale))), max(1, int(round(h * scale))))
+        target = (max(1, round(w * scale)), max(1, round(h * scale)))
 
         resized = img if target == (w, h) else img.resize(target, Image.Resampling.LANCZOS)
 
@@ -356,11 +357,7 @@ def _read_jobs_jsonl(path: str) -> list[dict[str, Any]]:
         if not line or line.startswith("#"):
             continue
         try:
-            item: Any
-            if line.startswith("{"):
-                item = json.loads(line)
-            else:
-                item = line
+            item: Any = json.loads(line) if line.startswith("{") else line
             jobs.append(_normalize_job(item, idx=line_no))
         except json.JSONDecodeError as exc:
             _die(f"Invalid JSON on line {line_no}: {exc}")
@@ -495,7 +492,7 @@ async def _run_generate_batch(args: argparse.Namespace) -> int:
             prompt = str(job["prompt"]).strip()
             fields = _merge_non_null(base_fields, job.get("fields", {}))
             # Allow flat job keys as well (use_case, scene, etc.)
-            fields = _merge_non_null(fields, {k: job.get(k) for k in base_fields.keys()})
+            fields = _merge_non_null(fields, {k: job.get(k) for k in base_fields})
             augmented = _augment_prompt_fields(args.augment, prompt, fields)
 
             job_payload = dict(base_payload)
@@ -545,7 +542,7 @@ async def _run_generate_batch(args: argparse.Namespace) -> int:
         job_label = f"[job {i}/{len(jobs)}]"
 
         fields = _merge_non_null(base_fields, job.get("fields", {}))
-        fields = _merge_non_null(fields, {k: job.get(k) for k in base_fields.keys()})
+        fields = _merge_non_null(fields, {k: job.get(k) for k in base_fields})
         augmented = _augment_prompt_fields(args.augment, prompt, fields)
 
         payload = dict(base_payload)
@@ -761,10 +758,8 @@ class _SingleFile:
 
     def __exit__(self, exc_type, exc, tb):
         if self._handle:
-            try:
+            with contextlib.suppress(Exception):
                 self._handle.close()
-            except Exception:
-                pass
         return False
 
 
@@ -779,10 +774,8 @@ class _FileBundle:
 
     def __exit__(self, exc_type, exc, tb):
         for handle in self._handles:
-            try:
+            with contextlib.suppress(Exception):
                 handle.close()
-            except Exception:
-                pass
         return False
 
 

@@ -70,7 +70,10 @@ venv = ".venv"
 extraPaths = ["src"]
 reportMissingImports = "warning"
 reportMissingModuleSource = "warning"
-exclude = [".venv/"]
+exclude = [
+    ".venv/",
+    "src/klaude_code/skill/assets/**/scripts/",
+]
 
 [[tool.pyright.executionEnvironments]]
 root = "."
