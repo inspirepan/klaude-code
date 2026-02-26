@@ -75,7 +75,7 @@ provider_list:
   model_list:
 
   - model_name: gpt-5.3-codex
-    model_id: gpt-5.3-codex
+    model_id: openai/gpt-5.3-codex
     thinking:
       reasoning_effort: high
       reasoning_summary: auto
