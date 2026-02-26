@@ -23,9 +23,6 @@ class _RoundedTree(Tree):
     ]
 
 
-_LABEL_WIDTH = len("[project]")
-
-
 def _format_memory_path(path: str, *, work_dir: Path) -> str:
     """Format memory path for display - show relative path or ~ for home."""
     p = Path(path)
@@ -45,17 +42,19 @@ def _build_grouped_tree(
 ) -> Tree:
     """Build a Tree with grouped children (e.g. skills, context)."""
     tree = _RoundedTree(Text(title, style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
+    label_width = max(len(label) for label, _ in groups)
     for label, content in groups:
-        tree.add(Text(f"{label.ljust(_LABEL_WIDTH)} {content}", style=ThemeKey.WELCOME_INFO))
+        tree.add(Text(f"{label.ljust(label_width)} {content}", style=ThemeKey.WELCOME_INFO))
     return tree
 
 
 def _build_skills_tree(grouped_skills: list[tuple[str, list[str]]]) -> Tree:
     tree = _RoundedTree(Text("skills", style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
     for scope, skills in grouped_skills:
-        scope_branch = tree.add(Text(f"[{scope} skills]", style=ThemeKey.WELCOME_INFO))
+        scope_text = Text(f"[{scope}]", style=ThemeKey.WELCOME_INFO)
         for skill in skills:
-            scope_branch.add(Text(skill, style=ThemeKey.WELCOME_INFO))
+            scope_text.append(f"\n {skill}", style=ThemeKey.WELCOME_INFO)
+        tree.add(scope_text)
     return tree
 
 
@@ -115,12 +114,13 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
         if warnings:
             warning_items.append((f"[{scope}]", " | ".join(warnings)))
     if warning_items:
+        label_width = max(len(label) for label, _ in warning_items)
         warning_tree = _RoundedTree(
             Text("skill warnings", style=ThemeKey.WARN_BOLD),
             guide_style=ThemeKey.LINES,
         )
         for label, content in warning_items:
-            warning_tree.add(Text(f"{label.ljust(_LABEL_WIDTH)} {content}", style=ThemeKey.WARN))
+            warning_tree.add(Text(f"{label.ljust(label_width)} {content}", style=ThemeKey.WARN))
         renderables.append(Text())
         renderables.append(warning_tree)
 

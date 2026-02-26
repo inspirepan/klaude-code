@@ -52,7 +52,7 @@ class PasteBufferState:
                 return m.group(0)
 
             used.add(paste_id)
-            return content
+            return f"\n{content}\n"
 
         out = _PASTE_MARKER_RE.sub(_replace, text)
         for pid in used:

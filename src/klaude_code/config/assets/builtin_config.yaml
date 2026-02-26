@@ -166,14 +166,6 @@ provider_list:
       reasoning_effort: medium
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
-  - model_name: aurora
-    model_id: openrouter/aurora-alpha
-    context_limit: 128000
-    thinking:
-      type: enabled
-      budget_tokens: 2048
-    cost: { input: 0, output: 0 }
-
   - model_name: grok
     model_id: x-ai/grok-4.1-fast
     context_limit: 2000000

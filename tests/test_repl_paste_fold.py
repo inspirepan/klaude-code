@@ -22,7 +22,7 @@ def test_expand_replaces_marker_with_original_content() -> None:
     text = "hello\nworld\n"
     marker = state.store(text)
     expanded = state.expand_markers(f"prefix {marker} suffix")
-    assert expanded == f"prefix {text} suffix"
+    assert expanded == f"prefix \n{text}\n suffix"
 
 
 def test_expand_keeps_unknown_marker_intact() -> None:

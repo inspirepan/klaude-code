@@ -246,3 +246,7 @@ class ProjectPaths:
 
     def meta_file(self, session_id: str) -> Path:
         return self.session_dir(session_id) / "meta.json"
+
+    @property
+    def memory_dir(self) -> Path:
+        return self.base_dir / "memory"
