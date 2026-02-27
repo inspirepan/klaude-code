@@ -26,9 +26,10 @@ from klaude_code.core.loaded_skills import (
 )
 from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.core.memory import get_existing_memory_paths_by_location
+from klaude_code.core.user_interaction import UserInteractionManager
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import commands, events, message, model, op
+from klaude_code.protocol import commands, events, message, model, op, user_interaction
 from klaude_code.protocol.llm_param import LLMConfigParameter, Thinking
 from klaude_code.protocol.op_handler import OperationHandler
 from klaude_code.protocol.sub_agent import SubAgentResult
@@ -99,13 +100,37 @@ class AgentRuntime:
         model_profile_provider: ModelProfileProvider,
         task_manager: TaskManager,
         sub_agent_manager: SubAgentManager,
+        user_interaction_manager: UserInteractionManager,
     ) -> None:
         self._emit_event = emit_event
         self._llm_clients = llm_clients
         self._model_profile_provider = model_profile_provider
         self._task_manager = task_manager
         self._sub_agent_manager = sub_agent_manager
+        self._user_interaction_manager = user_interaction_manager
         self._agent: Agent | None = None
+
+    async def _request_user_interaction(
+        self,
+        request_id: str,
+        source: user_interaction.UserInteractionSource,
+        payload: user_interaction.UserInteractionRequestPayload,
+        tool_call_id: str | None,
+    ) -> user_interaction.UserInteractionResponse:
+        if source != "tool":
+            raise ValueError("Only tool-based user interactions are supported in this context")
+        agent = self._agent
+        if agent is None:
+            raise RuntimeError("No active agent session")
+        if agent.session.sub_agent_state is not None:
+            raise RuntimeError("User interaction is available only for the main agent")
+        return await self._user_interaction_manager.request(
+            request_id=request_id,
+            session_id=agent.session.id,
+            source=source,
+            payload=payload,
+            tool_call_id=tool_call_id,
+        )
 
     def current_session_id(self) -> str | None:
         agent = self._agent
@@ -137,6 +162,7 @@ class AgentRuntime:
             session=session,
             profile=profile,
             compact_llm_client=self._llm_clients.compact,
+            request_user_interaction=self._request_user_interaction,
         )
 
         await self._emit_event(
@@ -273,6 +299,7 @@ class AgentRuntime:
             session=target_session,
             profile=profile,
             compact_llm_client=self._llm_clients.compact,
+            request_user_interaction=self._request_user_interaction,
         )
 
         await self._emit_event(
@@ -545,6 +572,7 @@ class ExecutorContext:
 
         self.task_manager = TaskManager()
         self.sub_agent_manager = SubAgentManager(event_queue, llm_clients, resolved_profile_provider)
+        self.user_interaction_manager = UserInteractionManager(self.emit_event)
         self._on_model_change = on_model_change
         self._agent_runtime = AgentRuntime(
             emit_event=self.emit_event,
@@ -552,6 +580,7 @@ class ExecutorContext:
             model_profile_provider=resolved_profile_provider,
             task_manager=self.task_manager,
             sub_agent_manager=self.sub_agent_manager,
+            user_interaction_manager=self.user_interaction_manager,
         )
         self._model_switcher = ModelSwitcher(resolved_profile_provider)
 
@@ -824,6 +853,14 @@ class ExecutorContext:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
 
         await self._agent_runtime.interrupt(operation.target_session_id)
+        self.user_interaction_manager.cancel_pending(session_id=operation.target_session_id)
+
+    async def handle_user_interaction_respond(self, operation: op.UserInteractionRespondOperation) -> None:
+        self.user_interaction_manager.respond(
+            request_id=operation.request_id,
+            session_id=operation.session_id,
+            response=operation.response,
+        )
 
     def get_active_task(self, submission_id: str) -> asyncio.Task[None] | None:
         """Return the asyncio.Task for a submission id if one is registered."""
@@ -942,6 +979,8 @@ class Executor:
 
     async def stop(self) -> None:
         """Stop the executor and clean up resources."""
+        self.context.user_interaction_manager.cancel_pending(session_id=None)
+
         # Cancel all active tasks and collect them for awaiting
         tasks_to_await: list[asyncio.Task[None]] = []
         for active in self.context.task_manager.values():

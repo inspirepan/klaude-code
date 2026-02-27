@@ -116,6 +116,12 @@ class TUIDisplay(DisplayABC):
         with contextlib.suppress(Exception):
             self._renderer.stop_bottom_live()
 
+    def show_progress_ui(self) -> None:
+        """Restore bottom status line after temporary interactive prompts."""
+
+        with contextlib.suppress(Exception):
+            self._renderer.spinner_start()
+
     def set_model_name(self, model_name: str | None) -> None:
         """Set model name for terminal title updates."""
         self._machine.set_model_name(model_name)

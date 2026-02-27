@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import AsyncGenerator, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
 from klaude_code.const import (
@@ -23,8 +23,18 @@ from klaude_code.core.tool.context import RunSubtask
 from klaude_code.core.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, message, model
+from klaude_code.protocol import events, message, model, user_interaction
 from klaude_code.session.session import Session
+
+type RequestUserInteraction = Callable[
+    [
+        str,
+        user_interaction.UserInteractionSource,
+        user_interaction.UserInteractionRequestPayload,
+        str | None,
+    ],
+    Awaitable[user_interaction.UserInteractionResponse],
+]
 
 
 class MetadataAccumulator:
@@ -187,6 +197,7 @@ class SessionContext:
     file_tracker: FileTracker
     todo_context: TodoContext
     run_subtask: RunSubtask | None
+    request_user_interaction: RequestUserInteraction | None
 
 
 @dataclass
@@ -539,7 +550,10 @@ class TaskExecutor:
         task_duration_s = time.perf_counter() - self._started_at
         accumulated = metadata_accumulator.finalize(task_duration_s)
 
-        yield events.TaskMetadataEvent(metadata=accumulated, session_id=session_ctx.session_id)
+        is_partial_metadata = turn is not None and not turn.continue_agent
+        yield events.TaskMetadataEvent(
+            metadata=accumulated, session_id=session_ctx.session_id, is_partial=is_partial_metadata
+        )
         session_ctx.append_history([accumulated])
 
         # Get task result from turn

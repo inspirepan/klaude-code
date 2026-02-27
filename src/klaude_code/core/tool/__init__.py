@@ -1,4 +1,13 @@
-from .context import FileTracker, RunSubtask, SubAgentResumeClaims, TodoContext, ToolContext, build_todo_context
+from .ask_user_question_tool import AskUserQuestionTool
+from .context import (
+    FileTracker,
+    RequestUserInteraction,
+    RunSubtask,
+    SubAgentResumeClaims,
+    TodoContext,
+    ToolContext,
+    build_todo_context,
+)
 from .file.apply_patch import DiffError, process_patch
 from .file.apply_patch_tool import ApplyPatchTool
 from .file.edit_tool import EditTool
@@ -19,12 +28,14 @@ from .web.web_search_tool import WebSearchTool
 
 __all__ = [
     "ApplyPatchTool",
+    "AskUserQuestionTool",
     "BashTool",
     "DiffError",
     "EditTool",
     "FileTracker",
     "ReadTool",
     "ReportBackTool",
+    "RequestUserInteraction",
     "RewindTool",
     "RunSubtask",
     "SafetyCheckResult",

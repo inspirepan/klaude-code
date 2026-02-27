@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import sys
+import threading
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from klaude_code import ui
@@ -15,11 +16,10 @@ from klaude_code.app.runtime import (
     initialize_session,
 )
 from klaude_code.config import load_config
-from klaude_code.const import SIGINT_DOUBLE_PRESS_EXIT_TEXT
 from klaude_code.core.compaction import should_compact_threshold
 from klaude_code.core.executor import Executor
 from klaude_code.log import get_current_log_file, log
-from klaude_code.protocol import events, llm_param, op
+from klaude_code.protocol import events, llm_param, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session
 from klaude_code.tui.command import (
@@ -31,9 +31,18 @@ from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input import build_repl_status_snapshot
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, REPLStatusSnapshot
 from klaude_code.tui.terminal.color import is_light_terminal_background
-from klaude_code.tui.terminal.control import install_sigint_double_press_exit, start_esc_interrupt_monitor
+from klaude_code.tui.terminal.control import install_sigint_interrupt, start_esc_interrupt_monitor
+from klaude_code.tui.terminal.selector import (
+    DEFAULT_PICKER_STYLE,
+    QuestionPrompt,
+    SelectItem,
+    select_questions,
+)
 from klaude_code.ui.terminal.title import update_terminal_title
 from klaude_code.update import get_update_message
+
+if TYPE_CHECKING:
+    from klaude_code.core.user_interaction import PendingUserInteractionRequest
 
 
 async def submit_user_input_payload(
@@ -230,45 +239,168 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             return active_display
         return None
 
-    @contextlib.contextmanager
-    def _double_ctrl_c_to_exit_while_running(*, window_seconds: float = 2.0):
-        """Require double Ctrl+C to exit while waiting for task completion."""
+    def _build_question_items(
+        question: user_interaction.AskUserQuestionQuestion,
+    ) -> list[SelectItem[str]]:
+        items: list[SelectItem[str]] = []
+        for idx, option in enumerate(question.options, start=1):
+            title: list[tuple[str, str]] = [
+                ("class:msg", f"{idx}. {option.label}\n"),
+                ("class:meta", f"    {option.description}\n"),
+            ]
+            items.append(
+                SelectItem(
+                    title=title,
+                    value=option.id,
+                    search_text=f"{option.label} {option.description}",
+                    summary=option.label,
+                )
+            )
+        return items
 
-        def _show_toast_once() -> None:
-            def _emit() -> None:
-                tui_display = _get_tui_display()
-                if tui_display is not None:
-                    with contextlib.suppress(Exception):
-                        tui_display.show_sigint_exit_toast(window_seconds=window_seconds)
-                    return
-                print(SIGINT_DOUBLE_PRESS_EXIT_TEXT, file=sys.stderr)
+    async def _collect_interaction_response(
+        request: PendingUserInteractionRequest,
+    ) -> user_interaction.UserInteractionResponse:
+        payload = request.payload
+        if payload.kind != "ask_user_question":
+            return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
 
-            with contextlib.suppress(Exception):
-                loop.call_soon_threadsafe(_emit)
-                return
-            _emit()
+        answers: list[user_interaction.AskUserQuestionAnswer] = []
+        tui_display = _get_tui_display()
+        if tui_display is not None:
+            tui_display.hide_progress_ui()
 
-        def _hide_progress() -> None:
-            def _emit() -> None:
-                tui_display = _get_tui_display()
-                if tui_display is None:
-                    return
-                with contextlib.suppress(Exception):
-                    tui_display.hide_progress_ui()
+        prompts: list[QuestionPrompt[str]] = []
+        for question in payload.questions:
+            prompts.append(
+                QuestionPrompt(
+                    header=question.header,
+                    message=question.question,
+                    items=_build_question_items(question),
+                    multi_select=question.multi_select,
+                    input_placeholder=question.input_placeholder or "Type something.",
+                    other_value="__other__",
+                )
+            )
 
-            with contextlib.suppress(Exception):
-                loop.call_soon_threadsafe(_emit)
-
-        restore_sigint = install_sigint_double_press_exit(
-            _show_toast_once,
-            _hide_progress,
-            window_seconds=window_seconds,
+        selections = await asyncio.to_thread(
+            select_questions,
+            questions=prompts,
+            pointer="→",
+            style=DEFAULT_PICKER_STYLE,
         )
+        if selections is None:
+            return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
+
+        for question, selection in zip(payload.questions, selections, strict=False):
+            option_label_by_id = {option.id: option.label for option in question.options}
+            selected_ids = list(selection.selected_values)
+            selected_labels: list[str] = []
+            for selected in selected_ids:
+                if selected == "__other__":
+                    selected_labels.append("Other")
+                else:
+                    selected_labels.append(option_label_by_id.get(selected, selected))
+
+            note_text = selection.input_text.strip()
+            other_text = note_text if "__other__" in selected_ids and note_text else None
+
+            answers.append(
+                user_interaction.AskUserQuestionAnswer(
+                    question_id=question.id,
+                    selected_option_ids=selected_ids,
+                    selected_option_labels=selected_labels,
+                    other_text=other_text,
+                    note=note_text or None,
+                )
+            )
+
+        return user_interaction.UserInteractionResponse(
+            status="submitted",
+            payload=user_interaction.AskUserQuestionResponsePayload(answers=answers),
+        )
+
+    async def _wait_for_with_interactions(wait_id: str) -> None:
+        wait_task = asyncio.create_task(components.executor.wait_for(wait_id))
+        manager = components.executor.context.user_interaction_manager
+        interrupt_requested = False
+        interrupt_task: asyncio.Task[None] | None = None
+
+        async def _submit_interrupt(target_session_id: str | None) -> None:
+            await components.executor.submit_and_wait(op.InterruptOperation(target_session_id=target_session_id))
+
+        def _start_interrupt_once() -> None:
+            nonlocal interrupt_requested, interrupt_task
+            if interrupt_requested:
+                return
+            interrupt_requested = True
+            interrupt_task = asyncio.create_task(_submit_interrupt(_get_active_session_id()))
+
+        def _request_interrupt_once() -> None:
+            with contextlib.suppress(Exception):
+                loop.call_soon_threadsafe(_start_interrupt_once)
+
+        async def _on_esc_interrupt() -> None:
+            _request_interrupt_once()
+
+        esc_monitor: tuple[threading.Event, asyncio.Task[None]] | None = None
+
+        def _start_esc_monitor() -> None:
+            nonlocal esc_monitor
+            if esc_monitor is not None:
+                return
+            esc_monitor = start_esc_interrupt_monitor(_on_esc_interrupt)
+
+        async def _stop_esc_monitor() -> None:
+            nonlocal esc_monitor
+            if esc_monitor is None:
+                return
+            stop_event, esc_task = esc_monitor
+            esc_monitor = None
+            stop_event.set()
+            with contextlib.suppress(Exception):
+                await esc_task
+
+        _start_esc_monitor()
+        restore_sigint = install_sigint_interrupt(_request_interrupt_once)
+
         try:
-            yield
+            while True:
+                request_task = asyncio.create_task(manager.wait_next_request())
+                done, _ = await asyncio.wait({wait_task, request_task}, return_when=asyncio.FIRST_COMPLETED)
+                if wait_task in done:
+                    request_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await request_task
+                    break
+
+                request = request_task.result()
+                await _stop_esc_monitor()
+                response = await _collect_interaction_response(request)
+                if response.status == "submitted":
+                    tui_display = _get_tui_display()
+                    if tui_display is not None:
+                        tui_display.show_progress_ui()
+                await components.executor.submit_and_wait(
+                    op.UserInteractionRespondOperation(
+                        session_id=request.session_id,
+                        request_id=request.request_id,
+                        response=response,
+                    )
+                )
+                if not wait_task.done():
+                    _start_esc_monitor()
         finally:
             with contextlib.suppress(Exception):
                 restore_sigint()
+            if interrupt_task is not None and not interrupt_task.done():
+                with contextlib.suppress(Exception):
+                    await interrupt_task
+            await _stop_esc_monitor()
+            if not wait_task.done():
+                wait_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await wait_task
 
     exit_hint_printed = False
 
@@ -302,27 +434,16 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 continue
 
             if is_interactive:
-                with _double_ctrl_c_to_exit_while_running():
-                    await components.executor.wait_for(wait_id)
+                await _wait_for_with_interactions(wait_id)
                 # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
                 # before handing control back to prompt_toolkit.
                 await components.event_queue.join()
                 continue
 
-            async def _on_esc_interrupt() -> None:
-                await components.executor.submit(op.InterruptOperation(target_session_id=_get_active_session_id()))
-
-            stop_event, esc_task = start_esc_interrupt_monitor(_on_esc_interrupt)
-            try:
-                with _double_ctrl_c_to_exit_while_running():
-                    await components.executor.wait_for(wait_id)
-                # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
-                # before handing control back to prompt_toolkit.
-                await components.event_queue.join()
-            finally:
-                stop_event.set()
-                with contextlib.suppress(Exception):
-                    await esc_task
+            await _wait_for_with_interactions(wait_id)
+            # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
+            # before handing control back to prompt_toolkit.
+            await components.event_queue.join()
 
     except KeyboardInterrupt:
         await handle_keyboard_interrupt(components.executor)

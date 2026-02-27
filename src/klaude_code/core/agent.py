@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
 
 from klaude_code.core.agent_profile import AgentProfile, Reminder
 from klaude_code.core.task import SessionContext, TaskExecutionContext, TaskExecutor
@@ -8,7 +8,7 @@ from klaude_code.core.tool import build_todo_context, get_registry
 from klaude_code.core.tool.context import RunSubtask
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events, model, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session import Session
 
@@ -19,11 +19,24 @@ class Agent:
         session: Session,
         profile: AgentProfile,
         compact_llm_client: LLMClientABC | None = None,
+        request_user_interaction: (
+            Callable[
+                [
+                    str,
+                    user_interaction.UserInteractionSource,
+                    user_interaction.UserInteractionRequestPayload,
+                    str | None,
+                ],
+                Awaitable[user_interaction.UserInteractionResponse],
+            ]
+            | None
+        ) = None,
     ):
         self.session: Session = session
         self.profile: AgentProfile = profile
         self.compact_llm_client: LLMClientABC | None = compact_llm_client
         self._current_task: TaskExecutor | None = None
+        self._request_user_interaction = request_user_interaction
         if not self.session.model_name:
             self.session.model_name = profile.llm_client.model_name
 
@@ -54,6 +67,7 @@ class Agent:
             file_tracker=self.session.file_tracker,
             todo_context=build_todo_context(self.session),
             run_subtask=run_subtask,
+            request_user_interaction=self._request_user_interaction,
         )
         context = TaskExecutionContext(
             session=self.session,

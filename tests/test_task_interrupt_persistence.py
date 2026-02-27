@@ -38,6 +38,7 @@ def test_task_interrupt_persists_interrupt_entry(tmp_path: Path, monkeypatch: py
             file_tracker=session.file_tracker,
             todo_context=build_todo_context(session),
             run_subtask=None,
+            request_user_interaction=None,
         )
 
         async def _process_reminder(_: Any):
@@ -81,6 +82,7 @@ def test_task_interrupt_does_not_duplicate_when_aborted_message_exists(
             file_tracker=session.file_tracker,
             todo_context=build_todo_context(session),
             run_subtask=None,
+            request_user_interaction=None,
         )
 
         async def _process_reminder(_: Any):

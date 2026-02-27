@@ -43,7 +43,13 @@ class AgentProfile:
 MAIN_AGENT_COMMON_BASE_TOOLS: list[str] = [tools.BASH, tools.READ]
 MAIN_AGENT_GPT5_DIFF_TOOLS: list[str] = [tools.APPLY_PATCH, tools.UPDATE_PLAN]
 MAIN_AGENT_NON_GPT5_DIFF_TOOLS: list[str] = [tools.EDIT, tools.WRITE, tools.TODO_WRITE]
-MAIN_AGENT_COMMON_TOOLS: list[str] = [tools.REWIND, tools.TASK, tools.WEB_FETCH, tools.WEB_SEARCH]
+MAIN_AGENT_COMMON_TOOLS: list[str] = [
+    tools.REWIND,
+    tools.TASK,
+    tools.WEB_FETCH,
+    tools.WEB_SEARCH,
+    tools.ASK_USER_QUESTION,
+]
 
 
 STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT = """\

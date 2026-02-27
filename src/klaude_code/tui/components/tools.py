@@ -36,6 +36,7 @@ MARK_WEB_FETCH = "→"
 MARK_WEB_SEARCH = "✱"
 MARK_DONE = "✔"
 MARK_REWIND = "↶"
+MARK_QUESTION = "◉"
 
 # Todo status markers
 MARK_TODO_PENDING = "▢"
@@ -525,6 +526,27 @@ def render_rewind_tool_call(arguments: str) -> RenderableType:
     return _render_tool_call_tree(mark=MARK_REWIND, tool_name=tool_name, details=summary if summary.plain else None)
 
 
+def render_ask_user_question_tool_call(arguments: str) -> RenderableType:
+    question_count = 1
+    if arguments:
+        try:
+            payload_raw: Any = json.loads(arguments)
+            if isinstance(payload_raw, dict):
+                payload = cast(dict[str, Any], payload_raw)
+                questions: Any = payload.get("questions")
+                if isinstance(questions, list) and questions:
+                    question_count = len(cast(list[Any], questions))
+        except json.JSONDecodeError:
+            pass
+
+    if question_count == 1:
+        tool_name = "Agent has a question for you"
+    else:
+        tool_name = f"Agent has {question_count} questions for you"
+
+    return _render_tool_call_tree(mark=MARK_QUESTION, tool_name=tool_name, details=None)
+
+
 # Tool name to active form mapping (for spinner status)
 _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.BASH: "Bashing",
@@ -539,6 +561,7 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.REPORT_BACK: "Reporting",
     tools.TASK: "Spawning Task",
     tools.REWIND: "Rewinding",
+    tools.ASK_USER_QUESTION: "Questioning",
 }
 
 
@@ -585,6 +608,8 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_web_fetch_tool_call(e.arguments)
         case tools.WEB_SEARCH:
             return render_web_search_tool_call(e.arguments)
+        case tools.ASK_USER_QUESTION:
+            return render_ask_user_question_tool_call(e.arguments)
         case _:
             return render_generic_tool_call(e.tool_name, e.arguments)
 

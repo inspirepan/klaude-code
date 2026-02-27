@@ -64,6 +64,7 @@ class TurnResult:
     tool_calls: list[ToolCallRequest]
     stream_error: message.StreamErrorItem | None
     report_back_result: str | None = field(default=None)
+    continue_agent: bool = field(default=True)
 
 
 def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEvent) -> list[events.Event]:
@@ -132,6 +133,8 @@ class TurnExecutor:
         """
         if self._turn_result is None:
             return True
+        if not self._turn_result.continue_agent:
+            return True
         if not self._turn_result.tool_calls:
             return True
         return self._turn_result.report_back_result is not None
@@ -154,6 +157,12 @@ class TurnExecutor:
     def has_structured_output(self) -> bool:
         """Check if the task result is structured output from report_back."""
         return bool(self._turn_result and self._turn_result.report_back_result)
+
+    @property
+    def continue_agent(self) -> bool:
+        if self._turn_result is None:
+            return True
+        return self._turn_result.continue_agent
 
     def on_interrupt(self) -> list[events.Event]:
         """Handle an interrupt by persisting partial output and finalizing running tools.
@@ -393,6 +402,7 @@ class TurnExecutor:
             run_subtask=session_ctx.run_subtask,
             sub_agent_resume_claims=SubAgentResumeClaims(),
             rewind_manager=ctx.rewind_manager,
+            request_user_interaction=session_ctx.request_user_interaction,
         )
 
         executor = ToolExecutor(
@@ -403,6 +413,12 @@ class TurnExecutor:
         self._tool_executor = executor
         try:
             async for exec_event in executor.run_tools(tool_calls):
+                if (
+                    isinstance(exec_event, ToolExecutionResult)
+                    and not exec_event.tool_result.continue_agent
+                    and self._turn_result is not None
+                ):
+                    self._turn_result.continue_agent = False
                 for ui_event in build_events_from_tool_executor_event(session_ctx.session_id, exec_event):
                     yield ui_event
         finally:

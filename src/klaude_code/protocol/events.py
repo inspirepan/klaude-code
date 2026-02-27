@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message, model, user_interaction
 from klaude_code.protocol.commands import CommandName
 
 __all__ = [
@@ -43,6 +43,7 @@ __all__ = [
     "TurnEndEvent",
     "TurnStartEvent",
     "UsageEvent",
+    "UserInteractionRequestEvent",
     "UserMessageEvent",
     "WelcomeEvent",
 ]
@@ -263,3 +264,10 @@ class ToolResultEvent(ResponseEvent):
     @property
     def is_error(self) -> bool:
         return self.status in ("error", "aborted")
+
+
+class UserInteractionRequestEvent(Event):
+    request_id: str
+    source: user_interaction.UserInteractionSource
+    tool_call_id: str | None = None
+    payload: user_interaction.UserInteractionRequestPayload
