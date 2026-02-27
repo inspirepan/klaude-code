@@ -20,17 +20,11 @@ class AskUserQuestionQuestion(BaseModel):
     options: list[AskUserQuestionOption]
     multi_select: bool = False
     input_placeholder: str | None = None
-    require_input_when_other_selected: bool = True
-
-
-class AskUserQuestionMetadata(BaseModel):
-    source: str | None = None
 
 
 class AskUserQuestionRequestPayload(BaseModel):
     kind: Literal["ask_user_question"] = "ask_user_question"
     questions: list[AskUserQuestionQuestion]
-    metadata: AskUserQuestionMetadata | None = None
 
 
 type UserInteractionRequestPayload = AskUserQuestionRequestPayload
@@ -39,7 +33,6 @@ type UserInteractionRequestPayload = AskUserQuestionRequestPayload
 class AskUserQuestionAnswer(BaseModel):
     question_id: str
     selected_option_ids: list[str]
-    selected_option_labels: list[str]
     other_text: str | None = None
     note: str | None = None
 

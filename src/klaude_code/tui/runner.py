@@ -294,14 +294,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
 
         for question, selection in zip(payload.questions, selections, strict=False):
-            option_label_by_id = {option.id: option.label for option in question.options}
             selected_ids = list(selection.selected_values)
-            selected_labels: list[str] = []
-            for selected in selected_ids:
-                if selected == "__other__":
-                    selected_labels.append("Other")
-                else:
-                    selected_labels.append(option_label_by_id.get(selected, selected))
 
             note_text = selection.input_text.strip()
             other_text = note_text if "__other__" in selected_ids and note_text else None
@@ -310,7 +303,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 user_interaction.AskUserQuestionAnswer(
                     question_id=question.id,
                     selected_option_ids=selected_ids,
-                    selected_option_labels=selected_labels,
                     other_text=other_text,
                     note=note_text or None,
                 )

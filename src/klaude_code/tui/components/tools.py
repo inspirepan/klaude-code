@@ -412,6 +412,12 @@ def render_generic_tool_result(result: str, *, is_error: bool = False) -> Render
     return text
 
 
+def render_ask_user_question_tool_result(result: str, *, is_error: bool = False) -> RenderableType:
+    """Render AskUserQuestion result without truncating the middle content."""
+    style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT
+    return Text(result.expandtabs(TAB_EXPAND_WIDTH), style=style, overflow="fold")
+
+
 def render_read_preview(ui_extra: model.ReadPreviewUIExtra) -> RenderableType:
     """Render read preview with line numbers aligned to diff style."""
     grid = create_grid()
@@ -717,5 +723,9 @@ def render_tool_result(
             return wrap(render_todo(e))
         case tools.BASH:
             return _render_fallback()
+        case tools.ASK_USER_QUESTION:
+            if len(e.result.strip()) == 0:
+                return wrap(render_generic_tool_result("(no content)"))
+            return wrap(render_ask_user_question_tool_result(e.result, is_error=e.is_error))
         case _:
             return _render_fallback()

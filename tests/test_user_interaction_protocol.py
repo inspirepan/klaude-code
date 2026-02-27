@@ -58,7 +58,6 @@ def test_user_interaction_response_submitted_and_cancelled() -> None:
                 AskUserQuestionAnswer(
                     question_id="q1",
                     selected_option_ids=["a"],
-                    selected_option_labels=["A"],
                     other_text="",
                     note="n1",
                 )

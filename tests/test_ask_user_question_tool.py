@@ -69,7 +69,6 @@ def test_ask_user_question_success_response() -> None:
                     user_interaction.AskUserQuestionAnswer(
                         question_id="q1",
                         selected_option_ids=["q1_o1", "__other__"],
-                        selected_option_labels=["A", "Other"],
                         other_text="custom",
                         note="extra",
                     )
@@ -88,14 +87,13 @@ def test_ask_user_question_success_response() -> None:
                 ],
                 "multiSelect": True,
             }
-        ],
-        "metadata": {"source": "plan"},
+        ]
     }
 
     result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context(_callback)))
     assert result.status == "success"
     assert result.continue_agent is True
-    assert result.output_text == "Q: What should we do?\nA:\n- A Option A\n- Other: custom"
+    assert result.output_text == "Question: What should we do?\nAnswer:\n- A Option A\n- Other: custom"
 
 
 def test_ask_user_question_cancelled_response_returns_aborted() -> None:
@@ -124,7 +122,7 @@ def test_ask_user_question_cancelled_response_returns_aborted() -> None:
     result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context(_callback)))
     assert result.status == "success"
     assert result.continue_agent is False
-    assert result.output_text == "Q: What should we do?\nA: (User declined to answer questions)"
+    assert result.output_text == "Question: What should we do?\nAnswer: (User declined to answer questions)"
 
 
 def test_ask_user_question_single_select_format() -> None:
@@ -141,7 +139,6 @@ def test_ask_user_question_single_select_format() -> None:
                     user_interaction.AskUserQuestionAnswer(
                         question_id="q1",
                         selected_option_ids=["q1_o2"],
-                        selected_option_labels=["B"],
                         other_text=None,
                         note=None,
                     )
@@ -165,7 +162,7 @@ def test_ask_user_question_single_select_format() -> None:
 
     result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context(_callback)))
     assert result.status == "success"
-    assert result.output_text == "Q: Choose one\nA: B Option B"
+    assert result.output_text == "Question: Choose one\nAnswer: B Option B"
 
 
 def test_ask_user_question_input_only_formats_as_other() -> None:
@@ -182,7 +179,6 @@ def test_ask_user_question_input_only_formats_as_other() -> None:
                     user_interaction.AskUserQuestionAnswer(
                         question_id="q1",
                         selected_option_ids=[],
-                        selected_option_labels=[],
                         other_text=None,
                         note="自定义内容",
                     )
@@ -206,7 +202,7 @@ def test_ask_user_question_input_only_formats_as_other() -> None:
 
     result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context(_callback)))
     assert result.status == "success"
-    assert result.output_text == "Q: 请选择一个选项以确认工具可用：\nA: Other: 自定义内容"
+    assert result.output_text == "Question: 请选择一个选项以确认工具可用：\nAnswer: Other: 自定义内容"
 
 
 def test_ask_user_question_missing_answer_and_separator_format() -> None:
@@ -223,7 +219,6 @@ def test_ask_user_question_missing_answer_and_separator_format() -> None:
                     user_interaction.AskUserQuestionAnswer(
                         question_id="q1",
                         selected_option_ids=["q1_o1"],
-                        selected_option_labels=["A"],
                         other_text=None,
                         note=None,
                     )
@@ -256,4 +251,4 @@ def test_ask_user_question_missing_answer_and_separator_format() -> None:
 
     result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context(_callback)))
     assert result.status == "success"
-    assert result.output_text == "Q: Q1\nA: A Option A\n---\nQ: Q2\nA: (No answer provided)"
+    assert result.output_text == ("Question: Q1\nAnswer: A Option A\n---\nQuestion: Q2\nAnswer: (No answer provided)")
