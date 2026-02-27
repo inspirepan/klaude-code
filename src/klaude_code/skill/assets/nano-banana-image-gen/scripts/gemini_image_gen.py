@@ -88,6 +88,18 @@ NB2_ONLY_ASPECT_RATIOS = {"1:4", "1:8", "4:1", "8:1"}
 ALLOWED_RESOLUTIONS = {"512px", "1K", "2K", "4K"}
 RESOLUTION_CHOICES = ["512px", "1K", "2K", "4K"]
 MAX_INPUT_IMAGES = 14
+MAX_NETWORK_RETRIES = 2
+
+RETRYABLE_NETWORK_ERROR_NAMES = {
+    "ConnectionClosedError",
+    "ReadError",
+    "RemoteProtocolError",
+}
+RETRYABLE_NETWORK_ERROR_MESSAGE_SNIPPETS = {
+    "connection reset by peer",
+    "server disconnected without sending a response",
+    "no close frame received or sent",
+}
 
 _GOOGLE_CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 
@@ -275,6 +287,43 @@ def _create_client(auth_mode: str):
     return genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 
+def _iter_exception_chain(exc: Exception):
+    current: Exception | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        yield current
+        seen.add(id(current))
+        next_exc = current.__cause__ or current.__context__
+        current = next_exc if isinstance(next_exc, Exception) else None
+
+
+def _is_retryable_network_error(exc: Exception) -> bool:
+    for item in _iter_exception_chain(exc):
+        if type(item).__name__ in RETRYABLE_NETWORK_ERROR_NAMES:
+            return True
+        message = str(item).lower()
+        if any(snippet in message for snippet in RETRYABLE_NETWORK_ERROR_MESSAGE_SNIPPETS):
+            return True
+    return False
+
+
+def _call_generate_content_with_retry(*, client: Any, model: str, contents: list[Any], config: Any) -> Any:
+    total_attempts = MAX_NETWORK_RETRIES + 1
+    for attempt in range(1, total_attempts + 1):
+        try:
+            return client.models.generate_content(model=model, contents=contents, config=config)
+        except Exception as exc:
+            if not _is_retryable_network_error(exc) or attempt == total_attempts:
+                raise
+            delay_seconds = 2 ** (attempt - 1)
+            _warn(
+                f"Network error ({type(exc).__name__}: {exc}). "
+                f"Retrying {attempt}/{MAX_NETWORK_RETRIES} in {delay_seconds}s..."
+            )
+            time.sleep(delay_seconds)
+    raise RuntimeError("unreachable")
+
+
 def _save_response_images(response: Any, out_path: Path, force: bool) -> list[Path]:
     from PIL import Image as PILImage
 
@@ -353,7 +402,8 @@ def _generate(args: argparse.Namespace) -> None:
     started = time.time()
 
     client = _create_client(auth_mode)
-    response = client.models.generate_content(
+    response = _call_generate_content_with_retry(
+        client=client,
         model=args.model,
         contents=[prompt],
         config=types.GenerateContentConfig(**config_kwargs),
@@ -409,36 +459,37 @@ def _edit(args: argparse.Namespace) -> None:
 
     config_kwargs = _build_config(args)
 
-    # Build contents: images first, then prompt (as per Gemini API convention)
-    pil_images = []
-    for p in image_paths:
-        pil_images.append(PILImage.open(p))
+    pil_images: list[Any] = []
+    try:
+        # Build contents: images first, then prompt (as per Gemini API convention)
+        for p in image_paths:
+            pil_images.append(PILImage.open(p))
 
-    contents: list[Any] = [*pil_images, prompt]
+        contents: list[Any] = [*pil_images, prompt]
 
-    print(
-        f"Calling Gemini API ({args.model}) with {len(image_paths)} image(s)...",
-        file=sys.stderr,
-    )
-    started = time.time()
+        print(
+            f"Calling Gemini API ({args.model}) with {len(image_paths)} image(s)...",
+            file=sys.stderr,
+        )
+        started = time.time()
 
-    client = _create_client(auth_mode)
-    response = client.models.generate_content(
-        model=args.model,
-        contents=contents,
-        config=types.GenerateContentConfig(**config_kwargs),
-    )
+        client = _create_client(auth_mode)
+        response = _call_generate_content_with_retry(
+            client=client,
+            model=args.model,
+            contents=contents,
+            config=types.GenerateContentConfig(**config_kwargs),
+        )
 
-    elapsed = time.time() - started
-    print(f"Edit completed in {elapsed:.1f}s.", file=sys.stderr)
+        elapsed = time.time() - started
+        print(f"Edit completed in {elapsed:.1f}s.", file=sys.stderr)
 
-    saved = _save_response_images(response, out_path, args.force)
-    if not saved:
-        _die("No image was generated in the response. Try rephrasing the prompt.")
-
-    # Close PIL images
-    for img in pil_images:
-        img.close()
+        saved = _save_response_images(response, out_path, args.force)
+        if not saved:
+            _die("No image was generated in the response. Try rephrasing the prompt.")
+    finally:
+        for img in pil_images:
+            img.close()
 
 
 def _add_shared_args(parser: argparse.ArgumentParser) -> None:
