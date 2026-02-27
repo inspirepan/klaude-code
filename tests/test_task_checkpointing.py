@@ -38,6 +38,7 @@ def _build_executor(
     session: Session,
     monkeypatch: pytest.MonkeyPatch,
     task_finished_sequence: list[bool],
+    continue_agent_sequence: list[bool] | None = None,
 ) -> tuple[TaskExecutor, Any]:
     def _never_compact(*, session: Session, config: Any, llm_config: Any) -> bool:
         del session, config, llm_config
@@ -52,6 +53,10 @@ def _build_executor(
             index = type(self).created_count
             type(self).created_count += 1
             self.task_finished = task_finished_sequence[index]
+            if continue_agent_sequence is None:
+                self.continue_agent = True
+            else:
+                self.continue_agent = continue_agent_sequence[index]
             self.task_result = "done"
             self.has_structured_output = False
 
@@ -72,6 +77,7 @@ def _build_executor(
         file_tracker=session.file_tracker,
         todo_context=build_todo_context(session),
         run_subtask=None,
+        request_user_interaction=None,
     )
     executor = TaskExecutor(
         TaskExecutionContext(
@@ -135,6 +141,32 @@ def test_continue_with_empty_input_does_not_create_checkpoint(tmp_path: Path, mo
         _ = [event async for event in executor.run(message.UserInputPayload(text="   "))]
 
         assert session.n_checkpoints == 0
+        await close_default_store()
+
+    arun(_test())
+
+
+def test_task_metadata_marked_partial_when_continue_agent_false(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_dir = tmp_path / "test_project"
+    project_dir.mkdir()
+    monkeypatch.chdir(project_dir)
+
+    async def _test() -> None:
+        session = Session.create(work_dir=project_dir)
+        executor, _ = _build_executor(
+            session,
+            monkeypatch,
+            task_finished_sequence=[True],
+            continue_agent_sequence=[False],
+        )
+
+        run_events = [event async for event in executor.run(message.UserInputPayload(text="hello"))]
+        task_metadata_events = [event for event in run_events if isinstance(event, events.TaskMetadataEvent)]
+
+        assert len(task_metadata_events) == 1
+        assert task_metadata_events[0].is_partial is True
         await close_default_store()
 
     arun(_test())

@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from klaude_code.protocol.llm_param import Thinking
 from klaude_code.protocol.message import UserInputPayload
+from klaude_code.protocol.user_interaction import UserInteractionResponse
 
 if TYPE_CHECKING:
     from klaude_code.protocol.op_handler import OperationHandler
@@ -35,6 +36,7 @@ class OperationType(Enum):
     RESUME_SESSION = "resume_session"
     EXPORT_SESSION = "export_session"
     INTERRUPT = "interrupt"
+    USER_INTERACTION_RESPOND = "user_interaction_respond"
     INIT_AGENT = "init_agent"
     END = "end"
 
@@ -201,6 +203,18 @@ class InterruptOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         """Execute interrupt by cancelling active tasks."""
         await handler.handle_interrupt(self)
+
+
+class UserInteractionRespondOperation(Operation):
+    """Operation for sending user interaction response back to core."""
+
+    type: OperationType = OperationType.USER_INTERACTION_RESPOND
+    session_id: str
+    request_id: str
+    response: UserInteractionResponse
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_user_interaction_respond(self)
 
 
 class InitAgentOperation(Operation):

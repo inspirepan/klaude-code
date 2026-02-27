@@ -200,6 +200,9 @@ class ToolResultMessage(MessageBase):
     tool_name: str = ""
     status: ToolStatus
     output_text: str
+    # Runtime control flag: when False, task execution should stop after this turn
+    # instead of continuing to the next model turn.
+    continue_agent: bool = Field(default=True, exclude=True)
     parts: list[Part] = Field(default_factory=_empty_parts)
     ui_extra: ToolResultUIExtra | None = None
     side_effects: list[ToolSideEffect] | None = None

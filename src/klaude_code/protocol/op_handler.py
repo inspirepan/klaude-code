@@ -23,6 +23,7 @@ if TYPE_CHECKING:
         ResumeSessionOperation,
         RunAgentOperation,
         RunBashOperation,
+        UserInteractionRespondOperation,
     )
 
 
@@ -75,6 +76,10 @@ class OperationHandler(Protocol):
 
     async def handle_interrupt(self, operation: InterruptOperation) -> None:
         """Handle an interrupt operation."""
+        ...
+
+    async def handle_user_interaction_respond(self, operation: UserInteractionRespondOperation) -> None:
+        """Handle a user interaction response operation."""
         ...
 
     async def handle_init_agent(self, operation: InitAgentOperation) -> None:
