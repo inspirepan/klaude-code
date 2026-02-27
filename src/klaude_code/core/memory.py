@@ -187,6 +187,9 @@ def load_auto_memory() -> Memory | None:
     except (PermissionError, UnicodeDecodeError, OSError):
         return None
     lines = text.splitlines()
+    instruction = "auto memory, persisted across sessions"
     if len(lines) > AUTO_MEMORY_MAX_LINES:
+        total_lines = len(lines)
         text = "\n".join(lines[:AUTO_MEMORY_MAX_LINES])
-    return Memory(path=str(memory_path), instruction="auto memory, persisted across sessions", content=text)
+        instruction += f" (truncated to first {AUTO_MEMORY_MAX_LINES} lines from {total_lines} total lines)"
+    return Memory(path=str(memory_path), instruction=instruction, content=text)
