@@ -95,7 +95,7 @@ def select_questions[T](
     - Left/Right and Tab switch tabs
     - Enter confirms current single-select question and moves to next tab
     - For multi-select: Enter toggles current option; use per-question Submit row to confirm
-    - Submit tab performs final submit/cancel
+    - When there are multiple questions, a final Submit tab performs submit/cancel
     """
     if not questions:
         return None
@@ -105,7 +105,8 @@ def select_questions[T](
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         return None
 
-    submit_tab_idx = len(questions)
+    has_submit_tab = len(questions) > 1
+    submit_tab_idx = len(questions) if has_submit_tab else None
     active_tab_idx = 0
     pointed_at_by_question = [0 for _ in questions]
     selected_indices_by_question: list[set[int]] = [set() for _ in questions]
@@ -119,6 +120,8 @@ def select_questions[T](
     input_buffer = Buffer()
 
     def _is_submit_tab(tab_idx: int | None = None) -> bool:
+        if submit_tab_idx is None:
+            return False
         idx = active_tab_idx if tab_idx is None else tab_idx
         return idx == submit_tab_idx
 
@@ -156,7 +159,8 @@ def select_questions[T](
         if not _is_submit_tab(active_tab_idx):
             input_text_by_question[active_tab_idx] = input_buffer.text
 
-        active_tab_idx = (active_tab_idx + delta) % (len(questions) + 1)
+        tab_count = len(questions) + (1 if has_submit_tab else 0)
+        active_tab_idx = (active_tab_idx + delta) % tab_count
         submit_warning = False
 
         if _is_submit_tab(active_tab_idx):
@@ -284,9 +288,12 @@ def select_questions[T](
             tokens.append((tab_style, f" {check} {question.header} "))
             tokens.append(("class:text", " "))
 
-        submit_style = "class:question_tab_active" if _is_submit_tab() else "class:question_tab_inactive"
-        tokens.append((submit_style, " ✔ Submit "))
-        tokens.append(("class:meta", "  Tab to cycle · Enter to confirm"))
+        if has_submit_tab:
+            submit_style = "class:question_tab_active" if _is_submit_tab() else "class:question_tab_inactive"
+            tokens.append((submit_style, " ✔ Submit "))
+            tokens.append(("class:meta", "  Tab to cycle · Enter to confirm"))
+        else:
+            tokens.append(("class:meta", " Enter to confirm"))
         return tokens
 
     def get_header_tokens() -> list[tuple[str, str]]:
@@ -468,6 +475,9 @@ def select_questions[T](
         if question.multi_select:
             if _is_question_submit_row(row, question_idx=question_idx):
                 _confirm_current_question()
+                if not has_submit_tab:
+                    event.app.exit(result=_confirmed_results())
+                    return
                 _switch_tab(+1)
                 _sync_focus(event.app)
                 event.app.invalidate()
@@ -477,6 +487,9 @@ def select_questions[T](
             return
 
         _confirm_current_question()
+        if not has_submit_tab:
+            event.app.exit(result=_confirmed_results())
+            return
         _switch_tab(+1)
         _sync_focus(event.app)
         event.app.invalidate()
