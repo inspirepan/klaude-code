@@ -80,9 +80,64 @@ def test_command_display_uses_gray_marker() -> None:
     assert model.display_text == "• model"
 
 
+def test_slash_long_fragment_includes_name_contains_match_after_prefix() -> None:
+    def command_info_provider() -> list[CommandInfo]:
+        return [
+            CommandInfo(name="model", summary="Change model (saves to config)"),
+            CommandInfo(name="sub-agent-model", summary="Change sub-agent models"),
+        ]
+
+    completer = _ComboCompleter(command_info_provider=command_info_provider)
+    completions = list(completer.get_completions(Document(text="/model", cursor_position=6), cast(Any, None)))
+    texts = [completion.text for completion in completions]
+
+    assert "/model " in texts
+    assert "/sub-agent-model " in texts
+    assert texts.index("/model ") < texts.index("/sub-agent-model ")
+
+
+def test_slash_short_fragment_keeps_prefix_only_for_commands() -> None:
+    def command_info_provider() -> list[CommandInfo]:
+        return [
+            CommandInfo(name="model", summary="Change model (saves to config)"),
+            CommandInfo(name="sub-agent-model", summary="Change sub-agent models"),
+        ]
+
+    completer = _ComboCompleter(command_info_provider=command_info_provider)
+    completions = list(completer.get_completions(Document(text="/mode", cursor_position=5), cast(Any, None)))
+    texts = [completion.text for completion in completions]
+
+    assert "/model " in texts
+    assert "/sub-agent-model " not in texts
+
+
 def test_legacy_dollar_skill_completion_removed() -> None:
     completer = _ComboCompleter(command_info_provider=_command_info_provider)
     doc = Document(text="please $pub", cursor_position=len("please $pub"))
     completions = list(completer.get_completions(doc, cast(Any, None)))
 
     assert completions == []
+
+
+def test_double_slash_prefers_name_match_over_description_match(monkeypatch: pytest.MonkeyPatch) -> None:
+    skills: list[tuple[str, str, str]] = [
+        (
+            "tmux-test",
+            "Test klaude-code interactively using tmux with precise synchronization.",
+            "system",
+        ),
+        (
+            "submit-pr",
+            "Create a GitHub pull request for current changes.",
+            "system",
+        ),
+    ]
+    monkeypatch.setattr(_SkillCompleter, "_get_available_skills", lambda _self: skills)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+    monkeypatch.setattr(_SlashCommandCompleter, "_get_available_skills", lambda _self: skills)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+
+    completer = _ComboCompleter(command_info_provider=_command_info_provider)
+    completions = list(completer.get_completions(Document(text="//pr", cursor_position=4), cast(Any, None)))
+    texts = [completion.text for completion in completions]
+
+    assert texts[0] == "//skill:submit-pr "
+    assert "//skill:tmux-test " in texts
