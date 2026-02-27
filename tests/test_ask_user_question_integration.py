@@ -78,7 +78,6 @@ def test_ask_user_question_end_to_end_submitted() -> None:
                         user_interaction.AskUserQuestionAnswer(
                             question_id="q1",
                             selected_option_ids=["q1_o1"],
-                            selected_option_labels=["A"],
                             other_text=None,
                             note="note",
                         )
@@ -130,6 +129,6 @@ def test_ask_user_question_end_to_end_cancelled_by_manager() -> None:
         result = await task
         assert result.status == "success"
         assert result.continue_agent is False
-        assert result.output_text == "Q: What should we do?\nA: (User declined to answer questions)"
+        assert result.output_text == "Question: What should we do?\nAnswer: (User declined to answer questions)"
 
     arun(_test())

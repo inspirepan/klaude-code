@@ -83,6 +83,24 @@ def _indent_multiline_tokens(
     return out
 
 
+def _split_title_number_prefix(
+    tokens: list[tuple[str, str]],
+    row_num_text: str,
+) -> tuple[tuple[str, str] | None, list[tuple[str, str]]]:
+    """Split leading row number token from title tokens when present."""
+    if not tokens:
+        return None, tokens
+
+    first_style, first_text = tokens[0]
+    if not first_text.startswith(row_num_text):
+        return None, tokens
+
+    remainder = first_text[len(row_num_text) :]
+    if remainder:
+        return (first_style, row_num_text), [(first_style, remainder), *tokens[1:]]
+    return (first_style, row_num_text), tokens[1:]
+
+
 def select_questions[T](
     *,
     questions: list[QuestionPrompt[T]],
@@ -110,6 +128,7 @@ def select_questions[T](
     active_tab_idx = 0
     pointed_at_by_question = [0 for _ in questions]
     selected_indices_by_question: list[set[int]] = [set() for _ in questions]
+    selected_other_by_question = [False for _ in questions]
     input_text_by_question = ["" for _ in questions]
     confirmed_results: list[QuestionSelectResult[T]] = [
         QuestionSelectResult(selected_values=[], input_text="") for _ in questions
@@ -200,6 +219,22 @@ def select_questions[T](
 
         selected_indices_by_question[question_idx] = {idx}
 
+    def _toggle_current_other_option() -> None:
+        if _is_submit_tab():
+            return
+
+        question_idx = _current_question_idx()
+        row = pointed_at_by_question[question_idx]
+        question = questions[question_idx]
+        if (
+            not question.multi_select
+            or question.other_value is None
+            or not _is_input_row(row, question_idx=question_idx)
+        ):
+            return
+
+        selected_other_by_question[question_idx] = not selected_other_by_question[question_idx]
+
     def _build_draft_result_for(question_idx: int) -> QuestionSelectResult[T]:
         question = questions[question_idx]
         effective: set[int] = set(selected_indices_by_question[question_idx])
@@ -226,8 +261,12 @@ def select_questions[T](
         else:
             input_text = input_text_by_question[question_idx]
 
-        if input_text.strip() and question.other_value is not None and question.other_value not in values:
-            values.append(question.other_value)
+        if question.other_value is not None and question.other_value not in values:
+            if question.multi_select:
+                if selected_other_by_question[question_idx]:
+                    values.append(question.other_value)
+            elif input_text.strip():
+                values.append(question.other_value)
 
         return QuestionSelectResult(selected_values=values, input_text=input_text)
 
@@ -326,11 +365,23 @@ def select_questions[T](
             else:
                 tokens.append(("class:text", pointer_pad))
 
-            if question.multi_select:
-                marker = "[x] " if idx in selected_indices else "[ ] "
-                tokens.append(("class:text", marker))
-
             title_tokens = _restyle_title(item.title, "class:highlighted") if is_pointed else item.title
+            row_num_text = f"{idx + 1}. "
+            row_num_token, title_tokens_without_num = _split_title_number_prefix(title_tokens, row_num_text)
+
+            if question.multi_select and row_num_token is not None:
+                tokens.append(row_num_token)
+                is_selected = idx in selected_indices
+                marker = "[✔] " if is_selected else "[ ] "
+                marker_style = "class:highlighted" if is_selected else "class:text"
+                tokens.append((marker_style, marker))
+                title_tokens = title_tokens_without_num
+            elif question.multi_select:
+                is_selected = idx in selected_indices
+                marker = "[✔] " if is_selected else "[ ] "
+                marker_style = "class:highlighted" if is_selected else "class:text"
+                tokens.append((marker_style, marker))
+
             if idx == len(question.items) - 1:
                 title_tokens = _trim_last_newline(title_tokens)
             tokens.extend(_indent_multiline_tokens(title_tokens, pointer_pad))
@@ -343,8 +394,10 @@ def select_questions[T](
         pointed_prefix = f" {pointer} "
 
         for idx, question in enumerate(questions):
-            tokens.append(("class:text", f" ● {question.message}\n"))
-            tokens.append(("class:meta", f"   → {_answer_summary(idx)}\n"))
+            tokens.append(("class:msg", f" ● {question.message}\n"))
+            summary_style = "class:highlighted" if answered_by_question[idx] else "class:warning"
+            tokens.append(("class:meta", "   → "))
+            tokens.append((summary_style, f"{_answer_summary(idx)}\n"))
 
         tokens.append(("class:text", "\n"))
         if _all_answered():
@@ -375,10 +428,33 @@ def select_questions[T](
     def get_input_prefix_tokens() -> list[tuple[str, str]]:
         pointer_pad = " " * (2 + len(pointer))
         pointed_prefix = f" {pointer} "
-        row_num = f"{len(_current_question().items) + 1}. "
-        if not _is_submit_tab() and _is_input_row(pointed_at_by_question[_current_question_idx()]):
-            return [("class:pointer", pointed_prefix), ("class:text", row_num)]
-        return [("class:text", pointer_pad + row_num)]
+        question_idx = _current_question_idx()
+        question = _current_question()
+        row_num = f"{len(question.items) + 1}. "
+        is_input_row = (not _is_submit_tab()) and _is_input_row(pointed_at_by_question[question_idx])
+        row_style = "class:highlighted" if is_input_row else "class:msg"
+
+        prefix: list[tuple[str, str]] = []
+        if is_input_row:
+            prefix.append(("class:pointer", pointed_prefix))
+        else:
+            prefix.append(("class:text", pointer_pad))
+
+        if question.multi_select and question.other_value is not None:
+            prefix.append((row_style, row_num))
+            is_selected = selected_other_by_question[question_idx]
+            marker = "[✔] " if is_selected else "[ ] "
+            marker_style = "class:highlighted" if is_selected else "class:text"
+            prefix.append((marker_style, marker))
+            return prefix
+
+        prefix.append((row_style, row_num))
+        return prefix
+
+    def get_other_label_tokens() -> list[tuple[str, str]]:
+        is_pointed = (not _is_submit_tab()) and _is_input_row(pointed_at_by_question[_current_question_idx()])
+        style_name = "class:highlighted" if is_pointed else "class:msg"
+        return [(style_name, "Other: ")]
 
     def get_question_submit_tokens() -> list[tuple[str, str]]:
         pointer_pad = " " * (2 + len(pointer))
@@ -386,8 +462,8 @@ def select_questions[T](
         question_idx = _current_question_idx()
         is_pointed = _is_question_submit_row(pointed_at_by_question[question_idx], question_idx=question_idx)
         if is_pointed:
-            return [("class:pointer", pointed_prefix), ("class:submit_option", "✔ Submit")]
-        return [("class:text", pointer_pad), ("class:submit_option", "✔ Submit")]
+            return [("class:pointer", pointed_prefix), ("class:highlighted class:submit_option", " ✔  Submit")]
+        return [("class:text", pointer_pad), ("class:submit_option", " ✔  Submit")]
 
     def get_input_placeholder_tokens() -> list[tuple[str, str]]:
         placeholder = _current_question().input_placeholder
@@ -482,6 +558,10 @@ def select_questions[T](
                 _sync_focus(event.app)
                 event.app.invalidate()
                 return
+            if _is_input_row(row, question_idx=question_idx):
+                _toggle_current_other_option()
+                event.app.invalidate()
+                return
             _toggle_current_option()
             event.app.invalidate()
             return
@@ -546,7 +626,10 @@ def select_questions[T](
     )
 
     max_row_num = max(len(question.items) + 1 for question in questions)
-    input_prefix_template = f" {pointer} {max_row_num}. "
+    has_multi_select_other_question = any(
+        question.multi_select and question.other_value is not None for question in questions
+    )
+    input_prefix_template = f" {pointer} " + f"{max_row_num}. " + ("[ ] " if has_multi_select_other_question else "")
     input_prefix_window = Window(
         FormattedTextControl(get_input_prefix_tokens),
         width=max(1, len(input_prefix_template)),
@@ -554,10 +637,9 @@ def select_questions[T](
         dont_extend_height=Always(),
         always_hide_cursor=Always(),
     )
-    other_label = "Other: "
     other_label_window = Window(
-        FormattedTextControl([("class:text", other_label)]),
-        width=len(other_label),
+        FormattedTextControl(get_other_label_tokens),
+        width=len("Other: "),
         height=1,
         dont_extend_height=Always(),
         always_hide_cursor=Always(),
@@ -582,6 +664,15 @@ def select_questions[T](
     )
     input_row = VSplit([input_prefix_window, other_label_window, input_container], padding=0)
     input_row_container = ConditionalContainer(content=input_row, filter=Condition(lambda: not _is_submit_tab()))
+    question_submit_spacer_container = ConditionalContainer(
+        content=Window(
+            FormattedTextControl([("", "")]),
+            height=1,
+            dont_extend_height=Always(),
+            always_hide_cursor=Always(),
+        ),
+        filter=Condition(lambda: (not _is_submit_tab()) and _current_question().multi_select),
+    )
     question_submit_row_container = ConditionalContainer(
         content=Window(
             FormattedTextControl(get_question_submit_tokens),
@@ -616,7 +707,14 @@ def select_questions[T](
 
     root_children: list[Container] = [top_spacer_window, tabs_window, tabs_header_spacer_window]
     root_children.extend(
-        [header_window, spacer_window, list_window, input_row_container, question_submit_row_container]
+        [
+            header_window,
+            spacer_window,
+            list_window,
+            input_row_container,
+            question_submit_spacer_container,
+            question_submit_row_container,
+        ]
     )
     root = HSplit(root_children)
 
@@ -631,7 +729,7 @@ def select_questions[T](
             ("question_tab_inactive", "reverse fg:ansibrightblack"),
             ("question_tab_active", "reverse fg:ansigreen bold"),
             ("warning", "fg:ansiyellow"),
-            ("submit_option", "fg:black bold"),
+            ("submit_option", "bold"),
         ]
     )
     merged_style = merge_styles([base_style, style] if style is not None else [base_style])
@@ -656,7 +754,7 @@ def select_question[T](
     multi_select: bool,
     pointer: str = "→",
     style: BaseStyle | None = None,
-    input_placeholder: str = "Type something.",
+    input_placeholder: str = "Type something…",
     other_value: T | None = None,
 ) -> QuestionSelectResult[T] | None:
     results = select_questions(

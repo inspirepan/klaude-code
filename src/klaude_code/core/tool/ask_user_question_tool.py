@@ -28,18 +28,10 @@ class AskUserQuestionQuestionInput(BaseModel):
     multi_select: bool = Field(default=False, alias="multiSelect")
 
 
-class AskUserQuestionMetadataInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    source: str | None = None
-
-
 class AskUserQuestionArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     questions: list[AskUserQuestionQuestionInput] = Field(min_length=1, max_length=4)
-    answers: dict[str, str] | None = None
-    metadata: AskUserQuestionMetadataInput | None = None
 
 
 @register(tools.ASK_USER_QUESTION)
@@ -63,23 +55,62 @@ class AskUserQuestionTool(ToolABC):
                         "items": {
                             "type": "object",
                             "properties": {
-                                "question": {"type": "string"},
-                                "header": {"type": "string"},
+                                "question": {
+                                    "description": (
+                                        "The complete question to ask the user. Should be clear, specific, "
+                                        "and end with a question mark. "
+                                        'Example: "Which library should we use for date formatting?" '
+                                        "If multiSelect is true, phrase it accordingly, "
+                                        'e.g. "Which features do you want to enable?"'
+                                    ),
+                                    "type": "string",
+                                },
+                                "header": {
+                                    "description": (
+                                        "Very short label displayed as a chip/tag (max 12 chars). "
+                                        'Examples: "Auth method", "Library", "Approach".'
+                                    ),
+                                    "type": "string",
+                                },
                                 "options": {
+                                    "description": (
+                                        "The available choices for this question. Must have 2-4 options. "
+                                        "Each option should be a distinct, mutually exclusive choice "
+                                        "(unless multiSelect is enabled). There should be no 'Other' option, "
+                                        "that will be provided automatically."
+                                    ),
                                     "type": "array",
                                     "minItems": 2,
                                     "maxItems": 4,
                                     "items": {
                                         "type": "object",
                                         "properties": {
-                                            "label": {"type": "string"},
-                                            "description": {"type": "string"},
+                                            "label": {
+                                                "description": (
+                                                    "The display text for this option that the user will see and "
+                                                    "select. Should be concise (1-5 words) and clearly describe "
+                                                    "the choice."
+                                                ),
+                                                "type": "string",
+                                            },
+                                            "description": {
+                                                "description": (
+                                                    "Explanation of what this option means or what will happen "
+                                                    "if chosen. Useful for providing context about trade-offs "
+                                                    "or implications."
+                                                ),
+                                                "type": "string",
+                                            },
                                         },
                                         "required": ["label", "description"],
                                         "additionalProperties": False,
                                     },
                                 },
                                 "multiSelect": {
+                                    "description": (
+                                        "Set to true to allow the user to select multiple options instead "
+                                        "of just one. Use when choices are not mutually exclusive."
+                                    ),
                                     "type": "boolean",
                                     "default": False,
                                 },
@@ -87,21 +118,6 @@ class AskUserQuestionTool(ToolABC):
                             "required": ["question", "header", "options", "multiSelect"],
                             "additionalProperties": False,
                         },
-                    },
-                    "answers": {
-                        "description": "User answers collected by the permission component",
-                        "type": "object",
-                        "propertyNames": {"type": "string"},
-                        "additionalProperties": {"type": "string"},
-                    },
-                    "metadata": {
-                        "type": "object",
-                        "properties": {
-                            "source": {
-                                "type": "string",
-                            }
-                        },
-                        "additionalProperties": False,
                     },
                 },
                 "required": ["questions"],
@@ -142,16 +158,10 @@ class AskUserQuestionTool(ToolABC):
                     options=interaction_options,
                     multi_select=question.multi_select,
                     input_placeholder="Type something.",
-                    require_input_when_other_selected=True,
                 )
             )
 
-        request_payload = user_interaction.AskUserQuestionRequestPayload(
-            questions=interaction_questions,
-            metadata=user_interaction.AskUserQuestionMetadata(source=args.metadata.source)
-            if args.metadata is not None
-            else None,
-        )
+        request_payload = user_interaction.AskUserQuestionRequestPayload(questions=interaction_questions)
 
         try:
             response = await request_user_interaction(
@@ -192,7 +202,7 @@ class AskUserQuestionTool(ToolABC):
     ) -> str:
         blocks: list[str] = []
         for question in questions:
-            blocks.append(f"Q: {question.question}\nA: (User declined to answer questions)")
+            blocks.append(f"Question: {question.question}\nAnswer: (User declined to answer questions)")
         return cls._BLOCK_SEPARATOR.join(blocks)
 
     @classmethod
@@ -207,7 +217,7 @@ class AskUserQuestionTool(ToolABC):
         for question in questions:
             answer = answers_by_question_id.get(question.id)
             if answer is None:
-                blocks.append(f"Q: {question.question}\nA: (No answer provided)")
+                blocks.append(f"Question: {question.question}\nAnswer: (No answer provided)")
                 continue
 
             option_by_id = {option.id: option for option in question.options}
@@ -234,12 +244,12 @@ class AskUserQuestionTool(ToolABC):
             if question.multi_select:
                 if selected_lines:
                     bullet_lines = "\n".join(f"- {line}" for line in selected_lines)
-                    blocks.append(f"Q: {question.question}\nA:\n{bullet_lines}")
+                    blocks.append(f"Question: {question.question}\nAnswer:\n{bullet_lines}")
                 else:
-                    blocks.append(f"Q: {question.question}\nA: (No answer provided)")
+                    blocks.append(f"Question: {question.question}\nAnswer: (No answer provided)")
                 continue
 
             single_line = selected_lines[0] if selected_lines else "(No answer provided)"
-            blocks.append(f"Q: {question.question}\nA: {single_line}")
+            blocks.append(f"Question: {question.question}\nAnswer: {single_line}")
 
         return cls._BLOCK_SEPARATOR.join(blocks)

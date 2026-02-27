@@ -69,7 +69,6 @@ def test_manager_emits_event_and_resolves_response() -> None:
                         user_interaction.AskUserQuestionAnswer(
                             question_id="q1",
                             selected_option_ids=["a"],
-                            selected_option_labels=["A"],
                             other_text="",
                             note="n1",
                         )
