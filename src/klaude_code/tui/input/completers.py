@@ -60,6 +60,34 @@ def _command_display(name: str, hint: str) -> FormattedText:
     return FormattedText([("ansibrightblack", "•"), ("", f" {name}"), ("ansibrightblack", hint)])
 
 
+def _skill_match_rank(name: str, desc: str, frag_lower: str) -> tuple[int, int, int, int, int, int, int] | None:
+    """Return rank tuple for skill completion relevance, or None when not matched."""
+
+    name_lower = name.lower()
+    desc_lower = desc.lower()
+    skill_token_lower = f"{_SKILL_PREFIX}{name}".lower()
+
+    name_prefix = name_lower.startswith(frag_lower)
+    segment_prefix = any(seg.startswith(frag_lower) for seg in re.split(r"[-_:]", name_lower) if seg)
+    token_prefix = skill_token_lower.startswith(frag_lower)
+    name_contains = frag_lower in name_lower
+    token_contains = frag_lower in skill_token_lower
+    desc_contains = frag_lower in desc_lower
+
+    if not (name_contains or token_contains or desc_contains):
+        return None
+
+    return (
+        0 if name_prefix else 1,
+        0 if segment_prefix else 1,
+        0 if token_prefix else 1,
+        0 if name_contains else 1,
+        0 if token_contains else 1,
+        0 if desc_contains else 1,
+        len(name_lower),
+    )
+
+
 def create_repl_completer(
     command_info_provider: Callable[[], list[CommandInfo]] | None = None,
 ) -> Completer:
@@ -86,6 +114,8 @@ class _SlashCommandCompleter(Completer):
 
     Behavior:
     - `/...`: shows command + skill completions (command first)
+      - Command prefix match is always enabled
+      - When fragment length > 4, also include command name/summary contains-match after prefix matches
     - `//...`: shows only skill completions
     - Inserts trailing space after completion
     """
@@ -121,16 +151,41 @@ class _SlashCommandCompleter(Completer):
 
         skills = self._get_available_skills()
         frag_lower = frag.lower()
-        matched_skills: list[tuple[str, str, str]] = []
-        for name, desc, location in skills:
-            skill_token = f"{_SKILL_PREFIX}{name}"
-            if frag_lower in skill_token.lower() or frag_lower in name.lower() or frag_lower in desc.lower():
-                matched_skills.append((name, desc, location))
+        if frag_lower == "":
+            matched_skills = skills
+        else:
+            ranked_skills: list[tuple[tuple[int, int, int, int, int, int, int], str, str, str]] = []
+            for name, desc, location in skills:
+                rank = _skill_match_rank(name, desc, frag_lower)
+                if rank is not None:
+                    ranked_skills.append((rank, name, desc, location))
+            ranked_skills.sort(key=lambda x: x[0])
+            matched_skills = [(name, desc, location) for _, name, desc, location in ranked_skills]
 
         if prefix == "/":
+            frag_lower = frag.lower()
+            allow_contains_match = len(frag_lower) > 4
+
+            matched_prefix: list[CommandInfo] = []
+            matched_name_contains: list[CommandInfo] = []
+            matched_summary_contains: list[CommandInfo] = []
+
             for cmd_info in command_infos:
-                if not cmd_info.name.startswith(frag):
+                if cmd_info.name.startswith(frag):
+                    matched_prefix.append(cmd_info)
                     continue
+
+                if not allow_contains_match:
+                    continue
+
+                name_lower = cmd_info.name.lower()
+                summary_lower = cmd_info.summary.lower()
+                if frag_lower in name_lower:
+                    matched_name_contains.append(cmd_info)
+                elif frag_lower in summary_lower:
+                    matched_summary_contains.append(cmd_info)
+
+            for cmd_info in [*matched_prefix, *matched_name_contains, *matched_summary_contains]:
                 hint = f" [{cmd_info.placeholder}]" if cmd_info.support_addition_params else ""
                 yield Completion(
                     text=f"/{cmd_info.name} ",
@@ -197,11 +252,16 @@ class _SkillCompleter(Completer):
             return
 
         # Filter skills that match the fragment (case-insensitive)
-        matched: list[tuple[str, str, str]] = []  # (name, description, location)
-        for name, desc, location in skills:
-            skill_token = f"{_SKILL_PREFIX}{name}"
-            if frag in skill_token.lower() or frag in name.lower() or frag in desc.lower():
-                matched.append((name, desc, location))
+        if frag == "":
+            matched = skills
+        else:
+            ranked: list[tuple[tuple[int, int, int, int, int, int, int], str, str, str]] = []
+            for name, desc, location in skills:
+                rank = _skill_match_rank(name, desc, frag)
+                if rank is not None:
+                    ranked.append((rank, name, desc, location))
+            ranked.sort(key=lambda x: x[0])
+            matched = [(name, desc, location) for _, name, desc, location in ranked]
 
         if not matched:
             return
