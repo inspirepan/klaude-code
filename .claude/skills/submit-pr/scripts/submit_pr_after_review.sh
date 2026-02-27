@@ -34,6 +34,7 @@ base_branch="main"
 remote="origin"
 label="klaude"
 jj_rev="@-"
+jj_rev_explicit=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -70,6 +71,7 @@ while [[ $# -gt 0 ]]; do
     --jj-rev)
       [[ $# -ge 2 ]] || die "--jj-rev requires a value"
       jj_rev="$2"
+      jj_rev_explicit=1
       shift 2
       ;;
     -h|--help)
@@ -140,12 +142,33 @@ fi
 base_ref="$remote/$base_branch"
 compare_rev="HEAD"
 compare_ref="HEAD"
+commits=""
 if [[ "$mode" == "jj" ]]; then
-  compare_rev="$(jj log -r "$jj_rev" --no-graph --template 'commit_id')" || die "Failed to resolve jj revision '$jj_rev'."
-  compare_ref="$jj_rev"
-fi
+  if [[ "$jj_rev_explicit" -eq 1 ]]; then
+    compare_rev="$(jj log -r "$jj_rev" --no-graph --template 'commit_id')" || die "Failed to resolve jj revision '$jj_rev'."
+    compare_ref="$jj_rev"
+    commits="$(git log --oneline "$base_ref..$compare_rev")" || die "Failed to list commits from '$base_ref..$compare_ref'."
+  else
+    compare_rev="$(jj log -r "@-" --no-graph --template 'commit_id' 2>/dev/null || true)"
+    if [[ -n "$compare_rev" ]]; then
+      commits="$(git log --oneline "$base_ref..$compare_rev" 2>/dev/null || true)"
+      if [[ -n "$commits" ]]; then
+        compare_ref="@-"
+        jj_rev="@-"
+      fi
+    fi
 
-commits="$(git log --oneline "$base_ref..$compare_rev")" || die "Failed to list commits from '$base_ref..$compare_ref'."
+    if [[ -z "$commits" ]]; then
+      compare_rev="$(jj log -r "@" --no-graph --template 'commit_id')" || die "Failed to resolve jj revision '@'."
+      compare_ref="@"
+      jj_rev="@"
+      commits="$(git log --oneline "$base_ref..$compare_rev")" || die "Failed to list commits from '$base_ref..$compare_ref'."
+      echo "Info: auto-selected jj revision '@' for PR (default '@-' has no commits ahead of '$base_ref')." >&2
+    fi
+  fi
+else
+  commits="$(git log --oneline "$base_ref..$compare_rev")" || die "Failed to list commits from '$base_ref..$compare_ref'."
+fi
 if [[ -z "$commits" ]]; then
   die "No commits ahead of '$base_ref' at '$compare_ref'. Refusing to create empty PR.
 Fix: ensure changes are committed before running this script."
