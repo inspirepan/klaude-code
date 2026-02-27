@@ -192,7 +192,7 @@ class AskUserQuestionTool(ToolABC):
     ) -> str:
         blocks: list[str] = []
         for question in questions:
-            blocks.append(f"Q: {question.question}\nA: User declined to answer questions")
+            blocks.append(f"Q: {question.question}\nA: (User declined to answer questions)")
         return cls._BLOCK_SEPARATOR.join(blocks)
 
     @classmethod

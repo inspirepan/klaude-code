@@ -838,11 +838,11 @@ def select_questions[T](
         for idx, question in enumerate(questions):
             tab_style = "class:question_tab_active" if idx == active_tab_idx else "class:question_tab_inactive"
             check = "☒" if answered_by_question[idx] else "☐"
-            tokens.append((tab_style, f"{check} {question.header}"))
-            tokens.append(("class:text", "   "))
+            tokens.append((tab_style, f" {check} {question.header} "))
+            tokens.append(("class:text", " "))
 
         submit_style = "class:question_tab_active" if _is_submit_tab() else "class:question_tab_inactive"
-        tokens.append((submit_style, "✔ Submit"))
+        tokens.append((submit_style, " ✔ Submit "))
         tokens.append(("class:meta", "  Tab to cycle · Enter to confirm"))
         return tokens
 
@@ -1172,8 +1172,8 @@ def select_questions[T](
             ("frame.border", "fg:ansibrightblack dim"),
             ("frame.label", "fg:ansibrightblack italic"),
             ("search_placeholder", "fg:ansibrightblack italic"),
-            ("question_tab_inactive", "fg:ansibrightblack"),
-            ("question_tab_active", "fg:ansigreen bg:ansibrightblack bold"),
+            ("question_tab_inactive", "reverse fg:ansibrightblack"),
+            ("question_tab_active", "reverse fg:ansigreen bold"),
             ("warning", "fg:ansiyellow"),
             ("submit_option", "fg:black bold"),
         ]

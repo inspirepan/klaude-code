@@ -130,6 +130,6 @@ def test_ask_user_question_end_to_end_cancelled_by_manager() -> None:
         result = await task
         assert result.status == "success"
         assert result.continue_agent is False
-        assert result.output_text == "Q: What should we do?\nA: User declined to answer questions"
+        assert result.output_text == "Q: What should we do?\nA: (User declined to answer questions)"
 
     arun(_test())

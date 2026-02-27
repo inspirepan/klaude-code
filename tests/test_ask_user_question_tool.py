@@ -124,7 +124,7 @@ def test_ask_user_question_cancelled_response_returns_aborted() -> None:
     result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context(_callback)))
     assert result.status == "success"
     assert result.continue_agent is False
-    assert result.output_text == "Q: What should we do?\nA: User declined to answer questions"
+    assert result.output_text == "Q: What should we do?\nA: (User declined to answer questions)"
 
 
 def test_ask_user_question_single_select_format() -> None:
