@@ -9,7 +9,7 @@ from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
 from klaude_code.tui.machine import DisplayStateMachine
 from klaude_code.tui.renderer import TUICommandRenderer
-from klaude_code.tui.terminal.notifier import TerminalNotifier
+from klaude_code.tui.terminal.notifier import Notification, NotificationType, TerminalNotifier
 from klaude_code.ui.core.display import DisplayABC
 
 
@@ -125,3 +125,15 @@ class TUIDisplay(DisplayABC):
     def set_model_name(self, model_name: str | None) -> None:
         """Set model name for terminal title updates."""
         self._machine.set_model_name(model_name)
+
+    def notify_ask_user_question(self, *, question_count: int) -> None:
+        if question_count <= 0:
+            return
+        noun = "question" if question_count == 1 else "questions"
+        self._notifier.notify(
+            Notification(
+                type=NotificationType.ASK_USER_QUESTION,
+                title="Input Required",
+                body=f"{question_count} {noun} waiting for your answer",
+            )
+        )
