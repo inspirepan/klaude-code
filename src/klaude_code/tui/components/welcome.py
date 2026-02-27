@@ -44,16 +44,21 @@ def _build_grouped_tree(
     tree = _RoundedTree(Text(title, style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
     label_width = max(len(label) for label, _ in groups)
     for label, content in groups:
-        tree.add(Text(f"{label.ljust(label_width)} {content}", style=ThemeKey.WELCOME_INFO))
+        row = Text()
+        row.append(label, style=ThemeKey.WELCOME_SCOPE)
+        row.append(" " * (label_width - len(label)), style=ThemeKey.WELCOME_INFO)
+        row.append(f" {content}", style=ThemeKey.WELCOME_INFO)
+        tree.add(row)
     return tree
 
 
 def _build_skills_tree(grouped_skills: list[tuple[str, list[str]]]) -> Tree:
     tree = _RoundedTree(Text("skills", style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
     for scope, skills in grouped_skills:
-        scope_text = Text(f"[{scope}]", style=ThemeKey.WELCOME_INFO)
+        scope_text = Text()
+        scope_text.append(f"[{scope}]", style=ThemeKey.WELCOME_SCOPE)
         for skill in skills:
-            scope_text.append(f"\n {skill}", style=ThemeKey.WELCOME_INFO)
+            scope_text.append(f"\n • {skill}", style=ThemeKey.WELCOME_INFO)
         tree.add(scope_text)
     return tree
 
@@ -120,7 +125,11 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
             guide_style=ThemeKey.LINES,
         )
         for label, content in warning_items:
-            warning_tree.add(Text(f"{label.ljust(label_width)} {content}", style=ThemeKey.WARN))
+            row = Text()
+            row.append(label, style=ThemeKey.WARN_SCOPE)
+            row.append(" " * (label_width - len(label)), style=ThemeKey.WARN)
+            row.append(f" {content}", style=ThemeKey.WARN)
+            warning_tree.add(row)
         renderables.append(Text())
         renderables.append(warning_tree)
 
