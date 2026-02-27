@@ -128,7 +128,6 @@ def select_questions[T](
     active_tab_idx = 0
     pointed_at_by_question = [0 for _ in questions]
     selected_indices_by_question: list[set[int]] = [set() for _ in questions]
-    selected_other_by_question = [False for _ in questions]
     input_text_by_question = ["" for _ in questions]
     confirmed_results: list[QuestionSelectResult[T]] = [
         QuestionSelectResult(selected_values=[], input_text="") for _ in questions
@@ -219,22 +218,6 @@ def select_questions[T](
 
         selected_indices_by_question[question_idx] = {idx}
 
-    def _toggle_current_other_option() -> None:
-        if _is_submit_tab():
-            return
-
-        question_idx = _current_question_idx()
-        row = pointed_at_by_question[question_idx]
-        question = questions[question_idx]
-        if (
-            not question.multi_select
-            or question.other_value is None
-            or not _is_input_row(row, question_idx=question_idx)
-        ):
-            return
-
-        selected_other_by_question[question_idx] = not selected_other_by_question[question_idx]
-
     def _build_draft_result_for(question_idx: int) -> QuestionSelectResult[T]:
         question = questions[question_idx]
         effective: set[int] = set(selected_indices_by_question[question_idx])
@@ -261,12 +244,8 @@ def select_questions[T](
         else:
             input_text = input_text_by_question[question_idx]
 
-        if question.other_value is not None and question.other_value not in values:
-            if question.multi_select:
-                if selected_other_by_question[question_idx]:
-                    values.append(question.other_value)
-            elif input_text.strip():
-                values.append(question.other_value)
+        if question.other_value is not None and question.other_value not in values and input_text.strip():
+            values.append(question.other_value)
 
         return QuestionSelectResult(selected_values=values, input_text=input_text)
 
@@ -321,18 +300,20 @@ def select_questions[T](
 
     def get_tabs_tokens() -> list[tuple[str, str]]:
         tokens: list[tuple[str, str]] = []
+        if has_submit_tab:
+            tokens.append(("class:meta", "← "))
         for idx, question in enumerate(questions):
             tab_style = "class:question_tab_active" if idx == active_tab_idx else "class:question_tab_inactive"
-            check = "☒" if answered_by_question[idx] else "☐"
+            check = "✔" if answered_by_question[idx] else "☐"
             tokens.append((tab_style, f" {check} {question.header} "))
             tokens.append(("class:text", " "))
 
         if has_submit_tab:
             submit_style = "class:question_tab_active" if _is_submit_tab() else "class:question_tab_inactive"
             tokens.append((submit_style, " ✔ Submit "))
-            tokens.append(("class:meta", "  Tab to cycle · Enter to confirm"))
+            tokens.append(("class:meta", " → · Enter to confirm"))
         else:
-            tokens.append(("class:meta", " Enter to confirm"))
+            tokens.append(("class:meta", " → · Enter to confirm"))
         return tokens
 
     def get_header_tokens() -> list[tuple[str, str]]:
@@ -442,7 +423,7 @@ def select_questions[T](
 
         if question.multi_select and question.other_value is not None:
             prefix.append((row_style, row_num))
-            is_selected = selected_other_by_question[question_idx]
+            is_selected = bool(input_buffer.text.strip())
             marker = "[✔] " if is_selected else "[ ] "
             marker_style = "class:highlighted" if is_selected else "class:text"
             prefix.append((marker_style, marker))
@@ -521,6 +502,22 @@ def select_questions[T](
         " ",
         eager=True,
         filter=Condition(
+            lambda: (not _is_submit_tab()) and _is_question_submit_row(pointed_at_by_question[_current_question_idx()])
+        ),
+    )
+    def _(event: KeyPressEvent) -> None:
+        _confirm_current_question()
+        if not has_submit_tab:
+            event.app.exit(result=_confirmed_results())
+            return
+        _switch_tab(+1)
+        _sync_focus(event.app)
+        event.app.invalidate()
+
+    @kb.add(
+        " ",
+        eager=True,
+        filter=Condition(
             lambda: (not _is_submit_tab())
             and (not _is_input_row(pointed_at_by_question[_current_question_idx()]))
             and (not _is_question_submit_row(pointed_at_by_question[_current_question_idx()]))
@@ -559,7 +556,6 @@ def select_questions[T](
                 event.app.invalidate()
                 return
             if _is_input_row(row, question_idx=question_idx):
-                _toggle_current_other_option()
                 event.app.invalidate()
                 return
             _toggle_current_option()
