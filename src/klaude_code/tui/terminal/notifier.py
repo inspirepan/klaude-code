@@ -28,6 +28,7 @@ def resolve_stream(stream: TextIO | None) -> TextIO:
 
 class NotificationType(Enum):
     AGENT_TASK_COMPLETE = "agent_task_complete"
+    ASK_USER_QUESTION = "ask_user_question"
 
 
 @dataclass

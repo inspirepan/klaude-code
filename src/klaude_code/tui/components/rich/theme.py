@@ -221,6 +221,8 @@ class ThemeKey(str, Enum):
     WELCOME_HIGHLIGHT = "welcome.highlight"
     WELCOME_INFO = "welcome.info"
     WELCOME_INFO_BOLD = "welcome.info.bold"
+    WELCOME_SCOPE = "welcome.scope"
+    WARN_SCOPE = "warn.scope"
     # WELCOME DEBUG
     WELCOME_DEBUG_TITLE = "welcome.debug.title"
     WELCOME_DEBUG_BORDER = "welcome.debug.border"
@@ -364,6 +366,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.WELCOME_HIGHLIGHT.value: palette.blue,
                 ThemeKey.WELCOME_INFO.value: palette.grey1,
                 ThemeKey.WELCOME_INFO_BOLD.value: "bold " + palette.grey1,
+                ThemeKey.WELCOME_SCOPE.value: palette.grey1 + " on " + palette.code_background,
+                ThemeKey.WARN_SCOPE.value: palette.yellow + " on " + palette.code_background,
                 # WELCOME DEBUG
                 ThemeKey.WELCOME_DEBUG_TITLE.value: "bold " + palette.purple,
                 ThemeKey.WELCOME_DEBUG_BORDER.value: palette.purple,
@@ -405,7 +409,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.item.number": palette.grey2,
                 "markdown.link": "underline " + palette.blue,
                 "markdown.link_url": "underline " + palette.blue,
-                "markdown.image.placeholder": "italic " + palette.grey2,
+                "markdown.image.placeholder": palette.grey2,
                 "markdown.table.border": palette.grey2,
                 "markdown.checkbox.checked": palette.green,
                 "markdown.block_quote": palette.cyan,
@@ -432,7 +436,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.item.number": palette.grey2,
                 "markdown.link": "underline " + palette.blue,
                 "markdown.link_url": "underline " + palette.blue,
-                "markdown.image.placeholder": "italic " + palette.grey2,
+                "markdown.image.placeholder": palette.grey2,
                 "markdown.table.border": palette.grey2,
                 "markdown.checkbox.checked": palette.green,
                 "markdown.block_quote": palette.grey1,

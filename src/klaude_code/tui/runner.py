@@ -268,6 +268,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         answers: list[user_interaction.AskUserQuestionAnswer] = []
         tui_display = _get_tui_display()
         if tui_display is not None:
+            tui_display.notify_ask_user_question(question_count=len(payload.questions))
             tui_display.hide_progress_ui()
 
         prompts: list[QuestionPrompt[str]] = []
