@@ -15,7 +15,7 @@ Options:
   --base <branch>         Base branch (default: main)
   --remote <remote>       Git remote (default: origin)
   --label <label>         PR label (default: klaude)
-  --jj-rev <rev>          Revision for jj bookmark (default: @-)
+  --jj-rev <rev>          Revision for jj bookmark (default: auto, prefer @ then @-)
   -h, --help              Show this help
 
 Push reviewed changes and create a PR via gh. Auto-detects jj/git mode.
@@ -33,7 +33,7 @@ head_name=""
 base_branch="main"
 remote="origin"
 label="klaude"
-jj_rev="@-"
+jj_rev=""
 jj_rev_explicit=0
 
 while [[ $# -gt 0 ]]; do
@@ -149,21 +149,26 @@ if [[ "$mode" == "jj" ]]; then
     compare_ref="$jj_rev"
     commits="$(git log --oneline "$base_ref..$compare_rev")" || die "Failed to list commits from '$base_ref..$compare_ref'."
   else
-    compare_rev="$(jj log -r "@-" --no-graph --template 'commit_id' 2>/dev/null || true)"
-    if [[ -n "$compare_rev" ]]; then
-      commits="$(git log --oneline "$base_ref..$compare_rev" 2>/dev/null || true)"
+    compare_rev="$(jj log -r "@" --no-graph --template 'commit_id')" || die "Failed to resolve jj revision '@'."
+    compare_ref="@"
+    jj_rev="@"
+    commits="$(git log --oneline "$base_ref..$compare_rev" 2>/dev/null || true)"
+
+    if [[ -z "$commits" ]]; then
+      compare_rev="$(jj log -r "@-" --no-graph --template 'commit_id' 2>/dev/null || true)"
+      compare_ref="@-"
+      jj_rev="@-"
+      if [[ -n "$compare_rev" ]]; then
+        commits="$(git log --oneline "$base_ref..$compare_rev" 2>/dev/null || true)"
+      fi
       if [[ -n "$commits" ]]; then
-        compare_ref="@-"
-        jj_rev="@-"
+        echo "Info: auto-selected jj revision '@-' for PR (current '@' has no commits ahead of '$base_ref')." >&2
       fi
     fi
 
     if [[ -z "$commits" ]]; then
-      compare_rev="$(jj log -r "@" --no-graph --template 'commit_id')" || die "Failed to resolve jj revision '@'."
       compare_ref="@"
       jj_rev="@"
-      commits="$(git log --oneline "$base_ref..$compare_rev")" || die "Failed to list commits from '$base_ref..$compare_ref'."
-      echo "Info: auto-selected jj revision '@' for PR (default '@-' has no commits ahead of '$base_ref')." >&2
     fi
   fi
 else
