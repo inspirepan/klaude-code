@@ -304,7 +304,7 @@ def select_questions[T](
             tokens.append(("class:meta", "← "))
         for idx, question in enumerate(questions):
             tab_style = "class:question_tab_active" if idx == active_tab_idx else "class:question_tab_inactive"
-            check = "●" if answered_by_question[idx] else "○"
+            check = "✔" if answered_by_question[idx] else "☐"
             tokens.append((tab_style, f" {check} {question.header} "))
             tokens.append(("class:text", " "))
 
