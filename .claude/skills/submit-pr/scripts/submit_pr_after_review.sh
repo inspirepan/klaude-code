@@ -138,9 +138,16 @@ fi
 
 # --- Verify commits exist ---
 base_ref="$remote/$base_branch"
-commits="$(git log --oneline "$base_ref..HEAD")" || die "Failed to list commits from '$base_ref..HEAD'."
+compare_rev="HEAD"
+compare_ref="HEAD"
+if [[ "$mode" == "jj" ]]; then
+  compare_rev="$(jj log -r "$jj_rev" --no-graph --template 'commit_id')" || die "Failed to resolve jj revision '$jj_rev'."
+  compare_ref="$jj_rev"
+fi
+
+commits="$(git log --oneline "$base_ref..$compare_rev")" || die "Failed to list commits from '$base_ref..$compare_ref'."
 if [[ -z "$commits" ]]; then
-  die "No commits ahead of '$base_ref'. Refusing to create empty PR.
+  die "No commits ahead of '$base_ref' at '$compare_ref'. Refusing to create empty PR.
 Fix: ensure changes are committed before running this script."
 fi
 

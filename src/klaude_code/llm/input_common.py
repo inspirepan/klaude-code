@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMCallParameter, LLMConfigParameter
 
 from klaude_code.const import DEFAULT_MAX_TOKENS, EMPTY_TOOL_OUTPUT_MESSAGE
-from klaude_code.llm.image import image_file_to_data_url
+from klaude_code.llm.image import image_file_to_data_url, normalize_image_data_url
 from klaude_code.protocol import message
 
 ImagePart = message.ImageURLPart | message.ImageFilePart
@@ -97,7 +97,7 @@ def build_chat_content_parts(
         if isinstance(part, message.TextPart):
             parts.append({"type": "text", "text": part.text})
         elif isinstance(part, message.ImageURLPart):
-            parts.append({"type": "image_url", "image_url": {"url": part.url}})
+            parts.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(part.url)}})
         elif isinstance(part, message.ImageFilePart):
             parts.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(part)}})
     if attachment.text:
@@ -106,7 +106,7 @@ def build_chat_content_parts(
         if isinstance(image, message.ImageFilePart):
             parts.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(image)}})
         else:
-            parts.append({"type": "image_url", "image_url": {"url": image.url}})
+            parts.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(image.url)}})
     if not parts:
         parts.append({"type": "text", "text": ""})
     return parts
@@ -129,12 +129,12 @@ def build_tool_message(
         if isinstance(part, message.ImageFilePart):
             content.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(part)}})
         elif isinstance(part, message.ImageURLPart):
-            content.append({"type": "image_url", "image_url": {"url": part.url}})
+            content.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(part.url)}})
     for image in attachment.images:
         if isinstance(image, message.ImageFilePart):
             content.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(image)}})
         else:
-            content.append({"type": "image_url", "image_url": {"url": image.url}})
+            content.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(image.url)}})
     return {
         "role": "tool",
         "content": content,
@@ -167,12 +167,12 @@ def build_tool_message_for_chat_completions(
         if isinstance(part, message.ImageFilePart):
             image_urls.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(part)}})
         elif isinstance(part, message.ImageURLPart):
-            image_urls.append({"type": "image_url", "image_url": {"url": part.url}})
+            image_urls.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(part.url)}})
     for image in attachment.images:
         if isinstance(image, message.ImageFilePart):
             image_urls.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(image)}})
         else:
-            image_urls.append({"type": "image_url", "image_url": {"url": image.url}})
+            image_urls.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(image.url)}})
 
     # If only images (no text), use placeholder
     has_text = bool(merged_text.strip())

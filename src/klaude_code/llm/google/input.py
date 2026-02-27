@@ -11,7 +11,7 @@ from typing import Any, cast
 from google.genai import types
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
-from klaude_code.llm.image import image_file_to_data_url, parse_data_url
+from klaude_code.llm.image import image_file_to_data_url, normalize_image_data_url, parse_data_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
     ImagePart,
@@ -30,7 +30,11 @@ def _data_url_to_blob(url: str) -> types.Blob:
 
 
 def _image_part_to_part(image: ImagePart) -> types.Part:
-    url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image.url
+    url = (
+        image_file_to_data_url(image)
+        if isinstance(image, message.ImageFilePart)
+        else normalize_image_data_url(image.url)
+    )
     if url.startswith("data:"):
         return types.Part(inline_data=_data_url_to_blob(url))
     # Best-effort: Gemini supports file URIs, and may accept public HTTPS URLs.
@@ -38,7 +42,11 @@ def _image_part_to_part(image: ImagePart) -> types.Part:
 
 
 def _image_part_to_function_response_part(image: ImagePart) -> types.FunctionResponsePart:
-    url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image.url
+    url = (
+        image_file_to_data_url(image)
+        if isinstance(image, message.ImageFilePart)
+        else normalize_image_data_url(image.url)
+    )
     if url.startswith("data:"):
         media_type, _, decoded = parse_data_url(url)
         return types.FunctionResponsePart.from_bytes(data=decoded, mime_type=media_type)

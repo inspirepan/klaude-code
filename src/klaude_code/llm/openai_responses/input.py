@@ -7,7 +7,7 @@ from typing import Any, cast
 from openai.types import responses
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
-from klaude_code.llm.image import image_file_to_data_url
+from klaude_code.llm.image import image_file_to_data_url, normalize_image_data_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
     attach_developer_messages,
@@ -20,7 +20,7 @@ from klaude_code.protocol import llm_param, message
 def _image_to_url(image: message.ImageURLPart | message.ImageFilePart) -> str:
     if isinstance(image, message.ImageFilePart):
         return image_file_to_data_url(image)
-    return image.url
+    return normalize_image_data_url(image.url)
 
 
 def _build_user_content_parts(
