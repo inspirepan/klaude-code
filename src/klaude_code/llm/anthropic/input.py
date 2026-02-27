@@ -18,7 +18,7 @@ from anthropic.types.beta.beta_tool_use_block_param import BetaToolUseBlockParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
-from klaude_code.llm.image import image_file_to_data_url, parse_data_url
+from klaude_code.llm.image import image_file_to_data_url, normalize_image_data_url, parse_data_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
     ImagePart,
@@ -39,7 +39,11 @@ _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
 
 
 def _image_part_to_block(image: ImagePart) -> BetaImageBlockParam:
-    url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image.url
+    url = (
+        image_file_to_data_url(image)
+        if isinstance(image, message.ImageFilePart)
+        else normalize_image_data_url(image.url)
+    )
     if url.startswith("data:"):
         media_type, base64_payload, _ = parse_data_url(url)
         if media_type not in _INLINE_IMAGE_MEDIA_TYPES:

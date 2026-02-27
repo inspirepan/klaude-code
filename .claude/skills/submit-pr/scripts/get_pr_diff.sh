@@ -67,9 +67,16 @@ else
 Fix: check network connectivity and run 'git fetch $remote $base_branch' manually."
 fi
 
-commits="$(git log --oneline "$base_ref..HEAD")" || die "Failed to list commits from '$base_ref..HEAD'."
+head_rev="HEAD"
+head_ref="HEAD"
+if [[ "$mode" == "jj" ]]; then
+  head_rev="$(jj log -r @ --no-graph --template 'commit_id')" || die "Failed to resolve jj revision '@'."
+  head_ref="@"
+fi
+
+commits="$(git log --oneline "$base_ref..$head_rev")" || die "Failed to list commits from '$base_ref..$head_ref'."
 if [[ -z "$commits" ]]; then
-  die "No commits ahead of '$base_ref'. Nothing to include in a PR.
+  die "No commits ahead of '$base_ref' at '$head_ref'. Nothing to include in a PR.
 Fix: if you have uncommitted changes, commit them first:
   jj mode: jj describe -m '<msg>' && jj new
   git mode: git add -A && git commit -m '<msg>'
@@ -77,13 +84,13 @@ Then re-run this script.
 Remaining steps: get diff -> review -> write PR body -> submit PR."
 fi
 
-head_sha="$(git rev-parse --short HEAD)" || die "Failed to resolve HEAD sha."
+head_sha="$(git rev-parse --short "$head_rev")" || die "Failed to resolve head sha for '$head_ref'."
 
 cat <<EOF
 === PR_DIFF_METADATA ===
 mode: $mode
 base_ref: $base_ref
-head_ref: HEAD
+head_ref: $head_ref
 head_sha: $head_sha
 === PR_COMMITS_BEGIN ===
 $commits
@@ -91,6 +98,6 @@ $commits
 === PR_DIFF_BEGIN ===
 EOF
 
-git --no-pager diff --no-color --patch --find-renames "$base_ref...HEAD" || die "Failed to generate diff from '$base_ref...HEAD'."
+git --no-pager diff --no-color --patch --find-renames "$base_ref...$head_rev" || die "Failed to generate diff from '$base_ref...$head_ref'."
 
 echo "=== PR_DIFF_END ==="
