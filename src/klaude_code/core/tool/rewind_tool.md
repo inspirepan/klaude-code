@@ -14,4 +14,4 @@ The note you provide will be shown to your future self at the checkpoint, so inc
 IMPORTANT:
 - File system changes are NOT reverted - only conversation history is affected
 - Checkpoints are created automatically once after each new user message
-- Available checkpoints appear as <system>Checkpoint N</system> in the conversation
+- Available checkpoints appear as <system-reminder>Checkpoint N</system-reminder> in the conversation

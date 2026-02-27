@@ -16,7 +16,7 @@ from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
 
 _DEFAULT_STORES: dict[str, JsonlSessionStore] = {}
 
-_CHECKPOINT_RE = re.compile(r"<system>Checkpoint (\d+)</system>")
+_CHECKPOINT_RE = re.compile(r"<system-reminder>Checkpoint (\d+)</system-reminder>")
 
 
 def _extract_checkpoint_id(text: str) -> int | None:
@@ -248,13 +248,13 @@ class Session(BaseModel):
         checkpoint_id = self.next_checkpoint_id
         self.next_checkpoint_id += 1
         checkpoint_msg = message.DeveloperMessage(
-            parts=[message.TextPart(text=f"<system>Checkpoint {checkpoint_id}</system>")]
+            parts=[message.TextPart(text=f"<system-reminder>Checkpoint {checkpoint_id}</system-reminder>")]
         )
         self.append_history([checkpoint_msg])
         return checkpoint_id
 
     def find_checkpoint_index(self, checkpoint_id: int) -> int | None:
-        target_text = f"<system>Checkpoint {checkpoint_id}</system>"
+        target_text = f"<system-reminder>Checkpoint {checkpoint_id}</system-reminder>"
         for i, item in enumerate(self.conversation_history):
             if not isinstance(item, message.DeveloperMessage):
                 continue
@@ -320,7 +320,7 @@ class Session(BaseModel):
                 return message.DeveloperMessage(
                     parts=[
                         message.TextPart(
-                            text=f"<system>After this, some operations were performed and context was refined via Rewind. Rationale: {item.rationale}. Summary: {item.note}. Please continue.</system>"
+                            text=f"<system-reminder>After this, some operations were performed and context was refined via Rewind. Rationale: {item.rationale}. Summary: {item.note}. Please continue.</system-reminder>"
                         )
                     ]
                 )
