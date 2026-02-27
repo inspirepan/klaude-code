@@ -391,6 +391,14 @@ provider_list:
       type: adaptive
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
+  - model_name: sonnet-4.5
+    model_id: claude-sonnet-4-5
+    context_limit: 200000
+    thinking:
+      type: enabled
+      budget_tokens: 2048
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
   - model_name: haiku
     model_id: claude-haiku-4-5
     context_limit: 200000
