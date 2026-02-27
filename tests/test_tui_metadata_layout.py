@@ -67,3 +67,30 @@ def test_sub_agent_description_shows_before_token_details() -> None:
     assert token_idx != -1
     assert model_idx < description_idx < token_idx
     assert "sub-model scan repo, input 1k" in output
+
+
+def test_sub_agent_identity_splits_name_and_model_on_narrow_width() -> None:
+    event = events.TaskMetadataEvent(
+        session_id="test",
+        metadata=model.TaskMetadataItem(
+            main_agent=model.TaskMetadata(model_name="main-model"),
+            sub_agent_task_metadata=[
+                model.TaskMetadata(
+                    sub_agent_name="Explore",
+                    description="tool flow scan",
+                    model_name="anthropic/claude-haiku-4.5",
+                    provider="google/gemini",
+                    usage=model.Usage(input_tokens=1200, output_tokens=300),
+                )
+            ],
+        ),
+    )
+
+    console = Console(width=78, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_task_metadata(event))
+    lines = [line.rstrip() for line in console.export_text(styles=False).splitlines()]
+
+    explore_idx = next(i for i, line in enumerate(lines) if "Explore" in line)
+    model_idx = next(i for i, line in enumerate(lines) if "anthropic/claude-haiku-4.5" in line)
+
+    assert model_idx == explore_idx + 1
