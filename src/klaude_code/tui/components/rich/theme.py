@@ -288,7 +288,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.USER_INPUT_PROMPT.value: f"bold {palette.cyan} on {palette.user_message_background}",
                 ThemeKey.USER_INPUT_AT_PATTERN.value: f"{palette.purple} on {palette.user_message_background}",
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: f"bold {palette.blue} on {palette.user_message_background}",
-                ThemeKey.USER_INPUT_SKILL.value: f"bold {palette.green} on {palette.user_message_background}",
+                ThemeKey.USER_INPUT_SKILL.value: f"bold {palette.blue} on {palette.user_message_background}",
                 # ASSISTANT
                 ThemeKey.ASSISTANT_MESSAGE_MARK.value: "bold",
                 # METADATA

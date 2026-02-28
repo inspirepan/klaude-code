@@ -109,7 +109,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                         Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
                         Text.assemble(
                             ("Activated skill ", ThemeKey.REMINDER),
-                            (item.name, ThemeKey.REMINDER_BOLD),
+                            (item.name, ThemeKey.TOOL_PARAM_FILE_PATH_SKILL_NAME),
                         ),
                     )
                     parts.append(grid)
