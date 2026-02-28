@@ -10,12 +10,10 @@ if TYPE_CHECKING:
 from klaude_code.core.prompts.system_prompt import load_system_prompt
 from klaude_code.core.reminders import (
     at_file_reader_reminder,
-    empty_todo_reminder,
     image_reminder,
     last_path_memory_reminder,
     memory_reminder,
     skill_reminder,
-    todo_not_used_recently_reminder,
 )
 from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_registry import get_tool_schemas
@@ -106,25 +104,16 @@ def load_agent_reminders(
 
     del model_name
 
-    reminders: list[Reminder] = []
-    tool_name_set = {tool_schema.name for tool_schema in (available_tools or [])}
+    del sub_agent_type
+    del available_tools
 
-    # Enable todo reminders only when TodoWrite is actually available.
-    if sub_agent_type is None and tools.TODO_WRITE in tool_name_set:
-        reminders.append(empty_todo_reminder)
-        reminders.append(todo_not_used_recently_reminder)
-
-    reminders.extend(
-        [
-            memory_reminder,
-            at_file_reader_reminder,
-            last_path_memory_reminder,
-            image_reminder,
-            skill_reminder,
-        ]
-    )
-
-    return reminders
+    return [
+        memory_reminder,
+        at_file_reader_reminder,
+        last_path_memory_reminder,
+        image_reminder,
+        skill_reminder,
+    ]
 
 
 def with_structured_output(profile: AgentProfile, output_schema: dict[str, Any]) -> AgentProfile:
