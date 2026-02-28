@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 
-from klaude_code.tui.input.prompt_toolkit import _trim_formatted_text_with_ellipsis  # pyright: ignore[reportPrivateUsage]
+from klaude_code.tui.input.prompt_toolkit import (
+    _trim_formatted_text_with_ellipsis,  # pyright: ignore[reportPrivateUsage]
+)
 
 
 def _render_fragments(text: StyleAndTextTuples) -> str:

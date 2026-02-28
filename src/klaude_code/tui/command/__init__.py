@@ -29,7 +29,6 @@ def ensure_commands_loaded() -> None:
     _commands_loaded = True
 
     # Import and register commands in display order
-    from .new_cmd import NewCommand
     from .compact_cmd import CompactCommand
     from .continue_cmd import ContinueCommand
     from .copy_cmd import CopyCommand
@@ -39,6 +38,7 @@ def ensure_commands_loaded() -> None:
     from .login_cmd import LoginCommand
     from .logout_cmd import LogoutCommand
     from .model_cmd import ModelCommand
+    from .new_cmd import NewCommand
     from .refresh_cmd import RefreshTerminalCommand
     from .status_cmd import StatusCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
