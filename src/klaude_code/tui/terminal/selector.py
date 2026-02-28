@@ -122,7 +122,6 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
 
         for m in group_models:
             model_idx += 1
-            provider = str(getattr(m, "provider", ""))
             model_id_str = m.model_id or "N/A"
             display_name = m.model_name
             first_line_prefix = f"{display_name:<{max_model_name_length}}"
@@ -133,8 +132,6 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
                 ("class:msg", first_line_prefix),
                 ("class:msg dim", " → "),
                 ("class:msg ansiblue", model_id_str),
-                ("class:msg dim", " · "),
-                ("class:msg ansibrightblack", provider),
             ]
 
             if meta_str:
@@ -142,6 +139,7 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
                 title.append(("class:meta", meta_str))
 
             title.append(("class:meta", "\n"))
+            provider = str(getattr(m, "provider", ""))
             search_text = f"{m.selector} {m.model_name} {model_id_str} {provider}"
             items.append(SelectItem(title=title, value=m.selector, search_text=search_text))
 
