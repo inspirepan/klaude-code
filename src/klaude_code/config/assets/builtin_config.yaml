@@ -451,6 +451,14 @@ provider_list:
       type: enabled
       budget_tokens: 8192
 
+  - model_name: kimi
+    model_id: kimi-k2.5
+    context_limit: 262144
+    cost: { input: 4, output: 21, cache_read: 0.7, currency: CNY }
+    thinking:
+      type: enabled
+      budget_tokens: 8192
+
 compact_model: gemini-flash
 
 sub_agent_models:
