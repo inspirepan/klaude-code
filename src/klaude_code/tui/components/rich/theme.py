@@ -185,6 +185,7 @@ class ThemeKey(str, Enum):
     TOOL_RESULT_TREE_PREFIX = "tool.result.tree_prefix"
     TOOL_RESULT_TRUNCATED = "tool.result.truncated"
     TOOL_RESULT_BOLD = "tool.result.bold"
+    COMMAND_OUTPUT = "command.output"
     SESSION_STATUS = "session.status"
     SESSION_STATUS_BOLD = "session.status.bold"
     TOOL_MARK = "tool.mark"
@@ -332,6 +333,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_RESULT_TREE_PREFIX.value: palette.grey3,
                 ThemeKey.TOOL_RESULT_BOLD.value: "bold " + palette.grey_green,
                 ThemeKey.TOOL_RESULT_TRUNCATED.value: palette.grey1 + " dim",
+                ThemeKey.COMMAND_OUTPUT.value: palette.grey1,
                 ThemeKey.SESSION_STATUS.value: palette.grey1,
                 ThemeKey.SESSION_STATUS_BOLD.value: "bold " + palette.grey1,
                 ThemeKey.TOOL_MARK.value: "bold",

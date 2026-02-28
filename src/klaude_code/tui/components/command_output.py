@@ -17,7 +17,7 @@ def render_command_output(e: events.CommandOutputEvent) -> RenderableType:
             return _render_fork_session_output(e)
         case _:
             content = e.content or "(no content)"
-            style = ThemeKey.TOOL_RESULT if not e.is_error else ThemeKey.ERROR
+            style = ThemeKey.COMMAND_OUTPUT if not e.is_error else ThemeKey.ERROR
             return truncate_middle(content, base_style=style)
 
 
@@ -81,7 +81,6 @@ def _render_status_output(e: events.CommandOutputEvent) -> RenderableType:
 
     blocks: list[RenderableType] = []
 
-    blocks.append(Text())
     blocks.append(section_title("Session Info"))
     blocks.append(
         kv_table(
