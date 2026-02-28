@@ -404,7 +404,7 @@ def _build_search_container(
     frame: bool = True,
 ) -> tuple[Window, Container]:
     """Build the search input container with placeholder."""
-    placeholder_text = f"{search_placeholder} · ↑↓ to select · enter/tab to confirm · esc to quit"
+    placeholder_text = f"{search_placeholder} · ↑/↓ to select · enter/tab to confirm · esc to quit"
 
     search_prefix_window = Window(
         FormattedTextControl([("class:search_prefix", "/ ")]),
@@ -590,12 +590,6 @@ def select_one[T](
         dont_extend_height=Always(),
         always_hide_cursor=Always(),
     )
-    spacer_window = Window(
-        FormattedTextControl([("", "")]),
-        height=1,
-        dont_extend_height=Always(),
-        always_hide_cursor=Always(),
-    )
     list_window = Window(
         FormattedTextControl(get_choices_tokens),
         # Keep 1 line of context above the cursor so non-selectable header rows
@@ -622,9 +616,10 @@ def select_one[T](
     )
     merged_style = merge_styles([base_style, style] if style is not None else [base_style])
 
-    root_children: list[Container] = [top_spacer_window, header_window, spacer_window, list_window]
+    root_children: list[Container] = [top_spacer_window, header_window]
     if search_container is not None:
         root_children.append(search_container)
+    root_children.append(list_window)
 
     app: Application[T | None] = Application(
         layout=Layout(HSplit(root_children), focused_element=search_input_window or list_window),
@@ -852,17 +847,10 @@ class SelectOverlay[T]:
             dont_extend_height=Always(),
             always_hide_cursor=Always(),
         )
-        spacer_window = Window(
-            FormattedTextControl([("", "")]),
-            height=1,
-            dont_extend_height=Always(),
-            always_hide_cursor=Always(),
-        )
-
         def get_list_height() -> int:
             # Dynamic height: min of configured height and available terminal space
-            # Overhead: header(1) + spacer(1) + search(1) + frame borders(2) + prompt area(3)
-            overhead = 8
+            # Overhead: header(1) + search(1) + frame borders(2) + prompt area(3)
+            overhead = 7
             try:
                 terminal_height = get_app().output.get_size().rows
                 available = max(3, terminal_height - overhead)
@@ -908,9 +896,10 @@ class SelectOverlay[T]:
                 frame=False,
             )
 
-        root_children: list[Container] = [header_window, spacer_window, list_window]
+        root_children: list[Container] = [header_window]
         if search_container is not None:
             root_children.append(search_container)
+        root_children.append(list_window)
 
         framed_content = _build_rounded_frame(HSplit(root_children, padding=0), padding_x=1)
         return ConditionalContainer(content=framed_content, filter=Condition(lambda: self._is_open))
