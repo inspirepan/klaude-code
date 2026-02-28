@@ -40,7 +40,6 @@ def ensure_commands_loaded() -> None:
     from .logout_cmd import LogoutCommand
     from .model_cmd import ModelCommand
     from .refresh_cmd import RefreshTerminalCommand
-    from .resume_cmd import ResumeCommand
     from .status_cmd import StatusCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
     from .thinking_cmd import ThinkingCommand
@@ -59,7 +58,6 @@ def ensure_commands_loaded() -> None:
     register(ForkSessionCommand())
     load_prompt_commands()
     register(StatusCommand())
-    register(ResumeCommand())
     register(DebugCommand())
     register(ClearCommand())
 
@@ -80,7 +78,6 @@ def __getattr__(name: str) -> object:
         "LogoutCommand": "logout_cmd",
         "ModelCommand": "model_cmd",
         "RefreshTerminalCommand": "refresh_cmd",
-        "ResumeCommand": "resume_cmd",
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",
         "ThinkingCommand": "thinking_cmd",

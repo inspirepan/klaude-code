@@ -1,11 +1,6 @@
-import asyncio
-
 from klaude_code.log import log
-from klaude_code.protocol import commands, events, message, op
 from klaude_code.session.selector import build_session_select_options, format_user_messages_display
 from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, select_one
-
-from .command_abc import Agent, CommandABC, CommandResult
 
 
 def select_session_sync(session_ids: list[str] | None = None) -> str | None:
@@ -57,44 +52,3 @@ def select_session_sync(session_ids: list[str] | None = None) -> str | None:
         )
     except KeyboardInterrupt:
         return None
-
-
-class ResumeCommand(CommandABC):
-    """Resume a previous session."""
-
-    @property
-    def name(self) -> commands.CommandName:
-        return commands.CommandName.RESUME
-
-    @property
-    def summary(self) -> str:
-        return "Resume a previous session"
-
-    @property
-    def is_interactive(self) -> bool:
-        return True
-
-    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
-        del user_input  # unused
-
-        if agent.session.messages_count > 0:
-            event = events.CommandOutputEvent(
-                session_id=agent.session.id,
-                command_name=self.name,
-                content="Cannot resume: current session already has messages. Use `klaude -r` to start a new instance with session selection.",
-                is_error=True,
-            )
-            return CommandResult(events=[event])
-
-        selected_session_id = await asyncio.to_thread(select_session_sync)
-        if selected_session_id is None:
-            event = events.CommandOutputEvent(
-                session_id=agent.session.id,
-                command_name=self.name,
-                content="(no session selected)",
-            )
-            return CommandResult(events=[event])
-
-        return CommandResult(
-            operations=[op.ResumeSessionOperation(target_session_id=selected_session_id)],
-        )

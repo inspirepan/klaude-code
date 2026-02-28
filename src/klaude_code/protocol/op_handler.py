@@ -20,7 +20,6 @@ if TYPE_CHECKING:
         ExportSessionOperation,
         InitAgentOperation,
         InterruptOperation,
-        ResumeSessionOperation,
         RunAgentOperation,
         RunBashOperation,
         UserInteractionRespondOperation,
@@ -64,10 +63,6 @@ class OperationHandler(Protocol):
 
     async def handle_clear_session(self, operation: ClearSessionOperation) -> None:
         """Handle a clear session operation."""
-        ...
-
-    async def handle_resume_session(self, operation: ResumeSessionOperation) -> None:
-        """Handle a resume session operation."""
         ...
 
     async def handle_export_session(self, operation: ExportSessionOperation) -> None:
