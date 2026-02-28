@@ -92,10 +92,11 @@ def test_at_files_completer_formats_display_labels() -> None:
     ]
 
     # Calculate align_width as the completer does
-    align_width = completer._display_align_width(suggestions)  # pyright: ignore[reportPrivateUsage]
+    name_limit = completer._display_name_limit()  # pyright: ignore[reportPrivateUsage]
+    align_width = completer._display_align_width(suggestions, name_limit)  # pyright: ignore[reportPrivateUsage]
 
     labels = [
-        completer._format_display_label(suggestion, align_width)  # pyright: ignore[reportPrivateUsage]
+        completer._format_display_label(suggestion, align_width, name_limit)  # pyright: ignore[reportPrivateUsage]
         for suggestion in suggestions
     ]
 
@@ -106,6 +107,26 @@ def test_at_files_completer_formats_display_labels() -> None:
 
     # All labels should have the same length (aligned)
     assert len(labels[0]) == len(labels[1]) == len(labels[2])
+
+
+def test_at_files_completer_truncates_long_display_name_and_reduces_gap(monkeypatch: pytest.MonkeyPatch) -> None:
+    completer = _AtFilesCompleter()  # pyright: ignore[reportPrivateUsage]
+
+    monkeypatch.setattr(completer, "_display_name_limit", lambda: 10)  # pyright: ignore[reportUnknownLambdaType]
+    name_limit = completer._display_name_limit()  # pyright: ignore[reportPrivateUsage]
+
+    suggestions = [
+        "src/very_very_long_tools_filename.py",
+        "src/x.py",
+    ]
+    align_width = completer._display_align_width(suggestions, name_limit)  # pyright: ignore[reportPrivateUsage]
+
+    long_label = completer._format_display_label(suggestions[0], align_width, name_limit)  # pyright: ignore[reportPrivateUsage]
+    short_label = completer._format_display_label(suggestions[1], align_width, name_limit)  # pyright: ignore[reportPrivateUsage]
+
+    assert long_label.strip().endswith("…")
+    # With one aligned column, trailing pad is now just 2 spaces.
+    assert short_label.endswith("  ")
 
 
 def test_git_paths_for_keyword_includes_all_tools_dirs_even_when_many_files_match(
