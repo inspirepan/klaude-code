@@ -27,6 +27,11 @@ provider_list:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
+  - model_name: haiku
+    model_id: claude-haiku-4-5-20251001
+    context_limit: 200000
+    cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
+
 - provider_name: openai
   protocol: responses
   api_key: ${OPENAI_API_KEY}
@@ -42,8 +47,7 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
-  - model_name: gpt-5.3-codex
-    model_id: gpt-5.3-codex
+  - model_id: gpt-5.3-codex
     thinking:
       reasoning_effort: high
       reasoning_summary: auto
@@ -102,26 +106,6 @@ provider_list:
       - moonshotai/int4
       - novita
     cost: { input: 0.6, output: 3, cache_read: 0.1 }
-
-  - model_name: kimi-no-thinking
-    model_id: moonshotai/kimi-k2.5
-    context_limit: 262144
-    provider_routing:
-      only:
-      - fireworks
-      - moonshotai/int4
-      - novita
-    cost: { input: 0.6, output: 3, cache_read: 0.1 }
-
-  - model_name: qwen
-    model_id: qwen/qwen3-coder-next
-    context_limit: 262144
-    cost: { input: 0.2, output: 1.5 }
-
-  - model_name: qwen-3.5-plus
-    model_id: qwen/qwen3.5-plus-02-15
-    context_limit: 1000000
-    cost: { input: 0.4, output: 2.4 }
 
   - model_name: haiku
     model_id: anthropic/claude-haiku-4.5
@@ -274,11 +258,6 @@ provider_list:
       budget_tokens: 8192
     cost: { input: 4, output: 21, cache_read: 0.7, currency: CNY }
 
-  - model_name: kimi-no-thinking
-    model_id: kimi-k2.5
-    context_limit: 262144
-    cost: { input: 4, output: 21, cache_read: 0.7, currency: CNY }
-
 - provider_name: opencode-zen
   protocol: openai
   api_key: ${OPENCODE_API_KEY}
@@ -344,8 +323,7 @@ provider_list:
   protocol: codex_oauth
   model_list:
 
-  - model_name: gpt-5.3-codex
-    model_id: gpt-5.3-codex
+  - model_id: gpt-5.3-codex
     thinking:
       reasoning_effort: high
       reasoning_summary: auto
@@ -366,8 +344,7 @@ provider_list:
   protocol: copilot_oauth
   model_list:
 
-  - model_name: gpt-5.3-codex
-    model_id: gpt-5.3-codex
+  - model_id: gpt-5.3-codex
     thinking:
       reasoning_effort: high
       reasoning_summary: auto
@@ -458,8 +435,6 @@ provider_list:
     thinking:
       type: enabled
       budget_tokens: 8192
-
-compact_model: gemini-flash
 
 sub_agent_models:
   Explore: sonnet-no-thinking

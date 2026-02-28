@@ -59,6 +59,13 @@ class ModelConfig(llm_param.LLMConfigModelParameter):
 
     model_name: str
 
+    @model_validator(mode="before")
+    @classmethod
+    def _default_model_name(cls, data: dict[str, Any]) -> dict[str, Any]:
+        if not data.get("model_name") and data.get("model_id"):
+            data["model_name"] = data["model_id"]
+        return data
+
 
 class ProviderConfig(llm_param.LLMConfigProviderParameter):
     """Full provider configuration (used in merged config)."""
@@ -521,8 +528,15 @@ def _merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Co
     The returned Config keeps a reference to user_config for saving.
     """
     if user_config is None:
-        # No user config - return builtin with empty user config reference
-        merged = builtin_config.model_copy()
+        # No user config - still re-validate so local ProviderConfig behavior is applied.
+        revalidated_providers = [ProviderConfig.model_validate(p.model_dump()) for p in builtin_config.provider_list]
+        merged = Config(
+            main_model=builtin_config.main_model,
+            compact_model=builtin_config.compact_model,
+            sub_agent_models=dict(builtin_config.sub_agent_models),
+            theme=builtin_config.theme,
+            provider_list=revalidated_providers,
+        )
         merged.set_user_config(None)
         return merged
 

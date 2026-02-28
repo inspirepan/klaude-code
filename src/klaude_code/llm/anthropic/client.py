@@ -217,8 +217,10 @@ def build_payload(
         "messages": messages,
         "system": system,
         "tools": tools,
-        "betas": betas,
     }
+
+    if betas:
+        payload["betas"] = betas
 
     if param.thinking and param.thinking.type == "adaptive":
         payload["thinking"] = {"type": "adaptive"}  # type: ignore[typeddict-item]
