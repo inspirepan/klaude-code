@@ -287,7 +287,7 @@ class ForkSessionCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Fork the current session and show a resume command"
+        return "Fork current session from a selected point"
 
     @property
     def is_interactive(self) -> bool:

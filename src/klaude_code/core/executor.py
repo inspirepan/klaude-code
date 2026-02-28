@@ -270,7 +270,7 @@ class AgentRuntime:
         await self._emit_event(
             events.CommandOutputEvent(
                 session_id=agent.session.id,
-                command_name=commands.CommandName.CLEAR,
+                command_name=commands.CommandName.NEW,
                 content="started new conversation",
             )
         )

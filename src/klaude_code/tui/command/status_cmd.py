@@ -129,7 +129,7 @@ class StatusCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Show session usage statistics"
+        return "Show session status"
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused

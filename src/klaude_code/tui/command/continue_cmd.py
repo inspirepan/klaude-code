@@ -12,7 +12,7 @@ class ContinueCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Continue agent execution (for recovery after interruptions)"
+        return "Continue current session without a new user message"
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused

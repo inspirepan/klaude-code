@@ -29,7 +29,7 @@ def ensure_commands_loaded() -> None:
     _commands_loaded = True
 
     # Import and register commands in display order
-    from .clear_cmd import ClearCommand
+    from .new_cmd import NewCommand
     from .compact_cmd import CompactCommand
     from .continue_cmd import ContinueCommand
     from .copy_cmd import CopyCommand
@@ -59,7 +59,7 @@ def ensure_commands_loaded() -> None:
     load_prompt_commands()
     register(StatusCommand())
     register(DebugCommand())
-    register(ClearCommand())
+    register(NewCommand())
 
     # Load prompt-based commands (appended after built-in commands)
 
@@ -67,7 +67,7 @@ def ensure_commands_loaded() -> None:
 # Lazy accessors for command classes
 def __getattr__(name: str) -> object:
     _commands_map = {
-        "ClearCommand": "clear_cmd",
+        "NewCommand": "new_cmd",
         "CompactCommand": "compact_cmd",
         "ContinueCommand": "continue_cmd",
         "CopyCommand": "copy_cmd",
@@ -92,7 +92,7 @@ def __getattr__(name: str) -> object:
 
 __all__ = [
     # Command classes are lazily loaded via __getattr__
-    # "ClearCommand", "DiffCommand", "HelpCommand", "ModelCommand",
+    # "NewCommand", "DiffCommand", "HelpCommand", "ModelCommand",
     # "ExportCommand", "RefreshTerminalCommand", "ReleaseNotesCommand",
     # "StatusCommand",
     "CommandABC",

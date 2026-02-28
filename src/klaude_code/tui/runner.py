@@ -178,7 +178,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     def _get_active_session_id() -> str | None:
         """Get the current active session ID dynamically.
 
-        This is necessary because /clear creates a new session with a different id.
+        This is necessary because /new creates a new session with a different id.
         """
 
         return components.executor.context.current_session_id()

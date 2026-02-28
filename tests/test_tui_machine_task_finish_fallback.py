@@ -84,7 +84,7 @@ def test_task_start_updates_primary_session_after_session_change() -> None:
     m = DisplayStateMachine()
 
     _ = m.transition(events.TaskStartEvent(session_id="s1", model_id="test-model"))
-    # Simulate session id change (e.g. /clear), then ensure primary routing follows it.
+    # Simulate session id change (e.g. /new), then ensure primary routing follows it.
     _ = m.transition(events.TaskStartEvent(session_id="s2", model_id="test-model"))
 
     cmds = m.transition(events.AssistantTextStartEvent(session_id="s2", response_id="r2"))
