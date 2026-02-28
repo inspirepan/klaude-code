@@ -86,6 +86,25 @@ body {
   flex: 1;
   letter-spacing: -0.01em;
 }
+.nav-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--fg-secondary);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+.nav-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
 #toolbar .filter-group {
   display: flex;
   gap: 6px;
@@ -379,6 +398,7 @@ body {
 <div id="container">
   <div id="left">
     <div id="toolbar">
+      <button class="nav-btn" id="btn-back-list" title="Back to log files">Logs</button>
       <span class="title" id="log-title">No log loaded</span>
       <input type="text" id="search-box" placeholder="Search... (/)">
       <div class="filter-group" id="filter-group"></div>
@@ -408,15 +428,76 @@ let selectedIdx = -1;
 let activeFilters = new Set();
 let searchQuery = '';
 let showRaw = false;
+let viewerMode = 'files';
+
+function setViewerMode(mode) {
+  viewerMode = mode;
+  const isLogMode = mode === 'log';
+  document.getElementById('btn-back-list').style.display = isLogMode ? '' : 'none';
+  document.getElementById('search-box').style.display = isLogMode ? '' : 'none';
+  document.getElementById('filter-group').style.display = isLogMode ? '' : 'none';
+  for (const id of ['btn-copy', 'btn-expand-all', 'btn-collapse-all', 'btn-raw']) {
+    document.getElementById(id).disabled = !isLogMode;
+  }
+}
+
+document.getElementById('btn-back-list').addEventListener('click', () => {
+  location.search = '';
+});
+
+async function loadLogList() {
+  setViewerMode('files');
+  const title = document.getElementById('log-title');
+  const list = document.getElementById('log-list');
+  const label = document.getElementById('right-label');
+  const view = document.getElementById('json-view');
+  title.textContent = 'Log files';
+  label.textContent = 'Select a log file';
+  view.innerHTML = '<span class="empty-hint">Choose a log file from the left list</span>';
+  list.innerHTML = '<div class="log-line"><span class="msg">Loading...</span></div>';
+
+  try {
+    const resp = await fetch('/api/logs');
+    if (!resp.ok) throw new Error(resp.statusText);
+    const files = await resp.json();
+    list.innerHTML = '';
+
+    if (files.length === 0) {
+      list.innerHTML = '<div class="log-line"><span class="msg">No log files found</span></div>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    files.forEach((file, idx) => {
+      const div = document.createElement('div');
+      div.className = 'log-line';
+      const mtime = new Date(file.mtime * 1000).toLocaleString();
+      div.innerHTML =
+        '<span class="lineno">' + (idx + 1) + '</span>' +
+        '<span class="ts">' + esc(mtime) + '</span> ' +
+        '<span class="msg">' + esc(file.relative_path) + '</span> ' +
+        '<span class="json-inline">' + esc(formatBytes(file.size_bytes)) + '</span>';
+      div.addEventListener('click', () => {
+        location.search = '?log=' + encodeURIComponent(file.path);
+      });
+      frag.appendChild(div);
+    });
+    list.appendChild(frag);
+  } catch (e) {
+    title.textContent = 'Error: ' + e.message;
+    list.innerHTML = '<div class="log-line"><span class="msg">Failed to load log files</span></div>';
+  }
+}
 
 // --- Data loading ---
 async function loadLog() {
   const params = new URLSearchParams(location.search);
   const logPath = params.get('log');
   if (!logPath) {
-    document.getElementById('log-title').textContent = 'No log path specified';
+    await loadLogList();
     return;
   }
+  setViewerMode('log');
   document.getElementById('log-title').textContent = logPath.split('/').slice(-2).join('/');
   try {
     const resp = await fetch('/api/log?path=' + encodeURIComponent(logPath));
@@ -495,13 +576,28 @@ function toggleFilter(type, btn) {
     btn.classList.add('active');
   }
   applyFilters();
+
+  if (selectedIdx >= 0) {
+    const list = document.getElementById('log-list');
+    const selected = list.children[selectedIdx];
+    if (selected && !selected.classList.contains('hidden')) {
+      const listRect = list.getBoundingClientRect();
+      const rowRect = selected.getBoundingClientRect();
+      const fullyVisible = rowRect.top >= listRect.top && rowRect.bottom <= listRect.bottom;
+      if (!fullyVisible) {
+        selected.scrollIntoView({ block: 'center' });
+      }
+    }
+  }
 }
 
 function applyFilters() {
+  if (viewerMode !== 'log') return;
   const list = document.getElementById('log-list');
   const items = list.children;
   for (let i = 0; i < items.length; i++) {
     const entry = logLines[i];
+    if (!entry) continue;
     let visible = true;
     if (activeFilters.size > 0 && entry.type && !activeFilters.has(entry.type)) {
       visible = false;
@@ -776,11 +872,12 @@ document.getElementById('btn-raw').addEventListener('click', () => {
 // --- Search ---
 const searchBox = document.getElementById('search-box');
 searchBox.addEventListener('input', () => {
+  if (viewerMode !== 'log') return;
   searchQuery = searchBox.value.toLowerCase();
   applyFilters();
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === '/' && document.activeElement !== searchBox) {
+  if (viewerMode === 'log' && e.key === '/' && document.activeElement !== searchBox) {
     e.preventDefault();
     searchBox.focus();
   }
@@ -788,16 +885,17 @@ document.addEventListener('keydown', (e) => {
     searchBox.value = '';
     searchQuery = '';
     searchBox.blur();
-    applyFilters();
+    if (viewerMode === 'log') applyFilters();
   }
   // Arrow keys for navigation
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+  if (viewerMode === 'log' && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
     e.preventDefault();
     navigateLine(e.key === 'ArrowDown' ? 1 : -1);
   }
 });
 
 function navigateLine(direction) {
+  if (viewerMode !== 'log') return;
   const list = document.getElementById('log-list');
   let next = selectedIdx + direction;
   // Skip hidden lines
@@ -952,6 +1050,11 @@ function badgeify(s) {
   return esc(s).replace(/\[([\w.]+)\]/g, '<span class="badge">$1</span>');
 }
 function truncate(s, n) { return s.length <= n ? s : s.slice(0, n) + '...'; }
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
 
 // --- Init ---
 buildFilters();
