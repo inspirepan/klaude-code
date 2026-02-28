@@ -4,7 +4,6 @@ import shlex
 from dataclasses import dataclass
 from pathlib import Path
 
-from klaude_code.const import REMINDER_COOLDOWN_TURNS, TODO_REMINDER_TOOL_CALL_THRESHOLD
 from klaude_code.core.memory import (
     Memory,
     discover_memory_files_near_paths,
@@ -218,94 +217,6 @@ async def at_file_reader_reminder(
         ),
         ui_extra=model.DeveloperUIExtra(items=ui_items),
     )
-
-
-async def empty_todo_reminder(session: Session) -> message.DeveloperMessage | None:
-    """Remind agent to use TodoWrite tool when todos are empty/all completed.
-
-    Behavior:
-    - First time in empty state (counter == 0): trigger reminder and set cooldown (e.g., 3).
-    - While remaining in empty state with counter > 0: decrement each turn, no reminder.
-    - Do not decrement/reset while todos are non-empty (cooldown only counts during empty state).
-    """
-
-    empty_or_all_done = (not session.todos) or all(todo.status == "completed" for todo in session.todos)
-
-    # Only count down and possibly trigger when empty/all-done
-    if not empty_or_all_done:
-        return None
-
-    if session.need_todo_empty_cooldown_counter == 0:
-        session.need_todo_empty_cooldown_counter = REMINDER_COOLDOWN_TURNS
-        return message.DeveloperMessage(
-            parts=message.text_parts_from_str(
-                "<system-reminder>This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.</system-reminder>"
-            )
-        )
-
-    if session.need_todo_empty_cooldown_counter > 0:
-        session.need_todo_empty_cooldown_counter -= 1
-    return None
-
-
-async def todo_not_used_recently_reminder(
-    session: Session,
-) -> message.DeveloperMessage | None:
-    """Remind agent to use TodoWrite tool if it hasn't been used recently (>=10 other tool calls), with cooldown.
-
-    Cooldown behavior:
-    - When condition becomes active (>=10 non-todo tool calls since last TodoWrite) and counter == 0: trigger reminder, set counter = 3.
-    - While condition remains active and counter > 0: decrement each turn, do not remind.
-    - When condition not active: do nothing to the counter (no decrement), and do not remind.
-    """
-
-    if not session.todos:
-        return None
-
-    # If all todos completed, skip reminder entirely
-    if all(todo.status == "completed" for todo in session.todos):
-        return None
-
-    # Count non-todo tool calls since the last TodoWrite
-    other_tool_call_count_before_last_todo = 0
-    for item in reversed(session.conversation_history):
-        if not isinstance(item, message.AssistantMessage):
-            continue
-        for part in reversed(item.parts):
-            if not isinstance(part, message.ToolCallPart):
-                continue
-            if part.tool_name in (tools.TODO_WRITE, tools.UPDATE_PLAN):
-                other_tool_call_count_before_last_todo = 0
-                break
-            other_tool_call_count_before_last_todo += 1
-            if other_tool_call_count_before_last_todo >= TODO_REMINDER_TOOL_CALL_THRESHOLD:
-                break
-        if other_tool_call_count_before_last_todo == 0:
-            break
-
-    not_used_recently = other_tool_call_count_before_last_todo >= TODO_REMINDER_TOOL_CALL_THRESHOLD
-
-    if not not_used_recently:
-        return None
-
-    if session.need_todo_not_used_cooldown_counter == 0:
-        session.need_todo_not_used_cooldown_counter = REMINDER_COOLDOWN_TURNS
-        return message.DeveloperMessage(
-            parts=message.text_parts_from_str(
-                f"""<system-reminder>
-The TodoWrite tool hasn't been used recently. If you're working on tasks that would benefit from tracking progress, consider using the TodoWrite tool to track progress. Also consider cleaning up the todo list if has become stale and no longer matches what you are working on. Only use it if it's relevant to the current work. This is just a gentle reminder - ignore if not applicable.
-
-
-Here are the existing contents of your todo list:
-
-{model.todo_list_str(session.todos)}</system-reminder>"""
-            ),
-            ui_extra=model.DeveloperUIExtra(items=[model.TodoReminderUIItem(reason="not_used_recently")]),
-        )
-
-    if session.need_todo_not_used_cooldown_counter > 0:
-        session.need_todo_not_used_cooldown_counter -= 1
-    return None
 
 
 async def file_changed_externally_reminder(
@@ -568,8 +479,6 @@ async def last_path_memory_reminder(
 
 
 ALL_REMINDERS = [
-    empty_todo_reminder,
-    todo_not_used_recently_reminder,
     file_changed_externally_reminder,
     memory_reminder,
     last_path_memory_reminder,
