@@ -1,4 +1,4 @@
-from rich.console import RenderableType
+from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
@@ -40,6 +40,10 @@ def _format_cost(cost: float | None, currency: str = "USD") -> str:
     return f"{symbol}{cost:.2f}"
 
 
+def _format_int(value: int) -> str:
+    return f"{value:,}"
+
+
 def _render_fork_session_output(e: events.CommandOutputEvent) -> RenderableType:
     """Render fork session output with usage instructions."""
     if not isinstance(e.ui_extra, model.SessionIdUIExtra):
@@ -57,26 +61,62 @@ def _render_fork_session_output(e: events.CommandOutputEvent) -> RenderableType:
 
 
 def _render_status_output(e: events.CommandOutputEvent) -> RenderableType:
-    """Render session status with total cost and per-model breakdown."""
+    """Render session status with overview and per-model breakdown."""
     if not isinstance(e.ui_extra, model.SessionStatusUIExtra):
         return Text("(no status data)", style=ThemeKey.TOOL_RESULT)
 
     status = e.ui_extra
     usage = status.usage
 
-    table = Table.grid(padding=(0, 2))
-    table.add_column(style=ThemeKey.TOOL_RESULT, overflow="fold")
-    table.add_column(style=ThemeKey.TOOL_RESULT, overflow="fold")
+    def section_title(title: str) -> Text:
+        return Text(title, style=ThemeKey.SESSION_STATUS_BOLD)
 
-    # Total cost line
-    table.add_row(
-        Text("Total cost:", style=ThemeKey.TOOL_RESULT_BOLD),
-        Text(_format_cost(usage.total_cost, usage.currency), style=ThemeKey.TOOL_RESULT_BOLD),
+    def kv_table(rows: list[tuple[str, str]]) -> Table:
+        table = Table.grid(padding=(0, 2))
+        table.add_column(style=ThemeKey.SESSION_STATUS, overflow="fold")
+        table.add_column(style=ThemeKey.SESSION_STATUS, overflow="fold")
+        for key, value in rows:
+            table.add_row(f"{key}:", value)
+        return table
+
+    blocks: list[RenderableType] = []
+
+    blocks.append(Text())
+    blocks.append(section_title("Session Info"))
+    blocks.append(
+        kv_table(
+            [
+                ("File", status.events_file_path),
+                ("ID", status.session_id),
+            ]
+        )
     )
+    blocks.append(Text())
 
-    # Per-model breakdown
+    blocks.append(section_title("Messages"))
+    blocks.append(
+        kv_table(
+            [
+                ("User", _format_int(status.user_messages_count)),
+                ("Assistant", _format_int(status.assistant_messages_count)),
+                ("Tool Exection", _format_int(status.tool_results_count)),
+                ("Total", _format_int(status.total_messages_count)),
+            ]
+        )
+    )
+    blocks.append(Text())
+
+    blocks.append(section_title("Cost"))
+    blocks.append(kv_table([("Total", _format_cost(usage.total_cost, usage.currency))]))
+
     if status.by_model:
-        table.add_row(Text("Usage by model:", style=ThemeKey.TOOL_RESULT_BOLD), "")
+        blocks.append(Text())
+        blocks.append(section_title("Usage by model"))
+
+        by_model_table = Table.grid(padding=(0, 2))
+        by_model_table.add_column(style=ThemeKey.SESSION_STATUS, overflow="fold")
+        by_model_table.add_column(style=ThemeKey.SESSION_STATUS, overflow="fold")
+
         for meta in status.by_model:
             model_label = meta.model_name
             if meta.provider:
@@ -92,6 +132,8 @@ def _render_status_output(e: events.CommandOutputEvent) -> RenderableType:
                 )
             else:
                 usage_detail = "(no usage data)"
-            table.add_row(f"{model_label}:", usage_detail)
+            by_model_table.add_row(f"{model_label}:", usage_detail)
 
-    return table
+        blocks.append(by_model_table)
+
+    return Group(*blocks)
