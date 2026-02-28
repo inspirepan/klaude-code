@@ -35,7 +35,6 @@ def ensure_commands_loaded() -> None:
     from .copy_cmd import CopyCommand
     from .debug_cmd import DebugCommand
     from .export_cmd import ExportCommand
-    from .export_online_cmd import ExportOnlineCommand
     from .fork_session_cmd import ForkSessionCommand
     from .login_cmd import LoginCommand
     from .logout_cmd import LogoutCommand
@@ -61,7 +60,6 @@ def ensure_commands_loaded() -> None:
     load_prompt_commands()
     register(StatusCommand())
     register(ResumeCommand())
-    register(ExportOnlineCommand())
     register(DebugCommand())
     register(ClearCommand())
 
@@ -77,7 +75,6 @@ def __getattr__(name: str) -> object:
         "CopyCommand": "copy_cmd",
         "DebugCommand": "debug_cmd",
         "ExportCommand": "export_cmd",
-        "ExportOnlineCommand": "export_online_cmd",
         "ForkSessionCommand": "fork_session_cmd",
         "LoginCommand": "login_cmd",
         "LogoutCommand": "logout_cmd",

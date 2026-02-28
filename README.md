@@ -221,7 +221,6 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 - `/resume` - Select and resume a previous session.
 - `/fork-session` - Fork current session to a new session ID (supports interactive fork point selection).
 - `/export` - Export last assistant message to a temp Markdown file.
-- `/export-online` - Export and deploy session to surge.sh as a static webpage.
 - `/debug [filters]` - Toggle debug mode and configure debug filters.
 - `/init` - Bootstrap a new project structure or module.
 - `/dev-doc [feature]` - Generate a comprehensive execution plan for a feature.

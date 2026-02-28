@@ -23,7 +23,6 @@ class CommandName(str, Enum):
     REFRESH_TERMINAL = "refresh-terminal"
     CLEAR = "clear"
     EXPORT = "export"
-    EXPORT_ONLINE = "export-online"
     STATUS = "status"
     THINKING = "thinking"
     FORK_SESSION = "fork-session"

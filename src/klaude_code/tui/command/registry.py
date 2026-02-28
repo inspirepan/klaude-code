@@ -30,7 +30,7 @@ def _resolve_command_key(command_name_raw: str) -> commands.CommandName | str | 
     Prefix match rules:
     - If there's exactly one prefix match, use it.
     - If multiple matches exist and one command name is a prefix of all others,
-      treat it as the base command and use it (e.g. `export` over `export-online`).
+      treat it as the base command and use it (e.g. `export` over `export-doc`).
     - Otherwise, consider it ambiguous and return None.
     """
 
