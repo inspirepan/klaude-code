@@ -41,11 +41,21 @@ def _append_usage_suffix(value: Text, usage_summary: str | None) -> Text:
 
 def _get_codex_status_rows(*, usage_summary: str | None = None) -> list[tuple[Text, Text]]:
     """Get Codex OAuth login status as (label, value) tuples for table display."""
+    from klaude_code.auth.codex.oauth import CodexOAuth
     from klaude_code.auth.codex.token_manager import CodexTokenManager
 
     rows: list[tuple[Text, Text]] = []
     token_manager = CodexTokenManager()
     state = token_manager.get_state()
+    refreshed = False
+    refresh_failed = False
+
+    if state is not None and state.is_expired():
+        try:
+            state = CodexOAuth(token_manager).refresh()
+            refreshed = True
+        except Exception:
+            refresh_failed = True
 
     if state is None:
         rows.append(
@@ -61,13 +71,18 @@ def _get_codex_status_rows(*, usage_summary: str | None = None) -> list[tuple[Te
             )
         )
     elif state.is_expired():
+        expired_hint = (
+            " (automatic refresh failed now; will retry on use, run 'klaude auth login codex' if it keeps failing)"
+            if refresh_failed
+            else " (will refresh automatically on use; run 'klaude auth login codex' if refresh fails)"
+        )
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
                 _append_usage_suffix(
                     Text.assemble(
                         ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
-                        (" (run 'klaude auth login codex' to re-authenticate)", "dim"),
+                        (expired_hint, "dim"),
                     ),
                     usage_summary,
                 ),
@@ -75,16 +90,18 @@ def _get_codex_status_rows(*, usage_summary: str | None = None) -> list[tuple[Te
         )
     else:
         expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
+        status_detail = (
+            f" (refreshed just now, account: {state.account_id[:8]}…, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})"
+            if refreshed
+            else f" (account: {state.account_id[:8]}…, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})"
+        )
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
                 _append_usage_suffix(
                     Text.assemble(
                         ("Logged in", ThemeKey.CONFIG_STATUS_OK),
-                        (
-                            f" (account: {state.account_id[:8]}…, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})",
-                            "dim",
-                        ),
+                        (status_detail, "dim"),
                     ),
                     usage_summary,
                 ),
@@ -105,11 +122,21 @@ def _get_codex_status_rows(*, usage_summary: str | None = None) -> list[tuple[Te
 
 def _get_claude_status_rows(*, usage_summary: str | None = None) -> list[tuple[Text, Text]]:
     """Get Claude OAuth login status as (label, value) tuples for table display."""
+    from klaude_code.auth.claude.oauth import ClaudeOAuth
     from klaude_code.auth.claude.token_manager import ClaudeTokenManager
 
     rows: list[tuple[Text, Text]] = []
     token_manager = ClaudeTokenManager()
     state = token_manager.get_state()
+    refreshed = False
+    refresh_failed = False
+
+    if state is not None and state.is_expired():
+        try:
+            state = ClaudeOAuth(token_manager).refresh()
+            refreshed = True
+        except Exception:
+            refresh_failed = True
 
     if state is None:
         rows.append(
@@ -125,16 +152,18 @@ def _get_claude_status_rows(*, usage_summary: str | None = None) -> list[tuple[T
             )
         )
     elif state.is_expired():
+        expired_hint = (
+            " (automatic refresh failed now; will retry on use, run 'klaude auth login claude' if it keeps failing)"
+            if refresh_failed
+            else " (will refresh automatically on use; run 'klaude auth login claude' if refresh fails)"
+        )
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
                 _append_usage_suffix(
                     Text.assemble(
                         ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
-                        (
-                            " (will refresh automatically on use; run 'klaude auth login claude' if refresh fails)",
-                            "dim",
-                        ),
+                        (expired_hint, "dim"),
                     ),
                     usage_summary,
                 ),
@@ -142,13 +171,18 @@ def _get_claude_status_rows(*, usage_summary: str | None = None) -> list[tuple[T
         )
     else:
         expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
+        status_detail = (
+            f" (refreshed just now, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})"
+            if refreshed
+            else f" (expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})"
+        )
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
                 _append_usage_suffix(
                     Text.assemble(
                         ("Logged in", ThemeKey.CONFIG_STATUS_OK),
-                        (f" (expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+                        (status_detail, "dim"),
                     ),
                     usage_summary,
                 ),
@@ -169,11 +203,21 @@ def _get_claude_status_rows(*, usage_summary: str | None = None) -> list[tuple[T
 
 def _get_copilot_status_rows(*, usage_summary: str | None = None) -> list[tuple[Text, Text]]:
     """Get Copilot OAuth login status as (label, value) tuples for table display."""
+    from klaude_code.auth.copilot.oauth import CopilotOAuth
     from klaude_code.auth.copilot.token_manager import CopilotTokenManager
 
     rows: list[tuple[Text, Text]] = []
     token_manager = CopilotTokenManager()
     state = token_manager.get_state()
+    refreshed = False
+    refresh_failed = False
+
+    if state is not None and state.is_expired():
+        try:
+            state = CopilotOAuth(token_manager).refresh()
+            refreshed = True
+        except Exception:
+            refresh_failed = True
 
     if state is None:
         rows.append(
@@ -189,13 +233,18 @@ def _get_copilot_status_rows(*, usage_summary: str | None = None) -> list[tuple[
             )
         )
     elif state.is_expired():
+        expired_hint = (
+            " (automatic refresh failed now; will retry on use, run 'klaude auth login copilot' if it keeps failing)"
+            if refresh_failed
+            else " (will refresh automatically on use; run 'klaude auth login copilot' if refresh fails)"
+        )
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
                 _append_usage_suffix(
                     Text.assemble(
                         ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
-                        (" (run 'klaude auth login copilot' to re-authenticate)", "dim"),
+                        (expired_hint, "dim"),
                     ),
                     usage_summary,
                 ),
@@ -204,13 +253,18 @@ def _get_copilot_status_rows(*, usage_summary: str | None = None) -> list[tuple[
     else:
         expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
         domain = state.enterprise_domain or "github.com"
+        status_detail = (
+            f" (refreshed just now, domain: {domain}, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})"
+            if refreshed
+            else f" (domain: {domain}, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})"
+        )
         rows.append(
             (
                 Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
                 _append_usage_suffix(
                     Text.assemble(
                         ("Logged in", ThemeKey.CONFIG_STATUS_OK),
-                        (f" (domain: {domain}, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+                        (status_detail, "dim"),
                     ),
                     usage_summary,
                 ),

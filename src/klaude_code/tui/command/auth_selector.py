@@ -9,7 +9,8 @@ from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
 from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, select_one
 
 
-def _is_oauth_logged_in(provider_name: str) -> bool:
+def _get_oauth_auth_state(provider_name: str) -> tuple[bool, bool]:
+    """Return (has_auth_state, is_expired)."""
     try:
         match provider_name:
             case "claude":
@@ -25,10 +26,12 @@ def _is_oauth_logged_in(provider_name: str) -> bool:
 
                 state = CopilotTokenManager().get_state()
             case _:
-                return False
-        return state is not None and not state.is_expired()
+                return False, False
+        if state is None:
+            return False, False
+        return True, state.is_expired()
     except Exception:
-        return False
+        return False, False
 
 
 def _is_api_key_configured(env_var: str) -> bool:
@@ -44,8 +47,11 @@ def _oauth_title(label: str, provider_name: str) -> list[tuple[str, str]]:
         ("", f"{label} "),
         ("ansibrightblack", "[OAuth]"),
     ]
-    if _is_oauth_logged_in(provider_name):
+    has_state, is_expired = _get_oauth_auth_state(provider_name)
+    if has_state and not is_expired:
         title.append(("ansigreen", " ✓ logged in"))
+    elif has_state and is_expired:
+        title.append(("ansiyellow", " · token expired (refresh on use)"))
     title.append(("", "\n"))
     return title
 
