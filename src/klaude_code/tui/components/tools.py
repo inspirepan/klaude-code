@@ -160,28 +160,13 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
     payload: dict[str, object] = cast(dict[str, object], payload_raw)
 
     command = payload.get("command")
-    timeout_ms = payload.get("timeout_ms")
-
     if isinstance(command, str) and command.strip():
         cmd_str = command.strip()
         highlighted = highlight_bash_command(cmd_str)
-
-        if isinstance(timeout_ms, int):
-            if timeout_ms >= 1000 and timeout_ms % 1000 == 0:
-                highlighted.append(f" {timeout_ms // 1000}s", style=ThemeKey.TOOL_TIMEOUT)
-            else:
-                highlighted.append(f" {timeout_ms}ms", style=ThemeKey.TOOL_TIMEOUT)
         padded = Padding(highlighted, pad=0, style=ThemeKey.CODE_BACKGROUND, expand=False)
         return _render_tool_call_tree(mark=MARK_BASH, tool_name=tool_name, details=padded)
-    else:
-        summary = Text("", ThemeKey.TOOL_PARAM)
-        if isinstance(timeout_ms, int):
-            if timeout_ms >= 1000 and timeout_ms % 1000 == 0:
-                summary.append(f"{timeout_ms // 1000}s", style=ThemeKey.TOOL_TIMEOUT)
-            else:
-                summary.append(f"{timeout_ms}ms", style=ThemeKey.TOOL_TIMEOUT)
-        bash_details: RenderableType | None = summary if summary.plain else None
-        return _render_tool_call_tree(mark=MARK_BASH, tool_name=tool_name, details=bash_details)
+
+    return _render_tool_call_tree(mark=MARK_BASH, tool_name=tool_name, details=None)
 
 
 def render_update_plan_tool_call(arguments: str) -> RenderableType:

@@ -10,7 +10,6 @@ class Palette:
     red: str
     yellow: str
     green: str
-    grey_yellow: str
     cyan: str
     blue: str
     orange: str
@@ -46,7 +45,6 @@ LIGHT_PALETTE = Palette(
     red="red",
     yellow="yellow",
     green="#00875f",
-    grey_yellow="#5f9f7a",
     cyan="cyan",
     blue="#3078C5",
     orange="#c96542",
@@ -81,7 +79,6 @@ DARK_PALETTE = Palette(
     red="#d75f5f",
     yellow="yellow",
     green="#5fd787",
-    grey_yellow="#8ac89a",
     cyan="cyan",
     blue="#00afff",
     orange="#e6704e",
@@ -345,7 +342,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.BASH_COMMAND.value: "bold " + palette.green,
                 ThemeKey.BASH_ARGUMENT.value: palette.green,
                 ThemeKey.BASH_OPERATOR.value: palette.grey2,
-                ThemeKey.BASH_STRING.value: palette.grey_yellow,
+                ThemeKey.BASH_STRING.value: palette.purple,
                 ThemeKey.BASH_HEREDOC_DELIMITER.value: "bold " + palette.grey1,
                 # THINKING
                 ThemeKey.THINKING.value: "italic " + palette.grey2,
