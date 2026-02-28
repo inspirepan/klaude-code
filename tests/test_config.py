@@ -980,6 +980,30 @@ class TestConfigPath:
 class TestOutOfBoxExperience:
     """Tests simulating various out-of-box configuration scenarios."""
 
+    @pytest.fixture(autouse=True)
+    def _disable_local_oauth_state(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Keep out-of-box tests independent from developer-local OAuth login state."""
+        from klaude_code.auth.claude.token_manager import ClaudeTokenManager
+        from klaude_code.auth.codex.token_manager import CodexTokenManager
+        from klaude_code.auth.copilot.token_manager import CopilotTokenManager
+
+        def _no_claude_state(_self: ClaudeTokenManager) -> None:
+            return None
+
+        def _no_codex_state(_self: CodexTokenManager) -> None:
+            return None
+
+        def _no_copilot_state(_self: CopilotTokenManager) -> None:
+            return None
+
+        def _no_auth_env(_key: str) -> None:
+            return None
+
+        monkeypatch.setattr(ClaudeTokenManager, "get_state", _no_claude_state)
+        monkeypatch.setattr(CodexTokenManager, "get_state", _no_codex_state)
+        monkeypatch.setattr(CopilotTokenManager, "get_state", _no_copilot_state)
+        monkeypatch.setattr(_config_module, "get_auth_env", _no_auth_env)
+
     def test_first_run_no_config_no_api_keys(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """First run: no config file, no API keys set - should return builtin config with limited available models."""
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
