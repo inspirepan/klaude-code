@@ -17,17 +17,19 @@ from klaude_code.log import log
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 
-# Pattern to match ${ENV_VAR} syntax
-_ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+# Pattern to match ${ENV_VAR} and ${PRIMARY|FALLBACK} syntax
+_ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*(?:\|[A-Za-z_][A-Za-z0-9_]*)*)\}$")
 
 
 def parse_env_var_syntax(value: str | None) -> tuple[str | None, str | None]:
     """Parse a value that may use ${ENV_VAR} syntax.
 
     Returns:
-        A tuple of (env_var_name, resolved_value).
-        - If value uses ${ENV_VAR} syntax: (env_var_name, resolved_value)
-          Priority: os.environ > klaude-auth.json env section
+        A tuple of (env_var_expression, resolved_value).
+        - If value uses ${ENV_VAR} or ${A|B} syntax:
+          (env_var_expression, resolved_value)
+          Priority for each env var: os.environ > klaude-auth.json env section
+          For ${A|B}, A is tried first, then B.
         - If value is a plain string: (None, value)
         - If value is None: (None, None)
     """
@@ -36,10 +38,15 @@ def parse_env_var_syntax(value: str | None) -> tuple[str | None, str | None]:
 
     match = _ENV_VAR_PATTERN.match(value)
     if match:
-        env_var_name = match.group(1)
-        # Priority: real env var > auth.json env section
-        resolved = os.environ.get(env_var_name) or get_auth_env(env_var_name)
-        return env_var_name, resolved
+        env_var_expression = match.group(1)
+        env_var_names = env_var_expression.split("|")
+        resolved = None
+        for env_var_name in env_var_names:
+            # Priority: real env var > auth.json env section
+            resolved = os.environ.get(env_var_name) or get_auth_env(env_var_name)
+            if resolved is not None:
+                break
+        return env_var_expression, resolved
 
     return None, value
 

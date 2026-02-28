@@ -30,6 +30,11 @@ ProviderConfig = _config_module.ProviderConfig
 UserProviderConfig = _config_module.UserProviderConfig
 config_path = _config_module.config_path
 load_config = _config_module.load_config
+parse_env_var_syntax = _config_module.parse_env_var_syntax
+
+
+def _auth_env_none(_key: str) -> str | None:
+    return None
 
 
 # =============================================================================
@@ -167,6 +172,25 @@ class TestConfig:
         assert llm_config.provider_name == "test-provider"
         assert llm_config.protocol == llm_param.LLMClientProtocol.OPENAI
         assert llm_config.api_key == "test-api-key"
+
+    def test_parse_env_var_syntax_supports_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(_config_module, "get_auth_env", _auth_env_none)
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
+
+        env_var, resolved = parse_env_var_syntax("${GOOGLE_API_KEY|GEMINI_API_KEY}")
+
+        assert env_var == "GOOGLE_API_KEY|GEMINI_API_KEY"
+        assert resolved == "gemini-test-key"
+
+    def test_parse_env_var_syntax_prefers_first_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(_config_module, "get_auth_env", _auth_env_none)
+        monkeypatch.setenv("GOOGLE_API_KEY", "google-key")
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
+
+        _, resolved = parse_env_var_syntax("${GOOGLE_API_KEY|GEMINI_API_KEY}")
+
+        assert resolved == "google-key"
 
     def test_google_vertex_provider_requires_all_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
         provider = ProviderConfig(
@@ -1364,11 +1388,41 @@ class TestOutOfBoxExperience:
         """Google Vertex provider should be available when all Vertex env vars are set."""
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        monkeypatch.setattr(_config_module, "get_auth_env", _auth_env_none)
 
         monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/service-account.json")
         monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project")
         monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
 
+        for env in [
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "OPENROUTER_API_KEY",
+            "GOOGLE_API_KEY",
+            "GEMINI_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "MOONSHOT_API_KEY",
+        ]:
+            monkeypatch.delenv(env, raising=False)
+
+        load_config.cache_clear()
+        config = load_config()
+
+        available = config.iter_model_entries(only_available=True)
+        available_providers = {m.provider for m in available}
+
+        assert "google-vertex" in available_providers
+        assert "google" not in available_providers
+
+    def test_google_provider_available_with_gemini_api_key(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Google provider should be available when GEMINI_API_KEY is set."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        monkeypatch.setattr(_config_module, "get_auth_env", _auth_env_none)
+
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
         for env in [
             "ANTHROPIC_API_KEY",
             "OPENAI_API_KEY",
@@ -1385,8 +1439,7 @@ class TestOutOfBoxExperience:
         available = config.iter_model_entries(only_available=True)
         available_providers = {m.provider for m in available}
 
-        assert "google-vertex" in available_providers
-        assert "google" not in available_providers
+        assert "google" in available_providers
 
     def test_all_providers_available(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Multiple providers should be available when their API keys are set."""
