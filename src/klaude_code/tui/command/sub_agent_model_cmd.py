@@ -158,7 +158,7 @@ class SubAgentModelCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Change sub-agent models"
+        return "Configure default sub-agent models"
 
     @property
     def is_interactive(self) -> bool:

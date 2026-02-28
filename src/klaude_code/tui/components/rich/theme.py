@@ -10,7 +10,6 @@ class Palette:
     red: str
     yellow: str
     green: str
-    grey_yellow: str
     cyan: str
     blue: str
     orange: str
@@ -46,7 +45,6 @@ LIGHT_PALETTE = Palette(
     red="red",
     yellow="yellow",
     green="#00875f",
-    grey_yellow="#5f9f7a",
     cyan="cyan",
     blue="#3078C5",
     orange="#c96542",
@@ -81,7 +79,6 @@ DARK_PALETTE = Palette(
     red="#d75f5f",
     yellow="yellow",
     green="#5fd787",
-    grey_yellow="#8ac89a",
     cyan="cyan",
     blue="#00afff",
     orange="#e6704e",
@@ -185,6 +182,9 @@ class ThemeKey(str, Enum):
     TOOL_RESULT_TREE_PREFIX = "tool.result.tree_prefix"
     TOOL_RESULT_TRUNCATED = "tool.result.truncated"
     TOOL_RESULT_BOLD = "tool.result.bold"
+    COMMAND_OUTPUT = "command.output"
+    SESSION_STATUS = "session.status"
+    SESSION_STATUS_BOLD = "session.status.bold"
     TOOL_MARK = "tool.mark"
     TOOL_APPROVED = "tool.approved"
     TOOL_REJECTED = "tool.rejected"
@@ -288,7 +288,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.USER_INPUT_PROMPT.value: f"bold {palette.cyan} on {palette.user_message_background}",
                 ThemeKey.USER_INPUT_AT_PATTERN.value: f"{palette.purple} on {palette.user_message_background}",
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: f"bold {palette.blue} on {palette.user_message_background}",
-                ThemeKey.USER_INPUT_SKILL.value: f"bold {palette.green} on {palette.user_message_background}",
+                ThemeKey.USER_INPUT_SKILL.value: f"bold {palette.blue} on {palette.user_message_background}",
                 # ASSISTANT
                 ThemeKey.ASSISTANT_MESSAGE_MARK.value: "bold",
                 # METADATA
@@ -330,6 +330,9 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_RESULT_TREE_PREFIX.value: palette.grey3,
                 ThemeKey.TOOL_RESULT_BOLD.value: "bold " + palette.grey_green,
                 ThemeKey.TOOL_RESULT_TRUNCATED.value: palette.grey1 + " dim",
+                ThemeKey.COMMAND_OUTPUT.value: palette.grey1,
+                ThemeKey.SESSION_STATUS.value: palette.grey1,
+                ThemeKey.SESSION_STATUS_BOLD.value: "bold " + palette.grey1,
                 ThemeKey.TOOL_MARK.value: "bold",
                 ThemeKey.TOOL_APPROVED.value: palette.green + " bold reverse",
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",
@@ -339,7 +342,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.BASH_COMMAND.value: "bold " + palette.green,
                 ThemeKey.BASH_ARGUMENT.value: palette.green,
                 ThemeKey.BASH_OPERATOR.value: palette.grey2,
-                ThemeKey.BASH_STRING.value: palette.grey_yellow,
+                ThemeKey.BASH_STRING.value: palette.purple,
                 ThemeKey.BASH_HEREDOC_DELIMITER.value: "bold " + palette.grey1,
                 # THINKING
                 ThemeKey.THINKING.value: "italic " + palette.grey2,

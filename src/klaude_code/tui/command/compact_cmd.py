@@ -9,7 +9,7 @@ class CompactCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "summarize older context to free up the model window"
+        return "Clear conversation history but keep a summary in context"
 
     @property
     def support_addition_params(self) -> bool:

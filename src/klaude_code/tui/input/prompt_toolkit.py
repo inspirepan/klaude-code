@@ -14,7 +14,7 @@ from prompt_toolkit.completion import Completion, ThreadedCompleter
 from prompt_toolkit.cursor_shapes import CursorShape
 from prompt_toolkit.data_structures import Point
 from prompt_toolkit.filters import Condition
-from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples, to_formatted_text
+from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples, fragment_list_width, to_formatted_text
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import merge_key_bindings
 from prompt_toolkit.layout import Float
@@ -22,6 +22,7 @@ from prompt_toolkit.layout.containers import Container, FloatContainer, Window
 from prompt_toolkit.layout.controls import BufferControl, UIContent
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu, MultiColumnCompletionsMenu
+from prompt_toolkit.layout.utils import explode_text_fragments
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 from prompt_toolkit.utils import get_cwidth
@@ -62,6 +63,37 @@ INPUT_PROMPT_STYLE = "ansicyan bold"
 INPUT_PROMPT_BASH_STYLE = "ansigreen bold"
 PLACEHOLDER_TEXT_STYLE = "fg:ansibrightblack"
 PLACEHOLDER_SYMBOL_STYLE = "fg:ansiblue"
+COMPLETION_TRUNCATION_SYMBOL = "…"
+
+
+def _trim_formatted_text_with_ellipsis(
+    formatted_text: StyleAndTextTuples,
+    max_width: int,
+) -> tuple[StyleAndTextTuples, int]:
+    """Trim completion text and use a single unicode ellipsis on overflow."""
+
+    width = fragment_list_width(formatted_text)
+    if width <= max_width:
+        return formatted_text, width
+
+    if max_width <= 0:
+        return [], 0
+
+    ellipsis_width = get_cwidth(COMPLETION_TRUNCATION_SYMBOL)
+    remaining_width = max(0, max_width - ellipsis_width)
+    result: StyleAndTextTuples = []
+
+    for style_and_ch in explode_text_fragments(formatted_text):
+        ch_width = get_cwidth(style_and_ch[1])
+        if ch_width <= remaining_width:
+            result.append(style_and_ch)
+            remaining_width -= ch_width
+            continue
+        break
+
+    result.append(("", COMPLETION_TRUNCATION_SYMBOL))
+    used_width = max_width - remaining_width
+    return result, used_width
 
 
 # ---------------------------------------------------------------------------
@@ -210,11 +242,30 @@ class _KlaudeCompletionsMenuControl(pt_menus.CompletionsMenuControl):
             prefix = "  "
 
         max_text_width = width - self._PREFIX_WIDTH - (1 if space_after else 0)
-        text, text_width = pt_menus._trim_formatted_text(completion.display, max_text_width)  # pyright: ignore[reportPrivateUsage]
+        text, text_width = _trim_formatted_text_with_ellipsis(completion.display, max_text_width)
         padding = " " * (width - self._PREFIX_WIDTH - text_width)
 
         return to_formatted_text(
             [("", prefix), *text, ("", padding)],
+            style=style_str,
+        )
+
+    @override
+    def _get_menu_item_meta_fragments(
+        self,
+        completion: Completion,
+        is_current_completion: bool,
+        width: int,
+    ) -> StyleAndTextTuples:
+        if is_current_completion:
+            style_str = "class:completion-menu.meta.completion.current"
+        else:
+            style_str = "class:completion-menu.meta.completion"
+
+        text, text_width = _trim_formatted_text_with_ellipsis(completion.display_meta, width - 2)
+        padding = " " * (width - 1 - text_width)
+        return to_formatted_text(
+            [("", " "), *text, ("", padding)],
             style=style_str,
         )
 

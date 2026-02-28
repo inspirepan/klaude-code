@@ -12,7 +12,7 @@ from klaude_code.cli.cost_cmd import register_cost_commands
 from klaude_code.cli.debug import prepare_debug_logging
 from klaude_code.cli.self_update import register_self_upgrade_commands, version_option_callback
 from klaude_code.session import Session
-from klaude_code.tui.command.resume_cmd import select_session_sync
+from klaude_code.tui.terminal.session_selector import select_session_sync
 from klaude_code.ui.terminal.title import update_terminal_title
 
 
@@ -324,7 +324,7 @@ def main_callback(
         if log_path:
             log(f"Debug log: {log_path}", style="yellow")
 
-            from klaude_code.cli.log_server import start_log_viewer
+            from klaude_code.app.log_viewer import start_log_viewer
 
             viewer_url = start_log_viewer(log_path)
             log(f"Log viewer: {viewer_url}", style="yellow")

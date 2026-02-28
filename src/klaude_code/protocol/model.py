@@ -231,6 +231,13 @@ class ReadPreviewUIExtra(BaseModel):
 
 class SessionStatusUIExtra(BaseModel):
     type: Literal["session_status"] = "session_status"
+    events_file_path: str
+    session_id: str
+    user_messages_count: int
+    assistant_messages_count: int
+    tool_calls_count: int
+    tool_results_count: int
+    total_messages_count: int
     usage: "Usage"
     task_count: int
     by_model: list["TaskMetadata"] = []

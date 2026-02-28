@@ -537,6 +537,7 @@ class TUICommandRenderer:
 
     def display_command_output(self, e: events.CommandOutputEvent) -> None:
         with self.session_print_context(e.session_id):
+            self.print()
             self.print(c_command_output.render_command_output(e))
             self.print()
 

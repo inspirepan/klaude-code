@@ -16,7 +16,7 @@ class ExportCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Export current session to HTML"
+        return "Export session to HTML file"
 
     @property
     def support_addition_params(self) -> bool:

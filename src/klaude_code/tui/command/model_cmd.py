@@ -15,7 +15,7 @@ class ModelCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Change model (saves to config)"
+        return "Configure default model"
 
     @property
     def is_interactive(self) -> bool:

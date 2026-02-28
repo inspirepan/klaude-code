@@ -29,19 +29,17 @@ def ensure_commands_loaded() -> None:
     _commands_loaded = True
 
     # Import and register commands in display order
-    from .clear_cmd import ClearCommand
     from .compact_cmd import CompactCommand
     from .continue_cmd import ContinueCommand
     from .copy_cmd import CopyCommand
     from .debug_cmd import DebugCommand
     from .export_cmd import ExportCommand
-    from .export_online_cmd import ExportOnlineCommand
     from .fork_session_cmd import ForkSessionCommand
     from .login_cmd import LoginCommand
     from .logout_cmd import LogoutCommand
     from .model_cmd import ModelCommand
+    from .new_cmd import NewCommand
     from .refresh_cmd import RefreshTerminalCommand
-    from .resume_cmd import ResumeCommand
     from .status_cmd import StatusCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
     from .thinking_cmd import ThinkingCommand
@@ -60,10 +58,8 @@ def ensure_commands_loaded() -> None:
     register(ForkSessionCommand())
     load_prompt_commands()
     register(StatusCommand())
-    register(ResumeCommand())
-    register(ExportOnlineCommand())
     register(DebugCommand())
-    register(ClearCommand())
+    register(NewCommand())
 
     # Load prompt-based commands (appended after built-in commands)
 
@@ -71,19 +67,17 @@ def ensure_commands_loaded() -> None:
 # Lazy accessors for command classes
 def __getattr__(name: str) -> object:
     _commands_map = {
-        "ClearCommand": "clear_cmd",
+        "NewCommand": "new_cmd",
         "CompactCommand": "compact_cmd",
         "ContinueCommand": "continue_cmd",
         "CopyCommand": "copy_cmd",
         "DebugCommand": "debug_cmd",
         "ExportCommand": "export_cmd",
-        "ExportOnlineCommand": "export_online_cmd",
         "ForkSessionCommand": "fork_session_cmd",
         "LoginCommand": "login_cmd",
         "LogoutCommand": "logout_cmd",
         "ModelCommand": "model_cmd",
         "RefreshTerminalCommand": "refresh_cmd",
-        "ResumeCommand": "resume_cmd",
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",
         "ThinkingCommand": "thinking_cmd",
@@ -98,7 +92,7 @@ def __getattr__(name: str) -> object:
 
 __all__ = [
     # Command classes are lazily loaded via __getattr__
-    # "ClearCommand", "DiffCommand", "HelpCommand", "ModelCommand",
+    # "NewCommand", "DiffCommand", "HelpCommand", "ModelCommand",
     # "ExportCommand", "RefreshTerminalCommand", "ReleaseNotesCommand",
     # "StatusCommand",
     "CommandABC",

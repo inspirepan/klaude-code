@@ -12,6 +12,36 @@ class AggregatedUsage(model.BaseModel):
     task_count: int
 
 
+class MessageStats(model.BaseModel):
+    user_messages: int
+    assistant_messages: int
+    tool_calls: int
+    tool_results: int
+
+    @property
+    def total_messages(self) -> int:
+        return self.user_messages + self.assistant_messages + self.tool_results
+
+
+def format_tokens(tokens: int) -> str:
+    """Format token count with K/M suffix for readability."""
+    if tokens >= 1_000_000:
+        return f"{tokens / 1_000_000:.2f}M"
+    if tokens >= 1_000:
+        return f"{tokens / 1_000:.1f}K"
+    return str(tokens)
+
+
+def format_cost(cost: float | None, currency: str = "USD") -> str:
+    """Format cost with currency symbol."""
+    if cost is None:
+        return "-"
+    symbol = "¥" if currency == "CNY" else "$"
+    if cost < 0.01:
+        return f"{symbol}{cost:.4f}"
+    return f"{symbol}{cost:.2f}"
+
+
 def accumulate_session_usage(session: Session) -> AggregatedUsage:
     """Accumulate usage statistics from all TaskMetadataItems in session history.
 
@@ -65,61 +95,29 @@ def accumulate_session_usage(session: Session) -> AggregatedUsage:
     return AggregatedUsage(total=total, by_model=by_model, task_count=task_count)
 
 
-def format_tokens(tokens: int) -> str:
-    """Format token count with K/M suffix for readability."""
-    if tokens >= 1_000_000:
-        return f"{tokens / 1_000_000:.2f}M"
-    if tokens >= 1_000:
-        return f"{tokens / 1_000:.1f}K"
-    return str(tokens)
+def collect_message_stats(session: Session) -> MessageStats:
+    user_messages = 0
+    assistant_messages = 0
+    tool_calls = 0
+    tool_results = 0
 
+    for item in session.conversation_history:
+        if isinstance(item, message.UserMessage):
+            user_messages += 1
+            continue
+        if isinstance(item, message.AssistantMessage):
+            assistant_messages += 1
+            tool_calls += sum(1 for part in item.parts if isinstance(part, message.ToolCallPart))
+            continue
+        if isinstance(item, message.ToolResultMessage):
+            tool_results += 1
 
-def format_cost(cost: float | None, currency: str = "USD") -> str:
-    """Format cost with currency symbol."""
-    if cost is None:
-        return "-"
-    symbol = "¥" if currency == "CNY" else "$"
-    if cost < 0.01:
-        return f"{symbol}{cost:.4f}"
-    return f"{symbol}{cost:.2f}"
-
-
-def _format_model_usage_line(meta: model.TaskMetadata) -> str:
-    """Format a single model's usage as a line."""
-    model_label = meta.model_name
-    if meta.provider:
-        model_label = f"{meta.model_name} ({meta.provider})"
-
-    usage = meta.usage
-    if not usage:
-        return f"      {model_label}: no usage data"
-
-    cost_str = format_cost(usage.total_cost, usage.currency)
-    return (
-        f"      {model_label}: "
-        f"{format_tokens(usage.input_tokens)} input, "
-        f"{format_tokens(usage.output_tokens)} output, "
-        f"{format_tokens(usage.cached_tokens)} cache read, "
-        f"{format_tokens(usage.reasoning_tokens)} thinking, "
-        f"({cost_str})"
+    return MessageStats(
+        user_messages=user_messages,
+        assistant_messages=assistant_messages,
+        tool_calls=tool_calls,
+        tool_results=tool_results,
     )
-
-
-def format_status_content(aggregated: AggregatedUsage) -> str:
-    """Format session status with per-model breakdown."""
-    lines: list[str] = []
-
-    # Total cost line
-    total_cost_str = format_cost(aggregated.total.total_cost, aggregated.total.currency)
-    lines.append(f"Total cost: {total_cost_str}")
-
-    # Per-model breakdown
-    if aggregated.by_model:
-        lines.append("Usage by model:")
-        for stats in aggregated.by_model:
-            lines.append(_format_model_usage_line(stats))
-
-    return "\n".join(lines)
 
 
 class StatusCommand(CommandABC):
@@ -131,18 +129,26 @@ class StatusCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Show session usage statistics"
+        return "Show session status"
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
         session = agent.session
         aggregated = accumulate_session_usage(session)
+        message_stats = collect_message_stats(session)
+        events_file_path = str(Session.paths().events_file(session.id))
 
         event = events.CommandOutputEvent(
             session_id=session.id,
             command_name=self.name,
-            content=format_status_content(aggregated),
             ui_extra=model.SessionStatusUIExtra(
+                events_file_path=events_file_path,
+                session_id=session.id,
+                user_messages_count=message_stats.user_messages,
+                assistant_messages_count=message_stats.assistant_messages,
+                tool_calls_count=message_stats.tool_calls,
+                tool_results_count=message_stats.tool_results,
+                total_messages_count=message_stats.total_messages,
                 usage=aggregated.total,
                 task_count=aggregated.task_count,
                 by_model=aggregated.by_model,

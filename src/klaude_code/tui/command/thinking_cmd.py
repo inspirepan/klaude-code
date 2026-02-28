@@ -50,7 +50,7 @@ class ThinkingCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Configure model thinking/reasoning level"
+        return "Change thinking level"
 
     @property
     def is_interactive(self) -> bool:

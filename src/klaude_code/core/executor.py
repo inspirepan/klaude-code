@@ -270,7 +270,7 @@ class AgentRuntime:
         await self._emit_event(
             events.CommandOutputEvent(
                 session_id=agent.session.id,
-                command_name=commands.CommandName.CLEAR,
+                command_name=commands.CommandName.NEW,
                 content="started new conversation",
             )
         )
@@ -283,44 +283,6 @@ class AgentRuntime:
                 loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=agent.session.work_dir),
             )
-        )
-
-    async def resume_session(self, target_session_id: str) -> None:
-        target_session = Session.load(target_session_id)
-        if (
-            target_session.model_thinking is not None
-            and target_session.model_name
-            and target_session.model_name == self._llm_clients.main.model_name
-        ):
-            self._llm_clients.main.get_llm_config().thinking = target_session.model_thinking
-
-        profile = self._model_profile_provider.build_profile(self._llm_clients.main)
-        agent = Agent(
-            session=target_session,
-            profile=profile,
-            compact_llm_client=self._llm_clients.compact,
-            request_user_interaction=self._request_user_interaction,
-        )
-
-        await self._emit_event(
-            events.WelcomeEvent(
-                session_id=target_session.id,
-                work_dir=str(target_session.work_dir),
-                llm_config=self._llm_clients.main.get_llm_config(),
-                loaded_skills=get_loaded_skill_names_by_location(),
-                loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
-                loaded_memories=get_existing_memory_paths_by_location(work_dir=target_session.work_dir),
-            )
-        )
-
-        async for evt in agent.replay_history():
-            await self._emit_event(evt)
-
-        self._agent = agent
-        log_debug(
-            f"Resumed session: {target_session.id}",
-            style="cyan",
-            debug_type=DebugType.EXECUTION,
         )
 
     async def interrupt(self, target_session_id: str | None) -> None:
@@ -777,9 +739,6 @@ class ExecutorContext:
 
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
         await self._agent_runtime.clear_session(operation.session_id)
-
-    async def handle_resume_session(self, operation: op.ResumeSessionOperation) -> None:
-        await self._agent_runtime.resume_session(operation.target_session_id)
 
     async def handle_export_session(self, operation: op.ExportSessionOperation) -> None:
         agent = await self._agent_runtime.ensure_agent(operation.session_id)

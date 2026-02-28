@@ -73,9 +73,9 @@ def test_dispatch_prefix_prefers_base_command_when_other_is_extension(
     _isolated_registry: dict[commands.CommandName | str, CommandABC],
 ) -> None:
     _isolated_registry[commands.CommandName.EXPORT] = _DummyCommand(commands.CommandName.EXPORT, "export")
-    _isolated_registry[commands.CommandName.EXPORT_ONLINE] = _DummyCommand(
-        commands.CommandName.EXPORT_ONLINE,
-        "export-online",
+    _isolated_registry["export-doc"] = _DummyCommand(
+        "export-doc",
+        "export-doc",
     )
 
     result = arun(
@@ -92,32 +92,32 @@ def test_dispatch_prefix_can_target_extension_command(
     _isolated_registry: dict[commands.CommandName | str, CommandABC],
 ) -> None:
     _isolated_registry[commands.CommandName.EXPORT] = _DummyCommand(commands.CommandName.EXPORT, "export")
-    _isolated_registry[commands.CommandName.EXPORT_ONLINE] = _DummyCommand(
-        commands.CommandName.EXPORT_ONLINE,
-        "export-online",
+    _isolated_registry["export-doc"] = _DummyCommand(
+        "export-doc",
+        "export-doc",
     )
 
     result = arun(
         registry.dispatch_command(
-            message.UserInputPayload(text="/export-o bar"), cast(Agent, _DummyAgent()), submission_id="s1"
+            message.UserInputPayload(text="/export-d bar"), cast(Agent, _DummyAgent()), submission_id="s1"
         )
     )
     assert result.operations is not None
     assert isinstance(result.operations[0], op.RunAgentOperation)
-    assert result.operations[0].input.text == "export-online:bar"
+    assert result.operations[0].input.text == "export-doc:bar"
 
 
 def test_slash_command_name_supports_prefix_match(
     _isolated_registry: dict[commands.CommandName | str, CommandABC],
 ) -> None:
     _isolated_registry[commands.CommandName.EXPORT] = _DummyCommand(commands.CommandName.EXPORT, "export")
-    _isolated_registry[commands.CommandName.EXPORT_ONLINE] = _DummyCommand(
-        commands.CommandName.EXPORT_ONLINE,
-        "export-online",
+    _isolated_registry["export-doc"] = _DummyCommand(
+        "export-doc",
+        "export-doc",
     )
 
     assert registry.is_slash_command_name("exp") is True
-    assert registry.is_slash_command_name("export-o") is True
+    assert registry.is_slash_command_name("export-d") is True
 
 
 def test_dispatch_ambiguous_prefix_falls_back_to_agent(

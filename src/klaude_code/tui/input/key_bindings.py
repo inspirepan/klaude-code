@@ -310,7 +310,7 @@ def create_key_bindings(
         """Return True when Enter should submit even if completions are visible.
 
         We show completions proactively for contexts like `/`.
-        If the user already typed an exact candidate (e.g. `/clear`), accepting
+        If the user already typed an exact candidate (e.g. `/new`), accepting
         a completion often only adds a trailing space and makes Enter require
         two presses. In that case, prefer submitting.
         """

@@ -644,7 +644,7 @@ class DisplayStateMachine:
         match event:
             case events.WelcomeEvent() as e:
                 # WelcomeEvent marks (or reaffirms) the current interactive session.
-                # If the session id changes (e.g., /clear creates a new session), clear
+                # If the session id changes (e.g., /new creates a new session), clear
                 # routing state so subsequent streamed events are not dropped.
                 if self._primary_session_id is not None and self._primary_session_id != e.session_id:
                     self._reset_sessions()
@@ -698,7 +698,7 @@ class DisplayStateMachine:
                 s.clear_status_metadata()
                 if not s.is_sub_agent:
                     # Keep primary session tracking in sync even if the session id changes
-                    # during the process lifetime (e.g., /clear).
+                    # during the process lifetime (e.g., /new).
                     if is_replay:
                         self._set_primary_if_needed(e.session_id)
                     else:

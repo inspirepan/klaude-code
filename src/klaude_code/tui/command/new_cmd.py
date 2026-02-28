@@ -3,16 +3,16 @@ from klaude_code.protocol import commands, message, op
 from .command_abc import Agent, CommandABC, CommandResult
 
 
-class ClearCommand(CommandABC):
-    """Clear current session and start a new conversation"""
+class NewCommand(CommandABC):
+    """Start a new conversation in a fresh session."""
 
     @property
     def name(self) -> commands.CommandName:
-        return commands.CommandName.CLEAR
+        return commands.CommandName.NEW
 
     @property
     def summary(self) -> str:
-        return "Clear conversation history and free up context"
+        return "Start a new session"
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused

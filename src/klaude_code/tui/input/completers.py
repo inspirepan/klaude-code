@@ -342,6 +342,7 @@ class _AtFilesCompleter(Completer):
     """
 
     _AT_TOKEN_RE = AT_TOKEN_PATTERN
+    _DISPLAY_META_GAP = 2
 
     def __init__(
         self,
@@ -407,12 +408,13 @@ class _AtFilesCompleter(Completer):
                 return []  # type: ignore[reportUnknownVariableType]
             start_position = token_start_in_input - len(text_before)
             suggestions_to_show = suggestions[: self._max_results]
-            align_width = self._display_align_width(suggestions_to_show)
+            name_limit = self._display_name_limit()
+            align_width = self._display_align_width(suggestions_to_show, name_limit)
             for s in suggestions_to_show:
                 yield Completion(
                     text=self._format_completion_text(s, is_quoted=is_quoted),
                     start_position=start_position,
-                    display=self._format_display_label(s, align_width),
+                    display=self._format_display_label(s, align_width, name_limit),
                     display_meta=s,
                 )
             return []  # type: ignore[reportUnknownVariableType]
@@ -425,13 +427,14 @@ class _AtFilesCompleter(Completer):
         # Prepare Completion objects. Replace from the '@' character.
         start_position = token_start_in_input - len(text_before)  # negative
         suggestions_to_show = suggestions[: self._max_results]
-        align_width = self._display_align_width(suggestions_to_show)
+        name_limit = self._display_name_limit()
+        align_width = self._display_align_width(suggestions_to_show, name_limit)
         for s in suggestions_to_show:
             # Insert formatted text (with quoting when needed) so that subsequent typing does not keep triggering
             yield Completion(
                 text=self._format_completion_text(s, is_quoted=is_quoted),
                 start_position=start_position,
-                display=self._format_display_label(s, align_width),
+                display=self._format_display_label(s, align_width, name_limit),
                 display_meta=s,
             )
 
@@ -637,22 +640,28 @@ class _AtFilesCompleter(Completer):
             return f'@"{suggestion}" '
         return f"@{suggestion} "
 
-    def _format_display_label(self, suggestion: str, align_width: int) -> str:
+    def _format_display_label(self, suggestion: str, align_width: int, max_name_len: int) -> str:
         """Format visible label for a completion option.
 
         Keep this unstyled so that the completion menu's selection style can
         fully override the selected row.
         """
-        name = self._display_name(suggestion)
+        name = self._display_name(suggestion, max_name_len=max_name_len)
         # Pad to align_width + extra padding for visual separation from meta
-        return name.ljust(align_width + 6)
+        return name.ljust(align_width + self._DISPLAY_META_GAP)
 
-    def _display_align_width(self, suggestions: list[str]) -> int:
+    def _display_align_width(self, suggestions: list[str], max_name_len: int) -> int:
         """Calculate alignment width for display labels."""
 
-        return max((len(self._display_name(s)) for s in suggestions), default=0)
+        return max((len(self._display_name(s, max_name_len=max_name_len)) for s in suggestions), default=0)
 
-    def _display_name(self, suggestion: str) -> str:
+    def _display_name_limit(self) -> int:
+        """Return maximum visible width for left-column names."""
+
+        columns = shutil.get_terminal_size(fallback=(80, 24)).columns
+        return max(10, min(28, columns // 3))
+
+    def _display_name(self, suggestion: str, *, max_name_len: int) -> str:
         """Return the basename (with trailing slash for directories) for display."""
 
         if not suggestion:
@@ -661,9 +670,24 @@ class _AtFilesCompleter(Completer):
         is_dir = suggestion.endswith("/")
         stripped = suggestion.rstrip("/")
         base = stripped.split("/")[-1] if stripped else suggestion
+        if max_name_len < 1:
+            max_name_len = 1
+
         if is_dir:
-            return f"{base}/"
-        return base
+            name = f"{base}/"
+            if len(name) <= max_name_len:
+                return name
+            if max_name_len == 1:
+                return "…"
+            if max_name_len == 2:
+                return "…/"
+            return f"{name[: max_name_len - 2]}…/"
+
+        if len(base) <= max_name_len:
+            return base
+        if max_name_len == 1:
+            return "…"
+        return f"{base[: max_name_len - 1]}…"
 
     def _same_scope(self, prev_key: str, cur_key: str) -> bool:
         # Consider same scope if they share the same base directory and one prefix startswith the other
