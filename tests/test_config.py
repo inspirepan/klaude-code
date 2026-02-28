@@ -93,6 +93,17 @@ class TestModelConfig:
         assert config.thinking.reasoning_summary == "auto"
         assert config.thinking.type == "enabled"
 
+    def test_model_config_defaults_model_name_from_model_id(self) -> None:
+        """Model name should fallback to model_id when omitted."""
+        config = ModelConfig(model_id="gpt-5")
+
+        assert config.model_name == "gpt-5"
+
+    def test_model_config_requires_model_name_or_model_id(self) -> None:
+        """Model config should reject entries with neither model_name nor model_id."""
+        with pytest.raises(ValueError):
+            _ = ModelConfig.model_validate({})
+
 
 # =============================================================================
 # Config Tests

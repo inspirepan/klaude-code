@@ -59,6 +59,13 @@ class ModelConfig(llm_param.LLMConfigModelParameter):
 
     model_name: str
 
+    @model_validator(mode="before")
+    @classmethod
+    def _default_model_name(cls, data: dict[str, Any]) -> dict[str, Any]:
+        if isinstance(data, dict) and not data.get("model_name") and data.get("model_id"):
+            data["model_name"] = data["model_id"]
+        return data
+
 
 class ProviderConfig(llm_param.LLMConfigProviderParameter):
     """Full provider configuration (used in merged config)."""
