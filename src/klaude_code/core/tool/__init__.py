@@ -1,3 +1,4 @@
+from .agent_tool import AgentTool
 from .ask_user_question_tool import AskUserQuestionTool
 from .context import (
     FileTracker,
@@ -17,7 +18,6 @@ from .report_back_tool import ReportBackTool
 from .rewind_tool import RewindTool
 from .shell.bash_tool import BashTool
 from .shell.command_safety import SafetyCheckResult, is_safe_command
-from .task_tool import TaskTool
 from .todo.todo_write_tool import TodoWriteTool
 from .todo.update_plan_tool import UpdatePlanTool
 from .tool_abc import ToolABC
@@ -27,6 +27,7 @@ from .web.web_fetch_tool import WebFetchTool
 from .web.web_search_tool import WebSearchTool
 
 __all__ = [
+    "AgentTool",
     "ApplyPatchTool",
     "AskUserQuestionTool",
     "BashTool",
@@ -40,7 +41,6 @@ __all__ = [
     "RunSubtask",
     "SafetyCheckResult",
     "SubAgentResumeClaims",
-    "TaskTool",
     "TodoContext",
     "TodoWriteTool",
     "ToolABC",

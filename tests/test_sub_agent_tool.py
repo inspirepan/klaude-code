@@ -1,5 +1,5 @@
 # pyright: reportPrivateUsage=false
-"""Tests for Task tool plus sub-agent profile basics."""
+"""Tests for Agent tool plus sub-agent profile basics."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from typing import Any
 
 import pytest
 
+from klaude_code.core.tool.agent_tool import AgentTool
 from klaude_code.core.tool.context import RunSubtask, TodoContext, ToolContext
-from klaude_code.core.tool.task_tool import TaskTool
 from klaude_code.protocol import tools
 from klaude_code.protocol.sub_agent import SubAgentProfile, _default_prompt_builder
 
@@ -24,10 +24,10 @@ def _tool_context(*, run_subtask: RunSubtask | None = None) -> ToolContext:
     return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", run_subtask=run_subtask)
 
 
-def test_task_tool_schema() -> None:
-    schema = TaskTool.schema()
+def test_agent_tool_schema() -> None:
+    schema = AgentTool.schema()
 
-    assert schema.name == tools.TASK
+    assert schema.name == tools.AGENT
     assert schema.type == "function"
     assert "description" in schema.parameters["required"]
     assert "prompt" in schema.parameters["required"]
@@ -35,21 +35,21 @@ def test_task_tool_schema() -> None:
     assert "general-purpose" in schema.parameters["properties"]["type"]["enum"]
 
 
-def test_task_tool_call_invalid_json() -> None:
-    result = arun(TaskTool.call("not valid json", _tool_context()))
+def test_agent_tool_call_invalid_json() -> None:
+    result = arun(AgentTool.call("not valid json", _tool_context()))
 
     assert result.status == "error"
     assert result.output_text is not None and "Invalid JSON" in result.output_text
 
 
-def test_task_tool_call_without_runner() -> None:
-    result = arun(TaskTool.call('{"description":"d","prompt":"p"}', _tool_context()))
+def test_agent_tool_call_without_runner() -> None:
+    result = arun(AgentTool.call('{"description":"d","prompt":"p"}', _tool_context()))
 
     assert result.status == "error"
-    assert result.output_text is not None and "No subtask runner" in result.output_text
+    assert result.output_text is not None and "No sub-agent runner" in result.output_text
 
 
-def test_task_tool_call_includes_session_id() -> None:
+def test_agent_tool_call_includes_session_id() -> None:
     captured: dict[str, Any] = {}
 
     async def _runner(
@@ -68,7 +68,7 @@ def test_task_tool_call_includes_session_id() -> None:
         return _Result()
 
     args = '{"type":"explore","description":"d","prompt":"p"}'
-    result = arun(TaskTool.call(args, _tool_context(run_subtask=_runner)))
+    result = arun(AgentTool.call(args, _tool_context(run_subtask=_runner)))
 
     assert captured["sub_agent_type"] == "Explore"
     assert result.status == "success"
@@ -114,7 +114,7 @@ class TestSubAgentRegistration:
     def test_is_sub_agent_tool(self) -> None:
         from klaude_code.protocol.sub_agent import is_sub_agent_tool
 
-        assert is_sub_agent_tool(tools.TASK) is True
+        assert is_sub_agent_tool(tools.AGENT) is True
         assert is_sub_agent_tool("Explore") is False
 
     def test_get_sub_agent_profile(self) -> None:

@@ -9,7 +9,7 @@ UPDATE_PLAN = "update_plan"
 WEB_FETCH = "WebFetch"
 WEB_SEARCH = "WebSearch"
 REPORT_BACK = "report_back"
-TASK = "Task"
+AGENT = "Agent"
 REWIND = "Rewind"
 ASK_USER_QUESTION = "AskUserQuestion"
 

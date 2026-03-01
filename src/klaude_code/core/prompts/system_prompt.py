@@ -30,8 +30,8 @@ BASH_GIT_HISTORY_INST = (
 
 READ_BEFORE_EDIT_INST = """- NEVER propose changes to code you haven't read. Read a file before editing it."""
 
-TASK_EXPLORE_INST = """- For broad codebase exploration, use `Task` with `type="explore"`."""
-TASK_EXPLORE_PARALLEL_INST = """- Launch multiple explore sub-agents in parallel when tasks are independent."""
+AGENT_EXPLORE_INST = """- For broad codebase exploration, use `Agent` with `type="explore"`."""
+AGENT_EXPLORE_PARALLEL_INST = """- Launch multiple explore sub-agents in parallel when tasks are independent."""
 
 TODO_FREQUENT_USAGE_INST = """- Use `TodoWrite` frequently for planning and tracking progress on multi-step tasks."""
 TODO_COMPLETE_IMMEDIATELY_INST = """- Mark todos completed immediately when finished. Do not batch-complete later."""
@@ -83,8 +83,8 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
     ):
         strategy_lines.append(READ_BEFORE_EDIT_INST)
 
-    if tools.TASK in tool_name_set:
-        strategy_lines.extend([TASK_EXPLORE_INST, TASK_EXPLORE_PARALLEL_INST])
+    if tools.AGENT in tool_name_set:
+        strategy_lines.extend([AGENT_EXPLORE_INST, AGENT_EXPLORE_PARALLEL_INST])
 
     if tools.TODO_WRITE in tool_name_set:
         strategy_lines.extend([TODO_FREQUENT_USAGE_INST, TODO_COMPLETE_IMMEDIATELY_INST])

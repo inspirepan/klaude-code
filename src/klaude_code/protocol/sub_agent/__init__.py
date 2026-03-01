@@ -43,9 +43,9 @@ class SubAgentProfile:
     tool_set: tuple[str, ...] = ()  # Tools available to this sub agent
     prompt_builder: PromptBuilder = _default_prompt_builder  # Builds the sub agent prompt from tool arguments
 
-    # Entry-point metadata for Task tool (RunSubAgent)
+    # Entry-point metadata for Agent tool (RunSubAgent)
     invoker_type: str | None = None  # Tool-level type mapping (e.g., "general-purpose", "explore")
-    invoker_summary: str = ""  # Short description shown under Task tool supported types
+    invoker_summary: str = ""  # Short description shown under Agent tool supported types
 
     # UI display
     active_form: str = ""  # Active form for spinner status (e.g., "Tasking", "Exploring")
@@ -74,9 +74,9 @@ def iter_sub_agent_profiles() -> list[SubAgentProfile]:
 def is_sub_agent_tool(tool_name: str) -> bool:
     from klaude_code.protocol import tools
 
-    return tool_name in {tools.TASK}
+    return tool_name == tools.AGENT
 
 
 # Import sub-agent modules to trigger registration
 from klaude_code.protocol.sub_agent import explore as explore  # noqa: E402
-from klaude_code.protocol.sub_agent import task as task  # noqa: E402
+from klaude_code.protocol.sub_agent import general_purpose as general_purpose  # noqa: E402

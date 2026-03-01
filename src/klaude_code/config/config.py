@@ -229,9 +229,16 @@ class UserConfig(BaseModel):
         raw_val: Any = data.get("sub_agent_models") or {}
         raw_models: dict[str, Any] = cast(dict[str, Any], raw_val) if isinstance(raw_val, dict) else {}
         normalized: dict[str, str] = {}
-        key_map = {p.name.lower(): p.name for p in iter_sub_agent_profiles()}
+        key_map: dict[str, str] = {}
+        for profile in iter_sub_agent_profiles():
+            if profile.invoker_type:
+                key_map[profile.invoker_type.lower()] = profile.invoker_type
         for key, value in dict(raw_models).items():
-            canonical = key_map.get(str(key).lower(), str(key))
+            normalized_key = str(key).strip().lower()
+            canonical = key_map.get(normalized_key)
+            if canonical is None:
+                supported = ", ".join(sorted(key_map.values()))
+                raise ValueError(f"Unknown sub_agent_models key '{key}'. Supported keys: {supported}")
             normalized[canonical] = str(value)
         data["sub_agent_models"] = normalized
         return data
@@ -255,9 +262,16 @@ class Config(BaseModel):
         raw_val: Any = data.get("sub_agent_models") or {}
         raw_models: dict[str, Any] = cast(dict[str, Any], raw_val) if isinstance(raw_val, dict) else {}
         normalized: dict[str, str] = {}
-        key_map = {p.name.lower(): p.name for p in iter_sub_agent_profiles()}
+        key_map: dict[str, str] = {}
+        for profile in iter_sub_agent_profiles():
+            if profile.invoker_type:
+                key_map[profile.invoker_type.lower()] = profile.invoker_type
         for key, value in dict(raw_models).items():
-            canonical = key_map.get(str(key).lower(), str(key))
+            normalized_key = str(key).strip().lower()
+            canonical = key_map.get(normalized_key)
+            if canonical is None:
+                supported = ", ".join(sorted(key_map.values()))
+                raise ValueError(f"Unknown sub_agent_models key '{key}'. Supported keys: {supported}")
             normalized[canonical] = str(value)
         data["sub_agent_models"] = normalized
         return data
@@ -473,7 +487,7 @@ def get_example_config() -> UserConfig:
     return UserConfig(
         main_model="opus",
         compact_model="gemini-flash",
-        sub_agent_models={"Explore": "haiku", "Task": "sonnet"},
+        sub_agent_models={"general-purpose": "sonnet", "explore": "haiku"},
         provider_list=[
             UserProviderConfig(
                 provider_name="my-provider",

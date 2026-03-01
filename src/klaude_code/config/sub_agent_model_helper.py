@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from klaude_code.protocol import tools
 from klaude_code.protocol.sub_agent import (
     SubAgentProfile,
     get_sub_agent_profile,
@@ -48,6 +47,11 @@ class SubAgentModelHelper:
     def __init__(self, config: Config) -> None:
         self._config = config
 
+    @staticmethod
+    def _role_key_for_sub_agent_type(sub_agent_type: str) -> str | None:
+        profile = get_sub_agent_profile(sub_agent_type)
+        return profile.invoker_type
+
     def describe_empty_model_config_behavior(
         self,
         sub_agent_type: str,
@@ -56,13 +60,12 @@ class SubAgentModelHelper:
     ) -> EmptySubAgentModelBehavior:
         """Describe what happens when a sub-agent model is not configured.
 
-        Sub-agents default to the Task model if configured, otherwise
-        they inherit the main model.
+        Sub-agents inherit the main model when there is no explicit role config.
         """
 
-        _ = get_sub_agent_profile(sub_agent_type)
-        task_model = self._config.sub_agent_models.get(tools.TASK)
-        resolved = task_model or main_model_name
+        role_key = self._role_key_for_sub_agent_type(sub_agent_type)
+        role_model = self._config.sub_agent_models.get(role_key) if role_key else None
+        resolved = role_model or main_model_name
         return EmptySubAgentModelBehavior(
             description=f"use default behavior: {resolved}",
             resolved_model_name=resolved,
@@ -71,14 +74,13 @@ class SubAgentModelHelper:
     def get_available_sub_agents(self) -> list[SubAgentModelInfo]:
         """Return all available sub-agents with their current model config.
 
-        For sub-agents without explicit config, resolve from Task/main defaults.
+        For sub-agents without explicit config, inherit the main model.
         """
         result: list[SubAgentModelInfo] = []
         for profile in iter_sub_agent_profiles():
-            configured_model = self._config.sub_agent_models.get(profile.name)
-            effective_model = (
-                configured_model or self._config.sub_agent_models.get(tools.TASK) or self._config.main_model
-            )
+            role_key = profile.invoker_type
+            configured_model = self._config.sub_agent_models.get(role_key) if role_key else None
+            effective_model = configured_model or self._config.main_model
             result.append(
                 SubAgentModelInfo(
                     profile=profile,
@@ -101,10 +103,8 @@ class SubAgentModelHelper:
         """Return model names for each sub-agent that needs a dedicated client."""
         result: dict[SubAgentType, str] = {}
         for profile in iter_sub_agent_profiles():
-            model_name = self._config.sub_agent_models.get(profile.name)
+            role_key = profile.invoker_type
+            model_name = self._config.sub_agent_models.get(role_key) if role_key else None
             if model_name:
                 result[profile.name] = model_name
-        task_model = self._config.sub_agent_models.get(tools.TASK)
-        if task_model:
-            result.setdefault(tools.TASK, task_model)
         return result

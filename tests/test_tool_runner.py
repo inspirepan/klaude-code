@@ -373,12 +373,12 @@ class TestToolExecutorPartition:
     def test_partition_concurrent_tools_only(self):
         """Test partitioning with only concurrent tools."""
         tool_calls = [
-            ToolCallRequest(response_id=None, call_id="1", tool_name="Task", arguments_json="{}"),
+            ToolCallRequest(response_id=None, call_id="1", tool_name="Agent", arguments_json="{}"),
             ToolCallRequest(response_id=None, call_id="2", tool_name="Explore", arguments_json="{}"),
         ]
         executor = ToolExecutor(
             context=_tool_context(),
-            registry={"Task": MockConcurrentTool, "Explore": MockConcurrentTool},
+            registry={"Agent": MockConcurrentTool, "Explore": MockConcurrentTool},
             append_history=lambda items: None,  # type: ignore[arg-type]
         )
         sequential, concurrent = executor._partition_tool_calls(tool_calls)
@@ -390,12 +390,12 @@ class TestToolExecutorPartition:
         """Test partitioning with mixed tool types."""
         tool_calls = [
             ToolCallRequest(response_id=None, call_id="1", tool_name="Read", arguments_json="{}"),
-            ToolCallRequest(response_id=None, call_id="2", tool_name="Task", arguments_json="{}"),
+            ToolCallRequest(response_id=None, call_id="2", tool_name="Agent", arguments_json="{}"),
             ToolCallRequest(response_id=None, call_id="3", tool_name="Bash", arguments_json="{}"),
         ]
         executor = ToolExecutor(
             context=_tool_context(),
-            registry={"Read": MockSuccessTool, "Bash": MockSuccessTool, "Task": MockConcurrentTool},
+            registry={"Read": MockSuccessTool, "Bash": MockSuccessTool, "Agent": MockConcurrentTool},
             append_history=lambda items: None,  # type: ignore[arg-type]
         )
         sequential, concurrent = executor._partition_tool_calls(tool_calls)
@@ -404,7 +404,7 @@ class TestToolExecutorPartition:
         assert len(concurrent) == 1
         assert sequential[0].tool_name == "Read"
         assert sequential[1].tool_name == "Bash"
-        assert concurrent[0].tool_name == "Task"
+        assert concurrent[0].tool_name == "Agent"
 
     def test_partition_web_tools_as_concurrent(self):
         """Test that web tools are partitioned as concurrent."""
@@ -412,7 +412,7 @@ class TestToolExecutorPartition:
             ToolCallRequest(response_id=None, call_id="1", tool_name="Read", arguments_json="{}"),
             ToolCallRequest(response_id=None, call_id="2", tool_name="WebSearch", arguments_json="{}"),
             ToolCallRequest(response_id=None, call_id="3", tool_name="WebFetch", arguments_json="{}"),
-            ToolCallRequest(response_id=None, call_id="4", tool_name="Task", arguments_json="{}"),
+            ToolCallRequest(response_id=None, call_id="4", tool_name="Agent", arguments_json="{}"),
         ]
         executor = ToolExecutor(
             context=_tool_context(),
@@ -420,7 +420,7 @@ class TestToolExecutorPartition:
                 "Read": MockSuccessTool,
                 "WebSearch": MockConcurrentTool,
                 "WebFetch": MockConcurrentTool,
-                "Task": MockConcurrentTool,
+                "Agent": MockConcurrentTool,
             },
             append_history=lambda items: None,  # type: ignore[arg-type]
         )
@@ -429,7 +429,7 @@ class TestToolExecutorPartition:
         assert len(sequential) == 1
         assert len(concurrent) == 3
         assert sequential[0].tool_name == "Read"
-        assert {c.tool_name for c in concurrent} == {"WebSearch", "WebFetch", "Task"}
+        assert {c.tool_name for c in concurrent} == {"WebSearch", "WebFetch", "Agent"}
 
 
 class TestToolExecutorEvents:

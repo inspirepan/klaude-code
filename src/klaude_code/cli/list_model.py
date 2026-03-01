@@ -501,9 +501,11 @@ def _build_models_tree(
             roles: list[str] = []
             selector = f"{model.model_name}@{provider.provider_name}"
             if selector == default_selector:
-                roles.append("default")
+                roles.append("main")
             if selector in model_to_agents:
                 roles.extend(role.lower() for role in model_to_agents[selector])
+            if roles:
+                roles = list(dict.fromkeys(roles))
 
             name = Text()
             if roles:
@@ -552,17 +554,22 @@ def _display_agent_models_table(config: Config, console: Console) -> None:
     agent_table.add_column("Role", style="bold", min_width=10)
     agent_table.add_column("Model", style=ThemeKey.CONFIG_STATUS_PRIMARY)
 
-    # Default model
+    # Main agent model
     if config.main_model:
-        agent_table.add_row("Default", config.main_model)
+        agent_table.add_row("main", config.main_model)
     else:
-        agent_table.add_row("Default", Text("(not set)", style=ThemeKey.CONFIG_STATUS_ERROR))
+        agent_table.add_row("main", Text("(not set)", style=ThemeKey.CONFIG_STATUS_ERROR))
 
-    # Sub-agent models
+    # Sub-agent role overrides
+    seen_roles: set[str] = set()
     for profile in iter_sub_agent_profiles():
-        sub_model_name = config.sub_agent_models.get(profile.name)
+        role = profile.invoker_type
+        if role is None or role in seen_roles:
+            continue
+        seen_roles.add(role)
+        sub_model_name = config.sub_agent_models.get(role)
         if sub_model_name:
-            agent_table.add_row(profile.name, sub_model_name)
+            agent_table.add_row(role, sub_model_name)
 
     console.print(agent_table)
 

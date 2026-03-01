@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 # Avoid circular import by importing protocol first
 from klaude_code.protocol import llm_param
@@ -409,15 +410,13 @@ class TestConfig:
         config = Config(
             provider_list=[sample_provider],
             main_model="test-model",
-            sub_agent_models={"task": "model-a", "explore": "model-b"},
+            sub_agent_models={"general-purpose": "model-a", "explore": "model-b"},
         )
 
-        # Keys should be normalized to canonical form (matching SubAgentProfile names)
-        # Based on sub_agent profiles, the canonical names are "Task", "Explore", etc.
-        assert "Task" in config.sub_agent_models
-        assert "Explore" in config.sub_agent_models
-        assert config.sub_agent_models["Task"] == "model-a"
-        assert config.sub_agent_models["Explore"] == "model-b"
+        assert "general-purpose" in config.sub_agent_models
+        assert "explore" in config.sub_agent_models
+        assert config.sub_agent_models["general-purpose"] == "model-a"
+        assert config.sub_agent_models["explore"] == "model-b"
 
     def test_sub_agent_models_empty(self, sample_provider: ProviderConfig) -> None:
         """Test that empty sub_agent_models is handled correctly."""
@@ -427,6 +426,14 @@ class TestConfig:
             sub_agent_models={},
         )
         assert config.sub_agent_models == {}
+
+    def test_sub_agent_models_reject_unknown_key(self, sample_provider: ProviderConfig) -> None:
+        with pytest.raises(ValidationError, match="Unknown sub_agent_models key"):
+            _ = Config(
+                provider_list=[sample_provider],
+                main_model="test-model",
+                sub_agent_models={"task": "model-a"},
+            )
 
     def test_sub_agent_models_none(self, sample_provider: ProviderConfig) -> None:
         """Test that None sub_agent_models is handled correctly."""
@@ -1488,16 +1495,20 @@ class TestOutOfBoxExperience:
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
         test_config_path.parent.mkdir(parents=True)
 
-        user_config = {"sub_agent_models": {"explore": "my-fast-model", "task": "my-task-model"}}
+        user_config = {
+            "sub_agent_models": {
+                "explore": "my-fast-model",
+                "general-purpose": "my-task-model",
+            }
+        }
         test_config_path.write_text(str(yaml.dump(user_config) or ""))
 
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
         load_config.cache_clear()
         config = load_config()
 
-        # Keys are normalized to canonical form (Explore, Task)
-        assert config.sub_agent_models.get("Explore") == "my-fast-model"
-        assert config.sub_agent_models.get("Task") == "my-task-model"
+        assert config.sub_agent_models.get("explore") == "my-fast-model"
+        assert config.sub_agent_models.get("general-purpose") == "my-task-model"
 
     def test_commented_config_uses_builtin(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Fully commented config should use builtin config."""

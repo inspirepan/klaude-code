@@ -437,4 +437,5 @@ provider_list:
       budget_tokens: 8192
 
 sub_agent_models:
-  Explore: sonnet-no-thinking
+  explore: sonnet-no-thinking
+

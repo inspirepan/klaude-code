@@ -1,4 +1,4 @@
-"""Task tool implementation for running sub-agents by type."""
+"""Agent tool implementation for running sub-agents by type."""
 
 from __future__ import annotations
 
@@ -13,20 +13,20 @@ from klaude_code.protocol import llm_param, message, model, tools
 from klaude_code.protocol.sub_agent import get_sub_agent_profile, iter_sub_agent_profiles
 from klaude_code.session.session import Session
 
-TASK_TYPE_TO_SUB_AGENT: dict[str, str] = {
+AGENT_TYPE_TO_SUB_AGENT: dict[str, str] = {
     "general-purpose": "Task",
     "explore": "Explore",
 }
 
 
-def _task_description() -> str:
+def _agent_description() -> str:
     summaries: dict[str, str] = {}
     for profile in iter_sub_agent_profiles():
         if profile.invoker_type:
             summaries[profile.invoker_type] = profile.invoker_summary.strip()
 
     type_lines: list[str] = []
-    for invoker_type in TASK_TYPE_TO_SUB_AGENT:
+    for invoker_type in AGENT_TYPE_TO_SUB_AGENT:
         summary = summaries.get(invoker_type, "")
         if summary:
             type_lines.append(f"- {invoker_type}: {summary}")
@@ -35,19 +35,19 @@ def _task_description() -> str:
 
     types_section = "\n".join(type_lines) if type_lines else "- general-purpose"
 
-    return load_desc(Path(__file__).parent / "task_tool.md", {"types_section": types_section})
+    return load_desc(Path(__file__).parent / "agent_tool.md", {"types_section": types_section})
 
 
-TASK_SCHEMA = llm_param.ToolSchema(
-    name=tools.TASK,
+AGENT_SCHEMA = llm_param.ToolSchema(
+    name=tools.AGENT,
     type="function",
-    description=_task_description(),
+    description=_agent_description(),
     parameters={
         "type": "object",
         "properties": {
             "type": {
                 "type": "string",
-                "enum": list(TASK_TYPE_TO_SUB_AGENT.keys()),
+                "enum": list(AGENT_TYPE_TO_SUB_AGENT.keys()),
                 "description": "Sub-agent type selector.",
             },
             "description": {
@@ -73,8 +73,8 @@ TASK_SCHEMA = llm_param.ToolSchema(
 )
 
 
-@register(tools.TASK)
-class TaskTool(ToolABC):
+@register(tools.AGENT)
+class AgentTool(ToolABC):
     """Run a sub-agent based on the requested type."""
 
     @classmethod
@@ -83,7 +83,7 @@ class TaskTool(ToolABC):
 
     @classmethod
     def schema(cls) -> llm_param.ToolSchema:
-        return TASK_SCHEMA
+        return AGENT_SCHEMA
 
     @classmethod
     async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
@@ -99,7 +99,7 @@ class TaskTool(ToolABC):
 
         runner = context.run_subtask
         if runner is None:
-            return message.ToolResultMessage(status="error", output_text="No subtask runner available in this context")
+            return message.ToolResultMessage(status="error", output_text="No sub-agent runner available in this context")
 
         description = str(typed_args.get("description") or "")
 
@@ -144,15 +144,15 @@ class TaskTool(ToolABC):
         requested_type = str(type_raw).strip() if isinstance(type_raw, str) else ""
 
         if resume_session_id and not requested_type:
-            sub_agent_type = resume_sub_agent_type or TASK_TYPE_TO_SUB_AGENT["general-purpose"]
+            sub_agent_type = resume_sub_agent_type or AGENT_TYPE_TO_SUB_AGENT["general-purpose"]
         else:
             if not requested_type:
                 requested_type = "general-purpose"
-            sub_agent_type = TASK_TYPE_TO_SUB_AGENT.get(requested_type)
+            sub_agent_type = AGENT_TYPE_TO_SUB_AGENT.get(requested_type)
             if sub_agent_type is None:
                 return message.ToolResultMessage(
                     status="error",
-                    output_text=f"Unknown Task type '{requested_type}'.",
+                    output_text=f"Unknown Agent type '{requested_type}'.",
                 )
 
         if resume_session_id and resume_sub_agent_type and resume_sub_agent_type != sub_agent_type:
@@ -188,7 +188,7 @@ class TaskTool(ToolABC):
                 context.register_sub_agent_progress_getter,
             )
         except Exception as exc:
-            return message.ToolResultMessage(status="error", output_text=f"Failed to run subtask: {exc}")
+            return message.ToolResultMessage(status="error", output_text=f"Failed to run sub-agent: {exc}")
 
         return message.ToolResultMessage(
             status="success" if not result.error else "error",
