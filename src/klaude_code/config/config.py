@@ -19,6 +19,13 @@ from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 
 # Pattern to match ${ENV_VAR} and ${PRIMARY|FALLBACK} syntax
 _ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*(?:\|[A-Za-z_][A-Za-z0-9_]*)*)\}$")
+_PROVIDER_NAME_ALIASES = {
+    "copilot": "github-copilot",
+}
+
+
+def normalize_provider_name(provider_name: str) -> str:
+    return _PROVIDER_NAME_ALIASES.get(provider_name.casefold(), provider_name)
 
 
 def parse_env_var_syntax(value: str | None) -> tuple[str | None, str | None]:
@@ -80,6 +87,16 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
     disabled: bool = False
     model_list: list[ModelConfig] = Field(default_factory=lambda: [])
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_provider_name(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        provider_name = data.get("provider_name")
+        if isinstance(provider_name, str):
+            data["provider_name"] = normalize_provider_name(provider_name)
+        return data
+
     def get_resolved_api_key(self) -> str | None:
         """Get the resolved API key, expanding ${ENV_VAR} syntax if present."""
         return resolve_api_key(self.api_key)
@@ -116,8 +133,8 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
             # Consider available if logged in. Token refresh happens on-demand.
             return state is None
 
-        if self.protocol == LLMClientProtocol.COPILOT_OAUTH:
-            # Copilot uses OAuth authentication, not API key
+        if self.protocol == LLMClientProtocol.GITHUB_COPILOT_OAUTH:
+            # GitHub Copilot uses OAuth authentication, not API key
             from klaude_code.auth.copilot.token_manager import CopilotTokenManager
 
             token_manager = CopilotTokenManager()
@@ -166,6 +183,16 @@ class UserProviderConfig(BaseModel):
     is_azure: bool = False
     azure_api_version: str | None = None
     model_list: list[ModelConfig] = Field(default_factory=lambda: [])
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_provider_name(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        provider_name = data.get("provider_name")
+        if isinstance(provider_name, str):
+            data["provider_name"] = normalize_provider_name(provider_name)
+        return data
 
 
 class ModelEntry(llm_param.LLMConfigModelParameter):
@@ -260,7 +287,7 @@ class Config(BaseModel):
 
         base, provider = trimmed.rsplit("@", 1)
         base = base.strip()
-        provider = provider.strip()
+        provider = normalize_provider_name(provider.strip())
         if not base or not provider:
             raise ValueError(f"Invalid model selector: {model_selector!r}")
         return base, provider
@@ -548,24 +575,25 @@ def _merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Co
         return merged
 
     # Build lookup for builtin providers
-    builtin_providers: dict[str, ProviderConfig] = {p.provider_name: p for p in builtin_config.provider_list}
+    builtin_providers: dict[str, ProviderConfig] = {
+        normalize_provider_name(p.provider_name): p for p in builtin_config.provider_list
+    }
 
     # Merge provider_list: user providers come first (higher priority in model resolution),
     # followed by builtin-only providers.
     merged_providers: dict[str, ProviderConfig] = {}
     for user_provider in user_config.provider_list:
-        if user_provider.provider_name in builtin_providers:
+        provider_name = normalize_provider_name(user_provider.provider_name)
+        if provider_name in builtin_providers:
             # Merge with builtin provider; place merged entry first (user priority)
-            merged_providers[user_provider.provider_name] = _merge_provider(
-                builtin_providers[user_provider.provider_name], user_provider
-            )
+            merged_providers[provider_name] = _merge_provider(builtin_providers[provider_name], user_provider)
         else:
             # New provider from user - must have protocol
             if user_provider.protocol is None:
                 raise ValueError(
-                    f"Provider '{user_provider.provider_name}' requires 'protocol' field (not a builtin provider)"
+                    f"Provider '{provider_name}' requires 'protocol' field (not a builtin provider)"
                 )
-            merged_providers[user_provider.provider_name] = ProviderConfig.model_validate(user_provider.model_dump())
+            merged_providers[provider_name] = ProviderConfig.model_validate(user_provider.model_dump())
     # Append builtin providers not referenced by user config
     for name, provider in builtin_providers.items():
         if name not in merged_providers:

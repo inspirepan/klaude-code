@@ -2,9 +2,9 @@ from klaude_code.config.thinking import format_current_thinking, get_thinking_pi
 from klaude_code.protocol import llm_param
 
 
-def test_copilot_claude_picker_uses_anthropic_style() -> None:
+def test_github_copilot_claude_picker_uses_anthropic_style() -> None:
     config = llm_param.LLMConfigParameter(
-        protocol=llm_param.LLMClientProtocol.COPILOT_OAUTH,
+        protocol=llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH,
         model_id="claude-sonnet-4-6",
     )
 
@@ -15,9 +15,9 @@ def test_copilot_claude_picker_uses_anthropic_style() -> None:
     assert picker.options[-1].value == "adaptive:adaptive"
 
 
-def test_copilot_gpt_picker_uses_responses_style() -> None:
+def test_github_copilot_gpt_picker_uses_responses_style() -> None:
     config = llm_param.LLMConfigParameter(
-        protocol=llm_param.LLMClientProtocol.COPILOT_OAUTH,
+        protocol=llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH,
         model_id="gpt-5.3-codex",
     )
 
@@ -28,9 +28,9 @@ def test_copilot_gpt_picker_uses_responses_style() -> None:
     assert picker.options[0].value.startswith("effort:")
 
 
-def test_format_current_thinking_for_copilot_claude_budget() -> None:
+def test_format_current_thinking_for_github_copilot_claude_budget() -> None:
     config = llm_param.LLMConfigParameter(
-        protocol=llm_param.LLMClientProtocol.COPILOT_OAUTH,
+        protocol=llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH,
         model_id="claude-sonnet-4-6",
         thinking=llm_param.Thinking(type="enabled", budget_tokens=2048),
     )

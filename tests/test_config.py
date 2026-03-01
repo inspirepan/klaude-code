@@ -326,8 +326,8 @@ class TestConfig:
         assert llm_config.protocol == llm_param.LLMClientProtocol.CLAUDE_OAUTH
         assert llm_config.api_key is None
 
-    def test_get_model_config_copilot_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """COPILOT protocol should not require api_key to resolve model config."""
+    def test_get_model_config_github_copilot_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """GITHUB_COPILOT protocol should not require api_key to resolve model config."""
         from klaude_code.auth.copilot.token_manager import CopilotAuthState, CopilotTokenManager
 
         def _mock_get_state(_self: CopilotTokenManager) -> CopilotAuthState:
@@ -346,8 +346,8 @@ class TestConfig:
         )
 
         provider = ProviderConfig(
-            provider_name="copilot",
-            protocol=llm_param.LLMClientProtocol.COPILOT_OAUTH,
+            provider_name="github-copilot",
+            protocol=llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH,
             api_key=None,
             model_list=[
                 ModelConfig(
@@ -356,11 +356,31 @@ class TestConfig:
                 )
             ],
         )
-        config = Config(provider_list=[provider], main_model="gpt-5.3-codex@copilot")
+        config = Config(provider_list=[provider], main_model="gpt-5.3-codex@github-copilot")
 
-        llm_config = config.get_model_config("gpt-5.3-codex@copilot")
-        assert llm_config.protocol == llm_param.LLMClientProtocol.COPILOT_OAUTH
+        llm_config = config.get_model_config("gpt-5.3-codex@github-copilot")
+        assert llm_config.protocol == llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH
         assert llm_config.api_key is None
+
+        legacy_selector_config = config.get_model_config("gpt-5.3-codex@copilot")
+        assert legacy_selector_config.protocol == llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH
+
+    def test_legacy_copilot_protocol_and_provider_name_are_normalized(self) -> None:
+        provider = ProviderConfig.model_validate(
+            {
+                "provider_name": "copilot",
+                "protocol": "copilot_oauth",
+                "model_list": [
+                    {
+                        "model_name": "gpt-5.3-codex",
+                        "model_id": "gpt-5.3-codex",
+                    }
+                ],
+            }
+        )
+
+        assert provider.provider_name == "github-copilot"
+        assert provider.protocol == llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH
 
     def test_get_model_config_unknown_model(self, sample_config: Config) -> None:
         """Test getting config for unknown model raises error."""
@@ -1017,7 +1037,7 @@ class TestOutOfBoxExperience:
         def _no_codex_state(_self: CodexTokenManager) -> None:
             return None
 
-        def _no_copilot_state(_self: CopilotTokenManager) -> None:
+        def _no_github_copilot_state(_self: CopilotTokenManager) -> None:
             return None
 
         def _no_auth_env(_key: str) -> None:
@@ -1025,7 +1045,7 @@ class TestOutOfBoxExperience:
 
         monkeypatch.setattr(ClaudeTokenManager, "get_state", _no_claude_state)
         monkeypatch.setattr(CodexTokenManager, "get_state", _no_codex_state)
-        monkeypatch.setattr(CopilotTokenManager, "get_state", _no_copilot_state)
+        monkeypatch.setattr(CopilotTokenManager, "get_state", _no_github_copilot_state)
         monkeypatch.setattr(_config_module, "get_auth_env", _no_auth_env)
 
     def test_first_run_no_config_no_api_keys(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

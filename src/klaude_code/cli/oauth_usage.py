@@ -46,7 +46,7 @@ class _OAuthProviderAuth:
 _SUPPORTED_USAGE_PROTOCOLS = {
     LLMClientProtocol.CLAUDE_OAUTH,
     LLMClientProtocol.CODEX_OAUTH,
-    LLMClientProtocol.COPILOT_OAUTH,
+    LLMClientProtocol.GITHUB_COPILOT_OAUTH,
 }
 
 
@@ -132,14 +132,14 @@ def _resolve_provider_auths(protocols: set[LLMClientProtocol]) -> list[_OAuthPro
         except Exception:
             pass
 
-    if LLMClientProtocol.COPILOT_OAUTH in protocols:
+    if LLMClientProtocol.GITHUB_COPILOT_OAUTH in protocols:
         try:
             token_manager = CopilotTokenManager()
             state = token_manager.get_state()
             if state and state.refresh_token:
                 auths.append(
                     _OAuthProviderAuth(
-                        protocol=LLMClientProtocol.COPILOT_OAUTH,
+                        protocol=LLMClientProtocol.GITHUB_COPILOT_OAUTH,
                         token=state.refresh_token,
                     )
                 )
@@ -159,8 +159,8 @@ def _fetch_usage_snapshot(*, auth: _OAuthProviderAuth, timeout_seconds: float) -
                 account_id=auth.account_id,
                 timeout_seconds=timeout_seconds,
             )
-        case LLMClientProtocol.COPILOT_OAUTH:
-            return _fetch_copilot_usage(token=auth.token, timeout_seconds=timeout_seconds)
+        case LLMClientProtocol.GITHUB_COPILOT_OAUTH:
+            return _fetch_github_copilot_usage(token=auth.token, timeout_seconds=timeout_seconds)
         case _:
             return OAuthUsageSnapshot(protocol=auth.protocol, windows=[], error="Unsupported provider")
 
@@ -258,7 +258,7 @@ def _fetch_codex_usage(*, token: str, account_id: str | None, timeout_seconds: f
         )
 
 
-def _fetch_copilot_usage(*, token: str, timeout_seconds: float) -> OAuthUsageSnapshot:
+def _fetch_github_copilot_usage(*, token: str, timeout_seconds: float) -> OAuthUsageSnapshot:
     with httpx.Client(timeout=timeout_seconds) as client:
         res = client.get(
             "https://api.github.com/copilot_internal/user",
@@ -271,7 +271,7 @@ def _fetch_copilot_usage(*, token: str, timeout_seconds: float) -> OAuthUsageSna
 
         if res.status_code != 200:
             return OAuthUsageSnapshot(
-                protocol=LLMClientProtocol.COPILOT_OAUTH,
+                protocol=LLMClientProtocol.GITHUB_COPILOT_OAUTH,
                 windows=[],
                 error=_build_http_error(status_code=res.status_code),
             )
@@ -304,7 +304,7 @@ def _fetch_copilot_usage(*, token: str, timeout_seconds: float) -> OAuthUsageSna
                 )
 
         return OAuthUsageSnapshot(
-            protocol=LLMClientProtocol.COPILOT_OAUTH,
+            protocol=LLMClientProtocol.GITHUB_COPILOT_OAUTH,
             windows=windows,
             plan=_as_str(data.get("copilot_plan")) if data else None,
         )

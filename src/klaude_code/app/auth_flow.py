@@ -136,7 +136,7 @@ def execute_login(provider: str) -> None:
             except Exception as e:
                 log((f"Login failed: {e}", "red"))
                 raise typer.Exit(1) from None
-        case "copilot":
+        case "github-copilot" | "copilot":
             from klaude_code.auth.copilot.oauth import CopilotOAuth
             from klaude_code.auth.copilot.token_manager import CopilotTokenManager
 
@@ -145,7 +145,7 @@ def execute_login(provider: str) -> None:
             if token_manager.is_logged_in():
                 state = token_manager.get_state()
                 if state and not state.is_expired():
-                    log(("You are already logged in to Copilot.", "green"))
+                    log(("You are already logged in to GitHub Copilot.", "green"))
                     domain = state.enterprise_domain or "github.com"
                     expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
                     log(f"  Domain: {domain}")
@@ -232,18 +232,18 @@ def execute_logout(provider: str) -> None:
             if typer.confirm("Are you sure you want to logout from Claude?"):
                 token_manager.delete()
                 log(("Logged out from Claude.", "green"))
-        case "copilot":
+        case "github-copilot" | "copilot":
             from klaude_code.auth.copilot.token_manager import CopilotTokenManager
 
             token_manager = CopilotTokenManager()
 
             if not token_manager.is_logged_in():
-                log("You are not logged in to Copilot.")
+                log("You are not logged in to GitHub Copilot.")
                 return
 
-            if typer.confirm("Are you sure you want to logout from Copilot?"):
+            if typer.confirm("Are you sure you want to logout from GitHub Copilot?"):
                 token_manager.delete()
-                log(("Logged out from Copilot.", "green"))
+                log(("Logged out from GitHub Copilot.", "green"))
         case _:
-            log((f"Error: Unknown provider '{provider}'. Supported: codex, claude, copilot", "red"))
+            log((f"Error: Unknown provider '{provider}'. Supported: codex, claude, github-copilot", "red"))
             raise typer.Exit(1)

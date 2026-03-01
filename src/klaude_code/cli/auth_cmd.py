@@ -9,7 +9,7 @@ from klaude_code.tui.command.auth_selector import select_provider
 def _build_provider_help() -> str:
     from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
 
-    names = ["codex", "claude", "copilot"] + [k.name.split()[0].lower() for k in SUPPORTED_API_KEYS]
+    names = ["codex", "claude", "github-copilot", "copilot"] + [k.name.split()[0].lower() for k in SUPPORTED_API_KEYS]
     return f"Provider name ({', '.join(names)})"
 
 
@@ -26,7 +26,7 @@ def login_command(
 
 
 def logout_command(
-    provider: str | None = typer.Argument(None, help="Provider to logout (codex|claude|copilot)"),
+    provider: str | None = typer.Argument(None, help="Provider to logout (codex|claude|github-copilot|copilot)"),
 ) -> None:
     """Logout from a provider."""
     if provider is None:

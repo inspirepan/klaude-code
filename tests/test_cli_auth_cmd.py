@@ -13,7 +13,7 @@ def test_cli_logout_without_provider_uses_selector(monkeypatch: pytest.MonkeyPat
 
     def _select_provider(*, include_api_keys: bool = True, prompt: str = "") -> str | None:
         selector_calls.append((include_api_keys, prompt))
-        return "copilot"
+        return "github-copilot"
 
     def _execute_logout(provider: str) -> None:
         logout_calls.append(provider)
@@ -27,7 +27,7 @@ def test_cli_logout_without_provider_uses_selector(monkeypatch: pytest.MonkeyPat
 
     assert result.exit_code == 0
     assert selector_calls == [(False, "Select provider to logout:")]
-    assert logout_calls == ["copilot"]
+    assert logout_calls == ["github-copilot"]
 
 
 def test_cli_logout_cancelled_when_selector_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:

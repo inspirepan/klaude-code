@@ -44,7 +44,7 @@ def get_levels_for_responses(model_name: str | None) -> list[str]:
     return RESPONSES_LEVELS
 
 
-def _is_copilot_anthropic_model(model_name: str | None) -> bool:
+def _is_github_copilot_anthropic_model(model_name: str | None) -> bool:
     return is_claude_model_any(model_name)
 
 
@@ -64,8 +64,8 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
             return f"reasoning_effort={thinking.reasoning_effort}"
         return "not set"
 
-    if protocol == llm_param.LLMClientProtocol.COPILOT_OAUTH:
-        if _is_copilot_anthropic_model(config.model_id):
+    if protocol == llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH:
+        if _is_github_copilot_anthropic_model(config.model_id):
             if thinking.type == "disabled":
                 return "off"
             if thinking.type == "adaptive":
@@ -216,8 +216,8 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
             current_value=_get_current_effort_value(thinking),
         )
 
-    if protocol == llm_param.LLMClientProtocol.COPILOT_OAUTH:
-        if _is_copilot_anthropic_model(model_name):
+    if protocol == llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH:
+        if _is_github_copilot_anthropic_model(model_name):
             if supports_adaptive_thinking(model_name):
                 return ThinkingPickerData(
                     options=_build_budget_with_adaptive_options(),
