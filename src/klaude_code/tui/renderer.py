@@ -872,7 +872,7 @@ class TUICommandRenderer:
                         self._sub_agent_thinking_buffers[session_id] = ""
                     elif not self._thinking_stream.is_active:
                         self._thinking_stream.start(self._new_thinking_mdstream())
-                        self._thinking_stream.append("Thinking…  \n")
+                        self._thinking_stream.append("Thinking: ")
                         if not self._replay_mode:
                             self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
                 case AppendThinking(session_id=session_id, content=content):

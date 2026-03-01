@@ -153,6 +153,38 @@ def _image_mime_type(file_path: str) -> str:
     return mime_type
 
 
+def _missing_file_suggestions(file_path: str, *, max_suggestions: int = 3) -> list[str]:
+    directory = os.path.dirname(file_path)
+    base = os.path.basename(file_path).lower()
+    if not directory or not base:
+        return []
+
+    try:
+        entries = sorted(os.listdir(directory), key=str.lower)
+    except OSError:
+        return []
+
+    suggestions: list[str] = []
+    for entry in entries:
+        entry_lower = entry.lower()
+        if entry_lower == base or entry_lower in base or base in entry_lower:
+            suggestions.append(os.path.join(directory, entry))
+            if len(suggestions) >= max_suggestions:
+                break
+    return suggestions
+
+
+def _missing_file_error(file_path: str) -> str:
+    suggestions = _missing_file_suggestions(file_path)
+    if not suggestions:
+        return "<tool_use_error>File does not exist.</tool_use_error>"
+
+    suggested_paths = "\n".join(suggestions)
+    return (
+        f"<tool_use_error>File not found:\n{file_path}\nDid you mean one of these?\n{suggested_paths}</tool_use_error>"
+    )
+
+
 @register(tools.READ)
 class ReadTool(ToolABC):
     class ReadArguments(BaseModel):
@@ -223,7 +255,7 @@ class ReadTool(ToolABC):
         if not file_exists(file_path):
             return message.ToolResultMessage(
                 status="error",
-                output_text="<tool_use_error>File does not exist.</tool_use_error>",
+                output_text=_missing_file_error(file_path),
             )
 
         # Check for PDF files
@@ -316,7 +348,7 @@ class ReadTool(ToolABC):
         except FileNotFoundError:
             return message.ToolResultMessage(
                 status="error",
-                output_text="<tool_use_error>File does not exist.</tool_use_error>",
+                output_text=_missing_file_error(file_path),
             )
         except IsADirectoryError:
             return message.ToolResultMessage(
