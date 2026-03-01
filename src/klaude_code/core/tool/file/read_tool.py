@@ -181,10 +181,7 @@ def _missing_file_error(file_path: str) -> str:
 
     suggested_paths = "\n".join(suggestions)
     return (
-        "<tool_use_error>"
-        f"File not found:\n{file_path}\n"
-        f"Did you mean one of these?\n{suggested_paths}"
-        "</tool_use_error>"
+        f"<tool_use_error>File not found:\n{file_path}\nDid you mean one of these?\n{suggested_paths}</tool_use_error>"
     )
 
 
