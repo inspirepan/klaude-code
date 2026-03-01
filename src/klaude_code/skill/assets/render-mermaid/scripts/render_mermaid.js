@@ -1,12 +1,13 @@
 #!/usr/bin/env bun
 
-import { access, mkdir, readFile } from "node:fs/promises";
+import { access, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const MERMAID_PACKAGE = "beautiful-mermaid";
 const PUPPETEER_PACKAGE = "puppeteer-core";
 const SKILL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const DEPENDENCIES = [MERMAID_PACKAGE, PUPPETEER_PACKAGE];
 
 const DEFAULT_CHROME_PATHS = [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -28,6 +29,31 @@ function isMissingPackageError(error) {
 
 function installHint(packageName) {
   return `missing dependency \"${packageName}\": run \"cd ${SKILL_DIR} && bun install\" and retry`;
+}
+
+function installAllHint() {
+  return `run \"cd ${SKILL_DIR} && bun install\" and retry`;
+}
+
+async function assertDependenciesInstalled() {
+  const missing = [];
+  for (const dep of DEPENDENCIES) {
+    const packageJsonPath = path.join(SKILL_DIR, "node_modules", dep, "package.json");
+    try {
+      await access(packageJsonPath);
+    } catch {
+      missing.push(dep);
+    }
+  }
+
+  if (missing.length > 0) {
+    fail(`dependencies not installed (${missing.join(", ")}): ${installAllHint()}`);
+  }
+}
+
+function formatLoadFailure(packageName, error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return `failed to load ${packageName}: ${message}. If this is first use (or dependencies changed), ${installAllHint()}`;
 }
 
 function parseArgs(argv) {
@@ -67,6 +93,11 @@ if (help) {
     A[Start] --> B[End]
   MERMAID
 
+  node scripts/render_mermaid.js --output <OUTPUT_PATH>.png <<'MERMAID'
+  flowchart TD
+    A[Start] --> B[End]
+  MERMAID
+
 Options:
   --output <path.png>  Required. Output PNG path.
   --mermaid <text>     Optional. Mermaid text (stdin is preferred).
@@ -101,7 +132,12 @@ async function readMermaidFromStdin() {
     return "";
   }
 
-  return await readFile(0, "utf8");
+  process.stdin.setEncoding("utf8");
+  let content = "";
+  for await (const chunk of process.stdin) {
+    content += chunk;
+  }
+  return content;
 }
 
 const mermaidInput = mermaid || (await readMermaidFromStdin());
@@ -119,6 +155,8 @@ if (path.extname(outputPath).toLowerCase() !== ".png") {
   fail("output must end with .png");
 }
 
+await assertDependenciesInstalled();
+
 let renderMermaidSVG;
 try {
   ({ renderMermaidSVG } = await import(MERMAID_PACKAGE));
@@ -126,7 +164,7 @@ try {
   if (isMissingPackageError(error)) {
     fail(installHint(MERMAID_PACKAGE));
   }
-  fail(`failed to load ${MERMAID_PACKAGE}: ${error instanceof Error ? error.message : String(error)}`);
+  fail(formatLoadFailure(MERMAID_PACKAGE, error));
 }
 
 if (typeof renderMermaidSVG !== "function") {
@@ -140,7 +178,7 @@ try {
   if (isMissingPackageError(error)) {
     fail(installHint(PUPPETEER_PACKAGE));
   }
-  fail(`failed to load ${PUPPETEER_PACKAGE}: ${error instanceof Error ? error.message : String(error)}`);
+  fail(formatLoadFailure(PUPPETEER_PACKAGE, error));
 }
 
 const chromeExecutablePath = await resolveChromePath(chromePath);
