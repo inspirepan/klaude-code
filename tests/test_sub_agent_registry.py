@@ -20,7 +20,7 @@ def _tool_context() -> ToolContext:
 
 
 def test_sub_agent_tool_visibility() -> None:
-    assert is_sub_agent_tool(tools.TASK) is True
+    assert is_sub_agent_tool(tools.AGENT) is True
     assert is_sub_agent_tool("Explore") is False
 
 
@@ -29,11 +29,11 @@ def test_main_agent_tools_include_registered_sub_agents() -> None:
     gpt5_tool_names = {schema.name for schema in load_agent_tools("gpt-5")}
     claude_tool_names = {schema.name for schema in load_agent_tools("claude-3")}
 
-    assert tools.TASK in gpt5_tool_names
+    assert tools.AGENT in gpt5_tool_names
     assert "Explore" not in gpt5_tool_names
     assert "Oracle" not in gpt5_tool_names
 
-    assert tools.TASK in claude_tool_names
+    assert tools.AGENT in claude_tool_names
     assert "Explore" not in claude_tool_names
     assert "Oracle" not in claude_tool_names
 
@@ -51,7 +51,7 @@ class _SlowSubAgentTool(ToolABC):
     def schema(cls) -> llm_param.ToolSchema:
         # Schema is not used in this test; return a minimal valid schema.
         return llm_param.ToolSchema(
-            name=tools.TASK,
+            name=tools.AGENT,
             type="function",
             description="Slow sub-agent tool for cancellation tests",
             parameters={"type": "object", "properties": {}},

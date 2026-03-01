@@ -672,14 +672,14 @@ class TestSessionPersistence:
                         parts=[
                             message.ToolCallPart(
                                 call_id="parent-call",
-                                tool_name="Task",
+                                tool_name="Agent",
                                 arguments_json="{}",
                             )
                         ]
                     ),
                     message.ToolResultMessage(
                         call_id="parent-call",
-                        tool_name="Task",
+                        tool_name="Agent",
                         output_text="Delegated to sub-agent",
                         status="success",
                         ui_extra=model.SessionIdUIExtra(session_id=sub_session.id),

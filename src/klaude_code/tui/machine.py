@@ -56,7 +56,7 @@ from klaude_code.tui.commands import (
 )
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
-from klaude_code.tui.components.tools import get_task_active_form, get_tool_active_form, is_sub_agent_tool
+from klaude_code.tui.components.tools import get_agent_active_form, get_tool_active_form, is_sub_agent_tool
 from klaude_code.ui.common import format_number
 
 # Tools that complete quickly and don't benefit from streaming activity display.
@@ -956,19 +956,19 @@ class DisplayStateMachine:
                 if (
                     not is_replay
                     and s.is_sub_agent
-                    and e.tool_name == tools.TASK
+                    and e.tool_name == tools.AGENT
                     and not s.should_skip_tool_activity(e.tool_name)
                 ):
-                    tool_active_form = get_task_active_form(e.arguments)
+                    tool_active_form = get_agent_active_form(e.arguments)
                     s.add_status_tool_call(e.tool_call_id, tool_active_form)
                     cmds.extend(self._spinner_update_commands())
                 elif (
                     not is_replay
                     and not s.is_sub_agent
-                    and e.tool_name == tools.TASK
+                    and e.tool_name == tools.AGENT
                     and not s.should_skip_tool_activity(e.tool_name)
                 ):
-                    tool_active_form = get_task_active_form(e.arguments)
+                    tool_active_form = get_agent_active_form(e.arguments)
                     self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
                     cmds.extend(self._spinner_update_commands())
 

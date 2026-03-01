@@ -32,7 +32,7 @@ from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import commands, events, message, model, op, user_interaction
 from klaude_code.protocol.llm_param import LLMConfigParameter, Thinking
 from klaude_code.protocol.op_handler import OperationHandler
-from klaude_code.protocol.sub_agent import SubAgentResult
+from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
 from klaude_code.session.export import build_export_html, get_default_export_path
 from klaude_code.session.session import Session
 
@@ -676,7 +676,7 @@ class ExecutorContext:
                 main_model_name=self.llm_clients.main.model_name,
             )
 
-            # Default: inherit from Task/main client behavior.
+            # Default: inherit from Agent/main client behavior.
             self.llm_clients.sub_clients.pop(sub_agent_type, None)
 
             display_model = f"({behavior.description})"
@@ -688,11 +688,15 @@ class ExecutorContext:
             display_model = new_client.model_name
 
         if operation.save_as_default:
+            profile = get_sub_agent_profile(sub_agent_type)
+            role_key = profile.invoker_type
+            if role_key is None:
+                raise ValueError(f"Sub-agent '{sub_agent_type}' cannot be configured via sub_agent_models")
             if model_name is None:
                 # Remove from config to inherit
-                config.sub_agent_models.pop(sub_agent_type, None)
+                config.sub_agent_models.pop(role_key, None)
             else:
-                config.sub_agent_models[sub_agent_type] = model_name
+                config.sub_agent_models[role_key] = model_name
             await config.save()
 
         saved_note = " (saved in ~/.klaude/klaude-config.yaml)" if operation.save_as_default else ""

@@ -145,7 +145,7 @@ class SubAgentManager:
             register_progress_getter(_get_progress)
 
         try:
-            # Not emit the subtask's user input since task tool call is already rendered
+            # Not emit the subtask's user input since agent tool call is already rendered
             result: str = ""
             task_metadata: model.TaskMetadata | None = None
             sub_agent_input = message.UserInputPayload(text=state.sub_agent_prompt, images=None)

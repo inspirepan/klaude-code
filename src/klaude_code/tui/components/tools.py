@@ -52,8 +52,8 @@ def is_sub_agent_tool(tool_name: str) -> bool:
     return _is_sub_agent_tool(tool_name)
 
 
-def get_task_active_form(arguments: str) -> str:
-    """Return active form text for Task tool based on its arguments."""
+def get_agent_active_form(arguments: str) -> str:
+    """Return active form text for Agent tool based on its arguments."""
     import json
 
     try:
@@ -585,7 +585,7 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.WEB_FETCH: "Fetching Web",
     tools.WEB_SEARCH: "Searching Web",
     tools.REPORT_BACK: "Reporting",
-    tools.TASK: "Spawning Task",
+    tools.AGENT: "Spawning Task",
     tools.REWIND: "Rewinding",
     tools.ASK_USER_QUESTION: "Questioning",
 }

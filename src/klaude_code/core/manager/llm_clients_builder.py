@@ -8,6 +8,7 @@ from klaude_code.core.manager.llm_clients import LLMClients
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
+from klaude_code.protocol.sub_agent import get_sub_agent_profile
 from klaude_code.protocol.tools import SubAgentType
 
 
@@ -58,7 +59,7 @@ def build_llm_clients(
     helper = SubAgentModelHelper(config)
     sub_agent_configs = helper.build_sub_agent_client_configs()
 
-    # User-configured sub_agent_models take precedence; builtin defaults are soft-fallback.
+    # User-configured sub_agent_models take precedence; builtin role configs are soft-fallback.
     user_sub_agent_models = config.get_user_sub_agent_models()
 
     sub_clients: dict[SubAgentType, LLMClientABC] = {}
@@ -67,7 +68,9 @@ def build_llm_clients(
             sub_llm_config = config.get_model_config(sub_model_name)
             sub_clients[sub_agent_type] = create_llm_client(sub_llm_config)
         except ValueError:
-            if sub_agent_type in user_sub_agent_models:
+            profile = get_sub_agent_profile(sub_agent_type)
+            role_key = profile.invoker_type
+            if role_key is not None and role_key in user_sub_agent_models:
                 raise
             log_debug(
                 f"Sub-agent '{sub_agent_type}' builtin model '{sub_model_name}' not available, falling back to main model",

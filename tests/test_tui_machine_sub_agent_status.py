@@ -242,7 +242,7 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
     assert finish_update.leading_blank_line is False
 
 
-def test_main_task_tool_call_shows_spawning_before_sub_agent_starts() -> None:
+def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
 
@@ -251,7 +251,7 @@ def test_main_task_tool_call_shows_spawning_before_sub_agent_starts() -> None:
         events.ToolCallStartEvent(
             session_id=main_session,
             tool_call_id="tc-task-1",
-            tool_name=tools.TASK,
+            tool_name=tools.AGENT,
         )
     )
     update = _last_spinner_update(cmds)
