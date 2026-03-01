@@ -495,7 +495,7 @@ def _build_models_tree(
             )
             model_id = Text(model.model_id or "", style="dim")
             status = Text("status: disabled", style="dim")
-            params = Text(" · ").join(_get_model_params_display(model))
+            params = Text(" · ", style="dim").join(_get_model_params_display(model))
         else:
             # Build role tags for this model
             roles: list[str] = []
@@ -514,7 +514,7 @@ def _build_models_tree(
             else:
                 name.append(model.model_name, style=ThemeKey.CONFIG_ITEM_NAME)
             model_id = Text(model.model_id or "", style=ThemeKey.CONFIG_MODEL_ID)
-            params = Text(" · ").join(_get_model_params_display(model))
+            params = Text(" · ", style="dim").join(_get_model_params_display(model))
             status = None
 
         model_rows.append((name, model_id, status, params))
@@ -626,25 +626,35 @@ def display_models_and_providers(config: Config, *, show_all: bool = False):
 
     # OAuth providers are printed as soon as their usage snapshot is loaded.
     if oauth_provider_groups:
+        total_groups = len(oauth_provider_groups)
         with ThreadPoolExecutor(max_workers=min(len(oauth_provider_groups), 3)) as executor:
             future_to_protocol = {
                 executor.submit(load_oauth_usage_summary, protocols={protocol}, timeout_seconds=3.5): protocol
                 for protocol in oauth_provider_groups
             }
 
-            for future in as_completed(future_to_protocol):
-                protocol = future_to_protocol[future]
-                usage_map: dict[LLMClientProtocol, str] = {}
-                try:
-                    snapshots = future.result()
-                    snapshot = snapshots.get(protocol)
-                    if snapshot is not None:
-                        usage_summary = format_oauth_usage_summary(snapshot, max_windows=2)
-                        if usage_summary:
-                            usage_map[protocol] = usage_summary
-                except Exception:
-                    # Usage display must never break `klaude list`.
-                    usage_map = {}
+            with console.status(
+                Text(f"Loading OAuth usage... (0/{total_groups})", style=ThemeKey.STATUS_TEXT),
+                spinner="dots",
+                spinner_style=ThemeKey.STATUS_SPINNER,
+            ) as status:
+                for completed_groups, future in enumerate(as_completed(future_to_protocol), start=1):
+                    protocol = future_to_protocol[future]
+                    usage_map: dict[LLMClientProtocol, str] = {}
+                    try:
+                        snapshots = future.result()
+                        snapshot = snapshots.get(protocol)
+                        if snapshot is not None:
+                            usage_summary = format_oauth_usage_summary(snapshot, max_windows=2)
+                            if usage_summary:
+                                usage_map[protocol] = usage_summary
+                    except Exception:
+                        # Usage display must never break `klaude list`.
+                        usage_map = {}
 
-                for provider in oauth_provider_groups.get(protocol, []):
-                    _print_provider(provider, usage_map)
+                    status.update(
+                        Text(f"Loading OAuth usage... ({completed_groups}/{total_groups})", style=ThemeKey.STATUS_TEXT)
+                    )
+
+                    for provider in oauth_provider_groups.get(protocol, []):
+                        _print_provider(provider, usage_map)
