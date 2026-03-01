@@ -264,3 +264,74 @@ def test_update_does_not_invoke_image_callback_for_live_only_image_block(tmp_pat
     assert displayed == []
     assert captions == []
     assert live_calls == []
+
+
+def test_update_does_not_drop_ordered_list_item_after_incomplete_marker_prefix() -> None:
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+
+    text = "9. a\n\n4. b\n\n---"
+
+    streamed_out = io.StringIO()
+    streamed_console = Console(file=streamed_out, force_terminal=True, width=80, theme=theme)
+    streamed = MarkdownStream(console=streamed_console, theme=theme, left_margin=0, live_sink=lambda _: None)
+    streamed.min_delay = 0
+    streamed.update("9. a\n\n4", final=False)
+    streamed.update(text, final=True)
+
+    direct_out = io.StringIO()
+    direct_console = Console(file=direct_out, force_terminal=True, width=80, theme=theme)
+    direct = MarkdownStream(console=direct_console, theme=theme, left_margin=0, live_sink=lambda _: None)
+    direct.min_delay = 0
+    direct.update(text, final=True)
+
+    streamed_plain = _ANSI_ESCAPE_RE.sub("", streamed_out.getvalue())
+    direct_plain = _ANSI_ESCAPE_RE.sub("", direct_out.getvalue())
+    assert streamed_plain == direct_plain
+    assert "10 b" in streamed_plain
+
+
+def test_update_preserves_numbered_heading_after_prefix_frame() -> None:
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+
+    text = (
+        "1. **开启 Gateway 代理 + TCP**\n"
+        "\n"
+        "2. **创建 Network Allow 规则（放行你的 SSH）**\n"
+        "\n"
+        "3. **检查 WARP Device Profile 的 Split Tunnel**\n"
+    )
+    cut = text.index("\n\n2") + 3  # stream frame ends at an incomplete list marker prefix: "...\n\n2"
+
+    streamed_out = io.StringIO()
+    streamed_console = Console(file=streamed_out, force_terminal=True, width=100, theme=theme)
+    streamed = MarkdownStream(console=streamed_console, theme=theme, left_margin=0, live_sink=lambda _: None)
+    streamed.min_delay = 0
+    streamed.update(text[:cut], final=False)
+    streamed.update(text, final=True)
+
+    direct_out = io.StringIO()
+    direct_console = Console(file=direct_out, force_terminal=True, width=100, theme=theme)
+    direct = MarkdownStream(console=direct_console, theme=theme, left_margin=0, live_sink=lambda _: None)
+    direct.min_delay = 0
+    direct.update(text, final=True)
+
+    streamed_plain = _ANSI_ESCAPE_RE.sub("", streamed_out.getvalue())
+    direct_plain = _ANSI_ESCAPE_RE.sub("", direct_out.getvalue())
+    assert streamed_plain == direct_plain
+    assert "创建 Network Allow 规则（放行你的 SSH）" in streamed_plain
