@@ -157,7 +157,7 @@ def _build_copilot_dynamic_headers(param: llm_param.LLMCallParameter) -> dict[st
     return headers
 
 
-@register(llm_param.LLMClientProtocol.COPILOT_OAUTH)
+@register(llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH)
 class CopilotClient(LLMClientABC):
     """LLM client for GitHub Copilot using OAuth device flow."""
 
@@ -167,7 +167,9 @@ class CopilotClient(LLMClientABC):
         self._oauth = CopilotOAuth(self._token_manager)
 
         if not self._token_manager.is_logged_in():
-            raise CopilotNotLoggedInError("Copilot authentication required. Run 'klaude auth login copilot' first.")
+            raise CopilotNotLoggedInError(
+                "GitHub Copilot authentication required. Run 'klaude auth login github-copilot' first."
+            )
 
         self._openai_client: AsyncOpenAI | None = None
         self._anthropic_client: anthropic.AsyncAnthropic | None = None

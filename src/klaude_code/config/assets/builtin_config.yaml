@@ -340,8 +340,8 @@ provider_list:
     max_tokens: 128000
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
-- provider_name: copilot
-  protocol: copilot_oauth
+- provider_name: github-copilot
+  protocol: github_copilot_oauth
   model_list:
 
   - model_id: gpt-5.3-codex

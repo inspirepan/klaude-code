@@ -21,7 +21,7 @@ def _get_oauth_auth_state(provider_name: str) -> tuple[bool, bool]:
                 from klaude_code.auth.codex.token_manager import CodexTokenManager
 
                 state = CodexTokenManager().get_state()
-            case "copilot":
+            case "github-copilot" | "copilot":
                 from klaude_code.auth.copilot.token_manager import CopilotTokenManager
 
                 state = CopilotTokenManager().get_state()
@@ -104,9 +104,9 @@ def select_provider(*, include_api_keys: bool = True, prompt: str = "Select prov
             search_text="codex",
         ),
         SelectItem(
-            title=_oauth_title("GitHub Copilot Subscription", "copilot"),
-            value="copilot",
-            search_text="copilot",
+            title=_oauth_title("GitHub Copilot Subscription", "github-copilot"),
+            value="github-copilot",
+            search_text="github-copilot github copilot",
         ),
     ]
 

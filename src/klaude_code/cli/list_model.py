@@ -201,8 +201,8 @@ def _get_claude_status_rows(*, usage_summary: str | None = None) -> list[tuple[T
     return rows
 
 
-def _get_copilot_status_rows(*, usage_summary: str | None = None) -> list[tuple[Text, Text]]:
-    """Get Copilot OAuth login status as (label, value) tuples for table display."""
+def _get_github_copilot_status_rows(*, usage_summary: str | None = None) -> list[tuple[Text, Text]]:
+    """Get GitHub Copilot OAuth login status as (label, value) tuples for table display."""
     from klaude_code.auth.copilot.oauth import CopilotOAuth
     from klaude_code.auth.copilot.token_manager import CopilotTokenManager
 
@@ -226,7 +226,7 @@ def _get_copilot_status_rows(*, usage_summary: str | None = None) -> list[tuple[
                 _append_usage_suffix(
                     Text.assemble(
                         ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
-                        (" (run 'klaude auth login copilot' to authenticate)", "dim"),
+                        (" (run 'klaude auth login github-copilot' to authenticate)", "dim"),
                     ),
                     usage_summary,
                 ),
@@ -234,9 +234,9 @@ def _get_copilot_status_rows(*, usage_summary: str | None = None) -> list[tuple[
         )
     elif state.is_expired():
         expired_hint = (
-            " (automatic refresh failed now; will retry on use, run 'klaude auth login copilot' if it keeps failing)"
+            " (automatic refresh failed now; will retry on use, run 'klaude auth login github-copilot' if it keeps failing)"
             if refresh_failed
-            else " (will refresh automatically on use; run 'klaude auth login copilot' if refresh fails)"
+            else " (will refresh automatically on use; run 'klaude auth login github-copilot' if refresh fails)"
         )
         rows.append(
             (
@@ -428,8 +428,8 @@ def _build_provider_info_panel(
     if provider.protocol == LLMClientProtocol.CLAUDE_OAUTH:
         for label, value in _get_claude_status_rows(usage_summary=usage_summary):
             info_table.add_row(label, value)
-    if provider.protocol == LLMClientProtocol.COPILOT_OAUTH:
-        for label, value in _get_copilot_status_rows(usage_summary=usage_summary):
+    if provider.protocol == LLMClientProtocol.GITHUB_COPILOT_OAUTH:
+        for label, value in _get_github_copilot_status_rows(usage_summary=usage_summary):
             info_table.add_row(label, value)
 
     return Quote(
