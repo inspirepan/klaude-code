@@ -99,7 +99,9 @@ class AgentTool(ToolABC):
 
         runner = context.run_subtask
         if runner is None:
-            return message.ToolResultMessage(status="error", output_text="No sub-agent runner available in this context")
+            return message.ToolResultMessage(
+                status="error", output_text="No sub-agent runner available in this context"
+            )
 
         description = str(typed_args.get("description") or "")
 
