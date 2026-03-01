@@ -7,7 +7,12 @@ from rich.console import Console
 from rich.text import Text
 
 from klaude_code.protocol import model
-from klaude_code.tui.components.rich.status import StackedStatusText, truncate_right, truncate_status
+from klaude_code.tui.components.rich.status import (
+    StackedStatusText,
+    current_hint_text,
+    truncate_right,
+    truncate_status,
+)
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.machine import SpinnerStatusState
 
@@ -118,7 +123,7 @@ def test_stacked_status_adds_leading_blank_line_when_enabled() -> None:
     assert "95.1% · esc to interrupt" in third_line
 
 
-def test_third_line_prefers_compact_when_width_is_tight() -> None:
+def test_third_line_drops_hint_before_compact_when_full_metadata_fits() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
         model.Usage(
@@ -141,10 +146,8 @@ def test_third_line_prefers_compact_when_width_is_tight() -> None:
     )
 
     third_line = "".join(segment.text for segment in lines[-1] if segment.text)
-    compact_plain = right_text.render(compact=True).plain
-    assert third_line.startswith(compact_plain)
-    assert "esc to interrupt" in third_line
-    assert third_line != right_text.plain
+    assert third_line == right_text.plain
+    assert "esc to interrupt" not in third_line
 
 
 def test_third_line_compacts_tokens_after_dropping_hint() -> None:
@@ -182,7 +185,43 @@ def test_third_line_compacts_tokens_after_dropping_hint() -> None:
     assert "↑" in third_line
 
 
-def test_third_line_compacts_aggressively_near_width_limit() -> None:
+def test_third_line_shows_compact_with_hint_when_only_that_fits() -> None:
+    state = SpinnerStatusState()
+    state.set_context_usage(
+        model.Usage(
+            input_tokens=300_000,
+            cached_tokens=200_000,
+            output_tokens=120_000,
+            reasoning_tokens=20_000,
+            context_size=460_000,
+            context_limit=900_000,
+            max_tokens=100_000,
+        )
+    )
+    right_text = state.get_right_text()
+    assert right_text is not None
+
+    compact_plain = right_text.render(compact=True).plain
+    full_plain = right_text.plain
+    hint = current_hint_text().strip()
+    separator = " · "
+
+    width = cell_len(compact_plain + separator + hint)
+    assert cell_len(full_plain) > width
+
+    console = Console(file=io.StringIO(), force_terminal=True, width=width, theme=get_theme().app_theme)
+    status = StackedStatusText("", right_text, (Text("Loading …", style=ThemeKey.STATUS_TEXT),))
+    lines = console.render_lines(
+        status,
+        console.options.update(no_wrap=True, overflow="ellipsis", max_width=width),
+        pad=False,
+    )
+
+    third_line = "".join(segment.text for segment in lines[-1] if segment.text)
+    assert third_line == compact_plain + separator + hint
+
+
+def test_third_line_avoids_compact_when_full_metadata_still_fits() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
         model.Usage(
@@ -212,5 +251,5 @@ def test_third_line_compacts_aggressively_near_width_limit() -> None:
     )
 
     third_line = "".join(segment.text for segment in lines[-1] if segment.text)
-    assert third_line == compact_plain
+    assert third_line == full_plain
     assert "esc to interrupt" not in third_line

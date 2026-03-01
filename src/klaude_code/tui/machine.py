@@ -335,68 +335,72 @@ class SpinnerStatusState:
             status_text.append(" " * (min_status_cells - status_cells), style=ThemeKey.STATUS_TEXT)
         return status_text
 
-    def get_right_text(self) -> r_status.ResponsiveDynamicText | None:
-        elapsed_text = r_status.current_elapsed_text()
-        has_tokens = self._token_input is not None and self._token_output is not None
-        has_context = (
+    def _build_metadata_text(self, *, compact: bool, include_elapsed: bool) -> Text | None:
+        parts: list[str] = []
+        if self._token_input is not None and self._token_output is not None:
+            if compact:
+                token_parts: list[str] = [f"↑{format_number(self._token_input)}"]
+            else:
+                token_parts = [f"in {format_number(self._token_input)}"]
+            if self._token_cached and self._token_cached > 0:
+                if compact:
+                    cache_text = f"◎{format_number(self._token_cached)}"
+                else:
+                    cache_text = f"cache {format_number(self._token_cached)}"
+                if not compact and self._cache_hit_rate is not None:
+                    cache_text += f" ({self._cache_hit_rate:.0%})"
+                token_parts.append(cache_text)
+            if compact:
+                token_parts.append(f"↓{format_number(self._token_output)}")
+            else:
+                token_parts.append(f"out {format_number(self._token_output)}")
+            if self._token_thought and self._token_thought > 0:
+                if compact:
+                    token_parts.append(f"∿{format_number(self._token_thought)}")
+                else:
+                    token_parts.append(f"thought {format_number(self._token_thought)}")
+            parts.append(" ".join(token_parts) if compact else " · ".join(token_parts))
+
+        if (
             self._context_size is not None
             and self._context_effective_limit is not None
             and self._context_percent is not None
-        )
-        has_cost = self._cost_total is not None
-        if elapsed_text is None and not has_tokens and not has_context and not has_cost:
-            return None
+        ):
+            if parts:
+                parts.append(" · ")
+            parts.append(
+                f"{format_number(self._context_size)}/{format_number(self._context_effective_limit)} "
+                f"({self._context_percent:.1f}%)"
+            )
 
-        def _render(*, compact: bool) -> Text:
-            parts: list[str] = []
-            if self._token_input is not None and self._token_output is not None:
-                if compact:
-                    token_parts: list[str] = [f"↑{format_number(self._token_input)}"]
-                else:
-                    token_parts = [f"in {format_number(self._token_input)}"]
-                if self._token_cached and self._token_cached > 0:
-                    if compact:
-                        cache_text = f"◎{format_number(self._token_cached)}"
-                    else:
-                        cache_text = f"cache {format_number(self._token_cached)}"
-                    if not compact and self._cache_hit_rate is not None:
-                        cache_text += f" ({self._cache_hit_rate:.0%})"
-                    token_parts.append(cache_text)
-                if compact:
-                    token_parts.append(f"↓{format_number(self._token_output)}")
-                else:
-                    token_parts.append(f"out {format_number(self._token_output)}")
-                if self._token_thought and self._token_thought > 0:
-                    if compact:
-                        token_parts.append(f"∿{format_number(self._token_thought)}")
-                    else:
-                        token_parts.append(f"thought {format_number(self._token_thought)}")
-                parts.append(" ".join(token_parts) if compact else " · ".join(token_parts))
-            if (
-                self._context_size is not None
-                and self._context_effective_limit is not None
-                and self._context_percent is not None
-            ):
-                if parts:
-                    parts.append(" · ")
-                parts.append(
-                    f"{format_number(self._context_size)}/{format_number(self._context_effective_limit)} "
-                    f"({self._context_percent:.1f}%)"
-                )
-            if self._cost_total is not None:
-                if parts:
-                    parts.append(" · ")
-                currency_symbol = "¥" if self._cost_currency == "CNY" else "$"
-                if compact:
-                    parts.append(f"{currency_symbol}{self._cost_total:.4f}")
-                else:
-                    parts.append(f"cost {currency_symbol}{self._cost_total:.4f}")
+        if self._cost_total is not None:
+            if parts:
+                parts.append(" · ")
+            currency_symbol = "¥" if self._cost_currency == "CNY" else "$"
+            if compact:
+                parts.append(f"{currency_symbol}{self._cost_total:.4f}")
+            else:
+                parts.append(f"cost {currency_symbol}{self._cost_total:.4f}")
+
+        if include_elapsed:
             current_elapsed = r_status.current_elapsed_text()
             if current_elapsed is not None:
                 if parts:
                     parts.append(" · ")
                 parts.append(current_elapsed)
-            return Text("".join(parts), style=ThemeKey.METADATA_DIM)
+
+        if not parts:
+            return None
+        return Text("".join(parts), style=ThemeKey.METADATA_DIM)
+
+    def get_right_text(self) -> r_status.ResponsiveDynamicText | None:
+        metadata_text = self._build_metadata_text(compact=False, include_elapsed=True)
+        if metadata_text is None:
+            return None
+
+        def _render(*, compact: bool) -> Text:
+            built = self._build_metadata_text(compact=compact, include_elapsed=True)
+            return built if built is not None else Text("")
 
         return r_status.ResponsiveDynamicText(
             lambda: _render(compact=False),
@@ -1051,14 +1055,14 @@ class DisplayStateMachine:
             case events.UsageEvent() as e:
                 # UsageEvent is not rendered, but it drives context % display.
                 if s.is_sub_agent:
+                    s.set_status_usage(e.usage)
                     if not is_replay:
-                        s.set_status_usage(e.usage)
                         cmds.extend(self._spinner_update_commands())
                     return cmds
                 if not self._is_primary(e.session_id):
                     return []
+                self._spinner.set_context_usage(e.usage)
                 if not is_replay:
-                    self._spinner.set_context_usage(e.usage)
                     cmds.extend(self._spinner_update_commands())
                 return cmds
 
@@ -1067,8 +1071,8 @@ class DisplayStateMachine:
                     return []
                 if not self._is_primary(e.session_id):
                     return []
+                self._spinner.set_cache_hit_rate(e.cache_hit_rate)
                 if not is_replay:
-                    self._spinner.set_cache_hit_rate(e.cache_hit_rate)
                     cmds.extend(self._spinner_update_commands())
                 return cmds
 

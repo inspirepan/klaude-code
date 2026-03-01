@@ -31,11 +31,14 @@ def test_task_metadata_wraps_details_under_identity_column() -> None:
 
     lines = [line.rstrip() for line in console.export_text(styles=False).splitlines()]
     assert len(lines) >= 2
-    assert "1 step, 18s" in " ".join(line.strip() for line in lines)
+    flattened = " ".join(line.strip() for line in lines)
+    assert "18s" in flattened
+    assert "49.9 tok/s" in flattened
+    assert "1 step" in flattened
     assert not lines[1].startswith("•")
 
     indent = len(lines[1]) - len(lines[1].lstrip(" "))
-    assert indent > 2
+    assert indent >= 2
 
 
 def test_sub_agent_description_shows_before_token_details() -> None:
@@ -60,13 +63,12 @@ def test_sub_agent_description_shows_before_token_details() -> None:
 
     model_idx = output.find("sub-model")
     description_idx = output.find("scan repo")
-    token_idx = output.find("input 1k")
+    token_idx = output.find("in 1k")
 
     assert model_idx != -1
     assert description_idx != -1
     assert token_idx != -1
-    assert model_idx < description_idx < token_idx
-    assert "sub-model scan repo, input 1k" in output
+    assert description_idx < model_idx < token_idx
 
 
 def test_sub_agent_identity_splits_name_and_model_on_narrow_width() -> None:

@@ -41,21 +41,34 @@ def _should_split_sub_agent_identity(metadata: model.TaskMetadata, *, max_width:
 
 
 def _build_identity_text(metadata: model.TaskMetadata, *, split_sub_agent_and_model: bool) -> Text:
-    sub_agent_description_in_details = bool(metadata.sub_agent_name and metadata.description)
-
     identity = Text()
+    has_description = bool(metadata.description)
+
     if metadata.sub_agent_name:
         identity.append_text(Text(f" {metadata.sub_agent_name} ", style=ThemeKey.METADATA_SUB_AGENT_NAME))
-        if split_sub_agent_and_model:
+        if has_description:
+            identity.append_text(Text(" ", style=ThemeKey.METADATA))
+            identity.append_text(Text(metadata.description or "", style=ThemeKey.METADATA_ITALIC))
+
+        if has_description:
+            if split_sub_agent_and_model:
+                identity.append_text(Text("\n", style=ThemeKey.METADATA))
+                identity.append_text(Text("· ", style=ThemeKey.METADATA_DIM))
+            else:
+                identity.append_text(Text(" · ", style=ThemeKey.METADATA_DIM))
+        elif split_sub_agent_and_model:
             identity.append("\n")
         else:
             identity.append_text(Text(" ", style=ThemeKey.METADATA))
-
-    if metadata.description and not sub_agent_description_in_details:
-        identity.append_text(Text(metadata.description, style=ThemeKey.METADATA_ITALIC))
-        identity.append_text(Text(" ", style=ThemeKey.METADATA))
+    elif has_description:
+        identity.append_text(Text(metadata.description or "", style=ThemeKey.METADATA_ITALIC))
+        identity.append_text(Text(" · ", style=ThemeKey.METADATA_DIM))
 
     identity.append_text(Text(metadata.model_name, style=ThemeKey.METADATA))
+    if metadata.provider:
+        sub_provider = metadata.provider.rsplit("/", 1)[-1] if "/" in metadata.provider else metadata.provider
+        identity.append_text(Text(" via ", style=ThemeKey.METADATA_DIM))
+        identity.append_text(Text(sub_provider, style=ThemeKey.METADATA_DIM))
     return identity
 
 
@@ -102,34 +115,23 @@ def _build_metadata_content(
     currency = metadata.usage.currency if metadata.usage else "USD"
     currency_symbol = "¥" if currency == "CNY" else "$"
 
-    sub_agent_description_in_details = bool(metadata.sub_agent_name and metadata.description)
-
     parts: list[Text] = []
-    if sub_agent_description_in_details:
-        parts.append(Text(metadata.description or "", style=ThemeKey.METADATA_ITALIC))
-
-    if metadata.provider:
-        sub_provider = metadata.provider.rsplit("/", 1)[-1] if "/" in metadata.provider else metadata.provider
-        parts.append(Text(f"via {sub_provider}", style=ThemeKey.METADATA_DIM))
-
-    if metadata.usage is not None and metadata.usage.total_cost is not None:
-        parts.append(
-            Text.assemble(
-                (currency_symbol, ThemeKey.METADATA),
-                (f"{metadata.usage.total_cost:.4f}", ThemeKey.METADATA),
-            )
-        )
 
     if metadata.usage is not None:
-        token_text = Text()
         input_tokens = max(metadata.usage.input_tokens - metadata.usage.cached_tokens, 0)
         output_tokens = max(metadata.usage.output_tokens - metadata.usage.reasoning_tokens, 0)
 
-        token_text.append("input ", style=ThemeKey.METADATA)
-        token_text.append(format_number(input_tokens), style=ThemeKey.METADATA)
+        parts.append(
+            Text.assemble(
+                ("in ", ThemeKey.METADATA),
+                (format_number(input_tokens), ThemeKey.METADATA),
+            )
+        )
         if metadata.usage.cached_tokens > 0:
-            token_text.append(", cache ", style=ThemeKey.METADATA)
-            token_text.append(format_number(metadata.usage.cached_tokens), style=ThemeKey.METADATA)
+            cache_text = Text.assemble(
+                ("cache ", ThemeKey.METADATA),
+                (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA),
+            )
             if metadata.usage.cache_hit_rate is not None:
                 if metadata.usage.cache_hit_rate >= 0.995:
                     rate_style = ThemeKey.METADATA_GREEN
@@ -137,15 +139,22 @@ def _build_metadata_content(
                     rate_style = ThemeKey.METADATA
                 else:
                     rate_style = ThemeKey.WARN
-                token_text.append(f" (hit {metadata.usage.cache_hit_rate:.0%})", style=rate_style)
-        token_text.append(", output ", style=ThemeKey.METADATA)
-        token_text.append(format_number(output_tokens), style=ThemeKey.METADATA)
+                cache_text.append(f" ({metadata.usage.cache_hit_rate:.0%})", style=rate_style)
+            parts.append(cache_text)
+        parts.append(
+            Text.assemble(
+                ("out ", ThemeKey.METADATA),
+                (format_number(output_tokens), ThemeKey.METADATA),
+            )
+        )
         if metadata.usage.reasoning_tokens > 0:
-            token_text.append(", thought ", style=ThemeKey.METADATA)
-            token_text.append(format_number(metadata.usage.reasoning_tokens), style=ThemeKey.METADATA)
-        parts.append(token_text)
+            parts.append(
+                Text.assemble(
+                    ("thought ", ThemeKey.METADATA),
+                    (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA),
+                )
+            )
 
-        # Context pill (blue-grey bg): "25.1k/168k (14.9%)"
         if show_context_and_time and metadata.usage.context_usage_percent is not None:
             context_size = format_number(metadata.usage.context_size or 0)
             effective_limit = (metadata.usage.context_limit or 0) - (metadata.usage.max_tokens or DEFAULT_MAX_TOKENS)
@@ -159,13 +168,25 @@ def _build_metadata_content(
                 )
             )
 
-        if metadata.usage.throughput_tps is not None:
+        if metadata.usage.total_cost is not None:
             parts.append(
                 Text.assemble(
-                    (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA),
-                    (" tok/s", ThemeKey.METADATA),
+                    ("cost ", ThemeKey.METADATA),
+                    (currency_symbol, ThemeKey.METADATA),
+                    (f"{metadata.usage.total_cost:.4f}", ThemeKey.METADATA),
                 )
             )
+
+    if show_duration and show_context_and_time and metadata.task_duration_s is not None:
+        parts.append(Text(format_elapsed_compact(metadata.task_duration_s), style=ThemeKey.METADATA))
+
+    if metadata.usage is not None and metadata.usage.throughput_tps is not None:
+        parts.append(
+            Text.assemble(
+                (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA),
+                (" tok/s", ThemeKey.METADATA),
+            )
+        )
 
     if show_turn_count and show_context_and_time and metadata.turn_count > 0:
         suffix = " step" if metadata.turn_count == 1 else " steps"
@@ -176,16 +197,11 @@ def _build_metadata_content(
             )
         )
 
-    if show_duration and show_context_and_time and metadata.task_duration_s is not None:
-        parts.append(Text(format_elapsed_compact(metadata.task_duration_s), style=ThemeKey.METADATA))
-
     if not parts:
         return identity
 
-    details = Text(", ", style=ThemeKey.METADATA_DIM).join(parts)
-    content_grid = create_grid()
-    content_grid.add_row(identity, details)
-    return content_grid
+    details = Text(" · ", style=ThemeKey.METADATA_DIM).join(parts)
+    return Group(identity, details)
 
 
 def _build_metadata_content_renderable(
@@ -234,10 +250,8 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     )
 
     if has_sub_agents:
-        root_content = create_grid()
-        root_content.add_row(Text(" Main ", style=ThemeKey.METADATA_MAIN_AGENT_NAME), main_content)
         root_grid = create_grid()
-        root_grid.add_row(Text("•", style=ThemeKey.METADATA), root_content)
+        root_grid.add_row(Text("•", style=ThemeKey.METADATA), main_content)
         tree = _RoundedTree(root_grid, guide_style=ThemeKey.METADATA_DIM)
 
         for meta in e.metadata.sub_agent_task_metadata:
@@ -256,7 +270,7 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
         currency_symbol = "¥" if currency == "CNY" else "$"
         tree.add(
             Text.assemble(
-                ("total ", ThemeKey.METADATA),
+                ("total cost ", ThemeKey.METADATA),
                 (currency_symbol, ThemeKey.METADATA),
                 (f"{total_cost:.4f}", ThemeKey.METADATA),
             )

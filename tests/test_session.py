@@ -765,6 +765,50 @@ class TestSessionPersistence:
 
         arun(_test())
 
+    def test_replay_emits_usage_event_from_assistant_usage(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session.create(id="usage-session", work_dir=project_dir)
+            session.append_history(
+                [
+                    message.AssistantMessage(
+                        response_id="resp-1",
+                        parts=message.text_parts_from_str("done"),
+                        usage=model.Usage(
+                            input_tokens=30_000,
+                            cached_tokens=20_000,
+                            output_tokens=12_000,
+                            reasoning_tokens=2_000,
+                            context_size=46_000,
+                            context_limit=300_000,
+                            max_tokens=100_000,
+                            input_cost=0.001,
+                            output_cost=0.002,
+                            cache_read_cost=0.0005,
+                        ),
+                    )
+                ]
+            )
+            await session.wait_for_flush()
+
+            reloaded = Session.load(session.id)
+            events_list = list(reloaded.get_history_item())
+            usage_events = [e for e in events_list if isinstance(e, events.UsageEvent)]
+            assert len(usage_events) == 1
+            usage_event = usage_events[0]
+            assert usage_event.session_id == session.id
+            assert usage_event.response_id == "resp-1"
+            assert usage_event.usage.input_tokens == 30_000
+            assert usage_event.usage.cached_tokens == 20_000
+            assert usage_event.usage.total_cost is not None
+            assert abs(usage_event.usage.total_cost - 0.0035) < 1e-12
+            await close_default_store()
+
+        arun(_test())
+
 
 class TestSessionListAndClean:
     """Tests for Session.list_sessions and clean methods."""
