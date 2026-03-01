@@ -76,7 +76,7 @@ class CommandABC(ABC):
     @property
     def placeholder(self) -> str:
         """Placeholder text for additional parameters in help display."""
-        return "additional instructions"
+        return "instructions"
 
     @abstractmethod
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
