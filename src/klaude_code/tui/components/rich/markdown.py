@@ -37,6 +37,7 @@ _HTML_COMMENT_BLOCK_RE = re.compile(r"\A\s*<!--.*?-->\s*\Z", flags=re.DOTALL)
 _CHECKBOX_UNCHECKED_RE = re.compile(r"^\[ \]\s*")
 _CHECKBOX_CHECKED_RE = re.compile(r"^\[x\]\s*", re.IGNORECASE)
 _ORDERED_LIST_LINE_RE = re.compile(r"^\s{0,3}\d+[.)]\s+.+")
+_ORDERED_LIST_MARKER_PREFIX_RE = re.compile(r"^\s{0,3}\d{1,9}\s*$")
 _LOCAL_IMAGE_MARKDOWN_LINE_RE = re.compile(r"^\s*!\[[^\]]*\]\((?P<path>/[^)]+)\)\s*$")
 
 
@@ -429,6 +430,28 @@ class MarkdownStream:
             prev = top_level[-2]
             assert prev.map is not None
             return max(prev.map[0], 0)
+
+        # Similar mid-line reclassification can happen after ordered lists.
+        #
+        # Example while streaming:
+        #   9. a
+        #
+        #   4
+        #
+        # The trailing "4" is parsed as a paragraph in the current frame, so the
+        # previous ordered_list block looks complete and would be stabilized.
+        # When more text arrives ("4. b"), markdown-it merges it into the same
+        # ordered list, which mutates already-rendered stable lines.
+        #
+        # Guard this by keeping the prior list block live when the final line is
+        # an incomplete ordered-list marker prefix.
+        if not text.endswith("\n") and len(top_level) >= 2 and last.type == "paragraph_open":
+            prev = top_level[-2]
+            assert prev.map is not None
+            if prev.type == "ordered_list_open":
+                trailing_line = text.rsplit("\n", 1)[-1]
+                if _ORDERED_LIST_MARKER_PREFIX_RE.match(trailing_line):
+                    return max(prev.map[0], 0)
 
         start_line = last.map[0]
         return max(start_line, 0)
