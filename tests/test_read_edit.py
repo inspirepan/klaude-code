@@ -94,6 +94,19 @@ class TestReadTool(BaseTempDirTest):
         self.assertEqual(res.status, "error")
         self.assertEqual(res.output_text, "<tool_use_error>File does not exist.</tool_use_error>")
 
+    def test_read_file_not_exist_with_suggestions(self):
+        existing = os.path.abspath("global")
+        with open(existing, "w", encoding="utf-8") as f:
+            f.write("x\n")
+
+        missing = os.path.abspath("global.ts")
+        res = arun(ReadTool.call(json.dumps({"file_path": missing}), self.tool_context))
+
+        self.assertEqual(res.status, "error")
+        self.assertIn("File not found:", res.output_text or "")
+        self.assertIn("Did you mean one of these?", res.output_text or "")
+        self.assertIn(existing, res.output_text or "")
+
     def test_read_large_file_truncated(self):
         # Large files are now truncated instead of erroring
         big = os.path.abspath("big.txt")
