@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-03-01
+
+### Added
+
+- rename tool to Agent and refine model-role config ([#50](https://github.com/inspirepan/klaude-code/pull/50) by [@inspirepan](https://github.com/inspirepan))
+- support fallback env var syntax ([#47](https://github.com/inspirepan/klaude-code/pull/47) by [@inspirepan](https://github.com/inspirepan))
+- normalize model defaults and refresh builtins ([#45](https://github.com/inspirepan/klaude-code/pull/45) by [@inspirepan](https://github.com/inspirepan))
+- add kimi-k2.5 model config, refactor slash command order ([#44](https://github.com/inspirepan/klaude-code/pull/44) by [@inspirepan](https://github.com/inspirepan))
+- improve command flow and debug log viewer ([#43](https://github.com/inspirepan/klaude-code/pull/43) by [@inspirepan](https://github.com/inspirepan))
+- improve ask-user-question multi-select UX ([#41](https://github.com/inspirepan/klaude-code/pull/41) by [@inspirepan](https://github.com/inspirepan))
+- improve slash/skill completion relevance ([#40](https://github.com/inspirepan/klaude-code/pull/40) by [@inspirepan](https://github.com/inspirepan))
+- optimize schema and UX ([#39](https://github.com/inspirepan/klaude-code/pull/39) by [@inspirepan](https://github.com/inspirepan))
+- add copilot sonnet-4.5 and memory truncation metadata ([#38](https://github.com/inspirepan/klaude-code/pull/38) by [@inspirepan](https://github.com/inspirepan))
+- notify input prompts and polish welcome labels ([#37](https://github.com/inspirepan/klaude-code/pull/37) by [@inspirepan](https://github.com/inspirepan))
+- improve AskUserQuestion terminal workflow ([#36](https://github.com/inspirepan/klaude-code/pull/36) by [@inspirepan](https://github.com/inspirepan))
+- add AskUserQuestion end-to-end user interaction flow ([#35](https://github.com/inspirepan/klaude-code/pull/35) by [@inspirepan](https://github.com/inspirepan))
+- standardize system-reminder tags ([#33](https://github.com/inspirepan/klaude-code/pull/33) by [@inspirepan](https://github.com/inspirepan))
+- centralize image resize at provider input ([#31](https://github.com/inspirepan/klaude-code/pull/31) by [@inspirepan](https://github.com/inspirepan))
+- automate submit-pr workflow ([#30](https://github.com/inspirepan/klaude-code/pull/30) by [@inspirepan](https://github.com/inspirepan))
+- refresh nano-banana image generation defaults to nano-banana-2 ([#29](https://github.com/inspirepan/klaude-code/pull/29) by [@inspirepan](https://github.com/inspirepan))
+
+### Changed
+
+- rename provider to github-copilot ([#48](https://github.com/inspirepan/klaude-code/pull/48) by [@inspirepan](https://github.com/inspirepan))
+- remove todo reminder hooks ([#42](https://github.com/inspirepan/klaude-code/pull/42) by [@inspirepan](https://github.com/inspirepan))
+
+### Fixed
+
+- clear stale sub-agent status after interrupt ([#51](https://github.com/inspirepan/klaude-code/pull/51) by [@inspirepan](https://github.com/inspirepan))
+- hide web external-content wrapper in results ([#49](https://github.com/inspirepan/klaude-code/pull/49) by [@inspirepan](https://github.com/inspirepan))
+- remove duplicated provider in model picker rows ([#46](https://github.com/inspirepan/klaude-code/pull/46) by [@inspirepan](https://github.com/inspirepan))
+- split sub-agent identity on narrow metadata width ([#34](https://github.com/inspirepan/klaude-code/pull/34) by [@inspirepan](https://github.com/inspirepan))
+- retry transient nano banana network errors ([#32](https://github.com/inspirepan/klaude-code/pull/32) by [@inspirepan](https://github.com/inspirepan))
+- correct PR author attribution in changelog (`80922539`)
+
 ## [2.21.0] - 2026-02-27
 
 ### Added
@@ -1942,7 +1977,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.21.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.22.0...HEAD
+[2.22.0]: https://github.com/inspirepan/klaude-code/compare/v2.21.0...v2.22.0
 [2.21.0]: https://github.com/inspirepan/klaude-code/compare/v2.20.0...v2.21.0
 [2.20.0]: https://github.com/inspirepan/klaude-code/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/inspirepan/klaude-code/compare/v2.18.0...v2.19.0
