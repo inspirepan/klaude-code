@@ -497,6 +497,8 @@ class _SessionState:
             return STATUS_COMPOSING_TEXT
         if self.thinking_stream_active:
             return STATUS_THINKING_TEXT
+        if self.task_active:
+            return STATUS_RUNNING_TEXT
         return None
 
     def status_metadata_text(self) -> str | None:
@@ -564,6 +566,17 @@ class DisplayStateMachine:
     def _set_primary_if_needed(self, session_id: str) -> None:
         if self._primary_session_id is None:
             self._primary_session_id = session_id
+
+    def _clear_active_sub_agent_sessions(self) -> None:
+        for session in self._sessions.values():
+            if not session.is_sub_agent:
+                continue
+            session.task_active = False
+            session.clear_status_activity()
+            session.clear_status_metadata()
+            session.thinking_stream_active = False
+            session.assistant_stream_active = False
+            session.assistant_char_count = 0
 
     def _sub_agent_status_lines(self) -> tuple[SpinnerStatusLine, ...]:
         lines: list[SpinnerStatusLine] = []
@@ -1080,6 +1093,8 @@ class DisplayStateMachine:
                 s.task_active = False
                 s.clear_status_activity()
                 s.clear_status_metadata()
+                if not s.is_sub_agent:
+                    self._clear_active_sub_agent_sessions()
                 cmds.append(EndThinkingStream(session_id=e.session_id))
                 cmds.append(EndAssistantStream(session_id=e.session_id))
                 if not is_replay:

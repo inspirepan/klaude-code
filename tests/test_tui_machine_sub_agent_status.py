@@ -49,7 +49,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     assert update.leading_blank_line is True
     assert update.status_lines[0].session_id == sub_session
     lines = [_line_plain(line) for line in update.status_lines]
-    assert lines == ["Exploring searching xxxxx"]
+    assert lines == ["Exploring searching xxxxx | Running …"]
     first_line = update.status_lines[0].text
     assert isinstance(first_line, Text)
     assert any(
@@ -122,8 +122,8 @@ def test_sub_agent_status_lines_cap_with_more_indicator() -> None:
     assert last_update is not None
     lines = [_line_plain(line) for line in last_update.status_lines]
     assert len(lines) == 6
-    assert lines[0] == "Exploring searching 0"
-    assert lines[4] == "Exploring searching 4"
+    assert lines[0] == "Exploring searching 0 | Running …"
+    assert lines[4] == "Exploring searching 4 | Running …"
     assert lines[5] == "+2 more..."
 
 
@@ -258,3 +258,32 @@ def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> N
     assert update.leading_blank_line is False
     assert len(update.status_lines) == 1
     assert _line_plain(update.status_lines[0]).startswith("Spawning Task")
+
+
+def test_interrupt_clears_stale_sub_agent_status_lines() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    sub_session = "sub-1"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=model.SubAgentState(
+                sub_agent_type="Explore",
+                sub_agent_desc="searching",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+
+    machine.transition(events.InterruptEvent(session_id=main_session))
+
+    restart_cmds = machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    update = _last_spinner_update(restart_cmds)
+
+    assert update.leading_blank_line is False
+    assert len(update.status_lines) == 1
+    assert update.status_lines[0].session_id is None
+    assert "Exploring" not in _line_plain(update.status_lines[0])
