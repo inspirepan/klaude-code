@@ -34,12 +34,14 @@ If `make format` changes files, commit them first:
 
 The script output contains all metadata, commits, and diff. Use it directly to compose a conventional-commit-style PR title and body (summary of changes + validation steps).
 
-If the `PR_COMMITS` section shows any commit with an empty description ("no desc" / blank message), add a description before step 3:
+If the `PR_COMMITS` section shows a commit with an empty description ("no desc" / blank message) **and that commit has actual changes in the PR diff**, add a description before step 3.
+
+If a commit has an empty description but contributes no diff (for example, an empty jj working-copy/head commit), ignore it.
 
 - For current commit: `jj describe -m "feat(scope): description"`
 - For a specific commit in the list: `jj describe -r <sha> -m "feat(scope): description"`
 
-Then re-run `get_pr_diff.sh` and continue only after all listed commits have descriptions.
+Then re-run `get_pr_diff.sh` and continue only after all commits with real changes have descriptions.
 
 ### 3. Submit PR
 
