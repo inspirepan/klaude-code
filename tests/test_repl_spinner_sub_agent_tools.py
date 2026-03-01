@@ -171,6 +171,9 @@ def test_right_text_shows_cache_hit_rate_next_to_cached_tokens() -> None:
             cached_tokens=20_000,
             output_tokens=12_000,
             reasoning_tokens=2_000,
+            input_cost=0.001,
+            output_cost=0.002,
+            cache_read_cost=0.0005,
         )
     )
     state.set_cache_hit_rate(0.91)
@@ -178,6 +181,26 @@ def test_right_text_shows_cache_hit_rate_next_to_cached_tokens() -> None:
     right_text = state.get_right_text()
     assert right_text is not None
     assert right_text.plain.startswith("in 10k · cache 20k (91%) · out 10k · thought 2k")
+
+
+def test_right_text_shows_cost_when_available() -> None:
+    state = SpinnerStatusState()
+    state.set_context_usage(
+        model.Usage(
+            input_tokens=30_000,
+            cached_tokens=20_000,
+            output_tokens=12_000,
+            reasoning_tokens=2_000,
+            input_cost=0.001,
+            output_cost=0.002,
+            cache_read_cost=0.0005,
+            currency="USD",
+        )
+    )
+
+    right_text = state.get_right_text()
+    assert right_text is not None
+    assert "cost $0.0035" in right_text.plain
 
 
 def test_right_text_tokens_accumulate_across_usage_events() -> None:
@@ -188,6 +211,9 @@ def test_right_text_tokens_accumulate_across_usage_events() -> None:
             cached_tokens=20_000,
             output_tokens=12_000,
             reasoning_tokens=2_000,
+            input_cost=0.001,
+            output_cost=0.002,
+            cache_read_cost=0.0005,
         )
     )
     state.set_context_usage(
@@ -196,12 +222,16 @@ def test_right_text_tokens_accumulate_across_usage_events() -> None:
             cached_tokens=1_000,
             output_tokens=7_000,
             reasoning_tokens=2_000,
+            input_cost=0.0003,
+            output_cost=0.0007,
+            cache_read_cost=0.0001,
         )
     )
 
     right_text = state.get_right_text()
     assert right_text is not None
     assert right_text.plain.startswith("in 20k · cache 21k · out 15k · thought 4k")
+    assert "cost $0.0046" in right_text.plain
 
 
 def test_right_text_keeps_last_context_when_current_usage_has_no_context() -> None:

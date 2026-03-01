@@ -506,6 +506,12 @@ class Session(BaseModel):
                         )
                     if am.stop_reason == "aborted":
                         yield events.InterruptEvent(session_id=self.id)
+                    if am.usage is not None:
+                        yield events.UsageEvent(
+                            session_id=self.id,
+                            usage=am.usage,
+                            response_id=am.response_id,
+                        )
                 case message.ToolResultMessage() as tr:
                     if tr.call_id in pending_tool_calls:
                         yield pending_tool_calls.pop(tr.call_id)

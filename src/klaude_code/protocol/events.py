@@ -220,6 +220,7 @@ type ReplayEventUnion = (
     TaskStartEvent
     | TaskFinishEvent
     | TurnStartEvent
+    | UsageEvent
     | ThinkingStartEvent
     | ThinkingDeltaEvent
     | ThinkingEndEvent
