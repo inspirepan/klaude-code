@@ -10,7 +10,6 @@ from typing import Any
 
 import pytest
 import yaml
-from pydantic import ValidationError
 
 # Avoid circular import by importing protocol first
 from klaude_code.protocol import llm_param
@@ -427,13 +426,15 @@ class TestConfig:
         )
         assert config.sub_agent_models == {}
 
-    def test_sub_agent_models_reject_unknown_key(self, sample_provider: ProviderConfig) -> None:
-        with pytest.raises(ValidationError, match="Unknown sub_agent_models key"):
-            _ = Config(
-                provider_list=[sample_provider],
-                main_model="test-model",
-                sub_agent_models={"task": "model-a"},
-            )
+    def test_sub_agent_models_ignore_unknown_key(self, sample_provider: ProviderConfig) -> None:
+        config = Config(
+            provider_list=[sample_provider],
+            main_model="test-model",
+            sub_agent_models={"task": "model-a", "explore": "model-b"},
+        )
+
+        assert "task" not in config.sub_agent_models
+        assert config.sub_agent_models.get("explore") == "model-b"
 
     def test_sub_agent_models_none(self, sample_provider: ProviderConfig) -> None:
         """Test that None sub_agent_models is handled correctly."""

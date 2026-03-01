@@ -237,8 +237,7 @@ class UserConfig(BaseModel):
             normalized_key = str(key).strip().lower()
             canonical = key_map.get(normalized_key)
             if canonical is None:
-                supported = ", ".join(sorted(key_map.values()))
-                raise ValueError(f"Unknown sub_agent_models key '{key}'. Supported keys: {supported}")
+                continue
             normalized[canonical] = str(value)
         data["sub_agent_models"] = normalized
         return data
@@ -270,8 +269,7 @@ class Config(BaseModel):
             normalized_key = str(key).strip().lower()
             canonical = key_map.get(normalized_key)
             if canonical is None:
-                supported = ", ".join(sorted(key_map.values()))
-                raise ValueError(f"Unknown sub_agent_models key '{key}'. Supported keys: {supported}")
+                continue
             normalized[canonical] = str(value)
         data["sub_agent_models"] = normalized
         return data
