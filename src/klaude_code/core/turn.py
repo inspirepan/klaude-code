@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from klaude_code.const import RETRY_PRESERVE_PARTIAL_MESSAGE
+from klaude_code.const import LLM_FIRST_TOKEN_TIMEOUT_S, RETRY_PRESERVE_PARTIAL_MESSAGE
 from klaude_code.core.rewind import RewindManager
 from klaude_code.core.tool import ToolABC
 from klaude_code.core.tool.context import SubAgentResumeClaims, ToolContext
@@ -270,8 +271,23 @@ class TurnExecutor:
         )
 
         self._llm_stream = await ctx.llm_client.call(call_param)
+        first_effective_token_received = False
         try:
-            async for delta in self._llm_stream:
+            stream_iter = self._llm_stream.__aiter__()
+            while True:
+                try:
+                    if first_effective_token_received:
+                        delta = await anext(stream_iter)
+                    else:
+                        delta = await asyncio.wait_for(anext(stream_iter), timeout=LLM_FIRST_TOKEN_TIMEOUT_S)
+                except StopAsyncIteration:
+                    break
+                except TimeoutError:
+                    turn_result.stream_error = message.StreamErrorItem(
+                        error=f"First token timeout after {LLM_FIRST_TOKEN_TIMEOUT_S:.1f}s"
+                    )
+                    break
+
                 log_debug(
                     f"[{delta.__class__.__name__}]",
                     delta.model_dump_json(exclude_none=True),
@@ -280,6 +296,8 @@ class TurnExecutor:
                 )
                 match delta:
                     case message.ThinkingTextDelta() as delta:
+                        if delta.content:
+                            first_effective_token_received = True
                         if not thinking_active:
                             thinking_active = True
                             yield events.ThinkingStartEvent(
@@ -292,6 +310,8 @@ class TurnExecutor:
                             session_id=session_ctx.session_id,
                         )
                     case message.AssistantTextDelta() as delta:
+                        if delta.content:
+                            first_effective_token_received = True
                         if thinking_active:
                             thinking_active = False
                             yield events.ThinkingEndEvent(
@@ -310,6 +330,8 @@ class TurnExecutor:
                             session_id=session_ctx.session_id,
                         )
                     case message.AssistantMessage() as msg:
+                        if msg.parts:
+                            first_effective_token_received = True
                         if thinking_active:
                             thinking_active = False
                             yield events.ThinkingEndEvent(
@@ -361,6 +383,7 @@ class TurnExecutor:
                         log_debug(msg.error, debug_type=DebugType.LLM_STREAM)
                         turn_result.stream_error = msg
                     case message.ToolCallStartDelta() as msg:
+                        first_effective_token_received = True
                         if thinking_active:
                             thinking_active = False
                             yield events.ThinkingEndEvent(
