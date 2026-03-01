@@ -1,7 +1,7 @@
 """Token storage and management for GitHub Copilot authentication."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from klaude_code.auth.base import BaseAuthState, BaseTokenManager
 
@@ -34,9 +34,10 @@ class CopilotTokenManager(BaseTokenManager[CopilotAuthState]):
         legacy_data = store.get(self._LEGACY_STORAGE_KEY)
         if not isinstance(legacy_data, dict):
             return None
+        legacy_payload = cast(dict[str, Any], legacy_data)
 
         try:
-            migrated = self._create_state(legacy_data)
+            migrated = self._create_state(legacy_payload)
         except ValueError:
             return None
 

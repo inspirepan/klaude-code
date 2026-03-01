@@ -89,13 +89,14 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
 
     @model_validator(mode="before")
     @classmethod
-    def _normalize_legacy_provider_name(cls, data: Any) -> Any:
+    def _normalize_provider_name_in_model(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        provider_name = data.get("provider_name")
+        payload = cast(dict[str, Any], data)
+        provider_name = payload.get("provider_name")
         if isinstance(provider_name, str):
-            data["provider_name"] = normalize_provider_name(provider_name)
-        return data
+            payload["provider_name"] = normalize_provider_name(provider_name)
+        return payload
 
     def get_resolved_api_key(self) -> str | None:
         """Get the resolved API key, expanding ${ENV_VAR} syntax if present."""
@@ -186,13 +187,14 @@ class UserProviderConfig(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _normalize_legacy_provider_name(cls, data: Any) -> Any:
+    def _normalize_provider_name_in_model(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        provider_name = data.get("provider_name")
+        payload = cast(dict[str, Any], data)
+        provider_name = payload.get("provider_name")
         if isinstance(provider_name, str):
-            data["provider_name"] = normalize_provider_name(provider_name)
-        return data
+            payload["provider_name"] = normalize_provider_name(provider_name)
+        return payload
 
 
 class ModelEntry(llm_param.LLMConfigModelParameter):
@@ -590,9 +592,7 @@ def _merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Co
         else:
             # New provider from user - must have protocol
             if user_provider.protocol is None:
-                raise ValueError(
-                    f"Provider '{provider_name}' requires 'protocol' field (not a builtin provider)"
-                )
+                raise ValueError(f"Provider '{provider_name}' requires 'protocol' field (not a builtin provider)")
             merged_providers[provider_name] = ProviderConfig.model_validate(user_provider.model_dump())
     # Append builtin providers not referenced by user config
     for name, provider in builtin_providers.items():

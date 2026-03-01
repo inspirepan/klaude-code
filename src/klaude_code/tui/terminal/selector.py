@@ -847,6 +847,7 @@ class SelectOverlay[T]:
             dont_extend_height=Always(),
             always_hide_cursor=Always(),
         )
+
         def get_list_height() -> int:
             # Dynamic height: min of configured height and available terminal space
             # Overhead: header(1) + search(1) + frame borders(2) + prompt area(3)
