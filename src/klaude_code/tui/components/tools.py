@@ -38,6 +38,10 @@ MARK_DONE = "✔"
 MARK_REWIND = "↶"
 MARK_QUESTION = "◉"
 
+_EXTERNAL_CONTENT_START = "<<<EXTERNAL_UNTRUSTED_CONTENT>>>"
+_EXTERNAL_CONTENT_END = "<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>"
+_WEB_FETCH_SAVED_PATH_PREFIX = "[Full content saved to "
+
 # Todo status markers
 MARK_TODO_PENDING = "▢"
 MARK_TODO_IN_PROGRESS = "◉"
@@ -437,6 +441,37 @@ def _truncate_url(url: str, max_length: int = URL_TRUNCATE_MAX_LENGTH) -> str:
     return display_url[: max_length - 1] + "…"
 
 
+def _extract_web_result_for_display(result: str) -> str:
+    """Extract readable web content from wrapped external-content payloads for TUI display."""
+    start_idx = result.find(_EXTERNAL_CONTENT_START)
+    end_idx = result.find(_EXTERNAL_CONTENT_END)
+    if start_idx == -1 or end_idx == -1 or end_idx < start_idx:
+        return result
+
+    prefix = result[:start_idx]
+    wrapped_body = result[start_idx + len(_EXTERNAL_CONTENT_START) : end_idx].lstrip("\n")
+
+    lines = wrapped_body.splitlines()
+    if len(lines) >= 2 and lines[0].startswith("Source: ") and lines[1].strip() == "---":
+        content = "\n".join(lines[2:])
+    else:
+        divider = "\n---\n"
+        divider_idx = wrapped_body.find(divider)
+        content = wrapped_body[divider_idx + len(divider) :] if divider_idx != -1 else wrapped_body
+    content = content.rstrip("\n")
+
+    prefix_lines = [
+        line.strip() for line in prefix.splitlines() if line.strip().startswith(_WEB_FETCH_SAVED_PATH_PREFIX)
+    ]
+    saved_path_hint = "\n".join(prefix_lines)
+
+    if saved_path_hint and content:
+        return f"{saved_path_hint}\n\n{content}"
+    if saved_path_hint:
+        return saved_path_hint
+    return content
+
+
 def render_web_fetch_tool_call(arguments: str) -> RenderableType:
     tool_name = "Fetch Web"
 
@@ -708,6 +743,11 @@ def render_tool_result(
             return wrap(render_todo(e))
         case tools.BASH:
             return _render_fallback()
+        case tools.WEB_FETCH | tools.WEB_SEARCH:
+            display_result = _extract_web_result_for_display(e.result)
+            if len(display_result.strip()) == 0:
+                return wrap(render_generic_tool_result("(no content)"))
+            return wrap(render_generic_tool_result(display_result, is_error=e.is_error))
         case tools.ASK_USER_QUESTION:
             if len(e.result.strip()) == 0:
                 return wrap(render_generic_tool_result("(no content)"))
