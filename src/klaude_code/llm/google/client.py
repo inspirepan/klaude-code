@@ -25,6 +25,7 @@ from google.genai.types import (
     ToolConfig,
 )
 
+from klaude_code.const import LLM_HTTP_TIMEOUT_TOTAL
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.google.input import convert_history_to_contents, convert_tool_schema
 from klaude_code.llm.input_common import apply_config_defaults
@@ -418,10 +419,14 @@ class GoogleLLMStream(LLMStreamABC):
 class GoogleClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter):
         super().__init__(config)
-        http_options: HttpOptions | None = None
+        http_options = HttpOptions(timeout=int(LLM_HTTP_TIMEOUT_TOTAL * 1000))
         if config.base_url:
             # If base_url already contains version path, don't append api_version.
-            http_options = HttpOptions(base_url=str(config.base_url), api_version="")
+            http_options = HttpOptions(
+                base_url=str(config.base_url),
+                api_version="",
+                timeout=int(LLM_HTTP_TIMEOUT_TOTAL * 1000),
+            )
 
         self.client = Client(
             api_key=config.api_key,
