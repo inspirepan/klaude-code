@@ -201,6 +201,8 @@ class SpinnerStatusState:
         self._context_size: int | None = None
         self._context_effective_limit: int | None = None
         self._context_percent: float | None = None
+        self._cost_total: float | None = None
+        self._cost_currency: str = "USD"
 
     def reset(self) -> None:
         self._todo_status = None
@@ -215,6 +217,16 @@ class SpinnerStatusState:
         self._context_size = None
         self._context_effective_limit = None
         self._context_percent = None
+        self._cost_total = None
+        self._cost_currency = "USD"
+
+    def clear_task_state(self) -> None:
+        """Clear task-scoped spinner state while keeping session metadata."""
+
+        self._todo_status = None
+        self._reasoning_status = None
+        self._toast_status = None
+        self._activity.reset()
 
     def set_toast_status(self, status: str | None) -> None:
         self._toast_status = status
@@ -275,6 +287,11 @@ class SpinnerStatusState:
             self._context_effective_limit = effective_limit if effective_limit > 0 else None
             self._context_percent = context_percent
 
+        total_cost = usage.total_cost
+        if total_cost is not None:
+            self._cost_total = (self._cost_total or 0.0) + total_cost
+            self._cost_currency = usage.currency
+
     def set_cache_hit_rate(self, cache_hit_rate: float) -> None:
         self._cache_hit_rate = cache_hit_rate
 
@@ -326,7 +343,8 @@ class SpinnerStatusState:
             and self._context_effective_limit is not None
             and self._context_percent is not None
         )
-        if elapsed_text is None and not has_tokens and not has_context:
+        has_cost = self._cost_total is not None
+        if elapsed_text is None and not has_tokens and not has_context and not has_cost:
             return None
 
         def _render(*, compact: bool) -> Text:
@@ -365,6 +383,14 @@ class SpinnerStatusState:
                     f"{format_number(self._context_size)}/{format_number(self._context_effective_limit)} "
                     f"({self._context_percent:.1f}%)"
                 )
+            if self._cost_total is not None:
+                if parts:
+                    parts.append(" · ")
+                currency_symbol = "¥" if self._cost_currency == "CNY" else "$"
+                if compact:
+                    parts.append(f"{currency_symbol}{self._cost_total:.4f}")
+                else:
+                    parts.append(f"cost {currency_symbol}{self._cost_total:.4f}")
             current_elapsed = r_status.current_elapsed_text()
             if current_elapsed is not None:
                 if parts:
@@ -397,6 +423,8 @@ class _SessionState:
     status_context_size: int | None = None
     status_context_effective_limit: int | None = None
     status_context_percent: float | None = None
+    status_total_cost: float | None = None
+    status_currency: str = "USD"
 
     @property
     def is_sub_agent(self) -> bool:
@@ -418,15 +446,6 @@ class _SessionState:
         self.status_composing = False
         self.status_tool_calls = {}
         self.status_tool_calls_by_id = {}
-
-    def clear_status_metadata(self) -> None:
-        self.status_token_input = None
-        self.status_token_cached = None
-        self.status_token_output = None
-        self.status_token_thought = None
-        self.status_context_size = None
-        self.status_context_effective_limit = None
-        self.status_context_percent = None
 
     def set_status_usage(self, usage: model.Usage) -> None:
         has_token_usage = any(
@@ -451,6 +470,11 @@ class _SessionState:
             self.status_context_size = usage.context_size
             self.status_context_effective_limit = effective_limit if effective_limit > 0 else None
             self.status_context_percent = context_percent
+
+        total_cost = usage.total_cost
+        if total_cost is not None:
+            self.status_total_cost = (self.status_total_cost or 0.0) + total_cost
+            self.status_currency = usage.currency
 
     def add_status_tool_call(self, tool_call_id: str, tool_name: str) -> None:
         if tool_call_id in self.status_tool_calls_by_id:
@@ -524,6 +548,12 @@ class _SessionState:
                 f"({self.status_context_percent:.1f}%)"
             )
 
+        if self.status_total_cost is not None:
+            if parts:
+                parts.append(" · ")
+            currency_symbol = "¥" if self.status_currency == "CNY" else "$"
+            parts.append(f"{currency_symbol}{self.status_total_cost:.4f}")
+
         if not parts:
             return None
         return "".join(parts)
@@ -573,7 +603,6 @@ class DisplayStateMachine:
                 continue
             session.task_active = False
             session.clear_status_activity()
-            session.clear_status_metadata()
             session.thinking_stream_active = False
             session.assistant_stream_active = False
             session.assistant_char_count = 0
@@ -708,7 +737,6 @@ class DisplayStateMachine:
                 s.model_id = e.model_id
                 s.task_active = True
                 s.clear_status_activity()
-                s.clear_status_metadata()
                 if not s.is_sub_agent:
                     # Keep primary session tracking in sync even if the session id changes
                     # during the process lifetime (e.g., /new).
@@ -1050,7 +1078,6 @@ class DisplayStateMachine:
             case events.TaskFinishEvent() as e:
                 s.task_active = False
                 s.clear_status_activity()
-                s.clear_status_metadata()
                 cmds.append(RenderTaskFinish(e))
 
                 # Defensive: finalize any open streams so buffered markdown is flushed.
@@ -1078,7 +1105,7 @@ class DisplayStateMachine:
 
                 if not s.is_sub_agent and not is_replay:
                     cmds.append(TaskClockClear())
-                    self._spinner.reset()
+                    self._spinner.clear_task_state()
                     cmds.append(SpinnerStop())
                     cmds.append(EmitTmuxSignal())
                     cmds.append(UpdateTerminalTitlePrefix(prefix="\u2714", model_name=self._model_name))
@@ -1088,11 +1115,10 @@ class DisplayStateMachine:
 
             case events.InterruptEvent() as e:
                 if not is_replay:
-                    self._spinner.reset()
+                    self._spinner.clear_task_state()
                     cmds.append(SpinnerStop())
                 s.task_active = False
                 s.clear_status_activity()
-                s.clear_status_metadata()
                 if not s.is_sub_agent:
                     self._clear_active_sub_agent_sessions()
                 cmds.append(EndThinkingStream(session_id=e.session_id))
@@ -1111,7 +1137,7 @@ class DisplayStateMachine:
                     cmds.append(EmitOsc94Error())
                 cmds.append(RenderError(e))
                 if not is_replay and not e.can_retry:
-                    self._spinner.reset()
+                    self._spinner.clear_task_state()
                     cmds.append(SpinnerStop())
                 cmds.append(PrintBlankLine())
                 if not is_replay:

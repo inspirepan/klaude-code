@@ -24,6 +24,16 @@ def _line_plain(line: object) -> str:
     return str(line)
 
 
+def _right_plain(update: SpinnerUpdate) -> str:
+    right = update.right_text
+    if right is None:
+        return ""
+    plain = getattr(right, "plain", None)
+    if isinstance(plain, str):
+        return plain
+    return str(right)
+
+
 def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
@@ -156,6 +166,9 @@ def test_sub_agent_status_line_shows_compact_metadata() -> None:
                 context_size=46_000,
                 context_limit=300_000,
                 max_tokens=100_000,
+                input_cost=0.001,
+                output_cost=0.002,
+                cache_read_cost=0.0005,
             ),
         )
     )
@@ -164,6 +177,7 @@ def test_sub_agent_status_line_shows_compact_metadata() -> None:
     assert "Exploring searching" in line
     assert "↑10k ◎20k ↓10k ∿2k" in line
     assert "46k/200k (23.0%)" in line
+    assert "$0.0035" in line
 
 
 def test_sub_agent_metadata_is_shown_before_tool_activity() -> None:
@@ -194,6 +208,9 @@ def test_sub_agent_metadata_is_shown_before_tool_activity() -> None:
                 context_size=46_000,
                 context_limit=300_000,
                 max_tokens=100_000,
+                input_cost=0.001,
+                output_cost=0.002,
+                cache_read_cost=0.0005,
             ),
         )
     )
@@ -207,7 +224,9 @@ def test_sub_agent_metadata_is_shown_before_tool_activity() -> None:
 
     update = _last_spinner_update(cmds)
     line = _line_plain(update.status_lines[0])
-    assert "46k/200k (23.0%) | Bashing × 1" in line
+    assert "46k/200k (23.0%)" in line
+    assert "$0.0035" in line
+    assert "| Bashing × 1" in line
 
 
 def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
@@ -287,3 +306,138 @@ def test_interrupt_clears_stale_sub_agent_status_lines() -> None:
     assert len(update.status_lines) == 1
     assert update.status_lines[0].session_id is None
     assert "Exploring" not in _line_plain(update.status_lines[0])
+
+
+def test_main_session_tokens_accumulate_across_task_boundaries() -> None:
+    machine = DisplayStateMachine()
+    session_id = "main"
+
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
+    usage_cmds = machine.transition(
+        events.UsageEvent(
+            session_id=session_id,
+            usage=model.Usage(
+                input_tokens=30_000,
+                cached_tokens=20_000,
+                output_tokens=12_000,
+                reasoning_tokens=2_000,
+                input_cost=0.001,
+                output_cost=0.002,
+                cache_read_cost=0.0005,
+            ),
+        )
+    )
+    first_update = _last_spinner_update(usage_cmds)
+    assert first_update.right_text is not None
+    assert "in 10k · cache 20k · out 10k · thought 2k" in _right_plain(first_update)
+    assert "cost $0.0035" in _right_plain(first_update)
+
+    machine.transition(
+        events.TaskFinishEvent(
+            session_id=session_id,
+            task_result="done",
+            has_structured_output=False,
+        )
+    )
+
+    restart_cmds = machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
+    restart_update = _last_spinner_update(restart_cmds)
+    assert restart_update.right_text is not None
+    assert "in 10k · cache 20k · out 10k · thought 2k" in _right_plain(restart_update)
+    assert "cost $0.0035" in _right_plain(restart_update)
+
+    usage_cmds = machine.transition(
+        events.UsageEvent(
+            session_id=session_id,
+            usage=model.Usage(
+                input_tokens=11_000,
+                cached_tokens=1_000,
+                output_tokens=7_000,
+                reasoning_tokens=2_000,
+                input_cost=0.0003,
+                output_cost=0.0007,
+                cache_read_cost=0.0001,
+            ),
+        )
+    )
+    second_update = _last_spinner_update(usage_cmds)
+    assert second_update.right_text is not None
+    assert "in 20k · cache 21k · out 15k · thought 4k" in _right_plain(second_update)
+    assert "cost $0.0046" in _right_plain(second_update)
+
+
+def test_sub_agent_tokens_accumulate_across_task_boundaries() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    sub_session = "sub-1"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=model.SubAgentState(
+                sub_agent_type="Explore",
+                sub_agent_desc="searching",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+    usage_cmds = machine.transition(
+        events.UsageEvent(
+            session_id=sub_session,
+            usage=model.Usage(
+                input_tokens=30_000,
+                cached_tokens=20_000,
+                output_tokens=12_000,
+                reasoning_tokens=2_000,
+                input_cost=0.001,
+                output_cost=0.002,
+                cache_read_cost=0.0005,
+            ),
+        )
+    )
+    first_update = _last_spinner_update(usage_cmds)
+    assert "↑10k ◎20k ↓10k ∿2k" in _line_plain(first_update.status_lines[0])
+    assert "$0.0035" in _line_plain(first_update.status_lines[0])
+
+    machine.transition(
+        events.TaskFinishEvent(
+            session_id=sub_session,
+            task_result="done",
+            has_structured_output=False,
+        )
+    )
+
+    restart_cmds = machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=model.SubAgentState(
+                sub_agent_type="Explore",
+                sub_agent_desc="searching",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+    restart_update = _last_spinner_update(restart_cmds)
+    assert "↑10k ◎20k ↓10k ∿2k" in _line_plain(restart_update.status_lines[0])
+    assert "$0.0035" in _line_plain(restart_update.status_lines[0])
+
+    usage_cmds = machine.transition(
+        events.UsageEvent(
+            session_id=sub_session,
+            usage=model.Usage(
+                input_tokens=11_000,
+                cached_tokens=1_000,
+                output_tokens=7_000,
+                reasoning_tokens=2_000,
+                input_cost=0.0003,
+                output_cost=0.0007,
+                cache_read_cost=0.0001,
+            ),
+        )
+    )
+    second_update = _last_spinner_update(usage_cmds)
+    assert "↑20k ◎21k ↓15k ∿4k" in _line_plain(second_update.status_lines[0])
+    assert "$0.0046" in _line_plain(second_update.status_lines[0])
