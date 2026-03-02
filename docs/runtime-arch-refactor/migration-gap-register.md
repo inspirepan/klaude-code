@@ -23,7 +23,7 @@
 | G-008 | durable/ephemeral 边界未代码级白名单化 | durable 白名单常量 + 强制落库策略 | 现状 | Phase 3 | open |
 | G-009 | SessionRuntime worker 共享全局 execution lock（兼容 legacy 单 `_agent`） | 去除全局锁，按 session 独立并发执行 | Phase 2 | Phase 2/3 | open |
 | G-010 | SessionRuntime 已有 root-task gate + `RootTaskState(task_id, kind)`，但仍未形成完整运行态对象 | SessionRuntime 内聚 `active_root_task/pending_requests/config` 完整运行态 | Phase 2 | Phase 2/3 | open |
-| G-011 | busy reject 当前通过 `CommandOutputEvent(operation.rejected)` 临时表达 | 统一到标准运行时事件（后续 `operation.rejected` / EventEnvelope） | Phase 2 | Phase 3 | open |
+| G-011 | busy reject 当前双轨：`OperationRejectedEvent`（结构化）+ `CommandOutputEvent`（兼容显示） | 统一到标准运行时事件（后续 `operation.rejected` / EventEnvelope）并移除兼容双轨 | Phase 2 | Phase 3 | open |
 | G-012 | control 优先目前是队列调度级（8:1），未形成“执行中任务”级别抢占 | 达到完整 interrupt 抢占语义（含执行中上下文的及时让渡/取消） | Phase 2 | Phase 3 | open |
 
 ---

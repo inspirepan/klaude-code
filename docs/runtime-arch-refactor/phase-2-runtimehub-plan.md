@@ -33,6 +33,11 @@
 - `SessionRuntime` 将 active root 从裸 submission id 升级为显式 `RootTaskState(task_id, kind)`
 - completion 回调按 `task_id` 回收 active root 状态
 
+并且本次追加了第六个增量：
+
+- busy reject 事件增加结构化输出：`OperationRejectedEvent`
+- 同时保留 `CommandOutputEvent(operation.rejected)` 以兼容当前 TUI 渲染
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）

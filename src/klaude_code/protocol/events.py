@@ -25,6 +25,7 @@ __all__ = [
     "ErrorEvent",
     "Event",
     "InterruptEvent",
+    "OperationRejectedEvent",
     "ReplayEventUnion",
     "ReplayHistoryEvent",
     "ResponseCompleteEvent",
@@ -84,6 +85,13 @@ class CommandOutputEvent(Event):
     content: str = ""
     ui_extra: model.ToolResultUIExtra | None = None
     is_error: bool = False
+
+
+class OperationRejectedEvent(Event):
+    operation_id: str
+    operation_type: str
+    reason: Literal["session_busy"]
+    active_task_id: str | None = None
 
 
 class BashCommandStartEvent(Event):

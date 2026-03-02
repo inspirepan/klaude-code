@@ -868,6 +868,15 @@ class Executor:
             raise RuntimeError("Busy rejection requires session-bound operation")
 
         await self.context.emit_event(
+            events.OperationRejectedEvent(
+                session_id=session_id,
+                operation_id=submission.id,
+                operation_type=operation.type.value,
+                reason="session_busy",
+                active_task_id=active_task_id,
+            )
+        )
+        await self.context.emit_event(
             events.CommandOutputEvent(
                 session_id=session_id,
                 command_name="operation.rejected",
