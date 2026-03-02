@@ -43,6 +43,7 @@ class SubAgentManager:
         parent_agent: Agent,
         state: model.SubAgentState,
         *,
+        llm_clients: LLMClients | None = None,
         record_session_id: Callable[[str], None] | None = None,
         register_metadata_getter: Callable[[Callable[[], model.TaskMetadata | None]], None] | None = None,
         register_progress_getter: Callable[[Callable[[], str | None]], None] | None = None,
@@ -101,8 +102,9 @@ class SubAgentManager:
             if record_session_id is not None:
                 record_session_id(child_session.id)
 
+        clients = llm_clients or self._llm_clients
         child_profile = self._model_profile_provider.build_profile(
-            self._llm_clients.get_client(state.sub_agent_type),
+            clients.get_client(state.sub_agent_type),
             state.sub_agent_type,
             output_schema=state.output_schema,
         )

@@ -29,7 +29,6 @@ class RuntimeHub:
         self._handle_operation = handle_operation
         self._reject_operation = reject_operation
         self._control_burst_quota = control_burst_quota
-        self._execution_lock = asyncio.Lock()
         self._runtimes: dict[str, SessionRuntime] = {}
         self._operation_runtime_ids: dict[str, str] = {}
         self._request_queue: asyncio.Queue[PendingUserInteractionRequest] = asyncio.Queue()
@@ -230,7 +229,6 @@ class RuntimeHub:
             session_id=runtime_id,
             handle_operation=self._handle_operation,
             reject_operation=self._reject_operation,
-            execution_lock=self._execution_lock,
             control_burst_quota=self._control_burst_quota,
         )
         self._runtimes[runtime_id] = runtime

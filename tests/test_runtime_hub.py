@@ -660,6 +660,43 @@ def test_runtime_hub_bind_root_task_updates_reject_active_task_id() -> None:
     arun(_test())
 
 
+def test_runtime_hub_runs_sessions_concurrently() -> None:
+    async def _test() -> None:
+        started_s1 = asyncio.Event()
+        started_s2 = asyncio.Event()
+        release_s1 = asyncio.Event()
+        release_s2 = asyncio.Event()
+
+        s1_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="first"))
+        s2_op = op.RunAgentOperation(session_id="s2", input=UserInputPayload(text="second"))
+
+        async def _handle(operation: op.Operation) -> None:
+            if operation.id == s1_op.id:
+                started_s1.set()
+                await release_s1.wait()
+            if operation.id == s2_op.id:
+                started_s2.set()
+                await release_s2.wait()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        await hub.submit(s1_op)
+        await asyncio.wait_for(started_s1.wait(), timeout=1.0)
+
+        await hub.submit(s2_op)
+        await asyncio.wait_for(started_s2.wait(), timeout=0.3)
+
+        release_s1.set()
+        release_s2.set()
+        hub.mark_operation_completed(s1_op.id)
+        hub.mark_operation_completed(s2_op.id)
+        await hub.stop()
+
+    arun(_test())
+
+
 def test_runtime_hub_cancel_pending_interactions_cancels_waiter() -> None:
     async def _test() -> None:
         async def _handle(_operation: op.Operation) -> None:

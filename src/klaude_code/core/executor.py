@@ -8,6 +8,7 @@ handling operations submitted from the CLI and coordinating with agents.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import subprocess
 import sys
 from collections.abc import Awaitable, Callable
@@ -30,6 +31,7 @@ from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.core.memory import get_existing_memory_paths_by_location
 from klaude_code.core.runtime_hub import RuntimeHub
 from klaude_code.core.user_interaction import PendingUserInteractionRequest
+from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import commands, events, message, model, op, user_interaction
@@ -111,6 +113,19 @@ class TaskManager:
         self._operation_task_ids.clear()
 
 
+def _clone_llm_client(client: LLMClientABC) -> LLMClientABC:
+    return create_llm_client(client.get_llm_config().model_copy(deep=True))
+
+
+def _clone_llm_clients(template: LLMClients) -> LLMClients:
+    return LLMClients(
+        main=_clone_llm_client(template.main),
+        main_model_alias=template.main_model_alias,
+        sub_clients={sub_agent_type: _clone_llm_client(client) for sub_agent_type, client in template.sub_clients.items()},
+        compact=_clone_llm_client(template.compact) if template.compact is not None else None,
+    )
+
+
 class AgentRuntime:
     """Coordinate agent lifecycle and in-flight tasks for the executor."""
 
@@ -128,11 +143,12 @@ class AgentRuntime:
         ],
     ) -> None:
         self._emit_event = emit_event
-        self._llm_clients = llm_clients
+        self._llm_clients_template = llm_clients
         self._model_profile_provider = model_profile_provider
         self._task_manager = task_manager
         self._sub_agent_manager = sub_agent_manager
         self._request_user_interaction_callback = request_user_interaction
+        self._session_llm_clients: dict[str, LLMClients] = {}
         self._agents: dict[str, Agent] = {}
         self._primary_session_id: str | None = None
 
@@ -190,6 +206,38 @@ class AgentRuntime:
 
         return _callback
 
+    def _ensure_session_llm_clients(self, session: Session) -> LLMClients:
+        existing = self._session_llm_clients.get(session.id)
+        if existing is not None:
+            return existing
+
+        clients = _clone_llm_clients(self._llm_clients_template)
+        config = load_config()
+
+        model_config_name = session.model_config_name
+        if model_config_name is not None:
+            with contextlib.suppress(ValueError):
+                model_config = config.get_model_config(model_config_name)
+                clients.main = create_llm_client(model_config)
+                clients.main_model_alias = model_config_name
+
+        if session.model_thinking is not None:
+            clients.main.get_llm_config().thinking = session.model_thinking.model_copy(deep=True)
+
+        self._session_llm_clients[session.id] = clients
+        return clients
+
+    def get_session_llm_clients(self, session_id: str) -> LLMClients:
+        clients = self._session_llm_clients.get(session_id)
+        if clients is None:
+            raise RuntimeError(f"Missing session llm clients for session {session_id}")
+        return clients
+
+    def set_session_main_client(self, *, session_id: str, client: LLMClientABC, model_alias: str) -> None:
+        clients = self.get_session_llm_clients(session_id)
+        clients.main = client
+        clients.main_model_alias = model_alias
+
     def current_session_id(self) -> str | None:
         session_id = self._primary_session_id
         if session_id is None:
@@ -208,6 +256,7 @@ class AgentRuntime:
 
     def drop_session(self, session_id: str) -> None:
         self._agents.pop(session_id, None)
+        self._session_llm_clients.pop(session_id, None)
         if self._primary_session_id != session_id:
             return
         self._primary_session_id = next(iter(self._agents), None)
@@ -226,18 +275,13 @@ class AgentRuntime:
         if existing is not None:
             return existing
 
-        if (
-            session.model_thinking is not None
-            and session.model_name
-            and session.model_name == self._llm_clients.main.model_name
-        ):
-            self._llm_clients.main.get_llm_config().thinking = session.model_thinking
+        session_clients = self._ensure_session_llm_clients(session)
 
-        profile = self._model_profile_provider.build_profile(self._llm_clients.main)
+        profile = self._model_profile_provider.build_profile(session_clients.main)
         agent = Agent(
             session=session,
             profile=profile,
-            compact_llm_client=self._llm_clients.compact,
+            compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=session.id),
         )
 
@@ -245,7 +289,7 @@ class AgentRuntime:
             events.WelcomeEvent(
                 session_id=session.id,
                 work_dir=str(session.work_dir),
-                llm_config=self._llm_clients.main.get_llm_config(),
+                llm_config=session_clients.main.get_llm_config(),
                 loaded_skills=get_loaded_skill_names_by_location(),
                 loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=session.work_dir),
@@ -365,6 +409,7 @@ class AgentRuntime:
     async def clear_session(self, session_id: str) -> None:
         agent = await self.ensure_agent(session_id)
         old_session_id = agent.session.id
+        session_clients = self.get_session_llm_clients(old_session_id)
         new_session = Session.create(work_dir=agent.session.work_dir)
         new_session.model_name = agent.session.model_name
         new_session.model_config_name = agent.session.model_config_name
@@ -372,10 +417,12 @@ class AgentRuntime:
 
         new_agent = Agent(
             session=new_session,
-            profile=agent.profile,
-            compact_llm_client=agent.compact_llm_client,
+            profile=self._model_profile_provider.build_profile(session_clients.main),
+            compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
         )
+        self._session_llm_clients.pop(old_session_id, None)
+        self._session_llm_clients[new_session.id] = session_clients
         self._agents.pop(old_session_id, None)
         self._agents[new_session.id] = new_agent
         if self._primary_session_id == old_session_id:
@@ -392,7 +439,7 @@ class AgentRuntime:
             events.WelcomeEvent(
                 session_id=new_agent.session.id,
                 work_dir=str(new_agent.session.work_dir),
-                llm_config=self._llm_clients.main.get_llm_config(),
+                llm_config=session_clients.main.get_llm_config(),
                 loaded_skills=get_loaded_skill_names_by_location(),
                 loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=new_agent.session.work_dir),
@@ -453,9 +500,11 @@ class AgentRuntime:
                 register_metadata_getter: Callable[[Callable[[], model.TaskMetadata | None]], None] | None,
                 register_progress_getter: Callable[[Callable[[], str | None]], None] | None,
             ) -> SubAgentResult:
+                session_clients = self.get_session_llm_clients(session_id)
                 return await self._sub_agent_manager.run_sub_agent(
                     agent,
                     state,
+                    llm_clients=session_clients,
                     record_session_id=record_session_id,
                     register_metadata_getter=register_metadata_getter,
                     register_progress_getter=register_progress_getter,
@@ -519,7 +568,7 @@ class AgentRuntime:
         try:
             await self._emit_event(events.CompactionStartEvent(session_id=session_id, reason=reason))
             log_debug(f"[Compact:{reason}] start", debug_type=DebugType.RESPONSE)
-            compact_client = self._llm_clients.get_compact_client()
+            compact_client = self.get_session_llm_clients(session_id).get_compact_client()
             result = await run_compaction(
                 session=agent.session,
                 reason=CompactionReason(reason),
@@ -753,6 +802,11 @@ class ExecutorContext:
             model_name=operation.model_name,
             save_as_default=operation.save_as_default,
         )
+        self._agent_runtime.set_session_main_client(
+            session_id=agent.session.id,
+            client=agent.profile.llm_client,
+            model_alias=llm_client_name,
+        )
 
         if operation.emit_switch_message:
             default_note = " (saved as default)" if operation.save_as_default else ""
@@ -764,7 +818,7 @@ class ExecutorContext:
                 )
             )
 
-        if self._on_model_change is not None:
+        if self._on_model_change is not None and self.current_session_id() == agent.session.id:
             self._on_model_change(llm_client_name)
 
         if operation.emit_welcome_event:
@@ -827,6 +881,7 @@ class ExecutorContext:
     async def handle_change_sub_agent_model(self, operation: op.ChangeSubAgentModelOperation) -> None:
         """Handle a change sub-agent model operation."""
         agent = await self._agent_runtime.ensure_agent(operation.session_id)
+        session_clients = self._agent_runtime.get_session_llm_clients(agent.session.id)
         config = load_config()
 
         helper = SubAgentModelHelper(config)
@@ -838,18 +893,18 @@ class ExecutorContext:
             # Clear explicit override and revert to sub-agent default behavior.
             behavior = helper.describe_empty_model_config_behavior(
                 sub_agent_type,
-                main_model_name=self.llm_clients.main.model_name,
+                main_model_name=session_clients.main.model_name,
             )
 
             # Default: inherit from Agent/main client behavior.
-            self.llm_clients.sub_clients.pop(sub_agent_type, None)
+            session_clients.sub_clients.pop(sub_agent_type, None)
 
             display_model = f"({behavior.description})"
         else:
             # Create new client for the sub-agent
             llm_config = config.get_model_config(model_name)
             new_client = create_llm_client(llm_config)
-            self.llm_clients.sub_clients[sub_agent_type] = new_client
+            session_clients.sub_clients[sub_agent_type] = new_client
             display_model = new_client.model_name
 
         if operation.save_as_default:
@@ -876,20 +931,21 @@ class ExecutorContext:
     async def handle_change_compact_model(self, operation: op.ChangeCompactModelOperation) -> None:
         """Handle a change compact model operation."""
         agent = await self._agent_runtime.ensure_agent(operation.session_id)
+        session_clients = self._agent_runtime.get_session_llm_clients(agent.session.id)
         config = load_config()
 
         model_name = operation.model_name
 
         if model_name is None:
             # Clear explicit override and use main client for compaction
-            self.llm_clients.compact = None
+            session_clients.compact = None
             agent.compact_llm_client = None
             display_model = "(inherit from main agent)"
         else:
             # Create new client for compaction
             llm_config = config.get_model_config(model_name)
             new_client = create_llm_client(llm_config)
-            self.llm_clients.compact = new_client
+            session_clients.compact = new_client
             agent.compact_llm_client = new_client
             display_model = new_client.model_name
 

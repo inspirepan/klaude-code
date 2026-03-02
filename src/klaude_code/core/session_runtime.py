@@ -53,7 +53,6 @@ class SessionRuntime:
         session_id: str,
         handle_operation: Callable[[op.Operation], Awaitable[None]],
         reject_operation: Callable[[op.Operation, str | None], Awaitable[None]],
-        execution_lock: asyncio.Lock,
         control_burst_quota: int = 8,
     ) -> None:
         self.session_id = session_id
@@ -61,7 +60,6 @@ class SessionRuntime:
         self.normal_mailbox: asyncio.Queue[op.Operation] = asyncio.Queue()
         self._handle_operation = handle_operation
         self._reject_operation = reject_operation
-        self._execution_lock = execution_lock
         self._active_root_task: RootTaskState | None = None
         self._pending_requests: dict[str, PendingUserInteractionRequest] = {}
         self._config = SessionRuntimeConfig()
@@ -205,8 +203,7 @@ class SessionRuntime:
                         task_id=item.id,
                         kind=_root_task_kind(item),
                     )
-                async with self._execution_lock:
-                    await self._handle_operation(item)
+                await self._handle_operation(item)
             finally:
                 if isinstance(item, _StopSignal) or _is_control_operation(item):
                     self.control_mailbox.task_done()

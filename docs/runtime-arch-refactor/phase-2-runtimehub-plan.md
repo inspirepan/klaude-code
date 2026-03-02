@@ -104,6 +104,18 @@
 - `clear_session` 改为替换会话 agent 并维护 primary session 指针
 - `Executor.close_session/reclaim_idle_sessions` 同步清理对应 session 的 agent 运行态
 
+并且本次追加了第十九个增量：
+
+- `AgentRuntime` 引入 session-local `LLMClients` 视图（`session_id -> LLMClients`），避免跨 session 共享可变 client 状态
+- sub-agent 运行改为显式注入当前 session 的 `LLMClients`，不再依赖进程级全局 client 选择
+- model/sub-agent-model/compact-model 变更仅作用于目标 session 的 client 视图
+
+并且本次追加了第二十个增量：
+
+- 去除 `SessionRuntime` 间共享的全局 execution lock
+- 每个 session worker 直接执行自身 operation，跨 session 可并发推进
+- 新增并发性验证：不同 session 的 root operation 可同时进入处理
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）
