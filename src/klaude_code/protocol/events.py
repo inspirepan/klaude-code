@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Sequence
 from typing import Literal
@@ -63,8 +64,39 @@ class EventEnvelope(BaseModel):
     event_seq: int
     session_id: str
     event_type: str
+    durability: Literal["durable", "ephemeral"]
     timestamp: float
     event: Event
+
+
+DURABLE_EVENT_TYPES = frozenset(
+    {
+        "user.message",
+        "assistant.text.end",
+        "tool.result",
+        "rewind",
+        "compaction.end",
+        "task.finish",
+    }
+)
+
+
+def event_type_name(event: Event) -> str:
+    event_name = event.__class__.__name__
+    if event_name.endswith("Event"):
+        event_name = event_name[:-5]
+
+    words = re.findall(r"[A-Z]+(?=[A-Z][a-z]|$)|[A-Z]?[a-z]+", event_name)
+    if not words:
+        return "event.unknown"
+
+    return ".".join(word.lower() for word in words)
+
+
+def event_durability(event_type: str) -> Literal["durable", "ephemeral"]:
+    if event_type in DURABLE_EVENT_TYPES:
+        return "durable"
+    return "ephemeral"
 
 
 class ResponseEvent(Event):

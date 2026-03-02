@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from uuid import uuid4
@@ -66,11 +65,13 @@ class EventBus:
         self._session_event_seq: dict[str, int] = {}
 
     async def publish(self, event: events.Event) -> None:
+        event_type = events.event_type_name(event)
         envelope = events.EventEnvelope(
             event_id=uuid4().hex,
             event_seq=self._next_event_seq(event.session_id),
             session_id=event.session_id,
-            event_type=_event_type(event),
+            event_type=event_type,
+            durability=events.event_durability(event_type),
             timestamp=event.timestamp,
             event=event,
         )
@@ -126,15 +127,3 @@ class EventBus:
         next_seq = self._session_event_seq.get(session_id, 0) + 1
         self._session_event_seq[session_id] = next_seq
         return next_seq
-
-
-def _event_type(event: events.Event) -> str:
-    event_name = event.__class__.__name__
-    if event_name.endswith("Event"):
-        event_name = event_name[:-5]
-
-    words = re.findall(r"[A-Z]+(?=[A-Z][a-z]|$)|[A-Z]?[a-z]+", event_name)
-    if not words:
-        return "event.unknown"
-
-    return ".".join(word.lower() for word in words)

@@ -128,6 +128,11 @@
 - 事件桥接层改为消费 envelope 并向现有 display 队列下发 `envelope.event`，保持 UI 渲染兼容
 - busy reject 事件在 envelope 层统一为 `event_type=operation.rejected`
 
+并且本次追加了第二十三个增量：
+
+- 引入 durable 白名单常量 `DURABLE_EVENT_TYPES`
+- `EventEnvelope` 增加 `durability` 字段（`durable|ephemeral`），由白名单统一分类
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）

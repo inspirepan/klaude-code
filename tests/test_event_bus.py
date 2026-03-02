@@ -129,5 +129,7 @@ def test_event_bus_envelope_has_seq_and_event_type() -> None:
         assert second.event_seq == 2
         assert first.event_type == "user.message"
         assert second.event_type == "operation.rejected"
+        assert first.durability == "durable"
+        assert second.durability == "ephemeral"
 
     arun(_test())

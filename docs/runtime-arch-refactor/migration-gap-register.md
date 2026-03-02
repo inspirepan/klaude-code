@@ -20,7 +20,7 @@
 | G-005 | root/child 运行态已进入 `SessionRuntime`（`active_root_task + child_task_count`），`TaskManager` 仅保留任务句柄管理职责 | 会话内 `active_root_task + child_tasks` | 现状 | Phase 2/4 | closed |
 | G-006 | EventBus 已发布 `EventEnvelope(event_id,event_seq,event_type,...)`，UI bridge 兼容旧 `Event` 消费 | `EventEnvelope(event_id, event_seq, ...)` | 现状 | Phase 3 | closed |
 | G-007 | `AgentRuntime` 已改为 `session_id -> Agent` 多会话映射（不再依赖单 `_agent`） | 每 session 独立 runtime 与 agent state | 现状 | Phase 2 | closed |
-| G-008 | durable/ephemeral 边界未代码级白名单化 | durable 白名单常量 + 强制落库策略 | 现状 | Phase 3 | open |
+| G-008 | 已引入 `DURABLE_EVENT_TYPES` 白名单，并在 `EventEnvelope.durability` 输出 durable/ephemeral 分类 | durable 白名单常量 + 强制落库策略 | 现状 | Phase 3 | closed |
 | G-009 | 已去除全局 execution lock，session worker 可独立并发执行 | 去除全局锁，按 session 独立并发执行 | Phase 2 | Phase 2/3 | closed |
 | G-010 | SessionRuntime 已内聚 `active_root_task/child_tasks/pending_requests/config` 并可快照 | SessionRuntime 内聚 `active_root_task/pending_requests/config` 完整运行态 | Phase 2 | Phase 2/3 | closed |
 | G-011 | busy reject 通过 `EventEnvelope(event_type=operation.rejected)` 发布，兼容保留 `OperationRejectedEvent` payload | 迁移到目标 `operation.rejected` + `EventEnvelope` 体系 | Phase 2 | Phase 3 | closed |
