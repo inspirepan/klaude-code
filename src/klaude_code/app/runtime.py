@@ -57,7 +57,7 @@ async def _pipe_event_bus_to_queue(
     subscription: EventSubscription,
     event_queue: asyncio.Queue[events.Event],
 ) -> None:
-    async for event in subscription:
+    async for event in subscription.iter_events():
         await event_queue.put(event)
     raise RuntimeError("Event bus bridge stopped unexpectedly")
 

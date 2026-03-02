@@ -122,6 +122,12 @@
 - `AgentRuntime` 在 sub-agent 执行路径回调 runtime 维护 child_task 的 started/completed 状态
 - `is_idle()` 增加 child_task 维度判断，避免子任务仍在运行时误判 idle
 
+并且本次追加了第二十二个增量：
+
+- `EventBus` 发布统一 `EventEnvelope`（`event_id/event_seq/event_type/session_id/timestamp/event`）
+- 事件桥接层改为消费 envelope 并向现有 display 队列下发 `envelope.event`，保持 UI 渲染兼容
+- busy reject 事件在 envelope 层统一为 `event_type=operation.rejected`
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）
@@ -140,7 +146,7 @@
 - SessionRuntime 已内聚 pending request 状态与 idle 判定基础能力
 - SessionRuntime 已内聚 child task 计数状态（运行态可观测）
 - SessionRuntime 已内聚基础 session-local config（仍缺与持久化/重放一致性的完整闭环）
-- Event 协议仍是旧 `events.Event`，尚未切换到 `EventEnvelope`
+- Event payload 仍使用旧 `events.Event` 类型（envelope 已接入，事件模型重整未完成）
 
 ---
 

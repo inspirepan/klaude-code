@@ -24,6 +24,7 @@ __all__ = [
     "EndEvent",
     "ErrorEvent",
     "Event",
+    "EventEnvelope",
     "InterruptEvent",
     "OperationRejectedEvent",
     "ReplayEventUnion",
@@ -55,6 +56,15 @@ class Event(BaseModel):
 
     session_id: str
     timestamp: float = Field(default_factory=time.time)
+
+
+class EventEnvelope(BaseModel):
+    event_id: str
+    event_seq: int
+    session_id: str
+    event_type: str
+    timestamp: float
+    event: Event
 
 
 class ResponseEvent(Event):
