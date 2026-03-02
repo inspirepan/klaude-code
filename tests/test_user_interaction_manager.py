@@ -85,7 +85,7 @@ def test_manager_emits_event_and_resolves_response() -> None:
     arun(_test())
 
 
-def test_manager_allows_only_single_pending_request() -> None:
+def test_manager_allows_multiple_pending_requests() -> None:
     async def _test() -> None:
         async def _emit(_event: events.Event) -> None:
             return None
@@ -101,28 +101,121 @@ def test_manager_allows_only_single_pending_request() -> None:
                 tool_call_id="call1",
             )
         )
-        await manager.wait_next_request()
-
-        raised = False
-        try:
-            await manager.request(
+        second = asyncio.create_task(
+            manager.request(
                 request_id="req2",
-                session_id="s1",
+                session_id="s2",
                 source="tool",
                 payload=_payload(),
                 tool_call_id="call2",
             )
-        except RuntimeError:
-            raised = True
-        assert raised
+        )
+
+        first_request = await manager.wait_next_request()
+        second_request = await manager.wait_next_request()
+        assert {first_request.request_id, second_request.request_id} == {"req1", "req2"}
+
+        manager.respond(
+            request_id="req1",
+            session_id="s1",
+            response=UserInteractionResponse(
+                status="submitted",
+                payload=AskUserQuestionResponsePayload(
+                    answers=[
+                        user_interaction.AskUserQuestionAnswer(
+                            question_id="q1",
+                            selected_option_ids=["a"],
+                            other_text="",
+                            note="n1",
+                        )
+                    ]
+                ),
+            ),
+        )
+        manager.respond(
+            request_id="req2",
+            session_id="s2",
+            response=UserInteractionResponse(
+                status="submitted",
+                payload=AskUserQuestionResponsePayload(
+                    answers=[
+                        user_interaction.AskUserQuestionAnswer(
+                            question_id="q1",
+                            selected_option_ids=["b"],
+                            other_text="",
+                            note="n2",
+                        )
+                    ]
+                ),
+            ),
+        )
+
+        first_result = await first
+        second_result = await second
+        assert first_result.status == "submitted"
+        assert second_result.status == "submitted"
+
+    arun(_test())
+
+
+def test_manager_cancel_pending_with_session_filter() -> None:
+    async def _test() -> None:
+        async def _emit(_event: events.Event) -> None:
+            return None
+
+        manager = UserInteractionManager(_emit)
+
+        first = asyncio.create_task(
+            manager.request(
+                request_id="req1",
+                session_id="s1",
+                source="tool",
+                payload=_payload(),
+                tool_call_id="call1",
+            )
+        )
+        second = asyncio.create_task(
+            manager.request(
+                request_id="req2",
+                session_id="s2",
+                source="tool",
+                payload=_payload(),
+                tool_call_id="call2",
+            )
+        )
+
+        await manager.wait_next_request()
+        await manager.wait_next_request()
 
         assert manager.cancel_pending(session_id="s1")
+        assert manager.is_pending("req2")
+
         cancelled = False
         try:
             await first
         except asyncio.CancelledError:
             cancelled = True
         assert cancelled
+
+        manager.respond(
+            request_id="req2",
+            session_id="s2",
+            response=UserInteractionResponse(
+                status="submitted",
+                payload=AskUserQuestionResponsePayload(
+                    answers=[
+                        user_interaction.AskUserQuestionAnswer(
+                            question_id="q1",
+                            selected_option_ids=["b"],
+                            other_text="",
+                            note="n2",
+                        )
+                    ]
+                ),
+            ),
+        )
+        result = await second
+        assert result.status == "submitted"
 
     arun(_test())
 

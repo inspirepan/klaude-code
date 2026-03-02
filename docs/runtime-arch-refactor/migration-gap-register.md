@@ -15,7 +15,7 @@
 |---|---|---|---|---|---|
 | G-001 | 保留 `event_queue` 作为 display 主通道 | TUI/Web 都直接订阅 EventBus（或统一 adapter） | Phase 1 | Phase 4 | open |
 | G-002 | ingress 仍经过 `Executor.submit` 包装层（已不经过 submission queue） | `RuntimeHub -> SessionRuntime.mailbox` 成为唯一输入调度入口（或 `Executor` 仅作薄门面） | 现状 | Phase 2/4 | open |
-| G-003 | `UserInteractionManager` 独立侧通道 | interaction 进入 `SessionRuntime.pending_requests` 闭环 | 现状 | Phase 3 | open |
+| G-003 | `UserInteractionManager` 仍是独立侧通道（已支持多 pending，不再全局单槽） | interaction 进入 `SessionRuntime.pending_requests` 闭环 | 现状 | Phase 3 | open |
 | G-004 | `operation_id` 仍被复用为 root 执行跟踪 key | `operation_id` / `task_id` 语义拆分 | 现状 | Phase 3 | open |
 | G-005 | `TaskManager` 按 submission 维度管理任务 | 会话内 `active_root_task + child_tasks` | 现状 | Phase 2/4 | open |
 | G-006 | `events.Event` 直出，无统一 envelope | `EventEnvelope(event_id, event_seq, ...)` | 现状 | Phase 3 | open |

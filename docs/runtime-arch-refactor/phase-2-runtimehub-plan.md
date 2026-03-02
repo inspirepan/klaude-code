@@ -43,6 +43,11 @@
 - 移除 `Submission` 包装对象，RuntimeHub/SessionRuntime/Executor 统一直接处理 `Operation`
 - completion 映射改为 `operation_id -> runtime_id`
 
+并且本次追加了第八个增量：
+
+- `UserInteractionManager` 从全局单 pending 改为多 pending 管理（按 `request_id`）
+- 仍保持侧通道形态，作为并轨前的中间态
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）
