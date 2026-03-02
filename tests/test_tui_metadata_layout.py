@@ -96,3 +96,22 @@ def test_sub_agent_identity_splits_name_and_model_on_narrow_width() -> None:
     model_idx = next(i for i, line in enumerate(lines) if "anthropic/claude-haiku-4.5" in line)
 
     assert model_idx == explore_idx + 1
+
+
+def test_task_metadata_shows_cache_write_tokens() -> None:
+    usage = model.Usage(
+        input_tokens=30_000,
+        cached_tokens=20_000,
+        cache_write_tokens=5_000,
+        output_tokens=2_000,
+    )
+    metadata = model.TaskMetadata(model_name="claude-sonnet-4-6", usage=usage)
+    event = events.TaskMetadataEvent(session_id="test", metadata=model.TaskMetadataItem(main_agent=metadata))
+
+    console = Console(width=120, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_task_metadata(event))
+    output = console.export_text(styles=False)
+
+    assert "in 5k" in output
+    assert "cache 20k" in output
+    assert "cache write 5k" in output

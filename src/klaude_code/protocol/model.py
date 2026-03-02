@@ -17,6 +17,7 @@ class Usage(BaseModel):
     # Token Usage (primary state)
     input_tokens: int = 0
     cached_tokens: int = 0
+    cache_write_tokens: int = 0
     reasoning_tokens: int = 0
     output_tokens: int = 0
 
@@ -89,6 +90,7 @@ class TaskMetadata(BaseModel):
         """
         dst.input_tokens += src.input_tokens
         dst.cached_tokens += src.cached_tokens
+        dst.cache_write_tokens += src.cache_write_tokens
         dst.reasoning_tokens += src.reasoning_tokens
         dst.output_tokens += src.output_tokens
 

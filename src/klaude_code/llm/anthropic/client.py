@@ -84,6 +84,7 @@ class AnthropicStreamStateManager:
         # Token tracking
         self.input_token: int = 0
         self.cached_token: int = 0
+        self.cache_write_token: int = 0
 
     def append_thinking_text(self, text: str) -> None:
         """Append thinking text, merging with the previous ThinkingTextPart when possible."""
@@ -258,6 +259,7 @@ async def parse_anthropic_stream(
             case BetaRawMessageStartEvent() as event:
                 state.response_id = event.message.id
                 state.cached_token = event.message.usage.cache_read_input_tokens or 0
+                state.cache_write_token = event.message.usage.cache_creation_input_tokens or 0
                 state.input_token = event.message.usage.input_tokens
             case BetaRawContentBlockDeltaEvent() as event:
                 match event.delta:
@@ -307,12 +309,14 @@ async def parse_anthropic_stream(
                     metadata_tracker.record_token()
                     state.flush_tool_call()
             case BetaRawMessageDeltaEvent() as event:
+                total_input = state.input_token + state.cached_token + state.cache_write_token
                 metadata_tracker.set_usage(
                     model.Usage(
-                        input_tokens=state.input_token + state.cached_token,
+                        input_tokens=total_input,
                         output_tokens=event.usage.output_tokens,
                         cached_tokens=state.cached_token,
-                        context_size=state.input_token + state.cached_token + event.usage.output_tokens,
+                        cache_write_tokens=state.cache_write_token,
+                        context_size=total_input + event.usage.output_tokens,
                         context_limit=param.context_limit,
                         max_tokens=param.max_tokens,
                     )

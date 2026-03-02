@@ -100,7 +100,12 @@ class MetadataAccumulator:
             self.last_turn_cache_hit_rate = None
             self.last_turn_cached_tokens = 0
             self.last_turn_prev_input_tokens = 0
-        self._prev_turn_input_tokens = usage.input_tokens
+        # Use the larger one as denominator baseline so cache hit rate remains
+        # stable across providers with different usage field semantics.
+        self._prev_turn_input_tokens = max(
+            usage.input_tokens,
+            usage.cached_tokens + usage.cache_write_tokens,
+        )
 
         if usage.provider is not None:
             self._main_agent.provider = usage.provider

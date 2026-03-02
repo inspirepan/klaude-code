@@ -195,6 +195,7 @@ class SpinnerStatusState:
         self._activity = ActivityState()
         self._token_input: int | None = None
         self._token_cached: int | None = None
+        self._token_cache_write: int | None = None
         self._token_output: int | None = None
         self._token_thought: int | None = None
         self._cache_hit_rate: float | None = None
@@ -211,6 +212,7 @@ class SpinnerStatusState:
         self._activity.reset()
         self._token_input = None
         self._token_cached = None
+        self._token_cache_write = None
         self._token_output = None
         self._token_thought = None
         self._cache_hit_rate = None
@@ -270,13 +272,17 @@ class SpinnerStatusState:
             (
                 usage.input_tokens,
                 usage.cached_tokens,
+                usage.cache_write_tokens,
                 usage.output_tokens,
                 usage.reasoning_tokens,
             )
         )
         if has_token_usage:
-            self._token_input = (self._token_input or 0) + max(usage.input_tokens - usage.cached_tokens, 0)
+            self._token_input = (self._token_input or 0) + max(
+                usage.input_tokens - usage.cached_tokens - usage.cache_write_tokens, 0
+            )
             self._token_cached = (self._token_cached or 0) + usage.cached_tokens
+            self._token_cache_write = (self._token_cache_write or 0) + usage.cache_write_tokens
             self._token_output = (self._token_output or 0) + max(usage.output_tokens - usage.reasoning_tokens, 0)
             self._token_thought = (self._token_thought or 0) + usage.reasoning_tokens
 
@@ -350,6 +356,11 @@ class SpinnerStatusState:
                 if not compact and self._cache_hit_rate is not None:
                     cache_text += f" ({self._cache_hit_rate:.0%})"
                 token_parts.append(cache_text)
+            if self._token_cache_write and self._token_cache_write > 0:
+                if compact:
+                    token_parts.append(f"⊕{format_number(self._token_cache_write)}")
+                else:
+                    token_parts.append(f"cache+ {format_number(self._token_cache_write)}")
             if compact:
                 token_parts.append(f"↓{format_number(self._token_output)}")
             else:
@@ -422,6 +433,7 @@ class _SessionState:
     status_tool_calls_by_id: dict[str, str] = field(default_factory=_empty_status_tool_ids)
     status_token_input: int | None = None
     status_token_cached: int | None = None
+    status_token_cache_write: int | None = None
     status_token_output: int | None = None
     status_token_thought: int | None = None
     status_context_size: int | None = None
@@ -456,13 +468,17 @@ class _SessionState:
             (
                 usage.input_tokens,
                 usage.cached_tokens,
+                usage.cache_write_tokens,
                 usage.output_tokens,
                 usage.reasoning_tokens,
             )
         )
         if has_token_usage:
-            self.status_token_input = (self.status_token_input or 0) + max(usage.input_tokens - usage.cached_tokens, 0)
+            self.status_token_input = (self.status_token_input or 0) + max(
+                usage.input_tokens - usage.cached_tokens - usage.cache_write_tokens, 0
+            )
             self.status_token_cached = (self.status_token_cached or 0) + usage.cached_tokens
+            self.status_token_cache_write = (self.status_token_cache_write or 0) + usage.cache_write_tokens
             self.status_token_output = (self.status_token_output or 0) + max(
                 usage.output_tokens - usage.reasoning_tokens, 0
             )
@@ -535,6 +551,8 @@ class _SessionState:
             token_parts: list[str] = [f"↑{format_number(self.status_token_input)}"]
             if self.status_token_cached and self.status_token_cached > 0:
                 token_parts.append(f"◎{format_number(self.status_token_cached)}")
+            if self.status_token_cache_write and self.status_token_cache_write > 0:
+                token_parts.append(f"⊕{format_number(self.status_token_cache_write)}")
             token_parts.append(f"↓{format_number(self.status_token_output)}")
             if self.status_token_thought and self.status_token_thought > 0:
                 token_parts.append(f"∿{format_number(self.status_token_thought)}")

@@ -118,7 +118,10 @@ def _build_metadata_content(
     parts: list[Text] = []
 
     if metadata.usage is not None:
-        input_tokens = max(metadata.usage.input_tokens - metadata.usage.cached_tokens, 0)
+        input_tokens = max(
+            metadata.usage.input_tokens - metadata.usage.cached_tokens - metadata.usage.cache_write_tokens,
+            0,
+        )
         output_tokens = max(metadata.usage.output_tokens - metadata.usage.reasoning_tokens, 0)
 
         parts.append(
@@ -141,6 +144,13 @@ def _build_metadata_content(
                     rate_style = ThemeKey.WARN
                 cache_text.append(f" ({metadata.usage.cache_hit_rate:.0%})", style=rate_style)
             parts.append(cache_text)
+        if metadata.usage.cache_write_tokens > 0:
+            parts.append(
+                Text.assemble(
+                    ("cache write ", ThemeKey.METADATA),
+                    (format_number(metadata.usage.cache_write_tokens), ThemeKey.METADATA),
+                )
+            )
         parts.append(
             Text.assemble(
                 ("out ", ThemeKey.METADATA),
