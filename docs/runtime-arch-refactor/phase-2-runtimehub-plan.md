@@ -91,6 +91,12 @@
 - `AgentRuntime` 通过 `ExecutorContext -> RuntimeHub` 发起 interaction request，并统一由 `RuntimeHub` 维护 pending/resolve/cancel
 - `UserInteractionRespondOperation` 与 interrupt 取消路径改为直接操作 `RuntimeHub` pending 状态（去除运行时侧通道）
 
+并且本次追加了第十七个增量：
+
+- 拆分 `operation_id` 与 `task_id` 语义：`TaskManager` 改为 `operation_id -> task_id -> asyncio.Task` 双映射
+- root-task 启动时先以 `operation_id` 占位，执行层注册真实 `task_id` 后通过 `RuntimeHub.bind_root_task()` 回填
+- busy reject 的 `active_task_id` 优先使用真实 `task_id`（若尚未回填则退回占位 ID）
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）

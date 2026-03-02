@@ -456,6 +456,7 @@ def test_runtime_hub_snapshot_reflects_runtime_state() -> None:
         assert snapshot is not None
         assert snapshot.session_id == "s1"
         assert snapshot.active_root_task is not None
+        assert snapshot.active_root_task.operation_id == root_op.id
         assert snapshot.active_root_task.task_id == root_op.id
         assert snapshot.pending_request_count == 1
         assert snapshot.is_idle is False
@@ -620,6 +621,40 @@ def test_runtime_hub_request_user_interaction_roundtrip() -> None:
         assert response.payload.answers[0].selected_option_ids == ["o1"]
         assert hub.pending_request_count("s1") == 0
 
+        await hub.stop()
+
+    arun(_test())
+
+
+def test_runtime_hub_bind_root_task_updates_reject_active_task_id() -> None:
+    async def _test() -> None:
+        started = asyncio.Event()
+        reject_done = asyncio.Event()
+        rejected: list[tuple[str, str | None]] = []
+
+        first_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="first"))
+        second_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="second"))
+
+        async def _handle(operation: op.Operation) -> None:
+            if operation.id == first_op.id:
+                started.set()
+
+        async def _reject(operation: op.Operation, active_task_id: str | None) -> None:
+            rejected.append((operation.id, active_task_id))
+            reject_done.set()
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        await hub.submit(first_op)
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+
+        hub.bind_root_task(operation_id=first_op.id, task_id="task-xyz")
+        await hub.submit(second_op)
+        await asyncio.wait_for(reject_done.wait(), timeout=1.0)
+
+        assert rejected == [(second_op.id, "task-xyz")]
+
+        hub.mark_operation_completed(first_op.id)
+        hub.mark_operation_completed(second_op.id)
         await hub.stop()
 
     arun(_test())

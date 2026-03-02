@@ -13,6 +13,7 @@ import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import uuid4
 
 from klaude_code.config import load_config
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
@@ -41,32 +42,50 @@ from klaude_code.session.session import Session
 
 @dataclass
 class ActiveTask:
-    """Track an in-flight task and its owning session."""
+    """Track an in-flight runtime task."""
 
+    task_id: str
+    operation_id: str
     task: asyncio.Task[None]
     session_id: str
 
 
 class TaskManager:
-    """Manager that tracks active tasks keyed by operation id."""
+    """Manager that tracks active tasks and operation/task mappings."""
 
     def __init__(self) -> None:
         self._tasks: dict[str, ActiveTask] = {}
+        self._operation_task_ids: dict[str, str] = {}
 
-    def register(self, operation_id: str, task: asyncio.Task[None], session_id: str) -> None:
-        """Register a new active task for an operation id."""
+    def register(self, *, operation_id: str, task_id: str, task: asyncio.Task[None], session_id: str) -> None:
+        """Register a new active task for an operation."""
 
-        self._tasks[operation_id] = ActiveTask(task=task, session_id=session_id)
+        self._tasks[task_id] = ActiveTask(
+            task_id=task_id,
+            operation_id=operation_id,
+            task=task,
+            session_id=session_id,
+        )
+        self._operation_task_ids[operation_id] = task_id
 
-    def get(self, operation_id: str) -> ActiveTask | None:
+    def get_by_operation(self, operation_id: str) -> ActiveTask | None:
         """Return the active task for an operation id if present."""
 
-        return self._tasks.get(operation_id)
+        task_id = self._operation_task_ids.get(operation_id)
+        if task_id is None:
+            return None
+        return self._tasks.get(task_id)
 
-    def remove(self, operation_id: str) -> None:
-        """Remove the active task associated with an operation id if present."""
+    def remove(self, task_id: str) -> None:
+        """Remove the active task associated with a task id if present."""
 
-        self._tasks.pop(operation_id, None)
+        active = self._tasks.pop(task_id, None)
+        if active is None:
+            return
+
+        current = self._operation_task_ids.get(active.operation_id)
+        if current == task_id:
+            self._operation_task_ids.pop(active.operation_id, None)
 
     def values(self) -> list[ActiveTask]:
         """Return a snapshot list of all active tasks."""
@@ -89,6 +108,7 @@ class TaskManager:
         """Remove all tracked tasks from the manager."""
 
         self._tasks.clear()
+        self._operation_task_ids.clear()
 
 
 class AgentRuntime:
@@ -210,46 +230,64 @@ class AgentRuntime:
             ]
         )
 
-        existing_active = self._task_manager.get(operation.id)
+        existing_active = self._task_manager.get_by_operation(operation.id)
         if existing_active is not None and not existing_active.task.done():
             raise RuntimeError(f"Active task already registered for operation {operation.id}")
 
+        task_id = uuid4().hex
         task: asyncio.Task[None] = asyncio.create_task(
-            self._run_agent_task(agent, operation.input, operation.id, operation.session_id)
+            self._run_agent_task(agent, operation.input, task_id, operation.session_id)
         )
-        self._task_manager.register(operation.id, task, operation.session_id)
+        self._task_manager.register(
+            operation_id=operation.id,
+            task_id=task_id,
+            task=task,
+            session_id=operation.session_id,
+        )
 
     async def run_bash(self, operation: op.RunBashOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
 
-        existing_active = self._task_manager.get(operation.id)
+        existing_active = self._task_manager.get_by_operation(operation.id)
         if existing_active is not None and not existing_active.task.done():
             raise RuntimeError(f"Active task already registered for operation {operation.id}")
 
+        task_id = uuid4().hex
         task: asyncio.Task[None] = asyncio.create_task(
             self._run_bash_task(
                 session=agent.session,
                 command=operation.command,
-                task_id=operation.id,
+                task_id=task_id,
                 session_id=operation.session_id,
             )
         )
-        self._task_manager.register(operation.id, task, operation.session_id)
+        self._task_manager.register(
+            operation_id=operation.id,
+            task_id=task_id,
+            task=task,
+            session_id=operation.session_id,
+        )
 
     async def continue_agent(self, operation: op.ContinueAgentOperation) -> None:
         """Continue agent execution without adding a new user message."""
         agent = await self.ensure_agent(operation.session_id)
 
-        existing_active = self._task_manager.get(operation.id)
+        existing_active = self._task_manager.get_by_operation(operation.id)
         if existing_active is not None and not existing_active.task.done():
             raise RuntimeError(f"Active task already registered for operation {operation.id}")
 
         # Use empty input since we're continuing from existing history
         empty_input = message.UserInputPayload(text="")
+        task_id = uuid4().hex
         task: asyncio.Task[None] = asyncio.create_task(
-            self._run_agent_task(agent, empty_input, operation.id, operation.session_id)
+            self._run_agent_task(agent, empty_input, task_id, operation.session_id)
         )
-        self._task_manager.register(operation.id, task, operation.session_id)
+        self._task_manager.register(
+            operation_id=operation.id,
+            task_id=task_id,
+            task=task,
+            session_id=operation.session_id,
+        )
 
     async def compact_session(self, operation: op.CompactSessionOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
@@ -257,14 +295,20 @@ class AgentRuntime:
         if self._task_manager.cancel_tasks_for_sessions({operation.session_id}):
             await self.interrupt(operation.session_id)
 
-        existing_active = self._task_manager.get(operation.id)
+        existing_active = self._task_manager.get_by_operation(operation.id)
         if existing_active is not None and not existing_active.task.done():
             raise RuntimeError(f"Active task already registered for operation {operation.id}")
 
+        task_id = uuid4().hex
         task: asyncio.Task[None] = asyncio.create_task(
-            self._run_compaction_task(agent, operation, operation.id, operation.session_id)
+            self._run_compaction_task(agent, operation, task_id, operation.session_id)
         )
-        self._task_manager.register(operation.id, task, operation.session_id)
+        self._task_manager.register(
+            operation_id=operation.id,
+            task_id=task_id,
+            task=task,
+            session_id=operation.session_id,
+        )
 
     async def clear_session(self, session_id: str) -> None:
         agent = await self.ensure_agent(session_id)
@@ -389,12 +433,15 @@ class AgentRuntime:
             )
 
     async def _run_bash_task(self, *, session: Session, command: str, task_id: str, session_id: str) -> None:
-        await run_bash_command(
-            emit_event=self._emit_event,
-            session=session,
-            session_id=session_id,
-            command=command,
-        )
+        try:
+            await run_bash_command(
+                emit_event=self._emit_event,
+                session=session,
+                session_id=session_id,
+                command=command,
+            )
+        finally:
+            self._task_manager.remove(task_id)
 
     async def _run_compaction_task(
         self,
@@ -889,13 +936,10 @@ class ExecutorContext:
             raise RuntimeError("respond user interaction callback is not configured")
         callback(operation.request_id, operation.session_id, operation.response)
 
-    def get_active_task(self, operation_id: str) -> asyncio.Task[None] | None:
-        """Return the asyncio.Task for an operation id if one is registered."""
+    def get_active_task(self, operation_id: str) -> ActiveTask | None:
+        """Return the active runtime task for an operation id if present."""
 
-        active = self.task_manager.get(operation_id)
-        if active is None:
-            return None
-        return active.task
+        return self.task_manager.get_by_operation(operation_id)
 
 
 class Executor:
@@ -1069,7 +1113,7 @@ class Executor:
             await operation.execute(handler=self.context)
             self._on_operation_applied(operation)
 
-            task = self.context.get_active_task(operation.id)
+            active_task = self.context.get_active_task(operation.id)
 
             async def _await_agent_and_complete(captured_task: asyncio.Task[None]) -> None:
                 try:
@@ -1077,11 +1121,12 @@ class Executor:
                 finally:
                     self._complete_operation(operation)
 
-            if task is None:
+            if active_task is None:
                 self._complete_operation(operation)
             else:
+                self.runtime_hub.bind_root_task(operation_id=operation.id, task_id=active_task.task_id)
                 # Run in background so the submission loop can continue (e.g., to handle interrupts)
-                background_task = asyncio.create_task(_await_agent_and_complete(task))
+                background_task = asyncio.create_task(_await_agent_and_complete(active_task.task))
                 self._background_tasks.add(background_task)
                 background_task.add_done_callback(self._background_tasks.discard)
 

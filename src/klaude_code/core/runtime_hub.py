@@ -100,6 +100,15 @@ class RuntimeHub:
             return
         runtime.mark_operation_completed(operation_id)
 
+    def bind_root_task(self, *, operation_id: str, task_id: str) -> None:
+        runtime_id = self._operation_runtime_ids.get(operation_id)
+        if runtime_id is None:
+            return
+        runtime = self._runtimes.get(runtime_id)
+        if runtime is None:
+            return
+        runtime.bind_root_task(operation_id=operation_id, task_id=task_id)
+
     def mark_request_state(self, *, request: PendingUserInteractionRequest, is_pending: bool) -> None:
         runtime = self._runtimes.get(request.session_id)
         if runtime is None:

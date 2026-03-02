@@ -24,6 +24,7 @@ def _empty_sub_agent_models() -> dict[str, str | None]:
 
 @dataclass(frozen=True)
 class RootTaskState:
+    operation_id: str
     task_id: str
     kind: str
 
@@ -97,9 +98,17 @@ class SessionRuntime:
         if active is None:
             self._refresh_idle_since()
             return
-        if active.task_id == operation_id:
+        if active.operation_id == operation_id:
             self._active_root_task = None
         self._refresh_idle_since()
+
+    def bind_root_task(self, *, operation_id: str, task_id: str) -> None:
+        active = self._active_root_task
+        if active is None:
+            return
+        if active.operation_id != operation_id:
+            return
+        self._active_root_task = RootTaskState(operation_id=active.operation_id, task_id=task_id, kind=active.kind)
 
     def mark_request_pending(self, request: PendingUserInteractionRequest) -> None:
         self._pending_requests[request.request_id] = request
@@ -139,7 +148,11 @@ class SessionRuntime:
 
     def snapshot(self) -> SessionRuntimeSnapshot:
         active = self._active_root_task
-        active_snapshot = RootTaskState(task_id=active.task_id, kind=active.kind) if active is not None else None
+        active_snapshot = (
+            RootTaskState(operation_id=active.operation_id, task_id=active.task_id, kind=active.kind)
+            if active is not None
+            else None
+        )
         return SessionRuntimeSnapshot(
             session_id=self.session_id,
             active_root_task=active_snapshot,
@@ -187,7 +200,11 @@ class SessionRuntime:
                     await self._reject_operation(item, self._active_root_task.task_id)
                     continue
                 if _is_root_operation(item):
-                    self._active_root_task = RootTaskState(task_id=item.id, kind=_root_task_kind(item))
+                    self._active_root_task = RootTaskState(
+                        operation_id=item.id,
+                        task_id=item.id,
+                        kind=_root_task_kind(item),
+                    )
                 async with self._execution_lock:
                     await self._handle_operation(item)
             finally:
