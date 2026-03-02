@@ -816,6 +816,22 @@ class DisplayStateMachine:
                 cmds.append(RenderCommandOutput(e))
                 return cmds
 
+            case events.OperationRejectedEvent() as e:
+                cmds.append(
+                    RenderCommandOutput(
+                        events.CommandOutputEvent(
+                            session_id=e.session_id,
+                            command_name="operation.rejected",
+                            content=(
+                                "Operation rejected: session busy "
+                                f"(operation={e.operation_type}, active_task_id={e.active_task_id or 'unknown'})"
+                            ),
+                            is_error=True,
+                        )
+                    )
+                )
+                return cmds
+
             case events.TurnStartEvent() as e:
                 cmds.append(RenderTurnStart(e))
                 if not is_replay:

@@ -36,7 +36,7 @@
 并且本次追加了第六个增量：
 
 - busy reject 事件增加结构化输出：`OperationRejectedEvent`
-- 同时保留 `CommandOutputEvent(operation.rejected)` 以兼容当前 TUI 渲染
+- TUI 在状态机内将该事件映射为错误命令输出（不再由 Executor 双发事件）
 
 并且本次追加了第五个增量：
 

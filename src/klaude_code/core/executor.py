@@ -876,17 +876,6 @@ class Executor:
                 active_task_id=active_task_id,
             )
         )
-        await self.context.emit_event(
-            events.CommandOutputEvent(
-                session_id=session_id,
-                command_name="operation.rejected",
-                content=(
-                    "Operation rejected: session busy "
-                    f"(operation={operation.type.value}, active_task_id={active_task_id or 'unknown'})"
-                ),
-                is_error=True,
-            )
-        )
         self._complete_submission(submission)
 
     def _complete_submission(self, submission: op.Submission) -> None:
