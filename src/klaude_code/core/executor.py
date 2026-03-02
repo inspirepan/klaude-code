@@ -856,7 +856,7 @@ class Executor:
             handle_submission=self._handle_submission,
             reject_submission=self._reject_submission,
         )
-        self.submission_queue: asyncio.Queue[op.Submission] = asyncio.Queue()
+        self._stop_event = asyncio.Event()
         # Track completion events for all submissions (not just those with ActiveTask)
         self._completion_events: dict[str, asyncio.Event] = {}
         self._background_tasks: set[asyncio.Task[None]] = set()
@@ -897,6 +897,9 @@ class Executor:
             Unique submission ID for tracking
         """
 
+        if self._stop_event.is_set():
+            raise RuntimeError("Executor is stopped")
+
         if operation.id in self._completion_events:
             raise RuntimeError(f"Submission already registered: {operation.id}")
 
@@ -904,7 +907,7 @@ class Executor:
         self._completion_events[operation.id] = asyncio.Event()
 
         submission = op.Submission(id=operation.id, operation=operation)
-        await self.submission_queue.put(submission)
+        await self.runtime_hub.submit(submission)
 
         log_debug(
             f"Submitted operation {operation.type} with ID {operation.id}",
@@ -930,46 +933,15 @@ class Executor:
         """
         Start the executor main loop.
 
-        This method runs continuously, processing submissions from the queue
+        This method runs continuously, processing submissions via RuntimeHub
         until the executor is stopped.
         """
         log_debug("Executor started", style="green", debug_type=DebugType.EXECUTION)
 
-        while True:
-            try:
-                # Wait for next submission
-                submission = await self.submission_queue.get()
-
-                # Check for end operation to gracefully exit
-                if isinstance(submission.operation, op.EndOperation):
-                    log_debug(
-                        "Received EndOperation, stopping executor",
-                        style="yellow",
-                        debug_type=DebugType.EXECUTION,
-                    )
-                    break
-
-                await self.runtime_hub.submit(submission)
-
-            except asyncio.CancelledError:
-                # Executor was cancelled
-                log_debug("Executor cancelled", style="yellow", debug_type=DebugType.EXECUTION)
-                break
-
-            except Exception as e:
-                # Handle unexpected errors
-                log_debug(
-                    f"Executor error: {e!s}",
-                    style="red",
-                    debug_type=DebugType.EXECUTION,
-                )
-                await self.context.emit_event(
-                    events.ErrorEvent(
-                        error_message=f"Executor error: {e!s}",
-                        can_retry=False,
-                        session_id="__app__",
-                    )
-                )
+        try:
+            await self._stop_event.wait()
+        except asyncio.CancelledError:
+            log_debug("Executor cancelled", style="yellow", debug_type=DebugType.EXECUTION)
 
     async def stop(self) -> None:
         """Stop the executor and clean up resources."""
@@ -999,17 +971,7 @@ class Executor:
         for event in self._completion_events.values():
             event.set()
 
-        # Send EndOperation to wake up the start() loop
-        try:
-            end_operation = op.EndOperation()
-            submission = op.Submission(id=end_operation.id, operation=end_operation)
-            await self.submission_queue.put(submission)
-        except Exception as e:
-            log_debug(
-                f"Failed to send EndOperation: {e!s}",
-                style="red",
-                debug_type=DebugType.EXECUTION,
-            )
+        self._stop_event.set()
 
         log_debug("Executor stopped", style="yellow", debug_type=DebugType.EXECUTION)
 

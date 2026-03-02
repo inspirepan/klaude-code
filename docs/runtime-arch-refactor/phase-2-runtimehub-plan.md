@@ -33,13 +33,18 @@
 - `SessionRuntime` 将 active root 从裸 submission id 升级为显式 `RootTaskState(task_id, kind)`
 - completion 回调按 `task_id` 回收 active root 状态
 
+并且本次追加了第五个增量：
+
+- `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）
+- `Executor.start()` 退化为生命周期守护（等待 stop 信号）
+
 ---
 
 ## 2. 本阶段仍保留的临时实现
 
 > 这些临时项都已在 `migration-gap-register.md` 登记。
 
-- ingress 仍从 `Executor.submission_queue` 进入（RuntimeHub 在其后层）
+- ingress 仍经过 `Executor.submit` 包装层（但已不再经过内部 submission queue）
 - SessionRuntime worker 共享全局 execution lock（为兼容当前单 `_agent` 运行态）
 - SessionRuntime 已承载 root-task gate + `RootTaskState`
 - SessionRuntime 已支持 control/normal 双队列与 8:1 配额
