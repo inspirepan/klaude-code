@@ -26,17 +26,6 @@ from klaude_code.llm.client import LLMStreamABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, llm_param, message, model, tools
 
-# Protocols that support prefill (continuing from partial assistant message)
-_PREFILL_SUPPORTED_PROTOCOLS = frozenset(
-    {
-        "anthropic",
-        "claude_oauth",
-    }
-)
-
-# Models that do not support prefill even on supported protocols
-_PREFILL_BLOCKED_MODEL_PATTERNS = ("opus-4.6", "opus-4-6")
-
 
 class TurnError(Exception):
     """Raised when a turn fails and should be retried."""
@@ -201,31 +190,27 @@ class TurnExecutor:
             yield event
 
         if self._turn_result.stream_error is not None:
-            # Save accumulated content for potential prefill on retry (only for supported protocols)
+            # Save stream error and partial output for retry continuation.
             session_ctx.append_history([self._turn_result.stream_error])
-            protocol = ctx.llm_client.get_llm_config().protocol
-            model_name = ctx.llm_client.model_name.lower()
-            model_blocked = any(p in model_name for p in _PREFILL_BLOCKED_MODEL_PATTERNS)
-            supports_prefill = protocol.value in _PREFILL_SUPPORTED_PROTOCOLS and not model_blocked
             if (
                 RETRY_PRESERVE_PARTIAL_MESSAGE
-                and supports_prefill
                 and self._turn_result.assistant_message is not None
                 and self._turn_result.assistant_message.parts
             ):
-                # Discard partial message if it only contains thinking parts
-                has_non_thinking = any(
-                    not isinstance(part, message.ThinkingTextPart) for part in self._turn_result.assistant_message.parts
-                )
-                if has_non_thinking:
-                    session_ctx.append_history([self._turn_result.assistant_message])
-                    # Add continuation prompt to avoid Anthropic thinking block requirement
+                partial_text = message.join_text_parts(self._turn_result.assistant_message.parts).strip()
+                if partial_text:
+                    continuation_prompt = (
+                        "<assistant>\n"
+                        f"{partial_text}\n"
+                        "</assistant>\n\n"
+                        "<system-reminder>"
+                        "Your previous response was interrupted due to a transient error "
+                        "(often network-related). "
+                        "Please continue from where it left off without repeating content you've already provided."
+                        "</system-reminder>"
+                    )
                     session_ctx.append_history(
-                        [
-                            message.UserMessage(
-                                parts=[message.TextPart(text="<system-reminder>continue</system-reminder>")]
-                            )
-                        ]
+                        [message.UserMessage(parts=[message.TextPart(text=continuation_prompt)])]
                     )
             yield events.TurnEndEvent(session_id=session_ctx.session_id)
             raise TurnError(self._turn_result.stream_error.error)
