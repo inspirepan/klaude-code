@@ -112,6 +112,29 @@ class RuntimeHub:
         for runtime in runtimes:
             await runtime.stop()
 
+    async def close_session(self, session_id: str, *, force: bool = False) -> bool:
+        runtime = self._runtimes.get(session_id)
+        if runtime is None:
+            return False
+        if not force and not runtime.is_idle():
+            return False
+
+        self._runtimes.pop(session_id, None)
+        for operation_id, runtime_id in list(self._operation_runtime_ids.items()):
+            if runtime_id == session_id:
+                self._operation_runtime_ids.pop(operation_id, None)
+
+        await runtime.stop()
+        return True
+
+    async def reclaim_idle_runtimes(self) -> list[str]:
+        reclaimed: list[str] = []
+        for session_id in list(self._runtimes):
+            closed = await self.close_session(session_id, force=False)
+            if closed:
+                reclaimed.append(session_id)
+        return reclaimed
+
     def has_runtime(self, runtime_id: str) -> bool:
         return runtime_id in self._runtimes
 

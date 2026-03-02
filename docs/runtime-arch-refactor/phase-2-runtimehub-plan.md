@@ -73,6 +73,11 @@
 - `SessionRuntime` 提供 `snapshot()`（active root / pending count / idle / config）
 - `RuntimeHub` 提供 `snapshot(session_id)` 与 `all_snapshots()`，便于后续 WebUI/TTL 管理读取运行态
 
+并且本次追加了第十四个增量：
+
+- `RuntimeHub` 增加 `close_session()` 与 `reclaim_idle_runtimes()`
+- 基于 `SessionRuntime.is_idle()` 支撑后续 TTL 自动回收落地
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）

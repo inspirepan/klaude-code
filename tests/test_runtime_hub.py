@@ -475,3 +475,76 @@ def test_runtime_hub_snapshot_reflects_runtime_state() -> None:
         await hub.stop()
 
     arun(_test())
+
+
+def test_runtime_hub_close_session_respects_idle_state() -> None:
+    async def _test() -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        root_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="work"))
+
+        async def _handle(operation: op.Operation) -> None:
+            if operation.id == root_op.id:
+                started.set()
+                await release.wait()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        await hub.submit(root_op)
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+
+        assert await hub.close_session("s1", force=False) is False
+
+        release.set()
+        hub.mark_operation_completed(root_op.id)
+        await asyncio.sleep(0)
+
+        assert await hub.close_session("s1", force=False) is True
+        assert hub.has_runtime("s1") is False
+
+        await hub.stop()
+
+    arun(_test())
+
+
+def test_runtime_hub_reclaim_idle_runtimes_only_reclaims_idle() -> None:
+    async def _test() -> None:
+        started = asyncio.Event()
+        count = 0
+
+        s1_op = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
+        s2_op = op.ChangeThinkingOperation(session_id="s2", thinking=Thinking(type="enabled", budget_tokens=20))
+        s2_req = _pending_request("r2", "s2")
+
+        async def _handle(operation: op.Operation) -> None:
+            nonlocal count
+            count += 1
+            if count == 2:
+                started.set()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        await hub.submit(s1_op)
+        await hub.submit(s2_op)
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+
+        hub.mark_request_state(request=s2_req, is_pending=True)
+
+        reclaimed = await hub.reclaim_idle_runtimes()
+        assert reclaimed == ["s1"]
+        assert hub.has_runtime("s1") is False
+        assert hub.has_runtime("s2") is True
+
+        hub.mark_request_state(request=s2_req, is_pending=False)
+
+        reclaimed_again = await hub.reclaim_idle_runtimes()
+        assert reclaimed_again == ["s2"]
+
+        await hub.stop()
+
+    arun(_test())
