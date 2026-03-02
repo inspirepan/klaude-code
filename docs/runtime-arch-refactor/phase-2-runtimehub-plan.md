@@ -116,6 +116,12 @@
 - 每个 session worker 直接执行自身 operation，跨 session 可并发推进
 - 新增并发性验证：不同 session 的 root operation 可同时进入处理
 
+并且本次追加了第二十一个增量：
+
+- `SessionRuntime` 新增 `child_task` 状态跟踪并进入 snapshot（`child_task_count`）
+- `AgentRuntime` 在 sub-agent 执行路径回调 runtime 维护 child_task 的 started/completed 状态
+- `is_idle()` 增加 child_task 维度判断，避免子任务仍在运行时误判 idle
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）
@@ -129,12 +135,12 @@
 > 这些临时项都已在 `migration-gap-register.md` 登记。
 
 - ingress 仍经过 `Executor.submit` 包装层
-- SessionRuntime worker 共享全局 execution lock（为兼容当前单 `_agent` 运行态）
 - SessionRuntime 已承载 root-task gate + `RootTaskState`
 - SessionRuntime 已支持 control/normal 双队列与 8:1 配额
 - SessionRuntime 已内聚 pending request 状态与 idle 判定基础能力
+- SessionRuntime 已内聚 child task 计数状态（运行态可观测）
 - SessionRuntime 已内聚基础 session-local config（仍缺与持久化/重放一致性的完整闭环）
-- interaction 响应 future 仍由 `UserInteractionManager` 托管（并轨未完成）
+- Event 协议仍是旧 `events.Event`，尚未切换到 `EventEnvelope`
 
 ---
 

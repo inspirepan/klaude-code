@@ -118,6 +118,15 @@ class RuntimeHub:
             return
         runtime.mark_request_resolved(request.request_id)
 
+    def mark_child_task_state(self, *, session_id: str, task_id: str, is_active: bool) -> None:
+        runtime = self._runtimes.get(session_id)
+        if runtime is None:
+            return
+        if is_active:
+            runtime.mark_child_task_started(task_id)
+            return
+        runtime.mark_child_task_completed(task_id)
+
     async def wait_next_request(self) -> PendingUserInteractionRequest:
         while True:
             request = await self._request_queue.get()

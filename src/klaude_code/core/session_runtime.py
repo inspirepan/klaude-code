@@ -41,6 +41,7 @@ class SessionRuntimeConfig:
 class SessionRuntimeSnapshot:
     session_id: str
     active_root_task: RootTaskState | None
+    child_task_count: int
     pending_request_count: int
     is_idle: bool
     config: SessionRuntimeConfig
@@ -61,6 +62,7 @@ class SessionRuntime:
         self._handle_operation = handle_operation
         self._reject_operation = reject_operation
         self._active_root_task: RootTaskState | None = None
+        self._child_task_ids: set[str] = set()
         self._pending_requests: dict[str, PendingUserInteractionRequest] = {}
         self._config = SessionRuntimeConfig()
         self._idle_since_monotonic: float | None = time.monotonic()
@@ -119,6 +121,14 @@ class SessionRuntime:
     def has_pending_request(self, request_id: str) -> bool:
         return request_id in self._pending_requests
 
+    def mark_child_task_started(self, task_id: str) -> None:
+        self._child_task_ids.add(task_id)
+        self._mark_active()
+
+    def mark_child_task_completed(self, task_id: str) -> None:
+        self._child_task_ids.discard(task_id)
+        self._refresh_idle_since()
+
     def pending_request_count(self) -> int:
         return len(self._pending_requests)
 
@@ -154,6 +164,7 @@ class SessionRuntime:
         return SessionRuntimeSnapshot(
             session_id=self.session_id,
             active_root_task=active_snapshot,
+            child_task_count=len(self._child_task_ids),
             pending_request_count=len(self._pending_requests),
             is_idle=self.is_idle(),
             config=self.config_snapshot(),
@@ -165,6 +176,7 @@ class SessionRuntime:
     def is_idle(self) -> bool:
         return (
             self._active_root_task is None
+            and not self._child_task_ids
             and not self._pending_requests
             and self.control_mailbox.empty()
             and self.normal_mailbox.empty()

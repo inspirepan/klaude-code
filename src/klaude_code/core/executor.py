@@ -137,6 +137,7 @@ class AgentRuntime:
         model_profile_provider: ModelProfileProvider,
         task_manager: TaskManager,
         sub_agent_manager: SubAgentManager,
+        on_child_task_state_change: Callable[[str, str, bool], None],
         request_user_interaction: Callable[
             [PendingUserInteractionRequest],
             Awaitable[user_interaction.UserInteractionResponse],
@@ -147,6 +148,7 @@ class AgentRuntime:
         self._model_profile_provider = model_profile_provider
         self._task_manager = task_manager
         self._sub_agent_manager = sub_agent_manager
+        self._on_child_task_state_change = on_child_task_state_change
         self._request_user_interaction_callback = request_user_interaction
         self._session_llm_clients: dict[str, LLMClients] = {}
         self._agents: dict[str, Agent] = {}
@@ -501,14 +503,19 @@ class AgentRuntime:
                 register_progress_getter: Callable[[Callable[[], str | None]], None] | None,
             ) -> SubAgentResult:
                 session_clients = self.get_session_llm_clients(session_id)
-                return await self._sub_agent_manager.run_sub_agent(
-                    agent,
-                    state,
-                    llm_clients=session_clients,
-                    record_session_id=record_session_id,
-                    register_metadata_getter=register_metadata_getter,
-                    register_progress_getter=register_progress_getter,
-                )
+                child_task_id = uuid4().hex
+                self._on_child_task_state_change(session_id, child_task_id, True)
+                try:
+                    return await self._sub_agent_manager.run_sub_agent(
+                        agent,
+                        state,
+                        llm_clients=session_clients,
+                        record_session_id=record_session_id,
+                        register_metadata_getter=register_metadata_getter,
+                        register_progress_getter=register_progress_getter,
+                    )
+                finally:
+                    self._on_child_task_state_change(session_id, child_task_id, False)
 
             async for event in agent.run_task(user_input, run_subtask=_runner):
                 await self._emit_event(event)
@@ -705,18 +712,23 @@ class ExecutorContext:
             Callable[[str, str, user_interaction.UserInteractionResponse], None] | None
         ) = None
         self._cancel_pending_interactions_callback: Callable[[str | None], bool] | None = None
+        self._child_task_state_change_callback: Callable[[str, str, bool], None] | None = None
         self._agent_runtime = AgentRuntime(
             emit_event=self.emit_event,
             llm_clients=llm_clients,
             model_profile_provider=resolved_profile_provider,
             task_manager=self.task_manager,
             sub_agent_manager=self.sub_agent_manager,
+            on_child_task_state_change=self._on_child_task_state_change,
             request_user_interaction=self.request_user_interaction,
         )
         self._model_switcher = ModelSwitcher(resolved_profile_provider)
 
     def set_close_session_callback(self, callback: Callable[[str, bool], Awaitable[bool]]) -> None:
         self._close_session_callback = callback
+
+    def set_child_task_state_change_callback(self, callback: Callable[[str, str, bool], None] | None) -> None:
+        self._child_task_state_change_callback = callback
 
     def set_user_interaction_callbacks(
         self,
@@ -756,6 +768,12 @@ class ExecutorContext:
         if callback is None:
             return False
         return callback(session_id)
+
+    def _on_child_task_state_change(self, session_id: str, task_id: str, is_active: bool) -> None:
+        callback = self._child_task_state_change_callback
+        if callback is None:
+            return
+        callback(session_id, task_id, is_active)
 
     async def emit_event(self, event: events.Event) -> None:
         """Publish an event to the runtime event bus."""
@@ -1077,6 +1095,7 @@ class Executor:
             reject_operation=self._reject_operation,
         )
         self.context.set_close_session_callback(self.close_session)
+        self.context.set_child_task_state_change_callback(self._on_child_task_state_change)
         self.context.set_user_interaction_callbacks(
             request_callback=self.runtime_hub.request_user_interaction,
             respond_callback=self._respond_user_interaction,
@@ -1120,6 +1139,9 @@ class Executor:
 
     def _cancel_pending_user_interactions(self, session_id: str | None) -> bool:
         return self.runtime_hub.cancel_pending_interactions(session_id=session_id)
+
+    def _on_child_task_state_change(self, session_id: str, task_id: str, is_active: bool) -> None:
+        self.runtime_hub.mark_child_task_state(session_id=session_id, task_id=task_id, is_active=is_active)
 
     def _complete_operation(self, operation: op.Operation) -> None:
         event = self._completion_events.get(operation.id)

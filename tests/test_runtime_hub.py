@@ -458,6 +458,7 @@ def test_runtime_hub_snapshot_reflects_runtime_state() -> None:
         assert snapshot.active_root_task is not None
         assert snapshot.active_root_task.operation_id == root_op.id
         assert snapshot.active_root_task.task_id == root_op.id
+        assert snapshot.child_task_count == 0
         assert snapshot.pending_request_count == 1
         assert snapshot.is_idle is False
         assert snapshot.config.model_name == "model-x"
@@ -470,6 +471,7 @@ def test_runtime_hub_snapshot_reflects_runtime_state() -> None:
         done_snapshot = hub.snapshot("s1")
         assert done_snapshot is not None
         assert done_snapshot.active_root_task is None
+        assert done_snapshot.child_task_count == 0
         assert done_snapshot.pending_request_count == 0
         assert done_snapshot.is_idle is True
 
@@ -692,6 +694,44 @@ def test_runtime_hub_runs_sessions_concurrently() -> None:
         release_s2.set()
         hub.mark_operation_completed(s1_op.id)
         hub.mark_operation_completed(s2_op.id)
+        await hub.stop()
+
+    arun(_test())
+
+
+def test_runtime_hub_child_task_state_affects_snapshot_and_idle() -> None:
+    async def _test() -> None:
+        started = asyncio.Event()
+        op1 = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
+
+        async def _handle(_operation: op.Operation) -> None:
+            started.set()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        await hub.submit(op1)
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+        hub.mark_operation_completed(op1.id)
+
+        snap_idle = hub.snapshot("s1")
+        assert snap_idle is not None
+        assert snap_idle.child_task_count == 0
+        assert snap_idle.is_idle is True
+
+        hub.mark_child_task_state(session_id="s1", task_id="child-1", is_active=True)
+        snap_busy = hub.snapshot("s1")
+        assert snap_busy is not None
+        assert snap_busy.child_task_count == 1
+        assert snap_busy.is_idle is False
+
+        hub.mark_child_task_state(session_id="s1", task_id="child-1", is_active=False)
+        snap_done = hub.snapshot("s1")
+        assert snap_done is not None
+        assert snap_done.child_task_count == 0
+        assert snap_done.is_idle is True
+
         await hub.stop()
 
     arun(_test())
