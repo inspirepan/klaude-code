@@ -20,6 +20,9 @@ from klaude_code.log import log, set_debug_logging
 from klaude_code.protocol import events, op
 from klaude_code.session.session import Session, close_default_store
 
+SESSION_IDLE_TTL_SECONDS = 30 * 60
+SESSION_IDLE_RECLAIM_INTERVAL_SECONDS = 60
+
 
 @dataclass
 class AppInitConfig:
@@ -42,6 +45,7 @@ class AppComponents:
     event_queue: asyncio.Queue[events.Event]
     display: ui.DisplayABC
     display_task: asyncio.Task[None]
+    idle_reclaim_task: asyncio.Task[None]
 
     async def wait_for_display_idle(self) -> None:
         """Wait until event bridge and display queue have consumed pending events."""
@@ -56,6 +60,12 @@ async def _pipe_event_bus_to_queue(
     async for event in subscription:
         await event_queue.put(event)
     raise RuntimeError("Event bus bridge stopped unexpectedly")
+
+
+async def _reclaim_idle_sessions_loop(executor: Executor) -> None:
+    while True:
+        await asyncio.sleep(SESSION_IDLE_RECLAIM_INTERVAL_SECONDS)
+        await executor.reclaim_idle_sessions(idle_for_seconds=SESSION_IDLE_TTL_SECONDS)
 
 
 async def initialize_app_components(
@@ -123,6 +133,9 @@ async def initialize_app_components(
 
     _drain_background_task_exception(event_bridge_task, label="event-bridge")
 
+    idle_reclaim_task = asyncio.create_task(_reclaim_idle_sessions_loop(executor))
+    _drain_background_task_exception(idle_reclaim_task, label="idle-reclaim")
+
     display_task = asyncio.create_task(display.consume_event_loop(event_queue))
     _drain_background_task_exception(display_task, label="display")
 
@@ -135,6 +148,7 @@ async def initialize_app_components(
         event_queue=event_queue,
         display=display,
         display_task=display_task,
+        idle_reclaim_task=idle_reclaim_task,
     )
 
 
@@ -176,6 +190,10 @@ def backfill_session_model_config(
 async def cleanup_app_components(components: AppComponents) -> None:
     """Clean up all runtime components."""
     try:
+        components.idle_reclaim_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await components.idle_reclaim_task
+
         await components.executor.stop()
         with contextlib.suppress(Exception):
             await close_default_store()

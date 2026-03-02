@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Awaitable, Callable
 
 from klaude_code.core.session_runtime import SessionRuntime, SessionRuntimeConfig, SessionRuntimeSnapshot
@@ -113,6 +114,8 @@ class RuntimeHub:
             await runtime.stop()
 
     async def close_session(self, session_id: str, *, force: bool = False) -> bool:
+        if session_id == GLOBAL_RUNTIME_ID:
+            return False
         runtime = self._runtimes.get(session_id)
         if runtime is None:
             return False
@@ -127,9 +130,18 @@ class RuntimeHub:
         await runtime.stop()
         return True
 
-    async def reclaim_idle_runtimes(self) -> list[str]:
+    async def reclaim_idle_runtimes(self, *, idle_for_seconds: float = 0.0) -> list[str]:
         reclaimed: list[str] = []
+        now = time.monotonic()
         for session_id in list(self._runtimes):
+            if session_id == GLOBAL_RUNTIME_ID:
+                continue
+            runtime = self._runtimes.get(session_id)
+            if runtime is None:
+                continue
+            idle_seconds = runtime.idle_for_seconds(now)
+            if idle_seconds is None or idle_seconds < idle_for_seconds:
+                continue
             closed = await self.close_session(session_id, force=False)
             if closed:
                 reclaimed.append(session_id)

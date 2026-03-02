@@ -78,6 +78,13 @@
 - `RuntimeHub` 增加 `close_session()` 与 `reclaim_idle_runtimes()`
 - 基于 `SessionRuntime.is_idle()` 支撑后续 TTL 自动回收落地
 
+并且本次追加了第十五个增量：
+
+- 新增 `CloseSessionOperation`（显式 close 协议），由 global runtime 执行并回收目标 session runtime
+- `SessionRuntime` 增加 idle 时长跟踪（`idle_for_seconds()`）
+- `RuntimeHub.reclaim_idle_runtimes(idle_for_seconds=...)` 支持 TTL 门槛
+- `app/runtime.py` 增加后台 idle reclaim loop（默认 TTL=30m，巡检间隔=60s）
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）

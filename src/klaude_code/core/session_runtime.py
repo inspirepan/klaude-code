@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
@@ -63,11 +64,13 @@ class SessionRuntime:
         self._active_root_task: RootTaskState | None = None
         self._pending_requests: dict[str, PendingUserInteractionRequest] = {}
         self._config = SessionRuntimeConfig()
+        self._idle_since_monotonic: float | None = time.monotonic()
         self._control_burst_quota = control_burst_quota
         self._control_burst_count = 0
         self._worker_task: asyncio.Task[None] = asyncio.create_task(self._run_loop())
 
     async def enqueue(self, operation: op.Operation) -> None:
+        self._mark_active()
         if _is_control_operation(operation):
             await self.control_mailbox.put(operation)
             return
@@ -92,15 +95,19 @@ class SessionRuntime:
     def mark_operation_completed(self, operation_id: str) -> None:
         active = self._active_root_task
         if active is None:
+            self._refresh_idle_since()
             return
         if active.task_id == operation_id:
             self._active_root_task = None
+        self._refresh_idle_since()
 
     def mark_request_pending(self, request: PendingUserInteractionRequest) -> None:
         self._pending_requests[request.request_id] = request
+        self._mark_active()
 
     def mark_request_resolved(self, request_id: str) -> None:
         self._pending_requests.pop(request_id, None)
+        self._refresh_idle_since()
 
     def has_pending_request(self, request_id: str) -> bool:
         return request_id in self._pending_requests
@@ -151,6 +158,24 @@ class SessionRuntime:
             and self.control_mailbox.empty()
             and self.normal_mailbox.empty()
         )
+
+    def idle_for_seconds(self, now: float | None = None) -> float | None:
+        if not self.is_idle():
+            self._idle_since_monotonic = None
+            return None
+
+        current = now if now is not None else time.monotonic()
+        if self._idle_since_monotonic is None:
+            self._idle_since_monotonic = current
+            return 0.0
+        return current - self._idle_since_monotonic
+
+    def _mark_active(self) -> None:
+        self._idle_since_monotonic = None
+
+    def _refresh_idle_since(self) -> None:
+        if self.is_idle() and self._idle_since_monotonic is None:
+            self._idle_since_monotonic = time.monotonic()
 
     async def _run_loop(self) -> None:
         while True:
@@ -214,7 +239,7 @@ def _is_root_operation(operation: op.Operation) -> bool:
 
 
 def _is_control_operation(operation: op.Operation) -> bool:
-    return isinstance(operation, op.InterruptOperation | op.UserInteractionRespondOperation)
+    return isinstance(operation, op.InterruptOperation | op.UserInteractionRespondOperation | op.CloseSessionOperation)
 
 
 def _root_task_kind(operation: op.Operation) -> str:
@@ -225,3 +250,5 @@ def _root_task_kind(operation: op.Operation) -> str:
     if isinstance(operation, op.CompactSessionOperation):
         return "compact"
     raise RuntimeError(f"unsupported root operation kind: {operation.type.value}")
+
+

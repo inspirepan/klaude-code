@@ -25,7 +25,7 @@
 | G-010 | SessionRuntime 已有 root-task gate + `RootTaskState` + pending request 状态 + 基础 config 跟踪，但仍未形成完整运行态对象 | SessionRuntime 内聚 `active_root_task/pending_requests/config` 完整运行态 | Phase 2 | Phase 2/3 | open |
 | G-011 | busy reject 已统一为 `OperationRejectedEvent`，但仍处于旧 `events.Event` 体系 | 迁移到目标 `operation.rejected` + `EventEnvelope` 体系 | Phase 2 | Phase 3 | open |
 | G-012 | control 优先目前是队列调度级（8:1），未形成“执行中任务”级别抢占 | 达到完整 interrupt 抢占语义（含执行中上下文的及时让渡/取消） | Phase 2 | Phase 3 | open |
-| G-013 | 已有 `close_session()/reclaim_idle_runtimes()` 能力，但尚无 TTL 定时回收策略与显式 close operation | 实现显式 close 协议 + idle TTL 自动回收流程 | Phase 2 | Phase 2/3 | open |
+| G-013 | 已落地 `CloseSessionOperation` + idle TTL 定时回收（30m/60s 默认） | 显式 close 协议 + idle TTL 自动回收流程 | Phase 2 | Phase 2/3 | closed |
 
 ---
 

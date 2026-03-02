@@ -35,6 +35,7 @@ class OperationType(Enum):
     CLEAR_SESSION = "clear_session"
     EXPORT_SESSION = "export_session"
     INTERRUPT = "interrupt"
+    CLOSE_SESSION = "close_session"
     USER_INTERACTION_RESPOND = "user_interaction_respond"
     INIT_AGENT = "init_agent"
 
@@ -191,6 +192,17 @@ class InterruptOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         """Execute interrupt by cancelling active tasks."""
         await handler.handle_interrupt(self)
+
+
+class CloseSessionOperation(Operation):
+    """Operation for closing a session runtime explicitly."""
+
+    type: OperationType = OperationType.CLOSE_SESSION
+    target_session_id: str
+    force: bool = False
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_close_session(self)
 
 
 class UserInteractionRespondOperation(Operation):

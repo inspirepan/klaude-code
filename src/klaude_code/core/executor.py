@@ -538,6 +538,7 @@ class ExecutorContext:
         self.sub_agent_manager = SubAgentManager(self.emit_event, llm_clients, resolved_profile_provider)
         self.user_interaction_manager = UserInteractionManager(self.emit_event)
         self._on_model_change = on_model_change
+        self._close_session_callback: Callable[[str, bool], Awaitable[bool]] | None = None
         self._agent_runtime = AgentRuntime(
             emit_event=self.emit_event,
             llm_clients=llm_clients,
@@ -547,6 +548,9 @@ class ExecutorContext:
             user_interaction_manager=self.user_interaction_manager,
         )
         self._model_switcher = ModelSwitcher(resolved_profile_provider)
+
+    def set_close_session_callback(self, callback: Callable[[str, bool], Awaitable[bool]]) -> None:
+        self._close_session_callback = callback
 
     async def emit_event(self, event: events.Event) -> None:
         """Publish an event to the runtime event bus."""
@@ -820,6 +824,11 @@ class ExecutorContext:
         await self._agent_runtime.interrupt(operation.target_session_id)
         self.user_interaction_manager.cancel_pending(session_id=operation.target_session_id)
 
+    async def handle_close_session(self, operation: op.CloseSessionOperation) -> None:
+        if self._close_session_callback is None:
+            raise RuntimeError("close session callback is not configured")
+        await self._close_session_callback(operation.target_session_id, operation.force)
+
     async def handle_user_interaction_respond(self, operation: op.UserInteractionRespondOperation) -> None:
         self.user_interaction_manager.respond(
             request_id=operation.request_id,
@@ -856,6 +865,7 @@ class Executor:
             handle_operation=self._handle_operation,
             reject_operation=self._reject_operation,
         )
+        self.context.set_close_session_callback(self.close_session)
         self.context.user_interaction_manager.set_request_state_change_callback(self._on_request_state_change)
         self._stopped = False
         # Track completion events for all operations (not just those with ActiveTask)
@@ -922,6 +932,12 @@ class Executor:
 
     async def wait_next_interaction_request(self) -> PendingUserInteractionRequest:
         return await self.runtime_hub.wait_next_request()
+
+    async def close_session(self, session_id: str, force: bool = False) -> bool:
+        return await self.runtime_hub.close_session(session_id, force=force)
+
+    async def reclaim_idle_sessions(self, *, idle_for_seconds: float) -> list[str]:
+        return await self.runtime_hub.reclaim_idle_runtimes(idle_for_seconds=idle_for_seconds)
 
     async def wait_for(self, operation_id: str) -> None:
         """Wait for a specific operation to complete."""

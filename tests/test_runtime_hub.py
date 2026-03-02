@@ -548,3 +548,35 @@ def test_runtime_hub_reclaim_idle_runtimes_only_reclaims_idle() -> None:
         await hub.stop()
 
     arun(_test())
+
+
+def test_runtime_hub_reclaim_idle_runtimes_respects_idle_ttl() -> None:
+    async def _test() -> None:
+        started = asyncio.Event()
+
+        op1 = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
+
+        async def _handle(_operation: op.Operation) -> None:
+            started.set()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        await hub.submit(op1)
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+
+        # Operation is non-root and already completed by handler path.
+        hub.mark_operation_completed(op1.id)
+
+        reclaimed_too_early = await hub.reclaim_idle_runtimes(idle_for_seconds=0.5)
+        assert reclaimed_too_early == []
+        assert hub.has_runtime("s1") is True
+
+        await asyncio.sleep(0.55)
+        reclaimed = await hub.reclaim_idle_runtimes(idle_for_seconds=0.5)
+        assert reclaimed == ["s1"]
+
+        await hub.stop()
+
+    arun(_test())
