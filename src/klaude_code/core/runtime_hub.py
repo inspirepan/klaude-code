@@ -15,9 +15,11 @@ class RuntimeHub:
         *,
         handle_submission: Callable[[op.Submission], Awaitable[None]],
         reject_submission: Callable[[op.Submission, str | None], Awaitable[None]],
+        control_burst_quota: int = 8,
     ) -> None:
         self._handle_submission = handle_submission
         self._reject_submission = reject_submission
+        self._control_burst_quota = control_burst_quota
         self._execution_lock = asyncio.Lock()
         self._runtimes: dict[str, SessionRuntime] = {}
         self._submission_runtime_ids: dict[str, str] = {}
@@ -31,6 +33,7 @@ class RuntimeHub:
                 handle_submission=self._handle_submission,
                 reject_submission=self._reject_submission,
                 execution_lock=self._execution_lock,
+                control_burst_quota=self._control_burst_quota,
             )
             self._runtimes[runtime_id] = runtime
         self._submission_runtime_ids[submission.id] = runtime_id

@@ -22,6 +22,12 @@
 - `interrupt` 等控制操作不受 busy gate 影响，仍可进入
 - `SessionRuntime` 本地维护 active root submission id（通过 completion 回调清理）
 
+并且本次追加了第三个增量：
+
+- `SessionRuntime` 拆分 control/normal 双 mailbox
+- control 操作：`interrupt`、`user_interaction_respond`
+- 调度策略：control 优先 + `8:1` 配额（连续 8 个 control 后，若有 normal 则强制执行 1 个 normal）
+
 ---
 
 ## 2. 本阶段仍保留的临时实现
@@ -31,6 +37,7 @@
 - ingress 仍从 `Executor.submission_queue` 进入（RuntimeHub 在其后层）
 - SessionRuntime worker 共享全局 execution lock（为兼容当前单 `_agent` 运行态）
 - SessionRuntime 已承载 root-task gate + active root submission 状态
+- SessionRuntime 已支持 control/normal 双队列与 8:1 配额
 - SessionRuntime 仍未内聚 pending/config 等会话运行态
 
 ---
@@ -40,6 +47,7 @@
 1. 将会话级运行态逐步迁入 SessionRuntime（先 `active_root_task`）
 2. 将 active root 从 submission id 过渡为显式 `active_root_task` 实体
 3. 逐步降低对全局 execution lock 的依赖
+4. 将 control 优先从“队列级”推进到“执行级”可抢占语义（必要时）
 
 ---
 
@@ -49,5 +57,6 @@
 - 同一 session 的操作在其 mailbox 内保持顺序
 - global interrupt 仍可处理（映射到 global runtime）
 - busy session 下 root 操作会被拒绝，且不会触发执行
+- control/normal 调度符合优先级与 8:1 公平性
 
 对应测试：`tests/test_runtime_hub.py`

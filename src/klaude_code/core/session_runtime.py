@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
@@ -23,26 +24,39 @@ class SessionRuntime:
         handle_submission: Callable[[op.Submission], Awaitable[None]],
         reject_submission: Callable[[op.Submission, str | None], Awaitable[None]],
         execution_lock: asyncio.Lock,
+        control_burst_quota: int = 8,
     ) -> None:
         self.session_id = session_id
-        self.mailbox: asyncio.Queue[op.Submission | _StopSignal] = asyncio.Queue()
+        self.control_mailbox: asyncio.Queue[op.Submission | _StopSignal] = asyncio.Queue()
+        self.normal_mailbox: asyncio.Queue[op.Submission] = asyncio.Queue()
         self._handle_submission = handle_submission
         self._reject_submission = reject_submission
         self._execution_lock = execution_lock
         self._active_root_submission_id: str | None = None
+        self._control_burst_quota = control_burst_quota
+        self._control_burst_count = 0
         self._worker_task: asyncio.Task[None] = asyncio.create_task(self._run_loop())
 
     async def enqueue(self, submission: op.Submission) -> None:
-        await self.mailbox.put(submission)
+        if _is_control_operation(submission.operation):
+            await self.control_mailbox.put(submission)
+            return
+        await self.normal_mailbox.put(submission)
 
     async def stop(self) -> None:
         while True:
             try:
-                _ = self.mailbox.get_nowait()
-                self.mailbox.task_done()
+                _ = self.control_mailbox.get_nowait()
+                self.control_mailbox.task_done()
             except asyncio.QueueEmpty:
                 break
-        await self.mailbox.put(_STOP_SIGNAL)
+        while True:
+            try:
+                _ = self.normal_mailbox.get_nowait()
+                self.normal_mailbox.task_done()
+            except asyncio.QueueEmpty:
+                break
+        await self.control_mailbox.put(_STOP_SIGNAL)
         await self._worker_task
 
     def mark_submission_completed(self, submission_id: str) -> None:
@@ -51,7 +65,7 @@ class SessionRuntime:
 
     async def _run_loop(self) -> None:
         while True:
-            item = await self.mailbox.get()
+            item = await self._next_item()
             try:
                 if isinstance(item, _StopSignal):
                     return
@@ -63,7 +77,44 @@ class SessionRuntime:
                 async with self._execution_lock:
                     await self._handle_submission(item)
             finally:
-                self.mailbox.task_done()
+                if isinstance(item, _StopSignal) or _is_control_operation(item.operation):
+                    self.control_mailbox.task_done()
+                else:
+                    self.normal_mailbox.task_done()
+
+    async def _next_item(self) -> op.Submission | _StopSignal:
+        if self._control_burst_count >= self._control_burst_quota and not self.normal_mailbox.empty():
+            self._control_burst_count = 0
+            return self.normal_mailbox.get_nowait()
+
+        if not self.control_mailbox.empty():
+            item = self.control_mailbox.get_nowait()
+            if isinstance(item, _StopSignal):
+                return item
+            self._control_burst_count += 1
+            return item
+
+        if not self.normal_mailbox.empty():
+            self._control_burst_count = 0
+            return self.normal_mailbox.get_nowait()
+
+        control_task = asyncio.create_task(self.control_mailbox.get())
+        normal_task = asyncio.create_task(self.normal_mailbox.get())
+        done, pending = await asyncio.wait({control_task, normal_task}, return_when=asyncio.FIRST_COMPLETED)
+        for task in pending:
+            task.cancel()
+        for task in pending:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        selected_task = next(iter(done))
+        selected = selected_task.result()
+        if isinstance(selected, _StopSignal):
+            return selected
+        if selected_task is control_task:
+            self._control_burst_count += 1
+        else:
+            self._control_burst_count = 0
+        return selected
 
 
 def _is_root_operation(operation: op.Operation) -> bool:
@@ -71,3 +122,7 @@ def _is_root_operation(operation: op.Operation) -> bool:
         operation,
         op.RunAgentOperation | op.RunBashOperation | op.ContinueAgentOperation | op.CompactSessionOperation,
     )
+
+
+def _is_control_operation(operation: op.Operation) -> bool:
+    return isinstance(operation, op.InterruptOperation | op.UserInteractionRespondOperation)

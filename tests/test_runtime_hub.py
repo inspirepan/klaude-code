@@ -109,12 +109,15 @@ def test_runtime_hub_allows_interrupt_while_root_is_active() -> None:
     async def _test() -> None:
         handled: list[str] = []
         done = asyncio.Event()
+        first_started = asyncio.Event()
 
         first_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="first"))
         interrupt_op = op.InterruptOperation(target_session_id="s1")
 
         async def _handle(submission: op.Submission) -> None:
             handled.append(submission.id)
+            if submission.id == first_op.id:
+                first_started.set()
             if submission.id == interrupt_op.id:
                 done.set()
 
@@ -124,6 +127,7 @@ def test_runtime_hub_allows_interrupt_while_root_is_active() -> None:
         hub = RuntimeHub(handle_submission=_handle, reject_submission=_reject)
 
         await hub.submit(op.Submission(id=first_op.id, operation=first_op))
+        await asyncio.wait_for(first_started.wait(), timeout=1.0)
         await hub.submit(op.Submission(id=interrupt_op.id, operation=interrupt_op))
         await asyncio.wait_for(done.wait(), timeout=1.0)
 
@@ -165,5 +169,85 @@ def test_runtime_hub_allows_new_root_after_completion_marked() -> None:
         await hub.stop()
 
         assert handled == [first_op.id, second_op.id]
+
+    arun(_test())
+
+
+def test_runtime_hub_prioritizes_control_queue_over_normal_queue() -> None:
+    async def _test() -> None:
+        handled: list[str] = []
+        done = asyncio.Event()
+        first_started = asyncio.Event()
+        release_first = asyncio.Event()
+
+        first_op = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
+        second_normal = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=20))
+        control_interrupt = op.InterruptOperation(target_session_id="s1")
+
+        async def _handle(submission: op.Submission) -> None:
+            handled.append(submission.id)
+            if submission.id == first_op.id:
+                first_started.set()
+                await release_first.wait()
+            if len(handled) == 3:
+                done.set()
+
+        async def _reject(_submission: op.Submission, _active_root_submission_id: str | None) -> None:
+            raise AssertionError("non-root/control ops should not be rejected")
+
+        hub = RuntimeHub(handle_submission=_handle, reject_submission=_reject)
+
+        await hub.submit(op.Submission(id=first_op.id, operation=first_op))
+        await asyncio.wait_for(first_started.wait(), timeout=1.0)
+        await hub.submit(op.Submission(id=second_normal.id, operation=second_normal))
+        await hub.submit(op.Submission(id=control_interrupt.id, operation=control_interrupt))
+
+        release_first.set()
+        await asyncio.wait_for(done.wait(), timeout=1.0)
+        await hub.stop()
+
+        assert handled == [first_op.id, control_interrupt.id, second_normal.id]
+
+    arun(_test())
+
+
+def test_runtime_hub_enforces_control_burst_fairness() -> None:
+    async def _test() -> None:
+        handled: list[str] = []
+        done = asyncio.Event()
+        first_started = asyncio.Event()
+        release_first = asyncio.Event()
+
+        first_op = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
+        normal_op = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=20))
+        control_1 = op.InterruptOperation(target_session_id="s1")
+        control_2 = op.InterruptOperation(target_session_id="s1")
+        control_3 = op.InterruptOperation(target_session_id="s1")
+
+        async def _handle(submission: op.Submission) -> None:
+            handled.append(submission.id)
+            if submission.id == first_op.id:
+                first_started.set()
+                await release_first.wait()
+            if len(handled) == 5:
+                done.set()
+
+        async def _reject(_submission: op.Submission, _active_root_submission_id: str | None) -> None:
+            raise AssertionError("non-root/control ops should not be rejected")
+
+        hub = RuntimeHub(handle_submission=_handle, reject_submission=_reject, control_burst_quota=2)
+
+        await hub.submit(op.Submission(id=first_op.id, operation=first_op))
+        await asyncio.wait_for(first_started.wait(), timeout=1.0)
+        await hub.submit(op.Submission(id=control_1.id, operation=control_1))
+        await hub.submit(op.Submission(id=control_2.id, operation=control_2))
+        await hub.submit(op.Submission(id=control_3.id, operation=control_3))
+        await hub.submit(op.Submission(id=normal_op.id, operation=normal_op))
+
+        release_first.set()
+        await asyncio.wait_for(done.wait(), timeout=1.0)
+        await hub.stop()
+
+        assert handled == [first_op.id, control_1.id, control_2.id, normal_op.id, control_3.id]
 
     arun(_test())
