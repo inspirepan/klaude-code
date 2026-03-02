@@ -143,6 +143,12 @@
 - operation completion 事件跟踪从 `Executor` 下沉到 `RuntimeHub`
 - `Executor.wait_for/submit_and_wait` 改为直接委托 `RuntimeHub`，进一步收敛为输入薄门面
 
+并且本次追加了第二十六个增量：
+
+- 移除独立 `TaskManager` 类型
+- 任务句柄映射（`operation_id -> task_id -> asyncio.Task`）内聚到 `AgentRuntime`
+- `Executor` 通过 `ExecutorContext` 访问 active task 快照与清理接口
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）

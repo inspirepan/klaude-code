@@ -52,67 +52,6 @@ class ActiveTask:
     session_id: str
 
 
-class TaskManager:
-    """Manager that tracks active tasks and operation/task mappings."""
-
-    def __init__(self) -> None:
-        self._tasks: dict[str, ActiveTask] = {}
-        self._operation_task_ids: dict[str, str] = {}
-
-    def register(self, *, operation_id: str, task_id: str, task: asyncio.Task[None], session_id: str) -> None:
-        """Register a new active task for an operation."""
-
-        self._tasks[task_id] = ActiveTask(
-            task_id=task_id,
-            operation_id=operation_id,
-            task=task,
-            session_id=session_id,
-        )
-        self._operation_task_ids[operation_id] = task_id
-
-    def get_by_operation(self, operation_id: str) -> ActiveTask | None:
-        """Return the active task for an operation id if present."""
-
-        task_id = self._operation_task_ids.get(operation_id)
-        if task_id is None:
-            return None
-        return self._tasks.get(task_id)
-
-    def remove(self, task_id: str) -> None:
-        """Remove the active task associated with a task id if present."""
-
-        active = self._tasks.pop(task_id, None)
-        if active is None:
-            return
-
-        current = self._operation_task_ids.get(active.operation_id)
-        if current == task_id:
-            self._operation_task_ids.pop(active.operation_id, None)
-
-    def values(self) -> list[ActiveTask]:
-        """Return a snapshot list of all active tasks."""
-
-        return list(self._tasks.values())
-
-    def cancel_tasks_for_sessions(self, session_ids: set[str] | None = None) -> list[tuple[str, asyncio.Task[None]]]:
-        """Collect tasks that should be cancelled for given sessions."""
-
-        tasks_to_cancel: list[tuple[str, asyncio.Task[None]]] = []
-        for task_id, active in list(self._tasks.items()):
-            task = active.task
-            if task.done():
-                continue
-            if session_ids is None or active.session_id in session_ids:
-                tasks_to_cancel.append((task_id, task))
-        return tasks_to_cancel
-
-    def clear(self) -> None:
-        """Remove all tracked tasks from the manager."""
-
-        self._tasks.clear()
-        self._operation_task_ids.clear()
-
-
 def _clone_llm_client(client: LLMClientABC) -> LLMClientABC:
     return create_llm_client(client.get_llm_config().model_copy(deep=True))
 
@@ -135,7 +74,6 @@ class AgentRuntime:
         emit_event: Callable[[events.Event], Awaitable[None]],
         llm_clients: LLMClients,
         model_profile_provider: ModelProfileProvider,
-        task_manager: TaskManager,
         sub_agent_manager: SubAgentManager,
         on_child_task_state_change: Callable[[str, str, bool], None],
         request_user_interaction: Callable[
@@ -146,13 +84,14 @@ class AgentRuntime:
         self._emit_event = emit_event
         self._llm_clients_template = llm_clients
         self._model_profile_provider = model_profile_provider
-        self._task_manager = task_manager
         self._sub_agent_manager = sub_agent_manager
         self._on_child_task_state_change = on_child_task_state_change
         self._request_user_interaction_callback = request_user_interaction
         self._session_llm_clients: dict[str, LLMClients] = {}
         self._agents: dict[str, Agent] = {}
         self._primary_session_id: str | None = None
+        self._tasks: dict[str, ActiveTask] = {}
+        self._operation_task_ids: dict[str, str] = {}
 
     async def _request_user_interaction(
         self,
@@ -239,6 +178,45 @@ class AgentRuntime:
         clients = self.get_session_llm_clients(session_id)
         clients.main = client
         clients.main_model_alias = model_alias
+
+    def get_active_task(self, operation_id: str) -> ActiveTask | None:
+        task_id = self._operation_task_ids.get(operation_id)
+        if task_id is None:
+            return None
+        return self._tasks.get(task_id)
+
+    def list_active_tasks(self) -> list[ActiveTask]:
+        return list(self._tasks.values())
+
+    def clear_active_tasks(self) -> None:
+        self._tasks.clear()
+        self._operation_task_ids.clear()
+
+    def _register_task(self, *, operation_id: str, task_id: str, task: asyncio.Task[None], session_id: str) -> None:
+        self._tasks[task_id] = ActiveTask(
+            task_id=task_id,
+            operation_id=operation_id,
+            task=task,
+            session_id=session_id,
+        )
+        self._operation_task_ids[operation_id] = task_id
+
+    def _remove_task(self, task_id: str) -> None:
+        active = self._tasks.pop(task_id, None)
+        if active is None:
+            return
+        current = self._operation_task_ids.get(active.operation_id)
+        if current == task_id:
+            self._operation_task_ids.pop(active.operation_id, None)
+
+    def _cancel_tasks_for_sessions(self, session_ids: set[str] | None) -> list[tuple[str, asyncio.Task[None]]]:
+        tasks_to_cancel: list[tuple[str, asyncio.Task[None]]] = []
+        for task_id, active in list(self._tasks.items()):
+            if active.task.done():
+                continue
+            if session_ids is None or active.session_id in session_ids:
+                tasks_to_cancel.append((task_id, active.task))
+        return tasks_to_cancel
 
     def current_session_id(self) -> str | None:
         session_id = self._primary_session_id
@@ -328,7 +306,7 @@ class AgentRuntime:
             ]
         )
 
-        existing_active = self._task_manager.get_by_operation(operation.id)
+        existing_active = self.get_active_task(operation.id)
         if existing_active is not None and not existing_active.task.done():
             raise RuntimeError(f"Active task already registered for operation {operation.id}")
 
@@ -336,7 +314,7 @@ class AgentRuntime:
         task: asyncio.Task[None] = asyncio.create_task(
             self._run_agent_task(agent, operation.input, task_id, operation.session_id)
         )
-        self._task_manager.register(
+        self._register_task(
             operation_id=operation.id,
             task_id=task_id,
             task=task,
@@ -346,7 +324,7 @@ class AgentRuntime:
     async def run_bash(self, operation: op.RunBashOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
 
-        existing_active = self._task_manager.get_by_operation(operation.id)
+        existing_active = self.get_active_task(operation.id)
         if existing_active is not None and not existing_active.task.done():
             raise RuntimeError(f"Active task already registered for operation {operation.id}")
 
@@ -359,7 +337,7 @@ class AgentRuntime:
                 session_id=operation.session_id,
             )
         )
-        self._task_manager.register(
+        self._register_task(
             operation_id=operation.id,
             task_id=task_id,
             task=task,
@@ -370,7 +348,7 @@ class AgentRuntime:
         """Continue agent execution without adding a new user message."""
         agent = await self.ensure_agent(operation.session_id)
 
-        existing_active = self._task_manager.get_by_operation(operation.id)
+        existing_active = self.get_active_task(operation.id)
         if existing_active is not None and not existing_active.task.done():
             raise RuntimeError(f"Active task already registered for operation {operation.id}")
 
@@ -380,7 +358,7 @@ class AgentRuntime:
         task: asyncio.Task[None] = asyncio.create_task(
             self._run_agent_task(agent, empty_input, task_id, operation.session_id)
         )
-        self._task_manager.register(
+        self._register_task(
             operation_id=operation.id,
             task_id=task_id,
             task=task,
@@ -390,10 +368,10 @@ class AgentRuntime:
     async def compact_session(self, operation: op.CompactSessionOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
 
-        if self._task_manager.cancel_tasks_for_sessions({operation.session_id}):
+        if self._cancel_tasks_for_sessions({operation.session_id}):
             await self.interrupt(operation.session_id)
 
-        existing_active = self._task_manager.get_by_operation(operation.id)
+        existing_active = self.get_active_task(operation.id)
         if existing_active is not None and not existing_active.task.done():
             raise RuntimeError(f"Active task already registered for operation {operation.id}")
 
@@ -401,7 +379,7 @@ class AgentRuntime:
         task: asyncio.Task[None] = asyncio.create_task(
             self._run_compaction_task(agent, operation, task_id, operation.session_id)
         )
-        self._task_manager.register(
+        self._register_task(
             operation_id=operation.id,
             task_id=task_id,
             task=task,
@@ -452,7 +430,7 @@ class AgentRuntime:
         if target_session_id is not None:
             session_ids = [target_session_id]
         else:
-            session_ids = sorted({active.session_id for active in self._task_manager.values()})
+            session_ids = sorted({active.session_id for active in self.list_active_tasks()})
             if self._primary_session_id is not None and self._primary_session_id not in session_ids:
                 session_ids.append(self._primary_session_id)
 
@@ -469,7 +447,7 @@ class AgentRuntime:
         else:
             session_filter = {target_session_id}
 
-        tasks_to_cancel = self._task_manager.cancel_tasks_for_sessions(session_filter)
+        tasks_to_cancel = self._cancel_tasks_for_sessions(session_filter)
 
         scope = target_session_id or "all"
         log_debug(
@@ -480,7 +458,7 @@ class AgentRuntime:
 
         for task_id, task in tasks_to_cancel:
             task.cancel()
-            self._task_manager.remove(task_id)
+            self._remove_task(task_id)
 
     async def _run_agent_task(
         self,
@@ -545,7 +523,7 @@ class AgentRuntime:
                 )
             )
         finally:
-            self._task_manager.remove(task_id)
+            self._remove_task(task_id)
             log_debug(
                 f"Cleaned up agent task {task_id}",
                 style="cyan",
@@ -561,7 +539,7 @@ class AgentRuntime:
                 command=command,
             )
         finally:
-            self._task_manager.remove(task_id)
+            self._remove_task(task_id)
 
     async def _run_compaction_task(
         self,
@@ -635,7 +613,7 @@ class AgentRuntime:
                 )
             )
         finally:
-            self._task_manager.remove(task_id)
+            self._remove_task(task_id)
 
 class ModelSwitcher:
     """Apply model changes to an agent session."""
@@ -697,7 +675,6 @@ class ExecutorContext:
         resolved_profile_provider = model_profile_provider or DefaultModelProfileProvider()
         self.model_profile_provider: ModelProfileProvider = resolved_profile_provider
 
-        self.task_manager = TaskManager()
         self.sub_agent_manager = SubAgentManager(self.emit_event, llm_clients, resolved_profile_provider)
         self._on_model_change = on_model_change
         self._close_session_callback: Callable[[str, bool], Awaitable[bool]] | None = None
@@ -717,7 +694,6 @@ class ExecutorContext:
             emit_event=self.emit_event,
             llm_clients=llm_clients,
             model_profile_provider=resolved_profile_provider,
-            task_manager=self.task_manager,
             sub_agent_manager=self.sub_agent_manager,
             on_child_task_state_change=self._on_child_task_state_change,
             request_user_interaction=self.request_user_interaction,
@@ -1071,7 +1047,13 @@ class ExecutorContext:
     def get_active_task(self, operation_id: str) -> ActiveTask | None:
         """Return the active runtime task for an operation id if present."""
 
-        return self.task_manager.get_by_operation(operation_id)
+        return self._agent_runtime.get_active_task(operation_id)
+
+    def list_active_tasks(self) -> list[ActiveTask]:
+        return self._agent_runtime.list_active_tasks()
+
+    def clear_active_tasks(self) -> None:
+        self._agent_runtime.clear_active_tasks()
 
 
 class Executor:
@@ -1172,7 +1154,7 @@ class Executor:
         return await self.runtime_hub.wait_next_request()
 
     def has_running_tasks(self) -> bool:
-        return any(not active.task.done() for active in self.context.task_manager.values())
+        return any(not active.task.done() for active in self.context.list_active_tasks())
 
     async def close_session(self, session_id: str, force: bool = False) -> bool:
         closed = await self.runtime_hub.close_session(session_id, force=force)
@@ -1202,7 +1184,7 @@ class Executor:
 
         # Cancel all active tasks and collect them for awaiting
         tasks_to_await: list[asyncio.Task[None]] = []
-        for active in self.context.task_manager.values():
+        for active in self.context.list_active_tasks():
             task = active.task
             if not task.done():
                 task.cancel()
@@ -1219,7 +1201,7 @@ class Executor:
         await self.runtime_hub.stop()
 
         # Clear the active task manager
-        self.context.task_manager.clear()
+        self.context.clear_active_tasks()
 
         log_debug("Executor stopped", style="yellow", debug_type=DebugType.EXECUTION)
 
