@@ -258,3 +258,50 @@ def test_manager_rejects_submitted_without_payload() -> None:
         assert cancelled
 
     arun(_test())
+
+
+def test_manager_notifies_request_state_changes() -> None:
+    async def _test() -> None:
+        async def _emit(_event: events.Event) -> None:
+            return None
+
+        changes: list[tuple[str, str, bool]] = []
+
+        def _on_state_change(session_id: str, request_id: str, is_pending: bool) -> None:
+            changes.append((session_id, request_id, is_pending))
+
+        manager = UserInteractionManager(_emit, on_request_state_change=_on_state_change)
+
+        task = asyncio.create_task(
+            manager.request(
+                request_id="req1",
+                session_id="s1",
+                source="tool",
+                payload=_payload(),
+                tool_call_id="call1",
+            )
+        )
+        await manager.wait_next_request()
+
+        manager.respond(
+            request_id="req1",
+            session_id="s1",
+            response=UserInteractionResponse(
+                status="submitted",
+                payload=AskUserQuestionResponsePayload(
+                    answers=[
+                        user_interaction.AskUserQuestionAnswer(
+                            question_id="q1",
+                            selected_option_ids=["a"],
+                            other_text="",
+                            note="n1",
+                        )
+                    ]
+                ),
+            ),
+        )
+        await task
+
+        assert changes == [("s1", "req1", True), ("s1", "req1", False)]
+
+    arun(_test())

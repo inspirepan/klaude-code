@@ -48,6 +48,21 @@ class RuntimeHub:
             return
         runtime.mark_operation_completed(operation_id)
 
+    def mark_request_state(self, *, session_id: str, request_id: str, is_pending: bool) -> None:
+        runtime = self._runtimes.get(session_id)
+        if runtime is None:
+            return
+        if is_pending:
+            runtime.mark_request_pending(request_id)
+            return
+        runtime.mark_request_resolved(request_id)
+
+    def pending_request_count(self, session_id: str) -> int:
+        runtime = self._runtimes.get(session_id)
+        if runtime is None:
+            return 0
+        return runtime.pending_request_count()
+
     async def stop(self) -> None:
         runtimes = list(self._runtimes.values())
         self._runtimes.clear()

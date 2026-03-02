@@ -251,3 +251,31 @@ def test_runtime_hub_enforces_control_burst_fairness() -> None:
         assert handled == [first_op.id, control_1.id, control_2.id, normal_op.id, control_3.id]
 
     arun(_test())
+
+
+def test_runtime_hub_tracks_pending_request_state_per_session() -> None:
+    async def _test() -> None:
+        started = asyncio.Event()
+
+        async def _handle(operation: op.Operation) -> None:
+            if operation.id:
+                started.set()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        warmup_op = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
+
+        await hub.submit(warmup_op)
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+
+        hub.mark_request_state(session_id="s1", request_id="r1", is_pending=True)
+        assert hub.pending_request_count("s1") == 1
+
+        hub.mark_request_state(session_id="s1", request_id="r1", is_pending=False)
+        assert hub.pending_request_count("s1") == 0
+
+        await hub.stop()
+
+    arun(_test())

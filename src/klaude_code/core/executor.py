@@ -856,6 +856,7 @@ class Executor:
             handle_operation=self._handle_operation,
             reject_operation=self._reject_operation,
         )
+        self.context.user_interaction_manager.set_request_state_change_callback(self._on_request_state_change)
         self._stopped = False
         # Track completion events for all operations (not just those with ActiveTask)
         self._completion_events: dict[str, asyncio.Event] = {}
@@ -876,6 +877,9 @@ class Executor:
             )
         )
         self._complete_operation(operation)
+
+    def _on_request_state_change(self, session_id: str, request_id: str, is_pending: bool) -> None:
+        self.runtime_hub.mark_request_state(session_id=session_id, request_id=request_id, is_pending=is_pending)
 
     def _complete_operation(self, operation: op.Operation) -> None:
         event = self._completion_events.get(operation.id)

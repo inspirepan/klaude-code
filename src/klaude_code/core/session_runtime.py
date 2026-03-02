@@ -39,6 +39,7 @@ class SessionRuntime:
         self._reject_operation = reject_operation
         self._execution_lock = execution_lock
         self._active_root_task: RootTaskState | None = None
+        self._pending_request_ids: set[str] = set()
         self._control_burst_quota = control_burst_quota
         self._control_burst_count = 0
         self._worker_task: asyncio.Task[None] = asyncio.create_task(self._run_loop())
@@ -71,6 +72,15 @@ class SessionRuntime:
             return
         if active.task_id == operation_id:
             self._active_root_task = None
+
+    def mark_request_pending(self, request_id: str) -> None:
+        self._pending_request_ids.add(request_id)
+
+    def mark_request_resolved(self, request_id: str) -> None:
+        self._pending_request_ids.discard(request_id)
+
+    def pending_request_count(self) -> int:
+        return len(self._pending_request_ids)
 
     async def _run_loop(self) -> None:
         while True:
