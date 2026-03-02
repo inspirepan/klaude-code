@@ -856,7 +856,7 @@ class Executor:
             handle_submission=self._handle_submission,
             reject_submission=self._reject_submission,
         )
-        self._stop_event = asyncio.Event()
+        self._stopped = False
         # Track completion events for all submissions (not just those with ActiveTask)
         self._completion_events: dict[str, asyncio.Event] = {}
         self._background_tasks: set[asyncio.Task[None]] = set()
@@ -897,7 +897,7 @@ class Executor:
             Unique submission ID for tracking
         """
 
-        if self._stop_event.is_set():
+        if self._stopped:
             raise RuntimeError("Executor is stopped")
 
         if operation.id in self._completion_events:
@@ -929,22 +929,9 @@ class Executor:
         submission_id = await self.submit(operation)
         await self.wait_for(submission_id)
 
-    async def start(self) -> None:
-        """
-        Start the executor main loop.
-
-        This method runs continuously, processing submissions via RuntimeHub
-        until the executor is stopped.
-        """
-        log_debug("Executor started", style="green", debug_type=DebugType.EXECUTION)
-
-        try:
-            await self._stop_event.wait()
-        except asyncio.CancelledError:
-            log_debug("Executor cancelled", style="yellow", debug_type=DebugType.EXECUTION)
-
     async def stop(self) -> None:
         """Stop the executor and clean up resources."""
+        self._stopped = True
         self.context.user_interaction_manager.cancel_pending(session_id=None)
 
         # Cancel all active tasks and collect them for awaiting
@@ -970,8 +957,6 @@ class Executor:
 
         for event in self._completion_events.values():
             event.set()
-
-        self._stop_event.set()
 
         log_debug("Executor stopped", style="yellow", debug_type=DebugType.EXECUTION)
 

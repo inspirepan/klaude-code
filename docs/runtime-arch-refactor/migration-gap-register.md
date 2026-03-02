@@ -25,7 +25,6 @@
 | G-010 | SessionRuntime 已有 root-task gate + `RootTaskState(task_id, kind)`，但仍未形成完整运行态对象 | SessionRuntime 内聚 `active_root_task/pending_requests/config` 完整运行态 | Phase 2 | Phase 2/3 | open |
 | G-011 | busy reject 当前通过 `CommandOutputEvent(operation.rejected)` 临时表达 | 统一到标准运行时事件（后续 `operation.rejected` / EventEnvelope） | Phase 2 | Phase 3 | open |
 | G-012 | control 优先目前是队列调度级（8:1），未形成“执行中任务”级别抢占 | 达到完整 interrupt 抢占语义（含执行中上下文的及时让渡/取消） | Phase 2 | Phase 3 | open |
-| G-013 | `Executor.start()` 仍作为兼容生命周期入口存在（已无调度职责） | `Executor` 简化为纯门面或下沉为 RuntimeHub API | Phase 2 | Phase 4 | open |
 
 ---
 
