@@ -28,6 +28,11 @@
 - control 操作：`interrupt`、`user_interaction_respond`
 - 调度策略：control 优先 + `8:1` 配额（连续 8 个 control 后，若有 normal 则强制执行 1 个 normal）
 
+并且本次追加了第四个增量：
+
+- `SessionRuntime` 将 active root 从裸 submission id 升级为显式 `RootTaskState(task_id, kind)`
+- completion 回调按 `task_id` 回收 active root 状态
+
 ---
 
 ## 2. 本阶段仍保留的临时实现
@@ -36,7 +41,7 @@
 
 - ingress 仍从 `Executor.submission_queue` 进入（RuntimeHub 在其后层）
 - SessionRuntime worker 共享全局 execution lock（为兼容当前单 `_agent` 运行态）
-- SessionRuntime 已承载 root-task gate + active root submission 状态
+- SessionRuntime 已承载 root-task gate + `RootTaskState`
 - SessionRuntime 已支持 control/normal 双队列与 8:1 配额
 - SessionRuntime 仍未内聚 pending/config 等会话运行态
 

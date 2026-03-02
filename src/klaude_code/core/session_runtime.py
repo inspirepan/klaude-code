@@ -16,6 +16,12 @@ class _StopSignal:
 _STOP_SIGNAL = _StopSignal()
 
 
+@dataclass(frozen=True)
+class RootTaskState:
+    task_id: str
+    kind: str
+
+
 class SessionRuntime:
     def __init__(
         self,
@@ -32,7 +38,7 @@ class SessionRuntime:
         self._handle_submission = handle_submission
         self._reject_submission = reject_submission
         self._execution_lock = execution_lock
-        self._active_root_submission_id: str | None = None
+        self._active_root_task: RootTaskState | None = None
         self._control_burst_quota = control_burst_quota
         self._control_burst_count = 0
         self._worker_task: asyncio.Task[None] = asyncio.create_task(self._run_loop())
@@ -60,8 +66,11 @@ class SessionRuntime:
         await self._worker_task
 
     def mark_submission_completed(self, submission_id: str) -> None:
-        if self._active_root_submission_id == submission_id:
-            self._active_root_submission_id = None
+        active = self._active_root_task
+        if active is None:
+            return
+        if active.task_id == submission_id:
+            self._active_root_task = None
 
     async def _run_loop(self) -> None:
         while True:
@@ -69,11 +78,11 @@ class SessionRuntime:
             try:
                 if isinstance(item, _StopSignal):
                     return
-                if _is_root_operation(item.operation) and self._active_root_submission_id is not None:
-                    await self._reject_submission(item, self._active_root_submission_id)
+                if _is_root_operation(item.operation) and self._active_root_task is not None:
+                    await self._reject_submission(item, self._active_root_task.task_id)
                     continue
                 if _is_root_operation(item.operation):
-                    self._active_root_submission_id = item.id
+                    self._active_root_task = RootTaskState(task_id=item.id, kind=_root_task_kind(item.operation))
                 async with self._execution_lock:
                     await self._handle_submission(item)
             finally:
@@ -126,3 +135,13 @@ def _is_root_operation(operation: op.Operation) -> bool:
 
 def _is_control_operation(operation: op.Operation) -> bool:
     return isinstance(operation, op.InterruptOperation | op.UserInteractionRespondOperation)
+
+
+def _root_task_kind(operation: op.Operation) -> str:
+    if isinstance(operation, op.RunAgentOperation | op.ContinueAgentOperation):
+        return "agent"
+    if isinstance(operation, op.RunBashOperation):
+        return "bash"
+    if isinstance(operation, op.CompactSessionOperation):
+        return "compact"
+    raise RuntimeError(f"unsupported root operation kind: {operation.type.value}")
