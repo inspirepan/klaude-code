@@ -9,32 +9,20 @@ if TYPE_CHECKING:
 def format_number(tokens: int) -> str:
     if tokens < 1000:
         return f"{tokens}"
-    elif tokens < 1000000:
-        # 12.3k
+    if tokens < 1000000:
         k = tokens / 1000
         if k == int(k):
             return f"{int(k)}k"
-        else:
-            return f"{k:.1f}k"
-    else:
-        # 2M345k
-        m = tokens // 1000000
-        remaining = (tokens % 1000000) // 1000
-        if remaining == 0:
-            return f"{m}M"
-        else:
-            return f"{m}M{remaining}k"
+        return f"{k:.1f}k"
+
+    m = tokens // 1000000
+    remaining = (tokens % 1000000) // 1000
+    if remaining == 0:
+        return f"{m}M"
+    return f"{m}M{remaining}k"
 
 
 def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
-    """Format model parameters in a concise style.
-
-    Returns a list of formatted parameter strings like:
-    - "reasoning medium"
-    - "thinking budget 10000"
-    - "verbosity 2"
-    - "provider-routing: {…}"
-    """
     parts: list[str] = []
 
     if model_params.thinking:
@@ -48,7 +36,6 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
             parts.append(f"thinking budget {model_params.thinking.budget_tokens}")
 
     if model_params.verbosity:
-        # For Claude models, verbosity maps to output_config.effort
         label = "effort" if is_claude_model_any(model_params.model_id) else "verbosity"
         parts.append(f"{label} {model_params.verbosity}")
 
@@ -59,7 +46,6 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
 
 
 def _format_provider_routing(pr: "OpenRouterProviderRouting") -> str:
-    """Format provider routing settings concisely."""
     items: list[str] = []
     if pr.sort:
         items.append(pr.sort)

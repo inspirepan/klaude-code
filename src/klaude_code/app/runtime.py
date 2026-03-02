@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import typer
 
-from klaude_code import ui
+from klaude_code.app.ports import DisplayABC
 from klaude_code.config import Config, load_config
 from klaude_code.core.agent.agent import Agent
 from klaude_code.core.agent.runtime import build_llm_clients
@@ -41,7 +41,7 @@ class AppComponents:
     runtime: AppRuntime
     event_bus: EventBus
     event_bus_subscription: EventSubscription
-    display: ui.DisplayABC
+    display: DisplayABC
     display_task: asyncio.Task[None]
     idle_reclaim_task: asyncio.Task[None]
 
@@ -52,7 +52,7 @@ class AppComponents:
 
 async def _consume_display_from_subscription(
     subscription: EventSubscription,
-    display: ui.DisplayABC,
+    display: DisplayABC,
 ) -> None:
     await display.start()
     async for envelope in subscription:
@@ -80,7 +80,7 @@ async def _reclaim_idle_sessions_loop(runtime: AppRuntime) -> None:
 async def initialize_app_components(
     *,
     init_config: AppInitConfig,
-    display: ui.DisplayABC,
+    display: DisplayABC,
     on_model_change: Callable[[str], None] | None = None,
 ) -> AppComponents:
     """Initialize LLM clients, runtime, and display task."""

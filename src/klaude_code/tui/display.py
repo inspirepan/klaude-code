@@ -5,12 +5,12 @@ import contextlib
 from collections.abc import Coroutine
 from typing import Any, override
 
+from klaude_code.app.ports import DisplayABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
 from klaude_code.tui.machine import DisplayStateMachine
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.terminal.notifier import Notification, NotificationType, TerminalNotifier
-from klaude_code.ui.core.display import DisplayABC
 
 
 class TUIDisplay(DisplayABC):

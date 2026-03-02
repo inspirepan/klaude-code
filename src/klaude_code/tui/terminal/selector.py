@@ -20,7 +20,7 @@ from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.styles import Style, merge_styles
 from prompt_toolkit.styles.base import BaseStyle
 
-from klaude_code.ui.common import format_model_params
+from klaude_code.config.formatters import format_model_params
 
 DEFAULT_PICKER_STYLE = Style(
     [

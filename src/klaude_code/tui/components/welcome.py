@@ -7,11 +7,11 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 from rich.tree import Tree
 
+from klaude_code.config.formatters import format_model_params
 from klaude_code.log import is_debug_enabled
 from klaude_code.protocol import events
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.theme import ThemeKey
-from klaude_code.ui.common import format_model_params
 from klaude_code.update import get_display_version
 
 

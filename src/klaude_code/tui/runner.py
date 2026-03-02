@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from klaude_code import ui
+from klaude_code.app.ports import DisplayABC, InputProviderABC
 from klaude_code.app.runtime import (
     AppInitConfig,
     backfill_session_model_config,
@@ -39,7 +39,7 @@ from klaude_code.tui.terminal.selector import (
     SelectItem,
     select_questions,
 )
-from klaude_code.ui.terminal.title import update_terminal_title
+from klaude_code.tui.terminal.title import update_terminal_title
 from klaude_code.update import get_update_message
 
 if TYPE_CHECKING:
@@ -153,7 +153,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             theme = "dark"
 
     tui_display = TUIDisplay(theme=theme)
-    display: ui.DisplayABC = tui_display
+    display: DisplayABC = tui_display
 
     def _on_model_change(model_name: str) -> None:
         update_terminal_title(model_name)
@@ -218,7 +218,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             )
         )
 
-    input_provider: ui.InputProviderABC = PromptToolkitInput(
+    input_provider: InputProviderABC = PromptToolkitInput(
         status_provider=_status_provider,
         pre_prompt=_stop_rich_bottom_ui,
         get_current_model_config_name=lambda: (

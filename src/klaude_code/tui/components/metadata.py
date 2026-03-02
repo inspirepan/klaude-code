@@ -5,11 +5,11 @@ from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderR
 from rich.text import Text
 from rich.tree import Tree
 
+from klaude_code.config.formatters import format_number
 from klaude_code.const import DEFAULT_MAX_TOKENS, LOW_CACHE_HIT_RATE_THRESHOLD
 from klaude_code.protocol import events, model
 from klaude_code.tui.components.common import create_grid, format_elapsed_compact
 from klaude_code.tui.components.rich.theme import ThemeKey
-from klaude_code.ui.common import format_number
 
 WORKED_LINE_DURATION_THRESHOLD_S = 60
 WORKED_LINE_TURN_COUNT_THRESHOLD = 4

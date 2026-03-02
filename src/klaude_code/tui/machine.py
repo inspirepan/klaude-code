@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from rich.cells import cell_len
 from rich.text import Text
 
+from klaude_code.config.formatters import format_number
 from klaude_code.const import (
     DEFAULT_MAX_TOKENS,
     SIGINT_DOUBLE_PRESS_EXIT_TEXT,
@@ -57,7 +58,6 @@ from klaude_code.tui.commands import (
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import get_agent_active_form, get_tool_active_form, is_sub_agent_tool
-from klaude_code.ui.common import format_number
 
 # Tools that complete quickly and don't benefit from streaming activity display.
 # For models without fine-grained tool JSON streaming (e.g., Gemini), showing these

@@ -10,9 +10,9 @@ from klaude_code.cli.oauth_usage import (
 )
 from klaude_code.config import Config
 from klaude_code.config.config import ModelConfig, ProviderConfig, parse_env_var_syntax
+from klaude_code.config.formatters import format_model_params
 from klaude_code.protocol.llm_param import LLMClientProtocol
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
-from klaude_code.ui.common import format_model_params
 
 
 def mask_api_key(api_key: str | None) -> str:
