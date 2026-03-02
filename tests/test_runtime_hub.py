@@ -6,7 +6,8 @@ from collections.abc import Coroutine
 from typing import Any, TypeVar
 
 from klaude_code.core.runtime_hub import GLOBAL_RUNTIME_ID, RuntimeHub
-from klaude_code.protocol import op
+from klaude_code.core.user_interaction import PendingUserInteractionRequest
+from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.llm_param import Thinking
 from klaude_code.protocol.message import UserInputPayload
 
@@ -15,6 +16,28 @@ T = TypeVar("T")
 
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
+
+
+def _pending_request(request_id: str, session_id: str) -> PendingUserInteractionRequest:
+    return PendingUserInteractionRequest(
+        request_id=request_id,
+        session_id=session_id,
+        source="tool",
+        tool_call_id=None,
+        payload=user_interaction.AskUserQuestionRequestPayload(
+            questions=[
+                user_interaction.AskUserQuestionQuestion(
+                    id="q1",
+                    header="h",
+                    question="q",
+                    options=[
+                        user_interaction.AskUserQuestionOption(id="o1", label="A", description="d"),
+                        user_interaction.AskUserQuestionOption(id="o2", label="B", description="d"),
+                    ],
+                )
+            ]
+        ),
+    )
 
 
 def test_runtime_hub_preserves_in_session_order() -> None:
@@ -270,10 +293,11 @@ def test_runtime_hub_tracks_pending_request_state_per_session() -> None:
         await hub.submit(warmup_op)
         await asyncio.wait_for(started.wait(), timeout=1.0)
 
-        hub.mark_request_state(session_id="s1", request_id="r1", is_pending=True)
+        req = _pending_request("r1", "s1")
+        hub.mark_request_state(request=req, is_pending=True)
         assert hub.pending_request_count("s1") == 1
 
-        hub.mark_request_state(session_id="s1", request_id="r1", is_pending=False)
+        hub.mark_request_state(request=req, is_pending=False)
         assert hub.pending_request_count("s1") == 0
 
         await hub.stop()
@@ -302,7 +326,8 @@ def test_runtime_hub_idle_runtime_ids_reflect_active_and_pending_state() -> None
         await asyncio.wait_for(started.wait(), timeout=1.0)
         assert "s1" not in hub.idle_runtime_ids()
 
-        hub.mark_request_state(session_id="s1", request_id="r1", is_pending=True)
+        req = _pending_request("r1", "s1")
+        hub.mark_request_state(request=req, is_pending=True)
         assert "s1" not in hub.idle_runtime_ids()
 
         release.set()
@@ -310,8 +335,38 @@ def test_runtime_hub_idle_runtime_ids_reflect_active_and_pending_state() -> None
         await asyncio.sleep(0)
         assert "s1" not in hub.idle_runtime_ids()
 
-        hub.mark_request_state(session_id="s1", request_id="r1", is_pending=False)
+        hub.mark_request_state(request=req, is_pending=False)
         assert "s1" in hub.idle_runtime_ids()
+
+        await hub.stop()
+
+    arun(_test())
+
+
+def test_runtime_hub_wait_next_request_skips_resolved_request() -> None:
+    async def _test() -> None:
+        started = asyncio.Event()
+
+        async def _handle(operation: op.Operation) -> None:
+            if operation.id:
+                started.set()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        warmup_op = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
+        await hub.submit(warmup_op)
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+
+        req1 = _pending_request("r1", "s1")
+        req2 = _pending_request("r2", "s1")
+        hub.mark_request_state(request=req1, is_pending=True)
+        hub.mark_request_state(request=req2, is_pending=True)
+        hub.mark_request_state(request=req1, is_pending=False)
+
+        next_request = await asyncio.wait_for(hub.wait_next_request(), timeout=1.0)
+        assert next_request.request_id == "r2"
 
         await hub.stop()
 

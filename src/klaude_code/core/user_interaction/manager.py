@@ -28,14 +28,17 @@ class UserInteractionManager:
     def __init__(
         self,
         emit_event: Callable[[events.Event], Awaitable[None]],
-        on_request_state_change: Callable[[str, str, bool], None] | None = None,
+        on_request_state_change: Callable[[PendingUserInteractionRequest, bool], None] | None = None,
     ) -> None:
         self._emit_event = emit_event
         self._on_request_state_change = on_request_state_change
         self._pending_requests: dict[str, _PendingRequestState] = {}
         self._request_queue: asyncio.Queue[PendingUserInteractionRequest] = asyncio.Queue()
 
-    def set_request_state_change_callback(self, callback: Callable[[str, str, bool], None] | None) -> None:
+    def set_request_state_change_callback(
+        self,
+        callback: Callable[[PendingUserInteractionRequest, bool], None] | None,
+    ) -> None:
         self._on_request_state_change = callback
 
     async def request(
@@ -60,7 +63,7 @@ class UserInteractionManager:
         )
         future: asyncio.Future[user_interaction.UserInteractionResponse] = loop.create_future()
         self._pending_requests[request_id] = _PendingRequestState(request=request, future=future)
-        self._notify_request_state(session_id=session_id, request_id=request_id, is_pending=True)
+        self._notify_request_state(request=request, is_pending=True)
 
         await self._emit_event(
             events.UserInteractionRequestEvent(
@@ -78,7 +81,7 @@ class UserInteractionManager:
         finally:
             existed = self._pending_requests.pop(request_id, None)
             if existed is not None:
-                self._notify_request_state(session_id=session_id, request_id=request_id, is_pending=False)
+                self._notify_request_state(request=existed.request, is_pending=False)
 
     async def wait_next_request(self) -> PendingUserInteractionRequest:
         while True:
@@ -107,7 +110,7 @@ class UserInteractionManager:
         if not pending.future.done():
             pending.future.set_result(response)
         self._pending_requests.pop(request_id, None)
-        self._notify_request_state(session_id=session_id, request_id=request_id, is_pending=False)
+        self._notify_request_state(request=pending.request, is_pending=False)
 
     def cancel_pending(self, *, session_id: str | None = None) -> bool:
         cancelled = False
@@ -117,16 +120,12 @@ class UserInteractionManager:
             if not pending.future.done():
                 pending.future.cancel()
             self._pending_requests.pop(request_id, None)
-            self._notify_request_state(
-                session_id=pending.request.session_id,
-                request_id=request_id,
-                is_pending=False,
-            )
+            self._notify_request_state(request=pending.request, is_pending=False)
             cancelled = True
         return cancelled
 
-    def _notify_request_state(self, *, session_id: str, request_id: str, is_pending: bool) -> None:
+    def _notify_request_state(self, *, request: PendingUserInteractionRequest, is_pending: bool) -> None:
         callback = self._on_request_state_change
         if callback is None:
             return
-        callback(session_id, request_id, is_pending)
+        callback(request, is_pending)

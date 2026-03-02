@@ -316,7 +316,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     async def _wait_for_with_interactions(wait_id: str) -> None:
         wait_task = asyncio.create_task(components.executor.wait_for(wait_id))
-        manager = components.executor.context.user_interaction_manager
         interrupt_requested = False
         interrupt_task: asyncio.Task[None] | None = None
 
@@ -360,7 +359,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         try:
             while True:
-                request_task = asyncio.create_task(manager.wait_next_request())
+                request_task = asyncio.create_task(components.executor.wait_next_interaction_request())
                 done, _ = await asyncio.wait({wait_task, request_task}, return_when=asyncio.FIRST_COMPLETED)
                 if wait_task in done:
                     request_task.cancel()

@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Coroutine
 from typing import Any, TypeVar
 
-from klaude_code.core.user_interaction import UserInteractionManager
+from klaude_code.core.user_interaction import PendingUserInteractionRequest, UserInteractionManager
 from klaude_code.protocol import events, user_interaction
 from klaude_code.protocol.user_interaction import (
     AskUserQuestionOption,
@@ -267,8 +267,8 @@ def test_manager_notifies_request_state_changes() -> None:
 
         changes: list[tuple[str, str, bool]] = []
 
-        def _on_state_change(session_id: str, request_id: str, is_pending: bool) -> None:
-            changes.append((session_id, request_id, is_pending))
+        def _on_state_change(request: PendingUserInteractionRequest, is_pending: bool) -> None:
+            changes.append((request.session_id, request.request_id, is_pending))
 
         manager = UserInteractionManager(_emit, on_request_state_change=_on_state_change)
 

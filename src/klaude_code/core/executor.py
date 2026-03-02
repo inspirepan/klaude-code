@@ -28,7 +28,7 @@ from klaude_code.core.loaded_skills import (
 from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.core.memory import get_existing_memory_paths_by_location
 from klaude_code.core.runtime_hub import RuntimeHub
-from klaude_code.core.user_interaction import UserInteractionManager
+from klaude_code.core.user_interaction import PendingUserInteractionRequest, UserInteractionManager
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import commands, events, message, model, op, user_interaction
@@ -878,8 +878,8 @@ class Executor:
         )
         self._complete_operation(operation)
 
-    def _on_request_state_change(self, session_id: str, request_id: str, is_pending: bool) -> None:
-        self.runtime_hub.mark_request_state(session_id=session_id, request_id=request_id, is_pending=is_pending)
+    def _on_request_state_change(self, request: PendingUserInteractionRequest, is_pending: bool) -> None:
+        self.runtime_hub.mark_request_state(request=request, is_pending=is_pending)
 
     def _on_operation_applied(self, operation: op.Operation) -> None:
         self.runtime_hub.apply_operation_effect(operation)
@@ -919,6 +919,9 @@ class Executor:
         )
 
         return operation.id
+
+    async def wait_next_interaction_request(self) -> PendingUserInteractionRequest:
+        return await self.runtime_hub.wait_next_request()
 
     async def wait_for(self, operation_id: str) -> None:
         """Wait for a specific operation to complete."""

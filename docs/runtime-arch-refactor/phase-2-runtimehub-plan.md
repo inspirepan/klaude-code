@@ -63,6 +63,11 @@
 - `SessionRuntime` 增加基础 session-local config 状态（model/thinking/compact/sub-agent model）
 - `Executor` 在 operation 成功执行后同步更新该 config 状态
 
+并且本次追加了第十二个增量：
+
+- interaction 请求等待路径从 `UserInteractionManager.wait_next_request()` 切换到 `RuntimeHub.wait_next_request()`
+- `RuntimeHub/SessionRuntime` 维护 pending request 对象，并按 pending 状态过滤过期请求
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）
@@ -81,6 +86,7 @@
 - SessionRuntime 已支持 control/normal 双队列与 8:1 配额
 - SessionRuntime 已内聚 pending request 状态与 idle 判定基础能力
 - SessionRuntime 已内聚基础 session-local config（仍缺与持久化/重放一致性的完整闭环）
+- interaction 响应 future 仍由 `UserInteractionManager` 托管（并轨未完成）
 
 ---
 

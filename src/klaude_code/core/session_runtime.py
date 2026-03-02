@@ -5,6 +5,7 @@ import contextlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
+from klaude_code.core.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import llm_param, op
 
 
@@ -51,7 +52,7 @@ class SessionRuntime:
         self._reject_operation = reject_operation
         self._execution_lock = execution_lock
         self._active_root_task: RootTaskState | None = None
-        self._pending_request_ids: set[str] = set()
+        self._pending_requests: dict[str, PendingUserInteractionRequest] = {}
         self._config = SessionRuntimeConfig()
         self._control_burst_quota = control_burst_quota
         self._control_burst_count = 0
@@ -86,14 +87,17 @@ class SessionRuntime:
         if active.task_id == operation_id:
             self._active_root_task = None
 
-    def mark_request_pending(self, request_id: str) -> None:
-        self._pending_request_ids.add(request_id)
+    def mark_request_pending(self, request: PendingUserInteractionRequest) -> None:
+        self._pending_requests[request.request_id] = request
 
     def mark_request_resolved(self, request_id: str) -> None:
-        self._pending_request_ids.discard(request_id)
+        self._pending_requests.pop(request_id, None)
+
+    def has_pending_request(self, request_id: str) -> bool:
+        return request_id in self._pending_requests
 
     def pending_request_count(self) -> int:
-        return len(self._pending_request_ids)
+        return len(self._pending_requests)
 
     def apply_operation_effect(self, operation: op.Operation) -> None:
         if isinstance(operation, op.ChangeModelOperation):
@@ -123,7 +127,7 @@ class SessionRuntime:
     def is_idle(self) -> bool:
         return (
             self._active_root_task is None
-            and not self._pending_request_ids
+            and not self._pending_requests
             and self.control_mailbox.empty()
             and self.normal_mailbox.empty()
         )
