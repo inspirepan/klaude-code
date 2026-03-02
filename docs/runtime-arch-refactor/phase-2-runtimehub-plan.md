@@ -37,6 +37,7 @@
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）
 - `Executor.start()` 退化为生命周期守护（等待 stop 信号）
+- `app/runtime.py` 不再启动独立 executor background task
 
 ---
 

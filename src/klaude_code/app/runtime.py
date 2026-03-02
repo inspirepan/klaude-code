@@ -36,7 +36,6 @@ class AppComponents:
 
     config: Config
     executor: Executor
-    executor_task: asyncio.Task[None]
     event_bus: EventBus
     event_bus_subscription: EventSubscription
     event_bridge_task: asyncio.Task[None]
@@ -110,8 +109,6 @@ async def initialize_app_components(
     if on_model_change is not None:
         on_model_change(llm_clients.main_model_alias)
 
-    executor_task = asyncio.create_task(executor.start())
-
     def _drain_background_task_exception(task: asyncio.Task[None], *, label: str) -> None:
         def _on_done(t: asyncio.Task[None]) -> None:
             with contextlib.suppress(asyncio.CancelledError):
@@ -124,7 +121,6 @@ async def initialize_app_components(
 
         task.add_done_callback(_on_done)
 
-    _drain_background_task_exception(executor_task, label="executor")
     _drain_background_task_exception(event_bridge_task, label="event-bridge")
 
     display_task = asyncio.create_task(display.consume_event_loop(event_queue))
@@ -133,7 +129,6 @@ async def initialize_app_components(
     return AppComponents(
         config=config,
         executor=executor,
-        executor_task=executor_task,
         event_bus=event_bus,
         event_bus_subscription=event_bus_subscription,
         event_bridge_task=event_bridge_task,
@@ -182,9 +177,6 @@ async def cleanup_app_components(components: AppComponents) -> None:
     """Clean up all runtime components."""
     try:
         await components.executor.stop()
-        components.executor_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await components.executor_task
         with contextlib.suppress(Exception):
             await close_default_store()
 
