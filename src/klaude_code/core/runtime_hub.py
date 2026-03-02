@@ -10,10 +10,17 @@ GLOBAL_RUNTIME_ID = "__runtime_global__"
 
 
 class RuntimeHub:
-    def __init__(self, *, handle_submission: Callable[[op.Submission], Awaitable[None]]) -> None:
+    def __init__(
+        self,
+        *,
+        handle_submission: Callable[[op.Submission], Awaitable[None]],
+        reject_submission: Callable[[op.Submission, str | None], Awaitable[None]],
+    ) -> None:
         self._handle_submission = handle_submission
+        self._reject_submission = reject_submission
         self._execution_lock = asyncio.Lock()
         self._runtimes: dict[str, SessionRuntime] = {}
+        self._submission_runtime_ids: dict[str, str] = {}
 
     async def submit(self, submission: op.Submission) -> None:
         runtime_id = self._resolve_runtime_id(submission.operation)
@@ -22,14 +29,26 @@ class RuntimeHub:
             runtime = SessionRuntime(
                 session_id=runtime_id,
                 handle_submission=self._handle_submission,
+                reject_submission=self._reject_submission,
                 execution_lock=self._execution_lock,
             )
             self._runtimes[runtime_id] = runtime
+        self._submission_runtime_ids[submission.id] = runtime_id
         await runtime.enqueue(submission)
+
+    def mark_submission_completed(self, submission_id: str) -> None:
+        runtime_id = self._submission_runtime_ids.pop(submission_id, None)
+        if runtime_id is None:
+            return
+        runtime = self._runtimes.get(runtime_id)
+        if runtime is None:
+            return
+        runtime.mark_submission_completed(submission_id)
 
     async def stop(self) -> None:
         runtimes = list(self._runtimes.values())
         self._runtimes.clear()
+        self._submission_runtime_ids.clear()
         for runtime in runtimes:
             await runtime.stop()
 

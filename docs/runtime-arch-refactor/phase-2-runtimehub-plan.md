@@ -15,6 +15,13 @@
 
 这一步完成后，系统仍可运行，且输入路由路径已经具备“按 session 分桶”的结构。
 
+并且本次追加了第二个增量：
+
+- `SessionRuntime` 增加 root-task gate（`run_agent/run_bash/continue/compact`）
+- 当 session busy 时，root 操作直接 reject，不进入执行
+- `interrupt` 等控制操作不受 busy gate 影响，仍可进入
+- `SessionRuntime` 本地维护 active root submission id（通过 completion 回调清理）
+
 ---
 
 ## 2. 本阶段仍保留的临时实现
@@ -23,14 +30,15 @@
 
 - ingress 仍从 `Executor.submission_queue` 进入（RuntimeHub 在其后层）
 - SessionRuntime worker 共享全局 execution lock（为兼容当前单 `_agent` 运行态）
-- SessionRuntime 目前只承载 mailbox/worker，不承载会话状态（pending/config/active_root_task）
+- SessionRuntime 已承载 root-task gate + active root submission 状态
+- SessionRuntime 仍未内聚 pending/config 等会话运行态
 
 ---
 
 ## 3. 后续子步骤（Phase 2 内）
 
 1. 将会话级运行态逐步迁入 SessionRuntime（先 `active_root_task`）
-2. 把 busy/reject 语义前移到 SessionRuntime gate
+2. 将 active root 从 submission id 过渡为显式 `active_root_task` 实体
 3. 逐步降低对全局 execution lock 的依赖
 
 ---
@@ -40,5 +48,6 @@
 - 不破坏现有 CLI/TUI 主流程
 - 同一 session 的操作在其 mailbox 内保持顺序
 - global interrupt 仍可处理（映射到 global runtime）
+- busy session 下 root 操作会被拒绝，且不会触发执行
 
 对应测试：`tests/test_runtime_hub.py`
