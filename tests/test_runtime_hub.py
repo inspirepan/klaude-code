@@ -5,8 +5,8 @@ import contextlib
 from collections.abc import Coroutine
 from typing import Any, TypeVar
 
-from klaude_code.core.runtime_hub import GLOBAL_RUNTIME_ID, RuntimeHub
-from klaude_code.core.user_interaction import PendingUserInteractionRequest
+from klaude_code.core.control.runtime_hub import GLOBAL_RUNTIME_ID, RuntimeHub
+from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.llm_param import Thinking
 from klaude_code.protocol.message import UserInputPayload

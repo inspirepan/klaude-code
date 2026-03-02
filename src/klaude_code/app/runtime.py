@@ -8,14 +8,14 @@ import typer
 
 from klaude_code import ui
 from klaude_code.config import Config, load_config
-from klaude_code.core.agent import Agent
+from klaude_code.core.agent.agent import Agent
+from klaude_code.core.agent.runtime import build_llm_clients
 from klaude_code.core.agent_profile import (
     DefaultModelProfileProvider,
     VanillaModelProfileProvider,
 )
-from klaude_code.core.event_bus import EventBus, EventSubscription
-from klaude_code.core.executor import Executor
-from klaude_code.core.manager import build_llm_clients
+from klaude_code.core.control.app_runtime import AppRuntime
+from klaude_code.core.control.event_bus import EventBus, EventSubscription
 from klaude_code.log import log, set_debug_logging
 from klaude_code.protocol import events, op
 from klaude_code.session.session import Session, close_default_store
@@ -38,7 +38,7 @@ class AppComponents:
     """Initialized runtime components."""
 
     config: Config
-    executor: Executor
+    runtime: AppRuntime
     event_bus: EventBus
     event_bus_subscription: EventSubscription
     display: ui.DisplayABC
@@ -55,12 +55,12 @@ async def _consume_display_from_subscription(
     display: ui.DisplayABC,
 ) -> None:
     await display.start()
-    async for event in subscription.iter_events():
+    async for envelope in subscription:
         try:
-            if isinstance(event, events.EndEvent):
+            if isinstance(envelope.event, events.EndEvent):
                 await display.stop()
                 return
-            await display.consume_event(event)
+            await display.consume_envelope(envelope)
         except Exception as e:
             import traceback
 
@@ -71,10 +71,10 @@ async def _consume_display_from_subscription(
             log(traceback.format_exc(), style="red")
 
 
-async def _reclaim_idle_sessions_loop(executor: Executor) -> None:
+async def _reclaim_idle_sessions_loop(runtime: AppRuntime) -> None:
     while True:
         await asyncio.sleep(SESSION_IDLE_RECLAIM_INTERVAL_SECONDS)
-        await executor.reclaim_idle_sessions(idle_for_seconds=SESSION_IDLE_TTL_SECONDS)
+        await runtime.reclaim_idle_sessions(idle_for_seconds=SESSION_IDLE_TTL_SECONDS)
 
 
 async def initialize_app_components(
@@ -83,7 +83,7 @@ async def initialize_app_components(
     display: ui.DisplayABC,
     on_model_change: Callable[[str], None] | None = None,
 ) -> AppComponents:
-    """Initialize LLM clients, executor, and display task."""
+    """Initialize LLM clients, runtime, and display task."""
     set_debug_logging(init_config.debug)
 
     config = load_config()
@@ -116,7 +116,7 @@ async def initialize_app_components(
     event_bus = EventBus()
     event_bus_subscription = event_bus.subscribe(None)
 
-    executor = Executor(
+    runtime = AppRuntime(
         event_bus,
         llm_clients,
         model_profile_provider=model_profile_provider,
@@ -138,7 +138,7 @@ async def initialize_app_components(
 
         task.add_done_callback(_on_done)
 
-    idle_reclaim_task = asyncio.create_task(_reclaim_idle_sessions_loop(executor))
+    idle_reclaim_task = asyncio.create_task(_reclaim_idle_sessions_loop(runtime))
     _drain_background_task_exception(idle_reclaim_task, label="idle-reclaim")
 
     display_task = asyncio.create_task(_consume_display_from_subscription(event_bus_subscription, display))
@@ -146,7 +146,7 @@ async def initialize_app_components(
 
     return AppComponents(
         config=config,
-        executor=executor,
+        runtime=runtime,
         event_bus=event_bus,
         event_bus_subscription=event_bus_subscription,
         display=display,
@@ -156,15 +156,15 @@ async def initialize_app_components(
 
 
 async def initialize_session(
-    executor: Executor,
+    runtime: AppRuntime,
     wait_for_display_idle: Callable[[], Awaitable[None]],
     session_id: str | None = None,
 ) -> str | None:
     """Initialize a session and return the active session id."""
-    await executor.submit_and_wait(op.InitAgentOperation(session_id=session_id))
+    await runtime.submit_and_wait(op.InitAgentOperation(session_id=session_id))
     await wait_for_display_idle()
 
-    active_session_id = executor.context.current_session_id()
+    active_session_id = runtime.current_session_id()
     return active_session_id or session_id
 
 
@@ -197,7 +197,7 @@ async def cleanup_app_components(components: AppComponents) -> None:
         with contextlib.suppress(asyncio.CancelledError):
             await components.idle_reclaim_task
 
-        await components.executor.stop()
+        await components.runtime.stop()
         with contextlib.suppress(Exception):
             await close_default_store()
 
@@ -215,14 +215,14 @@ async def cleanup_app_components(components: AppComponents) -> None:
             stream.flush()
 
 
-async def handle_keyboard_interrupt(executor: Executor) -> None:
+async def handle_keyboard_interrupt(runtime: AppRuntime) -> None:
     """Handle Ctrl+C by logging and interrupting only if a task is running."""
     log("Bye!")
-    session_id = executor.context.current_session_id()
+    session_id = runtime.current_session_id()
     if session_id and Session.exists(session_id):
         short_id = Session.shortest_unique_prefix(session_id)
         log(("Resume with:", "dim"), (f"klaude -r {short_id}", "green"))
-    if not executor.has_running_tasks():
+    if not runtime.has_running_tasks():
         return
     with contextlib.suppress(Exception):
-        await executor.submit(op.InterruptOperation(target_session_id=None))
+        await runtime.submit(op.InterruptOperation(target_session_id=None))

@@ -6,7 +6,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
-from klaude_code.core.user_interaction import PendingUserInteractionRequest
+from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import llm_param, op
 
 

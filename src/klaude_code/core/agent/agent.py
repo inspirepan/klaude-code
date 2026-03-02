@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
 
+from klaude_code.core.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.core.agent_profile import AgentProfile, Reminder
-from klaude_code.core.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.core.tool import build_todo_context, get_registry
 from klaude_code.core.tool.context import RunSubtask
 from klaude_code.llm import LLMClientABC

@@ -17,7 +17,7 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
     os.sys.path.insert(0, str(SRC_DIR))  # type: ignore
 
-from klaude_code.core.reminders import at_file_reader_reminder  # noqa: E402
+from klaude_code.core.agent.reminders import at_file_reader_reminder  # noqa: E402
 from klaude_code.core.tool import (  # noqa: E402
     BashTool,
     EditTool,

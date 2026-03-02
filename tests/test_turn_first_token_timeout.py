@@ -7,9 +7,9 @@ from typing import Any, cast
 
 import pytest
 
-import klaude_code.core.turn as turn_module
-from klaude_code.core.task import SessionContext
-from klaude_code.core.turn import TurnError, TurnExecutionContext, TurnExecutor
+import klaude_code.core.agent.turn as turn_module
+from klaude_code.core.agent.task import SessionContext
+from klaude_code.core.agent.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import events, llm_param, message
 

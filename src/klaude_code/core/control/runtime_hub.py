@@ -5,8 +5,8 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-from klaude_code.core.session_runtime import SessionRuntime, SessionRuntimeConfig, SessionRuntimeSnapshot
-from klaude_code.core.user_interaction import PendingUserInteractionRequest
+from klaude_code.core.control.session_runtime import SessionRuntime, SessionRuntimeConfig, SessionRuntimeSnapshot
+from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import op, user_interaction
 
 GLOBAL_RUNTIME_ID = "__runtime_global__"

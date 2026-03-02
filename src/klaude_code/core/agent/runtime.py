@@ -1,36 +1,31 @@
-"""
-Executor module providing the core event loop and task management.
-
-This module implements the submission_loop equivalent for klaude,
-handling operations submitted from the CLI and coordinating with agents.
-"""
+"""Agent execution layer and operation handlers."""
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import subprocess
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from pathlib import Path
 from uuid import uuid4
 
-from klaude_code.config import load_config
+from klaude_code.config import Config, load_config
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
-from klaude_code.core.agent import Agent
+from klaude_code.core.agent.agent import Agent
 from klaude_code.core.agent_profile import DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.bash_mode import run_bash_command
 from klaude_code.core.compaction import CompactionReason, run_compaction
-from klaude_code.core.event_bus import EventBus
+from klaude_code.core.control.event_bus import EventBus
+from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.core.loaded_skills import (
     get_loaded_skill_names_by_location,
     get_loaded_skill_warnings_by_location,
 )
-from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.core.memory import get_existing_memory_paths_by_location
-from klaude_code.core.runtime_hub import RuntimeHub
-from klaude_code.core.user_interaction import PendingUserInteractionRequest
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
@@ -38,8 +33,268 @@ from klaude_code.protocol import commands, events, message, model, op, user_inte
 from klaude_code.protocol.llm_param import LLMConfigParameter, Thinking
 from klaude_code.protocol.op_handler import OperationHandler
 from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
+from klaude_code.protocol.tools import SubAgentType
 from klaude_code.session.export import build_export_html, get_default_export_path
 from klaude_code.session.session import Session
+
+
+def _default_sub_clients() -> dict[SubAgentType, LLMClientABC]:
+    return {}
+
+
+@dataclass
+class LLMClients:
+    """Container for LLM clients used by main agent and sub-agents."""
+
+    main: LLMClientABC
+    main_model_alias: str = ""
+    sub_clients: dict[SubAgentType, LLMClientABC] = dataclass_field(default_factory=_default_sub_clients)
+    compact: LLMClientABC | None = None
+
+    def get_client(self, sub_agent_type: SubAgentType | None = None) -> LLMClientABC:
+        if sub_agent_type is None:
+            return self.main
+        client = self.sub_clients.get(sub_agent_type)
+        if client is not None:
+            return client
+        return self.main
+
+    def get_compact_client(self) -> LLMClientABC:
+        return self.compact or self.main
+
+
+def build_llm_clients(
+    config: Config,
+    *,
+    model_override: str | None = None,
+    skip_sub_agents: bool = False,
+) -> LLMClients:
+    model_name = model_override or config.main_model
+    if model_name is None:
+        raise ValueError("No model specified. Set main_model in the config or pass --model.")
+    llm_config = config.get_model_config(model_name)
+
+    log_debug(
+        "Main LLM config",
+        llm_config.model_dump_json(exclude_none=True),
+        style="yellow",
+        debug_type=DebugType.LLM_CONFIG,
+    )
+
+    main_client = create_llm_client(llm_config)
+
+    compact_client: LLMClientABC | None = None
+    if config.compact_model:
+        compact_llm_config = config.get_model_config(config.compact_model)
+        log_debug(
+            "Compact LLM config",
+            compact_llm_config.model_dump_json(exclude_none=True),
+            style="yellow",
+            debug_type=DebugType.LLM_CONFIG,
+        )
+        compact_client = create_llm_client(compact_llm_config)
+
+    if skip_sub_agents:
+        return LLMClients(main=main_client, main_model_alias=model_name, compact=compact_client)
+
+    helper = SubAgentModelHelper(config)
+    sub_agent_configs = helper.build_sub_agent_client_configs()
+    user_sub_agent_models = config.get_user_sub_agent_models()
+
+    sub_clients: dict[SubAgentType, LLMClientABC] = {}
+    for sub_agent_type, sub_model_name in sub_agent_configs.items():
+        try:
+            sub_llm_config = config.get_model_config(sub_model_name)
+            sub_clients[sub_agent_type] = create_llm_client(sub_llm_config)
+        except ValueError:
+            profile = get_sub_agent_profile(sub_agent_type)
+            role_key = profile.invoker_type
+            if role_key is not None and role_key in user_sub_agent_models:
+                raise
+            log_debug(
+                f"Sub-agent '{sub_agent_type}' builtin model '{sub_model_name}' not available, falling back to main model",
+                style="yellow",
+                debug_type=DebugType.LLM_CONFIG,
+            )
+
+    return LLMClients(main=main_client, main_model_alias=model_name, sub_clients=sub_clients, compact=compact_client)
+
+
+class SubAgentExecutor:
+    """Run sub-agent tasks and forward their events to the UI."""
+
+    def __init__(
+        self,
+        emit_event: Callable[[events.Event], Awaitable[None]],
+        llm_clients: LLMClients,
+        model_profile_provider: ModelProfileProvider,
+    ) -> None:
+        self._emit_event = emit_event
+        self._llm_clients = llm_clients
+        self._model_profile_provider = model_profile_provider
+
+    async def emit_event(self, event: events.Event) -> None:
+        await self._emit_event(event)
+
+    async def run_sub_agent(
+        self,
+        parent_agent: Agent,
+        state: model.SubAgentState,
+        *,
+        llm_clients: LLMClients | None = None,
+        record_session_id: Callable[[str], None] | None = None,
+        register_metadata_getter: Callable[[Callable[[], model.TaskMetadata | None]], None] | None = None,
+        register_progress_getter: Callable[[Callable[[], str | None]], None] | None = None,
+    ) -> SubAgentResult:
+        parent_session = parent_agent.session
+        resume_session_id = state.resume
+
+        def _append_agent_id(task_result: str, session_id: str) -> str:
+            trimmed = (task_result or "").rstrip()
+            footer = f"agentId: {session_id} (for resuming to continue this agent's work if needed)"
+            if trimmed.strip():
+                return f"{trimmed}\n\n{footer}"
+            return footer
+
+        if resume_session_id:
+            try:
+                child_session = Session.load(resume_session_id)
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                return SubAgentResult(
+                    task_result=f"Failed to resume sub-agent session '{resume_session_id}': {exc}",
+                    session_id="",
+                    error=True,
+                )
+
+            if child_session.sub_agent_state is None:
+                return SubAgentResult(
+                    task_result=(f"Invalid resume id '{resume_session_id}': target session is not a sub-agent session"),
+                    session_id="",
+                    error=True,
+                )
+            if child_session.sub_agent_state.sub_agent_type != state.sub_agent_type:
+                return SubAgentResult(
+                    task_result=(
+                        "Invalid resume id: sub-agent type mismatch. "
+                        f"Expected '{state.sub_agent_type}', got '{child_session.sub_agent_state.sub_agent_type}'."
+                    ),
+                    session_id="",
+                    error=True,
+                )
+
+            if record_session_id is not None:
+                record_session_id(child_session.id)
+
+            child_session.sub_agent_state.sub_agent_desc = state.sub_agent_desc
+            child_session.sub_agent_state.sub_agent_prompt = state.sub_agent_prompt
+            child_session.sub_agent_state.resume = resume_session_id
+            child_session.sub_agent_state.output_schema = state.output_schema
+        else:
+            child_session = Session(work_dir=parent_session.work_dir)
+            child_session.sub_agent_state = state
+
+            if record_session_id is not None:
+                record_session_id(child_session.id)
+
+        clients = llm_clients or self._llm_clients
+        child_profile = self._model_profile_provider.build_profile(
+            clients.get_client(state.sub_agent_type),
+            state.sub_agent_type,
+            output_schema=state.output_schema,
+        )
+
+        child_agent = Agent(session=child_session, profile=child_profile)
+
+        log_debug(
+            f"Running sub-agent {state.sub_agent_type} in session {child_session.id}",
+            style="cyan",
+            debug_type=DebugType.EXECUTION,
+        )
+
+        def _get_partial_metadata() -> model.TaskMetadata | None:
+            metadata = child_agent.get_partial_metadata()
+            if metadata is not None:
+                metadata.sub_agent_name = state.sub_agent_type
+                metadata.description = state.sub_agent_desc or None
+            return metadata
+
+        if register_metadata_getter is not None:
+            register_metadata_getter(_get_partial_metadata)
+
+        _ARGS_MAX_LEN = 500
+        tool_call_log: dict[str, tuple[str, str]] = {}
+        completed_calls: set[str] = set()
+
+        def _get_progress() -> str | None:
+            if not tool_call_log:
+                return None
+            lines: list[str] = []
+            for call_id, (tool_name, arguments) in tool_call_log.items():
+                status = "completed" if call_id in completed_calls else "interrupted"
+                args_display = arguments if len(arguments) <= _ARGS_MAX_LEN else arguments[:_ARGS_MAX_LEN] + "..."
+                lines.append(f"- {tool_name}({args_display}) [{status}]")
+            return "\n".join(lines)
+
+        if register_progress_getter is not None:
+            register_progress_getter(_get_progress)
+
+        try:
+            result: str = ""
+            task_metadata: model.TaskMetadata | None = None
+            sub_agent_input = message.UserInputPayload(text=state.sub_agent_prompt, images=None)
+            child_session.append_history(
+                [
+                    message.UserMessage(
+                        parts=message.parts_from_text_and_images(sub_agent_input.text, sub_agent_input.images)
+                    )
+                ]
+            )
+            async for event in child_agent.run_task(sub_agent_input):
+                if isinstance(event, events.ToolCallEvent):
+                    tool_call_log[event.tool_call_id] = (event.tool_name, event.arguments)
+                elif isinstance(event, events.ToolResultEvent):
+                    completed_calls.add(event.tool_call_id)
+
+                if isinstance(event, events.TaskFinishEvent):
+                    result = _append_agent_id(event.task_result, child_session.id)
+                    event = events.TaskFinishEvent(
+                        session_id=event.session_id,
+                        task_result=result,
+                        has_structured_output=event.has_structured_output,
+                    )
+                elif isinstance(event, events.TaskMetadataEvent):
+                    task_metadata = event.metadata.main_agent
+                    task_metadata.sub_agent_name = state.sub_agent_type
+                    task_metadata.description = state.sub_agent_desc or None
+                await self.emit_event(event)
+
+            await child_session.wait_for_flush()
+            return SubAgentResult(
+                task_result=result,
+                session_id=child_session.id,
+                task_metadata=task_metadata,
+            )
+        except asyncio.CancelledError:
+            for evt in child_agent.on_interrupt():
+                await self.emit_event(evt)
+
+            log_debug(
+                f"Sub-agent task for {state.sub_agent_type} was cancelled",
+                style="yellow",
+                debug_type=DebugType.EXECUTION,
+            )
+            raise
+        except Exception as exc:  # pragma: no cover - defensive logging
+            log_debug(
+                f"Sub-agent task failed: [{exc.__class__.__name__}] {exc!s}",
+                style="red",
+                debug_type=DebugType.EXECUTION,
+            )
+            return SubAgentResult(
+                task_result=f"Sub-agent task failed: [{exc.__class__.__name__}] {exc!s}",
+                session_id="",
+                error=True,
+            )
 
 
 @dataclass
@@ -65,8 +320,8 @@ def _clone_llm_clients(template: LLMClients) -> LLMClients:
     )
 
 
-class AgentRuntime:
-    """Coordinate agent lifecycle and in-flight tasks for the executor."""
+class SessionAgentExecutor:
+    """Coordinate agent lifecycle and in-flight tasks for operation execution."""
 
     def __init__(
         self,
@@ -74,7 +329,7 @@ class AgentRuntime:
         emit_event: Callable[[events.Event], Awaitable[None]],
         llm_clients: LLMClients,
         model_profile_provider: ModelProfileProvider,
-        sub_agent_manager: SubAgentManager,
+        sub_agent_manager: SubAgentExecutor,
         on_child_task_state_change: Callable[[str, str, bool], None],
         request_user_interaction: Callable[
             [PendingUserInteractionRequest],
@@ -652,9 +907,9 @@ class ModelSwitcher:
         return previous
 
 
-class ExecutorContext:
+class OperationExecutor:
     """
-    Context object providing shared state and operations for the executor.
+    Context object providing shared state and operation handlers.
 
     This context is passed to operations when they execute, allowing them
     to access shared resources like the event bus and active sessions.
@@ -675,7 +930,7 @@ class ExecutorContext:
         resolved_profile_provider = model_profile_provider or DefaultModelProfileProvider()
         self.model_profile_provider: ModelProfileProvider = resolved_profile_provider
 
-        self.sub_agent_manager = SubAgentManager(self.emit_event, llm_clients, resolved_profile_provider)
+        self._sub_agent_executor = SubAgentExecutor(self.emit_event, llm_clients, resolved_profile_provider)
         self._on_model_change = on_model_change
         self._close_session_callback: Callable[[str, bool], Awaitable[bool]] | None = None
         self._request_user_interaction_callback: (
@@ -690,11 +945,11 @@ class ExecutorContext:
         ) = None
         self._cancel_pending_interactions_callback: Callable[[str | None], bool] | None = None
         self._child_task_state_change_callback: Callable[[str, str, bool], None] | None = None
-        self._agent_runtime = AgentRuntime(
+        self._session_executor = SessionAgentExecutor(
             emit_event=self.emit_event,
             llm_clients=llm_clients,
             model_profile_provider=resolved_profile_provider,
-            sub_agent_manager=self.sub_agent_manager,
+            sub_agent_manager=self._sub_agent_executor,
             on_child_task_state_change=self._on_child_task_state_change,
             request_user_interaction=self.request_user_interaction,
         )
@@ -762,41 +1017,41 @@ class ExecutorContext:
         operates on a single interactive session per process.
         """
 
-        return self._agent_runtime.current_session_id()
+        return self._session_executor.current_session_id()
 
     @property
     def current_agent(self) -> Agent | None:
         """Return the currently active agent, if any."""
 
-        return self._agent_runtime.current_agent
+        return self._session_executor.current_agent
 
     def drop_session_state(self, session_id: str) -> None:
-        self._agent_runtime.drop_session(session_id)
+        self._session_executor.drop_session(session_id)
 
     async def handle_init_agent(self, operation: op.InitAgentOperation) -> None:
         """Initialize an agent for a session and replay history to UI."""
-        await self._agent_runtime.init_agent(operation.session_id)
+        await self._session_executor.init_agent(operation.session_id)
 
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
-        await self._agent_runtime.run_agent(operation)
+        await self._session_executor.run_agent(operation)
 
     async def handle_run_bash(self, operation: op.RunBashOperation) -> None:
-        await self._agent_runtime.run_bash(operation)
+        await self._session_executor.run_bash(operation)
 
     async def handle_continue_agent(self, operation: op.ContinueAgentOperation) -> None:
-        await self._agent_runtime.continue_agent(operation)
+        await self._session_executor.continue_agent(operation)
 
     async def handle_compact_session(self, operation: op.CompactSessionOperation) -> None:
-        await self._agent_runtime.compact_session(operation)
+        await self._session_executor.compact_session(operation)
 
     async def handle_change_model(self, operation: op.ChangeModelOperation) -> None:
-        agent = await self._agent_runtime.ensure_agent(operation.session_id)
+        agent = await self._session_executor.ensure_agent(operation.session_id)
         llm_config, llm_client_name = await self._model_switcher.change_model(
             agent,
             model_name=operation.model_name,
             save_as_default=operation.save_as_default,
         )
-        self._agent_runtime.set_session_main_client(
+        self._session_executor.set_session_main_client(
             session_id=agent.session.id,
             client=agent.profile.llm_client,
             model_alias=llm_client_name,
@@ -831,7 +1086,7 @@ class ExecutorContext:
         Interactive thinking selection must happen in the UI/CLI layer. Core only
         applies a concrete thinking configuration.
         """
-        agent = await self._agent_runtime.ensure_agent(operation.session_id)
+        agent = await self._session_executor.ensure_agent(operation.session_id)
 
         def _format_thinking_for_display(thinking: Thinking | None) -> str:
             if thinking is None:
@@ -874,8 +1129,8 @@ class ExecutorContext:
 
     async def handle_change_sub_agent_model(self, operation: op.ChangeSubAgentModelOperation) -> None:
         """Handle a change sub-agent model operation."""
-        agent = await self._agent_runtime.ensure_agent(operation.session_id)
-        session_clients = self._agent_runtime.get_session_llm_clients(agent.session.id)
+        agent = await self._session_executor.ensure_agent(operation.session_id)
+        session_clients = self._session_executor.get_session_llm_clients(agent.session.id)
         config = load_config()
 
         helper = SubAgentModelHelper(config)
@@ -924,8 +1179,8 @@ class ExecutorContext:
 
     async def handle_change_compact_model(self, operation: op.ChangeCompactModelOperation) -> None:
         """Handle a change compact model operation."""
-        agent = await self._agent_runtime.ensure_agent(operation.session_id)
-        session_clients = self._agent_runtime.get_session_llm_clients(agent.session.id)
+        agent = await self._session_executor.ensure_agent(operation.session_id)
+        session_clients = self._session_executor.get_session_llm_clients(agent.session.id)
         config = load_config()
 
         model_name = operation.model_name
@@ -957,10 +1212,10 @@ class ExecutorContext:
         )
 
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
-        await self._agent_runtime.clear_session(operation.session_id)
+        await self._session_executor.clear_session(operation.session_id)
 
     async def handle_export_session(self, operation: op.ExportSessionOperation) -> None:
-        agent = await self._agent_runtime.ensure_agent(operation.session_id)
+        agent = await self._session_executor.ensure_agent(operation.session_id)
         try:
             output_path = self._resolve_export_output_path(operation.output_path, agent.session)
             html_doc = self._build_export_html(agent)
@@ -1030,7 +1285,7 @@ class ExecutorContext:
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
 
-        await self._agent_runtime.interrupt(operation.target_session_id)
+        await self._session_executor.interrupt(operation.target_session_id)
         self.cancel_pending_user_interactions(session_id=operation.target_session_id)
 
     async def handle_close_session(self, operation: op.CloseSessionOperation) -> None:
@@ -1047,217 +1302,15 @@ class ExecutorContext:
     def get_active_task(self, operation_id: str) -> ActiveTask | None:
         """Return the active runtime task for an operation id if present."""
 
-        return self._agent_runtime.get_active_task(operation_id)
+        return self._session_executor.get_active_task(operation_id)
 
     def list_active_tasks(self) -> list[ActiveTask]:
-        return self._agent_runtime.list_active_tasks()
+        return self._session_executor.list_active_tasks()
 
     def clear_active_tasks(self) -> None:
-        self._agent_runtime.clear_active_tasks()
+        self._session_executor.clear_active_tasks()
 
 
-class Executor:
-    """
-    Core executor that processes operations submitted from the CLI.
-
-    This class implements a message loop similar to Codex-rs's submission_loop,
-    processing operations asynchronously and coordinating with agents.
-    """
-
-    def __init__(
-        self,
-        event_bus: EventBus,
-        llm_clients: LLMClients,
-        model_profile_provider: ModelProfileProvider | None = None,
-        on_model_change: Callable[[str], None] | None = None,
-    ):
-        self.context = ExecutorContext(event_bus, llm_clients, model_profile_provider, on_model_change)
-        self.runtime_hub = RuntimeHub(
-            handle_operation=self._handle_operation,
-            reject_operation=self._reject_operation,
-        )
-        self.context.set_close_session_callback(self.close_session)
-        self.context.set_child_task_state_change_callback(self._on_child_task_state_change)
-        self.context.set_user_interaction_callbacks(
-            request_callback=self.runtime_hub.request_user_interaction,
-            respond_callback=self._respond_user_interaction,
-            cancel_callback=self._cancel_pending_user_interactions,
-        )
-        self._stopped = False
-        self._background_tasks: set[asyncio.Task[None]] = set()
-
-    async def _reject_operation(self, operation: op.Operation, active_task_id: str | None) -> None:
-        session_id = getattr(operation, "session_id", None)
-        if session_id is None:
-            raise RuntimeError("Busy rejection requires session-bound operation")
-
-        await self.context.emit_event(
-            events.OperationRejectedEvent(
-                session_id=session_id,
-                operation_id=operation.id,
-                operation_type=operation.type.value,
-                reason="session_busy",
-                active_task_id=active_task_id,
-            )
-        )
-        self._complete_operation(operation)
-
-    def _on_operation_applied(self, operation: op.Operation) -> None:
-        self.runtime_hub.apply_operation_effect(operation)
-
-    def _respond_user_interaction(
-        self,
-        request_id: str,
-        session_id: str,
-        response: user_interaction.UserInteractionResponse,
-    ) -> None:
-        self.runtime_hub.respond_user_interaction(
-            request_id=request_id,
-            session_id=session_id,
-            response=response,
-        )
-
-    def _cancel_pending_user_interactions(self, session_id: str | None) -> bool:
-        return self.runtime_hub.cancel_pending_interactions(session_id=session_id)
-
-    def _on_child_task_state_change(self, session_id: str, task_id: str, is_active: bool) -> None:
-        self.runtime_hub.mark_child_task_state(session_id=session_id, task_id=task_id, is_active=is_active)
-
-    def _complete_operation(self, operation: op.Operation) -> None:
-        self.runtime_hub.mark_operation_completed(operation.id)
-
-    async def submit(self, operation: op.Operation) -> str:
-        """
-        Submit an operation to the executor for processing.
-
-        Args:
-            operation: Operation to submit
-
-        Returns:
-            Unique operation ID for tracking
-        """
-
-        if self._stopped:
-            raise RuntimeError("Executor is stopped")
-
-        await self.runtime_hub.submit(operation)
-
-        log_debug(
-            f"Submitted operation {operation.type} with ID {operation.id}",
-            style="blue",
-            debug_type=DebugType.EXECUTION,
-        )
-
-        return operation.id
-
-    async def wait_next_interaction_request(self) -> PendingUserInteractionRequest:
-        return await self.runtime_hub.wait_next_request()
-
-    def has_running_tasks(self) -> bool:
-        return any(not active.task.done() for active in self.context.list_active_tasks())
-
-    async def close_session(self, session_id: str, force: bool = False) -> bool:
-        closed = await self.runtime_hub.close_session(session_id, force=force)
-        if closed:
-            self.context.drop_session_state(session_id)
-        return closed
-
-    async def reclaim_idle_sessions(self, *, idle_for_seconds: float) -> list[str]:
-        reclaimed = await self.runtime_hub.reclaim_idle_runtimes(idle_for_seconds=idle_for_seconds)
-        for session_id in reclaimed:
-            self.context.drop_session_state(session_id)
-        return reclaimed
-
-    async def wait_for(self, operation_id: str) -> None:
-        """Wait for a specific operation to complete."""
-        await self.runtime_hub.wait_for(operation_id)
-
-    async def submit_and_wait(self, operation: op.Operation) -> None:
-        """Submit an operation and wait for it to complete."""
-        operation_id = await self.submit(operation)
-        await self.wait_for(operation_id)
-
-    async def stop(self) -> None:
-        """Stop the executor and clean up resources."""
-        self._stopped = True
-        self.context.cancel_pending_user_interactions(session_id=None)
-
-        # Cancel all active tasks and collect them for awaiting
-        tasks_to_await: list[asyncio.Task[None]] = []
-        for active in self.context.list_active_tasks():
-            task = active.task
-            if not task.done():
-                task.cancel()
-                tasks_to_await.append(task)
-
-        # Wait for all cancelled tasks to complete
-        if tasks_to_await:
-            await asyncio.gather(*tasks_to_await, return_exceptions=True)
-
-        if self._background_tasks:
-            await asyncio.gather(*self._background_tasks, return_exceptions=True)
-            self._background_tasks.clear()
-
-        await self.runtime_hub.stop()
-
-        # Clear the active task manager
-        self.context.clear_active_tasks()
-
-        log_debug("Executor stopped", style="yellow", debug_type=DebugType.EXECUTION)
-
-    async def _handle_operation(self, operation: op.Operation) -> None:
-        """
-        Handle a single submission by executing its operation.
-
-        This method delegates to the operation's execute method, which
-        can access shared resources through the executor context.
-        """
-        try:
-            log_debug(
-                f"Handling operation {operation.id} of type {operation.type.value}",
-                style="cyan",
-                debug_type=DebugType.EXECUTION,
-            )
-
-            # Execute to spawn the agent task in context
-            await operation.execute(handler=self.context)
-            self._on_operation_applied(operation)
-
-            active_task = self.context.get_active_task(operation.id)
-
-            async def _await_agent_and_complete(captured_task: asyncio.Task[None]) -> None:
-                try:
-                    await captured_task
-                finally:
-                    self._complete_operation(operation)
-
-            if active_task is None:
-                self._complete_operation(operation)
-            else:
-                self.runtime_hub.bind_root_task(operation_id=operation.id, task_id=active_task.task_id)
-                # Run in background so the submission loop can continue (e.g., to handle interrupts)
-                background_task = asyncio.create_task(_await_agent_and_complete(active_task.task))
-                self._background_tasks.add(background_task)
-                background_task.add_done_callback(self._background_tasks.discard)
-
-        except Exception as e:
-            log_debug(
-                f"Failed to handle operation {operation.id}: {e!s}",
-                style="red",
-                debug_type=DebugType.EXECUTION,
-            )
-            session_id = getattr(operation, "session_id", None) or getattr(operation, "target_session_id", None)
-            await self.context.emit_event(
-                events.ErrorEvent(
-                    error_message=f"Operation failed: {e!s}",
-                    can_retry=False,
-                    session_id=session_id or "__app__",
-                )
-            )
-            # Set completion event even on error to prevent wait_for_completion from hanging
-            self._complete_operation(operation)
-
-
-# Static type check: ExecutorContext must satisfy OperationHandler protocol.
-# If this line causes a type error, ExecutorContext is missing required methods.
-_: type[OperationHandler] = ExecutorContext
+# Static type check: OperationExecutor must satisfy OperationHandler protocol.
+# If this line causes a type error, OperationExecutor is missing required methods.
+_: type[OperationHandler] = OperationExecutor

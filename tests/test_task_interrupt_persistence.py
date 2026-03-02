@@ -6,7 +6,7 @@ from typing import Any, cast
 
 import pytest
 
-from klaude_code.core.task import SessionContext, TaskExecutionContext, TaskExecutor
+from klaude_code.core.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.core.tool.context import build_todo_context
 from klaude_code.protocol import message
 from klaude_code.session.session import Session, close_default_store

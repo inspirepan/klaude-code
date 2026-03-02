@@ -147,7 +147,20 @@
 
 - 移除独立 `TaskManager` 类型
 - 任务句柄映射（`operation_id -> task_id -> asyncio.Task`）内聚到 `AgentRuntime`
-- `Executor` 通过 `ExecutorContext` 访问 active task 快照与清理接口
+- `Executor` 通过运行时 handler 访问 active task 快照与清理接口
+
+并且本次追加了第二十七个增量：
+
+- 移除 `core/executor.py` 与 `core/manager/*`
+- 运行时入口统一为 `core/control/app_runtime.py`（`AppRuntime`）
+- `OperationHandler` 实现与提交/等待能力合并到运行时入口，且不再保留 `Executor/ExecutorContext` 兼容层
+
+并且本次追加了第二十八个增量：
+
+- `core` 按控制平面/执行平面完成目录收口：
+  - 控制平面：`core/control/{event_bus,runtime_hub,session_runtime}.py`
+  - 执行平面：`core/agent/{agent,runtime,task,turn}.py`
+- 全量调用路径改为新包结构，移除旧扁平模块入口
 
 并且本次追加了第五个增量：
 

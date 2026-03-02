@@ -9,26 +9,26 @@ class DisplayABC(ABC):
     """
     Abstract base class for UI display implementations.
 
-    A Display is responsible for rendering events from the executor to the user.
+    A Display is responsible for rendering event envelopes from the runtime to the user.
     Implementations can range from minimal text output to rich interactive
     terminals (TUIDisplay).
 
     Lifecycle:
         1. start() is called once before any events are consumed.
-        2. consume_event() is called for each event from the executor.
+        2. consume_envelope() is called for each envelope from the runtime.
         3. stop() is called once when the display is shutting down (after EndEvent).
 
     Typical Usage:
         # See klaude_code.tui.display.TUIDisplay for the interactive terminal frontend.
-        await display.consume_event_loop(event_queue)
+        await display.consume_event_loop(envelope_queue)
 
         # Or manually:
         await display.start()
         try:
-            async for event in events:
-                if isinstance(event, EndEvent):
+            async for envelope in events:
+                if isinstance(envelope.event, EndEvent):
                     break
-                await display.consume_event(event)
+                await display.consume_envelope(envelope)
         finally:
             await display.stop()
 
@@ -38,16 +38,16 @@ class DisplayABC(ABC):
     """
 
     @abstractmethod
-    async def consume_event(self, event: events.Event) -> None:
+    async def consume_envelope(self, envelope: events.EventEnvelope) -> None:
         """
-        Process a single event from the executor.
+        Process a single event envelope from the runtime.
 
-        This method is called for each event except EndEvent, which triggers stop().
+        This method is called for each envelope except EndEvent, which triggers stop().
         Implementations should handle all relevant event types and render them
         appropriately for the user.
 
         Args:
-            event: The event to process. See klaude_code.protocol.events for types.
+            envelope: The event envelope to process.
         """
 
     @abstractmethod
@@ -69,28 +69,28 @@ class DisplayABC(ABC):
         stopping spinners, restoring terminal state, or flushing output buffers.
         """
 
-    async def consume_event_loop(self, q: Queue[events.Event]) -> None:
+    async def consume_event_loop(self, q: Queue[events.EventEnvelope]) -> None:
         """
-        Main event loop that processes events from a queue.
+        Main event loop that processes event envelopes from a queue.
 
         This is the standard entry point for running a display. It handles:
         - Calling start() before processing
-        - Consuming events until EndEvent is received
+        - Consuming envelopes until EndEvent is received
         - Calling stop() after EndEvent
         - Error handling and logging for individual events
 
         Args:
-            q: An asyncio Queue of events to process. The loop exits when
+            q: An asyncio Queue of event envelopes to process. The loop exits when
                an EndEvent is received.
         """
         await self.start()
         while True:
-            event = await q.get()
+            envelope = await q.get()
             try:
-                if isinstance(event, events.EndEvent):
+                if isinstance(envelope.event, events.EndEvent):
                     await self.stop()
                     break
-                await self.consume_event(event)
+                await self.consume_envelope(envelope)
             except Exception as e:
                 import traceback
 

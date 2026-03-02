@@ -14,7 +14,7 @@
 | ID | 当前临时实现 | 目标形态 | 引入阶段 | 计划清理阶段 | 状态 |
 |---|---|---|---|---|---|
 | G-001 | display 已直接消费 EventBus 订阅流（`EventEnvelope -> Event` 兼容解包），`event_queue` 主通道已移除 | TUI/Web 都直接订阅 EventBus（或统一 adapter） | Phase 1 | Phase 4 | closed |
-| G-002 | `Executor` 已收敛为薄门面（提交/等待委托 RuntimeHub，completion 跟踪归并到 RuntimeHub） | `RuntimeHub -> SessionRuntime.mailbox` 成为唯一输入调度入口（或 `Executor` 仅作薄门面） | 现状 | Phase 2/4 | closed |
+| G-002 | 已移除 `Executor`/`ExecutorContext` 兼容层，运行入口统一为 `core/control/app_runtime.py::AppRuntime -> core/control/runtime_hub.py -> SessionRuntime.mailbox` | `RuntimeHub -> SessionRuntime.mailbox` 成为唯一输入调度入口 | 现状 | Phase 2/4 | closed |
 | G-003 | interaction 请求/响应已并轨到 `RuntimeHub`（runtime 路径无 side-channel） | interaction 进入 `SessionRuntime.pending_requests` 闭环（无侧通道） | 现状 | Phase 3 | closed |
 | G-004 | `operation_id` 与 `task_id` 已拆分：TaskManager/SessionRuntime 均独立跟踪任务实例 | `operation_id` / `task_id` 语义拆分 | 现状 | Phase 3 | closed |
 | G-005 | root/child 运行态已进入 `SessionRuntime`（`active_root_task + child_task_count`），任务句柄管理已内聚到 `AgentRuntime` | 会话内 `active_root_task + child_tasks` | 现状 | Phase 2/4 | closed |

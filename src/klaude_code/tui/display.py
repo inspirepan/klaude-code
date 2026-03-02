@@ -30,7 +30,8 @@ class TUIDisplay(DisplayABC):
         task.add_done_callback(self._bg_tasks.discard)
 
     @override
-    async def consume_event(self, event: events.Event) -> None:
+    async def consume_envelope(self, envelope: events.EventEnvelope) -> None:
+        event = envelope.event
         if isinstance(event, events.ReplayHistoryEvent):
             # Replay does not need streaming UI; disable bottom Live rendering to avoid
             # repaint overhead and flicker while reconstructing history.
