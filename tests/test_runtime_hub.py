@@ -737,6 +737,40 @@ def test_runtime_hub_child_task_state_affects_snapshot_and_idle() -> None:
     arun(_test())
 
 
+def test_runtime_hub_preempts_running_root_with_interrupt_control() -> None:
+    async def _test() -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+        interrupt_seen = asyncio.Event()
+
+        normal_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="work"))
+        interrupt_op = op.InterruptOperation(target_session_id="s1")
+
+        async def _handle(operation: op.Operation) -> None:
+            if operation.id == normal_op.id:
+                started.set()
+                await release.wait()
+            if operation.id == interrupt_op.id:
+                interrupt_seen.set()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        await hub.submit(normal_op)
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+
+        await hub.submit(interrupt_op)
+        await asyncio.wait_for(interrupt_seen.wait(), timeout=0.3)
+
+        release.set()
+        hub.mark_operation_completed(normal_op.id)
+        hub.mark_operation_completed(interrupt_op.id)
+        await hub.stop()
+
+    arun(_test())
+
+
 def test_runtime_hub_cancel_pending_interactions_cancels_waiter() -> None:
     async def _test() -> None:
         async def _handle(_operation: op.Operation) -> None:

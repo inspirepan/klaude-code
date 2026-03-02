@@ -133,6 +133,11 @@
 - 引入 durable 白名单常量 `DURABLE_EVENT_TYPES`
 - `EventEnvelope` 增加 `durability` 字段（`durable|ephemeral`），由白名单统一分类
 
+并且本次追加了第二十四个增量：
+
+- 当 session 存在运行中 root-task 时，`interrupt/user_interaction_respond` 支持 preempt 执行（不必等待 normal 操作处理结束）
+- 同时保留 control queue 的 8:1 公平调度机制作为常规路径
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）

@@ -38,6 +38,11 @@ class RuntimeHub:
         runtime_id = self._resolve_runtime_id(operation)
         runtime = self._ensure_runtime(runtime_id)
         self._operation_runtime_ids[operation.id] = runtime_id
+
+        if _should_preempt_control(runtime, operation):
+            await runtime.run_control_preemptive(operation)
+            return
+
         await runtime.enqueue(operation)
 
     async def request_user_interaction(
@@ -251,3 +256,9 @@ class RuntimeHub:
         if runtime is None:
             return
         runtime.mark_request_resolved(request_id)
+
+
+def _should_preempt_control(runtime: SessionRuntime, operation: op.Operation) -> bool:
+    if not runtime.has_active_root_task():
+        return False
+    return isinstance(operation, op.InterruptOperation | op.UserInteractionRespondOperation)

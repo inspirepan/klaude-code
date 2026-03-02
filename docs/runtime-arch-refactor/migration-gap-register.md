@@ -24,7 +24,7 @@
 | G-009 | 已去除全局 execution lock，session worker 可独立并发执行 | 去除全局锁，按 session 独立并发执行 | Phase 2 | Phase 2/3 | closed |
 | G-010 | SessionRuntime 已内聚 `active_root_task/child_tasks/pending_requests/config` 并可快照 | SessionRuntime 内聚 `active_root_task/pending_requests/config` 完整运行态 | Phase 2 | Phase 2/3 | closed |
 | G-011 | busy reject 通过 `EventEnvelope(event_type=operation.rejected)` 发布，兼容保留 `OperationRejectedEvent` payload | 迁移到目标 `operation.rejected` + `EventEnvelope` 体系 | Phase 2 | Phase 3 | closed |
-| G-012 | control 优先目前是队列调度级（8:1），未形成“执行中任务”级别抢占 | 达到完整 interrupt 抢占语义（含执行中上下文的及时让渡/取消） | Phase 2 | Phase 3 | open |
+| G-012 | control 现已支持运行中 root-task 的抢占路径（interrupt/respond 可 preempt 执行），保留队列级 8:1 公平调度 | 达到完整 interrupt 抢占语义（含执行中上下文的及时让渡/取消） | Phase 2 | Phase 3 | closed |
 | G-013 | 已落地 `CloseSessionOperation` + idle TTL 定时回收（30m/60s 默认） | 显式 close 协议 + idle TTL 自动回收流程 | Phase 2 | Phase 2/3 | closed |
 | G-014 | 已引入 `session_id -> LLMClients` 会话本地视图，模型相关变更仅作用于目标 session | `SessionRuntime` 持有会话隔离的 llm client/view，避免跨 session 可变状态共享 | Phase 2 | Phase 3 | closed |
 

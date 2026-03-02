@@ -77,6 +77,12 @@ class SessionRuntime:
             return
         await self.normal_mailbox.put(operation)
 
+    async def run_control_preemptive(self, operation: op.Operation) -> None:
+        if not _is_control_operation(operation):
+            raise RuntimeError("preemptive execution only supports control operations")
+        self._mark_active()
+        await self._handle_operation(operation)
+
     async def stop(self) -> None:
         while True:
             try:
