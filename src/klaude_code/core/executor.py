@@ -1046,6 +1046,9 @@ class Executor:
     async def wait_next_interaction_request(self) -> PendingUserInteractionRequest:
         return await self.runtime_hub.wait_next_request()
 
+    def has_running_tasks(self) -> bool:
+        return any(not active.task.done() for active in self.context.task_manager.values())
+
     async def close_session(self, session_id: str, force: bool = False) -> bool:
         return await self.runtime_hub.close_session(session_id, force=force)
 

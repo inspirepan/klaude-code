@@ -216,11 +216,13 @@ async def cleanup_app_components(components: AppComponents) -> None:
 
 
 async def handle_keyboard_interrupt(executor: Executor) -> None:
-    """Handle Ctrl+C by logging and sending a global interrupt."""
+    """Handle Ctrl+C by logging and interrupting only if a task is running."""
     log("Bye!")
     session_id = executor.context.current_session_id()
     if session_id and Session.exists(session_id):
         short_id = Session.shortest_unique_prefix(session_id)
         log(("Resume with:", "dim"), (f"klaude -r {short_id}", "green"))
+    if not executor.has_running_tasks():
+        return
     with contextlib.suppress(Exception):
         await executor.submit(op.InterruptOperation(target_session_id=None))
