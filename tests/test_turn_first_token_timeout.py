@@ -44,12 +44,33 @@ class FirstTokenThenDelayedCompletionStream(LLMStreamABC):
         return None
 
 
+class ErrorWithPartialTextStream(LLMStreamABC):
+    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
+        yield message.StreamErrorItem(error="network interrupted")
+        yield message.AssistantMessage(
+            parts=[message.TextPart(text="partial answer")],
+            response_id="r1",
+            stop_reason="error",
+        )
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        return None
+
+
 class FakeLLMClient(LLMClientABC):
-    def __init__(self, stream: LLMStreamABC) -> None:
+    def __init__(
+        self,
+        stream: LLMStreamABC,
+        *,
+        protocol: llm_param.LLMClientProtocol = llm_param.LLMClientProtocol.ANTHROPIC,
+    ) -> None:
         super().__init__(
             llm_param.LLMConfigParameter(
                 provider_name="test",
-                protocol=llm_param.LLMClientProtocol.ANTHROPIC,
+                protocol=protocol,
                 model_id="claude-sonnet-test",
             )
         )
@@ -65,7 +86,11 @@ class FakeLLMClient(LLMClientABC):
         return self._stream
 
 
-def _build_turn_executor(stream: LLMStreamABC) -> tuple[TurnExecutor, list[message.HistoryEvent]]:
+def _build_turn_executor(
+    stream: LLMStreamABC,
+    *,
+    protocol: llm_param.LLMClientProtocol = llm_param.LLMClientProtocol.ANTHROPIC,
+) -> tuple[TurnExecutor, list[message.HistoryEvent]]:
     history: list[message.HistoryEvent] = []
 
     def append_history(items: Sequence[message.HistoryEvent]) -> None:
@@ -82,7 +107,7 @@ def _build_turn_executor(stream: LLMStreamABC) -> tuple[TurnExecutor, list[messa
     )
     context = TurnExecutionContext(
         session_ctx=session_ctx,
-        llm_client=FakeLLMClient(stream),
+        llm_client=FakeLLMClient(stream, protocol=protocol),
         system_prompt=None,
         tools=[],
         tool_registry={},
@@ -120,3 +145,32 @@ def test_first_token_timeout_applies_only_before_stream_start(monkeypatch: pytes
     emitted = asyncio.run(_run())
     assert any(isinstance(event, events.ResponseCompleteEvent) for event in emitted)
     assert executor.task_result == "ok"
+
+
+def test_stream_error_retries_with_user_continuation_prompt_for_all_protocols() -> None:
+    executor, history = _build_turn_executor(
+        ErrorWithPartialTextStream(),
+        protocol=llm_param.LLMClientProtocol.OPENAI,
+    )
+
+    async def _run() -> None:
+        with pytest.raises(TurnError, match="network interrupted"):
+            async for _ in executor.run():
+                pass
+
+    asyncio.run(_run())
+
+    assert any(isinstance(item, message.StreamErrorItem) for item in history)
+    assert not any(isinstance(item, message.AssistantMessage) for item in history)
+
+    retry_user_messages = [item for item in history if isinstance(item, message.UserMessage)]
+    assert len(retry_user_messages) == 1
+    retry_prompt = message.join_text_parts(retry_user_messages[0].parts)
+    assert "<assistant>" in retry_prompt
+    assert "</assistant>" in retry_prompt
+    assert "partial answer" in retry_prompt
+    assert "<system-reminder>" in retry_prompt
+    assert "</system-reminder>" in retry_prompt
+    assert "transient error" in retry_prompt
+    assert "network-related" in retry_prompt
+    assert "without repeating" in retry_prompt
