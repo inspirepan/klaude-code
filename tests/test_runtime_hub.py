@@ -294,10 +294,17 @@ def test_runtime_hub_tracks_pending_request_state_per_session() -> None:
         await asyncio.wait_for(started.wait(), timeout=1.0)
 
         req = _pending_request("r1", "s1")
-        hub.mark_request_state(request=req, is_pending=True)
+        task = asyncio.create_task(hub.request_user_interaction(req))
+        await asyncio.sleep(0)
         assert hub.pending_request_count("s1") == 1
 
-        hub.mark_request_state(request=req, is_pending=False)
+        hub.respond_user_interaction(
+            request_id=req.request_id,
+            session_id=req.session_id,
+            response=user_interaction.UserInteractionResponse(status="cancelled", payload=None),
+        )
+        response = await task
+        assert response.status == "cancelled"
         assert hub.pending_request_count("s1") == 0
 
         await hub.stop()
@@ -327,7 +334,8 @@ def test_runtime_hub_idle_runtime_ids_reflect_active_and_pending_state() -> None
         assert "s1" not in hub.idle_runtime_ids()
 
         req = _pending_request("r1", "s1")
-        hub.mark_request_state(request=req, is_pending=True)
+        pending_task = asyncio.create_task(hub.request_user_interaction(req))
+        await asyncio.sleep(0)
         assert "s1" not in hub.idle_runtime_ids()
 
         release.set()
@@ -335,7 +343,9 @@ def test_runtime_hub_idle_runtime_ids_reflect_active_and_pending_state() -> None
         await asyncio.sleep(0)
         assert "s1" not in hub.idle_runtime_ids()
 
-        hub.mark_request_state(request=req, is_pending=False)
+        assert hub.cancel_pending_interactions(session_id="s1")
+        with contextlib.suppress(asyncio.CancelledError):
+            await pending_task
         assert "s1" in hub.idle_runtime_ids()
 
         await hub.stop()
@@ -343,7 +353,7 @@ def test_runtime_hub_idle_runtime_ids_reflect_active_and_pending_state() -> None
     arun(_test())
 
 
-def test_runtime_hub_wait_next_request_skips_resolved_request() -> None:
+def test_runtime_hub_resolve_one_request_keeps_other_pending() -> None:
     async def _test() -> None:
         started = asyncio.Event()
 
@@ -361,12 +371,23 @@ def test_runtime_hub_wait_next_request_skips_resolved_request() -> None:
 
         req1 = _pending_request("r1", "s1")
         req2 = _pending_request("r2", "s1")
-        hub.mark_request_state(request=req1, is_pending=True)
-        hub.mark_request_state(request=req2, is_pending=True)
-        hub.mark_request_state(request=req1, is_pending=False)
+        first = asyncio.create_task(hub.request_user_interaction(req1))
+        second = asyncio.create_task(hub.request_user_interaction(req2))
+        await asyncio.sleep(0)
 
-        next_request = await asyncio.wait_for(hub.wait_next_request(), timeout=1.0)
-        assert next_request.request_id == "r2"
+        hub.respond_user_interaction(
+            request_id=req1.request_id,
+            session_id=req1.session_id,
+            response=user_interaction.UserInteractionResponse(status="cancelled", payload=None),
+        )
+        first_result = await first
+        assert first_result.status == "cancelled"
+
+        assert hub.pending_request_count("s1") == 1
+
+        assert hub.cancel_pending_interactions(session_id="s1")
+        with contextlib.suppress(asyncio.CancelledError):
+            await second
 
         await hub.stop()
 
@@ -450,7 +471,8 @@ def test_runtime_hub_snapshot_reflects_runtime_state() -> None:
         await hub.submit(root_op)
         await asyncio.wait_for(started.wait(), timeout=1.0)
         hub.apply_operation_effect(model_op)
-        hub.mark_request_state(request=req, is_pending=True)
+        request_task = asyncio.create_task(hub.request_user_interaction(req))
+        await asyncio.sleep(0)
 
         snapshot = hub.snapshot("s1")
         assert snapshot is not None
@@ -465,7 +487,9 @@ def test_runtime_hub_snapshot_reflects_runtime_state() -> None:
 
         release.set()
         hub.mark_operation_completed(root_op.id)
-        hub.mark_request_state(request=req, is_pending=False)
+        assert hub.cancel_pending_interactions(session_id="s1")
+        with contextlib.suppress(asyncio.CancelledError):
+            await request_task
         await asyncio.sleep(0)
 
         done_snapshot = hub.snapshot("s1")
@@ -536,14 +560,17 @@ def test_runtime_hub_reclaim_idle_runtimes_only_reclaims_idle() -> None:
         await hub.submit(s2_op)
         await asyncio.wait_for(started.wait(), timeout=1.0)
 
-        hub.mark_request_state(request=s2_req, is_pending=True)
+        request_task = asyncio.create_task(hub.request_user_interaction(s2_req))
+        await asyncio.sleep(0)
 
         reclaimed = await hub.reclaim_idle_runtimes()
         assert reclaimed == ["s1"]
         assert hub.has_runtime("s1") is False
         assert hub.has_runtime("s2") is True
 
-        hub.mark_request_state(request=s2_req, is_pending=False)
+        assert hub.cancel_pending_interactions(session_id="s2")
+        with contextlib.suppress(asyncio.CancelledError):
+            await request_task
 
         reclaimed_again = await hub.reclaim_idle_runtimes()
         assert reclaimed_again == ["s2"]
@@ -597,8 +624,7 @@ def test_runtime_hub_request_user_interaction_roundtrip() -> None:
         request = _pending_request("req1", "s1")
 
         task = asyncio.create_task(hub.request_user_interaction(request))
-        pending = await asyncio.wait_for(hub.wait_next_request(), timeout=1.0)
-        assert pending.request_id == "req1"
+        await asyncio.sleep(0)
         assert hub.pending_request_count("s1") == 1
 
         hub.respond_user_interaction(
@@ -783,7 +809,7 @@ def test_runtime_hub_cancel_pending_interactions_cancels_waiter() -> None:
         request = _pending_request("req1", "s1")
 
         task = asyncio.create_task(hub.request_user_interaction(request))
-        _ = await asyncio.wait_for(hub.wait_next_request(), timeout=1.0)
+        await asyncio.sleep(0)
 
         assert hub.cancel_pending_interactions(session_id="s1") is True
         cancelled = False

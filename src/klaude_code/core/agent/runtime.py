@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 from klaude_code.config import Config, load_config
@@ -943,7 +944,9 @@ class OperationExecutor:
         self._respond_user_interaction_callback: (
             Callable[[str, str, user_interaction.UserInteractionResponse], None] | None
         ) = None
-        self._cancel_pending_interactions_callback: Callable[[str | None], bool] | None = None
+        self._cancel_pending_interactions_callback: (
+            Callable[[str | None], list[PendingUserInteractionRequest]] | None
+        ) = None
         self._child_task_state_change_callback: Callable[[str, str, bool], None] | None = None
         self._session_executor = SessionAgentExecutor(
             emit_event=self.emit_event,
@@ -969,7 +972,7 @@ class OperationExecutor:
             Awaitable[user_interaction.UserInteractionResponse],
         ],
         respond_callback: Callable[[str, str, user_interaction.UserInteractionResponse], None],
-        cancel_callback: Callable[[str | None], bool],
+        cancel_callback: Callable[[str | None], list[PendingUserInteractionRequest]],
     ) -> None:
         self._request_user_interaction_callback = request_callback
         self._respond_user_interaction_callback = respond_callback
@@ -994,11 +997,33 @@ class OperationExecutor:
         )
         return await callback(request)
 
-    def cancel_pending_user_interactions(self, *, session_id: str | None) -> bool:
+    def cancel_pending_user_interactions(self, *, session_id: str | None) -> list[PendingUserInteractionRequest]:
         callback = self._cancel_pending_interactions_callback
         if callback is None:
-            return False
+            return []
         return callback(session_id)
+
+    async def _emit_interaction_cancelled_events(
+        self,
+        requests: list[PendingUserInteractionRequest],
+        *,
+        reason: Literal["user_cancelled", "interrupt", "shutdown", "session_close"],
+    ) -> None:
+        for request in requests:
+            await self.emit_event(
+                events.UserInteractionCancelledEvent(
+                    session_id=request.session_id,
+                    request_id=request.request_id,
+                    reason=reason,
+                )
+            )
+            await self.emit_event(
+                events.UserInteractionResolvedEvent(
+                    session_id=request.session_id,
+                    request_id=request.request_id,
+                    status="cancelled",
+                )
+            )
 
     def _on_child_task_state_change(self, session_id: str, task_id: str, is_active: bool) -> None:
         callback = self._child_task_state_change_callback
@@ -1286,7 +1311,8 @@ class OperationExecutor:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
 
         await self._session_executor.interrupt(operation.target_session_id)
-        self.cancel_pending_user_interactions(session_id=operation.target_session_id)
+        cancelled_requests = self.cancel_pending_user_interactions(session_id=operation.target_session_id)
+        await self._emit_interaction_cancelled_events(cancelled_requests, reason="interrupt")
 
     async def handle_close_session(self, operation: op.CloseSessionOperation) -> None:
         if self._close_session_callback is None:
@@ -1298,6 +1324,28 @@ class OperationExecutor:
         if callback is None:
             raise RuntimeError("respond user interaction callback is not configured")
         callback(operation.request_id, operation.session_id, operation.response)
+        await self.emit_event(
+            events.UserInteractionResponseReceivedEvent(
+                session_id=operation.session_id,
+                request_id=operation.request_id,
+                status=operation.response.status,
+            )
+        )
+        if operation.response.status == "cancelled":
+            await self.emit_event(
+                events.UserInteractionCancelledEvent(
+                    session_id=operation.session_id,
+                    request_id=operation.request_id,
+                    reason="user_cancelled",
+                )
+            )
+        await self.emit_event(
+            events.UserInteractionResolvedEvent(
+                session_id=operation.session_id,
+                request_id=operation.request_id,
+                status=operation.response.status,
+            )
+        )
 
     def get_active_task(self, operation_id: str) -> ActiveTask | None:
         """Return the active runtime task for an operation id if present."""

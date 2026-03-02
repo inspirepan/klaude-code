@@ -69,8 +69,11 @@ class AppRuntime:
             response=response,
         )
 
-    def _cancel_pending_user_interactions(self, session_id: str | None) -> bool:
-        return self.runtime_hub.cancel_pending_interactions(session_id=session_id)
+    def _cancel_pending_user_interactions(
+        self,
+        session_id: str | None,
+    ) -> list[PendingUserInteractionRequest]:
+        return self.runtime_hub.cancel_pending_interactions_with_requests(session_id=session_id)
 
     def _on_child_task_state_change(self, session_id: str, task_id: str, is_active: bool) -> None:
         self.runtime_hub.mark_child_task_state(session_id=session_id, task_id=task_id, is_active=is_active)
@@ -91,9 +94,6 @@ class AppRuntime:
         )
 
         return operation.id
-
-    async def wait_next_interaction_request(self) -> PendingUserInteractionRequest:
-        return await self.runtime_hub.wait_next_request()
 
     async def emit_event(self, event: events.Event) -> None:
         await self._operation_executor.emit_event(event)
@@ -129,7 +129,22 @@ class AppRuntime:
 
     async def stop(self) -> None:
         self._stopped = True
-        self._operation_executor.cancel_pending_user_interactions(session_id=None)
+        cancelled_requests = self._operation_executor.cancel_pending_user_interactions(session_id=None)
+        for request in cancelled_requests:
+            await self._operation_executor.emit_event(
+                events.UserInteractionCancelledEvent(
+                    session_id=request.session_id,
+                    request_id=request.request_id,
+                    reason="shutdown",
+                )
+            )
+            await self._operation_executor.emit_event(
+                events.UserInteractionResolvedEvent(
+                    session_id=request.session_id,
+                    request_id=request.request_id,
+                    status="cancelled",
+                )
+            )
 
         tasks_to_await: list[asyncio.Task[None]] = []
         for active in self._operation_executor.list_active_tasks():

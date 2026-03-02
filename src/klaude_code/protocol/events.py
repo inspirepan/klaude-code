@@ -46,7 +46,10 @@ __all__ = [
     "TurnEndEvent",
     "TurnStartEvent",
     "UsageEvent",
+    "UserInteractionCancelledEvent",
     "UserInteractionRequestEvent",
+    "UserInteractionResolvedEvent",
+    "UserInteractionResponseReceivedEvent",
     "UserMessageEvent",
     "WelcomeEvent",
 ]
@@ -322,3 +325,18 @@ class UserInteractionRequestEvent(Event):
     source: user_interaction.UserInteractionSource
     tool_call_id: str | None = None
     payload: user_interaction.UserInteractionRequestPayload
+
+
+class UserInteractionResponseReceivedEvent(Event):
+    request_id: str
+    status: Literal["submitted", "cancelled"]
+
+
+class UserInteractionResolvedEvent(Event):
+    request_id: str
+    status: Literal["submitted", "cancelled"]
+
+
+class UserInteractionCancelledEvent(Event):
+    request_id: str
+    reason: Literal["user_cancelled", "interrupt", "shutdown", "session_close"]

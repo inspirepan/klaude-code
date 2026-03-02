@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
-from klaude_code.protocol import llm_param, op
+from klaude_code.protocol import llm_param, op, user_interaction
 
 
 @dataclass(frozen=True)
@@ -27,6 +27,12 @@ class RootTaskState:
     operation_id: str
     task_id: str
     kind: str
+
+
+@dataclass
+class _PendingInteractionState:
+    request: PendingUserInteractionRequest
+    future: asyncio.Future[user_interaction.UserInteractionResponse]
 
 
 @dataclass
@@ -63,7 +69,7 @@ class SessionRuntime:
         self._reject_operation = reject_operation
         self._active_root_task: RootTaskState | None = None
         self._child_task_ids: set[str] = set()
-        self._pending_requests: dict[str, PendingUserInteractionRequest] = {}
+        self._pending_requests: dict[str, _PendingInteractionState] = {}
         self._config = SessionRuntimeConfig()
         self._idle_since_monotonic: float | None = time.monotonic()
         self._control_burst_quota = control_burst_quota
@@ -84,6 +90,7 @@ class SessionRuntime:
         await self._handle_operation(operation)
 
     async def stop(self) -> None:
+        self.cancel_pending_interactions()
         while True:
             try:
                 _ = self.control_mailbox.get_nowait()
@@ -98,6 +105,54 @@ class SessionRuntime:
                 break
         await self.control_mailbox.put(_STOP_SIGNAL)
         await self._worker_task
+
+    def open_pending_interaction(
+        self,
+        request: PendingUserInteractionRequest,
+    ) -> asyncio.Future[user_interaction.UserInteractionResponse]:
+        request_id = request.request_id
+        if request_id in self._pending_requests:
+            raise RuntimeError(f"Duplicate user interaction request id: {request_id}")
+
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[user_interaction.UserInteractionResponse] = loop.create_future()
+        self._pending_requests[request_id] = _PendingInteractionState(request=request, future=future)
+
+        def _on_done(_future: asyncio.Future[user_interaction.UserInteractionResponse]) -> None:
+            self._finalize_pending_request(request_id)
+
+        future.add_done_callback(_on_done)
+        self._mark_active()
+        return future
+
+    def resolve_pending_interaction(
+        self,
+        *,
+        request_id: str,
+        session_id: str,
+        response: user_interaction.UserInteractionResponse,
+    ) -> None:
+        pending = self._pending_requests.get(request_id)
+        if pending is None:
+            raise ValueError("No pending user interaction")
+        if pending.request.session_id != session_id:
+            raise ValueError("Session mismatch for pending user interaction")
+        if response.status == "submitted" and response.payload is None:
+            raise ValueError("Submitted response must include payload")
+
+        if not pending.future.done():
+            pending.future.set_result(response)
+
+    def cancel_pending_interactions(self) -> list[PendingUserInteractionRequest]:
+        cancelled: list[PendingUserInteractionRequest] = []
+        for request_id, pending in list(self._pending_requests.items()):
+            cancelled.append(pending.request)
+            if not pending.future.done():
+                pending.future.cancel()
+                self._finalize_pending_request(request_id)
+                continue
+            self._finalize_pending_request(request_id)
+        return cancelled
 
     def mark_operation_completed(self, operation_id: str) -> None:
         active = self._active_root_task
@@ -115,14 +170,6 @@ class SessionRuntime:
         if active.operation_id != operation_id:
             return
         self._active_root_task = RootTaskState(operation_id=active.operation_id, task_id=task_id, kind=active.kind)
-
-    def mark_request_pending(self, request: PendingUserInteractionRequest) -> None:
-        self._pending_requests[request.request_id] = request
-        self._mark_active()
-
-    def mark_request_resolved(self, request_id: str) -> None:
-        self._pending_requests.pop(request_id, None)
-        self._refresh_idle_since()
 
     def has_pending_request(self, request_id: str) -> bool:
         return request_id in self._pending_requests
@@ -205,6 +252,12 @@ class SessionRuntime:
     def _refresh_idle_since(self) -> None:
         if self.is_idle() and self._idle_since_monotonic is None:
             self._idle_since_monotonic = time.monotonic()
+
+    def _finalize_pending_request(self, request_id: str) -> None:
+        pending = self._pending_requests.pop(request_id, None)
+        if pending is None:
+            return
+        self._refresh_idle_since()
 
     async def _run_loop(self) -> None:
         while True:

@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import threading
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from klaude_code.app.ports import DisplayABC, InputProviderABC
+from klaude_code.app.ports import DisplayABC, InputProviderABC, InteractionHandlerABC
 from klaude_code.app.runtime import (
     AppInitConfig,
     backfill_session_model_config,
@@ -26,13 +24,12 @@ from klaude_code.session.session import Session
 from klaude_code.tui.command import (
     dispatch_command,
     get_command_info_list,
-    has_interactive_command,
 )
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input import build_repl_status_snapshot
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, REPLStatusSnapshot
 from klaude_code.tui.terminal.color import is_light_terminal_background
-from klaude_code.tui.terminal.control import install_sigint_interrupt, start_esc_interrupt_monitor
+from klaude_code.tui.terminal.control import install_sigint_interrupt
 from klaude_code.tui.terminal.selector import (
     DEFAULT_PICKER_STYLE,
     QuestionPrompt,
@@ -41,9 +38,6 @@ from klaude_code.tui.terminal.selector import (
 )
 from klaude_code.tui.terminal.title import update_terminal_title
 from klaude_code.update import get_update_message
-
-if TYPE_CHECKING:
-    from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 
 
 async def submit_user_input_payload(
@@ -155,6 +149,86 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     tui_display = TUIDisplay(theme=theme)
     display: DisplayABC = tui_display
 
+    def _build_question_items(
+        question: user_interaction.AskUserQuestionQuestion,
+    ) -> list[SelectItem[str]]:
+        items: list[SelectItem[str]] = []
+        for idx, option in enumerate(question.options, start=1):
+            title: list[tuple[str, str]] = [
+                ("class:msg", f"{idx}. {option.label}\n"),
+                ("class:meta", f"    {option.description}\n"),
+            ]
+            items.append(
+                SelectItem(
+                    title=title,
+                    value=option.id,
+                    search_text=f"{option.label} {option.description}",
+                    summary=option.label,
+                )
+            )
+        return items
+
+    async def _collect_interaction_response(
+        request_event: events.UserInteractionRequestEvent,
+    ) -> user_interaction.UserInteractionResponse:
+        payload = request_event.payload
+        if payload.kind != "ask_user_question":
+            return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
+
+        answers: list[user_interaction.AskUserQuestionAnswer] = []
+        tui_display.notify_ask_user_question(question_count=len(payload.questions))
+        tui_display.hide_progress_ui()
+
+        prompts: list[QuestionPrompt[str]] = []
+        for question in payload.questions:
+            prompts.append(
+                QuestionPrompt(
+                    header=question.header,
+                    message=question.question,
+                    items=_build_question_items(question),
+                    multi_select=question.multi_select,
+                    input_placeholder=question.input_placeholder or "Type something.",
+                    other_value="__other__",
+                )
+            )
+
+        selections = await asyncio.to_thread(
+            select_questions,
+            questions=prompts,
+            pointer="→",
+            style=DEFAULT_PICKER_STYLE,
+        )
+        if selections is None:
+            return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
+
+        for question, selection in zip(payload.questions, selections, strict=False):
+            selected_ids = list(selection.selected_values)
+
+            note_text = selection.input_text.strip()
+            other_text = note_text if "__other__" in selected_ids and note_text else None
+
+            answers.append(
+                user_interaction.AskUserQuestionAnswer(
+                    question_id=question.id,
+                    selected_option_ids=selected_ids,
+                    other_text=other_text,
+                    note=note_text or None,
+                )
+            )
+
+        tui_display.show_progress_ui()
+        return user_interaction.UserInteractionResponse(
+            status="submitted",
+            payload=user_interaction.AskUserQuestionResponsePayload(answers=answers),
+        )
+
+    class _TUIInteractionHandler(InteractionHandlerABC):
+        async def collect_response(
+            self,
+            request_event: events.UserInteractionRequestEvent,
+        ) -> user_interaction.UserInteractionResponse:
+            return await _collect_interaction_response(request_event)
+
     def _on_model_change(model_name: str) -> None:
         update_terminal_title(model_name)
         tui_display.set_model_name(model_name)
@@ -162,6 +236,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     components = await initialize_app_components(
         init_config=init_config,
         display=display,
+        interaction_handler=_TUIInteractionHandler(),
         on_model_change=_on_model_change,
     )
 
@@ -234,87 +309,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     loop = asyncio.get_running_loop()
 
-    def _get_tui_display() -> TUIDisplay | None:
-        active_display = components.display
-        if isinstance(active_display, TUIDisplay):
-            return active_display
-        return None
-
-    def _build_question_items(
-        question: user_interaction.AskUserQuestionQuestion,
-    ) -> list[SelectItem[str]]:
-        items: list[SelectItem[str]] = []
-        for idx, option in enumerate(question.options, start=1):
-            title: list[tuple[str, str]] = [
-                ("class:msg", f"{idx}. {option.label}\n"),
-                ("class:meta", f"    {option.description}\n"),
-            ]
-            items.append(
-                SelectItem(
-                    title=title,
-                    value=option.id,
-                    search_text=f"{option.label} {option.description}",
-                    summary=option.label,
-                )
-            )
-        return items
-
-    async def _collect_interaction_response(
-        request: PendingUserInteractionRequest,
-    ) -> user_interaction.UserInteractionResponse:
-        payload = request.payload
-        if payload.kind != "ask_user_question":
-            return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
-
-        answers: list[user_interaction.AskUserQuestionAnswer] = []
-        tui_display = _get_tui_display()
-        if tui_display is not None:
-            tui_display.notify_ask_user_question(question_count=len(payload.questions))
-            tui_display.hide_progress_ui()
-
-        prompts: list[QuestionPrompt[str]] = []
-        for question in payload.questions:
-            prompts.append(
-                QuestionPrompt(
-                    header=question.header,
-                    message=question.question,
-                    items=_build_question_items(question),
-                    multi_select=question.multi_select,
-                    input_placeholder=question.input_placeholder or "Type something.",
-                    other_value="__other__",
-                )
-            )
-
-        selections = await asyncio.to_thread(
-            select_questions,
-            questions=prompts,
-            pointer="→",
-            style=DEFAULT_PICKER_STYLE,
-        )
-        if selections is None:
-            return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
-
-        for question, selection in zip(payload.questions, selections, strict=False):
-            selected_ids = list(selection.selected_values)
-
-            note_text = selection.input_text.strip()
-            other_text = note_text if "__other__" in selected_ids and note_text else None
-
-            answers.append(
-                user_interaction.AskUserQuestionAnswer(
-                    question_id=question.id,
-                    selected_option_ids=selected_ids,
-                    other_text=other_text,
-                    note=note_text or None,
-                )
-            )
-
-        return user_interaction.UserInteractionResponse(
-            status="submitted",
-            payload=user_interaction.AskUserQuestionResponsePayload(answers=answers),
-        )
-
-    async def _wait_for_with_interactions(wait_id: str) -> None:
+    async def _wait_for_with_interrupt(wait_id: str) -> None:
         wait_task = asyncio.create_task(components.runtime.wait_for(wait_id))
         interrupt_requested = False
         interrupt_task: asyncio.Task[None] | None = None
@@ -333,63 +328,16 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             with contextlib.suppress(Exception):
                 loop.call_soon_threadsafe(_start_interrupt_once)
 
-        async def _on_esc_interrupt() -> None:
-            _request_interrupt_once()
-
-        esc_monitor: tuple[threading.Event, asyncio.Task[None]] | None = None
-
-        def _start_esc_monitor() -> None:
-            nonlocal esc_monitor
-            if esc_monitor is not None:
-                return
-            esc_monitor = start_esc_interrupt_monitor(_on_esc_interrupt)
-
-        async def _stop_esc_monitor() -> None:
-            nonlocal esc_monitor
-            if esc_monitor is None:
-                return
-            stop_event, esc_task = esc_monitor
-            esc_monitor = None
-            stop_event.set()
-            with contextlib.suppress(Exception):
-                await esc_task
-
-        _start_esc_monitor()
         restore_sigint = install_sigint_interrupt(_request_interrupt_once)
 
         try:
-            while True:
-                request_task = asyncio.create_task(components.runtime.wait_next_interaction_request())
-                done, _ = await asyncio.wait({wait_task, request_task}, return_when=asyncio.FIRST_COMPLETED)
-                if wait_task in done:
-                    request_task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await request_task
-                    break
-
-                request = request_task.result()
-                await _stop_esc_monitor()
-                response = await _collect_interaction_response(request)
-                if response.status == "submitted":
-                    tui_display = _get_tui_display()
-                    if tui_display is not None:
-                        tui_display.show_progress_ui()
-                await components.runtime.submit_and_wait(
-                    op.UserInteractionRespondOperation(
-                        session_id=request.session_id,
-                        request_id=request.request_id,
-                        response=response,
-                    )
-                )
-                if not wait_task.done():
-                    _start_esc_monitor()
+            await wait_task
         finally:
             with contextlib.suppress(Exception):
                 restore_sigint()
             if interrupt_task is not None and not interrupt_task.done():
                 with contextlib.suppress(Exception):
                     await interrupt_task
-            await _stop_esc_monitor()
             if not wait_task.done():
                 wait_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -414,8 +362,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 continue
 
             active_session_id = _get_active_session_id()
-            is_interactive = has_interactive_command(user_input.text)
-
             wait_id = await submit_user_input_payload(
                 runtime=components.runtime,
                 wait_for_display_idle=components.wait_for_display_idle,
@@ -426,14 +372,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             if wait_id is None:
                 continue
 
-            if is_interactive:
-                await _wait_for_with_interactions(wait_id)
-                # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
-                # before handing control back to prompt_toolkit.
-                await components.wait_for_display_idle()
-                continue
-
-            await _wait_for_with_interactions(wait_id)
+            await _wait_for_with_interrupt(wait_id)
             # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
             # before handing control back to prompt_toolkit.
             await components.wait_for_display_idle()
