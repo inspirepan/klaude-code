@@ -48,25 +48,25 @@ class ActiveTask:
 
 
 class TaskManager:
-    """Manager that tracks active tasks keyed by submission id."""
+    """Manager that tracks active tasks keyed by operation id."""
 
     def __init__(self) -> None:
         self._tasks: dict[str, ActiveTask] = {}
 
-    def register(self, submission_id: str, task: asyncio.Task[None], session_id: str) -> None:
-        """Register a new active task for a submission id."""
+    def register(self, operation_id: str, task: asyncio.Task[None], session_id: str) -> None:
+        """Register a new active task for an operation id."""
 
-        self._tasks[submission_id] = ActiveTask(task=task, session_id=session_id)
+        self._tasks[operation_id] = ActiveTask(task=task, session_id=session_id)
 
-    def get(self, submission_id: str) -> ActiveTask | None:
-        """Return the active task for a submission id if present."""
+    def get(self, operation_id: str) -> ActiveTask | None:
+        """Return the active task for an operation id if present."""
 
-        return self._tasks.get(submission_id)
+        return self._tasks.get(operation_id)
 
-    def remove(self, submission_id: str) -> None:
-        """Remove the active task associated with a submission id if present."""
+    def remove(self, operation_id: str) -> None:
+        """Remove the active task associated with an operation id if present."""
 
-        self._tasks.pop(submission_id, None)
+        self._tasks.pop(operation_id, None)
 
     def values(self) -> list[ActiveTask]:
         """Return a snapshot list of all active tasks."""
@@ -827,10 +827,10 @@ class ExecutorContext:
             response=operation.response,
         )
 
-    def get_active_task(self, submission_id: str) -> asyncio.Task[None] | None:
-        """Return the asyncio.Task for a submission id if one is registered."""
+    def get_active_task(self, operation_id: str) -> asyncio.Task[None] | None:
+        """Return the asyncio.Task for an operation id if one is registered."""
 
-        active = self.task_manager.get(submission_id)
+        active = self.task_manager.get(operation_id)
         if active is None:
             return None
         return active.task
@@ -857,7 +857,7 @@ class Executor:
             reject_operation=self._reject_operation,
         )
         self._stopped = False
-        # Track completion events for all submissions (not just those with ActiveTask)
+        # Track completion events for all operations (not just those with ActiveTask)
         self._completion_events: dict[str, asyncio.Event] = {}
         self._background_tasks: set[asyncio.Task[None]] = set()
 
@@ -891,14 +891,14 @@ class Executor:
             operation: Operation to submit
 
         Returns:
-            Unique submission ID for tracking
+            Unique operation ID for tracking
         """
 
         if self._stopped:
             raise RuntimeError("Executor is stopped")
 
         if operation.id in self._completion_events:
-            raise RuntimeError(f"Submission already registered: {operation.id}")
+            raise RuntimeError(f"Operation already registered: {operation.id}")
 
         # Create completion event before queueing to avoid races.
         self._completion_events[operation.id] = asyncio.Event()
@@ -913,17 +913,17 @@ class Executor:
 
         return operation.id
 
-    async def wait_for(self, submission_id: str) -> None:
-        """Wait for a specific submission to complete."""
-        event = self._completion_events.get(submission_id)
+    async def wait_for(self, operation_id: str) -> None:
+        """Wait for a specific operation to complete."""
+        event = self._completion_events.get(operation_id)
         if event is not None:
             await event.wait()
-            self._completion_events.pop(submission_id, None)
+            self._completion_events.pop(operation_id, None)
 
     async def submit_and_wait(self, operation: op.Operation) -> None:
         """Submit an operation and wait for it to complete."""
-        submission_id = await self.submit(operation)
-        await self.wait_for(submission_id)
+        operation_id = await self.submit(operation)
+        await self.wait_for(operation_id)
 
     async def stop(self) -> None:
         """Stop the executor and clean up resources."""
