@@ -20,6 +20,7 @@ from klaude_code.core.agent import Agent
 from klaude_code.core.agent_profile import DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.bash_mode import run_bash_command
 from klaude_code.core.compaction import CompactionReason, run_compaction
+from klaude_code.core.event_bus import EventBus
 from klaude_code.core.loaded_skills import (
     get_loaded_skill_names_by_location,
     get_loaded_skill_warnings_by_location,
@@ -514,26 +515,26 @@ class ExecutorContext:
     Context object providing shared state and operations for the executor.
 
     This context is passed to operations when they execute, allowing them
-    to access shared resources like the event queue and active sessions.
+    to access shared resources like the event bus and active sessions.
 
     Implements the OperationHandler protocol via structural subtyping.
     """
 
     def __init__(
         self,
-        event_queue: asyncio.Queue[events.Event],
+        event_bus: EventBus,
         llm_clients: LLMClients,
         model_profile_provider: ModelProfileProvider | None = None,
         on_model_change: Callable[[str], None] | None = None,
     ):
-        self.event_queue: asyncio.Queue[events.Event] = event_queue
+        self.event_bus = event_bus
         self.llm_clients: LLMClients = llm_clients
 
         resolved_profile_provider = model_profile_provider or DefaultModelProfileProvider()
         self.model_profile_provider: ModelProfileProvider = resolved_profile_provider
 
         self.task_manager = TaskManager()
-        self.sub_agent_manager = SubAgentManager(event_queue, llm_clients, resolved_profile_provider)
+        self.sub_agent_manager = SubAgentManager(self.emit_event, llm_clients, resolved_profile_provider)
         self.user_interaction_manager = UserInteractionManager(self.emit_event)
         self._on_model_change = on_model_change
         self._agent_runtime = AgentRuntime(
@@ -547,8 +548,8 @@ class ExecutorContext:
         self._model_switcher = ModelSwitcher(resolved_profile_provider)
 
     async def emit_event(self, event: events.Event) -> None:
-        """Emit an event to the UI display system."""
-        await self.event_queue.put(event)
+        """Publish an event to the runtime event bus."""
+        await self.event_bus.publish(event)
 
     def current_session_id(self) -> str | None:
         """Return the primary active session id, if any.
@@ -844,12 +845,12 @@ class Executor:
 
     def __init__(
         self,
-        event_queue: asyncio.Queue[events.Event],
+        event_bus: EventBus,
         llm_clients: LLMClients,
         model_profile_provider: ModelProfileProvider | None = None,
         on_model_change: Callable[[str], None] | None = None,
     ):
-        self.context = ExecutorContext(event_queue, llm_clients, model_profile_provider, on_model_change)
+        self.context = ExecutorContext(event_bus, llm_clients, model_profile_provider, on_model_change)
         self.submission_queue: asyncio.Queue[op.Submission] = asyncio.Queue()
         # Track completion events for all submissions (not just those with ActiveTask)
         self._completion_events: dict[str, asyncio.Event] = {}

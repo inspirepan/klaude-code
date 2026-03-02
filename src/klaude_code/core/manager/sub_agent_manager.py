@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from klaude_code.core.agent import Agent
 from klaude_code.core.agent_profile import ModelProfileProvider
@@ -25,18 +25,18 @@ class SubAgentManager:
 
     def __init__(
         self,
-        event_queue: asyncio.Queue[events.Event],
+        emit_event: Callable[[events.Event], Awaitable[None]],
         llm_clients: LLMClients,
         model_profile_provider: ModelProfileProvider,
     ) -> None:
-        self._event_queue: asyncio.Queue[events.Event] = event_queue
+        self._emit_event = emit_event
         self._llm_clients: LLMClients = llm_clients
         self._model_profile_provider: ModelProfileProvider = model_profile_provider
 
     async def emit_event(self, event: events.Event) -> None:
-        """Emit an event to the shared event queue."""
+        """Emit an event to the shared runtime event channel."""
 
-        await self._event_queue.put(event)
+        await self._emit_event(event)
 
     async def run_sub_agent(
         self,

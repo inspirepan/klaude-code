@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import threading
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -48,7 +49,7 @@ if TYPE_CHECKING:
 async def submit_user_input_payload(
     *,
     executor: Executor,
-    event_queue: asyncio.Queue[events.Event],
+    wait_for_display_idle: Callable[[], Awaitable[None]],
     user_input: UserInputPayload,
     session_id: str | None,
 ) -> str | None:
@@ -125,7 +126,7 @@ async def submit_user_input_payload(
 
     if not submitted_ids:
         # Ensure event-only commands are fully rendered before showing the next prompt.
-        await event_queue.join()
+        await wait_for_display_idle()
         return None
 
     if run_ops:
@@ -398,7 +399,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     exit_hint_printed = False
 
     try:
-        await initialize_session(components.executor, components.event_queue, session_id=session_id)
+        await initialize_session(components.executor, components.wait_for_display_idle, session_id=session_id)
         backfill_session_model_config(
             components.executor.context.current_agent,
             init_config.model,
@@ -418,7 +419,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
             wait_id = await submit_user_input_payload(
                 executor=components.executor,
-                event_queue=components.event_queue,
+                wait_for_display_idle=components.wait_for_display_idle,
                 user_input=user_input,
                 session_id=active_session_id,
             )
@@ -430,13 +431,13 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 await _wait_for_with_interactions(wait_id)
                 # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
                 # before handing control back to prompt_toolkit.
-                await components.event_queue.join()
+                await components.wait_for_display_idle()
                 continue
 
             await _wait_for_with_interactions(wait_id)
             # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
             # before handing control back to prompt_toolkit.
-            await components.event_queue.join()
+            await components.wait_for_display_idle()
 
     except KeyboardInterrupt:
         await handle_keyboard_interrupt(components.executor)
