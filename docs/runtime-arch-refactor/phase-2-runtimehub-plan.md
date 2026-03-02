@@ -53,6 +53,11 @@
 - `UserInteractionManager` 增加 request state 回调（pending/resolved）
 - `RuntimeHub/SessionRuntime` 记录会话维度 pending request 集合（仅状态跟踪）
 
+并且本次追加了第十个增量：
+
+- `SessionRuntime` 增加 `is_idle()`（active root + pending requests + mailbox）
+- `RuntimeHub.idle_runtime_ids()` 可用于后续 session TTL 回收策略
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）
@@ -69,7 +74,8 @@
 - SessionRuntime worker 共享全局 execution lock（为兼容当前单 `_agent` 运行态）
 - SessionRuntime 已承载 root-task gate + `RootTaskState`
 - SessionRuntime 已支持 control/normal 双队列与 8:1 配额
-- SessionRuntime 仍未内聚 pending/config 等会话运行态
+- SessionRuntime 已内聚 pending request 状态与 idle 判定基础能力
+- SessionRuntime 仍未内聚 session-local config
 
 ---
 

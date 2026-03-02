@@ -279,3 +279,40 @@ def test_runtime_hub_tracks_pending_request_state_per_session() -> None:
         await hub.stop()
 
     arun(_test())
+
+
+def test_runtime_hub_idle_runtime_ids_reflect_active_and_pending_state() -> None:
+    async def _test() -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        root_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="work"))
+
+        async def _handle(operation: op.Operation) -> None:
+            if operation.id == root_op.id:
+                started.set()
+                await release.wait()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+
+        await hub.submit(root_op)
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+        assert "s1" not in hub.idle_runtime_ids()
+
+        hub.mark_request_state(session_id="s1", request_id="r1", is_pending=True)
+        assert "s1" not in hub.idle_runtime_ids()
+
+        release.set()
+        hub.mark_operation_completed(root_op.id)
+        await asyncio.sleep(0)
+        assert "s1" not in hub.idle_runtime_ids()
+
+        hub.mark_request_state(session_id="s1", request_id="r1", is_pending=False)
+        assert "s1" in hub.idle_runtime_ids()
+
+        await hub.stop()
+
+    arun(_test())

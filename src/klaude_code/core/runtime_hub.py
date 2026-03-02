@@ -63,6 +63,9 @@ class RuntimeHub:
             return 0
         return runtime.pending_request_count()
 
+    def idle_runtime_ids(self) -> list[str]:
+        return [runtime_id for runtime_id, runtime in self._runtimes.items() if runtime.is_idle()]
+
     async def stop(self) -> None:
         runtimes = list(self._runtimes.values())
         self._runtimes.clear()

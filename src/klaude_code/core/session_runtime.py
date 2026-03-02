@@ -82,6 +82,17 @@ class SessionRuntime:
     def pending_request_count(self) -> int:
         return len(self._pending_request_ids)
 
+    def has_active_root_task(self) -> bool:
+        return self._active_root_task is not None
+
+    def is_idle(self) -> bool:
+        return (
+            self._active_root_task is None
+            and not self._pending_request_ids
+            and self.control_mailbox.empty()
+            and self.normal_mailbox.empty()
+        )
+
     async def _run_loop(self) -> None:
         while True:
             item = await self._next_item()
