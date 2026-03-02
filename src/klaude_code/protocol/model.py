@@ -229,6 +229,17 @@ class ReadPreviewUIExtra(BaseModel):
     remaining_lines: int  # lines not shown in preview
 
 
+class AskUserQuestionSummaryItem(BaseModel):
+    question: str
+    summary: str
+    answered: bool
+
+
+class AskUserQuestionSummaryUIExtra(BaseModel):
+    type: Literal["ask_user_question_summary"] = "ask_user_question_summary"
+    items: list[AskUserQuestionSummaryItem]
+
+
 class SessionStatusUIExtra(BaseModel):
     type: Literal["session_status"] = "session_status"
     events_file_path: str
@@ -251,6 +262,7 @@ MultiUIExtraItem = (
     | MarkdownDocUIExtra
     | SessionStatusUIExtra
     | ReadPreviewUIExtra
+    | AskUserQuestionSummaryUIExtra
 )
 
 
@@ -272,6 +284,7 @@ ToolResultUIExtra = Annotated[
     | ImageUIExtra
     | MarkdownDocUIExtra
     | SessionStatusUIExtra
+    | AskUserQuestionSummaryUIExtra
     | MultiUIExtra
     | ReadPreviewUIExtra,
     Field(discriminator="type"),

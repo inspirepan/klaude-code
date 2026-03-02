@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_param, message, tools, user_interaction
+from klaude_code.protocol import llm_param, message, model, tools, user_interaction
 
 
 class AskUserQuestionOptionInput(BaseModel):
@@ -174,50 +174,70 @@ class AskUserQuestionTool(ToolABC):
             task = asyncio.current_task()
             if task is not None and task.cancelling():
                 raise
+            output_text, ui_extra = cls._format_cancelled_output(interaction_questions)
             return message.ToolResultMessage(
                 status="success",
-                output_text=cls._format_cancelled_output(interaction_questions),
+                output_text=output_text,
+                ui_extra=ui_extra,
                 continue_agent=False,
             )
 
         if response.status == "cancelled":
+            output_text, ui_extra = cls._format_cancelled_output(interaction_questions)
             return message.ToolResultMessage(
                 status="success",
-                output_text=cls._format_cancelled_output(interaction_questions),
+                output_text=output_text,
+                ui_extra=ui_extra,
                 continue_agent=False,
             )
 
         if response.payload is None:
             return message.ToolResultMessage(status="error", output_text="Missing AskUserQuestion response payload")
 
+        output_text, ui_extra = cls._format_submitted_output(interaction_questions, response.payload.answers)
         return message.ToolResultMessage(
             status="success",
-            output_text=cls._format_submitted_output(interaction_questions, response.payload.answers),
+            output_text=output_text,
+            ui_extra=ui_extra,
         )
 
     @classmethod
     def _format_cancelled_output(
         cls,
         questions: list[user_interaction.AskUserQuestionQuestion],
-    ) -> str:
+    ) -> tuple[str, model.AskUserQuestionSummaryUIExtra]:
         blocks: list[str] = []
+        summary_items: list[model.AskUserQuestionSummaryItem] = []
+        summary = "(User declined to answer questions)"
         for question in questions:
-            blocks.append(f"Question: {question.question}\nAnswer: (User declined to answer questions)")
-        return cls._BLOCK_SEPARATOR.join(blocks)
+            blocks.append(f"Question: {question.question}\nAnswer: {summary}")
+            summary_items.append(
+                model.AskUserQuestionSummaryItem(question=question.question, summary=summary, answered=False)
+            )
+        return cls._BLOCK_SEPARATOR.join(blocks), model.AskUserQuestionSummaryUIExtra(items=summary_items)
 
     @classmethod
     def _format_submitted_output(
         cls,
         questions: list[user_interaction.AskUserQuestionQuestion],
         answers: list[user_interaction.AskUserQuestionAnswer],
-    ) -> str:
+    ) -> tuple[str, model.AskUserQuestionSummaryUIExtra]:
         answers_by_question_id = {answer.question_id: answer for answer in answers}
         blocks: list[str] = []
+        summary_items: list[model.AskUserQuestionSummaryItem] = []
+        no_answer_summary = "(No answer provided)"
 
         for question in questions:
             answer = answers_by_question_id.get(question.id)
             if answer is None:
-                blocks.append(f"Question: {question.question}\nAnswer: (No answer provided)")
+                blocks.append(f"Question: {question.question}\nAnswer: {no_answer_summary}")
+                summary_items.append(
+                    model.AskUserQuestionSummaryItem(
+                        question=question.question,
+                        summary=no_answer_summary,
+                        answered=False,
+                    )
+                )
                 continue
 
             option_by_id = {option.id: option for option in question.options}
@@ -245,11 +265,32 @@ class AskUserQuestionTool(ToolABC):
                 if selected_lines:
                     bullet_lines = "\n".join(f"- {line}" for line in selected_lines)
                     blocks.append(f"Question: {question.question}\nAnswer:\n{bullet_lines}")
+                    summary_items.append(
+                        model.AskUserQuestionSummaryItem(
+                            question=question.question,
+                            summary=", ".join(selected_lines),
+                            answered=True,
+                        )
+                    )
                 else:
-                    blocks.append(f"Question: {question.question}\nAnswer: (No answer provided)")
+                    blocks.append(f"Question: {question.question}\nAnswer: {no_answer_summary}")
+                    summary_items.append(
+                        model.AskUserQuestionSummaryItem(
+                            question=question.question,
+                            summary=no_answer_summary,
+                            answered=False,
+                        )
+                    )
                 continue
 
-            single_line = selected_lines[0] if selected_lines else "(No answer provided)"
+            single_line = selected_lines[0] if selected_lines else no_answer_summary
             blocks.append(f"Question: {question.question}\nAnswer: {single_line}")
+            summary_items.append(
+                model.AskUserQuestionSummaryItem(
+                    question=question.question,
+                    summary=single_line,
+                    answered=bool(selected_lines),
+                )
+            )
 
-        return cls._BLOCK_SEPARATOR.join(blocks)
+        return cls._BLOCK_SEPARATOR.join(blocks), model.AskUserQuestionSummaryUIExtra(items=summary_items)

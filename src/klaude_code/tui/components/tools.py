@@ -403,8 +403,28 @@ def render_generic_tool_result(result: str, *, is_error: bool = False) -> Render
 
 def render_ask_user_question_tool_result(result: str, *, is_error: bool = False) -> RenderableType:
     """Render AskUserQuestion result without truncating the middle content."""
-    style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT
+    style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT_QUESTION
     return Text(result.expandtabs(TAB_EXPAND_WIDTH), style=style, overflow="fold")
+
+
+def render_ask_user_question_summary(ui_extra: model.AskUserQuestionSummaryUIExtra) -> RenderableType:
+    """Render AskUserQuestion structured summary with highlighted answered status."""
+    if not ui_extra.items:
+        return Text("(No answer provided)", style=ThemeKey.WARN)
+
+    text = Text()
+    for idx, item in enumerate(ui_extra.items):
+        text.append(" ● ", style=ThemeKey.TOOL_RESULT_QUESTION_PROMPT)
+        text.append(item.question.expandtabs(TAB_EXPAND_WIDTH), style=ThemeKey.TOOL_RESULT_QUESTION_PROMPT)
+        text.append("\n")
+        text.append("   → ", style=ThemeKey.TOOL_RESULT_TRUNCATED)
+        summary_style = ThemeKey.TOOL_PARAM if item.answered else ThemeKey.WARN
+        text.append(item.summary.expandtabs(TAB_EXPAND_WIDTH), style=summary_style)
+        if idx < len(ui_extra.items) - 1:
+            text.append("\n")
+
+    text.overflow = "fold"
+    return text
 
 
 def render_read_preview(ui_extra: model.ReadPreviewUIExtra) -> RenderableType:
@@ -749,6 +769,8 @@ def render_tool_result(
                 return wrap(render_generic_tool_result("(no content)"))
             return wrap(render_generic_tool_result(display_result, is_error=e.is_error))
         case tools.ASK_USER_QUESTION:
+            if isinstance(e.ui_extra, model.AskUserQuestionSummaryUIExtra):
+                return wrap(render_ask_user_question_summary(e.ui_extra))
             if len(e.result.strip()) == 0:
                 return wrap(render_generic_tool_result("(no content)"))
             return wrap(render_ask_user_question_tool_result(e.result, is_error=e.is_error))

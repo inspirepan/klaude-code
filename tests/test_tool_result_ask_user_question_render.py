@@ -1,6 +1,6 @@
 from rich.console import Console
 
-from klaude_code.protocol import events, tools
+from klaude_code.protocol import events, model, tools
 from klaude_code.tui.components.rich.theme import get_theme
 from klaude_code.tui.components.tools import render_tool_result
 
@@ -36,3 +36,36 @@ def test_render_ask_user_question_tool_result_does_not_truncate_middle() -> None
     assert "Question: Q2" in output
     assert "... (more" not in output
     assert "… (more" not in output
+
+
+def test_render_ask_user_question_tool_result_uses_structured_summary_ui_extra() -> None:
+    event = events.ToolResultEvent(
+        session_id="s1",
+        tool_call_id="tc1",
+        tool_name=tools.ASK_USER_QUESTION,
+        result="legacy text should not be rendered when ui_extra exists",
+        status="success",
+        is_last_in_turn=True,
+        ui_extra=model.AskUserQuestionSummaryUIExtra(
+            items=[
+                model.AskUserQuestionSummaryItem(
+                    question="Which stack should we use?",
+                    summary="FastAPI, PostgreSQL",
+                    answered=True,
+                ),
+                model.AskUserQuestionSummaryItem(
+                    question="How should we deploy?",
+                    summary="(No answer provided)",
+                    answered=False,
+                ),
+            ]
+        ),
+    )
+
+    output = _render_event_to_text(event)
+
+    assert "● Which stack should we use?" in output
+    assert "→ FastAPI, PostgreSQL" in output
+    assert "● How should we deploy?" in output
+    assert "→ (No answer provided)" in output
+    assert "legacy text should not be rendered" not in output
