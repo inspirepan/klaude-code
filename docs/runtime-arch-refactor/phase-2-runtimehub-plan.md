@@ -85,6 +85,12 @@
 - `RuntimeHub.reclaim_idle_runtimes(idle_for_seconds=...)` 支持 TTL 门槛
 - `app/runtime.py` 增加后台 idle reclaim loop（默认 TTL=30m，巡检间隔=60s）
 
+并且本次追加了第十六个增量：
+
+- user interaction 的响应 future 从 `UserInteractionManager` 迁移到 `RuntimeHub` 托管
+- `AgentRuntime` 通过 `ExecutorContext -> RuntimeHub` 发起 interaction request，并统一由 `RuntimeHub` 维护 pending/resolve/cancel
+- `UserInteractionRespondOperation` 与 interrupt 取消路径改为直接操作 `RuntimeHub` pending 状态（去除运行时侧通道）
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）

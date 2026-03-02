@@ -580,3 +580,74 @@ def test_runtime_hub_reclaim_idle_runtimes_respects_idle_ttl() -> None:
         await hub.stop()
 
     arun(_test())
+
+
+def test_runtime_hub_request_user_interaction_roundtrip() -> None:
+    async def _test() -> None:
+        async def _handle(_operation: op.Operation) -> None:
+            return None
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        request = _pending_request("req1", "s1")
+
+        task = asyncio.create_task(hub.request_user_interaction(request))
+        pending = await asyncio.wait_for(hub.wait_next_request(), timeout=1.0)
+        assert pending.request_id == "req1"
+        assert hub.pending_request_count("s1") == 1
+
+        hub.respond_user_interaction(
+            request_id="req1",
+            session_id="s1",
+            response=user_interaction.UserInteractionResponse(
+                status="submitted",
+                payload=user_interaction.AskUserQuestionResponsePayload(
+                    answers=[
+                        user_interaction.AskUserQuestionAnswer(
+                            question_id="q1",
+                            selected_option_ids=["o1"],
+                        )
+                    ]
+                ),
+            ),
+        )
+
+        response = await task
+        assert response.status == "submitted"
+        assert response.payload is not None
+        assert response.payload.answers[0].selected_option_ids == ["o1"]
+        assert hub.pending_request_count("s1") == 0
+
+        await hub.stop()
+
+    arun(_test())
+
+
+def test_runtime_hub_cancel_pending_interactions_cancels_waiter() -> None:
+    async def _test() -> None:
+        async def _handle(_operation: op.Operation) -> None:
+            return None
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        request = _pending_request("req1", "s1")
+
+        task = asyncio.create_task(hub.request_user_interaction(request))
+        _ = await asyncio.wait_for(hub.wait_next_request(), timeout=1.0)
+
+        assert hub.cancel_pending_interactions(session_id="s1") is True
+        cancelled = False
+        try:
+            await task
+        except asyncio.CancelledError:
+            cancelled = True
+        assert cancelled
+        assert hub.pending_request_count("s1") == 0
+
+        await hub.stop()
+
+    arun(_test())

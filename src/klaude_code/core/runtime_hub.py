@@ -3,12 +3,19 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 
 from klaude_code.core.session_runtime import SessionRuntime, SessionRuntimeConfig, SessionRuntimeSnapshot
 from klaude_code.core.user_interaction import PendingUserInteractionRequest
-from klaude_code.protocol import op
+from klaude_code.protocol import op, user_interaction
 
 GLOBAL_RUNTIME_ID = "__runtime_global__"
+
+
+@dataclass
+class _PendingInteractionState:
+    request: PendingUserInteractionRequest
+    future: asyncio.Future[user_interaction.UserInteractionResponse]
 
 
 class RuntimeHub:
@@ -26,21 +33,63 @@ class RuntimeHub:
         self._runtimes: dict[str, SessionRuntime] = {}
         self._operation_runtime_ids: dict[str, str] = {}
         self._request_queue: asyncio.Queue[PendingUserInteractionRequest] = asyncio.Queue()
+        self._pending_interactions: dict[str, _PendingInteractionState] = {}
 
     async def submit(self, operation: op.Operation) -> None:
         runtime_id = self._resolve_runtime_id(operation)
-        runtime = self._runtimes.get(runtime_id)
-        if runtime is None:
-            runtime = SessionRuntime(
-                session_id=runtime_id,
-                handle_operation=self._handle_operation,
-                reject_operation=self._reject_operation,
-                execution_lock=self._execution_lock,
-                control_burst_quota=self._control_burst_quota,
-            )
-            self._runtimes[runtime_id] = runtime
+        runtime = self._ensure_runtime(runtime_id)
         self._operation_runtime_ids[operation.id] = runtime_id
         await runtime.enqueue(operation)
+
+    async def request_user_interaction(
+        self,
+        request: PendingUserInteractionRequest,
+    ) -> user_interaction.UserInteractionResponse:
+        if request.request_id in self._pending_interactions:
+            raise RuntimeError(f"Duplicate user interaction request id: {request.request_id}")
+
+        runtime = self._ensure_runtime(request.session_id)
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[user_interaction.UserInteractionResponse] = loop.create_future()
+        self._pending_interactions[request.request_id] = _PendingInteractionState(request=request, future=future)
+
+        def _on_done(_future: asyncio.Future[user_interaction.UserInteractionResponse]) -> None:
+            self._finalize_user_interaction_request(request.request_id)
+
+        future.add_done_callback(_on_done)
+        runtime.mark_request_pending(request)
+        self._request_queue.put_nowait(request)
+        return await future
+
+    def respond_user_interaction(
+        self,
+        *,
+        request_id: str,
+        session_id: str,
+        response: user_interaction.UserInteractionResponse,
+    ) -> None:
+        pending = self._pending_interactions.get(request_id)
+        if pending is None:
+            raise ValueError("No pending user interaction")
+        if pending.request.session_id != session_id:
+            raise ValueError("Session mismatch for pending user interaction")
+        if response.status == "submitted" and response.payload is None:
+            raise ValueError("Submitted response must include payload")
+
+        if not pending.future.done():
+            pending.future.set_result(response)
+
+    def cancel_pending_interactions(self, *, session_id: str | None = None) -> bool:
+        cancelled = False
+        for request_id, pending in list(self._pending_interactions.items()):
+            if session_id is not None and pending.request.session_id != session_id:
+                continue
+            cancelled = True
+            if pending.future.done():
+                self._finalize_user_interaction_request(request_id)
+                continue
+            pending.future.cancel()
+        return cancelled
 
     def mark_operation_completed(self, operation_id: str) -> None:
         runtime_id = self._operation_runtime_ids.pop(operation_id, None)
@@ -107,6 +156,7 @@ class RuntimeHub:
         return [runtime.snapshot() for runtime in self._runtimes.values()]
 
     async def stop(self) -> None:
+        self.cancel_pending_interactions(session_id=None)
         runtimes = list(self._runtimes.values())
         self._runtimes.clear()
         self._operation_runtime_ids.clear()
@@ -121,6 +171,8 @@ class RuntimeHub:
             return False
         if not force and not runtime.is_idle():
             return False
+
+        self.cancel_pending_interactions(session_id=session_id)
 
         self._runtimes.pop(session_id, None)
         for operation_id, runtime_id in list(self._operation_runtime_ids.items()):
@@ -156,4 +208,30 @@ class RuntimeHub:
             return session_id
         if isinstance(operation, op.InterruptOperation) and operation.target_session_id is not None:
             return operation.target_session_id
+        if isinstance(operation, op.CloseSessionOperation):
+            return GLOBAL_RUNTIME_ID
         return GLOBAL_RUNTIME_ID
+
+    def _ensure_runtime(self, runtime_id: str) -> SessionRuntime:
+        runtime = self._runtimes.get(runtime_id)
+        if runtime is not None:
+            return runtime
+
+        runtime = SessionRuntime(
+            session_id=runtime_id,
+            handle_operation=self._handle_operation,
+            reject_operation=self._reject_operation,
+            execution_lock=self._execution_lock,
+            control_burst_quota=self._control_burst_quota,
+        )
+        self._runtimes[runtime_id] = runtime
+        return runtime
+
+    def _finalize_user_interaction_request(self, request_id: str) -> None:
+        pending = self._pending_interactions.pop(request_id, None)
+        if pending is None:
+            return
+        runtime = self._runtimes.get(pending.request.session_id)
+        if runtime is None:
+            return
+        runtime.mark_request_resolved(request_id)

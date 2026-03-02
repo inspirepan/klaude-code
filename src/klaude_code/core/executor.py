@@ -28,7 +28,7 @@ from klaude_code.core.loaded_skills import (
 from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.core.memory import get_existing_memory_paths_by_location
 from klaude_code.core.runtime_hub import RuntimeHub
-from klaude_code.core.user_interaction import PendingUserInteractionRequest, UserInteractionManager
+from klaude_code.core.user_interaction import PendingUserInteractionRequest
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import commands, events, message, model, op, user_interaction
@@ -102,14 +102,17 @@ class AgentRuntime:
         model_profile_provider: ModelProfileProvider,
         task_manager: TaskManager,
         sub_agent_manager: SubAgentManager,
-        user_interaction_manager: UserInteractionManager,
+        request_user_interaction: Callable[
+            [PendingUserInteractionRequest],
+            Awaitable[user_interaction.UserInteractionResponse],
+        ],
     ) -> None:
         self._emit_event = emit_event
         self._llm_clients = llm_clients
         self._model_profile_provider = model_profile_provider
         self._task_manager = task_manager
         self._sub_agent_manager = sub_agent_manager
-        self._user_interaction_manager = user_interaction_manager
+        self._request_user_interaction_callback = request_user_interaction
         self._agent: Agent | None = None
 
     async def _request_user_interaction(
@@ -126,12 +129,14 @@ class AgentRuntime:
             raise RuntimeError("No active agent session")
         if agent.session.sub_agent_state is not None:
             raise RuntimeError("User interaction is available only for the main agent")
-        return await self._user_interaction_manager.request(
-            request_id=request_id,
-            session_id=agent.session.id,
-            source=source,
-            payload=payload,
-            tool_call_id=tool_call_id,
+        return await self._request_user_interaction_callback(
+            PendingUserInteractionRequest(
+                request_id=request_id,
+                session_id=agent.session.id,
+                source=source,
+                tool_call_id=tool_call_id,
+                payload=payload,
+            )
         )
 
     def current_session_id(self) -> str | None:
@@ -536,21 +541,70 @@ class ExecutorContext:
 
         self.task_manager = TaskManager()
         self.sub_agent_manager = SubAgentManager(self.emit_event, llm_clients, resolved_profile_provider)
-        self.user_interaction_manager = UserInteractionManager(self.emit_event)
         self._on_model_change = on_model_change
         self._close_session_callback: Callable[[str, bool], Awaitable[bool]] | None = None
+        self._request_user_interaction_callback: (
+            Callable[
+                [PendingUserInteractionRequest],
+                Awaitable[user_interaction.UserInteractionResponse],
+            ]
+            | None
+        ) = None
+        self._respond_user_interaction_callback: (
+            Callable[[str, str, user_interaction.UserInteractionResponse], None] | None
+        ) = None
+        self._cancel_pending_interactions_callback: Callable[[str | None], bool] | None = None
         self._agent_runtime = AgentRuntime(
             emit_event=self.emit_event,
             llm_clients=llm_clients,
             model_profile_provider=resolved_profile_provider,
             task_manager=self.task_manager,
             sub_agent_manager=self.sub_agent_manager,
-            user_interaction_manager=self.user_interaction_manager,
+            request_user_interaction=self.request_user_interaction,
         )
         self._model_switcher = ModelSwitcher(resolved_profile_provider)
 
     def set_close_session_callback(self, callback: Callable[[str, bool], Awaitable[bool]]) -> None:
         self._close_session_callback = callback
+
+    def set_user_interaction_callbacks(
+        self,
+        *,
+        request_callback: Callable[
+            [PendingUserInteractionRequest],
+            Awaitable[user_interaction.UserInteractionResponse],
+        ],
+        respond_callback: Callable[[str, str, user_interaction.UserInteractionResponse], None],
+        cancel_callback: Callable[[str | None], bool],
+    ) -> None:
+        self._request_user_interaction_callback = request_callback
+        self._respond_user_interaction_callback = respond_callback
+        self._cancel_pending_interactions_callback = cancel_callback
+
+    async def request_user_interaction(
+        self,
+        request: PendingUserInteractionRequest,
+    ) -> user_interaction.UserInteractionResponse:
+        callback = self._request_user_interaction_callback
+        if callback is None:
+            raise RuntimeError("request user interaction callback is not configured")
+
+        await self.emit_event(
+            events.UserInteractionRequestEvent(
+                session_id=request.session_id,
+                request_id=request.request_id,
+                source=request.source,
+                tool_call_id=request.tool_call_id,
+                payload=request.payload,
+            )
+        )
+        return await callback(request)
+
+    def cancel_pending_user_interactions(self, *, session_id: str | None) -> bool:
+        callback = self._cancel_pending_interactions_callback
+        if callback is None:
+            return False
+        return callback(session_id)
 
     async def emit_event(self, event: events.Event) -> None:
         """Publish an event to the runtime event bus."""
@@ -822,7 +876,7 @@ class ExecutorContext:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
 
         await self._agent_runtime.interrupt(operation.target_session_id)
-        self.user_interaction_manager.cancel_pending(session_id=operation.target_session_id)
+        self.cancel_pending_user_interactions(session_id=operation.target_session_id)
 
     async def handle_close_session(self, operation: op.CloseSessionOperation) -> None:
         if self._close_session_callback is None:
@@ -830,11 +884,10 @@ class ExecutorContext:
         await self._close_session_callback(operation.target_session_id, operation.force)
 
     async def handle_user_interaction_respond(self, operation: op.UserInteractionRespondOperation) -> None:
-        self.user_interaction_manager.respond(
-            request_id=operation.request_id,
-            session_id=operation.session_id,
-            response=operation.response,
-        )
+        callback = self._respond_user_interaction_callback
+        if callback is None:
+            raise RuntimeError("respond user interaction callback is not configured")
+        callback(operation.request_id, operation.session_id, operation.response)
 
     def get_active_task(self, operation_id: str) -> asyncio.Task[None] | None:
         """Return the asyncio.Task for an operation id if one is registered."""
@@ -866,7 +919,11 @@ class Executor:
             reject_operation=self._reject_operation,
         )
         self.context.set_close_session_callback(self.close_session)
-        self.context.user_interaction_manager.set_request_state_change_callback(self._on_request_state_change)
+        self.context.set_user_interaction_callbacks(
+            request_callback=self.runtime_hub.request_user_interaction,
+            respond_callback=self._respond_user_interaction,
+            cancel_callback=self._cancel_pending_user_interactions,
+        )
         self._stopped = False
         # Track completion events for all operations (not just those with ActiveTask)
         self._completion_events: dict[str, asyncio.Event] = {}
@@ -888,11 +945,23 @@ class Executor:
         )
         self._complete_operation(operation)
 
-    def _on_request_state_change(self, request: PendingUserInteractionRequest, is_pending: bool) -> None:
-        self.runtime_hub.mark_request_state(request=request, is_pending=is_pending)
-
     def _on_operation_applied(self, operation: op.Operation) -> None:
         self.runtime_hub.apply_operation_effect(operation)
+
+    def _respond_user_interaction(
+        self,
+        request_id: str,
+        session_id: str,
+        response: user_interaction.UserInteractionResponse,
+    ) -> None:
+        self.runtime_hub.respond_user_interaction(
+            request_id=request_id,
+            session_id=session_id,
+            response=response,
+        )
+
+    def _cancel_pending_user_interactions(self, session_id: str | None) -> bool:
+        return self.runtime_hub.cancel_pending_interactions(session_id=session_id)
 
     def _complete_operation(self, operation: op.Operation) -> None:
         event = self._completion_events.get(operation.id)
@@ -954,7 +1023,7 @@ class Executor:
     async def stop(self) -> None:
         """Stop the executor and clean up resources."""
         self._stopped = True
-        self.context.user_interaction_manager.cancel_pending(session_id=None)
+        self.context.cancel_pending_user_interactions(session_id=None)
 
         # Cancel all active tasks and collect them for awaiting
         tasks_to_await: list[asyncio.Task[None]] = []
