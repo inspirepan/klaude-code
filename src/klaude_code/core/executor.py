@@ -27,6 +27,7 @@ from klaude_code.core.loaded_skills import (
 )
 from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.core.memory import get_existing_memory_paths_by_location
+from klaude_code.core.runtime_hub import RuntimeHub
 from klaude_code.core.user_interaction import UserInteractionManager
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
@@ -851,6 +852,7 @@ class Executor:
         on_model_change: Callable[[str], None] | None = None,
     ):
         self.context = ExecutorContext(event_bus, llm_clients, model_profile_provider, on_model_change)
+        self.runtime_hub = RuntimeHub(handle_submission=self._handle_submission)
         self.submission_queue: asyncio.Queue[op.Submission] = asyncio.Queue()
         # Track completion events for all submissions (not just those with ActiveTask)
         self._completion_events: dict[str, asyncio.Event] = {}
@@ -919,7 +921,7 @@ class Executor:
                     )
                     break
 
-                await self._handle_submission(submission)
+                await self.runtime_hub.submit(submission)
 
             except asyncio.CancelledError:
                 # Executor was cancelled
@@ -960,6 +962,8 @@ class Executor:
         if self._background_tasks:
             await asyncio.gather(*self._background_tasks, return_exceptions=True)
             self._background_tasks.clear()
+
+        await self.runtime_hub.stop()
 
         # Clear the active task manager
         self.context.task_manager.clear()

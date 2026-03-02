@@ -133,7 +133,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
         renderables.append(Text())
         renderables.append(warning_tree)
 
-    border_style = ThemeKey.WELCOME_DEBUG_BORDER if debug_mode else ThemeKey.LINES
+    border_style = ThemeKey.WELCOME_DEBUG_BORDER if debug_mode else "yellow"
     panel_content = Quote(Group(*renderables), style=border_style, prefix="▌ ")
 
     if e.show_klaude_code_info:
