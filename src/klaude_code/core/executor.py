@@ -881,6 +881,9 @@ class Executor:
     def _on_request_state_change(self, session_id: str, request_id: str, is_pending: bool) -> None:
         self.runtime_hub.mark_request_state(session_id=session_id, request_id=request_id, is_pending=is_pending)
 
+    def _on_operation_applied(self, operation: op.Operation) -> None:
+        self.runtime_hub.apply_operation_effect(operation)
+
     def _complete_operation(self, operation: op.Operation) -> None:
         event = self._completion_events.get(operation.id)
         if event is not None:
@@ -976,6 +979,7 @@ class Executor:
 
             # Execute to spawn the agent task in context
             await operation.execute(handler=self.context)
+            self._on_operation_applied(operation)
 
             task = self.context.get_active_task(operation.id)
 

@@ -316,3 +316,58 @@ def test_runtime_hub_idle_runtime_ids_reflect_active_and_pending_state() -> None
         await hub.stop()
 
     arun(_test())
+
+
+def test_runtime_hub_tracks_session_local_config_by_session() -> None:
+    async def _test() -> None:
+        processed = asyncio.Event()
+        processed_count = 0
+        hub: RuntimeHub | None = None
+
+        model_op = op.ChangeModelOperation(session_id="s1", model_name="model-a")
+        thinking_op = op.ChangeThinkingOperation(
+            session_id="s1",
+            thinking=Thinking(type="enabled", budget_tokens=99),
+        )
+        compact_op = op.ChangeCompactModelOperation(session_id="s2", model_name="compact-x")
+        sub_model_op = op.ChangeSubAgentModelOperation(
+            session_id="s2",
+            sub_agent_type="explore",
+            model_name="model-sub",
+        )
+
+        async def _handle(operation: op.Operation) -> None:
+            nonlocal processed_count
+            if hub is None:
+                raise AssertionError("hub should be initialized")
+            hub.apply_operation_effect(operation)
+            processed_count += 1
+            if processed_count == 4:
+                processed.set()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("config operations should not be rejected")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        await hub.submit(model_op)
+        await hub.submit(thinking_op)
+        await hub.submit(compact_op)
+        await hub.submit(sub_model_op)
+
+        await asyncio.wait_for(processed.wait(), timeout=1.0)
+
+        s1 = hub.config_snapshot("s1")
+        s2 = hub.config_snapshot("s2")
+        assert s1 is not None
+        assert s2 is not None
+
+        assert s1.model_name == "model-a"
+        assert s1.thinking is not None
+        assert s1.thinking.budget_tokens == 99
+
+        assert s2.compact_model == "compact-x"
+        assert s2.sub_agent_models == {"explore": "model-sub"}
+
+        await hub.stop()
+
+    arun(_test())

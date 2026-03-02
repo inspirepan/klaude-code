@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 
-from klaude_code.core.session_runtime import SessionRuntime
+from klaude_code.core.session_runtime import SessionRuntime, SessionRuntimeConfig
 from klaude_code.protocol import op
 
 GLOBAL_RUNTIME_ID = "__runtime_global__"
@@ -62,6 +62,21 @@ class RuntimeHub:
         if runtime is None:
             return 0
         return runtime.pending_request_count()
+
+    def apply_operation_effect(self, operation: op.Operation) -> None:
+        session_id = getattr(operation, "session_id", None)
+        if session_id is None:
+            return
+        runtime = self._runtimes.get(session_id)
+        if runtime is None:
+            return
+        runtime.apply_operation_effect(operation)
+
+    def config_snapshot(self, session_id: str) -> SessionRuntimeConfig | None:
+        runtime = self._runtimes.get(session_id)
+        if runtime is None:
+            return None
+        return runtime.config_snapshot()
 
     def idle_runtime_ids(self) -> list[str]:
         return [runtime_id for runtime_id, runtime in self._runtimes.items() if runtime.is_idle()]

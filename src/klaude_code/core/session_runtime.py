@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from klaude_code.protocol import op
+from klaude_code.protocol import llm_param, op
 
 
 @dataclass(frozen=True)
@@ -16,10 +16,22 @@ class _StopSignal:
 _STOP_SIGNAL = _StopSignal()
 
 
+def _empty_sub_agent_models() -> dict[str, str | None]:
+    return {}
+
+
 @dataclass(frozen=True)
 class RootTaskState:
     task_id: str
     kind: str
+
+
+@dataclass
+class SessionRuntimeConfig:
+    model_name: str | None = None
+    thinking: llm_param.Thinking | None = None
+    compact_model: str | None = None
+    sub_agent_models: dict[str, str | None] = field(default_factory=_empty_sub_agent_models)
 
 
 class SessionRuntime:
@@ -40,6 +52,7 @@ class SessionRuntime:
         self._execution_lock = execution_lock
         self._active_root_task: RootTaskState | None = None
         self._pending_request_ids: set[str] = set()
+        self._config = SessionRuntimeConfig()
         self._control_burst_quota = control_burst_quota
         self._control_burst_count = 0
         self._worker_task: asyncio.Task[None] = asyncio.create_task(self._run_loop())
@@ -81,6 +94,28 @@ class SessionRuntime:
 
     def pending_request_count(self) -> int:
         return len(self._pending_request_ids)
+
+    def apply_operation_effect(self, operation: op.Operation) -> None:
+        if isinstance(operation, op.ChangeModelOperation):
+            self._config.model_name = operation.model_name
+            self._config.thinking = None
+            return
+        if isinstance(operation, op.ChangeThinkingOperation):
+            self._config.thinking = operation.thinking
+            return
+        if isinstance(operation, op.ChangeCompactModelOperation):
+            self._config.compact_model = operation.model_name
+            return
+        if isinstance(operation, op.ChangeSubAgentModelOperation):
+            self._config.sub_agent_models[operation.sub_agent_type] = operation.model_name
+
+    def config_snapshot(self) -> SessionRuntimeConfig:
+        return SessionRuntimeConfig(
+            model_name=self._config.model_name,
+            thinking=self._config.thinking.model_copy(deep=True) if self._config.thinking is not None else None,
+            compact_model=self._config.compact_model,
+            sub_agent_models=dict(self._config.sub_agent_models),
+        )
 
     def has_active_root_task(self) -> bool:
         return self._active_root_task is not None

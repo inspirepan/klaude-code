@@ -58,6 +58,11 @@
 - `SessionRuntime` 增加 `is_idle()`（active root + pending requests + mailbox）
 - `RuntimeHub.idle_runtime_ids()` 可用于后续 session TTL 回收策略
 
+并且本次追加了第十一个增量：
+
+- `SessionRuntime` 增加基础 session-local config 状态（model/thinking/compact/sub-agent model）
+- `Executor` 在 operation 成功执行后同步更新该 config 状态
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）
@@ -75,7 +80,7 @@
 - SessionRuntime 已承载 root-task gate + `RootTaskState`
 - SessionRuntime 已支持 control/normal 双队列与 8:1 配额
 - SessionRuntime 已内聚 pending request 状态与 idle 判定基础能力
-- SessionRuntime 仍未内聚 session-local config
+- SessionRuntime 已内聚基础 session-local config（仍缺与持久化/重放一致性的完整闭环）
 
 ---
 
