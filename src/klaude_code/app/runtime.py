@@ -41,25 +41,34 @@ class AppComponents:
     executor: Executor
     event_bus: EventBus
     event_bus_subscription: EventSubscription
-    event_bridge_task: asyncio.Task[None]
-    event_queue: asyncio.Queue[events.Event]
     display: ui.DisplayABC
     display_task: asyncio.Task[None]
     idle_reclaim_task: asyncio.Task[None]
 
     async def wait_for_display_idle(self) -> None:
-        """Wait until event bridge and display queue have consumed pending events."""
+        """Wait until EventBus subscription has consumed pending events."""
         await self.event_bus_subscription.wait_for_drain()
-        await self.event_queue.join()
 
 
-async def _pipe_event_bus_to_queue(
+async def _consume_display_from_subscription(
     subscription: EventSubscription,
-    event_queue: asyncio.Queue[events.Event],
+    display: ui.DisplayABC,
 ) -> None:
+    await display.start()
     async for event in subscription.iter_events():
-        await event_queue.put(event)
-    raise RuntimeError("Event bus bridge stopped unexpectedly")
+        try:
+            if isinstance(event, events.EndEvent):
+                await display.stop()
+                return
+            await display.consume_event(event)
+        except Exception as e:
+            import traceback
+
+            log(
+                f"Error in display event stream, {e.__class__.__name__}, {e}",
+                style="red",
+            )
+            log(traceback.format_exc(), style="red")
 
 
 async def _reclaim_idle_sessions_loop(executor: Executor) -> None:
@@ -105,9 +114,7 @@ async def initialize_app_components(
         model_profile_provider = DefaultModelProfileProvider(config=config)
 
     event_bus = EventBus()
-    event_queue: asyncio.Queue[events.Event] = asyncio.Queue()
     event_bus_subscription = event_bus.subscribe(None)
-    event_bridge_task = asyncio.create_task(_pipe_event_bus_to_queue(event_bus_subscription, event_queue))
 
     executor = Executor(
         event_bus,
@@ -131,12 +138,10 @@ async def initialize_app_components(
 
         task.add_done_callback(_on_done)
 
-    _drain_background_task_exception(event_bridge_task, label="event-bridge")
-
     idle_reclaim_task = asyncio.create_task(_reclaim_idle_sessions_loop(executor))
     _drain_background_task_exception(idle_reclaim_task, label="idle-reclaim")
 
-    display_task = asyncio.create_task(display.consume_event_loop(event_queue))
+    display_task = asyncio.create_task(_consume_display_from_subscription(event_bus_subscription, display))
     _drain_background_task_exception(display_task, label="display")
 
     return AppComponents(
@@ -144,8 +149,6 @@ async def initialize_app_components(
         executor=executor,
         event_bus=event_bus,
         event_bus_subscription=event_bus_subscription,
-        event_bridge_task=event_bridge_task,
-        event_queue=event_queue,
         display=display,
         display_task=display_task,
         idle_reclaim_task=idle_reclaim_task,
@@ -201,11 +204,8 @@ async def cleanup_app_components(components: AppComponents) -> None:
         with contextlib.suppress(Exception):
             await components.wait_for_display_idle()
 
-        components.event_bridge_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await components.event_bridge_task
-
-        await components.event_queue.put(events.EndEvent())
+        with contextlib.suppress(Exception):
+            await components.event_bus.publish(events.EndEvent())
         await components.display_task
     finally:
         # Ensure the terminal cursor is visible even if Rich's spinner did not stop cleanly.

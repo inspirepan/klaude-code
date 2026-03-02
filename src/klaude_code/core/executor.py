@@ -1102,8 +1102,6 @@ class Executor:
             cancel_callback=self._cancel_pending_user_interactions,
         )
         self._stopped = False
-        # Track completion events for all operations (not just those with ActiveTask)
-        self._completion_events: dict[str, asyncio.Event] = {}
         self._background_tasks: set[asyncio.Task[None]] = set()
 
     async def _reject_operation(self, operation: op.Operation, active_task_id: str | None) -> None:
@@ -1144,9 +1142,6 @@ class Executor:
         self.runtime_hub.mark_child_task_state(session_id=session_id, task_id=task_id, is_active=is_active)
 
     def _complete_operation(self, operation: op.Operation) -> None:
-        event = self._completion_events.get(operation.id)
-        if event is not None:
-            event.set()
         self.runtime_hub.mark_operation_completed(operation.id)
 
     async def submit(self, operation: op.Operation) -> str:
@@ -1162,12 +1157,6 @@ class Executor:
 
         if self._stopped:
             raise RuntimeError("Executor is stopped")
-
-        if operation.id in self._completion_events:
-            raise RuntimeError(f"Operation already registered: {operation.id}")
-
-        # Create completion event before queueing to avoid races.
-        self._completion_events[operation.id] = asyncio.Event()
 
         await self.runtime_hub.submit(operation)
 
@@ -1199,10 +1188,7 @@ class Executor:
 
     async def wait_for(self, operation_id: str) -> None:
         """Wait for a specific operation to complete."""
-        event = self._completion_events.get(operation_id)
-        if event is not None:
-            await event.wait()
-            self._completion_events.pop(operation_id, None)
+        await self.runtime_hub.wait_for(operation_id)
 
     async def submit_and_wait(self, operation: op.Operation) -> None:
         """Submit an operation and wait for it to complete."""
@@ -1234,9 +1220,6 @@ class Executor:
 
         # Clear the active task manager
         self.context.task_manager.clear()
-
-        for event in self._completion_events.values():
-            event.set()
 
         log_debug("Executor stopped", style="yellow", debug_type=DebugType.EXECUTION)
 

@@ -31,10 +31,16 @@ class RuntimeHub:
         self._control_burst_quota = control_burst_quota
         self._runtimes: dict[str, SessionRuntime] = {}
         self._operation_runtime_ids: dict[str, str] = {}
+        self._completion_events: dict[str, asyncio.Event] = {}
         self._request_queue: asyncio.Queue[PendingUserInteractionRequest] = asyncio.Queue()
         self._pending_interactions: dict[str, _PendingInteractionState] = {}
 
     async def submit(self, operation: op.Operation) -> None:
+        if operation.id in self._completion_events:
+            raise RuntimeError(f"Operation already registered: {operation.id}")
+
+        self._completion_events[operation.id] = asyncio.Event()
+
         runtime_id = self._resolve_runtime_id(operation)
         runtime = self._ensure_runtime(runtime_id)
         self._operation_runtime_ids[operation.id] = runtime_id
@@ -96,6 +102,10 @@ class RuntimeHub:
         return cancelled
 
     def mark_operation_completed(self, operation_id: str) -> None:
+        completion_event = self._completion_events.get(operation_id)
+        if completion_event is not None:
+            completion_event.set()
+
         runtime_id = self._operation_runtime_ids.pop(operation_id, None)
         if runtime_id is None:
             return
@@ -103,6 +113,12 @@ class RuntimeHub:
         if runtime is None:
             return
         runtime.mark_operation_completed(operation_id)
+
+    async def wait_for(self, operation_id: str) -> None:
+        event = self._completion_events.get(operation_id)
+        if event is not None:
+            await event.wait()
+            self._completion_events.pop(operation_id, None)
 
     def bind_root_task(self, *, operation_id: str, task_id: str) -> None:
         runtime_id = self._operation_runtime_ids.get(operation_id)
@@ -179,6 +195,9 @@ class RuntimeHub:
 
     async def stop(self) -> None:
         self.cancel_pending_interactions(session_id=None)
+        for completion_event in self._completion_events.values():
+            completion_event.set()
+        self._completion_events.clear()
         runtimes = list(self._runtimes.values())
         self._runtimes.clear()
         self._operation_runtime_ids.clear()
@@ -200,6 +219,9 @@ class RuntimeHub:
         for operation_id, runtime_id in list(self._operation_runtime_ids.items()):
             if runtime_id == session_id:
                 self._operation_runtime_ids.pop(operation_id, None)
+                completion_event = self._completion_events.get(operation_id)
+                if completion_event is not None:
+                    completion_event.set()
 
         await runtime.stop()
         return True

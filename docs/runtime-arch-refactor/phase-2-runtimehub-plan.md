@@ -138,6 +138,11 @@
 - 当 session 存在运行中 root-task 时，`interrupt/user_interaction_respond` 支持 preempt 执行（不必等待 normal 操作处理结束）
 - 同时保留 control queue 的 8:1 公平调度机制作为常规路径
 
+并且本次追加了第二十五个增量：
+
+- operation completion 事件跟踪从 `Executor` 下沉到 `RuntimeHub`
+- `Executor.wait_for/submit_and_wait` 改为直接委托 `RuntimeHub`，进一步收敛为输入薄门面
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）
@@ -150,7 +155,6 @@
 
 > 这些临时项都已在 `migration-gap-register.md` 登记。
 
-- ingress 仍经过 `Executor.submit` 包装层
 - SessionRuntime 已承载 root-task gate + `RootTaskState`
 - SessionRuntime 已支持 control/normal 双队列与 8:1 配额
 - SessionRuntime 已内聚 pending request 状态与 idle 判定基础能力
