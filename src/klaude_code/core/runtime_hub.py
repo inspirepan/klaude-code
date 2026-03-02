@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 
-from klaude_code.core.session_runtime import SessionRuntime, SessionRuntimeConfig
+from klaude_code.core.session_runtime import SessionRuntime, SessionRuntimeConfig, SessionRuntimeSnapshot
 from klaude_code.core.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import op
 
@@ -95,6 +95,15 @@ class RuntimeHub:
 
     def idle_runtime_ids(self) -> list[str]:
         return [runtime_id for runtime_id, runtime in self._runtimes.items() if runtime.is_idle()]
+
+    def snapshot(self, session_id: str) -> SessionRuntimeSnapshot | None:
+        runtime = self._runtimes.get(session_id)
+        if runtime is None:
+            return None
+        return runtime.snapshot()
+
+    def all_snapshots(self) -> list[SessionRuntimeSnapshot]:
+        return [runtime.snapshot() for runtime in self._runtimes.values()]
 
     async def stop(self) -> None:
         runtimes = list(self._runtimes.values())

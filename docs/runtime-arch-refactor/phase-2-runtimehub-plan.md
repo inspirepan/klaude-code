@@ -68,6 +68,11 @@
 - interaction 请求等待路径从 `UserInteractionManager.wait_next_request()` 切换到 `RuntimeHub.wait_next_request()`
 - `RuntimeHub/SessionRuntime` 维护 pending request 对象，并按 pending 状态过滤过期请求
 
+并且本次追加了第十三个增量：
+
+- `SessionRuntime` 提供 `snapshot()`（active root / pending count / idle / config）
+- `RuntimeHub` 提供 `snapshot(session_id)` 与 `all_snapshots()`，便于后续 WebUI/TTL 管理读取运行态
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）

@@ -426,3 +426,52 @@ def test_runtime_hub_tracks_session_local_config_by_session() -> None:
         await hub.stop()
 
     arun(_test())
+
+
+def test_runtime_hub_snapshot_reflects_runtime_state() -> None:
+    async def _test() -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        root_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="work"))
+        model_op = op.ChangeModelOperation(session_id="s1", model_name="model-x")
+        req = _pending_request("r1", "s1")
+
+        async def _handle(operation: op.Operation) -> None:
+            if operation.id == root_op.id:
+                started.set()
+                await release.wait()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+
+        await hub.submit(root_op)
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+        hub.apply_operation_effect(model_op)
+        hub.mark_request_state(request=req, is_pending=True)
+
+        snapshot = hub.snapshot("s1")
+        assert snapshot is not None
+        assert snapshot.session_id == "s1"
+        assert snapshot.active_root_task is not None
+        assert snapshot.active_root_task.task_id == root_op.id
+        assert snapshot.pending_request_count == 1
+        assert snapshot.is_idle is False
+        assert snapshot.config.model_name == "model-x"
+
+        release.set()
+        hub.mark_operation_completed(root_op.id)
+        hub.mark_request_state(request=req, is_pending=False)
+        await asyncio.sleep(0)
+
+        done_snapshot = hub.snapshot("s1")
+        assert done_snapshot is not None
+        assert done_snapshot.active_root_task is None
+        assert done_snapshot.pending_request_count == 0
+        assert done_snapshot.is_idle is True
+
+        await hub.stop()
+
+    arun(_test())

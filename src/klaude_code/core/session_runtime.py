@@ -35,6 +35,15 @@ class SessionRuntimeConfig:
     sub_agent_models: dict[str, str | None] = field(default_factory=_empty_sub_agent_models)
 
 
+@dataclass(frozen=True)
+class SessionRuntimeSnapshot:
+    session_id: str
+    active_root_task: RootTaskState | None
+    pending_request_count: int
+    is_idle: bool
+    config: SessionRuntimeConfig
+
+
 class SessionRuntime:
     def __init__(
         self,
@@ -119,6 +128,17 @@ class SessionRuntime:
             thinking=self._config.thinking.model_copy(deep=True) if self._config.thinking is not None else None,
             compact_model=self._config.compact_model,
             sub_agent_models=dict(self._config.sub_agent_models),
+        )
+
+    def snapshot(self) -> SessionRuntimeSnapshot:
+        active = self._active_root_task
+        active_snapshot = RootTaskState(task_id=active.task_id, kind=active.kind) if active is not None else None
+        return SessionRuntimeSnapshot(
+            session_id=self.session_id,
+            active_root_task=active_snapshot,
+            pending_request_count=len(self._pending_requests),
+            is_idle=self.is_idle(),
+            config=self.config_snapshot(),
         )
 
     def has_active_root_task(self) -> bool:
