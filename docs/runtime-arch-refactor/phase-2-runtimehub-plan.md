@@ -38,6 +38,11 @@
 - busy reject 事件增加结构化输出：`OperationRejectedEvent`
 - TUI 在状态机内将该事件映射为错误命令输出（不再由 Executor 双发事件）
 
+并且本次追加了第七个增量：
+
+- 移除 `Submission` 包装对象，RuntimeHub/SessionRuntime/Executor 统一直接处理 `Operation`
+- completion 映射改为 `operation_id -> runtime_id`
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）
@@ -50,7 +55,7 @@
 
 > 这些临时项都已在 `migration-gap-register.md` 登记。
 
-- ingress 仍经过 `Executor.submit` 包装层（但已不再经过内部 submission queue）
+- ingress 仍经过 `Executor.submit` 包装层
 - SessionRuntime worker 共享全局 execution lock（为兼容当前单 `_agent` 运行态）
 - SessionRuntime 已承载 root-task gate + `RootTaskState`
 - SessionRuntime 已支持 control/normal 双队列与 8:1 配额

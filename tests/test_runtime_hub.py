@@ -22,23 +22,23 @@ def test_runtime_hub_preserves_in_session_order() -> None:
         handled: list[tuple[str | None, str]] = []
         done = asyncio.Event()
 
-        async def _handle(submission: op.Submission) -> None:
-            sid = getattr(submission.operation, "session_id", None)
-            handled.append((sid, submission.id))
+        async def _handle(operation: op.Operation) -> None:
+            sid = getattr(operation, "session_id", None)
+            handled.append((sid, operation.id))
             if len(handled) >= 3:
                 done.set()
 
-        async def _reject(_submission: op.Submission, _active_root_submission_id: str | None) -> None:
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject when session is idle")
 
-        hub = RuntimeHub(handle_submission=_handle, reject_submission=_reject)
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
         s1_first = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
         s2_only = op.ChangeThinkingOperation(session_id="s2", thinking=Thinking(type="enabled", budget_tokens=20))
         s1_second = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=30))
 
-        await hub.submit(op.Submission(id=s1_first.id, operation=s1_first))
-        await hub.submit(op.Submission(id=s2_only.id, operation=s2_only))
-        await hub.submit(op.Submission(id=s1_second.id, operation=s1_second))
+        await hub.submit(s1_first)
+        await hub.submit(s2_only)
+        await hub.submit(s1_second)
 
         await asyncio.wait_for(done.wait(), timeout=1.0)
         await hub.stop()
@@ -53,16 +53,16 @@ def test_runtime_hub_routes_global_interrupt_to_global_runtime() -> None:
     async def _test() -> None:
         started = asyncio.Event()
 
-        async def _handle(_submission: op.Submission) -> None:
+        async def _handle(_operation: op.Operation) -> None:
             started.set()
 
-        async def _reject(_submission: op.Submission, _active_root_submission_id: str | None) -> None:
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("interrupt should not be rejected")
 
-        hub = RuntimeHub(handle_submission=_handle, reject_submission=_reject)
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
         operation = op.InterruptOperation(target_session_id=None)
 
-        await hub.submit(op.Submission(id=operation.id, operation=operation))
+        await hub.submit(operation)
         await asyncio.wait_for(started.wait(), timeout=1.0)
 
         assert hub.has_runtime(GLOBAL_RUNTIME_ID)
@@ -82,21 +82,21 @@ def test_runtime_hub_rejects_second_root_while_first_is_active() -> None:
         first_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="first"))
         second_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="second"))
 
-        async def _handle(submission: op.Submission) -> None:
-            handled.append(submission.id)
+        async def _handle(operation: op.Operation) -> None:
+            handled.append(operation.id)
 
-        async def _reject(submission: op.Submission, active_root_submission_id: str | None) -> None:
-            rejected.append((submission.id, active_root_submission_id))
+        async def _reject(operation: op.Operation, active_root_operation_id: str | None) -> None:
+            rejected.append((operation.id, active_root_operation_id))
             second_rejected.set()
 
-        hub = RuntimeHub(handle_submission=_handle, reject_submission=_reject)
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
 
-        await hub.submit(op.Submission(id=first_op.id, operation=first_op))
-        await hub.submit(op.Submission(id=second_op.id, operation=second_op))
+        await hub.submit(first_op)
+        await hub.submit(second_op)
         await asyncio.wait_for(second_rejected.wait(), timeout=1.0)
 
-        hub.mark_submission_completed(first_op.id)
-        hub.mark_submission_completed(second_op.id)
+        hub.mark_operation_completed(first_op.id)
+        hub.mark_operation_completed(second_op.id)
         await hub.stop()
 
         assert handled == [first_op.id]
@@ -114,25 +114,25 @@ def test_runtime_hub_allows_interrupt_while_root_is_active() -> None:
         first_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="first"))
         interrupt_op = op.InterruptOperation(target_session_id="s1")
 
-        async def _handle(submission: op.Submission) -> None:
-            handled.append(submission.id)
-            if submission.id == first_op.id:
+        async def _handle(operation: op.Operation) -> None:
+            handled.append(operation.id)
+            if operation.id == first_op.id:
                 first_started.set()
-            if submission.id == interrupt_op.id:
+            if operation.id == interrupt_op.id:
                 done.set()
 
-        async def _reject(_submission: op.Submission, _active_root_submission_id: str | None) -> None:
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("interrupt should not be rejected")
 
-        hub = RuntimeHub(handle_submission=_handle, reject_submission=_reject)
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
 
-        await hub.submit(op.Submission(id=first_op.id, operation=first_op))
+        await hub.submit(first_op)
         await asyncio.wait_for(first_started.wait(), timeout=1.0)
-        await hub.submit(op.Submission(id=interrupt_op.id, operation=interrupt_op))
+        await hub.submit(interrupt_op)
         await asyncio.wait_for(done.wait(), timeout=1.0)
 
-        hub.mark_submission_completed(first_op.id)
-        hub.mark_submission_completed(interrupt_op.id)
+        hub.mark_operation_completed(first_op.id)
+        hub.mark_operation_completed(interrupt_op.id)
         await hub.stop()
 
         assert handled == [first_op.id, interrupt_op.id]
@@ -149,21 +149,21 @@ def test_runtime_hub_allows_new_root_after_completion_marked() -> None:
         first_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="first"))
         second_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="second"))
 
-        async def _handle(submission: op.Submission) -> None:
+        async def _handle(operation: op.Operation) -> None:
             if hub is None:
                 raise AssertionError("hub should be initialized")
-            handled.append(submission.id)
-            hub.mark_submission_completed(submission.id)
+            handled.append(operation.id)
+            hub.mark_operation_completed(operation.id)
             if len(handled) == 2:
                 done.set()
 
-        async def _reject(_submission: op.Submission, _active_root_submission_id: str | None) -> None:
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("second root should be accepted after completion")
 
-        hub = RuntimeHub(handle_submission=_handle, reject_submission=_reject)
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
 
-        await hub.submit(op.Submission(id=first_op.id, operation=first_op))
-        await hub.submit(op.Submission(id=second_op.id, operation=second_op))
+        await hub.submit(first_op)
+        await hub.submit(second_op)
 
         await asyncio.wait_for(done.wait(), timeout=1.0)
         await hub.stop()
@@ -184,23 +184,23 @@ def test_runtime_hub_prioritizes_control_queue_over_normal_queue() -> None:
         second_normal = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=20))
         control_interrupt = op.InterruptOperation(target_session_id="s1")
 
-        async def _handle(submission: op.Submission) -> None:
-            handled.append(submission.id)
-            if submission.id == first_op.id:
+        async def _handle(operation: op.Operation) -> None:
+            handled.append(operation.id)
+            if operation.id == first_op.id:
                 first_started.set()
                 await release_first.wait()
             if len(handled) == 3:
                 done.set()
 
-        async def _reject(_submission: op.Submission, _active_root_submission_id: str | None) -> None:
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("non-root/control ops should not be rejected")
 
-        hub = RuntimeHub(handle_submission=_handle, reject_submission=_reject)
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
 
-        await hub.submit(op.Submission(id=first_op.id, operation=first_op))
+        await hub.submit(first_op)
         await asyncio.wait_for(first_started.wait(), timeout=1.0)
-        await hub.submit(op.Submission(id=second_normal.id, operation=second_normal))
-        await hub.submit(op.Submission(id=control_interrupt.id, operation=control_interrupt))
+        await hub.submit(second_normal)
+        await hub.submit(control_interrupt)
 
         release_first.set()
         await asyncio.wait_for(done.wait(), timeout=1.0)
@@ -224,25 +224,25 @@ def test_runtime_hub_enforces_control_burst_fairness() -> None:
         control_2 = op.InterruptOperation(target_session_id="s1")
         control_3 = op.InterruptOperation(target_session_id="s1")
 
-        async def _handle(submission: op.Submission) -> None:
-            handled.append(submission.id)
-            if submission.id == first_op.id:
+        async def _handle(operation: op.Operation) -> None:
+            handled.append(operation.id)
+            if operation.id == first_op.id:
                 first_started.set()
                 await release_first.wait()
             if len(handled) == 5:
                 done.set()
 
-        async def _reject(_submission: op.Submission, _active_root_submission_id: str | None) -> None:
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("non-root/control ops should not be rejected")
 
-        hub = RuntimeHub(handle_submission=_handle, reject_submission=_reject, control_burst_quota=2)
+        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject, control_burst_quota=2)
 
-        await hub.submit(op.Submission(id=first_op.id, operation=first_op))
+        await hub.submit(first_op)
         await asyncio.wait_for(first_started.wait(), timeout=1.0)
-        await hub.submit(op.Submission(id=control_1.id, operation=control_1))
-        await hub.submit(op.Submission(id=control_2.id, operation=control_2))
-        await hub.submit(op.Submission(id=control_3.id, operation=control_3))
-        await hub.submit(op.Submission(id=normal_op.id, operation=normal_op))
+        await hub.submit(control_1)
+        await hub.submit(control_2)
+        await hub.submit(control_3)
+        await hub.submit(normal_op)
 
         release_first.set()
         await asyncio.wait_for(done.wait(), timeout=1.0)

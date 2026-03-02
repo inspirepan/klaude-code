@@ -27,27 +27,27 @@ class SessionRuntime:
         self,
         *,
         session_id: str,
-        handle_submission: Callable[[op.Submission], Awaitable[None]],
-        reject_submission: Callable[[op.Submission, str | None], Awaitable[None]],
+        handle_operation: Callable[[op.Operation], Awaitable[None]],
+        reject_operation: Callable[[op.Operation, str | None], Awaitable[None]],
         execution_lock: asyncio.Lock,
         control_burst_quota: int = 8,
     ) -> None:
         self.session_id = session_id
-        self.control_mailbox: asyncio.Queue[op.Submission | _StopSignal] = asyncio.Queue()
-        self.normal_mailbox: asyncio.Queue[op.Submission] = asyncio.Queue()
-        self._handle_submission = handle_submission
-        self._reject_submission = reject_submission
+        self.control_mailbox: asyncio.Queue[op.Operation | _StopSignal] = asyncio.Queue()
+        self.normal_mailbox: asyncio.Queue[op.Operation] = asyncio.Queue()
+        self._handle_operation = handle_operation
+        self._reject_operation = reject_operation
         self._execution_lock = execution_lock
         self._active_root_task: RootTaskState | None = None
         self._control_burst_quota = control_burst_quota
         self._control_burst_count = 0
         self._worker_task: asyncio.Task[None] = asyncio.create_task(self._run_loop())
 
-    async def enqueue(self, submission: op.Submission) -> None:
-        if _is_control_operation(submission.operation):
-            await self.control_mailbox.put(submission)
+    async def enqueue(self, operation: op.Operation) -> None:
+        if _is_control_operation(operation):
+            await self.control_mailbox.put(operation)
             return
-        await self.normal_mailbox.put(submission)
+        await self.normal_mailbox.put(operation)
 
     async def stop(self) -> None:
         while True:
@@ -65,11 +65,11 @@ class SessionRuntime:
         await self.control_mailbox.put(_STOP_SIGNAL)
         await self._worker_task
 
-    def mark_submission_completed(self, submission_id: str) -> None:
+    def mark_operation_completed(self, operation_id: str) -> None:
         active = self._active_root_task
         if active is None:
             return
-        if active.task_id == submission_id:
+        if active.task_id == operation_id:
             self._active_root_task = None
 
     async def _run_loop(self) -> None:
@@ -78,20 +78,20 @@ class SessionRuntime:
             try:
                 if isinstance(item, _StopSignal):
                     return
-                if _is_root_operation(item.operation) and self._active_root_task is not None:
-                    await self._reject_submission(item, self._active_root_task.task_id)
+                if _is_root_operation(item) and self._active_root_task is not None:
+                    await self._reject_operation(item, self._active_root_task.task_id)
                     continue
-                if _is_root_operation(item.operation):
-                    self._active_root_task = RootTaskState(task_id=item.id, kind=_root_task_kind(item.operation))
+                if _is_root_operation(item):
+                    self._active_root_task = RootTaskState(task_id=item.id, kind=_root_task_kind(item))
                 async with self._execution_lock:
-                    await self._handle_submission(item)
+                    await self._handle_operation(item)
             finally:
-                if isinstance(item, _StopSignal) or _is_control_operation(item.operation):
+                if isinstance(item, _StopSignal) or _is_control_operation(item):
                     self.control_mailbox.task_done()
                 else:
                     self.normal_mailbox.task_done()
 
-    async def _next_item(self) -> op.Submission | _StopSignal:
+    async def _next_item(self) -> op.Operation | _StopSignal:
         if self._control_burst_count >= self._control_burst_quota and not self.normal_mailbox.empty():
             self._control_burst_count = 0
             return self.normal_mailbox.get_nowait()

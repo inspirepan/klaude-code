@@ -853,16 +853,15 @@ class Executor:
     ):
         self.context = ExecutorContext(event_bus, llm_clients, model_profile_provider, on_model_change)
         self.runtime_hub = RuntimeHub(
-            handle_submission=self._handle_submission,
-            reject_submission=self._reject_submission,
+            handle_operation=self._handle_operation,
+            reject_operation=self._reject_operation,
         )
         self._stopped = False
         # Track completion events for all submissions (not just those with ActiveTask)
         self._completion_events: dict[str, asyncio.Event] = {}
         self._background_tasks: set[asyncio.Task[None]] = set()
 
-    async def _reject_submission(self, submission: op.Submission, active_task_id: str | None) -> None:
-        operation = submission.operation
+    async def _reject_operation(self, operation: op.Operation, active_task_id: str | None) -> None:
         session_id = getattr(operation, "session_id", None)
         if session_id is None:
             raise RuntimeError("Busy rejection requires session-bound operation")
@@ -870,19 +869,19 @@ class Executor:
         await self.context.emit_event(
             events.OperationRejectedEvent(
                 session_id=session_id,
-                operation_id=submission.id,
+                operation_id=operation.id,
                 operation_type=operation.type.value,
                 reason="session_busy",
                 active_task_id=active_task_id,
             )
         )
-        self._complete_submission(submission)
+        self._complete_operation(operation)
 
-    def _complete_submission(self, submission: op.Submission) -> None:
-        event = self._completion_events.get(submission.id)
+    def _complete_operation(self, operation: op.Operation) -> None:
+        event = self._completion_events.get(operation.id)
         if event is not None:
             event.set()
-        self.runtime_hub.mark_submission_completed(submission.id)
+        self.runtime_hub.mark_operation_completed(operation.id)
 
     async def submit(self, operation: op.Operation) -> str:
         """
@@ -904,8 +903,7 @@ class Executor:
         # Create completion event before queueing to avoid races.
         self._completion_events[operation.id] = asyncio.Event()
 
-        submission = op.Submission(id=operation.id, operation=operation)
-        await self.runtime_hub.submit(submission)
+        await self.runtime_hub.submit(operation)
 
         log_debug(
             f"Submitted operation {operation.type} with ID {operation.id}",
@@ -958,7 +956,7 @@ class Executor:
 
         log_debug("Executor stopped", style="yellow", debug_type=DebugType.EXECUTION)
 
-    async def _handle_submission(self, submission: op.Submission) -> None:
+    async def _handle_operation(self, operation: op.Operation) -> None:
         """
         Handle a single submission by executing its operation.
 
@@ -967,24 +965,24 @@ class Executor:
         """
         try:
             log_debug(
-                f"Handling submission {submission.id} of type {submission.operation.type.value}",
+                f"Handling operation {operation.id} of type {operation.type.value}",
                 style="cyan",
                 debug_type=DebugType.EXECUTION,
             )
 
             # Execute to spawn the agent task in context
-            await submission.operation.execute(handler=self.context)
+            await operation.execute(handler=self.context)
 
-            task = self.context.get_active_task(submission.id)
+            task = self.context.get_active_task(operation.id)
 
             async def _await_agent_and_complete(captured_task: asyncio.Task[None]) -> None:
                 try:
                     await captured_task
                 finally:
-                    self._complete_submission(submission)
+                    self._complete_operation(operation)
 
             if task is None:
-                self._complete_submission(submission)
+                self._complete_operation(operation)
             else:
                 # Run in background so the submission loop can continue (e.g., to handle interrupts)
                 background_task = asyncio.create_task(_await_agent_and_complete(task))
@@ -993,13 +991,11 @@ class Executor:
 
         except Exception as e:
             log_debug(
-                f"Failed to handle submission {submission.id}: {e!s}",
+                f"Failed to handle operation {operation.id}: {e!s}",
                 style="red",
                 debug_type=DebugType.EXECUTION,
             )
-            session_id = getattr(submission.operation, "session_id", None) or getattr(
-                submission.operation, "target_session_id", None
-            )
+            session_id = getattr(operation, "session_id", None) or getattr(operation, "target_session_id", None)
             await self.context.emit_event(
                 events.ErrorEvent(
                     error_message=f"Operation failed: {e!s}",
@@ -1008,7 +1004,7 @@ class Executor:
                 )
             )
             # Set completion event even on error to prevent wait_for_completion from hanging
-            self._complete_submission(submission)
+            self._complete_operation(operation)
 
 
 # Static type check: ExecutorContext must satisfy OperationHandler protocol.

@@ -219,8 +219,3 @@ class InitAgentOperation(Operation):
         await handler.handle_init_agent(self)
 
 
-class Submission(BaseModel):
-    """A submission represents a request sent to the executor for processing."""
-
-    id: str
-    operation: Operation
