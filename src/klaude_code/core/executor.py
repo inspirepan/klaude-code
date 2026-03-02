@@ -133,10 +133,12 @@ class AgentRuntime:
         self._task_manager = task_manager
         self._sub_agent_manager = sub_agent_manager
         self._request_user_interaction_callback = request_user_interaction
-        self._agent: Agent | None = None
+        self._agents: dict[str, Agent] = {}
+        self._primary_session_id: str | None = None
 
     async def _request_user_interaction(
         self,
+        session_id: str,
         request_id: str,
         source: user_interaction.UserInteractionSource,
         payload: user_interaction.UserInteractionRequestPayload,
@@ -144,7 +146,7 @@ class AgentRuntime:
     ) -> user_interaction.UserInteractionResponse:
         if source != "tool":
             raise ValueError("Only tool-based user interactions are supported in this context")
-        agent = self._agent
+        agent = self._agents.get(session_id)
         if agent is None:
             raise RuntimeError("No active agent session")
         if agent.session.sub_agent_state is not None:
@@ -152,30 +154,77 @@ class AgentRuntime:
         return await self._request_user_interaction_callback(
             PendingUserInteractionRequest(
                 request_id=request_id,
-                session_id=agent.session.id,
+                session_id=session_id,
                 source=source,
                 tool_call_id=tool_call_id,
                 payload=payload,
             )
         )
 
+    def _build_request_user_interaction_callback(
+        self,
+        *,
+        session_id: str,
+    ) -> Callable[
+        [
+            str,
+            user_interaction.UserInteractionSource,
+            user_interaction.UserInteractionRequestPayload,
+            str | None,
+        ],
+        Awaitable[user_interaction.UserInteractionResponse],
+    ]:
+        async def _callback(
+            request_id: str,
+            source: user_interaction.UserInteractionSource,
+            payload: user_interaction.UserInteractionRequestPayload,
+            tool_call_id: str | None,
+        ) -> user_interaction.UserInteractionResponse:
+            return await self._request_user_interaction(
+                session_id,
+                request_id,
+                source,
+                payload,
+                tool_call_id,
+            )
+
+        return _callback
+
     def current_session_id(self) -> str | None:
-        agent = self._agent
-        if agent is None:
+        session_id = self._primary_session_id
+        if session_id is None:
             return None
-        return agent.session.id
+        if session_id not in self._agents:
+            self._primary_session_id = None
+            return None
+        return session_id
 
     @property
     def current_agent(self) -> Agent | None:
-        return self._agent
+        session_id = self.current_session_id()
+        if session_id is None:
+            return None
+        return self._agents.get(session_id)
+
+    def drop_session(self, session_id: str) -> None:
+        self._agents.pop(session_id, None)
+        if self._primary_session_id != session_id:
+            return
+        self._primary_session_id = next(iter(self._agents), None)
 
     async def ensure_agent(self, session_id: str | None = None) -> Agent:
-        """Return the active agent, creating or loading a session as needed."""
+        """Return the agent for a session, creating or loading as needed."""
 
-        if session_id is not None and self._agent is not None and self._agent.session.id == session_id:
-            return self._agent
+        if session_id is not None:
+            existing = self._agents.get(session_id)
+            if existing is not None:
+                return existing
 
         session = Session.create() if session_id is None else Session.load(session_id)
+
+        existing = self._agents.get(session.id)
+        if existing is not None:
+            return existing
 
         if (
             session.model_thinking is not None
@@ -189,7 +238,7 @@ class AgentRuntime:
             session=session,
             profile=profile,
             compact_llm_client=self._llm_clients.compact,
-            request_user_interaction=self._request_user_interaction,
+            request_user_interaction=self._build_request_user_interaction_callback(session_id=session.id),
         )
 
         await self._emit_event(
@@ -206,7 +255,9 @@ class AgentRuntime:
         async for evt in agent.replay_history():
             await self._emit_event(evt)
 
-        self._agent = agent
+        self._agents[session.id] = agent
+        if self._primary_session_id is None:
+            self._primary_session_id = session.id
         log_debug(
             f"Initialized agent for session: {session.id}",
             style="cyan",
@@ -215,7 +266,8 @@ class AgentRuntime:
         return agent
 
     async def init_agent(self, session_id: str | None) -> None:
-        await self.ensure_agent(session_id)
+        agent = await self.ensure_agent(session_id)
+        self._primary_session_id = agent.session.id
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
@@ -312,39 +364,51 @@ class AgentRuntime:
 
     async def clear_session(self, session_id: str) -> None:
         agent = await self.ensure_agent(session_id)
+        old_session_id = agent.session.id
         new_session = Session.create(work_dir=agent.session.work_dir)
         new_session.model_name = agent.session.model_name
         new_session.model_config_name = agent.session.model_config_name
         new_session.model_thinking = agent.session.model_thinking
-        agent.session = new_session
+
+        new_agent = Agent(
+            session=new_session,
+            profile=agent.profile,
+            compact_llm_client=agent.compact_llm_client,
+            request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
+        )
+        self._agents.pop(old_session_id, None)
+        self._agents[new_session.id] = new_agent
+        if self._primary_session_id == old_session_id:
+            self._primary_session_id = new_session.id
 
         await self._emit_event(
             events.CommandOutputEvent(
-                session_id=agent.session.id,
+                session_id=new_agent.session.id,
                 command_name=commands.CommandName.NEW,
                 content="started new conversation",
             )
         )
         await self._emit_event(
             events.WelcomeEvent(
-                session_id=agent.session.id,
-                work_dir=str(agent.session.work_dir),
+                session_id=new_agent.session.id,
+                work_dir=str(new_agent.session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
                 loaded_skills=get_loaded_skill_names_by_location(),
                 loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
-                loaded_memories=get_existing_memory_paths_by_location(work_dir=agent.session.work_dir),
+                loaded_memories=get_existing_memory_paths_by_location(work_dir=new_agent.session.work_dir),
             )
         )
 
     async def interrupt(self, target_session_id: str | None) -> None:
         if target_session_id is not None:
-            session_ids: list[str] = [target_session_id]
+            session_ids = [target_session_id]
         else:
-            agent = self._agent
-            session_ids = [agent.session.id] if agent is not None else []
+            session_ids = sorted({active.session_id for active in self._task_manager.values()})
+            if self._primary_session_id is not None and self._primary_session_id not in session_ids:
+                session_ids.append(self._primary_session_id)
 
         for sid in session_ids:
-            agent = self._get_active_agent(sid)
+            agent = self._agents.get(sid)
             if agent is not None:
                 for evt in agent.on_interrupt():
                     await self._emit_event(evt)
@@ -517,15 +581,6 @@ class AgentRuntime:
         finally:
             self._task_manager.remove(task_id)
 
-    def _get_active_agent(self, session_id: str) -> Agent | None:
-        agent = self._agent
-        if agent is None:
-            return None
-        if agent.session.id != session_id:
-            return None
-        return agent
-
-
 class ModelSwitcher:
     """Apply model changes to an agent session."""
 
@@ -671,6 +726,9 @@ class ExecutorContext:
         """Return the currently active agent, if any."""
 
         return self._agent_runtime.current_agent
+
+    def drop_session_state(self, session_id: str) -> None:
+        self._agent_runtime.drop_session(session_id)
 
     async def handle_init_agent(self, operation: op.InitAgentOperation) -> None:
         """Initialize an agent for a session and replay history to UI."""
@@ -1050,10 +1108,16 @@ class Executor:
         return any(not active.task.done() for active in self.context.task_manager.values())
 
     async def close_session(self, session_id: str, force: bool = False) -> bool:
-        return await self.runtime_hub.close_session(session_id, force=force)
+        closed = await self.runtime_hub.close_session(session_id, force=force)
+        if closed:
+            self.context.drop_session_state(session_id)
+        return closed
 
     async def reclaim_idle_sessions(self, *, idle_for_seconds: float) -> list[str]:
-        return await self.runtime_hub.reclaim_idle_runtimes(idle_for_seconds=idle_for_seconds)
+        reclaimed = await self.runtime_hub.reclaim_idle_runtimes(idle_for_seconds=idle_for_seconds)
+        for session_id in reclaimed:
+            self.context.drop_session_state(session_id)
+        return reclaimed
 
     async def wait_for(self, operation_id: str) -> None:
         """Wait for a specific operation to complete."""

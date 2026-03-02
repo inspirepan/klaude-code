@@ -97,6 +97,13 @@
 - root-task 启动时先以 `operation_id` 占位，执行层注册真实 `task_id` 后通过 `RuntimeHub.bind_root_task()` 回填
 - busy reject 的 `active_task_id` 优先使用真实 `task_id`（若尚未回填则退回占位 ID）
 
+并且本次追加了第十八个增量：
+
+- `AgentRuntime` 从单 `_agent` 升级为多会话 `session_id -> Agent` 映射
+- `request_user_interaction` 改为按 session 绑定回调，避免并发 session 下错误引用“当前 agent”
+- `clear_session` 改为替换会话 agent 并维护 primary session 指针
+- `Executor.close_session/reclaim_idle_sessions` 同步清理对应 session 的 agent 运行态
+
 并且本次追加了第五个增量：
 
 - `Executor.submit()` 直接路由到 `RuntimeHub.submit()`（移除内部 submission queue 转发链路）
