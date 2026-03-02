@@ -403,7 +403,7 @@ def render_generic_tool_result(result: str, *, is_error: bool = False) -> Render
 
 def render_ask_user_question_tool_result(result: str, *, is_error: bool = False) -> RenderableType:
     """Render AskUserQuestion result without truncating the middle content."""
-    style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT
+    style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT_QUESTION
     return Text(result.expandtabs(TAB_EXPAND_WIDTH), style=style, overflow="fold")
 
 
