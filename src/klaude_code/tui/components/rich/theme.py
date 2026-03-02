@@ -180,6 +180,7 @@ class ThemeKey(str, Enum):
     TOOL_PARAM_BOLD = "tool.param.bold"
     TOOL_RESULT = "tool.result"
     TOOL_RESULT_QUESTION = "tool.result.question"
+    TOOL_RESULT_QUESTION_PROMPT = "tool.result.question_prompt"
     TOOL_RESULT_TREE_PREFIX = "tool.result.tree_prefix"
     TOOL_RESULT_TRUNCATED = "tool.result.truncated"
     TOOL_RESULT_BOLD = "tool.result.bold"
@@ -329,6 +330,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_PARAM_BOLD.value: "bold " + palette.green,
                 ThemeKey.TOOL_RESULT.value: palette.grey_green,
                 ThemeKey.TOOL_RESULT_QUESTION.value: palette.cyan,
+                ThemeKey.TOOL_RESULT_QUESTION_PROMPT.value: palette.black,
                 ThemeKey.TOOL_RESULT_TREE_PREFIX.value: palette.grey3,
                 ThemeKey.TOOL_RESULT_BOLD.value: "bold " + palette.grey_green,
                 ThemeKey.TOOL_RESULT_TRUNCATED.value: palette.grey1 + " dim",

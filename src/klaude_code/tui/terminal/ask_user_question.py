@@ -313,7 +313,7 @@ def select_questions[T](
             tokens.append((submit_style, " ✔ Submit "))
             tokens.append(("class:meta", " → · Enter to confirm"))
         else:
-            tokens.append(("class:meta", " → · Enter to confirm"))
+            tokens.append(("class:meta", "Enter to confirm"))
         return tokens
 
     def get_header_tokens() -> list[tuple[str, str]]:
