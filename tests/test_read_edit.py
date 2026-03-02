@@ -107,6 +107,34 @@ class TestReadTool(BaseTempDirTest):
         self.assertIn("Did you mean one of these?", res.output_text or "")
         self.assertIn(existing, res.output_text or "")
 
+    def test_read_file_not_exist_with_directory_preview(self):
+        manager_dir = Path("manager")
+        manager_dir.mkdir()
+
+        init_py = (manager_dir / "__init__.py").resolve()
+        manager_py = (manager_dir / "manager.py").resolve()
+        llm_clients_py = (manager_dir / "llm_clients.py").resolve()
+        sub_agent_manager_py = (manager_dir / "sub_agent_manager.py").resolve()
+        extra_py = (manager_dir / "extra.py").resolve()
+        other_file = (manager_dir / "notes.txt").resolve()
+
+        for file_path in [init_py, manager_py, llm_clients_py, sub_agent_manager_py, extra_py, other_file]:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write("x\n")
+
+        missing = os.path.abspath("manager.py")
+        res = arun(ReadTool.call(json.dumps({"file_path": missing}), self.tool_context))
+
+        self.assertEqual(res.status, "error")
+        self.assertIn("Closest match:", res.output_text or "")
+        self.assertIn(f"- {manager_dir.resolve()} (directory)", res.output_text or "")
+        self.assertIn("Likely files inside:", res.output_text or "")
+        self.assertIn(f"- {init_py}", res.output_text or "")
+        self.assertIn(f"- {manager_py}", res.output_text or "")
+        self.assertIn(f"- {llm_clients_py}", res.output_text or "")
+        self.assertIn(f"- {sub_agent_manager_py}", res.output_text or "")
+        self.assertIn("(+1 more files; use Bash ls for full listing)", res.output_text or "")
+
     def test_read_large_file_truncated(self):
         # Large files are now truncated instead of erroring
         big = os.path.abspath("big.txt")

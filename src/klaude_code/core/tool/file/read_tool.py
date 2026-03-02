@@ -174,15 +174,81 @@ def _missing_file_suggestions(file_path: str, *, max_suggestions: int = 3) -> li
     return suggestions
 
 
+def _missing_file_directory_candidate(file_path: str) -> str | None:
+    directory = os.path.dirname(file_path)
+    stem = Path(file_path).stem
+    if not directory or not stem:
+        return None
+
+    candidate = os.path.join(directory, stem)
+    return candidate if is_directory(candidate) else None
+
+
+def _directory_file_preview(
+    directory_path: str,
+    file_path: str,
+    *,
+    max_suggestions: int = 5,
+) -> tuple[list[str], int]:
+    try:
+        entries = sorted(os.listdir(directory_path), key=str.lower)
+    except OSError:
+        return [], 0
+
+    requested_name = os.path.basename(file_path).lower()
+    requested_stem = Path(file_path).stem.lower()
+
+    init_files: list[str] = []
+    exact_name_files: list[str] = []
+    stem_match_files: list[str] = []
+    python_files: list[str] = []
+    other_files: list[str] = []
+
+    for entry in entries:
+        entry_path = os.path.join(directory_path, entry)
+        if is_directory(entry_path):
+            continue
+
+        entry_lower = entry.lower()
+        if entry_lower == "__init__.py":
+            init_files.append(entry_path)
+        elif entry_lower == requested_name:
+            exact_name_files.append(entry_path)
+        elif requested_stem and requested_stem in entry_lower:
+            stem_match_files.append(entry_path)
+        elif entry_lower.endswith(".py"):
+            python_files.append(entry_path)
+        else:
+            other_files.append(entry_path)
+
+    ranked_files = init_files + exact_name_files + stem_match_files + python_files + other_files
+    preview = ranked_files[:max_suggestions]
+    remaining = max(0, len(ranked_files) - len(preview))
+    return preview, remaining
+
+
 def _missing_file_error(file_path: str) -> str:
     suggestions = _missing_file_suggestions(file_path)
-    if not suggestions:
+    directory_candidate = _missing_file_directory_candidate(file_path)
+
+    if not suggestions and directory_candidate is None:
         return "<tool_use_error>File does not exist.</tool_use_error>"
 
-    suggested_paths = "\n".join(suggestions)
-    return (
-        f"<tool_use_error>File not found:\n{file_path}\nDid you mean one of these?\n{suggested_paths}</tool_use_error>"
-    )
+    message_lines = ["File not found:", file_path]
+    if suggestions:
+        suggested_paths = "\n".join(suggestions)
+        message_lines.extend(["Did you mean one of these?", suggested_paths])
+
+    if directory_candidate is not None:
+        message_lines.extend(["", "Closest match:", f"- {directory_candidate} (directory)"])
+        preview_files, remaining_count = _directory_file_preview(directory_candidate, file_path)
+        if preview_files:
+            message_lines.extend(["", "Likely files inside:"])
+            message_lines.extend(f"- {path}" for path in preview_files)
+            if remaining_count > 0:
+                message_lines.append(f"(+{remaining_count} more files; use Bash ls for full listing)")
+
+    return f"<tool_use_error>{'\n'.join(message_lines)}</tool_use_error>"
 
 
 @register(tools.READ)
