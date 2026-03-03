@@ -78,9 +78,7 @@ async def submit_user_input_payload(
         user_input = UserInputPayload(text=text, images=user_input.images)
 
     # Render the raw user input in the TUI even when it resolves to an event-only command.
-    await runtime.emit_event(
-        events.UserMessageEvent(content=user_input.text, session_id=sid, images=user_input.images)
-    )
+    await runtime.emit_event(events.UserMessageEvent(content=user_input.text, session_id=sid, images=user_input.images))
 
     # Bash mode: run a user-entered command without invoking the agent.
     if user_input.text.startswith("!"):

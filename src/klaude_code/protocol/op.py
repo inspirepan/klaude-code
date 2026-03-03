@@ -229,5 +229,3 @@ class InitAgentOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_init_agent(self)
-
-

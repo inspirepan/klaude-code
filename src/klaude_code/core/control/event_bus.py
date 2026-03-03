@@ -28,9 +28,13 @@ def event_publish_context(
     task_id: str | None = None,
     causation_id: str | None = None,
 ):
-    operation_token = _CURRENT_OPERATION_ID.set(operation_id if operation_id is not None else _CURRENT_OPERATION_ID.get())
+    operation_token = _CURRENT_OPERATION_ID.set(
+        operation_id if operation_id is not None else _CURRENT_OPERATION_ID.get()
+    )
     task_token = _CURRENT_TASK_ID.set(task_id if task_id is not None else _CURRENT_TASK_ID.get())
-    causation_token = _CURRENT_CAUSATION_ID.set(causation_id if causation_id is not None else _CURRENT_CAUSATION_ID.get())
+    causation_token = _CURRENT_CAUSATION_ID.set(
+        causation_id if causation_id is not None else _CURRENT_CAUSATION_ID.get()
+    )
     try:
         yield
     finally:

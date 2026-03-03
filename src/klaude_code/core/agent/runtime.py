@@ -335,7 +335,9 @@ def _clone_llm_clients(template: LLMClients) -> LLMClients:
     return LLMClients(
         main=_clone_llm_client(template.main),
         main_model_alias=template.main_model_alias,
-        sub_clients={sub_agent_type: _clone_llm_client(client) for sub_agent_type, client in template.sub_clients.items()},
+        sub_clients={
+            sub_agent_type: _clone_llm_client(client) for sub_agent_type, client in template.sub_clients.items()
+        },
         compact=_clone_llm_client(template.compact) if template.compact is not None else None,
     )
 
@@ -616,9 +618,7 @@ class AgentCommandHandler:
             with event_publish_context(task_id=task_id):
                 await self._run_agent_task(agent, operation.input, task_id, operation.session_id)
 
-        task: asyncio.Task[None] = asyncio.create_task(
-            _run_with_event_context()
-        )
+        task: asyncio.Task[None] = asyncio.create_task(_run_with_event_context())
         self._register_task(
             operation_id=operation.id,
             task_id=task_id,
@@ -644,9 +644,7 @@ class AgentCommandHandler:
                     session_id=operation.session_id,
                 )
 
-        task: asyncio.Task[None] = asyncio.create_task(
-            _run_with_event_context()
-        )
+        task: asyncio.Task[None] = asyncio.create_task(_run_with_event_context())
         self._register_task(
             operation_id=operation.id,
             task_id=task_id,
@@ -670,9 +668,7 @@ class AgentCommandHandler:
             with event_publish_context(task_id=task_id):
                 await self._run_agent_task(agent, empty_input, task_id, operation.session_id)
 
-        task: asyncio.Task[None] = asyncio.create_task(
-            _run_with_event_context()
-        )
+        task: asyncio.Task[None] = asyncio.create_task(_run_with_event_context())
         self._register_task(
             operation_id=operation.id,
             task_id=task_id,
@@ -696,9 +692,7 @@ class AgentCommandHandler:
             with event_publish_context(task_id=task_id):
                 await self._run_compaction_task(agent, operation, task_id, operation.session_id)
 
-        task: asyncio.Task[None] = asyncio.create_task(
-            _run_with_event_context()
-        )
+        task: asyncio.Task[None] = asyncio.create_task(_run_with_event_context())
         self._register_task(
             operation_id=operation.id,
             task_id=task_id,
@@ -927,6 +921,7 @@ class AgentCommandHandler:
             )
         finally:
             self._remove_task(session_id=session_id, task_id=task_id)
+
 
 class ModelSwitcher:
     """Apply model changes to an agent session."""

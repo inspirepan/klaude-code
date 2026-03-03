@@ -270,7 +270,9 @@ class SessionActor:
             return
         if active.operation_id != operation_id:
             return
-        self._state.active_root_task = RootTaskState(operation_id=active.operation_id, task_id=task_id, kind=active.kind)
+        self._state.active_root_task = RootTaskState(
+            operation_id=active.operation_id, task_id=task_id, kind=active.kind
+        )
 
     def has_pending_request(self, request_id: str) -> bool:
         return request_id in self._state.pending_requests
@@ -303,7 +305,9 @@ class SessionActor:
     def config_snapshot(self) -> SessionConfig:
         return SessionConfig(
             model_name=self._state.config.model_name,
-            thinking=self._state.config.thinking.model_copy(deep=True) if self._state.config.thinking is not None else None,
+            thinking=self._state.config.thinking.model_copy(deep=True)
+            if self._state.config.thinking is not None
+            else None,
             compact_model=self._state.config.compact_model,
             sub_agent_models=dict(self._state.config.sub_agent_models),
         )
