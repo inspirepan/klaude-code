@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Literal
 
 from klaude_code.core.control.session_runtime import (
     RuntimeTaskHandle,
@@ -14,6 +17,15 @@ from klaude_code.core.control.user_interaction import PendingUserInteractionRequ
 from klaude_code.protocol import op, user_interaction
 
 
+@dataclass(frozen=True)
+class OperationLifecycleHooks:
+    on_operation_accepted: Callable[[op.Operation], Awaitable[None]]
+    on_operation_finished: Callable[
+        [op.Operation, Literal["completed", "rejected", "failed"], str | None],
+        Awaitable[None],
+    ]
+
+
 class RuntimeHub:
     def __init__(
         self,
@@ -21,12 +33,15 @@ class RuntimeHub:
         handle_operation: Callable[[op.Operation], Awaitable[None]],
         reject_operation: Callable[[op.Operation, str | None], Awaitable[None]],
         control_burst_quota: int = 8,
+        operation_lifecycle_hooks: OperationLifecycleHooks | None = None,
     ) -> None:
         self._handle_operation = handle_operation
         self._reject_operation = reject_operation
         self._control_burst_quota = control_burst_quota
+        self._operation_lifecycle_hooks = operation_lifecycle_hooks
         self._runtimes: dict[str, SessionRuntime] = {}
         self._operation_runtime_ids: dict[str, str] = {}
+        self._background_tasks: set[asyncio.Task[None]] = set()
 
     async def submit(self, operation: op.Operation) -> None:
         if operation.id in self._operation_runtime_ids:
@@ -35,6 +50,7 @@ class RuntimeHub:
         runtime_id = self._resolve_runtime_id(operation)
         runtime = self._ensure_runtime(runtime_id)
         self._operation_runtime_ids[operation.id] = runtime_id
+        await self._emit_operation_accepted(operation)
 
         if _should_preempt_control(runtime, operation):
             await runtime.run_control_preemptive(operation)
@@ -139,6 +155,17 @@ class RuntimeHub:
 
     async def stop(self) -> None:
         self.cancel_pending_interactions_with_requests(session_id=None)
+
+        tasks_to_await: list[asyncio.Task[None]] = []
+        for task in list(self._background_tasks):
+            if task.done():
+                continue
+            task.cancel()
+            tasks_to_await.append(task)
+        if tasks_to_await:
+            await asyncio.gather(*tasks_to_await, return_exceptions=True)
+        self._background_tasks.clear()
+
         runtimes = list(self._runtimes.values())
         self._runtimes.clear()
         self._operation_runtime_ids.clear()
@@ -243,12 +270,64 @@ class RuntimeHub:
 
         runtime = SessionRuntime(
             session_id=runtime_id,
-            handle_operation=self._handle_operation,
-            reject_operation=self._reject_operation,
+            handle_operation=self._dispatch_operation,
+            reject_operation=self._reject_operation_with_lifecycle,
             control_burst_quota=self._control_burst_quota,
         )
         self._runtimes[runtime_id] = runtime
         return runtime
+
+    async def _dispatch_operation(self, operation: op.Operation) -> None:
+        hooks = self._operation_lifecycle_hooks
+        if hooks is None:
+            await self._handle_operation(operation)
+            return
+
+        try:
+            await self._handle_operation(operation)
+        except Exception as exc:
+            self.mark_operation_completed(operation.id)
+            await hooks.on_operation_finished(operation, "failed", str(exc))
+            raise
+
+        active = self.get_active_task(operation.id)
+        if active is None:
+            self.mark_operation_completed(operation.id)
+            await hooks.on_operation_finished(operation, "completed", None)
+            return
+
+        _session_id, handle = active
+        self.bind_root_task(operation_id=operation.id, task_id=handle.task_id)
+
+        async def _await_task_and_finish(captured_task: asyncio.Task[None]) -> None:
+            try:
+                await captured_task
+            finally:
+                self.mark_operation_completed(operation.id)
+                await hooks.on_operation_finished(operation, "completed", None)
+
+        background_task = asyncio.create_task(_await_task_and_finish(handle.task))
+        self._background_tasks.add(background_task)
+        background_task.add_done_callback(self._background_tasks.discard)
+
+    async def _reject_operation_with_lifecycle(self, operation: op.Operation, active_task_id: str | None) -> None:
+        hooks = self._operation_lifecycle_hooks
+        if hooks is None:
+            await self._reject_operation(operation, active_task_id)
+            return
+
+        try:
+            await self._reject_operation(operation, active_task_id)
+        finally:
+            self.mark_operation_completed(operation.id)
+            await hooks.on_operation_finished(operation, "rejected", None)
+
+    async def _emit_operation_accepted(self, operation: op.Operation) -> None:
+        hooks = self._operation_lifecycle_hooks
+        if hooks is None:
+            return
+        with contextlib.suppress(Exception):
+            await hooks.on_operation_accepted(operation)
 
 def _should_preempt_control(runtime: SessionRuntime, operation: op.Operation) -> bool:
     if not runtime.has_active_root_task():

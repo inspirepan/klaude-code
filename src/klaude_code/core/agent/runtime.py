@@ -309,6 +309,24 @@ class ActiveTask:
     session_id: str
 
 
+@dataclass(frozen=True)
+class CommandDispatcherPorts:
+    ensure_runtime: Callable[[str], SessionRuntime]
+    get_runtime: Callable[[str], SessionRuntime | None]
+    get_runtime_for_operation: Callable[[str], SessionRuntime | None]
+    list_runtimes: Callable[[], list[SessionRuntime]]
+    register_task: Callable[[str, str, str, asyncio.Task[None]], None]
+    remove_task: Callable[[str, str], None]
+    close_session: Callable[[str, bool], Awaitable[bool]]
+    request_user_interaction: Callable[
+        [PendingUserInteractionRequest],
+        Awaitable[user_interaction.UserInteractionResponse],
+    ]
+    respond_user_interaction: Callable[[str, str, user_interaction.UserInteractionResponse], None]
+    cancel_pending_interactions: Callable[[str | None], list[PendingUserInteractionRequest]]
+    on_child_task_state_change: Callable[[str, str, bool], None]
+
+
 def _clone_llm_client(client: LLMClientABC) -> LLMClientABC:
     return create_llm_client(client.get_llm_config().model_copy(deep=True))
 
@@ -322,7 +340,7 @@ def _clone_llm_clients(template: LLMClients) -> LLMClients:
     )
 
 
-class SessionAgentExecutor:
+class AgentCommandHandler:
     """Coordinate agent lifecycle and in-flight tasks for operation execution."""
 
     def __init__(
@@ -947,7 +965,7 @@ class ModelSwitcher:
         return previous
 
 
-class OperationExecutor:
+class CommandDispatcher:
     """
     Context object providing shared state and operation handlers.
 
@@ -961,135 +979,39 @@ class OperationExecutor:
         self,
         event_bus: EventBus,
         llm_clients: LLMClients,
+        ports: CommandDispatcherPorts,
         model_profile_provider: ModelProfileProvider | None = None,
         on_model_change: Callable[[str], None] | None = None,
     ):
         self.event_bus = event_bus
         self.llm_clients: LLMClients = llm_clients
+        self._ports = ports
 
         resolved_profile_provider = model_profile_provider or DefaultModelProfileProvider()
         self.model_profile_provider: ModelProfileProvider = resolved_profile_provider
 
         self._sub_agent_executor = SubAgentExecutor(self.emit_event, llm_clients, resolved_profile_provider)
         self._on_model_change = on_model_change
-        self._ensure_runtime_callback: Callable[[str], SessionRuntime] | None = None
-        self._get_runtime_callback: Callable[[str], SessionRuntime | None] | None = None
-        self._get_runtime_for_operation_callback: Callable[[str], SessionRuntime | None] | None = None
-        self._list_runtimes_callback: Callable[[], list[SessionRuntime]] | None = None
-        self._register_task_callback: Callable[[str, str, str, asyncio.Task[None]], None] | None = None
-        self._remove_task_callback: Callable[[str, str], None] | None = None
-        self._close_session_callback: Callable[[str, bool], Awaitable[bool]] | None = None
-        self._request_user_interaction_callback: (
-            Callable[
-                [PendingUserInteractionRequest],
-                Awaitable[user_interaction.UserInteractionResponse],
-            ]
-            | None
-        ) = None
-        self._respond_user_interaction_callback: (
-            Callable[[str, str, user_interaction.UserInteractionResponse], None] | None
-        ) = None
-        self._cancel_pending_interactions_callback: (
-            Callable[[str | None], list[PendingUserInteractionRequest]] | None
-        ) = None
-        self._child_task_state_change_callback: Callable[[str, str, bool], None] | None = None
-        self._session_executor = SessionAgentExecutor(
+        self._agent_command_handler = AgentCommandHandler(
             emit_event=self.emit_event,
             llm_clients=llm_clients,
             model_profile_provider=resolved_profile_provider,
             sub_agent_manager=self._sub_agent_executor,
             on_child_task_state_change=self._on_child_task_state_change,
-            ensure_runtime=self._ensure_runtime,
-            get_runtime=self._get_runtime,
-            get_runtime_for_operation=self._get_runtime_for_operation,
-            list_runtimes=self._list_runtimes,
-            register_task=self._register_task,
-            remove_task=self._remove_task,
+            ensure_runtime=ports.ensure_runtime,
+            get_runtime=ports.get_runtime,
+            get_runtime_for_operation=ports.get_runtime_for_operation,
+            list_runtimes=ports.list_runtimes,
+            register_task=ports.register_task,
+            remove_task=ports.remove_task,
             request_user_interaction=self.request_user_interaction,
         )
         self._model_switcher = ModelSwitcher(resolved_profile_provider)
-
-    def set_runtime_callbacks(
-        self,
-        *,
-        ensure_runtime: Callable[[str], SessionRuntime],
-        get_runtime: Callable[[str], SessionRuntime | None],
-        get_runtime_for_operation: Callable[[str], SessionRuntime | None],
-        list_runtimes: Callable[[], list[SessionRuntime]],
-        register_task: Callable[[str, str, str, asyncio.Task[None]], None],
-        remove_task: Callable[[str, str], None],
-    ) -> None:
-        self._ensure_runtime_callback = ensure_runtime
-        self._get_runtime_callback = get_runtime
-        self._get_runtime_for_operation_callback = get_runtime_for_operation
-        self._list_runtimes_callback = list_runtimes
-        self._register_task_callback = register_task
-        self._remove_task_callback = remove_task
-
-    def _ensure_runtime(self, session_id: str) -> SessionRuntime:
-        callback = self._ensure_runtime_callback
-        if callback is None:
-            raise RuntimeError("runtime callbacks are not configured")
-        return callback(session_id)
-
-    def _get_runtime(self, session_id: str) -> SessionRuntime | None:
-        callback = self._get_runtime_callback
-        if callback is None:
-            raise RuntimeError("runtime callbacks are not configured")
-        return callback(session_id)
-
-    def _get_runtime_for_operation(self, operation_id: str) -> SessionRuntime | None:
-        callback = self._get_runtime_for_operation_callback
-        if callback is None:
-            raise RuntimeError("runtime callbacks are not configured")
-        return callback(operation_id)
-
-    def _list_runtimes(self) -> list[SessionRuntime]:
-        callback = self._list_runtimes_callback
-        if callback is None:
-            raise RuntimeError("runtime callbacks are not configured")
-        return callback()
-
-    def _register_task(self, session_id: str, operation_id: str, task_id: str, task: asyncio.Task[None]) -> None:
-        callback = self._register_task_callback
-        if callback is None:
-            raise RuntimeError("runtime callbacks are not configured")
-        callback(session_id, operation_id, task_id, task)
-
-    def _remove_task(self, session_id: str, task_id: str) -> None:
-        callback = self._remove_task_callback
-        if callback is None:
-            raise RuntimeError("runtime callbacks are not configured")
-        callback(session_id, task_id)
-
-    def set_close_session_callback(self, callback: Callable[[str, bool], Awaitable[bool]]) -> None:
-        self._close_session_callback = callback
-
-    def set_child_task_state_change_callback(self, callback: Callable[[str, str, bool], None] | None) -> None:
-        self._child_task_state_change_callback = callback
-
-    def set_user_interaction_callbacks(
-        self,
-        *,
-        request_callback: Callable[
-            [PendingUserInteractionRequest],
-            Awaitable[user_interaction.UserInteractionResponse],
-        ],
-        respond_callback: Callable[[str, str, user_interaction.UserInteractionResponse], None],
-        cancel_callback: Callable[[str | None], list[PendingUserInteractionRequest]],
-    ) -> None:
-        self._request_user_interaction_callback = request_callback
-        self._respond_user_interaction_callback = respond_callback
-        self._cancel_pending_interactions_callback = cancel_callback
 
     async def request_user_interaction(
         self,
         request: PendingUserInteractionRequest,
     ) -> user_interaction.UserInteractionResponse:
-        callback = self._request_user_interaction_callback
-        if callback is None:
-            raise RuntimeError("request user interaction callback is not configured")
-
         await self.emit_event(
             events.UserInteractionRequestEvent(
                 session_id=request.session_id,
@@ -1099,13 +1021,10 @@ class OperationExecutor:
                 payload=request.payload,
             )
         )
-        return await callback(request)
+        return await self._ports.request_user_interaction(request)
 
     def cancel_pending_user_interactions(self, *, session_id: str | None) -> list[PendingUserInteractionRequest]:
-        callback = self._cancel_pending_interactions_callback
-        if callback is None:
-            return []
-        return callback(session_id)
+        return self._ports.cancel_pending_interactions(session_id)
 
     async def _emit_interaction_cancelled_events(
         self,
@@ -1132,10 +1051,7 @@ class OperationExecutor:
             )
 
     def _on_child_task_state_change(self, session_id: str, task_id: str, is_active: bool) -> None:
-        callback = self._child_task_state_change_callback
-        if callback is None:
-            return
-        callback(session_id, task_id, is_active)
+        self._ports.on_child_task_state_change(session_id, task_id, is_active)
 
     async def emit_event(
         self,
@@ -1160,38 +1076,38 @@ class OperationExecutor:
         operates on a single interactive session per process.
         """
 
-        return self._session_executor.current_session_id()
+        return self._agent_command_handler.current_session_id()
 
     @property
     def current_agent(self) -> Agent | None:
         """Return the currently active agent, if any."""
 
-        return self._session_executor.current_agent
+        return self._agent_command_handler.current_agent
 
     async def handle_init_agent(self, operation: op.InitAgentOperation) -> None:
         """Initialize an agent for a session and replay history to UI."""
-        await self._session_executor.init_agent(operation.session_id)
+        await self._agent_command_handler.init_agent(operation.session_id)
 
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
-        await self._session_executor.run_agent(operation)
+        await self._agent_command_handler.run_agent(operation)
 
     async def handle_run_bash(self, operation: op.RunBashOperation) -> None:
-        await self._session_executor.run_bash(operation)
+        await self._agent_command_handler.run_bash(operation)
 
     async def handle_continue_agent(self, operation: op.ContinueAgentOperation) -> None:
-        await self._session_executor.continue_agent(operation)
+        await self._agent_command_handler.continue_agent(operation)
 
     async def handle_compact_session(self, operation: op.CompactSessionOperation) -> None:
-        await self._session_executor.compact_session(operation)
+        await self._agent_command_handler.compact_session(operation)
 
     async def handle_change_model(self, operation: op.ChangeModelOperation) -> None:
-        agent = await self._session_executor.ensure_agent(operation.session_id)
+        agent = await self._agent_command_handler.ensure_agent(operation.session_id)
         llm_config, llm_client_name = await self._model_switcher.change_model(
             agent,
             model_name=operation.model_name,
             save_as_default=operation.save_as_default,
         )
-        self._session_executor.set_session_main_client(
+        self._agent_command_handler.set_session_main_client(
             session_id=agent.session.id,
             client=agent.profile.llm_client,
             model_alias=llm_client_name,
@@ -1226,7 +1142,7 @@ class OperationExecutor:
         Interactive thinking selection must happen in the UI/CLI layer. Core only
         applies a concrete thinking configuration.
         """
-        agent = await self._session_executor.ensure_agent(operation.session_id)
+        agent = await self._agent_command_handler.ensure_agent(operation.session_id)
 
         def _format_thinking_for_display(thinking: Thinking | None) -> str:
             if thinking is None:
@@ -1269,8 +1185,8 @@ class OperationExecutor:
 
     async def handle_change_sub_agent_model(self, operation: op.ChangeSubAgentModelOperation) -> None:
         """Handle a change sub-agent model operation."""
-        agent = await self._session_executor.ensure_agent(operation.session_id)
-        session_clients = self._session_executor.get_session_llm_clients(agent.session.id)
+        agent = await self._agent_command_handler.ensure_agent(operation.session_id)
+        session_clients = self._agent_command_handler.get_session_llm_clients(agent.session.id)
         config = load_config()
 
         helper = SubAgentModelHelper(config)
@@ -1319,8 +1235,8 @@ class OperationExecutor:
 
     async def handle_change_compact_model(self, operation: op.ChangeCompactModelOperation) -> None:
         """Handle a change compact model operation."""
-        agent = await self._session_executor.ensure_agent(operation.session_id)
-        session_clients = self._session_executor.get_session_llm_clients(agent.session.id)
+        agent = await self._agent_command_handler.ensure_agent(operation.session_id)
+        session_clients = self._agent_command_handler.get_session_llm_clients(agent.session.id)
         config = load_config()
 
         model_name = operation.model_name
@@ -1352,10 +1268,10 @@ class OperationExecutor:
         )
 
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
-        await self._session_executor.clear_session(operation.session_id)
+        await self._agent_command_handler.clear_session(operation.session_id)
 
     async def handle_export_session(self, operation: op.ExportSessionOperation) -> None:
-        agent = await self._session_executor.ensure_agent(operation.session_id)
+        agent = await self._agent_command_handler.ensure_agent(operation.session_id)
         try:
             output_path = self._resolve_export_output_path(operation.output_path, agent.session)
             html_doc = self._build_export_html(agent)
@@ -1425,20 +1341,15 @@ class OperationExecutor:
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
 
-        await self._session_executor.interrupt(operation.session_id)
+        await self._agent_command_handler.interrupt(operation.session_id)
         cancelled_requests = self.cancel_pending_user_interactions(session_id=operation.session_id)
         await self._emit_interaction_cancelled_events(cancelled_requests, reason="interrupt")
 
     async def handle_close_session(self, operation: op.CloseSessionOperation) -> None:
-        if self._close_session_callback is None:
-            raise RuntimeError("close session callback is not configured")
-        await self._close_session_callback(operation.session_id, operation.force)
+        await self._ports.close_session(operation.session_id, operation.force)
 
     async def handle_user_interaction_respond(self, operation: op.UserInteractionRespondOperation) -> None:
-        callback = self._respond_user_interaction_callback
-        if callback is None:
-            raise RuntimeError("respond user interaction callback is not configured")
-        callback(operation.request_id, operation.session_id, operation.response)
+        self._ports.respond_user_interaction(operation.request_id, operation.session_id, operation.response)
         await self.emit_event(
             events.UserInteractionResponseReceivedEvent(
                 session_id=operation.session_id,
@@ -1468,15 +1379,15 @@ class OperationExecutor:
     def get_active_task(self, operation_id: str) -> ActiveTask | None:
         """Return the active runtime task for an operation id if present."""
 
-        return self._session_executor.get_active_task(operation_id)
+        return self._agent_command_handler.get_active_task(operation_id)
 
     def list_active_tasks(self) -> list[ActiveTask]:
-        return self._session_executor.list_active_tasks()
+        return self._agent_command_handler.list_active_tasks()
 
     def clear_active_tasks(self) -> None:
-        self._session_executor.clear_active_tasks()
+        self._agent_command_handler.clear_active_tasks()
 
 
-# Static type check: OperationExecutor must satisfy OperationHandler protocol.
-# If this line causes a type error, OperationExecutor is missing required methods.
-_: type[OperationHandler] = OperationExecutor
+# Static type check: CommandDispatcher must satisfy OperationHandler protocol.
+# If this line causes a type error, CommandDispatcher is missing required methods.
+_: type[OperationHandler] = CommandDispatcher
