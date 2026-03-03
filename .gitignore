@@ -19,3 +19,4 @@ debug.log
 .vscode/
 .jj/
 .claude-trace/
+node_modules/
