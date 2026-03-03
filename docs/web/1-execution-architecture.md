@@ -148,13 +148,13 @@ Browser (N 个)
 │  Layer 1: Transport                          │
 │  ASGI Server (uvicorn) + FastAPI             │
 │                                              │
-│  GET  /sessions/{id}/events  -> SSE 事件流    │
-│  POST /sessions              -> 创建 session │
-│  POST /sessions/{id}/message -> 发消息        │
-│  POST /sessions/{id}/interrupt -> 中断        │
-│  POST /sessions/{id}/respond -> 用户交互响应   │
-│  GET  /sessions/{id}/history -> 加载历史       │
-│  GET  /sessions              -> session 列表   │
+│  GET  /api/sessions/{id}/events  -> SSE 事件流    │
+│  POST /api/sessions              -> 创建 session │
+│  POST /api/sessions/{id}/message -> 发消息        │
+│  POST /api/sessions/{id}/interrupt -> 中断        │
+│  POST /api/sessions/{id}/respond -> 用户交互响应   │
+│  GET  /api/sessions/{id}/history -> 加载历史       │
+│  GET  /api/sessions              -> session 列表   │
 └──────────────────┬───────────────────────────┘
                    |
 ┌──────────────────┴───────────────────────────┐
@@ -174,30 +174,48 @@ Browser (N 个)
 └──────────────────────────────────────────────┘
 ```
 
-### 2.4 进程模型
+### 2.4 进程模型（默认前后端同启）
+
+`klaude web` 默认是 **fullstack launcher**：同时准备后端 API 与前端可访问入口，再自动打开浏览器。
+
+#### 模式 A：源码开发环境（双进程）
 
 ```
-┌─ asyncio event loop (单进程) ─────────────────────┐
-│                                                    │
-│  uvicorn (ASGI)          RuntimeFacade             │
-│    ├─ HTTP routes           ├─ SessionRegistry     │
-│    ├─ SSE endpoints            ├─ SessionActor[s1] │
-│    └─ static files             ├─ SessionActor[s2] │
-│                                └─ SessionActor[s3] │
-│                                                    │
-│  EventBus (所有组件共享)                             │
-│    ├─ Subscription[sse-1] -> s1                    │
-│    ├─ Subscription[sse-2] -> s1  (同 session 多连接)│
-│    └─ Subscription[sse-3] -> s2                    │
-└────────────────────────────────────────────────────┘
+┌────────────────────── klaude web launcher ──────────────────────┐
+│                                                                  │
+│  Process-1: Python (uvicorn + RuntimeFacade)                    │
+│    ├─ /api/*                                                     │
+│    ├─ SSE                                                        │
+│    └─ EventBus + SessionRegistry + SessionActor                 │
+│                                                                  │
+│  Process-2: Frontend dev server (Vite)                           │
+│    ├─ /                                                          │
+│    └─ proxy /api -> Python backend                               │
+│                                                                  │
+│  Browser auto-open -> http://127.0.0.1:<frontend_port>          │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-uvicorn 和 RuntimeFacade 跑在同一个 asyncio 事件循环中。FastAPI/Starlette 的 ASGI 天然基于 asyncio，不需要额外线程。
+#### 模式 B：PyPI / 无 Node 环境（单进程）
+
+```
+┌─ asyncio event loop (单进程) ────────────────────────────────────┐
+│                                                                  │
+│  uvicorn (ASGI)                RuntimeFacade                     │
+│    ├─ /api/* routes              ├─ SessionRegistry             │
+│    ├─ /api/sessions/{id}/events  ├─ SessionActor[s1..n]         │
+│    └─ StaticFiles(web/dist)      └─ EventBus                    │
+│                                                                  │
+│  Browser auto-open -> http://127.0.0.1:<backend_port>/          │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+两种模式的用户体验保持一致：执行 `klaude web` 后直接进入 Web UI。
 
 ### 2.5 SSE 事件流设计
 
 ```python
-@app.get("/sessions/{session_id}/events", response_class=EventSourceResponse)
+@app.get("/api/sessions/{session_id}/events", response_class=EventSourceResponse)
 async def stream_events(session_id: str) -> AsyncIterable[ServerSentEvent]:
     subscription = event_bus.subscribe(session_id)
     async for envelope in subscription:
@@ -211,7 +229,7 @@ async def stream_events(session_id: str) -> AsyncIterable[ServerSentEvent]:
 前端用 `EventSource` 消费：
 
 ```javascript
-const es = new EventSource(`/sessions/${sessionId}/events`);
+const es = new EventSource(`/api/sessions/${sessionId}/events`);
 es.addEventListener("assistant_text_delta", (e) => { /* 渲染增量文本 */ });
 es.addEventListener("tool_call_start", (e) => { /* 渲染工具调用 */ });
 // ...
@@ -223,7 +241,7 @@ es.addEventListener("tool_call_start", (e) => { /* 渲染工具调用 */ });
 
 **断线重连**：EventBus 当前不持久化事件，`subscribe` 只能收到订阅之后的事件。断线重连策略：
 
-1. 前端重连时先 `GET /sessions/{id}/history` 获取完整会话状态。
+1. 前端重连时先 `GET /api/sessions/{id}/history` 获取完整会话状态。
 2. 再建立 SSE 连接接收后续实时事件。
 
 不在服务端维护 per-session 事件 ring buffer，避免额外复杂度。会话历史已通过 `Session.conversation_history` 持久化在磁盘。
@@ -242,7 +260,7 @@ RuntimeFacade 发布 UserInteractionRequestEvent
 前端收到交互请求，渲染 UI（选择框/输入框）
     |
     v (用户操作)
-前端 POST /sessions/{id}/respond  {request_id, response}
+前端 POST /api/sessions/{id}/respond  {request_id, response}
     |
     v
 Web Adapter 转换为 UserInteractionRespondOperation
@@ -295,6 +313,20 @@ idle_reclaim_task = create_task(reclaim_idle_sessions_loop(runtime))
 
 建议：从 `app/runtime.py` 中抽取 EventBus + RuntimeFacade + InteractionHandler 的初始化为共享函数，TUI 和 Web 各自补充自己的 I/O 层。
 
+### 2.9 启动编排与浏览器打开
+
+`klaude web` 的默认流程：
+
+1. 初始化核心运行时（`EventBus` + `RuntimeFacade` + Web 交互桥接）。
+2. 启动后端 API（uvicorn）。
+3. 选择前端策略：
+   - 检测到开发前端可用时，拉起前端 dev server；
+   - 否则使用后端静态托管 `web/dist`。
+4. 自动打开浏览器到前端 URL（可通过 `--no-open` 关闭）。
+5. 监听退出信号并做统一清理（包含前端子进程与 asyncio 任务）。
+
+说明：源码与 PyPI 的实现路径可不同，但 CLI 默认行为必须相同。
+
 ---
 
 ## 3. 需要新增的模块
@@ -306,9 +338,10 @@ src/klaude_code/web/
     session_manager.py  # WebSessionManager：HTTP -> Operation 转换
     interaction.py      # WebInteractionHandler：InteractionHandlerABC 实现
     startup.py          # Web 模式初始化（复用 app/runtime.py 核心部分）
+    frontend_launcher.py # 前端进程探测/启动（dev server 或静态托管策略）
 ```
 
-CLI 入口新增 `klaude web` 子命令，启动 uvicorn 并打开浏览器。
+CLI 入口新增 `klaude web` 子命令，默认启动前后端并自动打开浏览器。
 
 ---
 
@@ -337,6 +370,7 @@ CLI 入口新增 `klaude web` 子命令，启动 uvicorn 并打开浏览器。
 | SSE | FastAPI `EventSourceResponse` | 内置 keep-alive、Cache-Control、代理穿透 |
 | 序列化 | Pydantic `model_dump_json()` | EventEnvelope 已是 Pydantic 模型 |
 | 前端静态文件 | Starlette `StaticFiles` | 开发时 vite dev server，发布时嵌入包 |
+| 前端运行策略 | Vite dev server + StaticFiles fallback | 同一 CLI 行为覆盖源码与 PyPI 场景 |
 
 ---
 

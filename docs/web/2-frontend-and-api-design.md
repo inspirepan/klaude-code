@@ -14,6 +14,7 @@
 ```
 App
 ├── LeftSidebar                                         [MVP]
+│   ├── NewSessionButton                                [MVP]
 │   └── SessionList                                     [MVP]
 │       └── ProjectGroup (按 work_dir 分组)               [MVP]
 │           └── SessionCard                             [MVP]
@@ -22,6 +23,7 @@ App
 │               └── 模型名                               [MVP]
 │
 ├── SessionDetailContainer                              [MVP]
+│   ├── NewSessionDraftView (默认详情页，未持久化)          [MVP]
 │   ├── MessageList (主体消息流)                          [MVP]
 │   │   ├── UserMessage                                 [MVP]
 │   │   ├── DeveloperMessage                            [MVP]
@@ -73,6 +75,12 @@ App
     └── OpenVSCode 按钮
 ```
 
+默认行为（MVP）：
+- 页面首次进入时，默认进入“新 session 草稿页”（无 `session_id`）。
+- 详情区默认展示该草稿页（而不是最近历史 session）。
+- 左侧 `NewSessionButton` 点击后进入新的草稿页，不立即创建 session。
+- 发送首条消息时才触发 `POST /api/sessions` 创建真实 session，并立刻发送该消息。
+
 ---
 
 ## 2. API 设计
@@ -118,6 +126,10 @@ Base path: `/api`
 #### `POST /api/sessions`
 
 创建新 session 并初始化 agent。
+
+该端点有两个直接 UI 用途：
+1. 左侧栏“新建 Session”按钮。
+2. 新 session 草稿在发送首条消息时的懒创建。
 
 **Request:**
 ```json
@@ -699,7 +711,7 @@ interface TodoListUIExtra {
 ```
 AppState
 ├── sessions: Map<session_id, SessionMeta>     // 侧边栏列表
-├── activeSessionId: string | null             // 当前查看的 session
+├── activeSessionId: string | "draft" | null  // 当前查看的 session 或草稿
 ├── sessionStates: Map<session_id, SessionState>
 │   └── SessionState
 │       ├── messages: Message[]                // 已渲染的消息列表
@@ -726,17 +738,19 @@ AppState
 ```
 1. GET /api/sessions           -> 填充侧边栏 session 列表
 2. GET /api/config/models      -> 填充模型选择器
-3. 用户点击某个 session (或自动选中最近的)
-4. POST /api/sessions/{id}/resume  -> 初始化 agent runtime
-5. GET /api/sessions/{id}/history  -> 获取完整历史，渲染消息列表
-6. 连接 GET /api/sessions/{id}/events (SSE) -> 接收后续实时事件
+3. 初始化 active 为 `draft`，展示“新 session 草稿页”
+4. 不调用 POST /api/sessions，不建立 SSE
 ```
 
 ### 7.2 发送消息
 
 ```
-1. POST /api/sessions/{id}/message  -> 获得 operation_id
-2. 通过 SSE 接收事件流:
+1. 若 active 为 `draft`：
+   a. POST /api/sessions -> 获得 session_id
+   b. 侧边栏插入新 session 卡片并设为 active
+   c. 连接 GET /api/sessions/{id}/events (SSE)
+2. POST /api/sessions/{id}/message  -> 获得 operation_id
+3. 通过 SSE 接收事件流:
    operation.accepted -> (可选) 显示 loading
    turn.start -> 显示 spinner
    thinking.start/delta/end -> 渲染 thinking
@@ -760,10 +774,9 @@ AppState
 ### 7.4 创建新 session
 
 ```
-1. POST /api/sessions  -> 获得 session_id
-2. 侧边栏添加新 session 卡片
-3. 连接 SSE
-4. (可选) SSE 收到 WelcomeEvent -> 显示模型信息
+1. 点击 `NewSessionButton`
+2. 切换到新的 `draft` 详情态（可清空输入框与临时 UI 状态）
+3. 用户发送首条消息时，按 7.2 的 draft 分支懒创建 session
 ```
 
 ---
@@ -919,9 +932,12 @@ web/                          # 前端 SPA (Vite + React)
 ### 开发流程
 
 ```
-# 开发
-cd web && pnpm dev             # Vite dev server :5173, proxy /api -> :8765
-cd .. && klaude web --dev      # Python 后端 :8765 (不托管前端静态文件)
+# 默认（推荐）
+klaude web                      # 自动拉起前后端并打开浏览器
+
+# 分离调试（仅开发时可选）
+cd web && pnpm dev              # Vite dev server :5173, proxy /api -> :8765
+cd .. && klaude web --dev --no-open   # 仅启动后端 API，不接管前端 dev server
 
 # 构建发布
 cd web && pnpm build           # 输出到 web/dist/

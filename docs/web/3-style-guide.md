@@ -170,6 +170,7 @@ MVP 仅实现 Light 模式，Dark 模式后续迭代。
 ### 侧边栏
 
 - 背景 `--surface-secondary`
+- 顶部 `New Session` 按钮：主色实底（`bg-primary text-primary-foreground`），高度 `h-8`，圆角 `rounded-lg`，全宽
 - Session 卡片：hover 时 `bg-white/60`，选中态 `bg-white` + 左边框 `border-l-2 border-primary`
 - 项目分组标题：`text-xs font-semibold uppercase tracking-wider text-foreground-secondary`
 
