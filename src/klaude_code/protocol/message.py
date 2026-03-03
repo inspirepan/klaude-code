@@ -234,7 +234,7 @@ class UserInputPayload(BaseModel):
     """Structured payload for user input containing text and optional images.
 
     This is the unified data structure for user input across the entire
-    UI -> CLI -> Executor -> Agent -> Task chain.
+    UI -> CLI -> RuntimeFacade -> Agent -> Task chain.
     """
 
     text: str

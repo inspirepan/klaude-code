@@ -11,7 +11,7 @@ from klaude_code.core.tool import ToolABC
 from klaude_code.core.tool.context import SubAgentResumeClaims, ToolContext
 
 if TYPE_CHECKING:
-    from klaude_code.core.task import SessionContext
+    from klaude_code.core.agent.task import SessionContext
 
 from klaude_code.core.tool.tool_runner import (
     ToolCallRequest,

@@ -1,23 +1,28 @@
 import asyncio
 import contextlib
 import sys
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from uuid import uuid4
 
 import typer
 
-from klaude_code import ui
+from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.config import Config, load_config
-from klaude_code.core.agent import Agent
+from klaude_code.core.agent.agent import Agent
+from klaude_code.core.agent.runtime import build_llm_clients
 from klaude_code.core.agent_profile import (
     DefaultModelProfileProvider,
     VanillaModelProfileProvider,
 )
-from klaude_code.core.executor import Executor
-from klaude_code.core.manager import build_llm_clients
+from klaude_code.core.control.event_bus import EventBus, EventSubscription
+from klaude_code.core.control.runtime_facade import RuntimeFacade
 from klaude_code.log import log, set_debug_logging
-from klaude_code.protocol import events, op
+from klaude_code.protocol import events, op, user_interaction
 from klaude_code.session.session import Session, close_default_store
+
+SESSION_IDLE_TTL_SECONDS = 30 * 60
+SESSION_IDLE_RECLAIM_INTERVAL_SECONDS = 60
 
 
 @dataclass
@@ -34,20 +39,82 @@ class AppComponents:
     """Initialized runtime components."""
 
     config: Config
-    executor: Executor
-    executor_task: asyncio.Task[None]
-    event_queue: asyncio.Queue[events.Event]
-    display: ui.DisplayABC
+    runtime: RuntimeFacade
+    event_bus: EventBus
+    event_bus_subscription: EventSubscription
+    display: DisplayABC
     display_task: asyncio.Task[None]
+    interaction_task: asyncio.Task[None] | None
+    idle_reclaim_task: asyncio.Task[None]
+
+    async def wait_for_display_idle(self) -> None:
+        """Wait until EventBus subscription has consumed pending events."""
+        await self.event_bus_subscription.wait_for_drain()
+
+
+async def _consume_display_from_subscription(
+    subscription: EventSubscription,
+    display: DisplayABC,
+) -> None:
+    await display.start()
+    async for envelope in subscription:
+        try:
+            if isinstance(envelope.event, events.EndEvent):
+                await display.stop()
+                return
+            await display.consume_envelope(envelope)
+        except Exception as e:
+            import traceback
+
+            log(
+                f"Error in display event stream, {e.__class__.__name__}, {e}",
+                style="red",
+            )
+            log(traceback.format_exc(), style="red")
+
+
+async def _reclaim_idle_sessions_loop(runtime: RuntimeFacade) -> None:
+    while True:
+        await asyncio.sleep(SESSION_IDLE_RECLAIM_INTERVAL_SECONDS)
+        await runtime.reclaim_idle_sessions(idle_for_seconds=SESSION_IDLE_TTL_SECONDS)
+
+
+async def _consume_interactions_from_subscription(
+    subscription: EventSubscription,
+    runtime: RuntimeFacade,
+    handler: InteractionHandlerABC,
+) -> None:
+    async for envelope in subscription:
+        event = envelope.event
+        if isinstance(event, events.EndEvent):
+            return
+        if not isinstance(event, events.UserInteractionRequestEvent):
+            continue
+
+        try:
+            response = await handler.collect_response(event)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            response = user_interaction.UserInteractionResponse(status="cancelled", payload=None)
+
+        await runtime.submit_and_wait(
+            op.UserInteractionRespondOperation(
+                session_id=event.session_id,
+                request_id=event.request_id,
+                response=response,
+            )
+        )
 
 
 async def initialize_app_components(
     *,
     init_config: AppInitConfig,
-    display: ui.DisplayABC,
+    display: DisplayABC,
+    interaction_handler: InteractionHandlerABC | None = None,
     on_model_change: Callable[[str], None] | None = None,
 ) -> AppComponents:
-    """Initialize LLM clients, executor, and display task."""
+    """Initialize LLM clients, runtime, and display task."""
     set_debug_logging(init_config.debug)
 
     config = load_config()
@@ -77,10 +144,12 @@ async def initialize_app_components(
     else:
         model_profile_provider = DefaultModelProfileProvider(config=config)
 
-    event_queue: asyncio.Queue[events.Event] = asyncio.Queue()
+    event_bus = EventBus()
+    event_bus_subscription = event_bus.subscribe(None)
+    interaction_subscription = event_bus.subscribe(None) if interaction_handler is not None else None
 
-    executor = Executor(
-        event_queue,
+    runtime = RuntimeFacade(
+        event_bus,
         llm_clients,
         model_profile_provider=model_profile_provider,
         on_model_change=on_model_change,
@@ -88,8 +157,6 @@ async def initialize_app_components(
 
     if on_model_change is not None:
         on_model_change(llm_clients.main_model_alias)
-
-    executor_task = asyncio.create_task(executor.start())
 
     def _drain_background_task_exception(task: asyncio.Task[None], *, label: str) -> None:
         def _on_done(t: asyncio.Task[None]) -> None:
@@ -103,32 +170,43 @@ async def initialize_app_components(
 
         task.add_done_callback(_on_done)
 
-    _drain_background_task_exception(executor_task, label="executor")
+    idle_reclaim_task = asyncio.create_task(_reclaim_idle_sessions_loop(runtime))
+    _drain_background_task_exception(idle_reclaim_task, label="idle-reclaim")
 
-    display_task = asyncio.create_task(display.consume_event_loop(event_queue))
+    display_task = asyncio.create_task(_consume_display_from_subscription(event_bus_subscription, display))
     _drain_background_task_exception(display_task, label="display")
+
+    interaction_task: asyncio.Task[None] | None = None
+    if interaction_subscription is not None and interaction_handler is not None:
+        interaction_task = asyncio.create_task(
+            _consume_interactions_from_subscription(interaction_subscription, runtime, interaction_handler)
+        )
+        _drain_background_task_exception(interaction_task, label="interaction")
 
     return AppComponents(
         config=config,
-        executor=executor,
-        executor_task=executor_task,
-        event_queue=event_queue,
+        runtime=runtime,
+        event_bus=event_bus,
+        event_bus_subscription=event_bus_subscription,
         display=display,
         display_task=display_task,
+        interaction_task=interaction_task,
+        idle_reclaim_task=idle_reclaim_task,
     )
 
 
 async def initialize_session(
-    executor: Executor,
-    event_queue: asyncio.Queue[events.Event],
+    runtime: RuntimeFacade,
+    wait_for_display_idle: Callable[[], Awaitable[None]],
     session_id: str | None = None,
 ) -> str | None:
     """Initialize a session and return the active session id."""
-    await executor.submit_and_wait(op.InitAgentOperation(session_id=session_id))
-    await event_queue.join()
+    resolved_session_id = session_id or uuid4().hex
+    await runtime.submit_and_wait(op.InitAgentOperation(session_id=resolved_session_id))
+    await wait_for_display_idle()
 
-    active_session_id = executor.context.current_session_id()
-    return active_session_id or session_id
+    active_session_id = runtime.current_session_id()
+    return active_session_id or resolved_session_id
 
 
 def backfill_session_model_config(
@@ -156,14 +234,23 @@ def backfill_session_model_config(
 async def cleanup_app_components(components: AppComponents) -> None:
     """Clean up all runtime components."""
     try:
-        await components.executor.stop()
-        components.executor_task.cancel()
+        components.idle_reclaim_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await components.executor_task
+            await components.idle_reclaim_task
+
+        await components.runtime.stop()
         with contextlib.suppress(Exception):
             await close_default_store()
 
-        await components.event_queue.put(events.EndEvent())
+        with contextlib.suppress(Exception):
+            await components.wait_for_display_idle()
+
+        with contextlib.suppress(Exception):
+            await components.event_bus.publish(events.EndEvent())
+
+        if components.interaction_task is not None:
+            with contextlib.suppress(Exception):
+                await components.interaction_task
         await components.display_task
     finally:
         # Ensure the terminal cursor is visible even if Rich's spinner did not stop cleanly.
@@ -173,12 +260,16 @@ async def cleanup_app_components(components: AppComponents) -> None:
             stream.flush()
 
 
-async def handle_keyboard_interrupt(executor: Executor) -> None:
-    """Handle Ctrl+C by logging and sending a global interrupt."""
+async def handle_keyboard_interrupt(runtime: RuntimeFacade) -> None:
+    """Handle Ctrl+C by logging and interrupting only if a task is running."""
     log("Bye!")
-    session_id = executor.context.current_session_id()
+    session_id = runtime.current_session_id()
     if session_id and Session.exists(session_id):
         short_id = Session.shortest_unique_prefix(session_id)
         log(("Resume with:", "dim"), (f"klaude -r {short_id}", "green"))
+    if not runtime.has_running_tasks():
+        return
+    if session_id is None:
+        return
     with contextlib.suppress(Exception):
-        await executor.submit(op.InterruptOperation(target_session_id=None))
+        await runtime.submit(op.InterruptOperation(session_id=session_id))

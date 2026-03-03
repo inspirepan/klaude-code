@@ -8,9 +8,9 @@ from typing import Any, cast
 
 import pytest
 
-import klaude_code.core.task as task_module
+import klaude_code.core.agent.task as task_module
+from klaude_code.core.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.core.agent_profile import AgentProfile
-from klaude_code.core.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.core.tool.context import build_todo_context
 from klaude_code.protocol import events, message
 from klaude_code.session.session import Session, close_default_store

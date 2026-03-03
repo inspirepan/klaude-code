@@ -35,9 +35,9 @@ class OperationType(Enum):
     CLEAR_SESSION = "clear_session"
     EXPORT_SESSION = "export_session"
     INTERRUPT = "interrupt"
+    CLOSE_SESSION = "close_session"
     USER_INTERACTION_RESPOND = "user_interaction_respond"
     INIT_AGENT = "init_agent"
-    END = "end"
 
 
 class Operation(BaseModel):
@@ -187,11 +187,22 @@ class InterruptOperation(Operation):
     """Operation for interrupting currently running tasks."""
 
     type: OperationType = OperationType.INTERRUPT
-    target_session_id: str | None = None  # If None, interrupt all sessions
+    session_id: str
 
     async def execute(self, handler: OperationHandler) -> None:
         """Execute interrupt by cancelling active tasks."""
         await handler.handle_interrupt(self)
+
+
+class CloseSessionOperation(Operation):
+    """Operation for closing a session runtime explicitly."""
+
+    type: OperationType = OperationType.CLOSE_SESSION
+    session_id: str
+    force: bool = False
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_close_session(self)
 
 
 class UserInteractionRespondOperation(Operation):
@@ -209,29 +220,12 @@ class UserInteractionRespondOperation(Operation):
 class InitAgentOperation(Operation):
     """Operation for initializing an agent and replaying history if any.
 
-    If session_id is None, a new session is created with an auto-generated ID.
-    If session_id is provided, attempts to load existing session or creates new one.
+    The caller must always provide session_id.
+    If the target session does not exist yet, a new session will be initialized.
     """
 
     type: OperationType = OperationType.INIT_AGENT
-    session_id: str | None = None
+    session_id: str
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_init_agent(self)
-
-
-class EndOperation(Operation):
-    """Operation for gracefully stopping the executor."""
-
-    type: OperationType = OperationType.END
-
-    async def execute(self, handler: OperationHandler) -> None:
-        """Execute end operation - this is a no-op, just signals the executor to stop."""
-        pass
-
-
-class Submission(BaseModel):
-    """A submission represents a request sent to the executor for processing."""
-
-    id: str
-    operation: Operation

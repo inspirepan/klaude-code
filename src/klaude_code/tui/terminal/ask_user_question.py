@@ -641,7 +641,7 @@ def select_questions[T](
         always_hide_cursor=Always(),
     )
     input_text_window = Window(
-        BufferControl(buffer=input_buffer),
+        BufferControl(buffer=input_buffer, focusable=True),
         height=1,
         dont_extend_height=Always(),
     )
@@ -690,7 +690,8 @@ def select_questions[T](
                 else list_window
             )
         if app.layout.current_window is not target:
-            app.layout.focus(target)
+            with contextlib.suppress(Exception):
+                app.layout.focus(target)
 
     def _on_input_changed(_: Buffer) -> None:
         with contextlib.suppress(Exception):

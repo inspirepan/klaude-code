@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from klaude_code.core import reminders
-from klaude_code.core.reminders import get_skill_from_user_input
+import klaude_code.core.agent.reminders as reminders
+from klaude_code.core.agent.reminders import get_skill_from_user_input
 from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import message
 from klaude_code.session.session import Session

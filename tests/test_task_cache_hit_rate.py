@@ -1,4 +1,4 @@
-from klaude_code.core.task import MetadataAccumulator
+from klaude_code.core.agent.task import MetadataAccumulator
 from klaude_code.protocol import model
 
 

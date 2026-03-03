@@ -15,6 +15,7 @@ if TYPE_CHECKING:
         ChangeSubAgentModelOperation,
         ChangeThinkingOperation,
         ClearSessionOperation,
+        CloseSessionOperation,
         CompactSessionOperation,
         ContinueAgentOperation,
         ExportSessionOperation,
@@ -71,6 +72,10 @@ class OperationHandler(Protocol):
 
     async def handle_interrupt(self, operation: InterruptOperation) -> None:
         """Handle an interrupt operation."""
+        ...
+
+    async def handle_close_session(self, operation: CloseSessionOperation) -> None:
+        """Handle a close session operation."""
         ...
 
     async def handle_user_interaction_respond(self, operation: UserInteractionRespondOperation) -> None:

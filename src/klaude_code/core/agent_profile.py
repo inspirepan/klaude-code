@@ -7,14 +7,14 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     from klaude_code.config.config import Config
 
-from klaude_code.core.prompts.system_prompt import load_system_prompt
-from klaude_code.core.reminders import (
+from klaude_code.core.agent.reminders import (
     at_file_reader_reminder,
     image_reminder,
     last_path_memory_reminder,
     memory_reminder,
     skill_reminder,
 )
+from klaude_code.core.prompts.system_prompt import load_system_prompt
 from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_registry import get_tool_schemas
 from klaude_code.llm import LLMClientABC

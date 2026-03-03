@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Sequence
 from typing import Literal
@@ -24,7 +25,11 @@ __all__ = [
     "EndEvent",
     "ErrorEvent",
     "Event",
+    "EventEnvelope",
     "InterruptEvent",
+    "OperationAcceptedEvent",
+    "OperationFinishedEvent",
+    "OperationRejectedEvent",
     "ReplayEventUnion",
     "ReplayHistoryEvent",
     "ResponseCompleteEvent",
@@ -43,7 +48,10 @@ __all__ = [
     "TurnEndEvent",
     "TurnStartEvent",
     "UsageEvent",
+    "UserInteractionCancelledEvent",
     "UserInteractionRequestEvent",
+    "UserInteractionResolvedEvent",
+    "UserInteractionResponseReceivedEvent",
     "UserMessageEvent",
     "WelcomeEvent",
 ]
@@ -54,6 +62,49 @@ class Event(BaseModel):
 
     session_id: str
     timestamp: float = Field(default_factory=time.time)
+
+
+class EventEnvelope(BaseModel):
+    event_id: str
+    event_seq: int
+    session_id: str
+    operation_id: str | None = None
+    task_id: str | None = None
+    causation_id: str | None = None
+    event_type: str
+    durability: Literal["durable", "ephemeral"]
+    timestamp: float
+    event: Event
+
+
+DURABLE_EVENT_TYPES = frozenset(
+    {
+        "user.message",
+        "assistant.text.end",
+        "tool.result",
+        "rewind",
+        "compaction.end",
+        "task.finish",
+    }
+)
+
+
+def event_type_name(event: Event) -> str:
+    event_name = event.__class__.__name__
+    if event_name.endswith("Event"):
+        event_name = event_name[:-5]
+
+    words = re.findall(r"[A-Z]+(?=[A-Z][a-z]|$)|[A-Z]?[a-z]+", event_name)
+    if not words:
+        return "event.unknown"
+
+    return ".".join(word.lower() for word in words)
+
+
+def event_durability(event_type: str) -> Literal["durable", "ephemeral"]:
+    if event_type in DURABLE_EVENT_TYPES:
+        return "durable"
+    return "ephemeral"
 
 
 class ResponseEvent(Event):
@@ -84,6 +135,25 @@ class CommandOutputEvent(Event):
     content: str = ""
     ui_extra: model.ToolResultUIExtra | None = None
     is_error: bool = False
+
+
+class OperationAcceptedEvent(Event):
+    operation_id: str
+    operation_type: str
+
+
+class OperationRejectedEvent(Event):
+    operation_id: str
+    operation_type: str
+    reason: Literal["session_busy"]
+    active_task_id: str | None = None
+
+
+class OperationFinishedEvent(Event):
+    operation_id: str
+    operation_type: str
+    status: Literal["completed", "rejected", "failed"]
+    error_message: str | None = None
 
 
 class BashCommandStartEvent(Event):
@@ -272,3 +342,18 @@ class UserInteractionRequestEvent(Event):
     source: user_interaction.UserInteractionSource
     tool_call_id: str | None = None
     payload: user_interaction.UserInteractionRequestPayload
+
+
+class UserInteractionResponseReceivedEvent(Event):
+    request_id: str
+    status: Literal["submitted", "cancelled"]
+
+
+class UserInteractionResolvedEvent(Event):
+    request_id: str
+    status: Literal["submitted", "cancelled"]
+
+
+class UserInteractionCancelledEvent(Event):
+    request_id: str
+    reason: Literal["user_cancelled", "interrupt", "shutdown", "session_close"]

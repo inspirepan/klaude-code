@@ -27,6 +27,7 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 from prompt_toolkit.utils import get_cwidth
 
+from klaude_code.app.ports import InputProviderABC
 from klaude_code.config import load_config
 from klaude_code.config.model_matcher import match_model_from_config
 from klaude_code.config.thinking import (
@@ -47,7 +48,6 @@ from klaude_code.tui.input.images import (
 from klaude_code.tui.input.key_bindings import create_key_bindings
 from klaude_code.tui.input.paste import expand_paste_markers
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
-from klaude_code.ui.core.input import InputProviderABC
 
 
 class REPLStatusSnapshot(NamedTuple):

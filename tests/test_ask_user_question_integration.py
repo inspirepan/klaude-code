@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
+from dataclasses import dataclass
 from typing import Any, TypeVar
 
+from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.core.tool.ask_user_question_tool import AskUserQuestionTool
 from klaude_code.core.tool.context import TodoContext, ToolContext
-from klaude_code.core.user_interaction import UserInteractionManager
 from klaude_code.protocol import events, user_interaction
 
 T = TypeVar("T")
@@ -35,6 +36,82 @@ def _arguments() -> str:
     )
 
 
+@dataclass
+class _PendingState:
+    request: PendingUserInteractionRequest
+    future: asyncio.Future[user_interaction.UserInteractionResponse]
+
+
+class _InteractionHarness:
+    def __init__(self, emit_event: Callable[[events.Event], Awaitable[None]]):
+        self._emit_event = emit_event
+        self._pending: dict[str, _PendingState] = {}
+        self._queue: asyncio.Queue[PendingUserInteractionRequest] = asyncio.Queue()
+
+    async def request(
+        self,
+        *,
+        request_id: str,
+        session_id: str,
+        source: user_interaction.UserInteractionSource,
+        payload: user_interaction.UserInteractionRequestPayload,
+        tool_call_id: str | None,
+    ) -> user_interaction.UserInteractionResponse:
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[user_interaction.UserInteractionResponse] = loop.create_future()
+        request = PendingUserInteractionRequest(
+            request_id=request_id,
+            session_id=session_id,
+            source=source,
+            tool_call_id=tool_call_id,
+            payload=payload,
+        )
+        self._pending[request_id] = _PendingState(request=request, future=future)
+        await self._emit_event(
+            events.UserInteractionRequestEvent(
+                session_id=session_id,
+                request_id=request_id,
+                source=source,
+                tool_call_id=tool_call_id,
+                payload=payload,
+            )
+        )
+        self._queue.put_nowait(request)
+        return await future
+
+    async def wait_next_request(self) -> PendingUserInteractionRequest:
+        while True:
+            request = await self._queue.get()
+            if request.request_id in self._pending:
+                return request
+
+    def respond(
+        self,
+        *,
+        request_id: str,
+        session_id: str,
+        response: user_interaction.UserInteractionResponse,
+    ) -> None:
+        pending = self._pending.pop(request_id, None)
+        if pending is None:
+            raise ValueError("No pending user interaction")
+        if pending.request.session_id != session_id:
+            raise ValueError("Session mismatch for pending user interaction")
+        if not pending.future.done():
+            pending.future.set_result(response)
+
+    def cancel_pending(self, *, session_id: str) -> bool:
+        cancelled = False
+        for request_id, pending in list(self._pending.items()):
+            if pending.request.session_id != session_id:
+                continue
+            cancelled = True
+            self._pending.pop(request_id, None)
+            if not pending.future.done():
+                pending.future.cancel()
+        return cancelled
+
+
 def test_ask_user_question_end_to_end_submitted() -> None:
     async def _test() -> None:
         emitted: list[events.Event] = []
@@ -42,7 +119,7 @@ def test_ask_user_question_end_to_end_submitted() -> None:
         async def _emit(event: events.Event) -> None:
             emitted.append(event)
 
-        manager = UserInteractionManager(_emit)
+        harness = _InteractionHarness(_emit)
         todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
 
         async def _request(
@@ -51,7 +128,7 @@ def test_ask_user_question_end_to_end_submitted() -> None:
             payload: user_interaction.UserInteractionRequestPayload,
             tool_call_id: str | None,
         ) -> user_interaction.UserInteractionResponse:
-            return await manager.request(
+            return await harness.request(
                 request_id=request_id,
                 session_id="s1",
                 source=source,
@@ -67,8 +144,8 @@ def test_ask_user_question_end_to_end_submitted() -> None:
         )
 
         task = asyncio.create_task(AskUserQuestionTool.call(_arguments(), context))
-        request = await manager.wait_next_request()
-        manager.respond(
+        request = await harness.wait_next_request()
+        harness.respond(
             request_id=request.request_id,
             session_id=request.session_id,
             response=user_interaction.UserInteractionResponse(
@@ -98,7 +175,7 @@ def test_ask_user_question_end_to_end_cancelled_by_manager() -> None:
         async def _emit(_event: events.Event) -> None:
             return None
 
-        manager = UserInteractionManager(_emit)
+        harness = _InteractionHarness(_emit)
         todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
 
         async def _request(
@@ -107,7 +184,7 @@ def test_ask_user_question_end_to_end_cancelled_by_manager() -> None:
             payload: user_interaction.UserInteractionRequestPayload,
             tool_call_id: str | None,
         ) -> user_interaction.UserInteractionResponse:
-            return await manager.request(
+            return await harness.request(
                 request_id=request_id,
                 session_id="s1",
                 source=source,
@@ -123,8 +200,8 @@ def test_ask_user_question_end_to_end_cancelled_by_manager() -> None:
         )
 
         task = asyncio.create_task(AskUserQuestionTool.call(_arguments(), context))
-        request = await manager.wait_next_request()
-        assert manager.cancel_pending(session_id=request.session_id)
+        request = await harness.wait_next_request()
+        assert harness.cancel_pending(session_id=request.session_id)
 
         result = await task
         assert result.status == "success"

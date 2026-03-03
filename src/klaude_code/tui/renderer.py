@@ -87,7 +87,7 @@ from klaude_code.tui.terminal.notifier import (
     emit_tmux_signal,
 )
 from klaude_code.tui.terminal.progress_bar import OSC94States, emit_osc94
-from klaude_code.ui.terminal.title import update_terminal_title
+from klaude_code.tui.terminal.title import update_terminal_title
 
 
 @dataclass

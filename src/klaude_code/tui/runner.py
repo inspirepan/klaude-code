@@ -3,10 +3,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import threading
-from typing import TYPE_CHECKING
+from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
-from klaude_code import ui
+from klaude_code.app.ports import DisplayABC, InputProviderABC, InteractionHandlerABC
 from klaude_code.app.runtime import (
     AppInitConfig,
     backfill_session_model_config,
@@ -17,7 +17,7 @@ from klaude_code.app.runtime import (
 )
 from klaude_code.config import load_config
 from klaude_code.core.compaction import should_compact_threshold
-from klaude_code.core.executor import Executor
+from klaude_code.core.control.runtime_facade import RuntimeFacade
 from klaude_code.log import get_current_log_file, log
 from klaude_code.protocol import events, llm_param, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
@@ -25,7 +25,6 @@ from klaude_code.session.session import Session
 from klaude_code.tui.command import (
     dispatch_command,
     get_command_info_list,
-    has_interactive_command,
 )
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input import build_repl_status_snapshot
@@ -38,17 +37,14 @@ from klaude_code.tui.terminal.selector import (
     SelectItem,
     select_questions,
 )
-from klaude_code.ui.terminal.title import update_terminal_title
+from klaude_code.tui.terminal.title import update_terminal_title
 from klaude_code.update import get_update_message
-
-if TYPE_CHECKING:
-    from klaude_code.core.user_interaction import PendingUserInteractionRequest
 
 
 async def submit_user_input_payload(
     *,
-    executor: Executor,
-    event_queue: asyncio.Queue[events.Event],
+    runtime: RuntimeFacade,
+    wait_for_display_idle: Callable[[], Awaitable[None]],
     user_input: UserInputPayload,
     session_id: str | None,
 ) -> str | None:
@@ -60,14 +56,14 @@ async def submit_user_input_payload(
     to wait for (e.g. commands that only emit events).
     """
 
-    sid = session_id or executor.context.current_session_id()
+    sid = session_id or runtime.current_session_id()
     if sid is None:
         raise RuntimeError("No active session")
 
-    agent = executor.context.current_agent
+    agent = runtime.current_agent
     if agent is None or agent.session.id != sid:
-        await executor.submit_and_wait(op.InitAgentOperation(session_id=sid))
-        agent = executor.context.current_agent
+        await runtime.submit_and_wait(op.InitAgentOperation(session_id=sid))
+        agent = runtime.current_agent
 
     if agent is None:
         raise RuntimeError("Failed to initialize agent")
@@ -82,9 +78,7 @@ async def submit_user_input_payload(
         user_input = UserInputPayload(text=text, images=user_input.images)
 
     # Render the raw user input in the TUI even when it resolves to an event-only command.
-    await executor.context.emit_event(
-        events.UserMessageEvent(content=user_input.text, session_id=sid, images=user_input.images)
-    )
+    await runtime.emit_event(events.UserMessageEvent(content=user_input.text, session_id=sid, images=user_input.images))
 
     # Bash mode: run a user-entered command without invoking the agent.
     if user_input.text.startswith("!"):
@@ -93,7 +87,7 @@ async def submit_user_input_payload(
             # Enter should be ignored in the input layer for this case; keep a guard here.
             return None
         bash_op = op.RunBashOperation(id=submission_id, session_id=sid, command=command)
-        return await executor.submit(bash_op)
+        return await runtime.submit(bash_op)
 
     cmd_result = await dispatch_command(user_input, agent, submission_id=submission_id)
     operations: list[op.Operation] = list(cmd_result.operations or [])
@@ -104,14 +98,14 @@ async def submit_user_input_payload(
 
     if cmd_result.events:
         for evt in cmd_result.events:
-            await executor.context.emit_event(evt)
+            await runtime.emit_event(evt)
 
     if run_ops and should_compact_threshold(
         session=agent.session,
         config=None,
         llm_config=agent.profile.llm_client.get_llm_config(),
     ):
-        await executor.submit_and_wait(
+        await runtime.submit_and_wait(
             op.CompactSessionOperation(
                 session_id=agent.session.id,
                 reason="threshold",
@@ -121,11 +115,11 @@ async def submit_user_input_payload(
 
     submitted_ids: list[str] = []
     for operation_item in operations:
-        submitted_ids.append(await executor.submit(operation_item))
+        submitted_ids.append(await runtime.submit(operation_item))
 
     if not submitted_ids:
         # Ensure event-only commands are fully rendered before showing the next prompt.
-        await event_queue.join()
+        await wait_for_display_idle()
         return None
 
     if run_ops:
@@ -152,92 +146,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             theme = "dark"
 
     tui_display = TUIDisplay(theme=theme)
-    display: ui.DisplayABC = tui_display
-
-    def _on_model_change(model_name: str) -> None:
-        update_terminal_title(model_name)
-        tui_display.set_model_name(model_name)
-
-    components = await initialize_app_components(
-        init_config=init_config,
-        display=display,
-        on_model_change=_on_model_change,
-    )
-
-    def _status_provider() -> REPLStatusSnapshot:
-        update_message = get_update_message()
-        debug_log = get_current_log_file()
-        debug_log_path = str(debug_log) if debug_log else None
-        return build_repl_status_snapshot(update_message, debug_log_path=debug_log_path)
-
-    def _stop_rich_bottom_ui() -> None:
-        active_display = components.display
-        if isinstance(active_display, TUIDisplay):
-            active_display.hide_progress_ui()
-
-    def _get_active_session_id() -> str | None:
-        """Get the current active session ID dynamically.
-
-        This is necessary because /new creates a new session with a different id.
-        """
-
-        return components.executor.context.current_session_id()
-
-    async def _change_model_from_prompt(model_name: str) -> None:
-        sid = _get_active_session_id()
-        if not sid:
-            return
-        await components.executor.submit_and_wait(
-            op.ChangeModelOperation(
-                session_id=sid,
-                model_name=model_name,
-                save_as_default=False,
-                defer_thinking_selection=True,
-                emit_welcome_event=True,
-                emit_switch_message=False,
-            )
-        )
-
-    def _get_current_llm_config() -> llm_param.LLMConfigParameter | None:
-        agent = components.executor.context.current_agent
-        if agent is None:
-            return None
-        return agent.profile.llm_client.get_llm_config()
-
-    async def _change_thinking_from_prompt(thinking: llm_param.Thinking) -> None:
-        sid = _get_active_session_id()
-        if not sid:
-            return
-        await components.executor.submit_and_wait(
-            op.ChangeThinkingOperation(
-                session_id=sid,
-                thinking=thinking,
-                emit_welcome_event=True,
-                emit_switch_message=False,
-            )
-        )
-
-    input_provider: ui.InputProviderABC = PromptToolkitInput(
-        status_provider=_status_provider,
-        pre_prompt=_stop_rich_bottom_ui,
-        get_current_model_config_name=lambda: (
-            components.executor.context.current_agent.session.model_config_name
-            if components.executor.context.current_agent is not None
-            else None
-        ),
-        on_change_model=_change_model_from_prompt,
-        get_current_llm_config=_get_current_llm_config,
-        on_change_thinking=_change_thinking_from_prompt,
-        command_info_provider=get_command_info_list,
-    )
-
-    loop = asyncio.get_running_loop()
-
-    def _get_tui_display() -> TUIDisplay | None:
-        active_display = components.display
-        if isinstance(active_display, TUIDisplay):
-            return active_display
-        return None
+    display: DisplayABC = tui_display
+    pause_esc_monitor: Callable[[], Awaitable[None]] | None = None
+    resume_esc_monitor: Callable[[], None] | None = None
 
     def _build_question_items(
         question: user_interaction.AskUserQuestionQuestion,
@@ -259,17 +170,15 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         return items
 
     async def _collect_interaction_response(
-        request: PendingUserInteractionRequest,
+        request_event: events.UserInteractionRequestEvent,
     ) -> user_interaction.UserInteractionResponse:
-        payload = request.payload
+        payload = request_event.payload
         if payload.kind != "ask_user_question":
             return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
 
         answers: list[user_interaction.AskUserQuestionAnswer] = []
-        tui_display = _get_tui_display()
-        if tui_display is not None:
-            tui_display.notify_ask_user_question(question_count=len(payload.questions))
-            tui_display.hide_progress_ui()
+        tui_display.notify_ask_user_question(question_count=len(payload.questions))
+        tui_display.hide_progress_ui()
 
         prompts: list[QuestionPrompt[str]] = []
         for question in payload.questions:
@@ -284,12 +193,20 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 )
             )
 
-        selections = await asyncio.to_thread(
-            select_questions,
-            questions=prompts,
-            pointer="→",
-            style=DEFAULT_PICKER_STYLE,
-        )
+        if pause_esc_monitor is not None:
+            await pause_esc_monitor()
+
+        try:
+            selections = await asyncio.to_thread(
+                select_questions,
+                questions=prompts,
+                pointer="→",
+                style=DEFAULT_PICKER_STYLE,
+            )
+        finally:
+            if resume_esc_monitor is not None:
+                resume_esc_monitor()
+
         if selections is None:
             return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
 
@@ -308,35 +225,111 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 )
             )
 
+        tui_display.show_progress_ui()
         return user_interaction.UserInteractionResponse(
             status="submitted",
             payload=user_interaction.AskUserQuestionResponsePayload(answers=answers),
         )
 
-    async def _wait_for_with_interactions(wait_id: str) -> None:
-        wait_task = asyncio.create_task(components.executor.wait_for(wait_id))
-        manager = components.executor.context.user_interaction_manager
+    class _TUIInteractionHandler(InteractionHandlerABC):
+        async def collect_response(
+            self,
+            request_event: events.UserInteractionRequestEvent,
+        ) -> user_interaction.UserInteractionResponse:
+            return await _collect_interaction_response(request_event)
+
+    def _on_model_change(model_name: str) -> None:
+        update_terminal_title(model_name)
+        tui_display.set_model_name(model_name)
+
+    components = await initialize_app_components(
+        init_config=init_config,
+        display=display,
+        interaction_handler=_TUIInteractionHandler(),
+        on_model_change=_on_model_change,
+    )
+
+    def _status_provider() -> REPLStatusSnapshot:
+        update_message = get_update_message()
+        debug_log = get_current_log_file()
+        debug_log_path = str(debug_log) if debug_log else None
+        return build_repl_status_snapshot(update_message, debug_log_path=debug_log_path)
+
+    def _stop_rich_bottom_ui() -> None:
+        active_display = components.display
+        if isinstance(active_display, TUIDisplay):
+            active_display.hide_progress_ui()
+
+    def _get_active_session_id() -> str | None:
+        """Get the current active session ID dynamically.
+
+        This is necessary because /new creates a new session with a different id.
+        """
+
+        return components.runtime.current_session_id()
+
+    async def _change_model_from_prompt(model_name: str) -> None:
+        sid = _get_active_session_id()
+        if not sid:
+            return
+        await components.runtime.submit_and_wait(
+            op.ChangeModelOperation(
+                session_id=sid,
+                model_name=model_name,
+                save_as_default=False,
+                defer_thinking_selection=True,
+                emit_welcome_event=True,
+                emit_switch_message=False,
+            )
+        )
+
+    def _get_current_llm_config() -> llm_param.LLMConfigParameter | None:
+        agent = components.runtime.current_agent
+        if agent is None:
+            return None
+        return agent.profile.llm_client.get_llm_config()
+
+    async def _change_thinking_from_prompt(thinking: llm_param.Thinking) -> None:
+        sid = _get_active_session_id()
+        if not sid:
+            return
+        await components.runtime.submit_and_wait(
+            op.ChangeThinkingOperation(
+                session_id=sid,
+                thinking=thinking,
+                emit_welcome_event=True,
+                emit_switch_message=False,
+            )
+        )
+
+    input_provider: InputProviderABC = PromptToolkitInput(
+        status_provider=_status_provider,
+        pre_prompt=_stop_rich_bottom_ui,
+        get_current_model_config_name=lambda: (
+            components.runtime.current_agent.session.model_config_name
+            if components.runtime.current_agent is not None
+            else None
+        ),
+        on_change_model=_change_model_from_prompt,
+        get_current_llm_config=_get_current_llm_config,
+        on_change_thinking=_change_thinking_from_prompt,
+        command_info_provider=get_command_info_list,
+    )
+
+    loop = asyncio.get_running_loop()
+
+    async def _wait_for_with_interrupt(wait_id: str, *, session_id: str) -> None:
+        nonlocal pause_esc_monitor, resume_esc_monitor
+        wait_task = asyncio.create_task(components.runtime.wait_for(wait_id))
         interrupt_requested = False
         interrupt_task: asyncio.Task[None] | None = None
+        esc_monitor: tuple[threading.Event, asyncio.Task[None]] | None = None
 
-        async def _submit_interrupt(target_session_id: str | None) -> None:
-            await components.executor.submit_and_wait(op.InterruptOperation(target_session_id=target_session_id))
-
-        def _start_interrupt_once() -> None:
-            nonlocal interrupt_requested, interrupt_task
-            if interrupt_requested:
-                return
-            interrupt_requested = True
-            interrupt_task = asyncio.create_task(_submit_interrupt(_get_active_session_id()))
-
-        def _request_interrupt_once() -> None:
-            with contextlib.suppress(Exception):
-                loop.call_soon_threadsafe(_start_interrupt_once)
+        async def _submit_interrupt(target_session_id: str) -> None:
+            await components.runtime.submit_and_wait(op.InterruptOperation(session_id=target_session_id))
 
         async def _on_esc_interrupt() -> None:
             _request_interrupt_once()
-
-        esc_monitor: tuple[threading.Event, asyncio.Task[None]] | None = None
 
         def _start_esc_monitor() -> None:
             nonlocal esc_monitor
@@ -354,42 +347,33 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             with contextlib.suppress(Exception):
                 await esc_task
 
+        def _start_interrupt_once() -> None:
+            nonlocal interrupt_requested, interrupt_task
+            if interrupt_requested:
+                return
+            interrupt_requested = True
+            interrupt_task = asyncio.create_task(_submit_interrupt(session_id))
+
+        def _request_interrupt_once() -> None:
+            with contextlib.suppress(Exception):
+                loop.call_soon_threadsafe(_start_interrupt_once)
+
+        pause_esc_monitor = _stop_esc_monitor
+        resume_esc_monitor = _start_esc_monitor
         _start_esc_monitor()
         restore_sigint = install_sigint_interrupt(_request_interrupt_once)
 
         try:
-            while True:
-                request_task = asyncio.create_task(manager.wait_next_request())
-                done, _ = await asyncio.wait({wait_task, request_task}, return_when=asyncio.FIRST_COMPLETED)
-                if wait_task in done:
-                    request_task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await request_task
-                    break
-
-                request = request_task.result()
-                await _stop_esc_monitor()
-                response = await _collect_interaction_response(request)
-                if response.status == "submitted":
-                    tui_display = _get_tui_display()
-                    if tui_display is not None:
-                        tui_display.show_progress_ui()
-                await components.executor.submit_and_wait(
-                    op.UserInteractionRespondOperation(
-                        session_id=request.session_id,
-                        request_id=request.request_id,
-                        response=response,
-                    )
-                )
-                if not wait_task.done():
-                    _start_esc_monitor()
+            await wait_task
         finally:
+            pause_esc_monitor = None
+            resume_esc_monitor = None
+            await _stop_esc_monitor()
             with contextlib.suppress(Exception):
                 restore_sigint()
             if interrupt_task is not None and not interrupt_task.done():
                 with contextlib.suppress(Exception):
                     await interrupt_task
-            await _stop_esc_monitor()
             if not wait_task.done():
                 wait_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -398,9 +382,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     exit_hint_printed = False
 
     try:
-        await initialize_session(components.executor, components.event_queue, session_id=session_id)
+        await initialize_session(components.runtime, components.wait_for_display_idle, session_id=session_id)
         backfill_session_model_config(
-            components.executor.context.current_agent,
+            components.runtime.current_agent,
             init_config.model,
             components.config.main_model,
             is_new_session=session_id is None,
@@ -414,11 +398,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 continue
 
             active_session_id = _get_active_session_id()
-            is_interactive = has_interactive_command(user_input.text)
-
             wait_id = await submit_user_input_payload(
-                executor=components.executor,
-                event_queue=components.event_queue,
+                runtime=components.runtime,
+                wait_for_display_idle=components.wait_for_display_idle,
                 user_input=user_input,
                 session_id=active_session_id,
             )
@@ -426,26 +408,22 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             if wait_id is None:
                 continue
 
-            if is_interactive:
-                await _wait_for_with_interactions(wait_id)
-                # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
-                # before handing control back to prompt_toolkit.
-                await components.event_queue.join()
+            if active_session_id is None:
                 continue
 
-            await _wait_for_with_interactions(wait_id)
+            await _wait_for_with_interrupt(wait_id, session_id=active_session_id)
             # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
             # before handing control back to prompt_toolkit.
-            await components.event_queue.join()
+            await components.wait_for_display_idle()
 
     except KeyboardInterrupt:
-        await handle_keyboard_interrupt(components.executor)
+        await handle_keyboard_interrupt(components.runtime)
         exit_hint_printed = True
     finally:
         await cleanup_app_components(components)
 
         if not exit_hint_printed:
-            active_session_id = components.executor.context.current_session_id()
+            active_session_id = components.runtime.current_session_id()
             if active_session_id and Session.exists(active_session_id):
                 short_id = Session.shortest_unique_prefix(active_session_id)
                 log(f"Session ID: {active_session_id}")

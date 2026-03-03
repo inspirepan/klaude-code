@@ -1,5 +1,5 @@
+from klaude_code.config.formatters import format_model_params
 from klaude_code.protocol.llm_param import LLMConfigModelParameter, OpenRouterProviderRouting, Thinking
-from klaude_code.ui.common import format_model_params
 
 
 def test_format_model_params_includes_reasoning_and_provider_routing() -> None:

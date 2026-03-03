@@ -201,6 +201,8 @@ body {
 .log-line .dtype-RESPONSE { color: #5b21b6; background: #ede9fe; }
 .log-line .dtype-EXECUTION { color: #0f766e; background: #ccfbf1; }
 .log-line .dtype-TERMINAL { color: #be123c; background: #ffe4e6; }
+.log-line .dtype-EVENT_BUS { color: #6d28d9; background: #f3e8ff; }
+.log-line .dtype-OPERATION { color: #0369a1; background: #e0f2fe; }
 .log-line .msg { color: var(--fg-secondary); }
 .log-line .json-inline { color: var(--fg-tertiary); }
 .log-line .lineno {
@@ -233,10 +235,13 @@ body {
 #right {
   width: 50%;
   min-width: 300px;
-  display: flex;
+  display: none;
   flex-direction: column;
   background: var(--bg-surface);
   border-left: 1px solid var(--border);
+}
+#right.open {
+  display: flex;
 }
 #right-toolbar {
   display: flex;
@@ -380,6 +385,7 @@ body {
 
 /* Resize handle */
 #resize-handle {
+  display: none;
   width: 4px;
   cursor: col-resize;
   background: transparent;
@@ -391,6 +397,7 @@ body {
   margin-left: -2px;
   margin-right: -2px;
 }
+#resize-handle.open { display: block; }
 #resize-handle:hover, #resize-handle.dragging { background: var(--border-strong); }
 </style>
 </head>
@@ -413,6 +420,7 @@ body {
       <button class="action-btn" id="btn-expand-all" title="Expand all">Expand All</button>
       <button class="action-btn" id="btn-collapse-all" title="Collapse all">Collapse All</button>
       <button class="action-btn" id="btn-raw" title="Toggle raw text">Raw</button>
+      <button class="action-btn" id="btn-close-panel" title="Close panel" style="padding:4px 8px;">&#x2715;</button>
     </div>
     <div id="json-view"><span class="empty-hint">Select a log line to view details</span></div>
   </div>
@@ -420,8 +428,8 @@ body {
 
 <script>
 const LOG_RE = /^\[([^\]]+)\]\s+(\S+)\s+(.*)/;
-const ALL_TYPES = ['GENERAL','LLM_CONFIG','LLM_PAYLOAD','LLM_STREAM','UI_EVENT','RESPONSE','EXECUTION','TERMINAL'];
-const DEFAULT_FILTERS = new Set(['LLM_CONFIG','LLM_PAYLOAD','LLM_STREAM']);
+const ALL_TYPES = ['GENERAL','LLM_CONFIG','LLM_PAYLOAD','LLM_STREAM','EVENT_BUS','OPERATION','UI_EVENT','RESPONSE','EXECUTION','TERMINAL'];
+const DEFAULT_FILTERS = new Set(['LLM_CONFIG','LLM_PAYLOAD','LLM_STREAM','EVENT_BUS','OPERATION']);
 
 let logLines = [];
 let selectedIdx = -1;
@@ -436,7 +444,7 @@ function setViewerMode(mode) {
   document.getElementById('btn-back-list').style.display = isLogMode ? '' : 'none';
   document.getElementById('search-box').style.display = isLogMode ? '' : 'none';
   document.getElementById('filter-group').style.display = isLogMode ? '' : 'none';
-  for (const id of ['btn-copy', 'btn-expand-all', 'btn-collapse-all', 'btn-raw']) {
+  for (const id of ['btn-copy', 'btn-expand-all', 'btn-collapse-all', 'btn-raw', 'btn-close-panel']) {
     document.getElementById(id).disabled = !isLogMode;
   }
 }
@@ -651,7 +659,23 @@ function renderLogList() {
   list.appendChild(frag);
 }
 
+function openRightPanel() {
+  document.getElementById('right').classList.add('open');
+  document.getElementById('resize-handle').classList.add('open');
+}
+
+function closeRightPanel() {
+  document.getElementById('right').classList.remove('open');
+  document.getElementById('resize-handle').classList.remove('open');
+  const list = document.getElementById('log-list');
+  if (selectedIdx >= 0 && list.children[selectedIdx]) {
+    list.children[selectedIdx].classList.remove('selected');
+  }
+  selectedIdx = -1;
+}
+
 function selectLine(idx) {
+  openRightPanel();
   const list = document.getElementById('log-list');
   if (selectedIdx >= 0 && list.children[selectedIdx]) {
     list.children[selectedIdx].classList.remove('selected');
@@ -852,6 +876,8 @@ document.getElementById('btn-collapse-all').addEventListener('click', () => {
     el._jChildren.style.display = 'none';
   });
 });
+
+document.getElementById('btn-close-panel').addEventListener('click', closeRightPanel);
 
 document.getElementById('btn-raw').addEventListener('click', () => {
   if (selectedIdx < 0) return;

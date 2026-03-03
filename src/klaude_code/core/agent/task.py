@@ -10,6 +10,7 @@ from klaude_code.const import (
     MAX_FAILED_TURN_RETRIES,
     MAX_RETRY_DELAY_S,
 )
+from klaude_code.core.agent.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.core.agent_profile import AgentProfile, Reminder
 from klaude_code.core.compaction import (
     CompactionReason,
@@ -20,7 +21,6 @@ from klaude_code.core.compaction import (
 from klaude_code.core.rewind import RewindManager
 from klaude_code.core.tool import FileTracker, TodoContext, ToolABC
 from klaude_code.core.tool.context import RunSubtask
-from klaude_code.core.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, model, user_interaction

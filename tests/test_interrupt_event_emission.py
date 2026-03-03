@@ -1,7 +1,7 @@
 import unittest
 
+from klaude_code.core.agent.turn import ToolCallRequest, build_events_from_tool_executor_event
 from klaude_code.core.tool.tool_runner import ToolExecutionResult
-from klaude_code.core.turn import ToolCallRequest, build_events_from_tool_executor_event
 from klaude_code.protocol import events, message
 
 
