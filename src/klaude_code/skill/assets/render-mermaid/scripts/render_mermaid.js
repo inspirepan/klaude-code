@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { spawn } from "node:child_process";
 import { access, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,14 +29,14 @@ function isMissingPackageError(error) {
 }
 
 function installHint(packageName) {
-  return `missing dependency \"${packageName}\": run \"cd ${SKILL_DIR} && bun install\" and retry`;
+  return `missing dependency \"${packageName}\": run \"cd ${SKILL_DIR} && bun install\" (or \"npm install --no-package-lock\") and retry`;
 }
 
 function installAllHint() {
-  return `run \"cd ${SKILL_DIR} && bun install\" and retry`;
+  return `run \"cd ${SKILL_DIR} && bun install\" (or \"npm install --no-package-lock\") and retry`;
 }
 
-async function assertDependenciesInstalled() {
+async function findMissingDependencies() {
   const missing = [];
   for (const dep of DEPENDENCIES) {
     const packageJsonPath = path.join(SKILL_DIR, "node_modules", dep, "package.json");
@@ -45,9 +46,76 @@ async function assertDependenciesInstalled() {
       missing.push(dep);
     }
   }
+  return missing;
+}
 
-  if (missing.length > 0) {
-    fail(`dependencies not installed (${missing.join(", ")}): ${installAllHint()}`);
+async function commandExists(command) {
+  return await new Promise((resolve) => {
+    const child = spawn(command, ["--version"], { stdio: "ignore" });
+    child.on("error", () => resolve(false));
+    child.on("exit", (code) => resolve(code === 0));
+  });
+}
+
+async function runInstall(command, args) {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: SKILL_DIR,
+      stdio: "inherit",
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`${command} ${args.join(" ")} failed with exit code ${code ?? "unknown"}`));
+    });
+  });
+}
+
+async function autoInstallDependencies(missing) {
+  const missingList = missing.join(", ");
+
+  const installers = process.versions.bun
+    ? [
+        { command: "bun", args: ["install"], label: "bun install" },
+        { command: "npm", args: ["install", "--no-package-lock"], label: "npm install --no-package-lock" },
+      ]
+    : [
+        { command: "npm", args: ["install", "--no-package-lock"], label: "npm install --no-package-lock" },
+        { command: "bun", args: ["install"], label: "bun install" },
+      ];
+
+  for (const installer of installers) {
+    if (!(await commandExists(installer.command))) {
+      continue;
+    }
+    console.error(`Missing dependencies (${missingList}); running \"${installer.label}\" in ${SKILL_DIR}`);
+    await runInstall(installer.command, installer.args);
+    return;
+  }
+
+  fail(`dependencies not installed (${missingList}) and no package manager found (need bun or npm): ${installAllHint()}`);
+}
+
+async function assertDependenciesInstalled() {
+  const missing = await findMissingDependencies();
+
+  if (missing.length === 0) {
+    return;
+  }
+
+  try {
+    await autoInstallDependencies(missing);
+  } catch (error) {
+    fail(`failed to install dependencies automatically: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  const remaining = await findMissingDependencies();
+
+  if (remaining.length > 0) {
+    fail(`dependencies still missing after auto-install (${remaining.join(", ")}): ${installAllHint()}`);
   }
 }
 
