@@ -307,7 +307,7 @@ class ActiveTask:
 
 
 @dataclass(frozen=True)
-class CommandDispatcherPorts:
+class OperationDispatcherPorts:
     ensure_session_actor: Callable[[str], SessionActor]
     get_session_actor: Callable[[str], SessionActor | None]
     get_session_actor_for_operation: Callable[[str], SessionActor | None]
@@ -339,7 +339,7 @@ def _clone_llm_clients(template: LLMClients) -> LLMClients:
     )
 
 
-class AgentCommandHandler:
+class AgentOperationHandler:
     """Coordinate agent lifecycle and in-flight tasks for operation execution."""
 
     def __init__(
@@ -1007,48 +1007,48 @@ class EventPublisher:
 
 
 class AgentRunner:
-    def __init__(self, command_handler: AgentCommandHandler) -> None:
-        self._command_handler = command_handler
+    def __init__(self, operation_handler: AgentOperationHandler) -> None:
+        self._operation_handler = operation_handler
 
     def current_session_id(self) -> str | None:
-        return self._command_handler.current_session_id()
+        return self._operation_handler.current_session_id()
 
     @property
     def current_agent(self) -> Agent | None:
-        return self._command_handler.current_agent
+        return self._operation_handler.current_agent
 
     async def init_agent(self, session_id: str) -> None:
-        await self._command_handler.init_agent(session_id)
+        await self._operation_handler.init_agent(session_id)
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
-        await self._command_handler.run_agent(operation)
+        await self._operation_handler.run_agent(operation)
 
     async def continue_agent(self, operation: op.ContinueAgentOperation) -> None:
-        await self._command_handler.continue_agent(operation)
+        await self._operation_handler.continue_agent(operation)
 
     async def compact_session(self, operation: op.CompactSessionOperation) -> None:
-        await self._command_handler.compact_session(operation)
+        await self._operation_handler.compact_session(operation)
 
     async def clear_session(self, session_id: str) -> None:
-        await self._command_handler.clear_session(session_id)
+        await self._operation_handler.clear_session(session_id)
 
     async def interrupt(self, session_id: str) -> None:
-        await self._command_handler.interrupt(session_id)
+        await self._operation_handler.interrupt(session_id)
 
     async def ensure_agent(self, session_id: str) -> Agent:
-        return await self._command_handler.ensure_agent(session_id)
+        return await self._operation_handler.ensure_agent(session_id)
 
     def get_session_llm_clients(self, session_id: str) -> LLMClients:
-        return self._command_handler.get_session_llm_clients(session_id)
+        return self._operation_handler.get_session_llm_clients(session_id)
 
     def set_session_main_client(self, *, session_id: str, client: LLMClientABC, model_alias: str) -> None:
-        self._command_handler.set_session_main_client(session_id=session_id, client=client, model_alias=model_alias)
+        self._operation_handler.set_session_main_client(session_id=session_id, client=client, model_alias=model_alias)
 
     def get_active_task(self, operation_id: str) -> ActiveTask | None:
-        return self._command_handler.get_active_task(operation_id)
+        return self._operation_handler.get_active_task(operation_id)
 
     def list_active_tasks(self) -> list[ActiveTask]:
-        return self._command_handler.list_active_tasks()
+        return self._operation_handler.list_active_tasks()
 
     async def run_background_operation(
         self,
@@ -1057,22 +1057,22 @@ class AgentRunner:
         session_id: str,
         runner: Callable[[], Awaitable[None]],
     ) -> None:
-        await self._command_handler.run_background_operation(
+        await self._operation_handler.run_background_operation(
             operation_id=operation_id,
             session_id=session_id,
             runner=runner,
         )
 
     def clear_active_tasks(self) -> None:
-        self._command_handler.clear_active_tasks()
+        self._operation_handler.clear_active_tasks()
 
 
 class BashRunner:
-    def __init__(self, command_handler: AgentCommandHandler) -> None:
-        self._command_handler = command_handler
+    def __init__(self, operation_handler: AgentOperationHandler) -> None:
+        self._operation_handler = operation_handler
 
     async def run_bash(self, operation: op.RunBashOperation) -> None:
-        await self._command_handler.run_bash(operation)
+        await self._operation_handler.run_bash(operation)
 
 
 class ConfigHandler:
@@ -1534,7 +1534,7 @@ class ConfigHandler:
         )
 
 
-class CommandDispatcher:
+class OperationDispatcher:
     """
     Context object providing shared state and operation handlers.
 
@@ -1548,7 +1548,7 @@ class CommandDispatcher:
         self,
         event_bus: EventBus,
         llm_clients: LLMClients,
-        ports: CommandDispatcherPorts,
+        ports: OperationDispatcherPorts,
         model_profile_provider: ModelProfileProvider | None = None,
         on_model_change: Callable[[str], None] | None = None,
     ):
@@ -1560,7 +1560,7 @@ class CommandDispatcher:
         self.model_profile_provider: ModelProfileProvider = resolved_profile_provider
 
         self._sub_agent_executor = SubAgentExecutor(self.emit_event, llm_clients, resolved_profile_provider)
-        self._agent_command_handler = AgentCommandHandler(
+        self._agent_operation_handler = AgentOperationHandler(
             emit_event=self.emit_event,
             llm_clients=llm_clients,
             model_profile_provider=resolved_profile_provider,
@@ -1575,8 +1575,8 @@ class CommandDispatcher:
             request_user_interaction=self.request_user_interaction,
         )
         self._model_switcher = ModelSwitcher(resolved_profile_provider)
-        self._agent_runner = AgentRunner(self._agent_command_handler)
-        self._bash_runner = BashRunner(self._agent_command_handler)
+        self._agent_runner = AgentRunner(self._agent_operation_handler)
+        self._bash_runner = BashRunner(self._agent_operation_handler)
         self._config_handler = ConfigHandler(
             agent_runner=self._agent_runner,
             model_switcher=self._model_switcher,
@@ -1838,6 +1838,6 @@ class CommandDispatcher:
         self._agent_runner.clear_active_tasks()
 
 
-# Static type check: CommandDispatcher must satisfy OperationHandler protocol.
-# If this line causes a type error, CommandDispatcher is missing required methods.
-_: type[OperationHandler] = CommandDispatcher
+# Static type check: OperationDispatcher must satisfy OperationHandler protocol.
+# If this line causes a type error, OperationDispatcher is missing required methods.
+_: type[OperationHandler] = OperationDispatcher

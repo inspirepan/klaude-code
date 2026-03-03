@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import Literal
 
 from klaude_code.core.agent.agent import Agent
-from klaude_code.core.agent.runtime import CommandDispatcher, CommandDispatcherPorts, LLMClients
+from klaude_code.core.agent.runtime import LLMClients, OperationDispatcher, OperationDispatcherPorts
 from klaude_code.core.agent_profile import ModelProfileProvider
 from klaude_code.core.control.event_bus import EventBus, event_publish_context
 from klaude_code.core.control.session_registry import OperationLifecycleHooks, SessionRegistry
@@ -95,10 +95,10 @@ class RuntimeFacade:
                 on_operation_finished=self._emit_operation_finished,
             ),
         )
-        self._command_dispatcher = CommandDispatcher(
+        self._operation_dispatcher = OperationDispatcher(
             event_bus,
             llm_clients,
-            CommandDispatcherPorts(
+            OperationDispatcherPorts(
                 ensure_session_actor=self.session_registry.ensure_session_actor,
                 get_session_actor=self.session_registry.get_session_actor,
                 get_session_actor_for_operation=self.session_registry.get_session_actor_for_operation,
@@ -130,7 +130,7 @@ class RuntimeFacade:
         if session_id is None:
             raise RuntimeError("Busy rejection requires session-bound operation")
 
-        await self._command_dispatcher.emit_event(
+        await self._operation_dispatcher.emit_event(
             events.OperationRejectedEvent(
                 session_id=session_id,
                 operation_id=operation.id,
@@ -169,7 +169,7 @@ class RuntimeFacade:
         session_id = getattr(operation, "session_id", None)
         if session_id is None:
             raise RuntimeError("OperationAcceptedEvent requires session-bound operation")
-        await self._command_dispatcher.emit_event(
+        await self._operation_dispatcher.emit_event(
             events.OperationAcceptedEvent(
                 session_id=session_id,
                 operation_id=operation.id,
@@ -187,7 +187,7 @@ class RuntimeFacade:
         session_id = getattr(operation, "session_id", None)
         if session_id is None:
             return
-        await self._command_dispatcher.emit_event(
+        await self._operation_dispatcher.emit_event(
             events.OperationFinishedEvent(
                 session_id=session_id,
                 operation_id=operation.id,
@@ -217,17 +217,17 @@ class RuntimeFacade:
         return operation.id
 
     async def emit_event(self, event: events.Event) -> None:
-        await self._command_dispatcher.emit_event(event)
+        await self._operation_dispatcher.emit_event(event)
 
     def current_session_id(self) -> str | None:
-        return self._command_dispatcher.current_session_id()
+        return self._operation_dispatcher.current_session_id()
 
     @property
     def current_agent(self) -> Agent | None:
-        return self._command_dispatcher.current_agent
+        return self._operation_dispatcher.current_agent
 
     def has_running_tasks(self) -> bool:
-        return any(not active.task.done() for active in self._command_dispatcher.list_active_tasks())
+        return any(not active.task.done() for active in self._operation_dispatcher.list_active_tasks())
 
     async def close_session(self, session_id: str, force: bool = False) -> bool:
         cancelled_requests: list[PendingUserInteractionRequest] = []
@@ -237,7 +237,7 @@ class RuntimeFacade:
         closed = await self.session_registry.close_session(session_id, force=force)
         if closed:
             for request in cancelled_requests:
-                await self._command_dispatcher.emit_event(
+                await self._operation_dispatcher.emit_event(
                     events.UserInteractionCancelledEvent(
                         session_id=request.session_id,
                         request_id=request.request_id,
@@ -245,7 +245,7 @@ class RuntimeFacade:
                     ),
                     causation_id=request.request_id,
                 )
-                await self._command_dispatcher.emit_event(
+                await self._operation_dispatcher.emit_event(
                     events.UserInteractionResolvedEvent(
                         session_id=request.session_id,
                         request_id=request.request_id,
@@ -267,9 +267,9 @@ class RuntimeFacade:
 
     async def stop(self) -> None:
         self._stopped = True
-        cancelled_requests = self._command_dispatcher.cancel_pending_user_interactions(session_id=None)
+        cancelled_requests = self._operation_dispatcher.cancel_pending_user_interactions(session_id=None)
         for request in cancelled_requests:
-            await self._command_dispatcher.emit_event(
+            await self._operation_dispatcher.emit_event(
                 events.UserInteractionCancelledEvent(
                     session_id=request.session_id,
                     request_id=request.request_id,
@@ -277,7 +277,7 @@ class RuntimeFacade:
                 ),
                 causation_id=request.request_id,
             )
-            await self._command_dispatcher.emit_event(
+            await self._operation_dispatcher.emit_event(
                 events.UserInteractionResolvedEvent(
                     session_id=request.session_id,
                     request_id=request.request_id,
@@ -287,7 +287,7 @@ class RuntimeFacade:
             )
 
         tasks_to_await: list[asyncio.Task[None]] = []
-        for active in self._command_dispatcher.list_active_tasks():
+        for active in self._operation_dispatcher.list_active_tasks():
             task = active.task
             if not task.done():
                 task.cancel()
@@ -298,7 +298,7 @@ class RuntimeFacade:
 
         await self.session_registry.stop()
         await self._operation_awaiter.stop()
-        self._command_dispatcher.clear_active_tasks()
+        self._operation_dispatcher.clear_active_tasks()
 
         log_debug("RuntimeFacade stopped", debug_type=DebugType.EXECUTION)
 
@@ -310,7 +310,7 @@ class RuntimeFacade:
             )
 
             with event_publish_context(operation_id=operation.id):
-                await operation.execute(handler=self._command_dispatcher)
+                await operation.execute(handler=self._operation_dispatcher)
             self._on_operation_applied(operation)
         except Exception as e:
             log_debug(
@@ -318,7 +318,7 @@ class RuntimeFacade:
                 debug_type=DebugType.EXECUTION,
             )
             session_id = getattr(operation, "session_id", None)
-            await self._command_dispatcher.emit_event(
+            await self._operation_dispatcher.emit_event(
                 events.ErrorEvent(
                     error_message=f"Operation failed: {e!s}",
                     can_retry=False,
