@@ -6,9 +6,9 @@ from .registry import (
     get_commands,
     has_interactive_command,
     is_slash_command_name,
-    load_prompt_commands,
     register,
 )
+from .types import CommandInfo, CommandName
 
 # Lazy load commands to avoid heavy imports at module load time
 _commands_loaded = False
@@ -55,13 +55,10 @@ def ensure_commands_loaded() -> None:
     register(SubAgentModelCommand())
     register(ThinkingCommand())
     register(StatusCommand())
-    load_prompt_commands()
     register(LoginCommand())
     register(LogoutCommand())
     register(ContinueCommand())
     register(DebugCommand())
-
-    # Load prompt-based commands (appended after built-in commands)
 
 
 # Lazy accessors for command classes
@@ -96,6 +93,8 @@ __all__ = [
     # "ExportCommand", "RefreshTerminalCommand", "ReleaseNotesCommand",
     # "StatusCommand",
     "CommandABC",
+    "CommandInfo",
+    "CommandName",
     "CommandResult",
     "dispatch_command",
     "ensure_commands_loaded",

@@ -75,9 +75,6 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
             "summary": param.thinking.reasoning_summary or "auto",
         }
 
-    if param.verbosity:
-        payload["text"] = {"verbosity": param.verbosity}  # type: ignore[typeddict-item]
-
     return payload
 
 

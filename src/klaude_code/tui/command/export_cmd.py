@@ -2,17 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from klaude_code.protocol import commands, message, op
+from klaude_code.protocol import message, op
 
 from .command_abc import Agent, CommandABC, CommandResult
+from .types import CommandName
 
 
 class ExportCommand(CommandABC):
     """Export the current session into a standalone HTML transcript."""
 
     @property
-    def name(self) -> commands.CommandName:
-        return commands.CommandName.EXPORT
+    def name(self) -> CommandName:
+        return CommandName.EXPORT
 
     @property
     def summary(self) -> str:

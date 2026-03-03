@@ -426,7 +426,13 @@ class SessionActor:
 def _is_root_operation(operation: op.Operation) -> bool:
     return isinstance(
         operation,
-        op.RunAgentOperation | op.RunBashOperation | op.ContinueAgentOperation | op.CompactSessionOperation,
+        op.RunAgentOperation
+        | op.RunBashOperation
+        | op.ContinueAgentOperation
+        | op.CompactSessionOperation
+        | op.RequestModelOperation
+        | op.RequestThinkingOperation
+        | op.RequestSubAgentModelOperation,
     )
 
 
@@ -441,4 +447,9 @@ def _root_task_kind(operation: op.Operation) -> str:
         return "bash"
     if isinstance(operation, op.CompactSessionOperation):
         return "compact"
+    if isinstance(
+        operation,
+        op.RequestModelOperation | op.RequestThinkingOperation | op.RequestSubAgentModelOperation,
+    ):
+        return "config_request"
     raise RuntimeError(f"unsupported root operation kind: {operation.type.value}")

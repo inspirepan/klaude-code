@@ -19,8 +19,12 @@ if TYPE_CHECKING:
         CompactSessionOperation,
         ContinueAgentOperation,
         ExportSessionOperation,
+        GetSessionStatusOperation,
         InitAgentOperation,
         InterruptOperation,
+        RequestModelOperation,
+        RequestSubAgentModelOperation,
+        RequestThinkingOperation,
         RunAgentOperation,
         RunBashOperation,
         UserInteractionRespondOperation,
@@ -60,6 +64,22 @@ class OperationHandler(Protocol):
 
     async def handle_change_sub_agent_model(self, operation: ChangeSubAgentModelOperation) -> None:
         """Handle a change sub-agent model operation."""
+        ...
+
+    async def handle_request_model(self, operation: RequestModelOperation) -> None:
+        """Handle an interactive request model operation."""
+        ...
+
+    async def handle_request_thinking(self, operation: RequestThinkingOperation) -> None:
+        """Handle an interactive request thinking operation."""
+        ...
+
+    async def handle_request_sub_agent_model(self, operation: RequestSubAgentModelOperation) -> None:
+        """Handle an interactive request sub-agent model operation."""
+        ...
+
+    async def handle_get_session_status(self, operation: GetSessionStatusOperation) -> None:
+        """Handle a get session status operation."""
         ...
 
     async def handle_clear_session(self, operation: ClearSessionOperation) -> None:

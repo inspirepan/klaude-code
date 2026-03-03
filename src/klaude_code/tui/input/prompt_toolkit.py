@@ -36,8 +36,8 @@ from klaude_code.config.thinking import (
     parse_thinking_value,
 )
 from klaude_code.protocol import llm_param
-from klaude_code.protocol.commands import CommandInfo
 from klaude_code.protocol.message import UserInputPayload
+from klaude_code.tui.command.types import CommandInfo
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
 from klaude_code.tui.input.completers import AT_TOKEN_PATTERN, SKILL_TOKEN_PATTERN, create_repl_completer
 from klaude_code.tui.input.drag_drop import convert_dropped_text

@@ -32,6 +32,10 @@ class OperationType(Enum):
     CHANGE_COMPACT_MODEL = "change_compact_model"
     CHANGE_SUB_AGENT_MODEL = "change_sub_agent_model"
     CHANGE_THINKING = "change_thinking"
+    REQUEST_MODEL = "request_model"
+    REQUEST_THINKING = "request_thinking"
+    REQUEST_SUB_AGENT_MODEL = "request_sub_agent_model"
+    GET_SESSION_STATUS = "get_session_status"
     CLEAR_SESSION = "clear_session"
     EXPORT_SESSION = "export_session"
     INTERRUPT = "interrupt"
@@ -160,6 +164,54 @@ class ChangeSubAgentModelOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_change_sub_agent_model(self)
+
+
+class RequestModelOperation(Operation):
+    """Operation for interactively selecting and changing the main model."""
+
+    type: OperationType = OperationType.REQUEST_MODEL
+    session_id: str
+    preferred: str | None = None
+    save_as_default: bool = True
+    defer_thinking_selection: bool = False
+    emit_welcome_event: bool = True
+    emit_switch_message: bool = True
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_request_model(self)
+
+
+class RequestThinkingOperation(Operation):
+    """Operation for interactively selecting and changing thinking configuration."""
+
+    type: OperationType = OperationType.REQUEST_THINKING
+    session_id: str
+    emit_welcome_event: bool = True
+    emit_switch_message: bool = True
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_request_thinking(self)
+
+
+class RequestSubAgentModelOperation(Operation):
+    """Operation for interactively selecting sub-agent/compact model configuration."""
+
+    type: OperationType = OperationType.REQUEST_SUB_AGENT_MODEL
+    session_id: str
+    save_as_default: bool = True
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_request_sub_agent_model(self)
+
+
+class GetSessionStatusOperation(Operation):
+    """Operation for querying current session status summary."""
+
+    type: OperationType = OperationType.GET_SESSION_STATUS
+    session_id: str
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_get_session_status(self)
 
 
 class ClearSessionOperation(Operation):

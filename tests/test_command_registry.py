@@ -9,9 +9,10 @@ from typing import Any, cast
 
 import pytest
 
-from klaude_code.protocol import commands, message, op
+from klaude_code.protocol import message, op
 from klaude_code.tui.command import registry
 from klaude_code.tui.command.command_abc import Agent, CommandABC, CommandResult
+from klaude_code.tui.command.types import CommandName
 
 
 def arun(coro: Any) -> Any:
@@ -21,13 +22,13 @@ def arun(coro: Any) -> Any:
 
 
 class _DummyCommand(CommandABC):
-    def __init__(self, name: commands.CommandName | str, action_text: str, *, interactive: bool = False):
+    def __init__(self, name: CommandName | str, action_text: str, *, interactive: bool = False):
         self._name = name
         self._action_text = action_text
         self._interactive = interactive
 
     @property
-    def name(self) -> commands.CommandName | str:
+    def name(self) -> CommandName | str:
         return self._name
 
     @property
@@ -62,17 +63,17 @@ class _DummyAgent:
 
 
 @pytest.fixture
-def _isolated_registry(monkeypatch: pytest.MonkeyPatch) -> dict[commands.CommandName | str, CommandABC]:
+def _isolated_registry(monkeypatch: pytest.MonkeyPatch) -> dict[CommandName | str, CommandABC]:
     monkeypatch.setattr(registry, "_ensure_commands_loaded", lambda: None)
-    commands_map: dict[commands.CommandName | str, CommandABC] = {}
+    commands_map: dict[CommandName | str, CommandABC] = {}
     monkeypatch.setattr(registry, "_COMMANDS", commands_map)
     return commands_map
 
 
 def test_dispatch_prefix_prefers_base_command_when_other_is_extension(
-    _isolated_registry: dict[commands.CommandName | str, CommandABC],
+    _isolated_registry: dict[CommandName | str, CommandABC],
 ) -> None:
-    _isolated_registry[commands.CommandName.EXPORT] = _DummyCommand(commands.CommandName.EXPORT, "export")
+    _isolated_registry[CommandName.EXPORT] = _DummyCommand(CommandName.EXPORT, "export")
     _isolated_registry["export-doc"] = _DummyCommand(
         "export-doc",
         "export-doc",
@@ -89,9 +90,9 @@ def test_dispatch_prefix_prefers_base_command_when_other_is_extension(
 
 
 def test_dispatch_prefix_can_target_extension_command(
-    _isolated_registry: dict[commands.CommandName | str, CommandABC],
+    _isolated_registry: dict[CommandName | str, CommandABC],
 ) -> None:
-    _isolated_registry[commands.CommandName.EXPORT] = _DummyCommand(commands.CommandName.EXPORT, "export")
+    _isolated_registry[CommandName.EXPORT] = _DummyCommand(CommandName.EXPORT, "export")
     _isolated_registry["export-doc"] = _DummyCommand(
         "export-doc",
         "export-doc",
@@ -108,9 +109,9 @@ def test_dispatch_prefix_can_target_extension_command(
 
 
 def test_slash_command_name_supports_prefix_match(
-    _isolated_registry: dict[commands.CommandName | str, CommandABC],
+    _isolated_registry: dict[CommandName | str, CommandABC],
 ) -> None:
-    _isolated_registry[commands.CommandName.EXPORT] = _DummyCommand(commands.CommandName.EXPORT, "export")
+    _isolated_registry[CommandName.EXPORT] = _DummyCommand(CommandName.EXPORT, "export")
     _isolated_registry["export-doc"] = _DummyCommand(
         "export-doc",
         "export-doc",
@@ -121,7 +122,7 @@ def test_slash_command_name_supports_prefix_match(
 
 
 def test_dispatch_ambiguous_prefix_falls_back_to_agent(
-    _isolated_registry: dict[commands.CommandName | str, CommandABC],
+    _isolated_registry: dict[CommandName | str, CommandABC],
 ) -> None:
     _isolated_registry["exit"] = _DummyCommand("exit", "exit")
     _isolated_registry["export"] = _DummyCommand("export", "export")

@@ -1,16 +1,17 @@
 from klaude_code.app.log_viewer import start_log_viewer
 from klaude_code.log import get_current_log_file, set_debug_logging
-from klaude_code.protocol import commands, events, message
+from klaude_code.protocol import events, message
 
 from .command_abc import Agent, CommandABC, CommandResult
+from .types import CommandName
 
 
 class DebugCommand(CommandABC):
     """Enable debug mode."""
 
     @property
-    def name(self) -> commands.CommandName:
-        return commands.CommandName.DEBUG
+    def name(self) -> CommandName:
+        return CommandName.DEBUG
 
     @property
     def summary(self) -> str:
@@ -27,9 +28,8 @@ class DebugCommand(CommandABC):
     def _command_output(self, agent: "Agent", content: str, *, is_error: bool = False) -> CommandResult:
         return CommandResult(
             events=[
-                events.CommandOutputEvent(
+                events.NoticeEvent(
                     session_id=agent.session.id,
-                    command_name=self.name,
                     content=content,
                     is_error=is_error,
                 )

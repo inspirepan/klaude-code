@@ -4,9 +4,11 @@ from typing import Protocol
 from pydantic import BaseModel
 
 from klaude_code.llm import LLMClientABC
-from klaude_code.protocol import commands, llm_param, message, op
 from klaude_code.protocol import events as protocol_events
+from klaude_code.protocol import llm_param, message, op
 from klaude_code.session.session import Session
+
+from .types import CommandName
 
 
 class AgentProfile(Protocol):
@@ -38,10 +40,15 @@ class CommandResult(BaseModel):
 
     events: (
         list[
-            protocol_events.CommandOutputEvent
+            protocol_events.NoticeEvent
             | protocol_events.ErrorEvent
             | protocol_events.WelcomeEvent
             | protocol_events.ReplayHistoryEvent
+            | protocol_events.SessionStatusEvent
+            | protocol_events.ModelChangedEvent
+            | protocol_events.ThinkingChangedEvent
+            | protocol_events.SubAgentModelChangedEvent
+            | protocol_events.CompactModelChangedEvent
         ]
         | None
     ) = None  # List of UI events to display immediately
@@ -53,7 +60,7 @@ class CommandABC(ABC):
 
     @property
     @abstractmethod
-    def name(self) -> commands.CommandName | str:
+    def name(self) -> CommandName | str:
         """Command name without the leading slash."""
         pass
 

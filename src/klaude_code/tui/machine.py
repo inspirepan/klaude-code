@@ -31,12 +31,13 @@ from klaude_code.tui.commands import (
     RenderBashCommandEnd,
     RenderBashCommandStart,
     RenderCommand,
-    RenderCommandOutput,
     RenderCompactionSummary,
     RenderDeveloperMessage,
     RenderError,
     RenderInterrupt,
+    RenderNotice,
     RenderRewind,
+    RenderSessionStatus,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
@@ -677,6 +678,35 @@ class DisplayStateMachine:
             )
         ]
 
+    @staticmethod
+    def _notice_from_model_changed(event: events.ModelChangedEvent) -> events.NoticeEvent:
+        default_note = " (saved as default)" if event.saved_as_default else ""
+        return events.NoticeEvent(
+            session_id=event.session_id,
+            content=f"Switched to: {event.model_id}{default_note}",
+        )
+
+    @staticmethod
+    def _notice_from_thinking_changed(event: events.ThinkingChangedEvent) -> events.NoticeEvent:
+        return events.NoticeEvent(
+            session_id=event.session_id,
+            content=f"Thinking changed: {event.previous} -> {event.current}",
+        )
+
+    @staticmethod
+    def _notice_from_sub_agent_model_changed(event: events.SubAgentModelChangedEvent) -> events.NoticeEvent:
+        return events.NoticeEvent(
+            session_id=event.session_id,
+            content=f"{event.sub_agent_type} model: {event.model_display}",
+        )
+
+    @staticmethod
+    def _notice_from_compact_model_changed(event: events.CompactModelChangedEvent) -> events.NoticeEvent:
+        return events.NoticeEvent(
+            session_id=event.session_id,
+            content=f"Compact model: {event.model_display}",
+        )
+
     def show_sigint_exit_toast(self) -> list[RenderCommand]:
         self._spinner.set_toast_status(SIGINT_DOUBLE_PRESS_EXIT_TEXT)
         return self._spinner_update_commands()
@@ -812,22 +842,41 @@ class DisplayStateMachine:
                 cmds.append(RenderDeveloperMessage(e))
                 return cmds
 
-            case events.CommandOutputEvent() as e:
-                cmds.append(RenderCommandOutput(e))
+            case events.NoticeEvent() as e:
+                cmds.append(RenderNotice(e))
+                return cmds
+
+            case events.SessionStatusEvent() as e:
+                cmds.append(RenderSessionStatus(e))
+                return cmds
+
+            case events.ModelChangedEvent() as e:
+                cmds.append(RenderNotice(self._notice_from_model_changed(e)))
+                return cmds
+
+            case events.ThinkingChangedEvent() as e:
+                cmds.append(RenderNotice(self._notice_from_thinking_changed(e)))
+                return cmds
+
+            case events.SubAgentModelChangedEvent() as e:
+                cmds.append(RenderNotice(self._notice_from_sub_agent_model_changed(e)))
+                return cmds
+
+            case events.CompactModelChangedEvent() as e:
+                cmds.append(RenderNotice(self._notice_from_compact_model_changed(e)))
                 return cmds
 
             case events.OperationRejectedEvent() as e:
                 cmds.append(
-                    RenderCommandOutput(
-                        events.CommandOutputEvent(
+                    RenderNotice(
+                        events.NoticeEvent(
                             session_id=e.session_id,
-                            command_name="operation.rejected",
                             content=(
                                 "Operation rejected: session busy "
                                 f"(operation={e.operation_type}, active_task_id={e.active_task_id or 'unknown'})"
                             ),
                             is_error=True,
-                        )
+                        ),
                     )
                 )
                 return cmds
