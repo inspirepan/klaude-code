@@ -1,11 +1,8 @@
-from importlib.resources import files
 from typing import TYPE_CHECKING
 
-from klaude_code.log import log_debug
 from klaude_code.protocol import commands, events, message, op
 
 from .command_abc import Agent, CommandResult
-from .prompt_command import PromptCommand
 
 if TYPE_CHECKING:
     from .command_abc import CommandABC
@@ -78,19 +75,6 @@ def _resolve_command_key(command_name_raw: str) -> commands.CommandName | str | 
 def register(cmd: "CommandABC") -> None:
     """Register a command instance. Order of registration determines display order."""
     _COMMANDS[cmd.name] = cmd
-
-
-def load_prompt_commands():
-    """Dynamically load prompt-based commands from the command directory."""
-    try:
-        command_files = files("klaude_code.tui.command").iterdir()
-        for file_path in command_files:
-            name = file_path.name
-            if (name.startswith("prompt_") or name.startswith("prompt-")) and name.endswith(".md"):
-                cmd = PromptCommand(name)
-                _COMMANDS[cmd.name] = cmd
-    except OSError as e:
-        log_debug(f"Failed to load prompt commands: {e}")
 
 
 def _ensure_commands_loaded() -> None:

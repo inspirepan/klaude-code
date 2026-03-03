@@ -6,7 +6,6 @@ from .registry import (
     get_commands,
     has_interactive_command,
     is_slash_command_name,
-    load_prompt_commands,
     register,
 )
 
@@ -55,13 +54,10 @@ def ensure_commands_loaded() -> None:
     register(SubAgentModelCommand())
     register(ThinkingCommand())
     register(StatusCommand())
-    load_prompt_commands()
     register(LoginCommand())
     register(LogoutCommand())
     register(ContinueCommand())
     register(DebugCommand())
-
-    # Load prompt-based commands (appended after built-in commands)
 
 
 # Lazy accessors for command classes
