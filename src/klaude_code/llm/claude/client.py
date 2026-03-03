@@ -86,7 +86,6 @@ class ClaudeClient(LLMClientABC):
 
         log_debug(
             json.dumps(payload, ensure_ascii=False, default=str),
-            style="yellow",
             debug_type=DebugType.LLM_PAYLOAD,
         )
 

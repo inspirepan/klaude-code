@@ -44,7 +44,6 @@ class TUIDisplay(DisplayABC):
                     log_debug(
                         f"[Replay] [{item.__class__.__name__}]",
                         item.model_dump_json(exclude_none=True),
-                        style="magenta",
                         debug_type=DebugType.UI_EVENT,
                     )
 
@@ -59,7 +58,6 @@ class TUIDisplay(DisplayABC):
         log_debug(
             f"[{event.__class__.__name__}]",
             event.model_dump_json(exclude_none=True),
-            style="magenta",
             debug_type=DebugType.UI_EVENT,
         )
         commands = self._machine.transition(event)

@@ -137,29 +137,25 @@ def set_debug_logging(
         logger.addHandler(_console_handler)
 
 
-def log(*objects: str | tuple[str, str], style: str = "") -> None:
+def log(*objects: str | tuple[str, str]) -> None:
     """Output user-facing messages to console.
 
     Args:
         objects: Strings or (text, style) tuples to print
-        style: Default style for all objects
     """
     log_console.print(
         *((Text(obj[0], style=obj[1]) if isinstance(obj, tuple) else Text(obj)) for obj in objects),
-        style=style,
     )
 
 
 def log_debug(
     *objects: str | tuple[str, str],
-    style: str | None = None,
     debug_type: DebugType = DebugType.GENERAL,
 ) -> None:
     """Log debug messages with category support.
 
     Args:
         objects: Strings or (text, style) tuples to log
-        style: Style hint (used for console output)
         debug_type: Category of the debug message
     """
     if not _debug_enabled:
@@ -171,7 +167,6 @@ def log_debug(
     extra = {
         "debug_type": debug_type,
         "debug_type_label": debug_type.value.upper(),
-        "style": style,
     }
     logger.debug(message, extra=extra)
 

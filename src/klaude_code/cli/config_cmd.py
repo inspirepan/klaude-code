@@ -62,12 +62,12 @@ def edit_config() -> None:
     # Ensure config directory exists and create example config if needed
     config_path.parent.mkdir(parents=True, exist_ok=True)
     if create_example_config():
-        log(f"Created example config: {example_config_path}", style="dim")
+        log(f"Created example config: {example_config_path}")
 
     # Decide which file to open
     target_path = config_path if config_path.exists() else example_config_path
     if target_path == example_config_path:
-        log(f"Opening example config (copy to {config_path.name} to use)", style="yellow")
+        log(f"Opening example config (copy to {config_path.name} to use)")
 
     try:
         if editor == "open -a TextEdit":

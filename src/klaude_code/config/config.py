@@ -642,8 +642,8 @@ def _load_user_config() -> UserConfig | None:
     try:
         return UserConfig.model_validate(config_dict)
     except ValidationError as e:
-        log(f"Invalid config file: {config_path}", style="red")
-        log(str(e), style="red")
+        log(f"Invalid config file: {config_path}")
+        log(str(e))
         raise ValueError(f"Invalid config file: {config_path}") from e
 
 
@@ -705,23 +705,23 @@ def load_config() -> Config:
 
 def print_no_available_models_hint() -> None:
     """Print helpful message when no models are available due to missing API keys."""
-    log("No available models. Configure an API key using one of these methods:", style="yellow")
+    log("No available models. Configure an API key using one of these methods:")
     log("")
-    log("Option 1: Use klaude auth login", style="bold")
+    log("Option 1: Use klaude auth login")
     # Use first word of name for brevity
     names = [k.name.split()[0].lower() for k in SUPPORTED_API_KEYS]
-    log(f"  klaude auth login <provider>  (providers: {', '.join(names)})", style="dim")
+    log(f"  klaude auth login <provider>  (providers: {', '.join(names)})")
     log("")
-    log("Option 2: Set environment variables", style="bold")
+    log("Option 2: Set environment variables")
     max_len = max(len(k.env_var) for k in SUPPORTED_API_KEYS)
     for key_info in SUPPORTED_API_KEYS:
         current_value = os.environ.get(key_info.env_var) or get_auth_env(key_info.env_var)
         if current_value:
-            log(f"  {key_info.env_var:<{max_len}}  (set)", style="green")
+            log(f"  {key_info.env_var:<{max_len}}  (set)")
         else:
-            log(f"  {key_info.env_var:<{max_len}}  {key_info.description}", style="dim")
+            log(f"  {key_info.env_var:<{max_len}}  {key_info.description}")
     log("")
-    log(f"Or add custom providers in: {config_path}", style="dim")
+    log(f"Or add custom providers in: {config_path}")
 
 
 # Expose cache control for tests and callers that need to invalidate the cache.

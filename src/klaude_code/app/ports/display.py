@@ -30,10 +30,7 @@ class DisplayABC(ABC):
             except Exception as e:
                 import traceback
 
-                log(
-                    f"Error in consume_event_loop, {e.__class__.__name__}, {e}",
-                    style="red",
-                )
-                log(traceback.format_exc(), style="red")
+                log(f"Error in consume_event_loop, {e.__class__.__name__}, {e}")
+                log(traceback.format_exc())
             finally:
                 q.task_done()

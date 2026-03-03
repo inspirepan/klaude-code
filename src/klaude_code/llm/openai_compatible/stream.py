@@ -46,7 +46,7 @@ def normalize_tool_name(name: str) -> str:
     match = re.match(r"^tool_([A-Za-z]+)_[A-Za-z0-9]+$", name)
     if match:
         normalized = match.group(1)
-        log_debug(f"Gemini-3 tool name normalized: {name} -> {normalized}", style="yellow")
+        log_debug(f"Gemini-3 tool name normalized: {name} -> {normalized}")
         return normalized
     return name
 

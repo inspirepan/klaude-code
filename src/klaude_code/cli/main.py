@@ -311,7 +311,7 @@ def main_callback(
                 from klaude_code.log import log
 
                 asyncio.run(cfg.save())
-                log(f"Saved main_model={chosen_model} to {config_path}", style="dim")
+                log(f"Saved main_model={chosen_model} to {config_path}")
 
         debug_enabled, log_path = prepare_debug_logging(debug)
 
@@ -322,12 +322,12 @@ def main_callback(
         )
 
         if log_path:
-            log(f"Debug log: {log_path}", style="yellow")
+            log(f"Debug log: {log_path}")
 
             from klaude_code.app.log_viewer import start_log_viewer
 
             viewer_url = start_log_viewer(log_path)
-            log(f"Log viewer: {viewer_url}", style="yellow")
+            log(f"Log viewer: {viewer_url}")
 
         asyncio.run(
             run_interactive(

@@ -845,7 +845,6 @@ class TUICommandRenderer:
             log_debug(
                 f"{'[Cmd] [Replay]' if self._replay_mode else '[Cmd]'} [{cmd.__class__.__name__}]",
                 str(cmd),
-                style="magenta",
                 debug_type=DebugType.UI_EVENT,
             )
             match cmd:

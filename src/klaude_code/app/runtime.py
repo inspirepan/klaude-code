@@ -66,11 +66,8 @@ async def _consume_display_from_subscription(
         except Exception as e:
             import traceback
 
-            log(
-                f"Error in display event stream, {e.__class__.__name__}, {e}",
-                style="red",
-            )
-            log(traceback.format_exc(), style="red")
+            log(f"Error in display event stream, {e.__class__.__name__}, {e}")
+            log(traceback.format_exc())
 
 
 async def _reclaim_idle_sessions_loop(runtime: RuntimeFacade) -> None:

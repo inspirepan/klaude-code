@@ -53,7 +53,6 @@ class Agent:
 
         log_debug(
             f"Session {self.session.id} interrupted",
-            style="yellow",
             debug_type=DebugType.EXECUTION,
         )
 
