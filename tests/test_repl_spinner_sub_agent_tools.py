@@ -183,6 +183,23 @@ def test_right_text_shows_cache_hit_rate_next_to_cached_tokens() -> None:
     assert right_text.plain.startswith("in 10k · cache 20k (91%) · out 10k · thought 2k")
 
 
+def test_right_text_shows_cache_write_tokens() -> None:
+    state = SpinnerStatusState()
+    state.set_context_usage(
+        model.Usage(
+            input_tokens=30_000,
+            cached_tokens=20_000,
+            cache_write_tokens=5_000,
+            output_tokens=12_000,
+            reasoning_tokens=2_000,
+        )
+    )
+
+    right_text = state.get_right_text()
+    assert right_text is not None
+    assert right_text.plain.startswith("in 5k · cache 20k · cache+ 5k · out 10k · thought 2k")
+
+
 def test_right_text_shows_cost_when_available() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
