@@ -12,12 +12,27 @@ from klaude_code.protocol import model
 def build_structured_diff(before: str, after: str, *, file_path: str) -> model.DiffUIExtra:
     """Build a structured diff with char-level spans for a single file."""
     file_diff = _build_file_diff(before, after, file_path=file_path)
-    return model.DiffUIExtra(files=[file_diff])
+    raw_unified_diff = build_unified_diff_text(before, after, from_file=file_path)
+    return model.DiffUIExtra(files=[file_diff], raw_unified_diff=raw_unified_diff)
 
 
 def build_structured_file_diff(before: str, after: str, *, file_path: str) -> model.DiffFileDiff:
     """Build a structured diff for a single file."""
     return _build_file_diff(before, after, file_path=file_path)
+
+
+def build_unified_diff_text(before: str, after: str, *, from_file: str, to_file: str | None = None) -> str:
+    """Build raw unified diff text using default context lines."""
+    target_file = to_file if to_file is not None else from_file
+    lines = difflib.unified_diff(
+        before.splitlines(),
+        after.splitlines(),
+        fromfile=from_file,
+        tofile=target_file,
+        n=DIFF_DEFAULT_CONTEXT_LINES,
+        lineterm="",
+    )
+    return "\n".join(lines)
 
 
 def _build_file_diff(before: str, after: str, *, file_path: str) -> model.DiffFileDiff:

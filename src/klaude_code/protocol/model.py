@@ -197,6 +197,7 @@ class DiffFileDiff(BaseModel):
 class DiffUIExtra(BaseModel):
     type: Literal["diff"] = "diff"
     files: list[DiffFileDiff]
+    raw_unified_diff: str | None = None
 
 
 class TodoListUIExtra(BaseModel):

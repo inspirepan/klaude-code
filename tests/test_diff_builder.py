@@ -27,6 +27,9 @@ def test_char_level_spans_for_replacement():
 
     assert "world" in deleted
     assert "there" in inserted
+    assert diff.raw_unified_diff is not None
+    assert diff.raw_unified_diff.startswith("--- greeting.txt\n+++ greeting.txt")
+    assert "@@" in diff.raw_unified_diff
 
 
 def test_replace_blocks_are_grouped_remove_then_add() -> None:
