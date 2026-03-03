@@ -5,9 +5,14 @@ import contextlib
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import llm_param, op, user_interaction
+
+if TYPE_CHECKING:
+    from klaude_code.core.agent.agent import Agent
+    from klaude_code.core.agent.runtime import LLMClients
 
 
 @dataclass(frozen=True)
@@ -33,6 +38,13 @@ class RootTaskState:
 class _PendingInteractionState:
     request: PendingUserInteractionRequest
     future: asyncio.Future[user_interaction.UserInteractionResponse]
+
+
+@dataclass
+class RuntimeTaskHandle:
+    task_id: str
+    operation_id: str
+    task: asyncio.Task[None]
 
 
 @dataclass
@@ -70,6 +82,10 @@ class SessionRuntime:
         self._active_root_task: RootTaskState | None = None
         self._child_task_ids: set[str] = set()
         self._pending_requests: dict[str, _PendingInteractionState] = {}
+        self._task_handles: dict[str, RuntimeTaskHandle] = {}
+        self._operation_task_ids: dict[str, str] = {}
+        self._agent: Agent | None = None
+        self._llm_clients: LLMClients | None = None
         self._config = SessionRuntimeConfig()
         self._idle_since_monotonic: float | None = time.monotonic()
         self._control_burst_quota = control_burst_quota
@@ -91,6 +107,14 @@ class SessionRuntime:
 
     async def stop(self) -> None:
         self.cancel_pending_interactions()
+        tasks_to_await: list[asyncio.Task[None]] = []
+        for _, task in self.cancel_active_tasks():
+            if not task.done():
+                task.cancel()
+                tasks_to_await.append(task)
+        if tasks_to_await:
+            await asyncio.gather(*tasks_to_await, return_exceptions=True)
+
         while True:
             try:
                 _ = self.control_mailbox.get_nowait()
@@ -105,6 +129,61 @@ class SessionRuntime:
                 break
         await self.control_mailbox.put(_STOP_SIGNAL)
         await self._worker_task
+        self.clear_execution_state()
+
+    def set_agent(self, agent: Agent) -> None:
+        self._agent = agent
+        self._mark_active()
+
+    def get_agent(self) -> Agent | None:
+        return self._agent
+
+    def set_llm_clients(self, llm_clients: LLMClients) -> None:
+        self._llm_clients = llm_clients
+        self._mark_active()
+
+    def get_llm_clients(self) -> LLMClients | None:
+        return self._llm_clients
+
+    def clear_execution_state(self) -> None:
+        self._agent = None
+        self._llm_clients = None
+        self._task_handles.clear()
+        self._operation_task_ids.clear()
+        self._refresh_idle_since()
+
+    def register_task(self, *, operation_id: str, task_id: str, task: asyncio.Task[None]) -> None:
+        self._task_handles[task_id] = RuntimeTaskHandle(task_id=task_id, operation_id=operation_id, task=task)
+        self._operation_task_ids[operation_id] = task_id
+        self._mark_active()
+
+    def get_active_task(self, operation_id: str) -> RuntimeTaskHandle | None:
+        task_id = self._operation_task_ids.get(operation_id)
+        if task_id is None:
+            return None
+        return self._task_handles.get(task_id)
+
+    def list_active_tasks(self) -> list[RuntimeTaskHandle]:
+        return list(self._task_handles.values())
+
+    def remove_task(self, task_id: str) -> None:
+        handle = self._task_handles.pop(task_id, None)
+        if handle is None:
+            return
+        current_task_id = self._operation_task_ids.get(handle.operation_id)
+        if current_task_id == task_id:
+            self._operation_task_ids.pop(handle.operation_id, None)
+        self._refresh_idle_since()
+
+    def cancel_active_tasks(self) -> list[tuple[str, asyncio.Task[None]]]:
+        tasks_to_cancel: list[tuple[str, asyncio.Task[None]]] = []
+        for task_id, handle in list(self._task_handles.items()):
+            if handle.task.done():
+                self.remove_task(task_id)
+                continue
+            tasks_to_cancel.append((task_id, handle.task))
+            self.remove_task(task_id)
+        return tasks_to_cancel
 
     def open_pending_interaction(
         self,
@@ -231,6 +310,7 @@ class SessionRuntime:
             self._active_root_task is None
             and not self._child_task_ids
             and not self._pending_requests
+            and not self._task_handles
             and self.control_mailbox.empty()
             and self.normal_mailbox.empty()
         )

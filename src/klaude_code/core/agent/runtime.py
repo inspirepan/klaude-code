@@ -20,7 +20,8 @@ from klaude_code.core.agent.agent import Agent
 from klaude_code.core.agent_profile import DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.bash_mode import run_bash_command
 from klaude_code.core.compaction import CompactionReason, run_compaction
-from klaude_code.core.control.event_bus import EventBus
+from klaude_code.core.control.event_bus import EventBus, event_publish_context
+from klaude_code.core.control.session_runtime import SessionRuntime
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.core.loaded_skills import (
     get_loaded_skill_names_by_location,
@@ -332,6 +333,12 @@ class SessionAgentExecutor:
         model_profile_provider: ModelProfileProvider,
         sub_agent_manager: SubAgentExecutor,
         on_child_task_state_change: Callable[[str, str, bool], None],
+        ensure_runtime: Callable[[str], SessionRuntime],
+        get_runtime: Callable[[str], SessionRuntime | None],
+        get_runtime_for_operation: Callable[[str], SessionRuntime | None],
+        list_runtimes: Callable[[], list[SessionRuntime]],
+        register_task: Callable[[str, str, str, asyncio.Task[None]], None],
+        remove_task: Callable[[str, str], None],
         request_user_interaction: Callable[
             [PendingUserInteractionRequest],
             Awaitable[user_interaction.UserInteractionResponse],
@@ -342,12 +349,14 @@ class SessionAgentExecutor:
         self._model_profile_provider = model_profile_provider
         self._sub_agent_manager = sub_agent_manager
         self._on_child_task_state_change = on_child_task_state_change
+        self._ensure_runtime = ensure_runtime
+        self._get_runtime = get_runtime
+        self._get_runtime_for_operation = get_runtime_for_operation
+        self._list_runtimes = list_runtimes
+        self._register_runtime_task = register_task
+        self._remove_runtime_task = remove_task
         self._request_user_interaction_callback = request_user_interaction
-        self._session_llm_clients: dict[str, LLMClients] = {}
-        self._agents: dict[str, Agent] = {}
         self._primary_session_id: str | None = None
-        self._tasks: dict[str, ActiveTask] = {}
-        self._operation_task_ids: dict[str, str] = {}
 
     async def _request_user_interaction(
         self,
@@ -359,7 +368,10 @@ class SessionAgentExecutor:
     ) -> user_interaction.UserInteractionResponse:
         if source != "tool":
             raise ValueError("Only tool-based user interactions are supported in this context")
-        agent = self._agents.get(session_id)
+        runtime = self._get_runtime(session_id)
+        if runtime is None:
+            raise RuntimeError("No active runtime session")
+        agent = runtime.get_agent()
         if agent is None:
             raise RuntimeError("No active agent session")
         if agent.session.sub_agent_state is not None:
@@ -404,7 +416,8 @@ class SessionAgentExecutor:
         return _callback
 
     def _ensure_session_llm_clients(self, session: Session) -> LLMClients:
-        existing = self._session_llm_clients.get(session.id)
+        runtime = self._ensure_runtime(session.id)
+        existing = runtime.get_llm_clients()
         if existing is not None:
             return existing
 
@@ -421,11 +434,14 @@ class SessionAgentExecutor:
         if session.model_thinking is not None:
             clients.main.get_llm_config().thinking = session.model_thinking.model_copy(deep=True)
 
-        self._session_llm_clients[session.id] = clients
+        runtime.set_llm_clients(clients)
         return clients
 
     def get_session_llm_clients(self, session_id: str) -> LLMClients:
-        clients = self._session_llm_clients.get(session_id)
+        runtime = self._get_runtime(session_id)
+        if runtime is None:
+            raise RuntimeError(f"Missing runtime for session {session_id}")
+        clients = runtime.get_llm_clients()
         if clients is None:
             raise RuntimeError(f"Missing session llm clients for session {session_id}")
         return clients
@@ -436,49 +452,60 @@ class SessionAgentExecutor:
         clients.main_model_alias = model_alias
 
     def get_active_task(self, operation_id: str) -> ActiveTask | None:
-        task_id = self._operation_task_ids.get(operation_id)
-        if task_id is None:
+        runtime = self._get_runtime_for_operation(operation_id)
+        if runtime is None:
             return None
-        return self._tasks.get(task_id)
+        handle = runtime.get_active_task(operation_id)
+        if handle is None:
+            return None
+        return ActiveTask(
+            task_id=handle.task_id,
+            operation_id=handle.operation_id,
+            task=handle.task,
+            session_id=runtime.session_id,
+        )
 
     def list_active_tasks(self) -> list[ActiveTask]:
-        return list(self._tasks.values())
+        active_tasks: list[ActiveTask] = []
+        for runtime in self._list_runtimes():
+            for handle in runtime.list_active_tasks():
+                active_tasks.append(
+                    ActiveTask(
+                        task_id=handle.task_id,
+                        operation_id=handle.operation_id,
+                        task=handle.task,
+                        session_id=runtime.session_id,
+                    )
+                )
+        return active_tasks
 
     def clear_active_tasks(self) -> None:
-        self._tasks.clear()
-        self._operation_task_ids.clear()
+        for runtime in self._list_runtimes():
+            for _, task in runtime.cancel_active_tasks():
+                if not task.done():
+                    task.cancel()
 
     def _register_task(self, *, operation_id: str, task_id: str, task: asyncio.Task[None], session_id: str) -> None:
-        self._tasks[task_id] = ActiveTask(
-            task_id=task_id,
-            operation_id=operation_id,
-            task=task,
-            session_id=session_id,
-        )
-        self._operation_task_ids[operation_id] = task_id
+        self._register_runtime_task(session_id, operation_id, task_id, task)
 
-    def _remove_task(self, task_id: str) -> None:
-        active = self._tasks.pop(task_id, None)
-        if active is None:
-            return
-        current = self._operation_task_ids.get(active.operation_id)
-        if current == task_id:
-            self._operation_task_ids.pop(active.operation_id, None)
+    def _remove_task(self, *, session_id: str, task_id: str) -> None:
+        self._remove_runtime_task(session_id, task_id)
 
-    def _cancel_tasks_for_sessions(self, session_ids: set[str] | None) -> list[tuple[str, asyncio.Task[None]]]:
+    def _cancel_tasks_for_sessions(self, session_ids: set[str]) -> list[tuple[str, asyncio.Task[None]]]:
         tasks_to_cancel: list[tuple[str, asyncio.Task[None]]] = []
-        for task_id, active in list(self._tasks.items()):
-            if active.task.done():
+        for session_id in session_ids:
+            runtime = self._get_runtime(session_id)
+            if runtime is None:
                 continue
-            if session_ids is None or active.session_id in session_ids:
-                tasks_to_cancel.append((task_id, active.task))
+            tasks_to_cancel.extend(runtime.cancel_active_tasks())
         return tasks_to_cancel
 
     def current_session_id(self) -> str | None:
         session_id = self._primary_session_id
         if session_id is None:
             return None
-        if session_id not in self._agents:
+        runtime = self._get_runtime(session_id)
+        if runtime is None or runtime.get_agent() is None:
             self._primary_session_id = None
             return None
         return session_id
@@ -488,26 +515,25 @@ class SessionAgentExecutor:
         session_id = self.current_session_id()
         if session_id is None:
             return None
-        return self._agents.get(session_id)
-
-    def drop_session(self, session_id: str) -> None:
-        self._agents.pop(session_id, None)
-        self._session_llm_clients.pop(session_id, None)
-        if self._primary_session_id != session_id:
-            return
-        self._primary_session_id = next(iter(self._agents), None)
+        runtime = self._get_runtime(session_id)
+        if runtime is None:
+            return None
+        return runtime.get_agent()
 
     async def ensure_agent(self, session_id: str | None = None) -> Agent:
         """Return the agent for a session, creating or loading as needed."""
 
         if session_id is not None:
-            existing = self._agents.get(session_id)
-            if existing is not None:
-                return existing
+            runtime = self._get_runtime(session_id)
+            if runtime is not None:
+                existing = runtime.get_agent()
+                if existing is not None:
+                    return existing
 
         session = Session.create() if session_id is None else Session.load(session_id)
 
-        existing = self._agents.get(session.id)
+        runtime = self._ensure_runtime(session.id)
+        existing = runtime.get_agent()
         if existing is not None:
             return existing
 
@@ -535,7 +561,7 @@ class SessionAgentExecutor:
         async for evt in agent.replay_history():
             await self._emit_event(evt)
 
-        self._agents[session.id] = agent
+        runtime.set_agent(agent)
         if self._primary_session_id is None:
             self._primary_session_id = session.id
         log_debug(
@@ -545,7 +571,7 @@ class SessionAgentExecutor:
         )
         return agent
 
-    async def init_agent(self, session_id: str | None) -> None:
+    async def init_agent(self, session_id: str) -> None:
         agent = await self.ensure_agent(session_id)
         self._primary_session_id = agent.session.id
 
@@ -567,8 +593,13 @@ class SessionAgentExecutor:
             raise RuntimeError(f"Active task already registered for operation {operation.id}")
 
         task_id = uuid4().hex
+
+        async def _run_with_event_context() -> None:
+            with event_publish_context(task_id=task_id):
+                await self._run_agent_task(agent, operation.input, task_id, operation.session_id)
+
         task: asyncio.Task[None] = asyncio.create_task(
-            self._run_agent_task(agent, operation.input, task_id, operation.session_id)
+            _run_with_event_context()
         )
         self._register_task(
             operation_id=operation.id,
@@ -585,13 +616,18 @@ class SessionAgentExecutor:
             raise RuntimeError(f"Active task already registered for operation {operation.id}")
 
         task_id = uuid4().hex
+
+        async def _run_with_event_context() -> None:
+            with event_publish_context(task_id=task_id):
+                await self._run_bash_task(
+                    session=agent.session,
+                    command=operation.command,
+                    task_id=task_id,
+                    session_id=operation.session_id,
+                )
+
         task: asyncio.Task[None] = asyncio.create_task(
-            self._run_bash_task(
-                session=agent.session,
-                command=operation.command,
-                task_id=task_id,
-                session_id=operation.session_id,
-            )
+            _run_with_event_context()
         )
         self._register_task(
             operation_id=operation.id,
@@ -611,8 +647,13 @@ class SessionAgentExecutor:
         # Use empty input since we're continuing from existing history
         empty_input = message.UserInputPayload(text="")
         task_id = uuid4().hex
+
+        async def _run_with_event_context() -> None:
+            with event_publish_context(task_id=task_id):
+                await self._run_agent_task(agent, empty_input, task_id, operation.session_id)
+
         task: asyncio.Task[None] = asyncio.create_task(
-            self._run_agent_task(agent, empty_input, task_id, operation.session_id)
+            _run_with_event_context()
         )
         self._register_task(
             operation_id=operation.id,
@@ -632,8 +673,13 @@ class SessionAgentExecutor:
             raise RuntimeError(f"Active task already registered for operation {operation.id}")
 
         task_id = uuid4().hex
+
+        async def _run_with_event_context() -> None:
+            with event_publish_context(task_id=task_id):
+                await self._run_compaction_task(agent, operation, task_id, operation.session_id)
+
         task: asyncio.Task[None] = asyncio.create_task(
-            self._run_compaction_task(agent, operation, task_id, operation.session_id)
+            _run_with_event_context()
         )
         self._register_task(
             operation_id=operation.id,
@@ -645,6 +691,9 @@ class SessionAgentExecutor:
     async def clear_session(self, session_id: str) -> None:
         agent = await self.ensure_agent(session_id)
         old_session_id = agent.session.id
+        old_runtime = self._get_runtime(old_session_id)
+        if old_runtime is None:
+            raise RuntimeError(f"Missing runtime for session {old_session_id}")
         session_clients = self.get_session_llm_clients(old_session_id)
         new_session = Session.create(work_dir=agent.session.work_dir)
         new_session.model_name = agent.session.model_name
@@ -657,10 +706,11 @@ class SessionAgentExecutor:
             compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
         )
-        self._session_llm_clients.pop(old_session_id, None)
-        self._session_llm_clients[new_session.id] = session_clients
-        self._agents.pop(old_session_id, None)
-        self._agents[new_session.id] = new_agent
+
+        old_runtime.clear_execution_state()
+        new_runtime = self._ensure_runtime(new_session.id)
+        new_runtime.set_llm_clients(session_clients)
+        new_runtime.set_agent(new_agent)
         if self._primary_session_id == old_session_id:
             self._primary_session_id = new_session.id
 
@@ -682,39 +732,28 @@ class SessionAgentExecutor:
             )
         )
 
-    async def interrupt(self, target_session_id: str | None) -> None:
-        if target_session_id is not None:
-            session_ids = [target_session_id]
-        else:
-            session_ids = sorted({active.session_id for active in self.list_active_tasks()})
-            if self._primary_session_id is not None and self._primary_session_id not in session_ids:
-                session_ids.append(self._primary_session_id)
+    async def interrupt(self, session_id: str) -> None:
+        runtime = self._get_runtime(session_id)
+        if runtime is None:
+            return
+        agent = runtime.get_agent()
+        if agent is not None:
+            for evt in agent.on_interrupt():
+                await self._emit_event(evt)
 
-        for sid in session_ids:
-            agent = self._agents.get(sid)
-            if agent is not None:
-                for evt in agent.on_interrupt():
-                    await self._emit_event(evt)
+        await self._emit_event(events.InterruptEvent(session_id=session_id))
 
-        await self._emit_event(events.InterruptEvent(session_id=target_session_id or "all"))
+        tasks_to_cancel = self._cancel_tasks_for_sessions({session_id})
 
-        if target_session_id is None:
-            session_filter: set[str] | None = None
-        else:
-            session_filter = {target_session_id}
-
-        tasks_to_cancel = self._cancel_tasks_for_sessions(session_filter)
-
-        scope = target_session_id or "all"
+        scope = session_id
         log_debug(
             f"Interrupting {len(tasks_to_cancel)} task(s) for: {scope}",
             style="yellow",
             debug_type=DebugType.EXECUTION,
         )
 
-        for task_id, task in tasks_to_cancel:
+        for _task_id, task in tasks_to_cancel:
             task.cancel()
-            self._remove_task(task_id)
 
     async def _run_agent_task(
         self,
@@ -779,7 +818,7 @@ class SessionAgentExecutor:
                 )
             )
         finally:
-            self._remove_task(task_id)
+            self._remove_task(session_id=session_id, task_id=task_id)
             log_debug(
                 f"Cleaned up agent task {task_id}",
                 style="cyan",
@@ -795,7 +834,7 @@ class SessionAgentExecutor:
                 command=command,
             )
         finally:
-            self._remove_task(task_id)
+            self._remove_task(session_id=session_id, task_id=task_id)
 
     async def _run_compaction_task(
         self,
@@ -869,7 +908,7 @@ class SessionAgentExecutor:
                 )
             )
         finally:
-            self._remove_task(task_id)
+            self._remove_task(session_id=session_id, task_id=task_id)
 
 class ModelSwitcher:
     """Apply model changes to an agent session."""
@@ -933,6 +972,12 @@ class OperationExecutor:
 
         self._sub_agent_executor = SubAgentExecutor(self.emit_event, llm_clients, resolved_profile_provider)
         self._on_model_change = on_model_change
+        self._ensure_runtime_callback: Callable[[str], SessionRuntime] | None = None
+        self._get_runtime_callback: Callable[[str], SessionRuntime | None] | None = None
+        self._get_runtime_for_operation_callback: Callable[[str], SessionRuntime | None] | None = None
+        self._list_runtimes_callback: Callable[[], list[SessionRuntime]] | None = None
+        self._register_task_callback: Callable[[str, str, str, asyncio.Task[None]], None] | None = None
+        self._remove_task_callback: Callable[[str, str], None] | None = None
         self._close_session_callback: Callable[[str, bool], Awaitable[bool]] | None = None
         self._request_user_interaction_callback: (
             Callable[
@@ -954,9 +999,68 @@ class OperationExecutor:
             model_profile_provider=resolved_profile_provider,
             sub_agent_manager=self._sub_agent_executor,
             on_child_task_state_change=self._on_child_task_state_change,
+            ensure_runtime=self._ensure_runtime,
+            get_runtime=self._get_runtime,
+            get_runtime_for_operation=self._get_runtime_for_operation,
+            list_runtimes=self._list_runtimes,
+            register_task=self._register_task,
+            remove_task=self._remove_task,
             request_user_interaction=self.request_user_interaction,
         )
         self._model_switcher = ModelSwitcher(resolved_profile_provider)
+
+    def set_runtime_callbacks(
+        self,
+        *,
+        ensure_runtime: Callable[[str], SessionRuntime],
+        get_runtime: Callable[[str], SessionRuntime | None],
+        get_runtime_for_operation: Callable[[str], SessionRuntime | None],
+        list_runtimes: Callable[[], list[SessionRuntime]],
+        register_task: Callable[[str, str, str, asyncio.Task[None]], None],
+        remove_task: Callable[[str, str], None],
+    ) -> None:
+        self._ensure_runtime_callback = ensure_runtime
+        self._get_runtime_callback = get_runtime
+        self._get_runtime_for_operation_callback = get_runtime_for_operation
+        self._list_runtimes_callback = list_runtimes
+        self._register_task_callback = register_task
+        self._remove_task_callback = remove_task
+
+    def _ensure_runtime(self, session_id: str) -> SessionRuntime:
+        callback = self._ensure_runtime_callback
+        if callback is None:
+            raise RuntimeError("runtime callbacks are not configured")
+        return callback(session_id)
+
+    def _get_runtime(self, session_id: str) -> SessionRuntime | None:
+        callback = self._get_runtime_callback
+        if callback is None:
+            raise RuntimeError("runtime callbacks are not configured")
+        return callback(session_id)
+
+    def _get_runtime_for_operation(self, operation_id: str) -> SessionRuntime | None:
+        callback = self._get_runtime_for_operation_callback
+        if callback is None:
+            raise RuntimeError("runtime callbacks are not configured")
+        return callback(operation_id)
+
+    def _list_runtimes(self) -> list[SessionRuntime]:
+        callback = self._list_runtimes_callback
+        if callback is None:
+            raise RuntimeError("runtime callbacks are not configured")
+        return callback()
+
+    def _register_task(self, session_id: str, operation_id: str, task_id: str, task: asyncio.Task[None]) -> None:
+        callback = self._register_task_callback
+        if callback is None:
+            raise RuntimeError("runtime callbacks are not configured")
+        callback(session_id, operation_id, task_id, task)
+
+    def _remove_task(self, session_id: str, task_id: str) -> None:
+        callback = self._remove_task_callback
+        if callback is None:
+            raise RuntimeError("runtime callbacks are not configured")
+        callback(session_id, task_id)
 
     def set_close_session_callback(self, callback: Callable[[str, bool], Awaitable[bool]]) -> None:
         self._close_session_callback = callback
@@ -1015,14 +1119,16 @@ class OperationExecutor:
                     session_id=request.session_id,
                     request_id=request.request_id,
                     reason=reason,
-                )
+                ),
+                causation_id=request.request_id,
             )
             await self.emit_event(
                 events.UserInteractionResolvedEvent(
                     session_id=request.session_id,
                     request_id=request.request_id,
                     status="cancelled",
-                )
+                ),
+                causation_id=request.request_id,
             )
 
     def _on_child_task_state_change(self, session_id: str, task_id: str, is_active: bool) -> None:
@@ -1031,9 +1137,21 @@ class OperationExecutor:
             return
         callback(session_id, task_id, is_active)
 
-    async def emit_event(self, event: events.Event) -> None:
+    async def emit_event(
+        self,
+        event: events.Event,
+        *,
+        operation_id: str | None = None,
+        task_id: str | None = None,
+        causation_id: str | None = None,
+    ) -> None:
         """Publish an event to the runtime event bus."""
-        await self.event_bus.publish(event)
+        await self.event_bus.publish(
+            event,
+            operation_id=operation_id,
+            task_id=task_id,
+            causation_id=causation_id,
+        )
 
     def current_session_id(self) -> str | None:
         """Return the primary active session id, if any.
@@ -1049,9 +1167,6 @@ class OperationExecutor:
         """Return the currently active agent, if any."""
 
         return self._session_executor.current_agent
-
-    def drop_session_state(self, session_id: str) -> None:
-        self._session_executor.drop_session(session_id)
 
     async def handle_init_agent(self, operation: op.InitAgentOperation) -> None:
         """Initialize an agent for a session and replay history to UI."""
@@ -1310,14 +1425,14 @@ class OperationExecutor:
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
 
-        await self._session_executor.interrupt(operation.target_session_id)
-        cancelled_requests = self.cancel_pending_user_interactions(session_id=operation.target_session_id)
+        await self._session_executor.interrupt(operation.session_id)
+        cancelled_requests = self.cancel_pending_user_interactions(session_id=operation.session_id)
         await self._emit_interaction_cancelled_events(cancelled_requests, reason="interrupt")
 
     async def handle_close_session(self, operation: op.CloseSessionOperation) -> None:
         if self._close_session_callback is None:
             raise RuntimeError("close session callback is not configured")
-        await self._close_session_callback(operation.target_session_id, operation.force)
+        await self._close_session_callback(operation.session_id, operation.force)
 
     async def handle_user_interaction_respond(self, operation: op.UserInteractionRespondOperation) -> None:
         callback = self._respond_user_interaction_callback
@@ -1329,7 +1444,8 @@ class OperationExecutor:
                 session_id=operation.session_id,
                 request_id=operation.request_id,
                 status=operation.response.status,
-            )
+            ),
+            causation_id=operation.request_id,
         )
         if operation.response.status == "cancelled":
             await self.emit_event(
@@ -1337,14 +1453,16 @@ class OperationExecutor:
                     session_id=operation.session_id,
                     request_id=operation.request_id,
                     reason="user_cancelled",
-                )
+                ),
+                causation_id=operation.request_id,
             )
         await self.emit_event(
             events.UserInteractionResolvedEvent(
                 session_id=operation.session_id,
                 request_id=operation.request_id,
                 status=operation.response.status,
-            )
+            ),
+            causation_id=operation.request_id,
         )
 
     def get_active_task(self, operation_id: str) -> ActiveTask | None:

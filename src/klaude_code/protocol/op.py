@@ -187,7 +187,7 @@ class InterruptOperation(Operation):
     """Operation for interrupting currently running tasks."""
 
     type: OperationType = OperationType.INTERRUPT
-    target_session_id: str | None = None  # If None, interrupt all sessions
+    session_id: str
 
     async def execute(self, handler: OperationHandler) -> None:
         """Execute interrupt by cancelling active tasks."""
@@ -198,7 +198,7 @@ class CloseSessionOperation(Operation):
     """Operation for closing a session runtime explicitly."""
 
     type: OperationType = OperationType.CLOSE_SESSION
-    target_session_id: str
+    session_id: str
     force: bool = False
 
     async def execute(self, handler: OperationHandler) -> None:
@@ -220,12 +220,12 @@ class UserInteractionRespondOperation(Operation):
 class InitAgentOperation(Operation):
     """Operation for initializing an agent and replaying history if any.
 
-    If session_id is None, a new session is created with an auto-generated ID.
-    If session_id is provided, attempts to load existing session or creates new one.
+    The caller must always provide session_id.
+    If the target session does not exist yet, a new session will be initialized.
     """
 
     type: OperationType = OperationType.INIT_AGENT
-    session_id: str | None = None
+    session_id: str
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_init_agent(self)

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator
+from contextvars import ContextVar
 from dataclasses import dataclass
 from uuid import uuid4
 
@@ -13,6 +15,28 @@ class _DisconnectSentinel:
 
 
 _DISCONNECT_SENTINEL = _DisconnectSentinel()
+
+_CURRENT_OPERATION_ID: ContextVar[str | None] = ContextVar("klaude_event_operation_id", default=None)
+_CURRENT_TASK_ID: ContextVar[str | None] = ContextVar("klaude_event_task_id", default=None)
+_CURRENT_CAUSATION_ID: ContextVar[str | None] = ContextVar("klaude_event_causation_id", default=None)
+
+
+@contextlib.contextmanager
+def event_publish_context(
+    *,
+    operation_id: str | None = None,
+    task_id: str | None = None,
+    causation_id: str | None = None,
+):
+    operation_token = _CURRENT_OPERATION_ID.set(operation_id if operation_id is not None else _CURRENT_OPERATION_ID.get())
+    task_token = _CURRENT_TASK_ID.set(task_id if task_id is not None else _CURRENT_TASK_ID.get())
+    causation_token = _CURRENT_CAUSATION_ID.set(causation_id if causation_id is not None else _CURRENT_CAUSATION_ID.get())
+    try:
+        yield
+    finally:
+        _CURRENT_CAUSATION_ID.reset(causation_token)
+        _CURRENT_TASK_ID.reset(task_token)
+        _CURRENT_OPERATION_ID.reset(operation_token)
 
 
 @dataclass(frozen=True)
@@ -64,12 +88,25 @@ class EventBus:
         self._subscribers: dict[str, _Subscriber] = {}
         self._session_event_seq: dict[str, int] = {}
 
-    async def publish(self, event: events.Event) -> None:
+    async def publish(
+        self,
+        event: events.Event,
+        *,
+        operation_id: str | None = None,
+        task_id: str | None = None,
+        causation_id: str | None = None,
+    ) -> None:
+        resolved_operation_id = operation_id if operation_id is not None else _CURRENT_OPERATION_ID.get()
+        resolved_task_id = task_id if task_id is not None else _CURRENT_TASK_ID.get()
+        resolved_causation_id = causation_id if causation_id is not None else _CURRENT_CAUSATION_ID.get()
         event_type = events.event_type_name(event)
         envelope = events.EventEnvelope(
             event_id=uuid4().hex,
             event_seq=self._next_event_seq(event.session_id),
             session_id=event.session_id,
+            operation_id=resolved_operation_id,
+            task_id=resolved_task_id,
+            causation_id=resolved_causation_id,
             event_type=event_type,
             durability=events.event_durability(event_type),
             timestamp=event.timestamp,

@@ -5,7 +5,7 @@ import contextlib
 from collections.abc import Coroutine
 from typing import Any, TypeVar
 
-from klaude_code.core.control.event_bus import EventBus, EventSubscription
+from klaude_code.core.control.event_bus import EventBus, EventSubscription, event_publish_context
 from klaude_code.protocol import events
 
 T = TypeVar("T")
@@ -131,5 +131,35 @@ def test_event_bus_envelope_has_seq_and_event_type() -> None:
         assert second.event_type == "operation.rejected"
         assert first.durability == "durable"
         assert second.durability == "ephemeral"
+
+    arun(_test())
+
+
+def test_event_bus_envelope_carries_operation_task_and_causation_metadata() -> None:
+    async def _test() -> None:
+        bus = EventBus()
+        sub = bus.subscribe("s1")
+
+        with event_publish_context(operation_id="op-ctx", task_id="task-ctx"):
+            await bus.publish(events.UserMessageEvent(session_id="s1", content="from-context"))
+
+        await bus.publish(
+            events.UserMessageEvent(session_id="s1", content="from-explicit"),
+            operation_id="op-explicit",
+            task_id="task-explicit",
+            causation_id="req-1",
+        )
+
+        iterator = sub.__aiter__()
+        first = await anext(iterator)
+        second = await anext(iterator)
+
+        assert first.operation_id == "op-ctx"
+        assert first.task_id == "task-ctx"
+        assert first.causation_id is None
+
+        assert second.operation_id == "op-explicit"
+        assert second.task_id == "task-explicit"
+        assert second.causation_id == "req-1"
 
     arun(_test())

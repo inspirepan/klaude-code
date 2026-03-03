@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import threading
 from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
@@ -29,7 +30,7 @@ from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input import build_repl_status_snapshot
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, REPLStatusSnapshot
 from klaude_code.tui.terminal.color import is_light_terminal_background
-from klaude_code.tui.terminal.control import install_sigint_interrupt
+from klaude_code.tui.terminal.control import install_sigint_interrupt, start_esc_interrupt_monitor
 from klaude_code.tui.terminal.selector import (
     DEFAULT_PICKER_STYLE,
     QuestionPrompt,
@@ -148,6 +149,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     tui_display = TUIDisplay(theme=theme)
     display: DisplayABC = tui_display
+    pause_esc_monitor: Callable[[], Awaitable[None]] | None = None
+    resume_esc_monitor: Callable[[], None] | None = None
 
     def _build_question_items(
         question: user_interaction.AskUserQuestionQuestion,
@@ -192,12 +195,20 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 )
             )
 
-        selections = await asyncio.to_thread(
-            select_questions,
-            questions=prompts,
-            pointer="→",
-            style=DEFAULT_PICKER_STYLE,
-        )
+        if pause_esc_monitor is not None:
+            await pause_esc_monitor()
+
+        try:
+            selections = await asyncio.to_thread(
+                select_questions,
+                questions=prompts,
+                pointer="→",
+                style=DEFAULT_PICKER_STYLE,
+            )
+        finally:
+            if resume_esc_monitor is not None:
+                resume_esc_monitor()
+
         if selections is None:
             return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
 
@@ -309,30 +320,57 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     loop = asyncio.get_running_loop()
 
-    async def _wait_for_with_interrupt(wait_id: str) -> None:
+    async def _wait_for_with_interrupt(wait_id: str, *, session_id: str) -> None:
+        nonlocal pause_esc_monitor, resume_esc_monitor
         wait_task = asyncio.create_task(components.runtime.wait_for(wait_id))
         interrupt_requested = False
         interrupt_task: asyncio.Task[None] | None = None
+        esc_monitor: tuple[threading.Event, asyncio.Task[None]] | None = None
 
-        async def _submit_interrupt(target_session_id: str | None) -> None:
-            await components.runtime.submit_and_wait(op.InterruptOperation(target_session_id=target_session_id))
+        async def _submit_interrupt(target_session_id: str) -> None:
+            await components.runtime.submit_and_wait(op.InterruptOperation(session_id=target_session_id))
+
+        async def _on_esc_interrupt() -> None:
+            _request_interrupt_once()
+
+        def _start_esc_monitor() -> None:
+            nonlocal esc_monitor
+            if esc_monitor is not None:
+                return
+            esc_monitor = start_esc_interrupt_monitor(_on_esc_interrupt)
+
+        async def _stop_esc_monitor() -> None:
+            nonlocal esc_monitor
+            if esc_monitor is None:
+                return
+            stop_event, esc_task = esc_monitor
+            esc_monitor = None
+            stop_event.set()
+            with contextlib.suppress(Exception):
+                await esc_task
 
         def _start_interrupt_once() -> None:
             nonlocal interrupt_requested, interrupt_task
             if interrupt_requested:
                 return
             interrupt_requested = True
-            interrupt_task = asyncio.create_task(_submit_interrupt(_get_active_session_id()))
+            interrupt_task = asyncio.create_task(_submit_interrupt(session_id))
 
         def _request_interrupt_once() -> None:
             with contextlib.suppress(Exception):
                 loop.call_soon_threadsafe(_start_interrupt_once)
 
+        pause_esc_monitor = _stop_esc_monitor
+        resume_esc_monitor = _start_esc_monitor
+        _start_esc_monitor()
         restore_sigint = install_sigint_interrupt(_request_interrupt_once)
 
         try:
             await wait_task
         finally:
+            pause_esc_monitor = None
+            resume_esc_monitor = None
+            await _stop_esc_monitor()
             with contextlib.suppress(Exception):
                 restore_sigint()
             if interrupt_task is not None and not interrupt_task.done():
@@ -372,7 +410,10 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             if wait_id is None:
                 continue
 
-            await _wait_for_with_interrupt(wait_id)
+            if active_session_id is None:
+                continue
+
+            await _wait_for_with_interrupt(wait_id, session_id=active_session_id)
             # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
             # before handing control back to prompt_toolkit.
             await components.wait_for_display_idle()

@@ -1,0 +1,276 @@
+from __future__ import annotations
+
+import asyncio
+import threading
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass
+from types import SimpleNamespace
+from typing import Any, ClassVar, TypeVar
+
+import pytest
+
+from klaude_code.protocol import events, op, user_interaction
+from klaude_code.protocol.message import UserInputPayload
+from klaude_code.tui.terminal.selector import QuestionSelectResult
+
+T = TypeVar("T")
+
+
+def arun[T](coro: Coroutine[Any, Any, T]) -> T:
+    return asyncio.run(coro)
+
+
+@dataclass
+class _FakeComponents:
+    config: Any
+    runtime: Any
+    display: Any
+
+    async def wait_for_display_idle(self) -> None:
+        return None
+
+
+class _FakeDisplay:
+    def __init__(self, *, theme: str | None = None) -> None:
+        self.theme = theme
+
+    def notify_ask_user_question(self, *, question_count: int) -> None:
+        del question_count
+
+    def hide_progress_ui(self) -> None:
+        return None
+
+    def show_progress_ui(self) -> None:
+        return None
+
+    def set_model_name(self, model_name: str) -> None:
+        del model_name
+
+
+class _FakePromptToolkitInput:
+    payloads: ClassVar[list[UserInputPayload]] = []
+
+    def __init__(self, **_: Any) -> None:
+        pass
+
+    async def start(self) -> None:
+        return None
+
+    async def iter_inputs(self):
+        for payload in list(self.payloads):
+            yield payload
+
+
+def _default_question_payload() -> user_interaction.AskUserQuestionRequestPayload:
+    return user_interaction.AskUserQuestionRequestPayload(
+        questions=[
+            user_interaction.AskUserQuestionQuestion(
+                id="q1",
+                header="Direction",
+                question="Choose one",
+                options=[
+                    user_interaction.AskUserQuestionOption(id="o1", label="A", description="Option A"),
+                    user_interaction.AskUserQuestionOption(id="o2", label="B", description="Option B"),
+                ],
+                multi_select=False,
+            )
+        ]
+    )
+
+
+def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
+    import klaude_code.tui.runner as runner
+
+    def _load_config() -> SimpleNamespace:
+        return SimpleNamespace(theme="dark")
+
+    def _noop_update_terminal_title(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    def _noop_get_update_message() -> None:
+        return None
+
+    def _noop_get_current_log_file() -> None:
+        return None
+
+    def _noop_backfill(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    async def _noop_cleanup(_components: object) -> None:
+        return None
+
+    async def _fake_initialize_session(*_args: object, **_kwargs: object) -> str:
+        return "s1"
+
+    def _install_sigint_interrupt(_cb: Callable[[], None]) -> Callable[[], None]:
+        return lambda: None
+
+    monkeypatch.setattr(runner, "TUIDisplay", _FakeDisplay)
+    monkeypatch.setattr(runner, "PromptToolkitInput", _FakePromptToolkitInput)
+    monkeypatch.setattr(runner, "load_config", _load_config)
+    monkeypatch.setattr(runner, "update_terminal_title", _noop_update_terminal_title)
+    monkeypatch.setattr(runner, "get_update_message", _noop_get_update_message)
+    monkeypatch.setattr(runner, "get_current_log_file", _noop_get_current_log_file)
+    monkeypatch.setattr(runner, "backfill_session_model_config", _noop_backfill)
+    monkeypatch.setattr(runner, "cleanup_app_components", _noop_cleanup)
+    monkeypatch.setattr(runner, "initialize_session", _fake_initialize_session)
+    monkeypatch.setattr(runner, "install_sigint_interrupt", _install_sigint_interrupt)
+
+    return runner
+
+
+def test_waiting_esc_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    class _FakeRuntime:
+        def __init__(self) -> None:
+            self.interrupts: list[op.InterruptOperation] = []
+            self._interrupt_received = asyncio.Event()
+
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> None:
+            return None
+
+        async def wait_for(self, _wait_id: str) -> None:
+            while esc_state["on_interrupt"] is None:
+                await asyncio.sleep(0)
+            await esc_state["on_interrupt"]()
+            await asyncio.wait_for(self._interrupt_received.wait(), timeout=1.0)
+
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            if isinstance(operation, op.InterruptOperation):
+                self.interrupts.append(operation)
+                self._interrupt_received.set()
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+
+    async def _submit_user_input_payload(**_: Any) -> str:
+        return "wait-1"
+
+    monkeypatch.setattr(
+        runner,
+        "submit_user_input_payload",
+        _submit_user_input_payload,
+    )
+
+    esc_state: dict[str, Any] = {"on_interrupt": None}
+
+    def _start_esc_monitor(
+        on_interrupt: Callable[[], Coroutine[Any, Any, None]],
+    ) -> tuple[threading.Event, asyncio.Task[None]]:
+        esc_state["on_interrupt"] = on_interrupt
+        stop_event = threading.Event()
+
+        async def _wait_stop() -> None:
+            await asyncio.to_thread(stop_event.wait)
+
+        return stop_event, asyncio.create_task(_wait_stop())
+
+    monkeypatch.setattr(runner, "start_esc_interrupt_monitor", _start_esc_monitor)
+
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="hello"), UserInputPayload(text="exit")]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert len(runtime.interrupts) == 1
+    assert runtime.interrupts[0].session_id == "s1"
+
+
+def test_interaction_collection_pauses_esc_monitor(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    state: dict[str, Any] = {
+        "interaction_handler": None,
+        "active_monitors": 0,
+        "max_active_during_select": 0,
+        "response": None,
+    }
+
+    class _FakeRuntime:
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> None:
+            return None
+
+        async def wait_for(self, _wait_id: str) -> None:
+            while state["interaction_handler"] is None:
+                await asyncio.sleep(0)
+
+            request_event = events.UserInteractionRequestEvent(
+                session_id="s1",
+                request_id="req1",
+                source="tool",
+                tool_call_id="call1",
+                payload=_default_question_payload(),
+            )
+            response = await state["interaction_handler"].collect_response(request_event)
+            state["response"] = response
+
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            del operation
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**kwargs: Any) -> _FakeComponents:
+        state["interaction_handler"] = kwargs.get("interaction_handler")
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+
+    async def _submit_user_input_payload(**_: Any) -> str:
+        return "wait-1"
+
+    monkeypatch.setattr(
+        runner,
+        "submit_user_input_payload",
+        _submit_user_input_payload,
+    )
+
+    def _start_esc_monitor(
+        _on_interrupt: Callable[[], Coroutine[Any, Any, None]],
+    ) -> tuple[threading.Event, asyncio.Task[None]]:
+        stop_event = threading.Event()
+        state["active_monitors"] += 1
+
+        async def _wait_stop() -> None:
+            await asyncio.to_thread(stop_event.wait)
+            state["active_monitors"] -= 1
+
+        return stop_event, asyncio.create_task(_wait_stop())
+
+    monkeypatch.setattr(runner, "start_esc_interrupt_monitor", _start_esc_monitor)
+
+    def _select_questions(**_: Any) -> list[QuestionSelectResult[str]]:
+        state["max_active_during_select"] = max(state["max_active_during_select"], state["active_monitors"])
+        return [QuestionSelectResult(selected_values=["o1"], input_text="note")]
+
+    monkeypatch.setattr(runner, "select_questions", _select_questions)
+
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="hello"), UserInputPayload(text="exit")]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    response = state["response"]
+    assert response is not None
+    assert response.status == "submitted"
+    assert state["max_active_during_select"] == 0

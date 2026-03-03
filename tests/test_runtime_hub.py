@@ -5,7 +5,7 @@ import contextlib
 from collections.abc import Coroutine
 from typing import Any, TypeVar
 
-from klaude_code.core.control.runtime_hub import GLOBAL_RUNTIME_ID, RuntimeHub
+from klaude_code.core.control.runtime_hub import RuntimeHub
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.llm_param import Thinking
@@ -72,7 +72,7 @@ def test_runtime_hub_preserves_in_session_order() -> None:
     arun(_test())
 
 
-def test_runtime_hub_routes_global_interrupt_to_global_runtime() -> None:
+def test_runtime_hub_routes_interrupt_to_target_session_runtime() -> None:
     async def _test() -> None:
         started = asyncio.Event()
 
@@ -83,12 +83,12 @@ def test_runtime_hub_routes_global_interrupt_to_global_runtime() -> None:
             raise AssertionError("interrupt should not be rejected")
 
         hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
-        operation = op.InterruptOperation(target_session_id=None)
+        operation = op.InterruptOperation(session_id="s1")
 
         await hub.submit(operation)
         await asyncio.wait_for(started.wait(), timeout=1.0)
 
-        assert hub.has_runtime(GLOBAL_RUNTIME_ID)
+        assert hub.has_runtime("s1")
 
         with contextlib.suppress(Exception):
             await hub.stop()
@@ -135,7 +135,7 @@ def test_runtime_hub_allows_interrupt_while_root_is_active() -> None:
         first_started = asyncio.Event()
 
         first_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="first"))
-        interrupt_op = op.InterruptOperation(target_session_id="s1")
+        interrupt_op = op.InterruptOperation(session_id="s1")
 
         async def _handle(operation: op.Operation) -> None:
             handled.append(operation.id)
@@ -205,7 +205,7 @@ def test_runtime_hub_prioritizes_control_queue_over_normal_queue() -> None:
 
         first_op = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
         second_normal = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=20))
-        control_interrupt = op.InterruptOperation(target_session_id="s1")
+        control_interrupt = op.InterruptOperation(session_id="s1")
 
         async def _handle(operation: op.Operation) -> None:
             handled.append(operation.id)
@@ -243,9 +243,9 @@ def test_runtime_hub_enforces_control_burst_fairness() -> None:
 
         first_op = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
         normal_op = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=20))
-        control_1 = op.InterruptOperation(target_session_id="s1")
-        control_2 = op.InterruptOperation(target_session_id="s1")
-        control_3 = op.InterruptOperation(target_session_id="s1")
+        control_1 = op.InterruptOperation(session_id="s1")
+        control_2 = op.InterruptOperation(session_id="s1")
+        control_3 = op.InterruptOperation(session_id="s1")
 
         async def _handle(operation: op.Operation) -> None:
             handled.append(operation.id)
@@ -770,7 +770,7 @@ def test_runtime_hub_preempts_running_root_with_interrupt_control() -> None:
         interrupt_seen = asyncio.Event()
 
         normal_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="work"))
-        interrupt_op = op.InterruptOperation(target_session_id="s1")
+        interrupt_op = op.InterruptOperation(session_id="s1")
 
         async def _handle(operation: op.Operation) -> None:
             if operation.id == normal_op.id:

@@ -4,11 +4,14 @@ import asyncio
 import time
 from collections.abc import Awaitable, Callable
 
-from klaude_code.core.control.session_runtime import SessionRuntime, SessionRuntimeConfig, SessionRuntimeSnapshot
+from klaude_code.core.control.session_runtime import (
+    RuntimeTaskHandle,
+    SessionRuntime,
+    SessionRuntimeConfig,
+    SessionRuntimeSnapshot,
+)
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import op, user_interaction
-
-GLOBAL_RUNTIME_ID = "__runtime_global__"
 
 
 class RuntimeHub:
@@ -24,13 +27,10 @@ class RuntimeHub:
         self._control_burst_quota = control_burst_quota
         self._runtimes: dict[str, SessionRuntime] = {}
         self._operation_runtime_ids: dict[str, str] = {}
-        self._completion_events: dict[str, asyncio.Event] = {}
 
     async def submit(self, operation: op.Operation) -> None:
-        if operation.id in self._completion_events:
+        if operation.id in self._operation_runtime_ids:
             raise RuntimeError(f"Operation already registered: {operation.id}")
-
-        self._completion_events[operation.id] = asyncio.Event()
 
         runtime_id = self._resolve_runtime_id(operation)
         runtime = self._ensure_runtime(runtime_id)
@@ -78,10 +78,6 @@ class RuntimeHub:
         return bool(self.cancel_pending_interactions_with_requests(session_id=session_id))
 
     def mark_operation_completed(self, operation_id: str) -> None:
-        completion_event = self._completion_events.get(operation_id)
-        if completion_event is not None:
-            completion_event.set()
-
         runtime_id = self._operation_runtime_ids.pop(operation_id, None)
         if runtime_id is None:
             return
@@ -89,12 +85,6 @@ class RuntimeHub:
         if runtime is None:
             return
         runtime.mark_operation_completed(operation_id)
-
-    async def wait_for(self, operation_id: str) -> None:
-        event = self._completion_events.get(operation_id)
-        if event is not None:
-            await event.wait()
-            self._completion_events.pop(operation_id, None)
 
     def bind_root_task(self, *, operation_id: str, task_id: str) -> None:
         runtime_id = self._operation_runtime_ids.get(operation_id)
@@ -149,9 +139,6 @@ class RuntimeHub:
 
     async def stop(self) -> None:
         self.cancel_pending_interactions_with_requests(session_id=None)
-        for completion_event in self._completion_events.values():
-            completion_event.set()
-        self._completion_events.clear()
         runtimes = list(self._runtimes.values())
         self._runtimes.clear()
         self._operation_runtime_ids.clear()
@@ -159,8 +146,6 @@ class RuntimeHub:
             await runtime.stop()
 
     async def close_session(self, session_id: str, *, force: bool = False) -> bool:
-        if session_id == GLOBAL_RUNTIME_ID:
-            return False
         runtime = self._runtimes.get(session_id)
         if runtime is None:
             return False
@@ -173,9 +158,6 @@ class RuntimeHub:
         for operation_id, runtime_id in list(self._operation_runtime_ids.items()):
             if runtime_id == session_id:
                 self._operation_runtime_ids.pop(operation_id, None)
-                completion_event = self._completion_events.get(operation_id)
-                if completion_event is not None:
-                    completion_event.set()
 
         await runtime.stop()
         return True
@@ -184,8 +166,6 @@ class RuntimeHub:
         reclaimed: list[str] = []
         now = time.monotonic()
         for session_id in list(self._runtimes):
-            if session_id == GLOBAL_RUNTIME_ID:
-                continue
             runtime = self._runtimes.get(session_id)
             if runtime is None:
                 continue
@@ -200,15 +180,61 @@ class RuntimeHub:
     def has_runtime(self, runtime_id: str) -> bool:
         return runtime_id in self._runtimes
 
+    def ensure_runtime(self, session_id: str) -> SessionRuntime:
+        return self._ensure_runtime(session_id)
+
+    def get_runtime(self, session_id: str) -> SessionRuntime | None:
+        return self._runtimes.get(session_id)
+
+    def get_runtime_for_operation(self, operation_id: str) -> SessionRuntime | None:
+        runtime_id = self._operation_runtime_ids.get(operation_id)
+        if runtime_id is None:
+            return None
+        return self._runtimes.get(runtime_id)
+
+    def list_runtimes(self) -> list[SessionRuntime]:
+        return list(self._runtimes.values())
+
+    def register_task(
+        self,
+        *,
+        session_id: str,
+        operation_id: str,
+        task_id: str,
+        task: asyncio.Task[None],
+    ) -> None:
+        runtime = self._runtimes.get(session_id)
+        if runtime is None:
+            raise RuntimeError(f"Missing runtime for session: {session_id}")
+        runtime.register_task(operation_id=operation_id, task_id=task_id, task=task)
+
+    def remove_task(self, *, session_id: str, task_id: str) -> None:
+        runtime = self._runtimes.get(session_id)
+        if runtime is None:
+            return
+        runtime.remove_task(task_id)
+
+    def get_active_task(self, operation_id: str) -> tuple[str, RuntimeTaskHandle] | None:
+        runtime = self.get_runtime_for_operation(operation_id)
+        if runtime is None:
+            return None
+        handle = runtime.get_active_task(operation_id)
+        if handle is None:
+            return None
+        return runtime.session_id, handle
+
+    def list_active_tasks(self) -> list[tuple[str, RuntimeTaskHandle]]:
+        active_tasks: list[tuple[str, RuntimeTaskHandle]] = []
+        for runtime in self._runtimes.values():
+            for handle in runtime.list_active_tasks():
+                active_tasks.append((runtime.session_id, handle))
+        return active_tasks
+
     def _resolve_runtime_id(self, operation: op.Operation) -> str:
         session_id = getattr(operation, "session_id", None)
-        if session_id is not None:
-            return session_id
-        if isinstance(operation, op.InterruptOperation) and operation.target_session_id is not None:
-            return operation.target_session_id
-        if isinstance(operation, op.CloseSessionOperation):
-            return GLOBAL_RUNTIME_ID
-        return GLOBAL_RUNTIME_ID
+        if session_id is None:
+            raise RuntimeError(f"Operation must be session-bound: {operation.type.value}")
+        return session_id
 
     def _ensure_runtime(self, runtime_id: str) -> SessionRuntime:
         runtime = self._runtimes.get(runtime_id)

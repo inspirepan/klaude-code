@@ -1,16 +1,80 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Callable
+from typing import Literal
 
 from klaude_code.core.agent.agent import Agent
 from klaude_code.core.agent.runtime import LLMClients, OperationExecutor
 from klaude_code.core.agent_profile import ModelProfileProvider
-from klaude_code.core.control.event_bus import EventBus
+from klaude_code.core.control.event_bus import EventBus, event_publish_context
 from klaude_code.core.control.runtime_hub import RuntimeHub
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, op, user_interaction
+
+
+class OperationCompletionAwaiter:
+    def __init__(self, event_bus: EventBus) -> None:
+        self._subscription = event_bus.subscribe(None)
+        self._futures: dict[str, asyncio.Future[None]] = {}
+        self._completed_operation_ids: set[str] = set()
+        self._consumer_task: asyncio.Task[None] = asyncio.create_task(self._consume())
+
+    def register(self, operation_id: str) -> None:
+        if operation_id in self._futures or operation_id in self._completed_operation_ids:
+            raise RuntimeError(f"Operation already registered: {operation_id}")
+        loop = asyncio.get_running_loop()
+        self._futures[operation_id] = loop.create_future()
+
+    def discard(self, operation_id: str) -> None:
+        future = self._futures.pop(operation_id, None)
+        if future is None:
+            return
+        if not future.done():
+            future.cancel()
+
+    async def wait_for(self, operation_id: str) -> None:
+        if operation_id in self._completed_operation_ids:
+            self._completed_operation_ids.discard(operation_id)
+            return
+        future = self._futures.get(operation_id)
+        if future is None:
+            return
+        try:
+            await future
+        finally:
+            self._futures.pop(operation_id, None)
+            self._completed_operation_ids.discard(operation_id)
+
+    async def stop(self) -> None:
+        if not self._consumer_task.done():
+            self._consumer_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._consumer_task
+        for future in self._futures.values():
+            if not future.done():
+                future.set_result(None)
+        self._futures.clear()
+        self._completed_operation_ids.clear()
+
+    async def _consume(self) -> None:
+        async for envelope in self._subscription:
+            event = envelope.event
+            if isinstance(event, events.EndEvent):
+                return
+            if not isinstance(event, events.OperationFinishedEvent | events.OperationRejectedEvent):
+                continue
+            operation_id = event.operation_id
+            future = self._futures.pop(operation_id, None)
+            if future is None:
+                self._completed_operation_ids.add(operation_id)
+                continue
+            if future.done():
+                continue
+            self._completed_operation_ids.add(operation_id)
+            future.set_result(None)
 
 
 class AppRuntime:
@@ -28,6 +92,20 @@ class AppRuntime:
             handle_operation=self._handle_operation,
             reject_operation=self._reject_operation,
         )
+        self._operation_executor.set_runtime_callbacks(
+            ensure_runtime=self.runtime_hub.ensure_runtime,
+            get_runtime=self.runtime_hub.get_runtime,
+            get_runtime_for_operation=self.runtime_hub.get_runtime_for_operation,
+            list_runtimes=self.runtime_hub.list_runtimes,
+            register_task=lambda session_id, operation_id, task_id, task: self.runtime_hub.register_task(
+                session_id=session_id,
+                operation_id=operation_id,
+                task_id=task_id,
+                task=task,
+            ),
+            remove_task=lambda session_id, task_id: self.runtime_hub.remove_task(session_id=session_id, task_id=task_id),
+        )
+        self._operation_awaiter = OperationCompletionAwaiter(event_bus)
         self._operation_executor.set_close_session_callback(self.close_session)
         self._operation_executor.set_child_task_state_change_callback(self._on_child_task_state_change)
         self._operation_executor.set_user_interaction_callbacks(
@@ -50,9 +128,11 @@ class AppRuntime:
                 operation_type=operation.type.value,
                 reason="session_busy",
                 active_task_id=active_task_id,
-            )
+            ),
+            operation_id=operation.id,
         )
         self._complete_operation(operation)
+        await self._emit_operation_finished(operation, status="rejected")
 
     def _on_operation_applied(self, operation: op.Operation) -> None:
         self.runtime_hub.apply_operation_effect(operation)
@@ -81,11 +161,50 @@ class AppRuntime:
     def _complete_operation(self, operation: op.Operation) -> None:
         self.runtime_hub.mark_operation_completed(operation.id)
 
+    async def _emit_operation_finished(
+        self,
+        operation: op.Operation,
+        *,
+        status: Literal["completed", "rejected", "failed"],
+        error_message: str | None = None,
+    ) -> None:
+        session_id = getattr(operation, "session_id", None)
+        if session_id is None:
+            return
+        await self._operation_executor.emit_event(
+            events.OperationFinishedEvent(
+                session_id=session_id,
+                operation_id=operation.id,
+                operation_type=operation.type.value,
+                status=status,
+                error_message=error_message,
+            ),
+            operation_id=operation.id,
+        )
+
     async def submit(self, operation: op.Operation) -> str:
         if self._stopped:
             raise RuntimeError("AppRuntime is stopped")
 
-        await self.runtime_hub.submit(operation)
+        self._operation_awaiter.register(operation.id)
+        try:
+            await self.runtime_hub.submit(operation)
+        except Exception:
+            self._operation_awaiter.discard(operation.id)
+            raise
+
+        session_id = getattr(operation, "session_id", None)
+        with contextlib.suppress(Exception):
+            if session_id is None:
+                raise RuntimeError("OperationAcceptedEvent requires session-bound operation")
+            await self._operation_executor.emit_event(
+                events.OperationAcceptedEvent(
+                    session_id=session_id,
+                    operation_id=operation.id,
+                    operation_type=operation.type.value,
+                ),
+                operation_id=operation.id,
+            )
 
         log_debug(
             f"Submitted operation {operation.type} with ID {operation.id}",
@@ -109,19 +228,36 @@ class AppRuntime:
         return any(not active.task.done() for active in self._operation_executor.list_active_tasks())
 
     async def close_session(self, session_id: str, force: bool = False) -> bool:
+        cancelled_requests: list[PendingUserInteractionRequest] = []
+        if force:
+            cancelled_requests = self.runtime_hub.cancel_pending_interactions_with_requests(session_id=session_id)
+
         closed = await self.runtime_hub.close_session(session_id, force=force)
         if closed:
-            self._operation_executor.drop_session_state(session_id)
+            for request in cancelled_requests:
+                await self._operation_executor.emit_event(
+                    events.UserInteractionCancelledEvent(
+                        session_id=request.session_id,
+                        request_id=request.request_id,
+                        reason="session_close",
+                    ),
+                    causation_id=request.request_id,
+                )
+                await self._operation_executor.emit_event(
+                    events.UserInteractionResolvedEvent(
+                        session_id=request.session_id,
+                        request_id=request.request_id,
+                        status="cancelled",
+                    ),
+                    causation_id=request.request_id,
+                )
         return closed
 
     async def reclaim_idle_sessions(self, *, idle_for_seconds: float) -> list[str]:
-        reclaimed = await self.runtime_hub.reclaim_idle_runtimes(idle_for_seconds=idle_for_seconds)
-        for session_id in reclaimed:
-            self._operation_executor.drop_session_state(session_id)
-        return reclaimed
+        return await self.runtime_hub.reclaim_idle_runtimes(idle_for_seconds=idle_for_seconds)
 
     async def wait_for(self, operation_id: str) -> None:
-        await self.runtime_hub.wait_for(operation_id)
+        await self._operation_awaiter.wait_for(operation_id)
 
     async def submit_and_wait(self, operation: op.Operation) -> None:
         operation_id = await self.submit(operation)
@@ -136,14 +272,16 @@ class AppRuntime:
                     session_id=request.session_id,
                     request_id=request.request_id,
                     reason="shutdown",
-                )
+                ),
+                causation_id=request.request_id,
             )
             await self._operation_executor.emit_event(
                 events.UserInteractionResolvedEvent(
                     session_id=request.session_id,
                     request_id=request.request_id,
                     status="cancelled",
-                )
+                ),
+                causation_id=request.request_id,
             )
 
         tasks_to_await: list[asyncio.Task[None]] = []
@@ -161,6 +299,7 @@ class AppRuntime:
             self._background_tasks.clear()
 
         await self.runtime_hub.stop()
+        await self._operation_awaiter.stop()
         self._operation_executor.clear_active_tasks()
 
         log_debug("AppRuntime stopped", style="yellow", debug_type=DebugType.EXECUTION)
@@ -173,7 +312,8 @@ class AppRuntime:
                 debug_type=DebugType.EXECUTION,
             )
 
-            await operation.execute(handler=self._operation_executor)
+            with event_publish_context(operation_id=operation.id):
+                await operation.execute(handler=self._operation_executor)
             self._on_operation_applied(operation)
 
             active_task = self._operation_executor.get_active_task(operation.id)
@@ -183,9 +323,11 @@ class AppRuntime:
                     await captured_task
                 finally:
                     self._complete_operation(operation)
+                    await self._emit_operation_finished(operation, status="completed")
 
             if active_task is None:
                 self._complete_operation(operation)
+                await self._emit_operation_finished(operation, status="completed")
             else:
                 self.runtime_hub.bind_root_task(operation_id=operation.id, task_id=active_task.task_id)
                 background_task = asyncio.create_task(_await_agent_and_complete(active_task.task))
@@ -198,12 +340,14 @@ class AppRuntime:
                 style="red",
                 debug_type=DebugType.EXECUTION,
             )
-            session_id = getattr(operation, "session_id", None) or getattr(operation, "target_session_id", None)
+            session_id = getattr(operation, "session_id", None)
             await self._operation_executor.emit_event(
                 events.ErrorEvent(
                     error_message=f"Operation failed: {e!s}",
                     can_retry=False,
                     session_id=session_id or "__app__",
-                )
+                ),
+                operation_id=operation.id,
             )
             self._complete_operation(operation)
+            await self._emit_operation_finished(operation, status="failed", error_message=str(e))

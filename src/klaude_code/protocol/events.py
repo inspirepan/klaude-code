@@ -27,6 +27,8 @@ __all__ = [
     "Event",
     "EventEnvelope",
     "InterruptEvent",
+    "OperationAcceptedEvent",
+    "OperationFinishedEvent",
     "OperationRejectedEvent",
     "ReplayEventUnion",
     "ReplayHistoryEvent",
@@ -66,6 +68,9 @@ class EventEnvelope(BaseModel):
     event_id: str
     event_seq: int
     session_id: str
+    operation_id: str | None = None
+    task_id: str | None = None
+    causation_id: str | None = None
     event_type: str
     durability: Literal["durable", "ephemeral"]
     timestamp: float
@@ -132,11 +137,23 @@ class CommandOutputEvent(Event):
     is_error: bool = False
 
 
+class OperationAcceptedEvent(Event):
+    operation_id: str
+    operation_type: str
+
+
 class OperationRejectedEvent(Event):
     operation_id: str
     operation_type: str
     reason: Literal["session_busy"]
     active_task_id: str | None = None
+
+
+class OperationFinishedEvent(Event):
+    operation_id: str
+    operation_type: str
+    status: Literal["completed", "rejected", "failed"]
+    error_message: str | None = None
 
 
 class BashCommandStartEvent(Event):

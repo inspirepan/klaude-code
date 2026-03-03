@@ -3,6 +3,7 @@ import contextlib
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from uuid import uuid4
 
 import typer
 
@@ -200,11 +201,12 @@ async def initialize_session(
     session_id: str | None = None,
 ) -> str | None:
     """Initialize a session and return the active session id."""
-    await runtime.submit_and_wait(op.InitAgentOperation(session_id=session_id))
+    resolved_session_id = session_id or uuid4().hex
+    await runtime.submit_and_wait(op.InitAgentOperation(session_id=resolved_session_id))
     await wait_for_display_idle()
 
     active_session_id = runtime.current_session_id()
-    return active_session_id or session_id
+    return active_session_id or resolved_session_id
 
 
 def backfill_session_model_config(
@@ -267,5 +269,7 @@ async def handle_keyboard_interrupt(runtime: AppRuntime) -> None:
         log(("Resume with:", "dim"), (f"klaude -r {short_id}", "green"))
     if not runtime.has_running_tasks():
         return
+    if session_id is None:
+        return
     with contextlib.suppress(Exception):
-        await runtime.submit(op.InterruptOperation(target_session_id=None))
+        await runtime.submit(op.InterruptOperation(session_id=session_id))
