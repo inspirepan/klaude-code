@@ -58,6 +58,9 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertIsInstance(result.ui_extra, DiffUIExtra)
         assert isinstance(result.ui_extra, DiffUIExtra)
         self.assertEqual(result.ui_extra.files[0].file_path, "sample.txt")
+        assert result.ui_extra.raw_unified_diff is not None
+        self.assertIn("--- /dev/null", result.ui_extra.raw_unified_diff)
+        self.assertIn("+++ sample.txt", result.ui_extra.raw_unified_diff)
         added_lines = [line for line in result.ui_extra.files[0].lines if line.kind == "add"]
         self.assertTrue(any("hello" in "".join(span.text for span in line.spans) for line in added_lines))
         self.assertTrue(Path("sample.txt").exists())
@@ -86,6 +89,9 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertIsInstance(result.ui_extra, DiffUIExtra)
         assert isinstance(result.ui_extra, DiffUIExtra)
         self.assertEqual(result.ui_extra.files[0].file_path, "data.txt")
+        assert result.ui_extra.raw_unified_diff is not None
+        self.assertIn("--- data.txt", result.ui_extra.raw_unified_diff)
+        self.assertIn("+++ data.txt", result.ui_extra.raw_unified_diff)
         removed_lines = [line for line in result.ui_extra.files[0].lines if line.kind == "remove"]
         added_lines = [line for line in result.ui_extra.files[0].lines if line.kind == "add"]
         self.assertTrue(any("".join(span.text for span in line.spans) == "old line" for line in removed_lines))

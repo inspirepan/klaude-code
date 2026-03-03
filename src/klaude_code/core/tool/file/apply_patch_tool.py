@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from klaude_code.core.tool.context import FileTracker, ToolContext
 from klaude_code.core.tool.file import apply_patch as apply_patch_module
 from klaude_code.core.tool.file._utils import hash_text_sha256
-from klaude_code.core.tool.file.diff_builder import build_structured_file_diff
+from klaude_code.core.tool.file.diff_builder import build_structured_file_diff, build_unified_diff_text
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
@@ -124,6 +124,7 @@ class ApplyPatchHandler:
     @staticmethod
     def _commit_to_structured_diff(commit: apply_patch_module.Commit) -> model.DiffUIExtra:
         files: list[model.DiffFileDiff] = []
+        raw_chunks: list[str] = []
         for path in sorted(commit.changes):
             change = commit.changes[path]
             if change.type == apply_patch_module.ActionType.ADD:
@@ -131,18 +132,33 @@ class ApplyPatchHandler:
                 if path.endswith(".md"):
                     continue
                 files.append(build_structured_file_diff("", change.new_content or "", file_path=path))
+                raw = build_unified_diff_text("", change.new_content or "", from_file="/dev/null", to_file=path)
+                if raw:
+                    raw_chunks.append(raw)
             elif change.type == apply_patch_module.ActionType.DELETE:
                 files.append(build_structured_file_diff(change.old_content or "", "", file_path=path))
+                raw = build_unified_diff_text(change.old_content or "", "", from_file=path, to_file="/dev/null")
+                if raw:
+                    raw_chunks.append(raw)
             elif change.type == apply_patch_module.ActionType.UPDATE:
                 display_path = path
+                to_path = path
                 if change.move_path and change.move_path != path:
                     display_path = f"{path} → {change.move_path}"
+                    to_path = change.move_path
                 files.append(
                     build_structured_file_diff(
                         change.old_content or "", change.new_content or "", file_path=display_path
                     )
                 )
-        return model.DiffUIExtra(files=files)
+                raw = build_unified_diff_text(
+                    change.old_content or "", change.new_content or "", from_file=path, to_file=to_path
+                )
+                if raw:
+                    raw_chunks.append(raw)
+
+        raw_unified_diff = "\n".join(raw_chunks) if raw_chunks else ""
+        return model.DiffUIExtra(files=files, raw_unified_diff=raw_unified_diff)
 
 
 @register(tools.APPLY_PATCH)
