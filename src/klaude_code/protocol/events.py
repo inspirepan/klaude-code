@@ -8,7 +8,6 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from klaude_code.protocol import llm_param, message, model, user_interaction
-from klaude_code.protocol.commands import CommandName
 
 __all__ = [
     "AssistantTextDeltaEvent",
@@ -18,7 +17,7 @@ __all__ = [
     "BashCommandOutputDeltaEvent",
     "BashCommandStartEvent",
     "CacheHitRateEvent",
-    "CommandOutputEvent",
+    "CompactModelChangedEvent",
     "CompactionEndEvent",
     "CompactionStartEvent",
     "DeveloperMessageEvent",
@@ -27,6 +26,8 @@ __all__ = [
     "Event",
     "EventEnvelope",
     "InterruptEvent",
+    "ModelChangedEvent",
+    "NoticeEvent",
     "OperationAcceptedEvent",
     "OperationFinishedEvent",
     "OperationRejectedEvent",
@@ -35,9 +36,12 @@ __all__ = [
     "ResponseCompleteEvent",
     "ResponseEvent",
     "RewindEvent",
+    "SessionStatusEvent",
+    "SubAgentModelChangedEvent",
     "TaskFinishEvent",
     "TaskMetadataEvent",
     "TaskStartEvent",
+    "ThinkingChangedEvent",
     "ThinkingDeltaEvent",
     "ThinkingEndEvent",
     "ThinkingStartEvent",
@@ -128,13 +132,37 @@ class TodoChangeEvent(Event):
     todos: list[model.TodoItem]
 
 
-class CommandOutputEvent(Event):
-    """Event for command output display. Not persisted to session history."""
+class NoticeEvent(Event):
+    """Generic UI notice message. Not persisted to session history."""
 
-    command_name: CommandName | str
     content: str = ""
     ui_extra: model.ToolResultUIExtra | None = None
     is_error: bool = False
+
+
+class ModelChangedEvent(Event):
+    model_id: str
+    saved_as_default: bool = False
+
+
+class ThinkingChangedEvent(Event):
+    previous: str
+    current: str
+
+
+class SubAgentModelChangedEvent(Event):
+    sub_agent_type: str
+    model_display: str
+    saved_as_default: bool = False
+
+
+class CompactModelChangedEvent(Event):
+    model_display: str
+    saved_as_default: bool = False
+
+
+class SessionStatusEvent(Event):
+    status: model.SessionStatusUIExtra
 
 
 class OperationAcceptedEvent(Event):

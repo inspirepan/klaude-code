@@ -1,22 +1,23 @@
 from typing import TYPE_CHECKING
 
-from klaude_code.protocol import commands, events, message, op
+from klaude_code.protocol import events, message, op
 
 from .command_abc import Agent, CommandResult
+from .types import CommandInfo, CommandName
 
 if TYPE_CHECKING:
     from .command_abc import CommandABC
 
-_COMMANDS: dict[commands.CommandName | str, "CommandABC"] = {}
+_COMMANDS: dict[CommandName | str, "CommandABC"] = {}
 
 
-def _command_key_to_str(key: commands.CommandName | str) -> str:
-    if isinstance(key, commands.CommandName):
+def _command_key_to_str(key: CommandName | str) -> str:
+    if isinstance(key, CommandName):
         return key.value
     return key
 
 
-def _resolve_command_key(command_name_raw: str) -> commands.CommandName | str | None:
+def _resolve_command_key(command_name_raw: str) -> CommandName | str | None:
     """Resolve raw command token to a registered command key.
 
     Resolution order:
@@ -40,7 +41,7 @@ def _resolve_command_key(command_name_raw: str) -> commands.CommandName | str | 
 
     # Enum conversion for standard commands
     try:
-        enum_key = commands.CommandName(command_name_raw)
+        enum_key = CommandName(command_name_raw)
     except ValueError:
         enum_key = None
     else:
@@ -48,7 +49,7 @@ def _resolve_command_key(command_name_raw: str) -> commands.CommandName | str | 
             return enum_key
 
     # Prefix match across all registered names
-    matching_keys: list[commands.CommandName | str] = []
+    matching_keys: list[CommandName | str] = []
     matching_names: list[str] = []
     for key in _COMMANDS:
         key_str = _command_key_to_str(key)
@@ -84,20 +85,20 @@ def _ensure_commands_loaded() -> None:
     ensure_commands_loaded()
 
 
-def get_commands() -> dict[commands.CommandName | str, "CommandABC"]:
+def get_commands() -> dict[CommandName | str, "CommandABC"]:
     """Get all registered commands."""
     _ensure_commands_loaded()
     return _COMMANDS.copy()
 
 
-def get_command_info_list() -> list[commands.CommandInfo]:
+def get_command_info_list() -> list[CommandInfo]:
     """Get lightweight command metadata for UI purposes.
 
     Returns CommandInfo list in registration order (display order).
     """
     _ensure_commands_loaded()
     return [
-        commands.CommandInfo(
+        CommandInfo(
             name=_command_key_to_str(cmd.name),
             summary=cmd.summary,
             support_addition_params=cmd.support_addition_params,
@@ -150,7 +151,7 @@ async def dispatch_command(user_input: message.UserInputPayload, agent: Agent, *
         )
 
     command = _COMMANDS[command_key]
-    command_identifier: commands.CommandName | str = command.name
+    command_identifier: CommandName | str = command.name
 
     try:
         user_input_for_command = message.UserInputPayload(text=rest, images=user_input.images)
@@ -164,17 +165,8 @@ async def dispatch_command(user_input: message.UserInputPayload, agent: Agent, *
         return result
     except Exception as e:
         error_content = f"Command {command_identifier} error: [{e.__class__.__name__}] {e!s}"
-        if isinstance(command_identifier, commands.CommandName):
-            return CommandResult(
-                events=[
-                    events.CommandOutputEvent(
-                        session_id=agent.session.id,
-                        command_name=command_identifier,
-                        content=error_content,
-                        is_error=True,
-                    )
-                ]
-            )
+        if isinstance(command_identifier, CommandName):
+            return CommandResult(events=[events.NoticeEvent(session_id=agent.session.id, content=error_content, is_error=True)])
         return CommandResult(
             events=[
                 events.ErrorEvent(

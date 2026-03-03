@@ -1,14 +1,15 @@
-from klaude_code.protocol import commands, message, op
+from klaude_code.protocol import message, op
 
 from .command_abc import Agent, CommandABC, CommandResult
+from .types import CommandName
 
 
 class NewCommand(CommandABC):
     """Start a new conversation in a fresh session."""
 
     @property
-    def name(self) -> commands.CommandName:
-        return commands.CommandName.NEW
+    def name(self) -> CommandName:
+        return CommandName.NEW
 
     @property
     def summary(self) -> str:

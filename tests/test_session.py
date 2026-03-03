@@ -909,7 +909,7 @@ class TestForkSessionCommand:
 
             assert result.events is not None
             assert len(result.events) == 1
-            assert isinstance(result.events[0], events.CommandOutputEvent)
+            assert isinstance(result.events[0], events.NoticeEvent)
             assert result.events[0].content == "(no messages to fork)"
             assert Session.list_sessions() == []
             await close_default_store()
@@ -944,7 +944,7 @@ class TestForkSessionCommand:
 
             assert result.events is not None
             assert len(result.events) == 1
-            assert isinstance(result.events[0], events.CommandOutputEvent)
+            assert isinstance(result.events[0], events.NoticeEvent)
             assert "Session forked" in result.events[0].content
 
             assert isinstance(result.events[0].ui_extra, model.SessionIdUIExtra)

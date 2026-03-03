@@ -61,6 +61,7 @@ def test_ask_user_question_success_response() -> None:
         _tool_call_id: str | None,
     ) -> user_interaction.UserInteractionResponse:
         assert source == "tool"
+        assert payload.kind == "ask_user_question"
         assert payload.questions[0].options[0].id == "q1_o1"
         return user_interaction.UserInteractionResponse(
             status="submitted",

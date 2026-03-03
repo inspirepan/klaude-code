@@ -15,7 +15,9 @@ from typing import Literal
 from uuid import uuid4
 
 from klaude_code.config import Config, load_config
+from klaude_code.config.model_matcher import match_model_from_config
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
+from klaude_code.config.thinking import get_thinking_picker_data, parse_thinking_value
 from klaude_code.core.agent.agent import Agent
 from klaude_code.core.agent_profile import DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.bash_mode import run_bash_command
@@ -28,10 +30,11 @@ from klaude_code.core.loaded_skills import (
     get_loaded_skill_warnings_by_location,
 )
 from klaude_code.core.memory import get_existing_memory_paths_by_location
+from klaude_code.core.session_status import build_session_status_ui_extra
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import commands, events, message, model, op, user_interaction
+from klaude_code.protocol import events, message, model, op, user_interaction
 from klaude_code.protocol.llm_param import LLMConfigParameter, Thinking
 from klaude_code.protocol.op_handler import OperationHandler
 from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
@@ -380,8 +383,14 @@ class AgentCommandHandler:
         payload: user_interaction.UserInteractionRequestPayload,
         tool_call_id: str | None,
     ) -> user_interaction.UserInteractionResponse:
-        if source != "tool":
-            raise ValueError("Only tool-based user interactions are supported in this context")
+        allowed_sources: set[user_interaction.UserInteractionSource] = {
+            "tool",
+            "operation_model",
+            "operation_thinking",
+            "operation_sub_agent_model",
+        }
+        if source not in allowed_sources:
+            raise ValueError(f"Unsupported user interaction source: {source}")
         runtime = self._get_session_actor(session_id)
         if runtime is None:
             raise RuntimeError("No active runtime session")
@@ -645,6 +654,36 @@ class AgentCommandHandler:
             session_id=operation.session_id,
         )
 
+    async def run_background_operation(
+        self,
+        *,
+        operation_id: str,
+        session_id: str,
+        runner: Callable[[], Awaitable[None]],
+    ) -> None:
+        await self.ensure_agent(session_id)
+
+        existing_active = self.get_active_task(operation_id)
+        if existing_active is not None and not existing_active.task.done():
+            raise RuntimeError(f"Active task already registered for operation {operation_id}")
+
+        task_id = uuid4().hex
+
+        async def _run_with_event_context() -> None:
+            with event_publish_context(task_id=task_id):
+                try:
+                    await runner()
+                finally:
+                    self._remove_task(session_id=session_id, task_id=task_id)
+
+        task: asyncio.Task[None] = asyncio.create_task(_run_with_event_context())
+        self._register_task(
+            operation_id=operation_id,
+            task_id=task_id,
+            task=task,
+            session_id=session_id,
+        )
+
     async def continue_agent(self, operation: op.ContinueAgentOperation) -> None:
         """Continue agent execution without adding a new user message."""
         agent = await self.ensure_agent(operation.session_id)
@@ -720,9 +759,8 @@ class AgentCommandHandler:
             self._primary_session_id = new_session.id
 
         await self._emit_event(
-            events.CommandOutputEvent(
+            events.NoticeEvent(
                 session_id=new_agent.session.id,
-                command_name=commands.CommandName.NEW,
                 content="started new conversation",
             )
         )
@@ -1012,6 +1050,19 @@ class AgentRunner:
     def list_active_tasks(self) -> list[ActiveTask]:
         return self._command_handler.list_active_tasks()
 
+    async def run_background_operation(
+        self,
+        *,
+        operation_id: str,
+        session_id: str,
+        runner: Callable[[], Awaitable[None]],
+    ) -> None:
+        await self._command_handler.run_background_operation(
+            operation_id=operation_id,
+            session_id=session_id,
+            runner=runner,
+        )
+
     def clear_active_tasks(self) -> None:
         self._command_handler.clear_active_tasks()
 
@@ -1031,14 +1082,33 @@ class ConfigHandler:
         agent_runner: AgentRunner,
         model_switcher: ModelSwitcher,
         emit_event: Callable[[events.Event], Awaitable[None]],
+        request_user_interaction: Callable[
+            [str, str, user_interaction.UserInteractionSource, user_interaction.UserInteractionRequestPayload],
+            Awaitable[user_interaction.UserInteractionResponse],
+        ],
         current_session_id: Callable[[], str | None],
         on_model_change: Callable[[str], None] | None,
     ) -> None:
         self._agent_runner = agent_runner
         self._model_switcher = model_switcher
         self._emit_event = emit_event
+        self._request_user_interaction = request_user_interaction
         self._current_session_id = current_session_id
         self._on_model_change = on_model_change
+
+    @staticmethod
+    def _format_thinking_for_display(thinking: Thinking | None) -> str:
+        if thinking is None:
+            return "not configured"
+        if thinking.reasoning_effort:
+            return f"reasoning_effort={thinking.reasoning_effort}"
+        if thinking.type == "disabled":
+            return "off"
+        if thinking.type == "enabled":
+            if thinking.budget_tokens is None:
+                return "enabled"
+            return f"enabled (budget_tokens={thinking.budget_tokens})"
+        return "not set"
 
     async def handle_change_model(self, operation: op.ChangeModelOperation) -> None:
         agent = await self._agent_runner.ensure_agent(operation.session_id)
@@ -1054,12 +1124,11 @@ class ConfigHandler:
         )
 
         if operation.emit_switch_message:
-            default_note = " (saved as default)" if operation.save_as_default else ""
             await self._emit_event(
-                events.CommandOutputEvent(
+                events.ModelChangedEvent(
                     session_id=agent.session.id,
-                    command_name=commands.CommandName.MODEL,
-                    content=f"Switched to: {llm_config.model_id}{default_note}",
+                    model_id=llm_config.model_id or llm_client_name,
+                    saved_as_default=operation.save_as_default,
                 )
             )
 
@@ -1079,32 +1148,19 @@ class ConfigHandler:
     async def handle_change_thinking(self, operation: op.ChangeThinkingOperation) -> None:
         agent = await self._agent_runner.ensure_agent(operation.session_id)
 
-        def _format_thinking_for_display(thinking: Thinking | None) -> str:
-            if thinking is None:
-                return "not configured"
-            if thinking.reasoning_effort:
-                return f"reasoning_effort={thinking.reasoning_effort}"
-            if thinking.type == "disabled":
-                return "off"
-            if thinking.type == "enabled":
-                if thinking.budget_tokens is None:
-                    return "enabled"
-                return f"enabled (budget_tokens={thinking.budget_tokens})"
-            return "not set"
-
         if operation.thinking is None:
             raise ValueError("thinking must be provided; interactive selection belongs to UI")
 
         previous = self._model_switcher.change_thinking(agent, thinking=operation.thinking)
-        current = _format_thinking_for_display(previous)
-        new_status = _format_thinking_for_display(operation.thinking)
+        current = self._format_thinking_for_display(previous)
+        new_status = self._format_thinking_for_display(operation.thinking)
 
         if operation.emit_switch_message:
             await self._emit_event(
-                events.CommandOutputEvent(
+                events.ThinkingChangedEvent(
                     session_id=agent.session.id,
-                    command_name=commands.CommandName.THINKING,
-                    content=f"Thinking changed: {current} -> {new_status}",
+                    previous=current,
+                    current=new_status,
                 )
             )
 
@@ -1153,10 +1209,11 @@ class ConfigHandler:
 
         saved_note = " (saved in ~/.klaude/klaude-config.yaml)" if operation.save_as_default else ""
         await self._emit_event(
-            events.CommandOutputEvent(
+            events.SubAgentModelChangedEvent(
                 session_id=agent.session.id,
-                command_name=commands.CommandName.SUB_AGENT_MODEL,
-                content=f"{sub_agent_type} model: {display_model}{saved_note}",
+                sub_agent_type=sub_agent_type,
+                model_display=f"{display_model}{saved_note}",
+                saved_as_default=operation.save_as_default,
             )
         )
 
@@ -1183,10 +1240,296 @@ class ConfigHandler:
 
         saved_note = " (saved in ~/.klaude/klaude-config.yaml)" if operation.save_as_default else ""
         await self._emit_event(
-            events.CommandOutputEvent(
+            events.CompactModelChangedEvent(
                 session_id=agent.session.id,
-                command_name=commands.CommandName.SUB_AGENT_MODEL,
-                content=f"Compact model: {display_model}{saved_note}",
+                model_display=f"{display_model}{saved_note}",
+                saved_as_default=operation.save_as_default,
+            )
+        )
+
+    async def _ask_single_choice(
+        self,
+        *,
+        session_id: str,
+        source: user_interaction.UserInteractionSource,
+        header: str,
+        question: str,
+        options: list[user_interaction.OperationSelectOption],
+        input_placeholder: str | None = None,
+    ) -> str | None:
+        payload = user_interaction.OperationSelectRequestPayload(
+            header=header,
+            question=question,
+            options=options,
+            input_placeholder=input_placeholder,
+        )
+        response = await self._request_user_interaction(session_id, uuid4().hex, source, payload)
+        if response.status != "submitted" or response.payload is None:
+            return None
+        if response.payload.kind != "operation_select":
+            return None
+        return response.payload.selected_option_id
+
+    async def handle_request_model(self, operation: op.RequestModelOperation) -> None:
+        async def _runner() -> None:
+            match = match_model_from_config(operation.preferred)
+            if match.error_message:
+                await self._emit_event(
+                    events.NoticeEvent(
+                        session_id=operation.session_id,
+                        content=match.error_message,
+                        is_error=True,
+                    )
+                )
+                return
+
+            selected_model = match.matched_model
+            if selected_model is None:
+                options = [
+                    user_interaction.OperationSelectOption(
+                        id=entry.selector,
+                        label=entry.selector,
+                        description=f"{entry.provider} / {entry.model_id or entry.model_name}",
+                    )
+                    for entry in match.filtered_models
+                ]
+                if not options:
+                    await self._emit_event(
+                        events.NoticeEvent(
+                            session_id=operation.session_id,
+                            content="No models available.",
+                            is_error=True,
+                        )
+                    )
+                    return
+                filtered = f" (filtered by '{match.filter_hint}')" if match.filter_hint else ""
+                selected_model = await self._ask_single_choice(
+                    session_id=operation.session_id,
+                    source="operation_model",
+                    header="Model",
+                    question=f"Select a model ({len(options)}){filtered}:",
+                    options=options,
+                )
+
+            if selected_model is None:
+                await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
+                return
+
+            agent = await self._agent_runner.ensure_agent(operation.session_id)
+            if selected_model == agent.session.model_config_name:
+                await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
+                return
+
+            await self.handle_change_model(
+                op.ChangeModelOperation(
+                    session_id=operation.session_id,
+                    model_name=selected_model,
+                    save_as_default=operation.save_as_default,
+                    defer_thinking_selection=operation.defer_thinking_selection,
+                    emit_welcome_event=operation.emit_welcome_event,
+                    emit_switch_message=operation.emit_switch_message,
+                )
+            )
+
+        await self._agent_runner.run_background_operation(
+            operation_id=operation.id,
+            session_id=operation.session_id,
+            runner=_runner,
+        )
+
+    async def handle_request_thinking(self, operation: op.RequestThinkingOperation) -> None:
+        async def _runner() -> None:
+            agent = await self._agent_runner.ensure_agent(operation.session_id)
+            llm_config = agent.profile.llm_client.get_llm_config()
+            picker_data = get_thinking_picker_data(llm_config)
+            if picker_data is None:
+                await self._emit_event(
+                    events.NoticeEvent(
+                        session_id=operation.session_id,
+                        content="Thinking configuration is not available for current model.",
+                        is_error=True,
+                    )
+                )
+                return
+
+            options = [
+                user_interaction.OperationSelectOption(
+                    id=option.value,
+                    label=option.label,
+                    description="",
+                )
+                for option in picker_data.options
+            ]
+            selected = await self._ask_single_choice(
+                session_id=operation.session_id,
+                source="operation_thinking",
+                header="Thinking",
+                question=picker_data.message,
+                options=options,
+            )
+            if selected is None:
+                await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
+                return
+
+            thinking = parse_thinking_value(selected)
+            if thinking is None:
+                await self._emit_event(
+                    events.NoticeEvent(
+                        session_id=operation.session_id,
+                        content="Invalid thinking option selected.",
+                        is_error=True,
+                    )
+                )
+                return
+
+            if llm_config.thinking == thinking:
+                await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
+                return
+
+            await self.handle_change_thinking(
+                op.ChangeThinkingOperation(
+                    session_id=operation.session_id,
+                    thinking=thinking,
+                    emit_welcome_event=operation.emit_welcome_event,
+                    emit_switch_message=operation.emit_switch_message,
+                )
+            )
+
+        await self._agent_runner.run_background_operation(
+            operation_id=operation.id,
+            session_id=operation.session_id,
+            runner=_runner,
+        )
+
+    async def handle_request_sub_agent_model(self, operation: op.RequestSubAgentModelOperation) -> None:
+        async def _runner() -> None:
+            agent = await self._agent_runner.ensure_agent(operation.session_id)
+            session_clients = self._agent_runner.get_session_llm_clients(agent.session.id)
+            config = load_config()
+            helper = SubAgentModelHelper(config)
+            main_model_name = session_clients.main.model_name
+
+            target_options: list[user_interaction.OperationSelectOption] = [
+                user_interaction.OperationSelectOption(
+                    id="__compact__",
+                    label="Compact",
+                    description=config.compact_model or f"(inherit from main agent: {main_model_name})",
+                )
+            ]
+            for sub_agent in helper.get_available_sub_agents():
+                if sub_agent.configured_model:
+                    model_display = sub_agent.configured_model
+                else:
+                    behavior = helper.describe_empty_model_config_behavior(
+                        sub_agent.profile.name,
+                        main_model_name=main_model_name,
+                    )
+                    model_display = f"({behavior.description})"
+                target_options.append(
+                    user_interaction.OperationSelectOption(
+                        id=sub_agent.profile.name,
+                        label=sub_agent.profile.name,
+                        description=model_display,
+                    )
+                )
+
+            target = await self._ask_single_choice(
+                session_id=operation.session_id,
+                source="operation_sub_agent_model",
+                header="Sub-Agent",
+                question="Select sub-agent to configure:",
+                options=target_options,
+            )
+            if target is None:
+                await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
+                return
+
+            if target == "__compact__":
+                compact_options = [
+                    user_interaction.OperationSelectOption(
+                        id="__default__",
+                        label="(Use default behavior)",
+                        description=f"inherit from main agent: {main_model_name}",
+                    )
+                ]
+                for entry in config.iter_model_entries(only_available=True, include_disabled=False):
+                    compact_options.append(
+                        user_interaction.OperationSelectOption(
+                            id=entry.selector,
+                            label=entry.selector,
+                            description=f"{entry.provider} / {entry.model_id or entry.model_name}",
+                        )
+                    )
+
+                selected_model = await self._ask_single_choice(
+                    session_id=operation.session_id,
+                    source="operation_sub_agent_model",
+                    header="Compact",
+                    question="Select model for Compact:",
+                    options=compact_options,
+                )
+                if selected_model is None:
+                    await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
+                    return
+
+                await self.handle_change_compact_model(
+                    op.ChangeCompactModelOperation(
+                        session_id=operation.session_id,
+                        model_name=None if selected_model == "__default__" else selected_model,
+                        save_as_default=operation.save_as_default,
+                    )
+                )
+                return
+
+            default_behavior = helper.describe_empty_model_config_behavior(target, main_model_name=main_model_name)
+            sub_model_options = [
+                user_interaction.OperationSelectOption(
+                    id="__default__",
+                    label="(Use default behavior)",
+                    description=f"-> {default_behavior.description}",
+                )
+            ]
+            for entry in helper.get_selectable_models(target):
+                sub_model_options.append(
+                    user_interaction.OperationSelectOption(
+                        id=entry.selector,
+                        label=entry.selector,
+                        description=f"{entry.provider} / {entry.model_id or entry.model_name}",
+                    )
+                )
+
+            selected_model = await self._ask_single_choice(
+                session_id=operation.session_id,
+                source="operation_sub_agent_model",
+                header=target,
+                question=f"Select model for {target}:",
+                options=sub_model_options,
+            )
+            if selected_model is None:
+                await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
+                return
+
+            await self.handle_change_sub_agent_model(
+                op.ChangeSubAgentModelOperation(
+                    session_id=operation.session_id,
+                    sub_agent_type=target,
+                    model_name=None if selected_model == "__default__" else selected_model,
+                    save_as_default=operation.save_as_default,
+                )
+            )
+
+        await self._agent_runner.run_background_operation(
+            operation_id=operation.id,
+            session_id=operation.session_id,
+            runner=_runner,
+        )
+
+    async def handle_get_session_status(self, operation: op.GetSessionStatusOperation) -> None:
+        agent = await self._agent_runner.ensure_agent(operation.session_id)
+        await self._emit_event(
+            events.SessionStatusEvent(
+                session_id=agent.session.id,
+                status=build_session_status_ui_extra(agent.session),
             )
         )
 
@@ -1238,8 +1581,26 @@ class CommandDispatcher:
             agent_runner=self._agent_runner,
             model_switcher=self._model_switcher,
             emit_event=self.emit_event,
+            request_user_interaction=self._request_operation_user_interaction,
             current_session_id=self.current_session_id,
             on_model_change=on_model_change,
+        )
+
+    async def _request_operation_user_interaction(
+        self,
+        session_id: str,
+        request_id: str,
+        source: user_interaction.UserInteractionSource,
+        payload: user_interaction.UserInteractionRequestPayload,
+    ) -> user_interaction.UserInteractionResponse:
+        return await self.request_user_interaction(
+            PendingUserInteractionRequest(
+                request_id=request_id,
+                session_id=session_id,
+                source=source,
+                tool_call_id=None,
+                payload=payload,
+            )
         )
 
     async def request_user_interaction(
@@ -1346,6 +1707,18 @@ class CommandDispatcher:
     async def handle_change_compact_model(self, operation: op.ChangeCompactModelOperation) -> None:
         await self._config_handler.handle_change_compact_model(operation)
 
+    async def handle_request_model(self, operation: op.RequestModelOperation) -> None:
+        await self._config_handler.handle_request_model(operation)
+
+    async def handle_request_thinking(self, operation: op.RequestThinkingOperation) -> None:
+        await self._config_handler.handle_request_thinking(operation)
+
+    async def handle_request_sub_agent_model(self, operation: op.RequestSubAgentModelOperation) -> None:
+        await self._config_handler.handle_request_sub_agent_model(operation)
+
+    async def handle_get_session_status(self, operation: op.GetSessionStatusOperation) -> None:
+        await self._config_handler.handle_get_session_status(operation)
+
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
         await self._agent_runner.clear_session(operation.session_id)
 
@@ -1358,9 +1731,8 @@ class CommandDispatcher:
             await asyncio.to_thread(output_path.write_text, html_doc, "utf-8")
             await asyncio.to_thread(self._open_file, output_path)
             await self.emit_event(
-                events.CommandOutputEvent(
+                events.NoticeEvent(
                     session_id=agent.session.id,
-                    command_name=commands.CommandName.EXPORT,
                     content=f"Session exported and opened: {output_path}",
                 )
             )
@@ -1368,9 +1740,8 @@ class CommandDispatcher:
             import traceback
 
             await self.emit_event(
-                events.CommandOutputEvent(
+                events.NoticeEvent(
                     session_id=agent.session.id,
-                    command_name=commands.CommandName.EXPORT,
                     content=f"Failed to export session: {exc}\n{traceback.format_exc()}",
                     is_error=True,
                 )

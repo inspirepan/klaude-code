@@ -2,17 +2,18 @@ from klaude_code.core.loaded_skills import (
     get_loaded_skill_names_by_location,
     get_loaded_skill_warnings_by_location,
 )
-from klaude_code.protocol import commands, events, message
+from klaude_code.protocol import events, message
 
 from .command_abc import Agent, CommandABC, CommandResult
+from .types import CommandName
 
 
 class RefreshTerminalCommand(CommandABC):
     """Refresh terminal display"""
 
     @property
-    def name(self) -> commands.CommandName:
-        return commands.CommandName.REFRESH_TERMINAL
+    def name(self) -> CommandName:
+        return CommandName.REFRESH_TERMINAL
 
     @property
     def summary(self) -> str:

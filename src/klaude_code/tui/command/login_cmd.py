@@ -3,18 +3,19 @@ import asyncio
 import typer
 
 from klaude_code.app.auth_flow import execute_login
-from klaude_code.protocol import commands, events, message
+from klaude_code.protocol import events, message
 
 from .auth_selector import select_provider
 from .command_abc import Agent, CommandABC, CommandResult
+from .types import CommandName
 
 
 class LoginCommand(CommandABC):
     """Login to OAuth providers or configure API keys."""
 
     @property
-    def name(self) -> commands.CommandName:
-        return commands.CommandName.LOGIN
+    def name(self) -> CommandName:
+        return CommandName.LOGIN
 
     @property
     def summary(self) -> str:
@@ -43,9 +44,8 @@ class LoginCommand(CommandABC):
             if provider is None:
                 return CommandResult(
                     events=[
-                        events.CommandOutputEvent(
+                        events.NoticeEvent(
                             session_id=agent.session.id,
-                            command_name=self.name,
                             content="(cancelled)",
                         )
                     ]
@@ -56,9 +56,8 @@ class LoginCommand(CommandABC):
         except (KeyboardInterrupt, typer.Abort):
             return CommandResult(
                 events=[
-                    events.CommandOutputEvent(
+                    events.NoticeEvent(
                         session_id=agent.session.id,
-                        command_name=self.name,
                         content="(cancelled)",
                     )
                 ]
@@ -67,9 +66,8 @@ class LoginCommand(CommandABC):
             if e.exit_code not in (None, 0):
                 return CommandResult(
                     events=[
-                        events.CommandOutputEvent(
+                        events.NoticeEvent(
                             session_id=agent.session.id,
-                            command_name=self.name,
                             content=f"Login failed (exit code: {e.exit_code}).",
                             is_error=True,
                         )
@@ -77,9 +75,8 @@ class LoginCommand(CommandABC):
                 )
             return CommandResult(
                 events=[
-                    events.CommandOutputEvent(
+                    events.NoticeEvent(
                         session_id=agent.session.id,
-                        command_name=self.name,
                         content="(cancelled)",
                     )
                 ]
@@ -87,9 +84,8 @@ class LoginCommand(CommandABC):
 
         return CommandResult(
             events=[
-                events.CommandOutputEvent(
+                events.NoticeEvent(
                     session_id=agent.session.id,
-                    command_name=self.name,
                     content="Login flow completed.",
                 )
             ]

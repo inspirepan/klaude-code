@@ -4,7 +4,13 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-type UserInteractionSource = Literal["tool", "approval"]
+type UserInteractionSource = Literal[
+    "tool",
+    "approval",
+    "operation_model",
+    "operation_thinking",
+    "operation_sub_agent_model",
+]
 
 
 class AskUserQuestionOption(BaseModel):
@@ -27,7 +33,21 @@ class AskUserQuestionRequestPayload(BaseModel):
     questions: list[AskUserQuestionQuestion]
 
 
-type UserInteractionRequestPayload = AskUserQuestionRequestPayload
+class OperationSelectOption(BaseModel):
+    id: str
+    label: str
+    description: str
+
+
+class OperationSelectRequestPayload(BaseModel):
+    kind: Literal["operation_select"] = "operation_select"
+    header: str
+    question: str
+    options: list[OperationSelectOption]
+    input_placeholder: str | None = None
+
+
+type UserInteractionRequestPayload = AskUserQuestionRequestPayload | OperationSelectRequestPayload
 
 
 class AskUserQuestionAnswer(BaseModel):
@@ -42,7 +62,12 @@ class AskUserQuestionResponsePayload(BaseModel):
     answers: list[AskUserQuestionAnswer]
 
 
-type UserInteractionResponsePayload = AskUserQuestionResponsePayload
+class OperationSelectResponsePayload(BaseModel):
+    kind: Literal["operation_select"] = "operation_select"
+    selected_option_id: str
+
+
+type UserInteractionResponsePayload = AskUserQuestionResponsePayload | OperationSelectResponsePayload
 
 
 class UserInteractionResponse(BaseModel):

@@ -34,8 +34,13 @@ class RenderDeveloperMessage(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
-class RenderCommandOutput(RenderCommand):
-    event: events.CommandOutputEvent
+class RenderNotice(RenderCommand):
+    event: events.NoticeEvent
+
+
+@dataclass(frozen=True, slots=True)
+class RenderSessionStatus(RenderCommand):
+    event: events.SessionStatusEvent
 
 
 @dataclass(frozen=True, slots=True)

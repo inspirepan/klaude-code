@@ -3,18 +3,19 @@ import asyncio
 import typer
 
 from klaude_code.app.auth_flow import execute_logout
-from klaude_code.protocol import commands, events, message
+from klaude_code.protocol import events, message
 
 from .auth_selector import select_provider
 from .command_abc import Agent, CommandABC, CommandResult
+from .types import CommandName
 
 
 class LogoutCommand(CommandABC):
     """Logout from OAuth providers."""
 
     @property
-    def name(self) -> commands.CommandName:
-        return commands.CommandName.LOGOUT
+    def name(self) -> CommandName:
+        return CommandName.LOGOUT
 
     @property
     def summary(self) -> str:
@@ -47,9 +48,8 @@ class LogoutCommand(CommandABC):
             if provider is None:
                 return CommandResult(
                     events=[
-                        events.CommandOutputEvent(
+                        events.NoticeEvent(
                             session_id=agent.session.id,
-                            command_name=self.name,
                             content="(cancelled)",
                         )
                     ]
@@ -60,9 +60,8 @@ class LogoutCommand(CommandABC):
         except (KeyboardInterrupt, typer.Abort):
             return CommandResult(
                 events=[
-                    events.CommandOutputEvent(
+                    events.NoticeEvent(
                         session_id=agent.session.id,
-                        command_name=self.name,
                         content="(cancelled)",
                     )
                 ]
@@ -71,9 +70,8 @@ class LogoutCommand(CommandABC):
             if e.exit_code not in (None, 0):
                 return CommandResult(
                     events=[
-                        events.CommandOutputEvent(
+                        events.NoticeEvent(
                             session_id=agent.session.id,
-                            command_name=self.name,
                             content=f"Logout failed (exit code: {e.exit_code}).",
                             is_error=True,
                         )
@@ -81,9 +79,8 @@ class LogoutCommand(CommandABC):
                 )
             return CommandResult(
                 events=[
-                    events.CommandOutputEvent(
+                    events.NoticeEvent(
                         session_id=agent.session.id,
-                        command_name=self.name,
                         content="(cancelled)",
                     )
                 ]
@@ -91,9 +88,8 @@ class LogoutCommand(CommandABC):
 
         return CommandResult(
             events=[
-                events.CommandOutputEvent(
+                events.NoticeEvent(
                     session_id=agent.session.id,
-                    command_name=self.name,
                     content="Logout flow completed.",
                 )
             ]

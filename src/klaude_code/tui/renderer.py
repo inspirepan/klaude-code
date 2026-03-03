@@ -38,12 +38,13 @@ from klaude_code.tui.commands import (
     RenderBashCommandEnd,
     RenderBashCommandStart,
     RenderCommand,
-    RenderCommandOutput,
     RenderCompactionSummary,
     RenderDeveloperMessage,
     RenderError,
     RenderInterrupt,
+    RenderNotice,
     RenderRewind,
+    RenderSessionStatus,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
@@ -535,10 +536,16 @@ class TUICommandRenderer:
                     for image_path in ui_item.paths:
                         self.display_image(image_path)
 
-    def display_command_output(self, e: events.CommandOutputEvent) -> None:
+    def display_notice(self, e: events.NoticeEvent) -> None:
         with self.session_print_context(e.session_id):
             self.print()
-            self.print(c_command_output.render_command_output(e))
+            self.print(c_command_output.render_notice(e))
+            self.print()
+
+    def display_session_status(self, e: events.SessionStatusEvent) -> None:
+        with self.session_print_context(e.session_id):
+            self.print()
+            self.print(c_command_output.render_session_status(e))
             self.print()
 
     def display_bash_command_start(self, e: events.BashCommandStartEvent) -> None:
@@ -856,8 +863,10 @@ class TUICommandRenderer:
                     self.display_task_start(event)
                 case RenderDeveloperMessage(event=event):
                     self.display_developer_message(event)
-                case RenderCommandOutput(event=event):
-                    self.display_command_output(event)
+                case RenderNotice(event=event):
+                    self.display_notice(event)
+                case RenderSessionStatus(event=event):
+                    self.display_session_status(event)
                 case RenderBashCommandStart(event=event):
                     self.display_bash_command_start(event)
                 case AppendBashCommandOutput(event=event):

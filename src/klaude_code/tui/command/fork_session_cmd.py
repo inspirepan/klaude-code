@@ -5,12 +5,13 @@ from typing import Literal
 
 from prompt_toolkit.styles import Style, merge_styles
 
-from klaude_code.protocol import commands, events, message, model
+from klaude_code.protocol import events, message, model
 from klaude_code.session import Session
 from klaude_code.tui.input.key_bindings import copy_to_clipboard
 from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, select_one
 
 from .command_abc import Agent, CommandABC, CommandResult
+from .types import CommandName
 
 FORK_SELECT_STYLE = merge_styles(
     [
@@ -282,8 +283,8 @@ class ForkSessionCommand(CommandABC):
     """Fork current session to a new session id and show a resume command."""
 
     @property
-    def name(self) -> commands.CommandName:
-        return commands.CommandName.FORK_SESSION
+    def name(self) -> CommandName:
+        return CommandName.FORK_SESSION
 
     @property
     def summary(self) -> str:
@@ -297,9 +298,8 @@ class ForkSessionCommand(CommandABC):
         del user_input  # unused
 
         if agent.session.messages_count == 0:
-            event = events.CommandOutputEvent(
+            event = events.NoticeEvent(
                 session_id=agent.session.id,
-                command_name=self.name,
                 content="(no messages to fork)",
                 is_error=True,
             )
@@ -317,9 +317,8 @@ class ForkSessionCommand(CommandABC):
             resume_cmd = f"klaude -r {short_id}"
             copy_to_clipboard(resume_cmd)
 
-            event = events.CommandOutputEvent(
+            event = events.NoticeEvent(
                 session_id=agent.session.id,
-                command_name=self.name,
                 content=f"Session forked successfully. New session id: {new_session.id}",
                 ui_extra=model.SessionIdUIExtra(session_id=new_session.id),
             )
@@ -329,9 +328,8 @@ class ForkSessionCommand(CommandABC):
         selected = await asyncio.to_thread(_select_fork_point_sync, fork_points)
 
         if selected == "cancelled":
-            event = events.CommandOutputEvent(
+            event = events.NoticeEvent(
                 session_id=agent.session.id,
-                command_name=self.name,
                 content="(fork cancelled)",
             )
             return CommandResult(events=[event])
@@ -351,9 +349,8 @@ class ForkSessionCommand(CommandABC):
         resume_cmd = f"klaude -r {short_id}"
         copy_to_clipboard(resume_cmd)
 
-        event = events.CommandOutputEvent(
+        event = events.NoticeEvent(
             session_id=agent.session.id,
-            command_name=self.name,
             content=f"Session forked ({fork_description}). New session id: {new_session.id}",
             ui_extra=model.SessionIdUIExtra(session_id=new_session.id),
         )

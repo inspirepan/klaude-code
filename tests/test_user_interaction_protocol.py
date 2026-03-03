@@ -11,6 +11,9 @@ from klaude_code.protocol.user_interaction import (
     AskUserQuestionQuestion,
     AskUserQuestionRequestPayload,
     AskUserQuestionResponsePayload,
+    OperationSelectOption,
+    OperationSelectRequestPayload,
+    OperationSelectResponsePayload,
     UserInteractionResponse,
 )
 
@@ -66,11 +69,43 @@ def test_user_interaction_response_submitted_and_cancelled() -> None:
     )
     assert submitted.status == "submitted"
     assert submitted.payload is not None
+    assert submitted.payload.kind == "ask_user_question"
     assert submitted.payload.answers[0].question_id == "q1"
 
     cancelled = UserInteractionResponse(status="cancelled", payload=None)
     assert cancelled.status == "cancelled"
     assert cancelled.payload is None
+
+
+def test_operation_select_payload_model() -> None:
+    payload = OperationSelectRequestPayload(
+        header="Model",
+        question="Select a model",
+        options=[
+            OperationSelectOption(id="openai@gpt-5", label="openai@gpt-5", description="openai / gpt-5"),
+            OperationSelectOption(
+                id="anthropic@claude-sonnet-4",
+                label="anthropic@claude-sonnet-4",
+                description="anthropic / claude-sonnet-4",
+            ),
+        ],
+    )
+    event = events.UserInteractionRequestEvent(
+        session_id="s1",
+        request_id="req-op-1",
+        source="operation_model",
+        payload=payload,
+    )
+    assert event.payload.kind == "operation_select"
+    assert event.payload.options[0].id == "openai@gpt-5"
+
+    response = UserInteractionResponse(
+        status="submitted",
+        payload=OperationSelectResponsePayload(selected_option_id="openai@gpt-5"),
+    )
+    assert response.payload is not None
+    assert response.payload.kind == "operation_select"
+    assert response.payload.selected_option_id == "openai@gpt-5"
 
 
 def test_user_interaction_respond_operation_executes_handler() -> None:

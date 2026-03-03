@@ -1,15 +1,16 @@
-from klaude_code.protocol import commands, events, message
+from klaude_code.protocol import events, message
 from klaude_code.tui.input.key_bindings import copy_to_clipboard
 
 from .command_abc import Agent, CommandABC, CommandResult
+from .types import CommandName
 
 
 class CopyCommand(CommandABC):
     """Copy the last assistant message to system clipboard."""
 
     @property
-    def name(self) -> commands.CommandName:
-        return commands.CommandName.COPY
+    def name(self) -> CommandName:
+        return CommandName.COPY
 
     @property
     def summary(self) -> str:
@@ -47,14 +48,11 @@ def _format_assistant(msg: message.AssistantMessage) -> str:
     return message.join_text_parts(msg.parts).strip()
 
 
-def _command_output(
-    agent: Agent, content: str, command_name: commands.CommandName, *, is_error: bool = False
-) -> CommandResult:
+def _command_output(agent: Agent, content: str, command_name: CommandName, *, is_error: bool = False) -> CommandResult:
     return CommandResult(
         events=[
-            events.CommandOutputEvent(
+            events.NoticeEvent(
                 session_id=agent.session.id,
-                command_name=command_name,
                 content=content,
                 is_error=is_error,
             )

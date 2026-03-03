@@ -35,6 +35,7 @@ from klaude_code.tui.terminal.selector import (
     DEFAULT_PICKER_STYLE,
     QuestionPrompt,
     SelectItem,
+    select_one,
     select_questions,
 )
 from klaude_code.tui.terminal.title import update_terminal_title
@@ -169,15 +170,143 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             )
         return items
 
+    def _build_operation_select_items(
+        payload: user_interaction.OperationSelectRequestPayload,
+    ) -> list[SelectItem[str]]:
+        items: list[SelectItem[str]] = []
+        for idx, option in enumerate(payload.options, start=1):
+            title: list[tuple[str, str]] = [("class:msg", f"{idx}. {option.label}\n")]
+            if option.description:
+                title.append(("class:meta", f"    {option.description}\n"))
+            items.append(
+                SelectItem(
+                    title=title,
+                    value=option.id,
+                    search_text=f"{option.label} {option.description}",
+                    summary=option.label,
+                )
+            )
+        return items
+
+    def _build_model_picker_style_items(
+        payload: user_interaction.OperationSelectRequestPayload,
+    ) -> list[SelectItem[str]]:
+        if not payload.options:
+            return []
+
+        provider_grouped: dict[str, list[user_interaction.OperationSelectOption]] = {}
+        for option in payload.options:
+            provider_hint = option.description.split("/", 1)[0].strip().lower()
+            provider = provider_hint or "other"
+            provider_grouped.setdefault(provider, []).append(option)
+
+        groups = list(provider_grouped.items())
+        num_width = len(str(len(payload.options)))
+        max_header_len = max(len(f"{name} ({len(options)})") for name, options in groups)
+        separator_base_len = 80
+
+        items: list[SelectItem[str]] = []
+        option_idx = 0
+        for group_name, group_options in groups:
+            count_text = f"({len(group_options)})"
+            header_len = len(group_name) + 1 + len(count_text)
+            separator_len = separator_base_len + max_header_len - header_len
+            separator = "-" * separator_len
+            items.append(
+                SelectItem(
+                    title=[
+                        ("class:meta ansiyellow", f"{group_name} "),
+                        ("class:meta ansibrightblack", f"{count_text} "),
+                        ("class:meta ansibrightblack dim", separator),
+                        ("class:meta", "\n"),
+                    ],
+                    value=None,
+                    search_text=group_name,
+                    selectable=False,
+                )
+            )
+
+            for option in group_options:
+                option_idx += 1
+                title: list[tuple[str, str]] = [
+                    ("class:meta", f"{option_idx:>{num_width}}. "),
+                    ("class:msg", option.label),
+                ]
+                if option.description:
+                    title.append(("class:msg dim", " → "))
+                    title.append(("class:msg ansiblue", option.description))
+                title.append(("class:meta", "\n"))
+                items.append(
+                    SelectItem(
+                        title=title,
+                        value=option.id,
+                        search_text=f"{option.label} {option.description}",
+                        summary=option.label,
+                    )
+                )
+        return items
+
+    def _pick_model_with_model_picker_style(payload: user_interaction.OperationSelectRequestPayload) -> str | None:
+        items = _build_model_picker_style_items(payload)
+        selected = select_one(
+            message=payload.question,
+            items=items,
+            pointer="→",
+            use_search_filter=True,
+            style=DEFAULT_PICKER_STYLE,
+        )
+        return selected if isinstance(selected, str) else None
+
+    def _pick_option_with_selector_style(payload: user_interaction.OperationSelectRequestPayload) -> str | None:
+        selected = select_one(
+            message=payload.question,
+            items=_build_operation_select_items(payload),
+            pointer="→",
+            use_search_filter=True,
+            style=DEFAULT_PICKER_STYLE,
+        )
+        return selected if isinstance(selected, str) else None
+
+    def _submitted_single_choice_response(
+        *,
+        selected_option_id: str,
+    ) -> user_interaction.UserInteractionResponse:
+        return user_interaction.UserInteractionResponse(
+            status="submitted",
+            payload=user_interaction.OperationSelectResponsePayload(
+                selected_option_id=selected_option_id,
+            ),
+        )
+
     async def _collect_interaction_response(
         request_event: events.UserInteractionRequestEvent,
     ) -> user_interaction.UserInteractionResponse:
         payload = request_event.payload
+        if payload.kind == "operation_select":
+            tui_display.hide_progress_ui()
+            if pause_esc_monitor is not None:
+                await pause_esc_monitor()
+
+            try:
+                if request_event.source == "operation_model":
+                    selected = await asyncio.to_thread(_pick_model_with_model_picker_style, payload)
+                else:
+                    selected = await asyncio.to_thread(_pick_option_with_selector_style, payload)
+            finally:
+                if resume_esc_monitor is not None:
+                    resume_esc_monitor()
+
+            if selected is None:
+                return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
+            tui_display.show_progress_ui()
+            return _submitted_single_choice_response(selected_option_id=selected)
+
         if payload.kind != "ask_user_question":
             return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
 
         answers: list[user_interaction.AskUserQuestionAnswer] = []
-        tui_display.notify_ask_user_question(question_count=len(payload.questions))
+        if request_event.source == "tool":
+            tui_display.notify_ask_user_question(question_count=len(payload.questions))
         tui_display.hide_progress_ui()
 
         prompts: list[QuestionPrompt[str]] = []

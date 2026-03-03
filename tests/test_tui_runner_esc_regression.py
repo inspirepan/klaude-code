@@ -274,3 +274,240 @@ def test_interaction_collection_pauses_esc_monitor(monkeypatch: pytest.MonkeyPat
     assert response is not None
     assert response.status == "submitted"
     assert state["max_active_during_select"] == 0
+
+
+def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    state: dict[str, Any] = {
+        "interaction_handler": None,
+        "response": None,
+        "saw_group_header": False,
+    }
+
+    class _ModelConfig:
+        theme = "dark"
+        main_model = "openai@gpt-5"
+
+        def iter_model_entries(self, *, only_available: bool, include_disabled: bool) -> list[Any]:
+            del only_available, include_disabled
+            return [
+                SimpleNamespace(
+                    selector="openai@gpt-5",
+                    provider="openai",
+                    model_id="gpt-5",
+                    model_name="GPT-5",
+                    thinking=None,
+                    verbosity=None,
+                    provider_routing=None,
+                ),
+                SimpleNamespace(
+                    selector="anthropic@claude-sonnet-4",
+                    provider="anthropic",
+                    model_id="claude-sonnet-4",
+                    model_name="Claude Sonnet 4",
+                    thinking=None,
+                    verbosity=None,
+                    provider_routing=None,
+                ),
+            ]
+
+        def resolve_model_location_prefer_available(self, model_name: str) -> None:
+            del model_name
+            return None
+
+        def resolve_model_location(self, model_name: str) -> tuple[str, str]:
+            raise ValueError(model_name)
+
+    monkeypatch.setattr(runner, "load_config", lambda: _ModelConfig())
+
+    class _FakeRuntime:
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> None:
+            return None
+
+        async def wait_for(self, _wait_id: str) -> None:
+            while state["interaction_handler"] is None:
+                await asyncio.sleep(0)
+
+            request_event = events.UserInteractionRequestEvent(
+                session_id="s1",
+                request_id="req-model",
+                source="operation_model",
+                payload=user_interaction.OperationSelectRequestPayload(
+                    header="Model",
+                    question="Select a model:",
+                    options=[
+                        user_interaction.OperationSelectOption(
+                            id="openai@gpt-5",
+                            label="openai@gpt-5",
+                            description="openai / gpt-5",
+                        ),
+                        user_interaction.OperationSelectOption(
+                            id="anthropic@claude-sonnet-4",
+                            label="anthropic@claude-sonnet-4",
+                            description="anthropic / claude-sonnet-4",
+                        ),
+                    ],
+                ),
+            )
+            state["response"] = await state["interaction_handler"].collect_response(request_event)
+
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            del operation
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**kwargs: Any) -> _FakeComponents:
+        state["interaction_handler"] = kwargs.get("interaction_handler")
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+
+    async def _submit_user_input_payload(**_: Any) -> str:
+        return "wait-1"
+
+    monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
+
+    def _start_esc_monitor(
+        _on_interrupt: Callable[[], Coroutine[Any, Any, None]],
+    ) -> tuple[threading.Event, asyncio.Task[None]]:
+        stop_event = threading.Event()
+
+        async def _wait_stop() -> None:
+            await asyncio.to_thread(stop_event.wait)
+
+        return stop_event, asyncio.create_task(_wait_stop())
+
+    monkeypatch.setattr(runner, "start_esc_interrupt_monitor", _start_esc_monitor)
+
+    def _select_one(**kwargs: Any) -> str:
+        items = kwargs["items"]
+        state["saw_group_header"] = any(not item.selectable for item in items)
+        return "anthropic@claude-sonnet-4"
+
+    monkeypatch.setattr(runner, "select_one", _select_one)
+
+    def _fail_select_questions(**_: Any) -> None:
+        raise AssertionError("operation_model should not use ask_user_question UI")
+
+    monkeypatch.setattr(
+        runner,
+        "select_questions",
+        _fail_select_questions,
+    )
+
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="hello"), UserInputPayload(text="exit")]
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    response = state["response"]
+    assert response is not None
+    assert response.status == "submitted"
+    assert response.payload is not None
+    assert response.payload.kind == "operation_select"
+    assert response.payload.selected_option_id == "anthropic@claude-sonnet-4"
+    assert state["saw_group_header"] is True
+
+
+def test_operation_thinking_interaction_uses_selector_style(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    state: dict[str, Any] = {
+        "interaction_handler": None,
+        "response": None,
+        "select_one_called": 0,
+    }
+
+    class _FakeRuntime:
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> None:
+            return None
+
+        async def wait_for(self, _wait_id: str) -> None:
+            while state["interaction_handler"] is None:
+                await asyncio.sleep(0)
+
+            request_event = events.UserInteractionRequestEvent(
+                session_id="s1",
+                request_id="req-thinking",
+                source="operation_thinking",
+                payload=user_interaction.OperationSelectRequestPayload(
+                    header="Thinking",
+                    question="Choose one",
+                    options=[
+                        user_interaction.OperationSelectOption(id="o1", label="A", description="Option A"),
+                        user_interaction.OperationSelectOption(id="o2", label="B", description="Option B"),
+                    ],
+                ),
+            )
+            state["response"] = await state["interaction_handler"].collect_response(request_event)
+
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            del operation
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**kwargs: Any) -> _FakeComponents:
+        state["interaction_handler"] = kwargs.get("interaction_handler")
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+
+    async def _submit_user_input_payload(**_: Any) -> str:
+        return "wait-1"
+
+    monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
+
+    def _start_esc_monitor(
+        _on_interrupt: Callable[[], Coroutine[Any, Any, None]],
+    ) -> tuple[threading.Event, asyncio.Task[None]]:
+        stop_event = threading.Event()
+
+        async def _wait_stop() -> None:
+            await asyncio.to_thread(stop_event.wait)
+
+        return stop_event, asyncio.create_task(_wait_stop())
+
+    monkeypatch.setattr(runner, "start_esc_interrupt_monitor", _start_esc_monitor)
+
+    def _select_one(**_: Any) -> str:
+        state["select_one_called"] += 1
+        return "o2"
+
+    monkeypatch.setattr(runner, "select_one", _select_one)
+
+    def _fail_select_questions(**_: Any) -> None:
+        raise AssertionError("operation_thinking should not use ask_user_question UI")
+
+    monkeypatch.setattr(
+        runner,
+        "select_questions",
+        _fail_select_questions,
+    )
+
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="hello"), UserInputPayload(text="exit")]
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    response = state["response"]
+    assert response is not None
+    assert response.status == "submitted"
+    assert response.payload is not None
+    assert response.payload.kind == "operation_select"
+    assert response.payload.selected_option_id == "o2"
+    assert state["select_one_called"] == 1

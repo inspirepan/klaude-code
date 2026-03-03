@@ -1,14 +1,15 @@
-from klaude_code.protocol import commands, events, message, op
+from klaude_code.protocol import events, message, op
 
 from .command_abc import Agent, CommandABC, CommandResult
+from .types import CommandName
 
 
 class ContinueCommand(CommandABC):
     """Continue agent execution without adding a new user message."""
 
     @property
-    def name(self) -> commands.CommandName:
-        return commands.CommandName.CONTINUE
+    def name(self) -> CommandName:
+        return CommandName.CONTINUE
 
     @property
     def summary(self) -> str:
@@ -20,9 +21,8 @@ class ContinueCommand(CommandABC):
         if agent.session.messages_count == 0:
             return CommandResult(
                 events=[
-                    events.CommandOutputEvent(
+                    events.NoticeEvent(
                         session_id=agent.session.id,
-                        command_name=self.name,
                         content="Cannot continue: no conversation history. Start a conversation first.",
                         is_error=True,
                     )

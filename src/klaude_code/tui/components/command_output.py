@@ -8,64 +8,18 @@ from klaude_code.tui.components.common import truncate_middle
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 
-def render_command_output(e: events.CommandOutputEvent) -> RenderableType:
-    """Render command output content."""
-    match e.command_name:
-        case "status":
-            return _render_status_output(e)
-        case "fork-session":
-            return _render_fork_session_output(e)
-        case _:
-            content = e.content or "(no content)"
-            style = ThemeKey.COMMAND_OUTPUT if not e.is_error else ThemeKey.ERROR
-            return truncate_middle(content, base_style=style)
+def render_notice(e: events.NoticeEvent) -> RenderableType:
+    """Render a generic notice event."""
+    if isinstance(e.ui_extra, model.SessionIdUIExtra):
+        return _render_fork_session_output(e)
+    content = e.content or "(no content)"
+    style = ThemeKey.COMMAND_OUTPUT if not e.is_error else ThemeKey.ERROR
+    return truncate_middle(content, base_style=style)
 
 
-def _format_tokens(tokens: int) -> str:
-    """Format token count with K/M suffix for readability."""
-    if tokens >= 1_000_000:
-        return f"{tokens / 1_000_000:.2f}M"
-    if tokens >= 1_000:
-        return f"{tokens / 1_000:.1f}K"
-    return str(tokens)
-
-
-def _format_cost(cost: float | None, currency: str = "USD") -> str:
-    """Format cost with currency symbol."""
-    if cost is None:
-        return "-"
-    symbol = "Y" if currency == "CNY" else "$"
-    if cost < 0.01:
-        return f"{symbol}{cost:.4f}"
-    return f"{symbol}{cost:.2f}"
-
-
-def _format_int(value: int) -> str:
-    return f"{value:,}"
-
-
-def _render_fork_session_output(e: events.CommandOutputEvent) -> RenderableType:
-    """Render fork session output with usage instructions."""
-    if not isinstance(e.ui_extra, model.SessionIdUIExtra):
-        return Text(e.content, style=ThemeKey.TOOL_RESULT)
-
-    grid = Table.grid(padding=(0, 1))
-    session_id = e.ui_extra.session_id
-    short_id = Session.shortest_unique_prefix(session_id)
-    grid.add_column(style=ThemeKey.TOOL_RESULT, overflow="fold")
-
-    grid.add_row(Text("Session forked. Resume command copied to clipboard:", style=ThemeKey.TOOL_RESULT))
-    grid.add_row(Text(f"  klaude -r {short_id}", style=ThemeKey.TOOL_RESULT_BOLD))
-
-    return grid
-
-
-def _render_status_output(e: events.CommandOutputEvent) -> RenderableType:
+def render_session_status(e: events.SessionStatusEvent) -> RenderableType:
     """Render session status with overview and per-model breakdown."""
-    if not isinstance(e.ui_extra, model.SessionStatusUIExtra):
-        return Text("(no status data)", style=ThemeKey.TOOL_RESULT)
-
-    status = e.ui_extra
+    status = e.status
     usage = status.usage
 
     def section_title(title: str) -> Text:
@@ -136,3 +90,39 @@ def _render_status_output(e: events.CommandOutputEvent) -> RenderableType:
         blocks.append(by_model_table)
 
     return Group(*blocks)
+
+
+def _format_tokens(tokens: int) -> str:
+    if tokens >= 1_000_000:
+        return f"{tokens / 1_000_000:.2f}M"
+    if tokens >= 1_000:
+        return f"{tokens / 1_000:.1f}K"
+    return str(tokens)
+
+
+def _format_cost(cost: float | None, currency: str = "USD") -> str:
+    if cost is None:
+        return "-"
+    symbol = "Y" if currency == "CNY" else "$"
+    if cost < 0.01:
+        return f"{symbol}{cost:.4f}"
+    return f"{symbol}{cost:.2f}"
+
+
+def _format_int(value: int) -> str:
+    return f"{value:,}"
+
+
+def _render_fork_session_output(e: events.NoticeEvent) -> RenderableType:
+    if not isinstance(e.ui_extra, model.SessionIdUIExtra):
+        return Text(e.content, style=ThemeKey.TOOL_RESULT)
+
+    grid = Table.grid(padding=(0, 1))
+    session_id = e.ui_extra.session_id
+    short_id = Session.shortest_unique_prefix(session_id)
+    grid.add_column(style=ThemeKey.TOOL_RESULT, overflow="fold")
+
+    grid.add_row(Text("Session forked. Resume command copied to clipboard:", style=ThemeKey.TOOL_RESULT))
+    grid.add_row(Text(f"  klaude -r {short_id}", style=ThemeKey.TOOL_RESULT_BOLD))
+
+    return grid

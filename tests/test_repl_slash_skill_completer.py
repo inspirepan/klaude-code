@@ -5,7 +5,7 @@ from typing import Any, cast
 import pytest
 from prompt_toolkit.document import Document
 
-from klaude_code.protocol.commands import CommandInfo
+from klaude_code.tui.command.types import CommandInfo
 from klaude_code.tui.input.completers import (
     _ComboCompleter,  # pyright: ignore[reportPrivateUsage]
     _SkillCompleter,  # pyright: ignore[reportPrivateUsage]

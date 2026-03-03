@@ -604,7 +604,11 @@ def select_one[T](
     search_container: Container | None = None
     search_input_window: Window | None = None
     if use_search_filter and search_buffer is not None:
-        search_input_window, search_container = _build_search_container(search_buffer, search_placeholder)
+        search_input_window, search_container = _build_search_container(
+            search_buffer,
+            search_placeholder,
+            frame=False,
+        )
 
     base_style = Style(
         [

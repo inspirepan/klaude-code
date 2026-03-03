@@ -8,6 +8,7 @@ from .registry import (
     is_slash_command_name,
     register,
 )
+from .types import CommandInfo, CommandName
 
 # Lazy load commands to avoid heavy imports at module load time
 _commands_loaded = False
@@ -92,6 +93,8 @@ __all__ = [
     # "ExportCommand", "RefreshTerminalCommand", "ReleaseNotesCommand",
     # "StatusCommand",
     "CommandABC",
+    "CommandInfo",
+    "CommandName",
     "CommandResult",
     "dispatch_command",
     "ensure_commands_loaded",
