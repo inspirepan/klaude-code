@@ -44,7 +44,7 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
                     reasoning_format = detail.format
                 outputs.extend(self._on_detail(detail))
             except Exception as e:
-                log("reasoning_details error", str(e), style="red")
+                log("reasoning_details error", str(e))
 
         return ReasoningDeltaResult(handled=True, outputs=outputs, reasoning_format=reasoning_format)
 

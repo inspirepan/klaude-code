@@ -252,7 +252,6 @@ async def parse_anthropic_stream(
         log_debug(
             f"[{event.type}]",
             event.model_dump_json(exclude_none=True),
-            style="blue",
             debug_type=DebugType.LLM_STREAM,
         )
         match event:
@@ -428,7 +427,6 @@ class AnthropicClient(LLMClientABC):
 
         log_debug(
             json.dumps(payload, ensure_ascii=False, default=str),
-            style="yellow",
             debug_type=DebugType.LLM_PAYLOAD,
         )
 

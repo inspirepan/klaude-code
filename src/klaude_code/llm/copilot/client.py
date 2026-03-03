@@ -229,7 +229,6 @@ class CopilotClient(LLMClientABC):
             payload = _build_anthropic_payload(param)
             log_debug(
                 json.dumps(payload, ensure_ascii=False, default=str),
-                style="yellow",
                 debug_type=DebugType.LLM_PAYLOAD,
             )
             try:
@@ -250,7 +249,6 @@ class CopilotClient(LLMClientABC):
         payload = _build_responses_payload(param)
         log_debug(
             json.dumps(payload, ensure_ascii=False, default=str),
-            style="yellow",
             debug_type=DebugType.LLM_PAYLOAD,
         )
         try:

@@ -195,7 +195,6 @@ class ResponsesWebSocketTransport:
         log_debug(
             "[responses websocket] connecting",
             str(self._prepare_url()),
-            style="blue",
             debug_type=DebugType.LLM_STREAM,
         )
         self._connection = await connect(
@@ -206,7 +205,6 @@ class ResponsesWebSocketTransport:
         )
         log_debug(
             "[responses websocket] connected",
-            style="blue",
             debug_type=DebugType.LLM_STREAM,
         )
         return self._connection
@@ -287,7 +285,6 @@ async def parse_responses_stream(
             log_debug(
                 f"[{event.type}]",
                 event.model_dump_json(exclude_none=True),
-                style="blue",
                 debug_type=DebugType.LLM_STREAM,
             )
             match event:
@@ -373,7 +370,6 @@ async def parse_responses_stream(
                         log_debug(
                             "[LLM status warning]",
                             error_message,
-                            style="red",
                             debug_type=DebugType.LLM_STREAM,
                         )
                         yield message.StreamErrorItem(error=error_message)
@@ -391,7 +387,6 @@ async def parse_responses_stream(
                     log_debug(
                         "[Unhandled stream event]",
                         str(event),
-                        style="red",
                         debug_type=DebugType.LLM_STREAM,
                     )
     except (openai.OpenAIError, httpx.HTTPError, WebSocketException, json.JSONDecodeError, ImportError) as e:
@@ -490,7 +485,6 @@ class ResponsesClient(LLMClientABC):
 
         log_debug(
             json.dumps(payload, ensure_ascii=False, default=str),
-            style="yellow",
             debug_type=DebugType.LLM_PAYLOAD,
         )
         ws_transport = self._ws_transport
@@ -498,7 +492,6 @@ class ResponsesClient(LLMClientABC):
             log_debug(
                 "[responses websocket] enabled",
                 f"model={param.model_id}",
-                style="yellow",
                 debug_type=DebugType.LLM_CONFIG,
             )
             stream = ws_transport.stream(payload)

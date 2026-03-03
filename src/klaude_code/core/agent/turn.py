@@ -276,7 +276,6 @@ class TurnExecutor:
                 log_debug(
                     f"[{delta.__class__.__name__}]",
                     delta.model_dump_json(exclude_none=True),
-                    style="green",
                     debug_type=DebugType.RESPONSE,
                 )
                 match delta:

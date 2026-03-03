@@ -211,7 +211,6 @@ class RuntimeFacade:
 
         log_debug(
             f"Submitted operation {operation.type} with ID {operation.id}",
-            style="blue",
             debug_type=DebugType.EXECUTION,
         )
 
@@ -301,13 +300,12 @@ class RuntimeFacade:
         await self._operation_awaiter.stop()
         self._command_dispatcher.clear_active_tasks()
 
-        log_debug("RuntimeFacade stopped", style="yellow", debug_type=DebugType.EXECUTION)
+        log_debug("RuntimeFacade stopped", debug_type=DebugType.EXECUTION)
 
     async def _execute_operation(self, operation: op.Operation) -> None:
         try:
             log_debug(
                 f"Handling operation {operation.id} of type {operation.type.value}",
-                style="cyan",
                 debug_type=DebugType.EXECUTION,
             )
 
@@ -317,7 +315,6 @@ class RuntimeFacade:
         except Exception as e:
             log_debug(
                 f"Failed to handle operation {operation.id}: {e!s}",
-                style="red",
                 debug_type=DebugType.EXECUTION,
             )
             session_id = getattr(operation, "session_id", None)

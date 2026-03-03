@@ -505,7 +505,6 @@ class TaskExecutor:
             if not turn_succeeded:
                 log_debug(
                     "Maximum consecutive failed turns reached, aborting task",
-                    style="red",
                     debug_type=DebugType.EXECUTION,
                 )
                 final_error = f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries."

@@ -92,7 +92,6 @@ class OpenAICompatibleClient(LLMClientABC):
 
         log_debug(
             json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
-            style="yellow",
             debug_type=DebugType.LLM_PAYLOAD,
         )
 
@@ -113,7 +112,6 @@ class OpenAICompatibleClient(LLMClientABC):
         def on_event(event: Any) -> None:
             log_debug(
                 event.model_dump_json(exclude_none=True),
-                style="blue",
                 debug_type=DebugType.LLM_STREAM,
             )
 

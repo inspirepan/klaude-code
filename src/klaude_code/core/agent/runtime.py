@@ -79,7 +79,6 @@ def build_llm_clients(
     log_debug(
         "Main LLM config",
         llm_config.model_dump_json(exclude_none=True),
-        style="yellow",
         debug_type=DebugType.LLM_CONFIG,
     )
 
@@ -91,7 +90,6 @@ def build_llm_clients(
         log_debug(
             "Compact LLM config",
             compact_llm_config.model_dump_json(exclude_none=True),
-            style="yellow",
             debug_type=DebugType.LLM_CONFIG,
         )
         compact_client = create_llm_client(compact_llm_config)
@@ -115,7 +113,6 @@ def build_llm_clients(
                 raise
             log_debug(
                 f"Sub-agent '{sub_agent_type}' builtin model '{sub_model_name}' not available, falling back to main model",
-                style="yellow",
                 debug_type=DebugType.LLM_CONFIG,
             )
 
@@ -209,7 +206,6 @@ class SubAgentExecutor:
 
         log_debug(
             f"Running sub-agent {state.sub_agent_type} in session {child_session.id}",
-            style="cyan",
             debug_type=DebugType.EXECUTION,
         )
 
@@ -282,14 +278,12 @@ class SubAgentExecutor:
 
             log_debug(
                 f"Sub-agent task for {state.sub_agent_type} was cancelled",
-                style="yellow",
                 debug_type=DebugType.EXECUTION,
             )
             raise
         except Exception as exc:  # pragma: no cover - defensive logging
             log_debug(
                 f"Sub-agent task failed: [{exc.__class__.__name__}] {exc!s}",
-                style="red",
                 debug_type=DebugType.EXECUTION,
             )
             return SubAgentResult(
@@ -586,7 +580,6 @@ class AgentCommandHandler:
             self._primary_session_id = session.id
         log_debug(
             f"Initialized agent for session: {session.id}",
-            style="cyan",
             debug_type=DebugType.EXECUTION,
         )
         return agent
@@ -760,7 +753,6 @@ class AgentCommandHandler:
         scope = session_id
         log_debug(
             f"Interrupting {len(tasks_to_cancel)} task(s) for: {scope}",
-            style="yellow",
             debug_type=DebugType.EXECUTION,
         )
 
@@ -777,7 +769,6 @@ class AgentCommandHandler:
         try:
             log_debug(
                 f"Starting agent task {task_id} for session {session_id}",
-                style="green",
                 debug_type=DebugType.EXECUTION,
             )
 
@@ -808,7 +799,6 @@ class AgentCommandHandler:
         except asyncio.CancelledError:
             log_debug(
                 f"Agent task {task_id} was cancelled",
-                style="yellow",
                 debug_type=DebugType.EXECUTION,
             )
             await self._emit_event(events.TaskFinishEvent(session_id=session_id, task_result="task cancelled"))
@@ -818,10 +808,9 @@ class AgentCommandHandler:
 
             log_debug(
                 f"Agent task {task_id} failed: {e!s}",
-                style="red",
                 debug_type=DebugType.EXECUTION,
             )
-            log_debug(traceback.format_exc(), style="red", debug_type=DebugType.EXECUTION)
+            log_debug(traceback.format_exc(), debug_type=DebugType.EXECUTION)
             await self._emit_event(
                 events.ErrorEvent(
                     error_message=f"Agent task failed: [{e.__class__.__name__}] {e!s} {traceback.format_exc()}",
@@ -833,7 +822,6 @@ class AgentCommandHandler:
             self._remove_task(session_id=session_id, task_id=task_id)
             log_debug(
                 f"Cleaned up agent task {task_id}",
-                style="cyan",
                 debug_type=DebugType.EXECUTION,
             )
 
