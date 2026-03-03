@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import cast
 
+from klaude_code.const import DEFAULT_MAX_TOKENS
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import llm_param, message, model
 from klaude_code.session.session import Session
@@ -83,12 +84,26 @@ def should_compact_threshold(
     context_limit = llm_config.context_limit or _get_last_context_limit(session)
     if context_limit is None:
         return False
+
+    max_tokens = llm_config.max_tokens
+    if max_tokens is None:
+        max_tokens = _get_last_max_tokens(session)
+    if max_tokens is None:
+        max_tokens = DEFAULT_MAX_TOKENS
+    effective_context_limit = context_limit - max_tokens
+    if effective_context_limit <= 0:
+        return False
+
     tokens_before = _get_last_context_tokens(session)
-    # After compaction, the last successful assistant usage reflects the pre-compaction
-    # context window. For threshold checks we want the *current* LLM-facing view.
-    if tokens_before is None or _has_compaction_after_last_successful_usage(session):
+    if tokens_before is None:
         tokens_before = _estimate_history_tokens(session.get_llm_history())
-    return tokens_before > context_limit - compaction_config.reserve_tokens
+    elif _has_compaction_after_last_successful_usage(session):
+        # After compaction, the last successful assistant usage reflects the pre-compaction
+        # context window. For threshold checks we want the *current* LLM-facing view.
+        tokens_before = _estimate_history_tokens(session.get_llm_history())
+    else:
+        tokens_before += _estimate_tokens_after_last_successful_usage(session)
+    return tokens_before >= effective_context_limit - compaction_config.reserve_tokens
 
 
 def _has_compaction_after_last_successful_usage(session: Session) -> bool:
@@ -108,7 +123,22 @@ def _has_compaction_after_last_successful_usage(session: Session) -> bool:
     if last_compaction_idx < 0:
         return False
 
-    last_usage_idx = -1
+    last_usage_idx = _last_successful_usage_index(history)
+    if last_usage_idx is None:
+        return True
+
+    return last_compaction_idx > last_usage_idx
+
+
+def _estimate_tokens_after_last_successful_usage(session: Session) -> int:
+    history = session.conversation_history
+    last_usage_idx = _last_successful_usage_index(history)
+    if last_usage_idx is None:
+        return 0
+    return sum(_estimate_tokens(item) for item in history[last_usage_idx + 1 :] if isinstance(item, message.Message))
+
+
+def _last_successful_usage_index(history: list[message.HistoryEvent]) -> int | None:
     for idx in range(len(history) - 1, -1, -1):
         item = history[idx]
         if not isinstance(item, message.AssistantMessage):
@@ -117,13 +147,8 @@ def _has_compaction_after_last_successful_usage(session: Session) -> bool:
             continue
         if item.stop_reason in {"aborted", "error"}:
             continue
-        last_usage_idx = idx
-        break
-
-    if last_usage_idx < 0:
-        return True
-
-    return last_compaction_idx > last_usage_idx
+        return idx
+    return None
 
 
 async def run_compaction(
@@ -702,4 +727,15 @@ def _get_last_context_limit(session: Session) -> int | None:
             continue
         if item.usage.context_limit is not None:
             return item.usage.context_limit
+    return None
+
+
+def _get_last_max_tokens(session: Session) -> int | None:
+    for item in reversed(session.conversation_history):
+        if not isinstance(item, message.AssistantMessage):
+            continue
+        if item.usage is None:
+            continue
+        if item.usage.max_tokens is not None:
+            return item.usage.max_tokens
     return None

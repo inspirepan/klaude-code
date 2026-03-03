@@ -201,8 +201,8 @@ body {
 .log-line .dtype-RESPONSE { color: #5b21b6; background: #ede9fe; }
 .log-line .dtype-EXECUTION { color: #0f766e; background: #ccfbf1; }
 .log-line .dtype-TERMINAL { color: #be123c; background: #ffe4e6; }
+.log-line .dtype-OPERATION { color: #1e1b4b; background: #e0e7ff; }
 .log-line .dtype-EVENT_BUS { color: #6d28d9; background: #f3e8ff; }
-.log-line .dtype-OPERATION { color: #0369a1; background: #e0f2fe; }
 .log-line .msg { color: var(--fg-secondary); }
 .log-line .json-inline { color: var(--fg-tertiary); }
 .log-line .lineno {
@@ -428,8 +428,8 @@ body {
 
 <script>
 const LOG_RE = /^\[([^\]]+)\]\s+(\S+)\s+(.*)/;
-const ALL_TYPES = ['GENERAL','LLM_CONFIG','LLM_PAYLOAD','LLM_STREAM','EVENT_BUS','OPERATION','UI_EVENT','RESPONSE','EXECUTION','TERMINAL'];
-const DEFAULT_FILTERS = new Set(['LLM_CONFIG','LLM_PAYLOAD','LLM_STREAM','EVENT_BUS','OPERATION']);
+const ALL_TYPES = ['GENERAL','LLM_CONFIG','LLM_PAYLOAD','LLM_STREAM','OPERATION','EVENT_BUS','UI_EVENT','RESPONSE','EXECUTION','TERMINAL'];
+const DEFAULT_FILTERS = new Set(['LLM_CONFIG','LLM_PAYLOAD','LLM_STREAM','OPERATION']);
 
 let logLines = [];
 let selectedIdx = -1;
