@@ -251,12 +251,16 @@ async def parse_google_stream(
     completed_tool_items: set[str] = set()
 
     last_usage_metadata: GenerateContentResponseUsageMetadata | None = None
+    metadata_tracker.set_model_name(str(param.model_id))
 
     async for chunk in stream:
         log_debug(debug_json(chunk.model_dump(exclude_none=True)), debug_type=DebugType.LLM_STREAM)
 
         if state.response_id is None:
             state.response_id = chunk.response_id or uuid4().hex
+
+        if chunk.model_version:
+            metadata_tracker.set_model_name(chunk.model_version)
 
         if chunk.usage_metadata is not None:
             last_usage_metadata = chunk.usage_metadata
@@ -356,7 +360,6 @@ async def parse_google_stream(
     usage = _usage_from_metadata(last_usage_metadata, context_limit=param.context_limit, max_tokens=param.max_tokens)
     if usage is not None:
         metadata_tracker.set_usage(usage)
-    metadata_tracker.set_model_name(str(param.model_id))
     metadata_tracker.set_response_id(state.response_id)
     metadata = metadata_tracker.finalize()
     yield message.AssistantMessage(
