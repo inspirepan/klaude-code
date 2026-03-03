@@ -166,7 +166,9 @@ async def dispatch_command(user_input: message.UserInputPayload, agent: Agent, *
     except Exception as e:
         error_content = f"Command {command_identifier} error: [{e.__class__.__name__}] {e!s}"
         if isinstance(command_identifier, CommandName):
-            return CommandResult(events=[events.NoticeEvent(session_id=agent.session.id, content=error_content, is_error=True)])
+            return CommandResult(
+                events=[events.NoticeEvent(session_id=agent.session.id, content=error_content, is_error=True)]
+            )
         return CommandResult(
             events=[
                 events.ErrorEvent(

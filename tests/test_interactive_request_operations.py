@@ -76,7 +76,9 @@ def _build_handler(
     )
 
 
-def test_request_model_operation_single_match_dispatches_change(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_request_model_operation_single_match_dispatches_change(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     async def _test() -> None:
         session = Session(work_dir=tmp_path)
         session.model_config_name = "old-model"
@@ -127,6 +129,7 @@ def test_request_model_operation_cancelled_emits_no_change(monkeypatch: pytest.M
             model_id="gpt-5.2",
             model_name="gpt-5.2",
         )
+
         def _match_model(_preferred: str | None) -> ModelMatchResult:
             return ModelMatchResult(
                 matched_model=None,
