@@ -15,8 +15,8 @@ from klaude_code.core.agent_profile import (
     DefaultModelProfileProvider,
     VanillaModelProfileProvider,
 )
-from klaude_code.core.control.app_runtime import AppRuntime
 from klaude_code.core.control.event_bus import EventBus, EventSubscription
+from klaude_code.core.control.runtime_facade import RuntimeFacade
 from klaude_code.log import log, set_debug_logging
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.session.session import Session, close_default_store
@@ -39,7 +39,7 @@ class AppComponents:
     """Initialized runtime components."""
 
     config: Config
-    runtime: AppRuntime
+    runtime: RuntimeFacade
     event_bus: EventBus
     event_bus_subscription: EventSubscription
     display: DisplayABC
@@ -73,7 +73,7 @@ async def _consume_display_from_subscription(
             log(traceback.format_exc(), style="red")
 
 
-async def _reclaim_idle_sessions_loop(runtime: AppRuntime) -> None:
+async def _reclaim_idle_sessions_loop(runtime: RuntimeFacade) -> None:
     while True:
         await asyncio.sleep(SESSION_IDLE_RECLAIM_INTERVAL_SECONDS)
         await runtime.reclaim_idle_sessions(idle_for_seconds=SESSION_IDLE_TTL_SECONDS)
@@ -81,7 +81,7 @@ async def _reclaim_idle_sessions_loop(runtime: AppRuntime) -> None:
 
 async def _consume_interactions_from_subscription(
     subscription: EventSubscription,
-    runtime: AppRuntime,
+    runtime: RuntimeFacade,
     handler: InteractionHandlerABC,
 ) -> None:
     async for envelope in subscription:
@@ -148,7 +148,7 @@ async def initialize_app_components(
     event_bus_subscription = event_bus.subscribe(None)
     interaction_subscription = event_bus.subscribe(None) if interaction_handler is not None else None
 
-    runtime = AppRuntime(
+    runtime = RuntimeFacade(
         event_bus,
         llm_clients,
         model_profile_provider=model_profile_provider,
@@ -196,7 +196,7 @@ async def initialize_app_components(
 
 
 async def initialize_session(
-    runtime: AppRuntime,
+    runtime: RuntimeFacade,
     wait_for_display_idle: Callable[[], Awaitable[None]],
     session_id: str | None = None,
 ) -> str | None:
@@ -260,7 +260,7 @@ async def cleanup_app_components(components: AppComponents) -> None:
             stream.flush()
 
 
-async def handle_keyboard_interrupt(runtime: AppRuntime) -> None:
+async def handle_keyboard_interrupt(runtime: RuntimeFacade) -> None:
     """Handle Ctrl+C by logging and interrupting only if a task is running."""
     log("Bye!")
     session_id = runtime.current_session_id()

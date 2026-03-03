@@ -5,7 +5,7 @@ import contextlib
 from collections.abc import Coroutine
 from typing import Any, TypeVar
 
-from klaude_code.core.control.runtime_hub import RuntimeHub
+from klaude_code.core.control.session_registry import SessionRegistry
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.llm_param import Thinking
@@ -54,7 +54,7 @@ def test_runtime_hub_preserves_in_session_order() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject when session is idle")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         s1_first = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
         s2_only = op.ChangeThinkingOperation(session_id="s2", thinking=Thinking(type="enabled", budget_tokens=20))
         s1_second = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=30))
@@ -82,13 +82,13 @@ def test_runtime_hub_routes_interrupt_to_target_session_runtime() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("interrupt should not be rejected")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         operation = op.InterruptOperation(session_id="s1")
 
         await hub.submit(operation)
         await asyncio.wait_for(started.wait(), timeout=1.0)
 
-        assert hub.has_runtime("s1")
+        assert hub.has_session_actor("s1")
 
         with contextlib.suppress(Exception):
             await hub.stop()
@@ -112,7 +112,7 @@ def test_runtime_hub_rejects_second_root_while_first_is_active() -> None:
             rejected.append((operation.id, active_root_operation_id))
             second_rejected.set()
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
 
         await hub.submit(first_op)
         await hub.submit(second_op)
@@ -147,7 +147,7 @@ def test_runtime_hub_allows_interrupt_while_root_is_active() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("interrupt should not be rejected")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
 
         await hub.submit(first_op)
         await asyncio.wait_for(first_started.wait(), timeout=1.0)
@@ -167,7 +167,7 @@ def test_runtime_hub_allows_new_root_after_completion_marked() -> None:
     async def _test() -> None:
         handled: list[str] = []
         done = asyncio.Event()
-        hub: RuntimeHub | None = None
+        hub: SessionRegistry | None = None
 
         first_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="first"))
         second_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="second"))
@@ -183,7 +183,7 @@ def test_runtime_hub_allows_new_root_after_completion_marked() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("second root should be accepted after completion")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
 
         await hub.submit(first_op)
         await hub.submit(second_op)
@@ -218,7 +218,7 @@ def test_runtime_hub_prioritizes_control_queue_over_normal_queue() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("non-root/control ops should not be rejected")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
 
         await hub.submit(first_op)
         await asyncio.wait_for(first_started.wait(), timeout=1.0)
@@ -258,7 +258,7 @@ def test_runtime_hub_enforces_control_burst_fairness() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("non-root/control ops should not be rejected")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject, control_burst_quota=2)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject, control_burst_quota=2)
 
         await hub.submit(first_op)
         await asyncio.wait_for(first_started.wait(), timeout=1.0)
@@ -287,7 +287,7 @@ def test_runtime_hub_tracks_pending_request_state_per_session() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         warmup_op = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
 
         await hub.submit(warmup_op)
@@ -327,7 +327,7 @@ def test_runtime_hub_idle_runtime_ids_reflect_active_and_pending_state() -> None
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
 
         await hub.submit(root_op)
         await asyncio.wait_for(started.wait(), timeout=1.0)
@@ -364,7 +364,7 @@ def test_runtime_hub_resolve_one_request_keeps_other_pending() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         warmup_op = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
         await hub.submit(warmup_op)
         await asyncio.wait_for(started.wait(), timeout=1.0)
@@ -398,7 +398,7 @@ def test_runtime_hub_tracks_session_local_config_by_session() -> None:
     async def _test() -> None:
         processed = asyncio.Event()
         processed_count = 0
-        hub: RuntimeHub | None = None
+        hub: SessionRegistry | None = None
 
         model_op = op.ChangeModelOperation(session_id="s1", model_name="model-a")
         thinking_op = op.ChangeThinkingOperation(
@@ -424,7 +424,7 @@ def test_runtime_hub_tracks_session_local_config_by_session() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("config operations should not be rejected")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         await hub.submit(model_op)
         await hub.submit(thinking_op)
         await hub.submit(compact_op)
@@ -466,7 +466,7 @@ def test_runtime_hub_snapshot_reflects_runtime_state() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
 
         await hub.submit(root_op)
         await asyncio.wait_for(started.wait(), timeout=1.0)
@@ -519,7 +519,7 @@ def test_runtime_hub_close_session_respects_idle_state() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         await hub.submit(root_op)
         await asyncio.wait_for(started.wait(), timeout=1.0)
 
@@ -530,14 +530,14 @@ def test_runtime_hub_close_session_respects_idle_state() -> None:
         await asyncio.sleep(0)
 
         assert await hub.close_session("s1", force=False) is True
-        assert hub.has_runtime("s1") is False
+        assert hub.has_session_actor("s1") is False
 
         await hub.stop()
 
     arun(_test())
 
 
-def test_runtime_hub_reclaim_idle_runtimes_only_reclaims_idle() -> None:
+def test_runtime_hub_reclaim_idle_sessions_only_reclaims_idle() -> None:
     async def _test() -> None:
         started = asyncio.Event()
         count = 0
@@ -555,7 +555,7 @@ def test_runtime_hub_reclaim_idle_runtimes_only_reclaims_idle() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         await hub.submit(s1_op)
         await hub.submit(s2_op)
         await asyncio.wait_for(started.wait(), timeout=1.0)
@@ -563,16 +563,16 @@ def test_runtime_hub_reclaim_idle_runtimes_only_reclaims_idle() -> None:
         request_task = asyncio.create_task(hub.request_user_interaction(s2_req))
         await asyncio.sleep(0)
 
-        reclaimed = await hub.reclaim_idle_runtimes()
+        reclaimed = await hub.reclaim_idle_sessions()
         assert reclaimed == ["s1"]
-        assert hub.has_runtime("s1") is False
-        assert hub.has_runtime("s2") is True
+        assert hub.has_session_actor("s1") is False
+        assert hub.has_session_actor("s2") is True
 
         assert hub.cancel_pending_interactions(session_id="s2")
         with contextlib.suppress(asyncio.CancelledError):
             await request_task
 
-        reclaimed_again = await hub.reclaim_idle_runtimes()
+        reclaimed_again = await hub.reclaim_idle_sessions()
         assert reclaimed_again == ["s2"]
 
         await hub.stop()
@@ -580,7 +580,7 @@ def test_runtime_hub_reclaim_idle_runtimes_only_reclaims_idle() -> None:
     arun(_test())
 
 
-def test_runtime_hub_reclaim_idle_runtimes_respects_idle_ttl() -> None:
+def test_runtime_hub_reclaim_idle_sessions_respects_idle_ttl() -> None:
     async def _test() -> None:
         started = asyncio.Event()
 
@@ -592,19 +592,19 @@ def test_runtime_hub_reclaim_idle_runtimes_respects_idle_ttl() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         await hub.submit(op1)
         await asyncio.wait_for(started.wait(), timeout=1.0)
 
         # Operation is non-root and already completed by handler path.
         hub.mark_operation_completed(op1.id)
 
-        reclaimed_too_early = await hub.reclaim_idle_runtimes(idle_for_seconds=0.5)
+        reclaimed_too_early = await hub.reclaim_idle_sessions(idle_for_seconds=0.5)
         assert reclaimed_too_early == []
-        assert hub.has_runtime("s1") is True
+        assert hub.has_session_actor("s1") is True
 
         await asyncio.sleep(0.55)
-        reclaimed = await hub.reclaim_idle_runtimes(idle_for_seconds=0.5)
+        reclaimed = await hub.reclaim_idle_sessions(idle_for_seconds=0.5)
         assert reclaimed == ["s1"]
 
         await hub.stop()
@@ -620,7 +620,7 @@ def test_runtime_hub_request_user_interaction_roundtrip() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         request = _pending_request("req1", "s1")
 
         task = asyncio.create_task(hub.request_user_interaction(request))
@@ -671,7 +671,7 @@ def test_runtime_hub_bind_root_task_updates_reject_active_task_id() -> None:
             rejected.append((operation.id, active_task_id))
             reject_done.set()
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         await hub.submit(first_op)
         await asyncio.wait_for(started.wait(), timeout=1.0)
 
@@ -709,7 +709,7 @@ def test_runtime_hub_runs_sessions_concurrently() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         await hub.submit(s1_op)
         await asyncio.wait_for(started_s1.wait(), timeout=1.0)
 
@@ -736,7 +736,7 @@ def test_runtime_hub_child_task_state_affects_snapshot_and_idle() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         await hub.submit(op1)
         await asyncio.wait_for(started.wait(), timeout=1.0)
         hub.mark_operation_completed(op1.id)
@@ -782,7 +782,7 @@ def test_runtime_hub_preempts_running_root_with_interrupt_control() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         await hub.submit(normal_op)
         await asyncio.wait_for(started.wait(), timeout=1.0)
 
@@ -805,7 +805,7 @@ def test_runtime_hub_cancel_pending_interactions_cancels_waiter() -> None:
         async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
             raise AssertionError("should not reject")
 
-        hub = RuntimeHub(handle_operation=_handle, reject_operation=_reject)
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
         request = _pending_request("req1", "s1")
 
         task = asyncio.create_task(hub.request_user_interaction(request))

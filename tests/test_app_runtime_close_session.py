@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Coroutine
 from typing import Any, TypeVar, cast
 
-from klaude_code.core.control.app_runtime import AppRuntime
+from klaude_code.core.control.runtime_facade import RuntimeFacade
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import events, user_interaction
 
@@ -38,7 +38,7 @@ def _pending_request(request_id: str, session_id: str) -> PendingUserInteraction
 
 
 def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -> None:
-    class _StubRuntimeHub:
+    class _StubSessionRegistry:
         def __init__(self) -> None:
             self.cancelled = [_pending_request("req1", "s1")]
 
@@ -55,7 +55,7 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
             assert force is True
             return True
 
-    class _StubOperationExecutor:
+    class _StubCommandDispatcher:
         def __init__(self) -> None:
             self.events: list[tuple[events.Event, dict[str, str | None]]] = []
 
@@ -79,15 +79,15 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
             )
 
     async def _test() -> None:
-        runtime_any = cast(Any, object.__new__(AppRuntime))
-        runtime_any.runtime_hub = _StubRuntimeHub()
-        runtime_any._operation_executor = _StubOperationExecutor()
+        runtime_any = cast(Any, object.__new__(RuntimeFacade))
+        runtime_any.session_registry = _StubSessionRegistry()
+        runtime_any._command_dispatcher = _StubCommandDispatcher()
 
-        runtime = cast(AppRuntime, runtime_any)
-        closed = await AppRuntime.close_session(runtime, "s1", force=True)
+        runtime = cast(RuntimeFacade, runtime_any)
+        closed = await RuntimeFacade.close_session(runtime, "s1", force=True)
         assert closed is True
 
-        executor = runtime_any._operation_executor
+        executor = runtime_any._command_dispatcher
         recorded = executor.events
         assert len(recorded) == 2
 

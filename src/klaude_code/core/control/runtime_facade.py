@@ -9,7 +9,7 @@ from klaude_code.core.agent.agent import Agent
 from klaude_code.core.agent.runtime import CommandDispatcher, CommandDispatcherPorts, LLMClients
 from klaude_code.core.agent_profile import ModelProfileProvider
 from klaude_code.core.control.event_bus import EventBus, event_publish_context
-from klaude_code.core.control.runtime_hub import OperationLifecycleHooks, RuntimeHub
+from klaude_code.core.control.session_registry import OperationLifecycleHooks, SessionRegistry
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, op, user_interaction
@@ -77,7 +77,7 @@ class OperationCompletionAwaiter:
             future.set_result(None)
 
 
-class AppRuntime:
+class RuntimeFacade:
     """Runtime entry for CLI/TUI operation submission and lifecycle control."""
 
     def __init__(
@@ -87,7 +87,7 @@ class AppRuntime:
         model_profile_provider: ModelProfileProvider | None = None,
         on_model_change: Callable[[str], None] | None = None,
     ):
-        self.runtime_hub = RuntimeHub(
+        self.session_registry = SessionRegistry(
             handle_operation=self._execute_operation,
             reject_operation=self._reject_operation,
             operation_lifecycle_hooks=OperationLifecycleHooks(
@@ -95,26 +95,26 @@ class AppRuntime:
                 on_operation_finished=self._emit_operation_finished,
             ),
         )
-        self._operation_executor = CommandDispatcher(
+        self._command_dispatcher = CommandDispatcher(
             event_bus,
             llm_clients,
             CommandDispatcherPorts(
-                ensure_runtime=self.runtime_hub.ensure_runtime,
-                get_runtime=self.runtime_hub.get_runtime,
-                get_runtime_for_operation=self.runtime_hub.get_runtime_for_operation,
-                list_runtimes=self.runtime_hub.list_runtimes,
-                register_task=lambda session_id, operation_id, task_id, task: self.runtime_hub.register_task(
+                ensure_session_actor=self.session_registry.ensure_session_actor,
+                get_session_actor=self.session_registry.get_session_actor,
+                get_session_actor_for_operation=self.session_registry.get_session_actor_for_operation,
+                list_session_actors=self.session_registry.list_session_actors,
+                register_task=lambda session_id, operation_id, task_id, task: self.session_registry.register_task(
                     session_id=session_id,
                     operation_id=operation_id,
                     task_id=task_id,
                     task=task,
                 ),
-                remove_task=lambda session_id, task_id: self.runtime_hub.remove_task(
+                remove_task=lambda session_id, task_id: self.session_registry.remove_task(
                     session_id=session_id,
                     task_id=task_id,
                 ),
                 close_session=self.close_session,
-                request_user_interaction=self.runtime_hub.request_user_interaction,
+                request_user_interaction=self.session_registry.request_user_interaction,
                 respond_user_interaction=self._respond_user_interaction,
                 cancel_pending_interactions=self._cancel_pending_user_interactions,
                 on_child_task_state_change=self._on_child_task_state_change,
@@ -130,7 +130,7 @@ class AppRuntime:
         if session_id is None:
             raise RuntimeError("Busy rejection requires session-bound operation")
 
-        await self._operation_executor.emit_event(
+        await self._command_dispatcher.emit_event(
             events.OperationRejectedEvent(
                 session_id=session_id,
                 operation_id=operation.id,
@@ -142,7 +142,7 @@ class AppRuntime:
         )
 
     def _on_operation_applied(self, operation: op.Operation) -> None:
-        self.runtime_hub.apply_operation_effect(operation)
+        self.session_registry.apply_operation_effect(operation)
 
     def _respond_user_interaction(
         self,
@@ -150,7 +150,7 @@ class AppRuntime:
         session_id: str,
         response: user_interaction.UserInteractionResponse,
     ) -> None:
-        self.runtime_hub.respond_user_interaction(
+        self.session_registry.respond_user_interaction(
             request_id=request_id,
             session_id=session_id,
             response=response,
@@ -160,16 +160,16 @@ class AppRuntime:
         self,
         session_id: str | None,
     ) -> list[PendingUserInteractionRequest]:
-        return self.runtime_hub.cancel_pending_interactions_with_requests(session_id=session_id)
+        return self.session_registry.cancel_pending_interactions_with_requests(session_id=session_id)
 
     def _on_child_task_state_change(self, session_id: str, task_id: str, is_active: bool) -> None:
-        self.runtime_hub.mark_child_task_state(session_id=session_id, task_id=task_id, is_active=is_active)
+        self.session_registry.mark_child_task_state(session_id=session_id, task_id=task_id, is_active=is_active)
 
     async def _emit_operation_accepted(self, operation: op.Operation) -> None:
         session_id = getattr(operation, "session_id", None)
         if session_id is None:
             raise RuntimeError("OperationAcceptedEvent requires session-bound operation")
-        await self._operation_executor.emit_event(
+        await self._command_dispatcher.emit_event(
             events.OperationAcceptedEvent(
                 session_id=session_id,
                 operation_id=operation.id,
@@ -187,7 +187,7 @@ class AppRuntime:
         session_id = getattr(operation, "session_id", None)
         if session_id is None:
             return
-        await self._operation_executor.emit_event(
+        await self._command_dispatcher.emit_event(
             events.OperationFinishedEvent(
                 session_id=session_id,
                 operation_id=operation.id,
@@ -200,11 +200,11 @@ class AppRuntime:
 
     async def submit(self, operation: op.Operation) -> str:
         if self._stopped:
-            raise RuntimeError("AppRuntime is stopped")
+            raise RuntimeError("RuntimeFacade is stopped")
 
         self._operation_awaiter.register(operation.id)
         try:
-            await self.runtime_hub.submit(operation)
+            await self.session_registry.submit(operation)
         except Exception:
             self._operation_awaiter.discard(operation.id)
             raise
@@ -218,27 +218,27 @@ class AppRuntime:
         return operation.id
 
     async def emit_event(self, event: events.Event) -> None:
-        await self._operation_executor.emit_event(event)
+        await self._command_dispatcher.emit_event(event)
 
     def current_session_id(self) -> str | None:
-        return self._operation_executor.current_session_id()
+        return self._command_dispatcher.current_session_id()
 
     @property
     def current_agent(self) -> Agent | None:
-        return self._operation_executor.current_agent
+        return self._command_dispatcher.current_agent
 
     def has_running_tasks(self) -> bool:
-        return any(not active.task.done() for active in self._operation_executor.list_active_tasks())
+        return any(not active.task.done() for active in self._command_dispatcher.list_active_tasks())
 
     async def close_session(self, session_id: str, force: bool = False) -> bool:
         cancelled_requests: list[PendingUserInteractionRequest] = []
         if force:
-            cancelled_requests = self.runtime_hub.cancel_pending_interactions_with_requests(session_id=session_id)
+            cancelled_requests = self.session_registry.cancel_pending_interactions_with_requests(session_id=session_id)
 
-        closed = await self.runtime_hub.close_session(session_id, force=force)
+        closed = await self.session_registry.close_session(session_id, force=force)
         if closed:
             for request in cancelled_requests:
-                await self._operation_executor.emit_event(
+                await self._command_dispatcher.emit_event(
                     events.UserInteractionCancelledEvent(
                         session_id=request.session_id,
                         request_id=request.request_id,
@@ -246,7 +246,7 @@ class AppRuntime:
                     ),
                     causation_id=request.request_id,
                 )
-                await self._operation_executor.emit_event(
+                await self._command_dispatcher.emit_event(
                     events.UserInteractionResolvedEvent(
                         session_id=request.session_id,
                         request_id=request.request_id,
@@ -257,7 +257,7 @@ class AppRuntime:
         return closed
 
     async def reclaim_idle_sessions(self, *, idle_for_seconds: float) -> list[str]:
-        return await self.runtime_hub.reclaim_idle_runtimes(idle_for_seconds=idle_for_seconds)
+        return await self.session_registry.reclaim_idle_sessions(idle_for_seconds=idle_for_seconds)
 
     async def wait_for(self, operation_id: str) -> None:
         await self._operation_awaiter.wait_for(operation_id)
@@ -268,9 +268,9 @@ class AppRuntime:
 
     async def stop(self) -> None:
         self._stopped = True
-        cancelled_requests = self._operation_executor.cancel_pending_user_interactions(session_id=None)
+        cancelled_requests = self._command_dispatcher.cancel_pending_user_interactions(session_id=None)
         for request in cancelled_requests:
-            await self._operation_executor.emit_event(
+            await self._command_dispatcher.emit_event(
                 events.UserInteractionCancelledEvent(
                     session_id=request.session_id,
                     request_id=request.request_id,
@@ -278,7 +278,7 @@ class AppRuntime:
                 ),
                 causation_id=request.request_id,
             )
-            await self._operation_executor.emit_event(
+            await self._command_dispatcher.emit_event(
                 events.UserInteractionResolvedEvent(
                     session_id=request.session_id,
                     request_id=request.request_id,
@@ -288,7 +288,7 @@ class AppRuntime:
             )
 
         tasks_to_await: list[asyncio.Task[None]] = []
-        for active in self._operation_executor.list_active_tasks():
+        for active in self._command_dispatcher.list_active_tasks():
             task = active.task
             if not task.done():
                 task.cancel()
@@ -297,11 +297,11 @@ class AppRuntime:
         if tasks_to_await:
             await asyncio.gather(*tasks_to_await, return_exceptions=True)
 
-        await self.runtime_hub.stop()
+        await self.session_registry.stop()
         await self._operation_awaiter.stop()
-        self._operation_executor.clear_active_tasks()
+        self._command_dispatcher.clear_active_tasks()
 
-        log_debug("AppRuntime stopped", style="yellow", debug_type=DebugType.EXECUTION)
+        log_debug("RuntimeFacade stopped", style="yellow", debug_type=DebugType.EXECUTION)
 
     async def _execute_operation(self, operation: op.Operation) -> None:
         try:
@@ -312,7 +312,7 @@ class AppRuntime:
             )
 
             with event_publish_context(operation_id=operation.id):
-                await operation.execute(handler=self._operation_executor)
+                await operation.execute(handler=self._command_dispatcher)
             self._on_operation_applied(operation)
         except Exception as e:
             log_debug(
@@ -321,7 +321,7 @@ class AppRuntime:
                 debug_type=DebugType.EXECUTION,
             )
             session_id = getattr(operation, "session_id", None)
-            await self._operation_executor.emit_event(
+            await self._command_dispatcher.emit_event(
                 events.ErrorEvent(
                     error_message=f"Operation failed: {e!s}",
                     can_retry=False,

@@ -17,7 +17,7 @@ from klaude_code.app.runtime import (
 )
 from klaude_code.config import load_config
 from klaude_code.core.compaction import should_compact_threshold
-from klaude_code.core.control.app_runtime import AppRuntime
+from klaude_code.core.control.runtime_facade import RuntimeFacade
 from klaude_code.log import get_current_log_file, log
 from klaude_code.protocol import events, llm_param, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
@@ -43,7 +43,7 @@ from klaude_code.update import get_update_message
 
 async def submit_user_input_payload(
     *,
-    runtime: AppRuntime,
+    runtime: RuntimeFacade,
     wait_for_display_idle: Callable[[], Awaitable[None]],
     user_input: UserInputPayload,
     session_id: str | None,

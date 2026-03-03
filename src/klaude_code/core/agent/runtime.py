@@ -21,7 +21,7 @@ from klaude_code.core.agent_profile import DefaultModelProfileProvider, ModelPro
 from klaude_code.core.bash_mode import run_bash_command
 from klaude_code.core.compaction import CompactionReason, run_compaction
 from klaude_code.core.control.event_bus import EventBus, event_publish_context
-from klaude_code.core.control.session_runtime import SessionRuntime
+from klaude_code.core.control.session_actor import SessionActor
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.core.loaded_skills import (
     get_loaded_skill_names_by_location,
@@ -311,10 +311,10 @@ class ActiveTask:
 
 @dataclass(frozen=True)
 class CommandDispatcherPorts:
-    ensure_runtime: Callable[[str], SessionRuntime]
-    get_runtime: Callable[[str], SessionRuntime | None]
-    get_runtime_for_operation: Callable[[str], SessionRuntime | None]
-    list_runtimes: Callable[[], list[SessionRuntime]]
+    ensure_session_actor: Callable[[str], SessionActor]
+    get_session_actor: Callable[[str], SessionActor | None]
+    get_session_actor_for_operation: Callable[[str], SessionActor | None]
+    list_session_actors: Callable[[], list[SessionActor]]
     register_task: Callable[[str, str, str, asyncio.Task[None]], None]
     remove_task: Callable[[str, str], None]
     close_session: Callable[[str, bool], Awaitable[bool]]
@@ -351,10 +351,10 @@ class AgentCommandHandler:
         model_profile_provider: ModelProfileProvider,
         sub_agent_manager: SubAgentExecutor,
         on_child_task_state_change: Callable[[str, str, bool], None],
-        ensure_runtime: Callable[[str], SessionRuntime],
-        get_runtime: Callable[[str], SessionRuntime | None],
-        get_runtime_for_operation: Callable[[str], SessionRuntime | None],
-        list_runtimes: Callable[[], list[SessionRuntime]],
+        ensure_session_actor: Callable[[str], SessionActor],
+        get_session_actor: Callable[[str], SessionActor | None],
+        get_session_actor_for_operation: Callable[[str], SessionActor | None],
+        list_session_actors: Callable[[], list[SessionActor]],
         register_task: Callable[[str, str, str, asyncio.Task[None]], None],
         remove_task: Callable[[str, str], None],
         request_user_interaction: Callable[
@@ -367,10 +367,10 @@ class AgentCommandHandler:
         self._model_profile_provider = model_profile_provider
         self._sub_agent_manager = sub_agent_manager
         self._on_child_task_state_change = on_child_task_state_change
-        self._ensure_runtime = ensure_runtime
-        self._get_runtime = get_runtime
-        self._get_runtime_for_operation = get_runtime_for_operation
-        self._list_runtimes = list_runtimes
+        self._ensure_session_actor = ensure_session_actor
+        self._get_session_actor = get_session_actor
+        self._get_session_actor_for_operation = get_session_actor_for_operation
+        self._list_session_actors = list_session_actors
         self._register_runtime_task = register_task
         self._remove_runtime_task = remove_task
         self._request_user_interaction_callback = request_user_interaction
@@ -386,7 +386,7 @@ class AgentCommandHandler:
     ) -> user_interaction.UserInteractionResponse:
         if source != "tool":
             raise ValueError("Only tool-based user interactions are supported in this context")
-        runtime = self._get_runtime(session_id)
+        runtime = self._get_session_actor(session_id)
         if runtime is None:
             raise RuntimeError("No active runtime session")
         agent = runtime.get_agent()
@@ -434,7 +434,7 @@ class AgentCommandHandler:
         return _callback
 
     def _ensure_session_llm_clients(self, session: Session) -> LLMClients:
-        runtime = self._ensure_runtime(session.id)
+        runtime = self._ensure_session_actor(session.id)
         existing = runtime.get_llm_clients()
         if existing is not None:
             return existing
@@ -456,7 +456,7 @@ class AgentCommandHandler:
         return clients
 
     def get_session_llm_clients(self, session_id: str) -> LLMClients:
-        runtime = self._get_runtime(session_id)
+        runtime = self._get_session_actor(session_id)
         if runtime is None:
             raise RuntimeError(f"Missing runtime for session {session_id}")
         clients = runtime.get_llm_clients()
@@ -470,7 +470,7 @@ class AgentCommandHandler:
         clients.main_model_alias = model_alias
 
     def get_active_task(self, operation_id: str) -> ActiveTask | None:
-        runtime = self._get_runtime_for_operation(operation_id)
+        runtime = self._get_session_actor_for_operation(operation_id)
         if runtime is None:
             return None
         handle = runtime.get_active_task(operation_id)
@@ -485,7 +485,7 @@ class AgentCommandHandler:
 
     def list_active_tasks(self) -> list[ActiveTask]:
         active_tasks: list[ActiveTask] = []
-        for runtime in self._list_runtimes():
+        for runtime in self._list_session_actors():
             for handle in runtime.list_active_tasks():
                 active_tasks.append(
                     ActiveTask(
@@ -498,7 +498,7 @@ class AgentCommandHandler:
         return active_tasks
 
     def clear_active_tasks(self) -> None:
-        for runtime in self._list_runtimes():
+        for runtime in self._list_session_actors():
             for _, task in runtime.cancel_active_tasks():
                 if not task.done():
                     task.cancel()
@@ -512,7 +512,7 @@ class AgentCommandHandler:
     def _cancel_tasks_for_sessions(self, session_ids: set[str]) -> list[tuple[str, asyncio.Task[None]]]:
         tasks_to_cancel: list[tuple[str, asyncio.Task[None]]] = []
         for session_id in session_ids:
-            runtime = self._get_runtime(session_id)
+            runtime = self._get_session_actor(session_id)
             if runtime is None:
                 continue
             tasks_to_cancel.extend(runtime.cancel_active_tasks())
@@ -522,7 +522,7 @@ class AgentCommandHandler:
         session_id = self._primary_session_id
         if session_id is None:
             return None
-        runtime = self._get_runtime(session_id)
+        runtime = self._get_session_actor(session_id)
         if runtime is None or runtime.get_agent() is None:
             self._primary_session_id = None
             return None
@@ -533,7 +533,7 @@ class AgentCommandHandler:
         session_id = self.current_session_id()
         if session_id is None:
             return None
-        runtime = self._get_runtime(session_id)
+        runtime = self._get_session_actor(session_id)
         if runtime is None:
             return None
         return runtime.get_agent()
@@ -542,7 +542,7 @@ class AgentCommandHandler:
         """Return the agent for a session, creating or loading as needed."""
 
         if session_id is not None:
-            runtime = self._get_runtime(session_id)
+            runtime = self._get_session_actor(session_id)
             if runtime is not None:
                 existing = runtime.get_agent()
                 if existing is not None:
@@ -550,7 +550,7 @@ class AgentCommandHandler:
 
         session = Session.create() if session_id is None else Session.load(session_id)
 
-        runtime = self._ensure_runtime(session.id)
+        runtime = self._ensure_session_actor(session.id)
         existing = runtime.get_agent()
         if existing is not None:
             return existing
@@ -709,7 +709,7 @@ class AgentCommandHandler:
     async def clear_session(self, session_id: str) -> None:
         agent = await self.ensure_agent(session_id)
         old_session_id = agent.session.id
-        old_runtime = self._get_runtime(old_session_id)
+        old_runtime = self._get_session_actor(old_session_id)
         if old_runtime is None:
             raise RuntimeError(f"Missing runtime for session {old_session_id}")
         session_clients = self.get_session_llm_clients(old_session_id)
@@ -726,7 +726,7 @@ class AgentCommandHandler:
         )
 
         old_runtime.clear_execution_state()
-        new_runtime = self._ensure_runtime(new_session.id)
+        new_runtime = self._ensure_session_actor(new_session.id)
         new_runtime.set_llm_clients(session_clients)
         new_runtime.set_agent(new_agent)
         if self._primary_session_id == old_session_id:
@@ -751,7 +751,7 @@ class AgentCommandHandler:
         )
 
     async def interrupt(self, session_id: str) -> None:
-        runtime = self._get_runtime(session_id)
+        runtime = self._get_session_actor(session_id)
         if runtime is None:
             return
         agent = runtime.get_agent()
@@ -965,6 +965,249 @@ class ModelSwitcher:
         return previous
 
 
+class EventPublisher:
+    def __init__(self, event_bus: EventBus) -> None:
+        self._event_bus = event_bus
+
+    async def publish(
+        self,
+        event: events.Event,
+        *,
+        operation_id: str | None = None,
+        task_id: str | None = None,
+        causation_id: str | None = None,
+    ) -> None:
+        await self._event_bus.publish(
+            event,
+            operation_id=operation_id,
+            task_id=task_id,
+            causation_id=causation_id,
+        )
+
+
+class AgentRunner:
+    def __init__(self, command_handler: AgentCommandHandler) -> None:
+        self._command_handler = command_handler
+
+    def current_session_id(self) -> str | None:
+        return self._command_handler.current_session_id()
+
+    @property
+    def current_agent(self) -> Agent | None:
+        return self._command_handler.current_agent
+
+    async def init_agent(self, session_id: str) -> None:
+        await self._command_handler.init_agent(session_id)
+
+    async def run_agent(self, operation: op.RunAgentOperation) -> None:
+        await self._command_handler.run_agent(operation)
+
+    async def continue_agent(self, operation: op.ContinueAgentOperation) -> None:
+        await self._command_handler.continue_agent(operation)
+
+    async def compact_session(self, operation: op.CompactSessionOperation) -> None:
+        await self._command_handler.compact_session(operation)
+
+    async def clear_session(self, session_id: str) -> None:
+        await self._command_handler.clear_session(session_id)
+
+    async def interrupt(self, session_id: str) -> None:
+        await self._command_handler.interrupt(session_id)
+
+    async def ensure_agent(self, session_id: str) -> Agent:
+        return await self._command_handler.ensure_agent(session_id)
+
+    def get_session_llm_clients(self, session_id: str) -> LLMClients:
+        return self._command_handler.get_session_llm_clients(session_id)
+
+    def set_session_main_client(self, *, session_id: str, client: LLMClientABC, model_alias: str) -> None:
+        self._command_handler.set_session_main_client(session_id=session_id, client=client, model_alias=model_alias)
+
+    def get_active_task(self, operation_id: str) -> ActiveTask | None:
+        return self._command_handler.get_active_task(operation_id)
+
+    def list_active_tasks(self) -> list[ActiveTask]:
+        return self._command_handler.list_active_tasks()
+
+    def clear_active_tasks(self) -> None:
+        self._command_handler.clear_active_tasks()
+
+
+class BashRunner:
+    def __init__(self, command_handler: AgentCommandHandler) -> None:
+        self._command_handler = command_handler
+
+    async def run_bash(self, operation: op.RunBashOperation) -> None:
+        await self._command_handler.run_bash(operation)
+
+
+class ConfigHandler:
+    def __init__(
+        self,
+        *,
+        agent_runner: AgentRunner,
+        model_switcher: ModelSwitcher,
+        emit_event: Callable[[events.Event], Awaitable[None]],
+        current_session_id: Callable[[], str | None],
+        on_model_change: Callable[[str], None] | None,
+    ) -> None:
+        self._agent_runner = agent_runner
+        self._model_switcher = model_switcher
+        self._emit_event = emit_event
+        self._current_session_id = current_session_id
+        self._on_model_change = on_model_change
+
+    async def handle_change_model(self, operation: op.ChangeModelOperation) -> None:
+        agent = await self._agent_runner.ensure_agent(operation.session_id)
+        llm_config, llm_client_name = await self._model_switcher.change_model(
+            agent,
+            model_name=operation.model_name,
+            save_as_default=operation.save_as_default,
+        )
+        self._agent_runner.set_session_main_client(
+            session_id=agent.session.id,
+            client=agent.profile.llm_client,
+            model_alias=llm_client_name,
+        )
+
+        if operation.emit_switch_message:
+            default_note = " (saved as default)" if operation.save_as_default else ""
+            await self._emit_event(
+                events.CommandOutputEvent(
+                    session_id=agent.session.id,
+                    command_name=commands.CommandName.MODEL,
+                    content=f"Switched to: {llm_config.model_id}{default_note}",
+                )
+            )
+
+        if self._on_model_change is not None and self._current_session_id() == agent.session.id:
+            self._on_model_change(llm_client_name)
+
+        if operation.emit_welcome_event:
+            await self._emit_event(
+                events.WelcomeEvent(
+                    session_id=agent.session.id,
+                    llm_config=llm_config,
+                    work_dir=str(agent.session.work_dir),
+                    show_klaude_code_info=False,
+                )
+            )
+
+    async def handle_change_thinking(self, operation: op.ChangeThinkingOperation) -> None:
+        agent = await self._agent_runner.ensure_agent(operation.session_id)
+
+        def _format_thinking_for_display(thinking: Thinking | None) -> str:
+            if thinking is None:
+                return "not configured"
+            if thinking.reasoning_effort:
+                return f"reasoning_effort={thinking.reasoning_effort}"
+            if thinking.type == "disabled":
+                return "off"
+            if thinking.type == "enabled":
+                if thinking.budget_tokens is None:
+                    return "enabled"
+                return f"enabled (budget_tokens={thinking.budget_tokens})"
+            return "not set"
+
+        if operation.thinking is None:
+            raise ValueError("thinking must be provided; interactive selection belongs to UI")
+
+        previous = self._model_switcher.change_thinking(agent, thinking=operation.thinking)
+        current = _format_thinking_for_display(previous)
+        new_status = _format_thinking_for_display(operation.thinking)
+
+        if operation.emit_switch_message:
+            await self._emit_event(
+                events.CommandOutputEvent(
+                    session_id=agent.session.id,
+                    command_name=commands.CommandName.THINKING,
+                    content=f"Thinking changed: {current} -> {new_status}",
+                )
+            )
+
+        if operation.emit_welcome_event:
+            await self._emit_event(
+                events.WelcomeEvent(
+                    session_id=agent.session.id,
+                    work_dir=str(agent.session.work_dir),
+                    llm_config=agent.profile.llm_client.get_llm_config(),
+                    show_klaude_code_info=False,
+                )
+            )
+
+    async def handle_change_sub_agent_model(self, operation: op.ChangeSubAgentModelOperation) -> None:
+        agent = await self._agent_runner.ensure_agent(operation.session_id)
+        session_clients = self._agent_runner.get_session_llm_clients(agent.session.id)
+        config = load_config()
+
+        helper = SubAgentModelHelper(config)
+        sub_agent_type = operation.sub_agent_type
+        model_name = operation.model_name
+
+        if model_name is None:
+            behavior = helper.describe_empty_model_config_behavior(
+                sub_agent_type,
+                main_model_name=session_clients.main.model_name,
+            )
+            session_clients.sub_clients.pop(sub_agent_type, None)
+            display_model = f"({behavior.description})"
+        else:
+            llm_config = config.get_model_config(model_name)
+            new_client = create_llm_client(llm_config)
+            session_clients.sub_clients[sub_agent_type] = new_client
+            display_model = new_client.model_name
+
+        if operation.save_as_default:
+            profile = get_sub_agent_profile(sub_agent_type)
+            role_key = profile.invoker_type
+            if role_key is None:
+                raise ValueError(f"Sub-agent '{sub_agent_type}' cannot be configured via sub_agent_models")
+            if model_name is None:
+                config.sub_agent_models.pop(role_key, None)
+            else:
+                config.sub_agent_models[role_key] = model_name
+            await config.save()
+
+        saved_note = " (saved in ~/.klaude/klaude-config.yaml)" if operation.save_as_default else ""
+        await self._emit_event(
+            events.CommandOutputEvent(
+                session_id=agent.session.id,
+                command_name=commands.CommandName.SUB_AGENT_MODEL,
+                content=f"{sub_agent_type} model: {display_model}{saved_note}",
+            )
+        )
+
+    async def handle_change_compact_model(self, operation: op.ChangeCompactModelOperation) -> None:
+        agent = await self._agent_runner.ensure_agent(operation.session_id)
+        session_clients = self._agent_runner.get_session_llm_clients(agent.session.id)
+        config = load_config()
+
+        model_name = operation.model_name
+        if model_name is None:
+            session_clients.compact = None
+            agent.compact_llm_client = None
+            display_model = "(inherit from main agent)"
+        else:
+            llm_config = config.get_model_config(model_name)
+            new_client = create_llm_client(llm_config)
+            session_clients.compact = new_client
+            agent.compact_llm_client = new_client
+            display_model = new_client.model_name
+
+        if operation.save_as_default:
+            config.compact_model = model_name
+            await config.save()
+
+        saved_note = " (saved in ~/.klaude/klaude-config.yaml)" if operation.save_as_default else ""
+        await self._emit_event(
+            events.CommandOutputEvent(
+                session_id=agent.session.id,
+                command_name=commands.CommandName.SUB_AGENT_MODEL,
+                content=f"Compact model: {display_model}{saved_note}",
+            )
+        )
+
+
 class CommandDispatcher:
     """
     Context object providing shared state and operation handlers.
@@ -983,7 +1226,7 @@ class CommandDispatcher:
         model_profile_provider: ModelProfileProvider | None = None,
         on_model_change: Callable[[str], None] | None = None,
     ):
-        self.event_bus = event_bus
+        self._event_publisher = EventPublisher(event_bus)
         self.llm_clients: LLMClients = llm_clients
         self._ports = ports
 
@@ -991,22 +1234,30 @@ class CommandDispatcher:
         self.model_profile_provider: ModelProfileProvider = resolved_profile_provider
 
         self._sub_agent_executor = SubAgentExecutor(self.emit_event, llm_clients, resolved_profile_provider)
-        self._on_model_change = on_model_change
         self._agent_command_handler = AgentCommandHandler(
             emit_event=self.emit_event,
             llm_clients=llm_clients,
             model_profile_provider=resolved_profile_provider,
             sub_agent_manager=self._sub_agent_executor,
             on_child_task_state_change=self._on_child_task_state_change,
-            ensure_runtime=ports.ensure_runtime,
-            get_runtime=ports.get_runtime,
-            get_runtime_for_operation=ports.get_runtime_for_operation,
-            list_runtimes=ports.list_runtimes,
+            ensure_session_actor=ports.ensure_session_actor,
+            get_session_actor=ports.get_session_actor,
+            get_session_actor_for_operation=ports.get_session_actor_for_operation,
+            list_session_actors=ports.list_session_actors,
             register_task=ports.register_task,
             remove_task=ports.remove_task,
             request_user_interaction=self.request_user_interaction,
         )
         self._model_switcher = ModelSwitcher(resolved_profile_provider)
+        self._agent_runner = AgentRunner(self._agent_command_handler)
+        self._bash_runner = BashRunner(self._agent_command_handler)
+        self._config_handler = ConfigHandler(
+            agent_runner=self._agent_runner,
+            model_switcher=self._model_switcher,
+            emit_event=self.emit_event,
+            current_session_id=self.current_session_id,
+            on_model_change=on_model_change,
+        )
 
     async def request_user_interaction(
         self,
@@ -1062,7 +1313,7 @@ class CommandDispatcher:
         causation_id: str | None = None,
     ) -> None:
         """Publish an event to the runtime event bus."""
-        await self.event_bus.publish(
+        await self._event_publisher.publish(
             event,
             operation_id=operation_id,
             task_id=task_id,
@@ -1076,202 +1327,47 @@ class CommandDispatcher:
         operates on a single interactive session per process.
         """
 
-        return self._agent_command_handler.current_session_id()
+        return self._agent_runner.current_session_id()
 
     @property
     def current_agent(self) -> Agent | None:
         """Return the currently active agent, if any."""
 
-        return self._agent_command_handler.current_agent
+        return self._agent_runner.current_agent
 
     async def handle_init_agent(self, operation: op.InitAgentOperation) -> None:
         """Initialize an agent for a session and replay history to UI."""
-        await self._agent_command_handler.init_agent(operation.session_id)
+        await self._agent_runner.init_agent(operation.session_id)
 
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
-        await self._agent_command_handler.run_agent(operation)
+        await self._agent_runner.run_agent(operation)
 
     async def handle_run_bash(self, operation: op.RunBashOperation) -> None:
-        await self._agent_command_handler.run_bash(operation)
+        await self._bash_runner.run_bash(operation)
 
     async def handle_continue_agent(self, operation: op.ContinueAgentOperation) -> None:
-        await self._agent_command_handler.continue_agent(operation)
+        await self._agent_runner.continue_agent(operation)
 
     async def handle_compact_session(self, operation: op.CompactSessionOperation) -> None:
-        await self._agent_command_handler.compact_session(operation)
+        await self._agent_runner.compact_session(operation)
 
     async def handle_change_model(self, operation: op.ChangeModelOperation) -> None:
-        agent = await self._agent_command_handler.ensure_agent(operation.session_id)
-        llm_config, llm_client_name = await self._model_switcher.change_model(
-            agent,
-            model_name=operation.model_name,
-            save_as_default=operation.save_as_default,
-        )
-        self._agent_command_handler.set_session_main_client(
-            session_id=agent.session.id,
-            client=agent.profile.llm_client,
-            model_alias=llm_client_name,
-        )
-
-        if operation.emit_switch_message:
-            default_note = " (saved as default)" if operation.save_as_default else ""
-            await self.emit_event(
-                events.CommandOutputEvent(
-                    session_id=agent.session.id,
-                    command_name=commands.CommandName.MODEL,
-                    content=f"Switched to: {llm_config.model_id}{default_note}",
-                )
-            )
-
-        if self._on_model_change is not None and self.current_session_id() == agent.session.id:
-            self._on_model_change(llm_client_name)
-
-        if operation.emit_welcome_event:
-            await self.emit_event(
-                events.WelcomeEvent(
-                    session_id=agent.session.id,
-                    llm_config=llm_config,
-                    work_dir=str(agent.session.work_dir),
-                    show_klaude_code_info=False,
-                )
-            )
+        await self._config_handler.handle_change_model(operation)
 
     async def handle_change_thinking(self, operation: op.ChangeThinkingOperation) -> None:
-        """Handle a change thinking operation.
-
-        Interactive thinking selection must happen in the UI/CLI layer. Core only
-        applies a concrete thinking configuration.
-        """
-        agent = await self._agent_command_handler.ensure_agent(operation.session_id)
-
-        def _format_thinking_for_display(thinking: Thinking | None) -> str:
-            if thinking is None:
-                return "not configured"
-            if thinking.reasoning_effort:
-                return f"reasoning_effort={thinking.reasoning_effort}"
-            if thinking.type == "disabled":
-                return "off"
-            if thinking.type == "enabled":
-                if thinking.budget_tokens is None:
-                    return "enabled"
-                return f"enabled (budget_tokens={thinking.budget_tokens})"
-            return "not set"
-
-        if operation.thinking is None:
-            raise ValueError("thinking must be provided; interactive selection belongs to UI")
-
-        previous = self._model_switcher.change_thinking(agent, thinking=operation.thinking)
-        current = _format_thinking_for_display(previous)
-        new_status = _format_thinking_for_display(operation.thinking)
-
-        if operation.emit_switch_message:
-            await self.emit_event(
-                events.CommandOutputEvent(
-                    session_id=agent.session.id,
-                    command_name=commands.CommandName.THINKING,
-                    content=f"Thinking changed: {current} -> {new_status}",
-                )
-            )
-
-        if operation.emit_welcome_event:
-            await self.emit_event(
-                events.WelcomeEvent(
-                    session_id=agent.session.id,
-                    work_dir=str(agent.session.work_dir),
-                    llm_config=agent.profile.llm_client.get_llm_config(),
-                    show_klaude_code_info=False,
-                )
-            )
+        await self._config_handler.handle_change_thinking(operation)
 
     async def handle_change_sub_agent_model(self, operation: op.ChangeSubAgentModelOperation) -> None:
-        """Handle a change sub-agent model operation."""
-        agent = await self._agent_command_handler.ensure_agent(operation.session_id)
-        session_clients = self._agent_command_handler.get_session_llm_clients(agent.session.id)
-        config = load_config()
-
-        helper = SubAgentModelHelper(config)
-
-        sub_agent_type = operation.sub_agent_type
-        model_name = operation.model_name
-
-        if model_name is None:
-            # Clear explicit override and revert to sub-agent default behavior.
-            behavior = helper.describe_empty_model_config_behavior(
-                sub_agent_type,
-                main_model_name=session_clients.main.model_name,
-            )
-
-            # Default: inherit from Agent/main client behavior.
-            session_clients.sub_clients.pop(sub_agent_type, None)
-
-            display_model = f"({behavior.description})"
-        else:
-            # Create new client for the sub-agent
-            llm_config = config.get_model_config(model_name)
-            new_client = create_llm_client(llm_config)
-            session_clients.sub_clients[sub_agent_type] = new_client
-            display_model = new_client.model_name
-
-        if operation.save_as_default:
-            profile = get_sub_agent_profile(sub_agent_type)
-            role_key = profile.invoker_type
-            if role_key is None:
-                raise ValueError(f"Sub-agent '{sub_agent_type}' cannot be configured via sub_agent_models")
-            if model_name is None:
-                # Remove from config to inherit
-                config.sub_agent_models.pop(role_key, None)
-            else:
-                config.sub_agent_models[role_key] = model_name
-            await config.save()
-
-        saved_note = " (saved in ~/.klaude/klaude-config.yaml)" if operation.save_as_default else ""
-        await self.emit_event(
-            events.CommandOutputEvent(
-                session_id=agent.session.id,
-                command_name=commands.CommandName.SUB_AGENT_MODEL,
-                content=f"{sub_agent_type} model: {display_model}{saved_note}",
-            )
-        )
+        await self._config_handler.handle_change_sub_agent_model(operation)
 
     async def handle_change_compact_model(self, operation: op.ChangeCompactModelOperation) -> None:
-        """Handle a change compact model operation."""
-        agent = await self._agent_command_handler.ensure_agent(operation.session_id)
-        session_clients = self._agent_command_handler.get_session_llm_clients(agent.session.id)
-        config = load_config()
-
-        model_name = operation.model_name
-
-        if model_name is None:
-            # Clear explicit override and use main client for compaction
-            session_clients.compact = None
-            agent.compact_llm_client = None
-            display_model = "(inherit from main agent)"
-        else:
-            # Create new client for compaction
-            llm_config = config.get_model_config(model_name)
-            new_client = create_llm_client(llm_config)
-            session_clients.compact = new_client
-            agent.compact_llm_client = new_client
-            display_model = new_client.model_name
-
-        if operation.save_as_default:
-            config.compact_model = model_name
-            await config.save()
-
-        saved_note = " (saved in ~/.klaude/klaude-config.yaml)" if operation.save_as_default else ""
-        await self.emit_event(
-            events.CommandOutputEvent(
-                session_id=agent.session.id,
-                command_name=commands.CommandName.SUB_AGENT_MODEL,
-                content=f"Compact model: {display_model}{saved_note}",
-            )
-        )
+        await self._config_handler.handle_change_compact_model(operation)
 
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
-        await self._agent_command_handler.clear_session(operation.session_id)
+        await self._agent_runner.clear_session(operation.session_id)
 
     async def handle_export_session(self, operation: op.ExportSessionOperation) -> None:
-        agent = await self._agent_command_handler.ensure_agent(operation.session_id)
+        agent = await self._agent_runner.ensure_agent(operation.session_id)
         try:
             output_path = self._resolve_export_output_path(operation.output_path, agent.session)
             html_doc = self._build_export_html(agent)
@@ -1341,7 +1437,7 @@ class CommandDispatcher:
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
 
-        await self._agent_command_handler.interrupt(operation.session_id)
+        await self._agent_runner.interrupt(operation.session_id)
         cancelled_requests = self.cancel_pending_user_interactions(session_id=operation.session_id)
         await self._emit_interaction_cancelled_events(cancelled_requests, reason="interrupt")
 
@@ -1379,13 +1475,13 @@ class CommandDispatcher:
     def get_active_task(self, operation_id: str) -> ActiveTask | None:
         """Return the active runtime task for an operation id if present."""
 
-        return self._agent_command_handler.get_active_task(operation_id)
+        return self._agent_runner.get_active_task(operation_id)
 
     def list_active_tasks(self) -> list[ActiveTask]:
-        return self._agent_command_handler.list_active_tasks()
+        return self._agent_runner.list_active_tasks()
 
     def clear_active_tasks(self) -> None:
-        self._agent_command_handler.clear_active_tasks()
+        self._agent_runner.clear_active_tasks()
 
 
 # Static type check: CommandDispatcher must satisfy OperationHandler protocol.

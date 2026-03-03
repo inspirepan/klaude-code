@@ -1,6 +1,6 @@
 from .event_bus import EventBus, EventSubscription
-from .runtime_hub import RuntimeHub
-from .session_runtime import RootTaskState, SessionRuntime, SessionRuntimeConfig, SessionRuntimeSnapshot
+from .session_actor import RootTaskState, SessionActor, SessionActorSnapshot, SessionConfig, SessionState
+from .session_registry import SessionRegistry
 from .user_interaction import PendingUserInteractionRequest
 
 __all__ = [
@@ -8,8 +8,9 @@ __all__ = [
     "EventSubscription",
     "PendingUserInteractionRequest",
     "RootTaskState",
-    "RuntimeHub",
-    "SessionRuntime",
-    "SessionRuntimeConfig",
-    "SessionRuntimeSnapshot",
+    "SessionActor",
+    "SessionActorSnapshot",
+    "SessionConfig",
+    "SessionRegistry",
+    "SessionState",
 ]
