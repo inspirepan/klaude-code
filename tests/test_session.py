@@ -561,6 +561,7 @@ class TestSessionPersistence:
             session = Session(
                 work_dir=project_dir,
                 model_name="test-model",
+                session_state=model.SessionRuntimeState.RUNNING,
                 model_config_name="test-config-model",
                 model_thinking=llm_param.Thinking(reasoning_effort="high"),
             )
@@ -573,6 +574,7 @@ class TestSessionPersistence:
             assert loaded.id == session.id
             assert loaded.work_dir == project_dir
             assert loaded.model_name == "test-model"
+            assert loaded.session_state == model.SessionRuntimeState.RUNNING
             assert loaded.model_config_name == "test-config-model"
             assert loaded.model_thinking is not None
             assert loaded.model_thinking.reasoning_effort == "high"
@@ -590,6 +592,7 @@ class TestSessionPersistence:
 
         async def _test() -> None:
             session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config-model")
+            session.session_state = model.SessionRuntimeState.IDLE
             session.append_history(
                 [
                     message.UserMessage(parts=message.text_parts_from_str("Hello")),
@@ -601,6 +604,7 @@ class TestSessionPersistence:
             meta = Session.load_meta(session.id)
             assert meta.id == session.id
             assert meta.model_name == "test-model"
+            assert meta.session_state == model.SessionRuntimeState.IDLE
             assert meta.model_config_name == "test-config-model"
             assert len(meta.conversation_history) == 0
             await close_default_store()
@@ -1046,6 +1050,7 @@ class TestSessionMetaBrief:
         assert meta.user_messages == []
         assert meta.messages_count == -1
         assert meta.model_name is None
+        assert meta.session_state is None
 
 
 class TestSessionExists:

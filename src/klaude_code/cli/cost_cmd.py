@@ -14,7 +14,7 @@ from rich.box import Box
 from rich.console import Console
 from rich.table import Table
 
-from klaude_code.core.session_status import format_cost, format_tokens
+from klaude_code.core.session_stats import format_cost, format_tokens
 from klaude_code.protocol import model
 from klaude_code.session.codec import decode_jsonl_line
 

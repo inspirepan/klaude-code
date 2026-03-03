@@ -30,7 +30,7 @@ from klaude_code.core.loaded_skills import (
     get_loaded_skill_warnings_by_location,
 )
 from klaude_code.core.memory import get_existing_memory_paths_by_location
-from klaude_code.core.session_status import build_session_status_ui_extra
+from klaude_code.core.session_stats import build_session_stats_ui_extra
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
@@ -1524,12 +1524,12 @@ class ConfigHandler:
             runner=_runner,
         )
 
-    async def handle_get_session_status(self, operation: op.GetSessionStatusOperation) -> None:
+    async def handle_get_session_stats(self, operation: op.GetSessionStatsOperation) -> None:
         agent = await self._agent_runner.ensure_agent(operation.session_id)
         await self._emit_event(
-            events.SessionStatusEvent(
+            events.SessionStatsEvent(
                 session_id=agent.session.id,
-                status=build_session_status_ui_extra(agent.session),
+                stats=build_session_stats_ui_extra(agent.session),
             )
         )
 
@@ -1716,8 +1716,8 @@ class OperationDispatcher:
     async def handle_request_sub_agent_model(self, operation: op.RequestSubAgentModelOperation) -> None:
         await self._config_handler.handle_request_sub_agent_model(operation)
 
-    async def handle_get_session_status(self, operation: op.GetSessionStatusOperation) -> None:
-        await self._config_handler.handle_get_session_status(operation)
+    async def handle_get_session_stats(self, operation: op.GetSessionStatsOperation) -> None:
+        await self._config_handler.handle_get_session_stats(operation)
 
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
         await self._agent_runner.clear_session(operation.session_id)

@@ -13,6 +13,12 @@ ToolStatus = Literal["success", "error", "aborted"]
 TodoStatusType = Literal["pending", "in_progress", "completed"]
 
 
+class SessionRuntimeState(str, Enum):
+    IDLE = "idle"
+    RUNNING = "running"
+    WAITING_USER_INPUT = "waiting_user_input"
+
+
 class Usage(BaseModel):
     # Token Usage (primary state)
     input_tokens: int = 0
@@ -243,8 +249,8 @@ class AskUserQuestionSummaryUIExtra(BaseModel):
     items: list[AskUserQuestionSummaryItem]
 
 
-class SessionStatusUIExtra(BaseModel):
-    type: Literal["session_status"] = "session_status"
+class SessionStatsUIExtra(BaseModel):
+    type: Literal["session_stats"] = "session_stats"
     events_file_path: str
     session_id: str
     user_messages_count: int
@@ -263,7 +269,7 @@ MultiUIExtraItem = (
     | SessionIdUIExtra
     | ImageUIExtra
     | MarkdownDocUIExtra
-    | SessionStatusUIExtra
+    | SessionStatsUIExtra
     | ReadPreviewUIExtra
     | AskUserQuestionSummaryUIExtra
 )
@@ -286,7 +292,7 @@ ToolResultUIExtra = Annotated[
     | SessionIdUIExtra
     | ImageUIExtra
     | MarkdownDocUIExtra
-    | SessionStatusUIExtra
+    | SessionStatsUIExtra
     | AskUserQuestionSummaryUIExtra
     | MultiUIExtra
     | ReadPreviewUIExtra,

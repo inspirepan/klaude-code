@@ -35,7 +35,7 @@ class OperationType(Enum):
     REQUEST_MODEL = "request_model"
     REQUEST_THINKING = "request_thinking"
     REQUEST_SUB_AGENT_MODEL = "request_sub_agent_model"
-    GET_SESSION_STATUS = "get_session_status"
+    GET_SESSION_STATS = "get_session_stats"
     CLEAR_SESSION = "clear_session"
     EXPORT_SESSION = "export_session"
     INTERRUPT = "interrupt"
@@ -204,14 +204,14 @@ class RequestSubAgentModelOperation(Operation):
         await handler.handle_request_sub_agent_model(self)
 
 
-class GetSessionStatusOperation(Operation):
-    """Operation for querying current session status summary."""
+class GetSessionStatsOperation(Operation):
+    """Operation for querying current session stats summary."""
 
-    type: OperationType = OperationType.GET_SESSION_STATUS
+    type: OperationType = OperationType.GET_SESSION_STATS
     session_id: str
 
     async def execute(self, handler: OperationHandler) -> None:
-        await handler.handle_get_session_status(self)
+        await handler.handle_get_session_stats(self)
 
 
 class ClearSessionOperation(Operation):

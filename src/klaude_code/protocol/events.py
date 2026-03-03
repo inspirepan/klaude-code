@@ -36,7 +36,7 @@ __all__ = [
     "ResponseCompleteEvent",
     "ResponseEvent",
     "RewindEvent",
-    "SessionStatusEvent",
+    "SessionStatsEvent",
     "SubAgentModelChangedEvent",
     "TaskFinishEvent",
     "TaskMetadataEvent",
@@ -161,8 +161,8 @@ class CompactModelChangedEvent(Event):
     saved_as_default: bool = False
 
 
-class SessionStatusEvent(Event):
-    status: model.SessionStatusUIExtra
+class SessionStatsEvent(Event):
+    stats: model.SessionStatsUIExtra
 
 
 class OperationAcceptedEvent(Event):

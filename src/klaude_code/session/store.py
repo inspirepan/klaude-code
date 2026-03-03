@@ -111,6 +111,28 @@ class JsonlSessionStore:
             return None
         return cast(dict[str, Any], raw) if isinstance(raw, dict) else None
 
+    def update_meta(self, session_id: str, updates: dict[str, Any]) -> bool:
+        meta_path = self._paths.meta_file(session_id)
+        if not meta_path.exists():
+            return False
+        try:
+            raw = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return False
+        if not isinstance(raw, dict):
+            return False
+
+        data = cast(dict[str, Any], raw)
+        data.update(updates)
+
+        try:
+            tmp_path = meta_path.with_suffix(".json.tmp")
+            tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp_path.replace(meta_path)
+        except OSError:
+            return False
+        return True
+
     def load_history(self, session_id: str) -> list[message.HistoryEvent]:
         events_path = self._paths.events_file(session_id)
         if not events_path.exists():
@@ -169,6 +191,7 @@ def build_meta_snapshot(
     updated_at: float,
     messages_count: int,
     model_name: str | None,
+    session_state: model.SessionRuntimeState | None,
     model_config_name: str | None,
     model_thinking: llm_param.Thinking | None,
     next_checkpoint_id: int = 0,
@@ -185,6 +208,7 @@ def build_meta_snapshot(
         "updated_at": updated_at,
         "messages_count": messages_count,
         "model_name": model_name,
+        "session_state": session_state.value if session_state is not None else None,
         "model_config_name": model_config_name,
         "model_thinking": model_thinking.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
         if model_thinking

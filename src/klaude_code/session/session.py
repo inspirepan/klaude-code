@@ -60,6 +60,7 @@ class Session(BaseModel):
     file_tracker: dict[str, model.FileStatus] = Field(default_factory=dict)
     todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     model_name: str | None = None
+    session_state: model.SessionRuntimeState | None = None
 
     next_checkpoint_id: int = 0
 
@@ -163,6 +164,11 @@ class Session(BaseModel):
         created_at = float(raw.get("created_at", time.time()))
         updated_at = float(raw.get("updated_at", created_at))
         model_name = raw.get("model_name") if isinstance(raw.get("model_name"), str) else None
+        session_state_raw = raw.get("session_state")
+        try:
+            session_state = model.SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
+        except ValueError:
+            session_state = None
         model_config_name = raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None
 
         next_checkpoint_id = int(raw.get("next_checkpoint_id", 0))
@@ -181,6 +187,7 @@ class Session(BaseModel):
             created_at=created_at,
             updated_at=updated_at,
             model_name=model_name,
+            session_state=session_state,
             model_config_name=model_config_name,
             model_thinking=model_thinking,
             next_checkpoint_id=next_checkpoint_id,
@@ -195,6 +202,11 @@ class Session(BaseModel):
         session._store = store
         session.conversation_history = store.load_history(id)
         return session
+
+    @classmethod
+    def persist_runtime_state(cls, session_id: str, session_state: model.SessionRuntimeState) -> None:
+        store = get_default_store()
+        store.update_meta(session_id, {"session_state": session_state.value, "updated_at": time.time()})
 
     def append_history(self, items: Sequence[message.HistoryEvent]) -> None:
         if not items:
@@ -234,6 +246,7 @@ class Session(BaseModel):
             updated_at=self.updated_at,
             messages_count=self.messages_count,
             model_name=self.model_name,
+            session_state=self.session_state,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
             next_checkpoint_id=self.next_checkpoint_id,
@@ -626,6 +639,7 @@ class Session(BaseModel):
         user_messages: list[str] = []
         messages_count: int = -1
         model_name: str | None = None
+        session_state: model.SessionRuntimeState | None = None
 
     @classmethod
     def list_sessions(cls) -> list[SessionMetaBrief]:
@@ -693,6 +707,11 @@ class Session(BaseModel):
                 _maybe_backfill_user_messages(meta_path=meta_path, meta=data, user_messages=user_messages)
             messages_count = int(data.get("messages_count", -1))
             model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
+            session_state_raw = data.get("session_state")
+            try:
+                session_state = model.SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
+            except ValueError:
+                session_state = None
 
             items.append(
                 Session.SessionMetaBrief(
@@ -704,6 +723,7 @@ class Session(BaseModel):
                     user_messages=user_messages,
                     messages_count=messages_count,
                     model_name=model_name,
+                    session_state=session_state,
                 )
             )
 

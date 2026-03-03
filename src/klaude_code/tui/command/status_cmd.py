@@ -17,4 +17,4 @@ class StatusCommand(CommandABC):
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
-        return CommandResult(operations=[op.GetSessionStatusOperation(session_id=agent.session.id)])
+        return CommandResult(operations=[op.GetSessionStatsOperation(session_id=agent.session.id)])

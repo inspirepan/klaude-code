@@ -12,7 +12,8 @@ from klaude_code.core.control.event_bus import EventBus, event_publish_context
 from klaude_code.core.control.session_registry import OperationLifecycleHooks, SessionRegistry
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, op, user_interaction
+from klaude_code.protocol import events, model, op, user_interaction
+from klaude_code.session.session import Session
 
 
 class OperationCompletionAwaiter:
@@ -114,7 +115,7 @@ class RuntimeFacade:
                     task_id=task_id,
                 ),
                 close_session=self.close_session,
-                request_user_interaction=self.session_registry.request_user_interaction,
+                request_user_interaction=self._request_user_interaction,
                 respond_user_interaction=self._respond_user_interaction,
                 cancel_pending_interactions=self._cancel_pending_user_interactions,
                 on_child_task_state_change=self._on_child_task_state_change,
@@ -140,9 +141,31 @@ class RuntimeFacade:
             ),
             operation_id=operation.id,
         )
+        await self._sync_session_state_from_snapshot(session_id)
 
     def _on_operation_applied(self, operation: op.Operation) -> None:
         self.session_registry.apply_operation_effect(operation)
+
+    def _derive_session_state_from_snapshot(self, session_id: str) -> model.SessionRuntimeState:
+        snapshot = self.session_registry.snapshot(session_id)
+        if snapshot is None:
+            return model.SessionRuntimeState.IDLE
+        if snapshot.pending_request_count > 0:
+            return model.SessionRuntimeState.WAITING_USER_INPUT
+        if snapshot.active_root_task is not None or snapshot.child_task_count > 0:
+            return model.SessionRuntimeState.RUNNING
+        return model.SessionRuntimeState.IDLE
+
+    async def _persist_session_state(self, session_id: str, session_state: model.SessionRuntimeState) -> None:
+        runtime = self.session_registry.get_session_actor(session_id)
+        if runtime is not None:
+            agent = runtime.get_agent()
+            if agent is not None:
+                agent.session.session_state = session_state
+        await asyncio.to_thread(Session.persist_runtime_state, session_id, session_state)
+
+    async def _sync_session_state_from_snapshot(self, session_id: str) -> None:
+        await self._persist_session_state(session_id, self._derive_session_state_from_snapshot(session_id))
 
     def _respond_user_interaction(
         self,
@@ -155,6 +178,18 @@ class RuntimeFacade:
             session_id=session_id,
             response=response,
         )
+
+    async def _request_user_interaction(
+        self,
+        request: PendingUserInteractionRequest,
+    ) -> user_interaction.UserInteractionResponse:
+        runtime = self.session_registry.ensure_session_actor(request.session_id)
+        future = runtime.open_pending_interaction(request)
+        await self._persist_session_state(request.session_id, model.SessionRuntimeState.WAITING_USER_INPUT)
+        try:
+            return await future
+        finally:
+            await self._sync_session_state_from_snapshot(request.session_id)
 
     def _cancel_pending_user_interactions(
         self,
@@ -177,6 +212,7 @@ class RuntimeFacade:
             ),
             operation_id=operation.id,
         )
+        await self._persist_session_state(session_id, model.SessionRuntimeState.RUNNING)
 
     async def _emit_operation_finished(
         self,
@@ -197,6 +233,7 @@ class RuntimeFacade:
             ),
             operation_id=operation.id,
         )
+        await self._sync_session_state_from_snapshot(session_id)
 
     async def submit(self, operation: op.Operation) -> str:
         if self._stopped:
@@ -236,6 +273,7 @@ class RuntimeFacade:
 
         closed = await self.session_registry.close_session(session_id, force=force)
         if closed:
+            await self._persist_session_state(session_id, model.SessionRuntimeState.IDLE)
             for request in cancelled_requests:
                 await self._operation_dispatcher.emit_event(
                     events.UserInteractionCancelledEvent(
