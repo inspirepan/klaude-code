@@ -55,7 +55,7 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
             assert force is True
             return True
 
-    class _StubCommandDispatcher:
+    class _StubOperationDispatcher:
         def __init__(self) -> None:
             self.events: list[tuple[events.Event, dict[str, str | None]]] = []
 
@@ -81,13 +81,13 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
     async def _test() -> None:
         runtime_any = cast(Any, object.__new__(RuntimeFacade))
         runtime_any.session_registry = _StubSessionRegistry()
-        runtime_any._command_dispatcher = _StubCommandDispatcher()
+        runtime_any._operation_dispatcher = _StubOperationDispatcher()
 
         runtime = cast(RuntimeFacade, runtime_any)
         closed = await RuntimeFacade.close_session(runtime, "s1", force=True)
         assert closed is True
 
-        executor = runtime_any._command_dispatcher
+        executor = runtime_any._operation_dispatcher
         recorded = executor.events
         assert len(recorded) == 2
 
