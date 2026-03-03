@@ -42,6 +42,8 @@ class DebugType(str, Enum):
     RESPONSE = "response"
     EXECUTION = "execution"
     TERMINAL = "terminal"
+    EVENT_BUS = "event_bus"
+    OPERATION = "operation"
 
 
 # Handler references for reconfiguration

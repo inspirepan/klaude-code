@@ -14,6 +14,7 @@ from klaude_code.core.control.session_actor import (
     SessionConfig,
 )
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import op, user_interaction
 
 
@@ -50,9 +51,17 @@ class SessionRegistry:
         runtime_id = self._resolve_runtime_id(operation)
         runtime = self._ensure_session_actor(runtime_id)
         self._operation_runtime_ids[operation.id] = runtime_id
+        log_debug(
+            f"[{runtime_id}] submit [{operation.type.value}] op={operation.id[:8]}",
+            debug_type=DebugType.OPERATION,
+        )
         await self._emit_operation_accepted(operation)
 
         if _should_preempt_control(runtime, operation):
+            log_debug(
+                f"[{runtime_id}] preempt [{operation.type.value}] op={operation.id[:8]}",
+                debug_type=DebugType.OPERATION,
+            )
             await runtime.run_control_preemptive(operation)
             return
 
@@ -278,6 +287,7 @@ class SessionRegistry:
         return runtime
 
     async def _dispatch_operation(self, operation: op.Operation) -> None:
+        session_id = getattr(operation, "session_id", "?")
         hooks = self._operation_lifecycle_hooks
         if hooks is None:
             await self._handle_operation(operation)
@@ -286,12 +296,20 @@ class SessionRegistry:
         try:
             await self._handle_operation(operation)
         except Exception as exc:
+            log_debug(
+                f"[{session_id}] failed [{operation.type.value}] op={operation.id[:8]} err={exc}",
+                debug_type=DebugType.OPERATION,
+            )
             self.mark_operation_completed(operation.id)
             await hooks.on_operation_finished(operation, "failed", str(exc))
             raise
 
         active = self.get_active_task(operation.id)
         if active is None:
+            log_debug(
+                f"[{session_id}] completed [{operation.type.value}] op={operation.id[:8]}",
+                debug_type=DebugType.OPERATION,
+            )
             self.mark_operation_completed(operation.id)
             await hooks.on_operation_finished(operation, "completed", None)
             return
@@ -303,6 +321,10 @@ class SessionRegistry:
             try:
                 await captured_task
             finally:
+                log_debug(
+                    f"[{session_id}] completed [{operation.type.value}] op={operation.id[:8]}",
+                    debug_type=DebugType.OPERATION,
+                )
                 self.mark_operation_completed(operation.id)
                 await hooks.on_operation_finished(operation, "completed", None)
 
@@ -311,6 +333,11 @@ class SessionRegistry:
         background_task.add_done_callback(self._background_tasks.discard)
 
     async def _reject_operation_with_lifecycle(self, operation: op.Operation, active_task_id: str | None) -> None:
+        session_id = getattr(operation, "session_id", "?")
+        log_debug(
+            f"[{session_id}] rejected [{operation.type.value}] op={operation.id[:8]} active_task={active_task_id}",
+            debug_type=DebugType.OPERATION,
+        )
         hooks = self._operation_lifecycle_hooks
         if hooks is None:
             await self._reject_operation(operation, active_task_id)
@@ -323,6 +350,11 @@ class SessionRegistry:
             await hooks.on_operation_finished(operation, "rejected", None)
 
     async def _emit_operation_accepted(self, operation: op.Operation) -> None:
+        session_id = getattr(operation, "session_id", "?")
+        log_debug(
+            f"[{session_id}] accepted [{operation.type.value}] op={operation.id[:8]}",
+            debug_type=DebugType.OPERATION,
+        )
         hooks = self._operation_lifecycle_hooks
         if hooks is None:
             return

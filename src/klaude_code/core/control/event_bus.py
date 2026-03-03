@@ -7,6 +7,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from uuid import uuid4
 
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
 
 
@@ -117,6 +118,11 @@ class EventBus:
             event=event,
         )
 
+        log_debug(
+            f"[{event.session_id}] publish [{event_type}] seq={envelope.event_seq}",
+            debug_type=DebugType.EVENT_BUS,
+        )
+
         overflowed_ids: list[str] = []
         for subscriber_id, subscriber in list(self._subscribers.items()):
             if subscriber.session_id is not None and subscriber.session_id != envelope.session_id:
@@ -126,6 +132,11 @@ class EventBus:
             except asyncio.QueueFull:
                 overflowed_ids.append(subscriber_id)
 
+        if overflowed_ids:
+            log_debug(
+                f"[{event.session_id}] overflow: disconnecting {len(overflowed_ids)} subscriber(s)",
+                debug_type=DebugType.EVENT_BUS,
+            )
         for subscriber_id in overflowed_ids:
             self._disconnect_subscriber(subscriber_id, notify=True)
 
@@ -138,6 +149,10 @@ class EventBus:
             subscriber_id=subscriber_id,
             session_id=session_id,
             queue=queue,
+        )
+        log_debug(
+            f"[{session_id or '*'}] subscribe sid={subscriber_id[:8]}",
+            debug_type=DebugType.EVENT_BUS,
         )
         return EventSubscription(bus=self, subscriber_id=subscriber_id, queue=queue)
 
