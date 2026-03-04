@@ -156,6 +156,7 @@ async def get_history(session_id: str, state: WebAppState = WEB_STATE_DEP) -> di
     payload = [
         {
             "event_type": protocol_events.event_type_name(event),
+            "timestamp": event.timestamp,
             "event": event.model_dump(mode="json", exclude_none=True, serialize_as_any=True),
         }
         for event in session.get_history_item()

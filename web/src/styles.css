@@ -11,10 +11,34 @@
 }
 
 @font-face {
-  font-family: "Geist Mono";
-  src: url("./assets/fonts/GeistMono-Variable.woff2") format("woff2");
+  font-family: "TX-02";
+  src: url("./assets/fonts/tx-02.woff2") format("woff2");
   font-style: normal;
-  font-weight: 100 900;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "TX-02";
+  src: url("./assets/fonts/tx-02-bold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "TX-02";
+  src: url("./assets/fonts/tx-02-italic.otf") format("opentype");
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "TX-02";
+  src: url("./assets/fonts/tx-02-bold-italic.otf") format("opentype");
+  font-style: italic;
+  font-weight: 700;
   font-display: swap;
 }
 
@@ -29,7 +53,7 @@ code,
 pre,
 kbd,
 samp {
-  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+  font-family: "TX-02", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
 }
 
@@ -59,17 +83,150 @@ body {
 .main-panel {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  min-height: 0;
   background: #ffffff;
 }
 
-.main-panel__placeholder {
-  color: #8a9099;
-  font-size: 15px;
+/* Thinking block: italic text */
+.thinking-block {
+  font-style: italic;
+  letter-spacing: 0.03em;
 }
 
+/* ── Assistant markdown (Streamdown handles element styles) ── */
+.assistant-text {
+  font-size: 15px;
+  line-height: 1.7;
+  letter-spacing: 0.03em;
+  color: #1f2328;
+}
+/* Tailwind preflight resets many element styles; restore them for Streamdown */
+.assistant-text hr {
+  margin-top: 1.5em;
+  margin-bottom: 1.5em;
+  border-top: 1px solid hsl(var(--border));
+}
+.assistant-text ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin-top: 0.5em;
+  margin-bottom: 0.75em;
+}
+.assistant-text ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin-top: 0.5em;
+  margin-bottom: 0.75em;
+}
+.assistant-text li {
+  margin-bottom: 0.25em;
+}
+.assistant-text ul ul { list-style-type: circle; }
+.assistant-text ul ul ul { list-style-type: square; }
+.assistant-text h1,
+.assistant-text h2,
+.assistant-text h3,
+.assistant-text h4,
+.assistant-text h5,
+.assistant-text h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+.assistant-text > :first-child {
+  margin-top: 0;
+}
+.assistant-text p {
+  margin-top: 0;
+  margin-bottom: 0.75em;
+}
+.assistant-text p:last-child {
+  margin-bottom: 0;
+}
+.assistant-text blockquote {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+  padding-left: 1em;
+}
+.assistant-text > pre {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+/* Streamdown code block: single container look */
+.assistant-text [data-streamdown="code-block"] {
+  position: relative;
+  gap: 0;
+  padding: 0;
+  background: hsl(var(--muted));
+  border-color: hsl(var(--border));
+}
+.assistant-text [data-streamdown="code-block-header"] {
+  height: 2rem;
+  padding: 0 0.75rem;
+}
+/* Actions: overlay on header row via absolute positioning */
+.assistant-text [data-streamdown="code-block-header"] + div {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 2rem;
+  margin-top: 0;
+  padding-right: 0.5rem;
+}
+.assistant-text [data-streamdown="code-block-actions"] {
+  padding: 0;
+  border: none;
+  background: transparent;
+  backdrop-filter: none;
+  gap: 0.25rem;
+}
+.assistant-text [data-streamdown="code-block-actions"] button {
+  padding: 0.125rem;
+}
+.assistant-text [data-streamdown="code-block-actions"] button svg {
+  width: 14px;
+  height: 14px;
+}
+.assistant-text [data-streamdown="code-block-body"] {
+  border: none;
+  border-radius: 0 0 0.75rem 0.75rem;
+  padding: 0 1rem 0.75rem;
+}
+.assistant-text [data-streamdown="code-block"] pre {
+  margin: 0;
+}
+.assistant-text table {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+.assistant-text img {
+  max-width: 100%;
+}
+.assistant-text code:not(pre code) {
+  background-color: hsl(var(--muted));
+  padding: 0.15em 0.4em;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}
 
+/* Thin scrollbar for message list */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(161, 161, 170, 0.3) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(161, 161, 170, 0.3);
+  border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(161, 161, 170, 0.5);
+}
 
 @layer base {
   :root {
@@ -92,6 +249,9 @@ body {
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
     --ring: 0 0% 3.9%;
+    --sidebar: 0 0% 98%;
+    --sidebar-foreground: 0 0% 3.9%;
+    --sidebar-border: 0 0% 89.8%;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -119,6 +279,9 @@ body {
     --border: 0 0% 14.9%;
     --input: 0 0% 14.9%;
     --ring: 0 0% 83.1%;
+    --sidebar: 0 0% 7%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 14.9%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;

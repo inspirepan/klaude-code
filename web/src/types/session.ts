@@ -21,6 +21,7 @@ export interface SessionGroup {
 export interface ReplayEventEnvelope {
   event_type: string;
   event: Record<string, unknown>;
+  timestamp?: number;
 }
 
 export interface SessionHistoryResponse {

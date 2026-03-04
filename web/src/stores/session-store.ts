@@ -9,6 +9,7 @@ import type {
   SessionSummary,
   SessionWsState,
 } from "../types/session";
+import { useMessageStore } from "./message-store";
 
 interface SessionStoreState {
   groups: SessionGroup[];
@@ -167,6 +168,11 @@ function handleWsEvent(eventEnvelope: WsEventEnvelope, get: () => SessionStoreSt
     runtimeBySessionId: patchRuntimeByEvent(state.runtimeBySessionId, targetSessionId, eventEnvelope.event_type),
   }));
 
+  const wsTimestamp = typeof eventEnvelope.timestamp === "number" ? eventEnvelope.timestamp : null;
+  useMessageStore
+    .getState()
+    .handleEvent(targetSessionId, eventEnvelope.event_type, eventEnvelope.event ?? {}, wsTimestamp);
+
   if (eventEnvelope.event_type !== "task.finish") {
     return;
   }
@@ -291,6 +297,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     try {
       const history = await fetchSessionHistory(sessionId);
       const isRunning = inferRunningFromHistory(history.events.map((item) => item.event_type));
+      useMessageStore.getState().loadHistoryFromEvents(sessionId, history.events);
       set((state) => ({
         runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, { isRunning }),
       }));

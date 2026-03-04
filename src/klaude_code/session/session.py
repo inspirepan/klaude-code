@@ -446,13 +446,18 @@ class Session(BaseModel):
         history = self.conversation_history
         history_len = len(history)
         yield events.TaskStartEvent(session_id=self.id, sub_agent_state=self.sub_agent_state)
+        msg_ts: float = 0.0
         for idx, it in enumerate(history):
+            # Track the original message creation time
+            if hasattr(it, "created_at"):
+                msg_ts = it.created_at.timestamp()
+
             # Flush pending tool calls if current item won't consume them
             if pending_tool_calls and not isinstance(it, message.ToolResultMessage):
                 yield from pending_tool_calls.values()
                 pending_tool_calls.clear()
             if self.need_turn_start(prev_item, it):
-                yield events.TurnStartEvent(session_id=self.id)
+                yield events.TurnStartEvent(session_id=self.id, timestamp=msg_ts)
             match it:
                 case message.AssistantMessage() as am:
                     last_assistant_content = message.join_text_parts(am.parts)
@@ -467,21 +472,23 @@ class Session(BaseModel):
                         if isinstance(part, message.ThinkingTextPart):
                             if assistant_open:
                                 assistant_open = False
-                                yield events.AssistantTextEndEvent(response_id=am.response_id, session_id=self.id)
+                                yield events.AssistantTextEndEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
                             if not thinking_open:
                                 thinking_open = True
-                                yield events.ThinkingStartEvent(response_id=am.response_id, session_id=self.id)
+                                yield events.ThinkingStartEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
                             if part.text:
                                 if thinking_had_content:
                                     yield events.ThinkingDeltaEvent(
                                         content="  \n  \n",
                                         response_id=am.response_id,
                                         session_id=self.id,
+                                        timestamp=msg_ts,
                                     )
                                 yield events.ThinkingDeltaEvent(
                                     content=part.text,
                                     response_id=am.response_id,
                                     session_id=self.id,
+                                    timestamp=msg_ts,
                                 )
                                 thinking_had_content = True
                             continue
@@ -489,23 +496,24 @@ class Session(BaseModel):
                         if thinking_open:
                             thinking_open = False
                             thinking_had_content = False
-                            yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id)
+                            yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
 
                         if isinstance(part, message.TextPart):
                             if not assistant_open:
                                 assistant_open = True
-                                yield events.AssistantTextStartEvent(response_id=am.response_id, session_id=self.id)
+                                yield events.AssistantTextStartEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
                             if part.text:
                                 yield events.AssistantTextDeltaEvent(
                                     content=part.text,
                                     response_id=am.response_id,
                                     session_id=self.id,
+                                    timestamp=msg_ts,
                                 )
 
                     if thinking_open:
-                        yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id)
+                        yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
                     if assistant_open:
-                        yield events.AssistantTextEndEvent(response_id=am.response_id, session_id=self.id)
+                        yield events.AssistantTextEndEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
 
                     for part in am.parts:
                         if not isinstance(part, message.ToolCallPart):
@@ -518,14 +526,16 @@ class Session(BaseModel):
                             arguments=part.arguments_json,
                             response_id=am.response_id,
                             session_id=self.id,
+                            timestamp=msg_ts,
                         )
                     if am.stop_reason == "aborted":
-                        yield events.InterruptEvent(session_id=self.id)
+                        yield events.InterruptEvent(session_id=self.id, timestamp=msg_ts)
                     if am.usage is not None:
                         yield events.UsageEvent(
                             session_id=self.id,
                             usage=am.usage,
                             response_id=am.response_id,
+                            timestamp=msg_ts,
                         )
                 case message.ToolResultMessage() as tr:
                     if tr.call_id in pending_tool_calls:
@@ -543,6 +553,7 @@ class Session(BaseModel):
                         status=status,
                         task_metadata=tr.task_metadata,
                         is_last_in_turn=is_last_in_turn,
+                        timestamp=msg_ts,
                     )
                     yield from self._iter_sub_agent_history(tr, seen_sub_agent_sessions)
                 case message.UserMessage() as um:
@@ -553,16 +564,17 @@ class Session(BaseModel):
                         content=message.join_text_parts(um.parts),
                         session_id=self.id,
                         images=images or None,
+                        timestamp=msg_ts,
                     )
                 case model.TaskMetadataItem() as mt:
                     if self.sub_agent_state is None:
-                        yield events.TaskMetadataEvent(session_id=self.id, metadata=mt)
+                        yield events.TaskMetadataEvent(session_id=self.id, metadata=mt, timestamp=msg_ts)
                 case message.DeveloperMessage() as dm:
-                    yield events.DeveloperMessageEvent(session_id=self.id, item=dm)
+                    yield events.DeveloperMessageEvent(session_id=self.id, item=dm, timestamp=msg_ts)
                 case message.StreamErrorItem() as se:
-                    yield events.ErrorEvent(error_message=se.error, can_retry=False, session_id=self.id)
+                    yield events.ErrorEvent(error_message=se.error, can_retry=False, session_id=self.id, timestamp=msg_ts)
                 case message.InterruptEntry():
-                    yield events.InterruptEvent(session_id=self.id)
+                    yield events.InterruptEvent(session_id=self.id, timestamp=msg_ts)
                 case message.RewindEntry() as be:
                     yield events.RewindEvent(
                         session_id=self.id,
@@ -571,9 +583,10 @@ class Session(BaseModel):
                         rationale=be.rationale,
                         original_user_message=be.original_user_message,
                         messages_discarded=None,
+                        timestamp=msg_ts,
                     )
                 case message.CompactionEntry() as ce:
-                    yield events.CompactionStartEvent(session_id=self.id, reason="threshold")
+                    yield events.CompactionStartEvent(session_id=self.id, reason="threshold", timestamp=msg_ts)
                     yield events.CompactionEndEvent(
                         session_id=self.id,
                         reason="threshold",
@@ -583,6 +596,7 @@ class Session(BaseModel):
                         kept_from_index=ce.first_kept_index,
                         summary=ce.summary,
                         kept_items_brief=ce.kept_items_brief,
+                        timestamp=msg_ts,
                     )
                 case message.CacheHitRateEntry() as cr:
                     yield events.CacheHitRateEvent(
@@ -590,6 +604,7 @@ class Session(BaseModel):
                         cache_hit_rate=cr.cache_hit_rate,
                         cached_tokens=cr.cached_tokens,
                         prev_turn_input_tokens=cr.prev_turn_input_tokens,
+                        timestamp=msg_ts,
                     )
                 case message.SystemMessage():
                     pass
@@ -611,7 +626,8 @@ class Session(BaseModel):
                 task_result = f"{trimmed}\n\n{footer}" if trimmed.strip() else footer
 
         yield events.TaskFinishEvent(
-            session_id=self.id, task_result=task_result or "", has_structured_output=has_structured_output
+            session_id=self.id, task_result=task_result or "", has_structured_output=has_structured_output,
+            timestamp=msg_ts,
         )
 
     def _iter_sub_agent_history(

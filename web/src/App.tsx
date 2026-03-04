@@ -5,13 +5,27 @@ import { LeftSidebar } from "./components/sidebar/LeftSidebar";
 import { useAppStore } from "./stores/app-store";
 import { useSessionStore } from "./stores/session-store";
 
+const NARROW_BREAKPOINT = 768;
+
 export default function App(): JSX.Element {
   const init = useSessionStore((state) => state.init);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
+  const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
 
   useEffect(() => {
     void init();
   }, [init]);
+
+  // Auto-collapse sidebar when window becomes narrow
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${NARROW_BREAKPOINT}px)`);
+    const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      if (e.matches) setSidebarOpen(false);
+    };
+    handleChange(mq);
+    mq.addEventListener("change", handleChange);
+    return () => mq.removeEventListener("change", handleChange);
+  }, [setSidebarOpen]);
 
   return (
     <div className="app-shell">
