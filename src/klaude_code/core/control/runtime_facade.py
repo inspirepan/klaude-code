@@ -175,6 +175,15 @@ class RuntimeFacade:
     async def _sync_session_state_from_snapshot(self, session_id: str) -> None:
         await self._persist_session_state(session_id, self._derive_session_state_from_snapshot(session_id))
 
+    async def _wait_for_session_flush(self, session_id: str) -> None:
+        runtime = self.session_registry.get_session_actor(session_id)
+        if runtime is None:
+            return
+        agent = runtime.get_agent()
+        if agent is None:
+            return
+        await agent.session.wait_for_flush()
+
     def _respond_user_interaction(
         self,
         request_id: str,
@@ -241,6 +250,8 @@ class RuntimeFacade:
             ),
             operation_id=operation.id,
         )
+        # Ensure queued history writes don't race and overwrite final runtime state.
+        await self._wait_for_session_flush(session_id)
         await self._sync_session_state_from_snapshot(session_id)
 
     async def submit(self, operation: op.Operation) -> str:
