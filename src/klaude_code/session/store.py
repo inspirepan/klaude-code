@@ -83,7 +83,8 @@ class JsonlSessionWriter:
             f.flush()
 
         meta_path = self._paths.meta_file(batch.session_id)
-        tmp_path = meta_path.with_suffix(".json.tmp")
+        # Use a distinct temp name to avoid racing with update_meta().
+        tmp_path = meta_path.with_suffix(".json.w.tmp")
         tmp_path.write_text(json.dumps(batch.meta, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp_path.replace(meta_path)
 
@@ -126,7 +127,8 @@ class JsonlSessionStore:
         data.update(updates)
 
         try:
-            tmp_path = meta_path.with_suffix(".json.tmp")
+            # Use a distinct temp name to avoid racing with _write_batch_sync().
+            tmp_path = meta_path.with_suffix(".json.u.tmp")
             tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
             tmp_path.replace(meta_path)
         except OSError:
@@ -177,6 +179,13 @@ class JsonlSessionStore:
 
     async def aclose(self) -> None:
         await self._writer.aclose()
+        # Retrieve exceptions from pending flush futures so Python does not
+        # log "Future exception was never retrieved" during shutdown.
+        for fut in self._last_flush.values():
+            if fut.done() and not fut.cancelled():
+                with suppress(Exception):
+                    fut.exception()
+        self._last_flush.clear()
 
 
 def build_meta_snapshot(
