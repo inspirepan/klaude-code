@@ -116,14 +116,15 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
     cwd = work_dir
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     is_git_repo = (cwd / ".git").exists()
-    is_empty_dir = not any(cwd.iterdir())
+    is_missing_dir = not cwd.exists()
+    is_empty_dir = not is_missing_dir and not any(cwd.iterdir())
 
     available_commands: list[str] = []
     for command, desc in COMMAND_DESCRIPTIONS.items():
         if shutil.which(command) is not None:
             available_commands.append(f"{command}: {desc}")
 
-    cwd_display = f"{cwd} (empty)" if is_empty_dir else str(cwd)
+    cwd_display = f"{cwd} (not found)" if is_missing_dir else f"{cwd} (empty)" if is_empty_dir else str(cwd)
     git_repo_line = (
         "Current directory is a git repo"
         if is_git_repo
