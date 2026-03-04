@@ -16,6 +16,20 @@ export default function App(): JSX.Element {
     void init();
   }, [init]);
 
+  // Sync session state on browser back/forward
+  useEffect(() => {
+    const handlePopState = () => {
+      const match = window.location.pathname.match(/^\/session\/([a-f0-9]+)$/);
+      if (match) {
+        void useSessionStore.getState().selectSession(match[1]);
+      } else {
+        useSessionStore.getState().selectDraft();
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   // Auto-collapse sidebar when window becomes narrow
   useEffect(() => {
     const mq = window.matchMedia(`(max-width: ${NARROW_BREAKPOINT}px)`);

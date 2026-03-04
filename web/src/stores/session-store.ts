@@ -249,6 +249,17 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       return;
     }
     await get().refreshSessions();
+
+    const match = window.location.pathname.match(/^\/session\/([a-f0-9]+)$/);
+    if (match) {
+      const urlSessionId = match[1];
+      if (findSession(get().groups, urlSessionId)) {
+        await get().selectSession(urlSessionId);
+      } else {
+        history.replaceState(null, "", "/");
+      }
+    }
+
     set({ initialized: true });
   },
   refreshSessions: async () => {
@@ -291,8 +302,10 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   selectDraft: () => {
     closeActiveConnectionIfNeeded(null);
     set({ activeSessionId: "draft" });
+    pushSessionUrl("draft");
   },
   selectSession: async (sessionId: string) => {
+    pushSessionUrl(sessionId);
     set((state) => ({
       activeSessionId: sessionId,
       runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
@@ -346,6 +359,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         lastError: null,
       }),
     }));
+    pushSessionUrl(sessionId);
 
     openSessionWs(sessionId, get, set);
     activeConnection?.connection.send({ type: "message", text: firstMessage });

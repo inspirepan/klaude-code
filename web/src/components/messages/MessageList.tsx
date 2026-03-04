@@ -44,13 +44,33 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     [items],
   );
 
+  // Restore scroll position when items first load for a session
+  const hasItems = items.length > 0;
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!hasItems) return;
+    const saved = sessionStorage.getItem(`scroll-${sessionId}`);
+    if (saved !== null) {
+      scrollRef.current?.scrollTo({ top: parseInt(saved, 10) });
+    } else {
+      bottomRef.current?.scrollIntoView();
+    }
+  }, [sessionId, hasItems]);
+
+  // Auto-scroll on new messages only when near bottom
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+    if (nearBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [items.length]);
 
   const handleScroll = useCallback(() => {
     const container = scrollRef.current;
     if (!container) return;
+
+    sessionStorage.setItem(`scroll-${sessionId}`, String(container.scrollTop));
 
     const containerTop = container.getBoundingClientRect().top;
     let lastAbove: UserMessageItem | null = null;
@@ -71,7 +91,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     } else {
       setStickyMsg((prev) => (prev === null ? prev : null));
     }
-  }, [userMessages]);
+  }, [sessionId, userMessages]);
 
   const scrollToOrigin = useCallback(() => {
     if (!stickyMsg) return;
@@ -103,7 +123,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           onClick={scrollToOrigin}
           className="absolute top-0 left-0 right-0 z-10 border-b border-zinc-100 bg-white/90 backdrop-blur-sm cursor-pointer hover:bg-zinc-50/90 transition-colors"
         >
-          <div className="max-w-3xl mx-auto px-6 py-2 flex items-center gap-2">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-2">
             <ChevronUp className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
             <span className="text-sm text-zinc-500 truncate">{stickyMsg.item.content}</span>
           </div>
@@ -113,9 +133,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto scrollbar-thin"
+        className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin"
       >
-        <div className="max-w-4xl mx-auto px-6 py-8 space-y-5">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-5">
           {items.map((item) => {
             const time = formatTime(item.timestamp);
             return (
@@ -124,12 +144,12 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 ref={(el) => {
                   if (item.type === "user_message") setItemRef(item.id, el);
                 }}
-                className="group/row flex gap-4"
+                className="group/row flex gap-4 min-w-0"
               >
                 <div className="flex-1 min-w-0">
                   <MessageItem item={item} />
                 </div>
-                <div className="w-16 shrink-0 pt-1 text-right">
+                <div className="hidden sm:block w-16 shrink-0 pt-1 text-right">
                   {time ? (
                     <span className="text-[11px] tabular-nums text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 select-none">
                       {time}
