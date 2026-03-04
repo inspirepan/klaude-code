@@ -302,7 +302,12 @@ class RuntimeFacade:
         return closed
 
     async def reclaim_idle_sessions(self, *, idle_for_seconds: float) -> list[str]:
-        return await self.session_registry.reclaim_idle_sessions(idle_for_seconds=idle_for_seconds)
+        # Never reclaim the primary (TUI-active) session.
+        primary = self._operation_dispatcher.current_session_id()
+        exclude = {primary} if primary is not None else None
+        return await self.session_registry.reclaim_idle_sessions(
+            idle_for_seconds=idle_for_seconds, exclude=exclude
+        )
 
     async def wait_for(self, operation_id: str) -> None:
         await self._operation_awaiter.wait_for(operation_id)
