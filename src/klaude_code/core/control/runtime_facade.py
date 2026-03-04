@@ -202,6 +202,8 @@ class RuntimeFacade:
     ) -> user_interaction.UserInteractionResponse:
         runtime = self.session_registry.ensure_session_actor(request.session_id)
         future = runtime.open_pending_interaction(request)
+        # Avoid stale queued meta snapshots overwriting waiting_user_input.
+        await self._wait_for_session_flush(request.session_id)
         await self._persist_session_state(request.session_id, model.SessionRuntimeState.WAITING_USER_INPUT)
         try:
             return await future
@@ -229,7 +231,8 @@ class RuntimeFacade:
             ),
             operation_id=operation.id,
         )
-        await self._persist_session_state(session_id, model.SessionRuntimeState.RUNNING)
+        if _should_mark_running_on_accept(operation):
+            await self._persist_session_state(session_id, model.SessionRuntimeState.RUNNING)
 
     async def _emit_operation_finished(
         self,
@@ -250,6 +253,8 @@ class RuntimeFacade:
             ),
             operation_id=operation.id,
         )
+        if isinstance(operation, op.InitAgentOperation):
+            return
         # Ensure queued history writes don't race and overwrite final runtime state.
         await self._wait_for_session_flush(session_id)
         await self._sync_session_state_from_snapshot(session_id)
@@ -389,3 +394,16 @@ class RuntimeFacade:
                 operation_id=operation.id,
             )
             raise
+
+
+def _should_mark_running_on_accept(operation: op.Operation) -> bool:
+    return isinstance(
+        operation,
+        op.RunAgentOperation
+        | op.RunBashOperation
+        | op.ContinueAgentOperation
+        | op.CompactSessionOperation
+        | op.RequestModelOperation
+        | op.RequestThinkingOperation
+        | op.RequestSubAgentModelOperation,
+    )

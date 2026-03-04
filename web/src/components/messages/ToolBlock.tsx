@@ -83,12 +83,9 @@ function extractHeaderDetail(toolName: string, args: string): string {
 
 function shouldExpandResult(item: ToolBlockItem): boolean {
   if (item.resultStatus === "error") return false;
+  if (item.toolName === "Read") return false;
   if (item.uiExtra !== null) return true;
   if (EXPAND_RESULT_TOOLS.has(item.toolName)) return true;
-  // Read success without ui_extra: hide entirely
-  if (item.toolName === "Read" && item.resultStatus === "success" && item.uiExtra === null) {
-    return false;
-  }
   return false;
 }
 

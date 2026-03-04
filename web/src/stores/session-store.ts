@@ -35,7 +35,7 @@ interface ActiveConnection {
 let activeConnection: ActiveConnection | null = null;
 
 const defaultRuntimeState: SessionRuntimeState = {
-  isRunning: false,
+  sessionState: "idle",
   wsState: "idle",
   lastError: null,
 };
@@ -72,20 +72,6 @@ function closeActiveConnectionIfNeeded(nextSessionId: string | null): void {
   activeConnection = null;
 }
 
-function inferRunningFromHistory(eventTypes: string[]): boolean {
-  let runningDepth = 0;
-  for (const eventType of eventTypes) {
-    if (eventType === "task.start") {
-      runningDepth += 1;
-      continue;
-    }
-    if (eventType === "task.finish" && runningDepth > 0) {
-      runningDepth -= 1;
-    }
-  }
-  return runningDepth > 0;
-}
-
 function upsertSessionIntoGroups(groups: SessionGroup[], session: SessionSummary): SessionGroup[] {
   const nextGroups = groups.map((group) => ({
     work_dir: group.work_dir,
@@ -114,10 +100,16 @@ function patchRuntimeByEvent(
   eventType: string,
 ): Record<string, SessionRuntimeState> {
   if (eventType === "task.start") {
-    return updateRuntimeState(current, sessionId, { isRunning: true });
+    return updateRuntimeState(current, sessionId, { sessionState: "running" });
   }
-  if (eventType === "task.finish" || eventType === "operation.finished") {
-    return updateRuntimeState(current, sessionId, { isRunning: false });
+  if (eventType === "task.finish") {
+    return updateRuntimeState(current, sessionId, { sessionState: "idle" });
+  }
+  if (eventType === "user.interaction.request") {
+    return updateRuntimeState(current, sessionId, { sessionState: "waiting_user_input" });
+  }
+  if (eventType === "user.interaction.resolved" || eventType === "user.interaction.cancelled") {
+    return updateRuntimeState(current, sessionId, { sessionState: "running" });
   }
   return current;
 }
@@ -163,7 +155,6 @@ function handleWsError(errorFrame: WsErrorFrame, sessionId: string, set: SetStat
   set((state) => ({
     runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
       wsState: "disconnected",
-      isRunning: false,
       lastError: `${errorFrame.code}: ${errorFrame.message}`,
     }),
   }));
@@ -273,12 +264,11 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         runtimeBySessionId: groups.reduce<Record<string, SessionRuntimeState>>((acc, group) => {
           for (const session of group.sessions) {
             const previous = state.runtimeBySessionId[session.id];
-            const apiIsRunning = session.session_state !== "idle";
             const previousWsState = previous?.wsState;
             const shouldKeepPrevious =
               previous !== undefined && (previousWsState === "connected" || previousWsState === "connecting");
             acc[session.id] = {
-              isRunning: shouldKeepPrevious ? previous.isRunning : apiIsRunning,
+              sessionState: shouldKeepPrevious ? previous.sessionState : session.session_state,
               wsState: previous?.wsState ?? "idle",
               lastError: previous?.lastError ?? null,
             };
@@ -316,11 +306,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
 
     try {
       const history = await fetchSessionHistory(sessionId);
-      const isRunning = inferRunningFromHistory(history.events.map((item) => item.event_type));
       useMessageStore.getState().loadHistoryFromEvents(sessionId, history.events);
-      set((state) => ({
-        runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, { isRunning }),
-      }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       set((state) => ({
@@ -355,7 +341,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       activeSessionId: sessionId,
       runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
         wsState: "connecting",
-        isRunning: false,
+        sessionState: "idle",
         lastError: null,
       }),
     }));

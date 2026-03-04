@@ -32,7 +32,7 @@ export interface SessionHistoryResponse {
 export type SessionWsState = "idle" | "connecting" | "connected" | "disconnected";
 
 export interface SessionRuntimeState {
-  isRunning: boolean;
+  sessionState: ApiSessionState;
   wsState: SessionWsState;
   lastError: string | null;
 }

@@ -58,7 +58,7 @@ export function ProjectGroup({
             key={session.id}
             session={session}
             active={activeSessionId === session.id}
-            runtime={runtimeBySessionId[session.id] ?? { isRunning: false, wsState: "idle", lastError: null }}
+            runtime={runtimeBySessionId[session.id] ?? { sessionState: "idle", wsState: "idle", lastError: null }}
             onClick={() => {
               onSelectSession(session.id);
             }}

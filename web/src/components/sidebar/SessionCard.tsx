@@ -63,7 +63,7 @@ export function SessionCard({ session, active, runtime, onClick }: SessionCardPr
         {title}
       </span>
       <span className="text-[13px] text-zinc-400 flex items-center gap-1.5 shrink-0">
-        {runtime.isRunning && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+        {runtime.sessionState !== "idle" && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
         {updatedAt}
       </span>
     </button>
