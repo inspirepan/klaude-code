@@ -190,11 +190,13 @@ class SessionActor:
 
     def remove_task(self, task_id: str) -> None:
         handle = self._state.task_handles.pop(task_id, None)
-        if handle is None:
-            return
-        current_task_id = self._state.operation_task_ids.get(handle.operation_id)
-        if current_task_id == task_id:
-            self._state.operation_task_ids.pop(handle.operation_id, None)
+        if handle is not None:
+            current_task_id = self._state.operation_task_ids.get(handle.operation_id)
+            if current_task_id == task_id:
+                self._state.operation_task_ids.pop(handle.operation_id, None)
+        active = self._state.active_root_task
+        if active is not None and active.task_id == task_id:
+            self._state.active_root_task = None
         self._refresh_idle_since()
 
     def cancel_active_tasks(self) -> list[tuple[str, asyncio.Task[None]]]:
@@ -204,7 +206,6 @@ class SessionActor:
                 self.remove_task(task_id)
                 continue
             tasks_to_cancel.append((task_id, handle.task))
-            self.remove_task(task_id)
         return tasks_to_cancel
 
     def open_pending_interaction(

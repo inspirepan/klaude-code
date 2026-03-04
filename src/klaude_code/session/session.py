@@ -206,7 +206,9 @@ class Session(BaseModel):
     @classmethod
     def persist_runtime_state(cls, session_id: str, session_state: model.SessionRuntimeState, work_dir: Path) -> None:
         store = get_store_for_path(work_dir)
-        store.update_meta(session_id, {"session_state": session_state.value, "updated_at": time.time()})
+        # Runtime state transitions should not affect session recency ordering.
+        # Only content writes (append_history) update `updated_at`.
+        store.update_meta(session_id, {"session_state": session_state.value})
 
     def append_history(self, items: Sequence[message.HistoryEvent]) -> None:
         if not items:

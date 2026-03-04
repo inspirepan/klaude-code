@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from pathlib import Path
@@ -175,6 +176,9 @@ def app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             work_dir=work_dir,
             home_dir=home_dir,
         )
+
+    # Explicitly clean up temporary session artifacts produced by each test.
+    shutil.rmtree(home_dir / ".klaude", ignore_errors=True)
 
 
 def usage(

@@ -811,6 +811,19 @@ class AgentOperationHandler:
 
         for _task_id, task in tasks_to_cancel:
             task.cancel()
+        pending_tasks = [task for _task_id, task in tasks_to_cancel if not task.done()]
+        if not pending_tasks:
+            return
+        try:
+            _ = await asyncio.wait_for(
+                asyncio.gather(*pending_tasks, return_exceptions=True),
+                timeout=2.0,
+            )
+        except TimeoutError:
+            log_debug(
+                f"Interrupt timeout while waiting task cancellation for: {scope}",
+                debug_type=DebugType.EXECUTION,
+            )
 
     async def _run_agent_task(
         self,

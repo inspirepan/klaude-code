@@ -4,7 +4,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 
 def _read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -33,6 +33,7 @@ class SessionSummary:
     user_messages: list[str]
     messages_count: int
     model_name: str | None
+    session_state: Literal["idle", "running", "waiting_user_input"] | None
 
 
 def list_main_sessions(home: Path) -> list[SessionSummary]:
@@ -70,6 +71,10 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
 
         model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
         work_dir = str(data.get("work_dir", ""))
+        session_state_raw = data.get("session_state")
+        session_state: Literal["idle", "running", "waiting_user_input"] | None = None
+        if session_state_raw in {"idle", "running", "waiting_user_input"}:
+            session_state = cast(Literal["idle", "running", "waiting_user_input"], session_state_raw)
 
         summaries.append(
             SessionSummary(
@@ -80,6 +85,7 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
                 user_messages=user_messages,
                 messages_count=messages_count,
                 model_name=model_name,
+                session_state=session_state,
             )
         )
 

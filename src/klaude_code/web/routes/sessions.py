@@ -4,13 +4,14 @@ import contextlib
 import json
 import time
 from pathlib import Path
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from klaude_code.protocol import events as protocol_events
+from klaude_code.protocol import model as protocol_model
 from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
 from klaude_code.session.session import Session, get_store_for_path
@@ -23,6 +24,28 @@ from klaude_code.web.state import WebAppState, get_web_state
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 WEB_STATE_DEP: Final = Depends(get_web_state)
+SESSION_STATE_IDLE: Final = cast(Literal["idle", "running", "waiting_user_input"], protocol_model.SessionRuntimeState.IDLE.value)
+
+
+def _derive_session_state_from_snapshot(snapshot: Any) -> Literal["idle", "running", "waiting_user_input"]:
+    if snapshot.pending_request_count > 0:
+        return cast(
+            Literal["idle", "running", "waiting_user_input"],
+            protocol_model.SessionRuntimeState.WAITING_USER_INPUT.value,
+        )
+    if snapshot.active_root_task is not None or snapshot.child_task_count > 0:
+        return cast(
+            Literal["idle", "running", "waiting_user_input"],
+            protocol_model.SessionRuntimeState.RUNNING.value,
+        )
+    return SESSION_STATE_IDLE
+
+
+def _runtime_session_states(state: WebAppState) -> dict[str, Literal["idle", "running", "waiting_user_input"]]:
+    return {
+        snapshot.session_id: _derive_session_state_from_snapshot(snapshot)
+        for snapshot in state.runtime.session_registry.all_snapshots()
+    }
 
 
 class CreateSessionRequest(BaseModel):
@@ -48,7 +71,9 @@ class ModelRequest(BaseModel):
 @router.get("")
 async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[dict[str, Any]]]:
     groups_by_work_dir: dict[str, list[dict[str, Any]]] = {}
+    runtime_states = _runtime_session_states(state)
     for item in list_main_sessions(state.home_dir):
+        session_state = runtime_states.get(item.id, item.session_state or SESSION_STATE_IDLE)
         groups_by_work_dir.setdefault(item.work_dir, []).append(
             {
                 "id": item.id,
@@ -58,6 +83,7 @@ async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[di
                 "user_messages": item.user_messages,
                 "messages_count": item.messages_count,
                 "model_name": item.model_name,
+                "session_state": session_state,
             }
         )
     groups = [{"work_dir": work_dir, "sessions": sessions} for work_dir, sessions in groups_by_work_dir.items()]

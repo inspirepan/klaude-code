@@ -41,13 +41,19 @@
           "work_dir": "/path/to/project",
           "user_messages": ["hello"],
           "messages_count": 3,
-          "model_name": "claude-sonnet-4-20250514"
+          "model_name": "claude-sonnet-4-20250514",
+          "session_state": "running"
         }
       ]
     }
   ]
 }
 ```
+
+- `session_state` 取值：
+  - `idle`
+  - `running`
+  - `waiting_user_input`
 
 ---
 
