@@ -15,11 +15,6 @@ from base64 import b64decode, b64encode
 from binascii import Error as BinasciiError
 from pathlib import Path
 
-from klaude_code.const import (
-    TOOL_OUTPUT_TRUNCATION_DIR,
-    ProjectPaths,
-    project_key_from_cwd,
-)
 from klaude_code.protocol import message
 
 _MAX_IMAGE_SIZE_BYTES = 4_500_000
@@ -283,13 +278,6 @@ def parse_data_url(url: str) -> tuple[str, str, bytes]:
 
     return mime_type, base64_payload, decoded
 
-
-def get_assistant_image_output_dir(session_id: str | None) -> Path:
-    """Get the output directory for assistant-generated images."""
-    if session_id:
-        paths = ProjectPaths(project_key=project_key_from_cwd())
-        return paths.images_dir(session_id)
-    return Path(TOOL_OUTPUT_TRUNCATION_DIR) / "images"
 
 
 def normalize_image_data_url(url: str) -> str:

@@ -26,7 +26,7 @@ def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:  # p
 
 def _tool_context(rewind_manager: RewindManager | None) -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
-    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", rewind_manager=rewind_manager)
+    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path("/tmp"), rewind_manager=rewind_manager)
 
 
 def test_rewind_manager_send_and_fetch() -> None:

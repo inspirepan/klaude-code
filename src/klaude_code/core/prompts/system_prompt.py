@@ -6,7 +6,7 @@ from functools import cache
 from importlib.resources import files
 from pathlib import Path
 
-from klaude_code.const import ProjectPaths, project_key_from_cwd
+from klaude_code.const import ProjectPaths, project_key_from_path
 from klaude_code.protocol import llm_param, tools
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
 
@@ -110,10 +110,10 @@ def build_main_system_prompt(model_name: str, available_tools: list[llm_param.To
     return base_prompt + build_dynamic_tool_strategy_prompt(available_tools)
 
 
-def _build_env_info(model_name: str) -> str:
+def _build_env_info(model_name: str, work_dir: Path) -> str:
     """Build environment info section with dynamic runtime values."""
 
-    cwd = Path.cwd()
+    cwd = work_dir
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     is_git_repo = (cwd / ".git").exists()
     is_empty_dir = not any(cwd.iterdir())
@@ -151,9 +151,9 @@ def _build_env_info(model_name: str) -> str:
     return "\n".join(env_lines)
 
 
-def _build_auto_memory_prompt() -> str:
+def _build_auto_memory_prompt(work_dir: Path) -> str:
     """Build auto-memory prompt with the project-specific memory directory path."""
-    paths = ProjectPaths(project_key=project_key_from_cwd())
+    paths = ProjectPaths(project_key=project_key_from_path(work_dir))
     memory_dir = str(paths.memory_dir)
     template = load_prompt_by_path("prompts/auto-memory-prompt.md")
     return "\n\n" + template.format(memory_dir=memory_dir)
@@ -163,8 +163,11 @@ def load_system_prompt(
     model_name: str,
     sub_agent_type: tools.SubAgentType | None = None,
     available_tools: list[llm_param.ToolSchema] | None = None,
+    work_dir: Path | None = None,
 ) -> str:
     """Get system prompt content for the given model and sub-agent type."""
+
+    effective_work_dir = work_dir or Path.cwd()
 
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)
@@ -177,7 +180,7 @@ def load_system_prompt(
     if sub_agent_type is None:
         from klaude_code.skill.manager import format_available_skills_for_system_prompt
 
-        auto_memory_prompt = _build_auto_memory_prompt()
+        auto_memory_prompt = _build_auto_memory_prompt(effective_work_dir)
         skills_prompt = format_available_skills_for_system_prompt()
 
-    return base_prompt + auto_memory_prompt + skills_prompt + _build_env_info(model_name)
+    return base_prompt + auto_memory_prompt + skills_prompt + _build_env_info(model_name, effective_work_dir)

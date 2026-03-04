@@ -33,6 +33,7 @@ def test_task_interrupt_persists_interrupt_entry(tmp_path: Path, monkeypatch: py
         session = Session.create(work_dir=project_dir)
         session_ctx = SessionContext(
             session_id=session.id,
+            work_dir=session.work_dir,
             get_conversation_history=session.get_llm_history,
             append_history=session.append_history,
             file_tracker=session.file_tracker,
@@ -59,7 +60,7 @@ def test_task_interrupt_persists_interrupt_entry(tmp_path: Path, monkeypatch: py
         _ = executor.on_interrupt()
         await session.wait_for_flush()
 
-        loaded = Session.load(session.id)
+        loaded = Session.load(session.id, work_dir=project_dir)
         assert any(isinstance(item, message.InterruptEntry) for item in loaded.conversation_history)
         await close_default_store()
 
@@ -77,6 +78,7 @@ def test_task_interrupt_does_not_duplicate_when_aborted_message_exists(
         session = Session.create(work_dir=project_dir)
         session_ctx = SessionContext(
             session_id=session.id,
+            work_dir=session.work_dir,
             get_conversation_history=session.get_llm_history,
             append_history=session.append_history,
             file_tracker=session.file_tracker,
@@ -117,7 +119,7 @@ def test_task_interrupt_does_not_duplicate_when_aborted_message_exists(
         _ = executor.on_interrupt()
         await session.wait_for_flush()
 
-        loaded = Session.load(session.id)
+        loaded = Session.load(session.id, work_dir=project_dir)
         interrupt_entries = [item for item in loaded.conversation_history if isinstance(item, message.InterruptEntry)]
         aborted_assistant = [
             item

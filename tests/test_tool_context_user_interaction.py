@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from klaude_code.core.tool.context import TodoContext, ToolContext
 from klaude_code.protocol import user_interaction
 
 
 def test_tool_context_can_attach_user_interaction_callback() -> None:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
-    context = ToolContext(file_tracker={}, todo_context=todo_context, session_id="s1")
+    context = ToolContext(file_tracker={}, todo_context=todo_context, session_id="s1", work_dir=Path("/tmp"))
 
     async def _callback(
         _request_id: str,

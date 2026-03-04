@@ -212,9 +212,14 @@ LOG_BACKUP_COUNT = 3  # Number of backup log files to keep
 # =============================================================================
 
 
+def project_key_from_path(path: Path) -> str:
+    """Derive the project key from an explicit directory path."""
+    return str(path.resolve()).strip("/").replace("/", "-")
+
+
 def project_key_from_cwd() -> str:
     """Derive the project key from the current working directory."""
-    return str(Path.cwd()).strip("/").replace("/", "-")
+    return project_key_from_path(Path.cwd())
 
 
 @dataclass(frozen=True)

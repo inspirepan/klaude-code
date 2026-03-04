@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 from .session import Session
 
@@ -49,13 +50,13 @@ def format_user_messages_display(messages: list[str]) -> list[str]:
     return result
 
 
-def build_session_select_options() -> list[SessionSelectOption]:
+def build_session_select_options(work_dir: Path | None = None) -> list[SessionSelectOption]:
     """Build session selection options data.
 
     Returns:
         List of SessionSelectOption, or empty list if no sessions exist.
     """
-    sessions = Session.list_sessions()
+    sessions = Session.list_sessions(work_dir or Path.cwd())
     if not sessions:
         return []
 

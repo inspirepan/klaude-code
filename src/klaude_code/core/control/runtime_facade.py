@@ -157,12 +157,20 @@ class RuntimeFacade:
         return model.SessionRuntimeState.IDLE
 
     async def _persist_session_state(self, session_id: str, session_state: model.SessionRuntimeState) -> None:
-        runtime = self.session_registry.get_session_actor(session_id)
-        if runtime is not None:
+        try:
+            runtime = self.session_registry.get_session_actor(session_id)
+            if runtime is None:
+                return
             agent = runtime.get_agent()
-            if agent is not None:
-                agent.session.session_state = session_state
-        await asyncio.to_thread(Session.persist_runtime_state, session_id, session_state)
+            if agent is None:
+                return
+            agent.session.session_state = session_state
+            work_dir = agent.session.work_dir
+        except AttributeError:
+            return
+        await asyncio.to_thread(
+            Session.persist_runtime_state, session_id, session_state, work_dir
+        )
 
     async def _sync_session_state_from_snapshot(self, session_id: str) -> None:
         await self._persist_session_state(session_id, self._derive_session_state_from_snapshot(session_id))

@@ -124,6 +124,7 @@ async def _load_at_file_recursive(
         file_tracker=session.file_tracker,
         todo_context=build_todo_context(session),
         session_id=session.id,
+        work_dir=session.work_dir,
     )
 
     if path.exists() and path.is_file():
@@ -243,6 +244,7 @@ async def file_changed_externally_reminder(
                         file_tracker=session.file_tracker,
                         todo_context=build_todo_context(session),
                         session_id=session.id,
+                        work_dir=session.work_dir,
                     )
                     tool_result = await ReadTool.call_with_args(
                         ReadTool.ReadArguments(file_path=path),
@@ -412,14 +414,14 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
             except (PermissionError, UnicodeDecodeError, OSError):
                 continue
 
-    auto_mem = load_auto_memory()
+    auto_mem = load_auto_memory(session.work_dir)
     auto_memory_hint = ""
     if auto_mem is not None:
         if not _is_memory_loaded(session, auto_mem.path):
             _mark_memory_loaded(session, auto_mem.path)
             memories.append(auto_mem)
     else:
-        auto_memory_path = get_auto_memory_path()
+        auto_memory_path = get_auto_memory_path(session.work_dir)
         path_str = str(auto_memory_path)
         if not _is_memory_loaded(session, path_str):
             _mark_memory_loaded(session, path_str)

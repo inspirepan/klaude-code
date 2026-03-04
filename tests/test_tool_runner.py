@@ -7,6 +7,7 @@ import asyncio
 import os
 import shutil
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -27,7 +28,7 @@ from klaude_code.protocol import llm_param, message, model
 
 def _tool_context() -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
-    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test")
+    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path("/tmp"))
 
 
 def arun(coro: Any) -> Any:

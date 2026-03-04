@@ -54,6 +54,7 @@ class BaseTempDirTest(unittest.TestCase):
             file_tracker=self.session.file_tracker,
             todo_context=build_todo_context(self.session),
             session_id=self.session.id,
+            work_dir=Path(self._tmp.name).resolve(),
         )
 
     def tearDown(self) -> None:

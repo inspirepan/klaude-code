@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
@@ -136,6 +137,7 @@ class ModelProfileProvider(Protocol):
         sub_agent_type: tools.SubAgentType | None = None,
         *,
         output_schema: dict[str, Any] | None = None,
+        work_dir: Path | None = None,
     ) -> AgentProfile: ...
 
 
@@ -151,10 +153,13 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         sub_agent_type: tools.SubAgentType | None = None,
         *,
         output_schema: dict[str, Any] | None = None,
+        work_dir: Path | None = None,
     ) -> AgentProfile:
         model_name = llm_client.model_name
         agent_tools = load_agent_tools(model_name, sub_agent_type, config=self._config)
-        agent_system_prompt = load_system_prompt(model_name, sub_agent_type, available_tools=agent_tools)
+        agent_system_prompt = load_system_prompt(
+            model_name, sub_agent_type, available_tools=agent_tools, work_dir=work_dir
+        )
         agent_reminders = load_agent_reminders(model_name, sub_agent_type, available_tools=agent_tools)
 
         profile = AgentProfile(
@@ -177,8 +182,9 @@ class VanillaModelProfileProvider(ModelProfileProvider):
         sub_agent_type: tools.SubAgentType | None = None,
         *,
         output_schema: dict[str, Any] | None = None,
+        work_dir: Path | None = None,
     ) -> AgentProfile:
-        del sub_agent_type
+        del sub_agent_type, work_dir
         profile = AgentProfile(
             llm_client=llm_client,
             system_prompt="You're an agent running in user's terminal",

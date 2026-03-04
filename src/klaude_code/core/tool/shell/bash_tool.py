@@ -85,7 +85,7 @@ class BashTool(ToolABC):
     @classmethod
     async def call_with_args(cls, args: BashArguments, context: ToolContext) -> message.ToolResultMessage:
         # Safety check: only execute commands proven as "known safe"
-        result = is_safe_command(args.command)
+        result = is_safe_command(args.command, work_dir=str(context.work_dir))
         if not result.is_safe:
             return message.ToolResultMessage(
                 status="error",
@@ -203,7 +203,7 @@ class BashTool(ToolABC):
                 return
 
             # Handle common patterns like: cd subdir && cat file
-            base_dir = os.getcwd()
+            base_dir = str(context.work_dir)
             while len(argv) >= 4 and argv[0] == "cd" and argv[2] == "&&":
                 dest = argv[1]
                 if dest != "-":

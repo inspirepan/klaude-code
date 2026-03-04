@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import threading
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from uuid import uuid4
 
 from klaude_code.app.ports import DisplayABC, InputProviderABC, InteractionHandlerABC
@@ -63,7 +64,7 @@ async def submit_user_input_payload(
 
     agent = runtime.current_agent
     if agent is None or agent.session.id != sid:
-        await runtime.submit_and_wait(op.InitAgentOperation(session_id=sid))
+        await runtime.submit_and_wait(op.InitAgentOperation(session_id=sid, work_dir=Path.cwd()))
         agent = runtime.current_agent
 
     if agent is None:
@@ -553,7 +554,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         if not exit_hint_printed:
             active_session_id = components.runtime.current_session_id()
-            if active_session_id and Session.exists(active_session_id):
-                short_id = Session.shortest_unique_prefix(active_session_id)
+            if active_session_id and Session.exists(active_session_id, work_dir=Path.cwd()):
+                short_id = Session.shortest_unique_prefix(active_session_id, work_dir=Path.cwd())
                 log(f"Session ID: {active_session_id}")
                 log(f"Resume with: klaude -r {short_id}")

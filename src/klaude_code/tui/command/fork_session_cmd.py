@@ -313,7 +313,7 @@ class ForkSessionCommand(CommandABC):
             new_session = agent.session.fork()
             await new_session.wait_for_flush()
 
-            short_id = Session.shortest_unique_prefix(new_session.id)
+            short_id = Session.shortest_unique_prefix(new_session.id, work_dir=new_session.work_dir)
             resume_cmd = f"klaude -r {short_id}"
             copy_to_clipboard(resume_cmd)
 
@@ -345,7 +345,7 @@ class ForkSessionCommand(CommandABC):
         else:
             fork_description = "entire conversation" if selected == -1 else f"up to message index {selected}"
 
-        short_id = Session.shortest_unique_prefix(new_session.id)
+        short_id = Session.shortest_unique_prefix(new_session.id, work_dir=new_session.work_dir)
         resume_cmd = f"klaude -r {short_id}"
         copy_to_clipboard(resume_cmd)
 

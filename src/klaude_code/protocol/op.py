@@ -8,6 +8,7 @@ that the executor uses to handle different types of requests.
 from __future__ import annotations
 
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 from uuid import uuid4
 
@@ -272,12 +273,13 @@ class UserInteractionRespondOperation(Operation):
 class InitAgentOperation(Operation):
     """Operation for initializing an agent and replaying history if any.
 
-    The caller must always provide session_id.
+    The caller must always provide session_id and work_dir.
     If the target session does not exist yet, a new session will be initialized.
     """
 
     type: OperationType = OperationType.INIT_AGENT
     session_id: str
+    work_dir: Path
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_init_agent(self)

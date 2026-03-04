@@ -3,6 +3,7 @@ import contextlib
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 from uuid import uuid4
 
 import typer
@@ -199,7 +200,7 @@ async def initialize_session(
 ) -> str | None:
     """Initialize a session and return the active session id."""
     resolved_session_id = session_id or uuid4().hex
-    await runtime.submit_and_wait(op.InitAgentOperation(session_id=resolved_session_id))
+    await runtime.submit_and_wait(op.InitAgentOperation(session_id=resolved_session_id, work_dir=Path.cwd()))
     await wait_for_display_idle()
 
     active_session_id = runtime.current_session_id()
@@ -261,8 +262,8 @@ async def handle_keyboard_interrupt(runtime: RuntimeFacade) -> None:
     """Handle Ctrl+C by logging and interrupting only if a task is running."""
     log("Bye!")
     session_id = runtime.current_session_id()
-    if session_id and Session.exists(session_id):
-        short_id = Session.shortest_unique_prefix(session_id)
+    if session_id and Session.exists(session_id, work_dir=Path.cwd()):
+        short_id = Session.shortest_unique_prefix(session_id, work_dir=Path.cwd())
         log(("Resume with:", "dim"), (f"klaude -r {short_id}", "green"))
     if not runtime.has_running_tasks():
         return

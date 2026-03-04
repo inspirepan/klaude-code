@@ -61,6 +61,7 @@ class Agent:
     ) -> AsyncGenerator[events.Event]:
         session_ctx = SessionContext(
             session_id=self.session.id,
+            work_dir=self.session.work_dir,
             get_conversation_history=self.session.get_llm_history,
             append_history=self.session.append_history,
             file_tracker=self.session.file_tracker,

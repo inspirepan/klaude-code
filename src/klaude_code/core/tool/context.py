@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable, MutableMapping
 from dataclasses import dataclass, replace
+from pathlib import Path
 
 from klaude_code.core.rewind import RewindManager
 from klaude_code.protocol import model, user_interaction
@@ -98,6 +99,7 @@ class ToolContext:
     file_tracker: FileTracker
     todo_context: TodoContext
     session_id: str
+    work_dir: Path
     run_subtask: RunSubtask | None = None
     sub_agent_resume_claims: SubAgentResumeClaims | None = None
     record_sub_agent_session_id: Callable[[str], None] | None = None

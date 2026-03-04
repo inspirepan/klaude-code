@@ -24,7 +24,7 @@ def arun(coro: Any) -> Any:
 
 def _tool_context() -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
-    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test")
+    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path.cwd())
 
 
 class BaseTempDirTest(unittest.TestCase):

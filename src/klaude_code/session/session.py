@@ -10,7 +10,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
-from klaude_code.const import ProjectPaths, project_key_from_cwd
+from klaude_code.const import ProjectPaths, project_key_from_path
 from klaude_code.protocol import events, llm_param, message, model, tools
 from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
 
@@ -36,13 +36,18 @@ def _read_json_dict(path: Path) -> dict[str, Any] | None:
     return cast(dict[str, Any], raw)
 
 
-def get_default_store() -> JsonlSessionStore:
-    project_key = project_key_from_cwd()
+def get_store_for_path(work_dir: Path) -> JsonlSessionStore:
+    """Return a session store for the given work directory."""
+    project_key = project_key_from_path(work_dir)
     store = _DEFAULT_STORES.get(project_key)
     if store is None:
         store = JsonlSessionStore(project_key=project_key)
         _DEFAULT_STORES[project_key] = store
     return store
+
+
+def get_default_store() -> JsonlSessionStore:
+    return get_store_for_path(Path.cwd())
 
 
 async def close_default_store() -> None:
@@ -73,7 +78,10 @@ class Session(BaseModel):
 
     _messages_count_cache: int | None = PrivateAttr(default=None)
     _user_messages_cache: list[str] | None = PrivateAttr(default=None)
-    _store: JsonlSessionStore = PrivateAttr(default_factory=get_default_store)
+    _store: JsonlSessionStore = PrivateAttr(default=None)  # type: ignore[assignment]  # set in model_post_init
+
+    def model_post_init(self, __context: Any) -> None:
+        self._store = get_store_for_path(self.work_dir)
 
     @property
     def messages_count(self) -> int:
@@ -106,34 +114,30 @@ class Session(BaseModel):
         return self._user_messages_cache
 
     @classmethod
-    def paths(cls) -> ProjectPaths:
-        return get_default_store().paths
+    def paths(cls, work_dir: Path) -> ProjectPaths:
+        return get_store_for_path(work_dir).paths
 
     @classmethod
-    def exists(cls, id: str) -> bool:
-        """Return True if a persisted session exists for the current project."""
+    def exists(cls, id: str, work_dir: Path) -> bool:
+        """Return True if a persisted session exists for the given project."""
 
-        paths = cls.paths()
+        paths = cls.paths(work_dir)
         return paths.meta_file(id).exists() or paths.events_file(id).exists()
 
     @classmethod
-    def create(cls, id: str | None = None, *, work_dir: Path | None = None) -> Session:
-        session = Session(id=id or uuid.uuid4().hex, work_dir=work_dir or Path.cwd())
-        session._store = get_default_store()
-        return session
+    def create(cls, id: str | None = None, *, work_dir: Path) -> Session:
+        return Session(id=id or uuid.uuid4().hex, work_dir=work_dir)
 
     @classmethod
-    def load_meta(cls, id: str) -> Session:
-        store = get_default_store()
+    def load_meta(cls, id: str, work_dir: Path) -> Session:
+        store = get_store_for_path(work_dir)
         raw = store.load_meta(id)
         if raw is None:
-            session = Session(id=id, work_dir=Path.cwd())
-            session._store = store
-            return session
+            return Session(id=id, work_dir=work_dir)
 
         work_dir_str = raw.get("work_dir")
         if not isinstance(work_dir_str, str) or not work_dir_str:
-            work_dir_str = str(Path.cwd())
+            work_dir_str = str(work_dir)
 
         sub_agent_state_raw = raw.get("sub_agent_state")
         sub_agent_state = (
@@ -178,7 +182,7 @@ class Session(BaseModel):
             llm_param.Thinking.model_validate(model_thinking_raw) if isinstance(model_thinking_raw, dict) else None
         )
 
-        session = Session(
+        return Session(
             id=id,
             work_dir=Path(work_dir_str),
             sub_agent_state=sub_agent_state,
@@ -192,20 +196,16 @@ class Session(BaseModel):
             model_thinking=model_thinking,
             next_checkpoint_id=next_checkpoint_id,
         )
-        session._store = store
+
+    @classmethod
+    def load(cls, id: str, work_dir: Path) -> Session:
+        session = cls.load_meta(id, work_dir)
+        session.conversation_history = session._store.load_history(id)
         return session
 
     @classmethod
-    def load(cls, id: str) -> Session:
-        store = get_default_store()
-        session = cls.load_meta(id)
-        session._store = store
-        session.conversation_history = store.load_history(id)
-        return session
-
-    @classmethod
-    def persist_runtime_state(cls, session_id: str, session_state: model.SessionRuntimeState) -> None:
-        store = get_default_store()
+    def persist_runtime_state(cls, session_id: str, session_state: model.SessionRuntimeState, work_dir: Path) -> None:
+        store = get_store_for_path(work_dir)
         store.update_meta(session_id, {"session_state": session_state.value, "updated_at": time.time()})
 
     def append_history(self, items: Sequence[message.HistoryEvent]) -> None:
@@ -372,7 +372,7 @@ class Session(BaseModel):
                          If -1, copy all history.
         """
 
-        forked = Session.create(id=new_id, work_dir=self.work_dir)
+        forked = Session(id=new_id or uuid.uuid4().hex, work_dir=self.work_dir)
 
         forked.sub_agent_state = None
         forked.model_name = self.model_name
@@ -397,8 +397,8 @@ class Session(BaseModel):
         await self._store.wait_for_flush(self.id)
 
     @classmethod
-    def most_recent_session_id(cls) -> str | None:
-        store = get_default_store()
+    def most_recent_session_id(cls, work_dir: Path) -> str | None:
+        store = get_store_for_path(work_dir)
         latest_id: str | None = None
         latest_ts: float = -1.0
         for meta_path in store.iter_meta_files():
@@ -625,7 +625,7 @@ class Session(BaseModel):
             return
         seen_sub_agent_sessions.add(session_id)
         try:
-            sub_session = Session.load(session_id)
+            sub_session = Session.load(session_id, work_dir=self.work_dir)
         except (OSError, json.JSONDecodeError, ValueError):
             return
         yield from sub_session.get_history_item()
@@ -642,8 +642,8 @@ class Session(BaseModel):
         session_state: model.SessionRuntimeState | None = None
 
     @classmethod
-    def list_sessions(cls) -> list[SessionMetaBrief]:
-        store = get_default_store()
+    def list_sessions(cls, work_dir: Path) -> list[SessionMetaBrief]:
+        store = get_store_for_path(work_dir)
 
         def _get_user_messages(session_id: str) -> list[str]:
             events_path = store.paths.events_file(session_id)
@@ -695,7 +695,7 @@ class Session(BaseModel):
             sid = str(data.get("id", meta_path.parent.name))
             created = float(data.get("created_at", meta_path.stat().st_mtime))
             updated = float(data.get("updated_at", meta_path.stat().st_mtime))
-            work_dir = str(data.get("work_dir", ""))
+            session_work_dir = str(data.get("work_dir", ""))
 
             user_messages_raw = data.get("user_messages")
             if isinstance(user_messages_raw, list) and all(
@@ -718,7 +718,7 @@ class Session(BaseModel):
                     id=sid,
                     created_at=created,
                     updated_at=updated,
-                    work_dir=work_dir,
+                    work_dir=session_work_dir,
                     path=str(meta_path),
                     user_messages=user_messages,
                     messages_count=messages_count,
@@ -731,11 +731,12 @@ class Session(BaseModel):
         return items
 
     @classmethod
-    def resolve_sub_agent_session_id(cls, resume: str) -> str:
+    def resolve_sub_agent_session_id(cls, resume: str, work_dir: Path) -> str:
         """Resolve a sub-agent session id from an id prefix.
 
         Args:
             resume: Full session id or a unique prefix.
+            work_dir: Project working directory.
 
         Returns:
             The resolved full session id.
@@ -748,7 +749,7 @@ class Session(BaseModel):
         if not prefix:
             raise ValueError("resume cannot be empty")
 
-        store = get_default_store()
+        store = get_store_for_path(work_dir)
         matches: set[str] = set()
 
         for meta_path in store.iter_meta_files():
@@ -774,11 +775,12 @@ class Session(BaseModel):
         return resolved[0]
 
     @classmethod
-    def find_sessions_by_prefix(cls, prefix: str) -> list[str]:
+    def find_sessions_by_prefix(cls, prefix: str, work_dir: Path) -> list[str]:
         """Find main session IDs matching a prefix.
 
         Args:
             prefix: Session ID prefix to match.
+            work_dir: Project working directory.
 
         Returns:
             List of matching session IDs, sorted alphabetically.
@@ -787,7 +789,7 @@ class Session(BaseModel):
         if not prefix:
             return []
 
-        store = get_default_store()
+        store = get_store_for_path(work_dir)
         matches: set[str] = set()
 
         for meta_path in store.iter_meta_files():
@@ -804,17 +806,18 @@ class Session(BaseModel):
         return sorted(matches)
 
     @classmethod
-    def shortest_unique_prefix(cls, session_id: str, min_length: int = 4) -> str:
+    def shortest_unique_prefix(cls, session_id: str, work_dir: Path, min_length: int = 4) -> str:
         """Find the shortest unique prefix for a session ID.
 
         Args:
             session_id: The session ID to find prefix for.
+            work_dir: Project working directory.
             min_length: Minimum prefix length (default 4).
 
         Returns:
             The shortest prefix that uniquely identifies this session.
         """
-        store = get_default_store()
+        store = get_store_for_path(work_dir)
         other_ids: list[str] = []
 
         for meta_path in store.iter_meta_files():
@@ -836,5 +839,5 @@ class Session(BaseModel):
         return session_id
 
     @classmethod
-    def exports_dir(cls) -> Path:
-        return get_default_store().paths.exports_dir
+    def exports_dir(cls, work_dir: Path) -> Path:
+        return get_store_for_path(work_dir).paths.exports_dir

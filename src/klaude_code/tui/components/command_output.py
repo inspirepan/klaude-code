@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
@@ -119,7 +121,7 @@ def _render_fork_session_output(e: events.NoticeEvent) -> RenderableType:
 
     grid = Table.grid(padding=(0, 1))
     session_id = e.ui_extra.session_id
-    short_id = Session.shortest_unique_prefix(session_id)
+    short_id = Session.shortest_unique_prefix(session_id, work_dir=Path.cwd())
     grid.add_column(style=ThemeKey.TOOL_RESULT, overflow="fold")
 
     grid.add_row(Text("Session forked. Resume command copied to clipboard:", style=ThemeKey.TOOL_RESULT))
