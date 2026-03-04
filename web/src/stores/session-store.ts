@@ -54,6 +54,13 @@ function updateRuntimeState(
   };
 }
 
+function pushSessionUrl(sessionId: ActiveSessionId): void {
+  const target = sessionId === "draft" ? "/" : `/session/${sessionId}`;
+  if (window.location.pathname !== target) {
+    history.pushState(null, "", target);
+  }
+}
+
 function closeActiveConnectionIfNeeded(nextSessionId: string | null): void {
   if (activeConnection === null) {
     return;
