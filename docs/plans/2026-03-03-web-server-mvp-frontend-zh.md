@@ -37,16 +37,16 @@
 - `web/src/stores/app-store.ts`
 - `web/src/stores/session-store.ts`
 - `web/src/api/client.ts`
-- `web/src/api/sse.ts`
+- `web/src/api/ws.ts`
 
 **步骤：**
 1. 首次加载流程调整为：
    - `GET /api/sessions` 拉取列表。
    - 进入“新 Session 草稿”详情态（仅前端状态，无 session_id）。
    - 用户发送首条消息时再 `POST /api/sessions` 创建新 session。
-   - 创建成功后发送首条消息，并建立 SSE 与历史状态。
+   - 创建成功后发送首条消息，并建立 WebSocket 连接与历史状态。
 2. “新建 Session”按钮复用同一草稿逻辑（进入草稿页，不立即创建）。
-3. 断线重连和切换 session 时保持 SSE 生命周期正确。
+3. 断线重连和切换 session 时保持 WebSocket 生命周期正确。
 
 **验收标准：**
 - 每次进入页面默认落在新会话草稿详情。
@@ -78,7 +78,7 @@
 1. 打开 `klaude web` 后浏览器自动进入页面。
 2. 默认详情页为新 Session 草稿（首条消息才创建）。
 3. 左侧按钮可连续进入新草稿；各草稿发送首条消息后可创建多个 session。
-4. 新旧 session 切换、SSE 重连、发送/中断均正常。
+4. 新旧 session 切换、WebSocket 重连、发送/中断均正常。
 5. 工具渲染（Read/Edit/Bash/WebSearch/Todo）与交互请求可用。
 
 **完成定义（DoD）：**

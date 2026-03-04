@@ -17,15 +17,15 @@
 - 修改: `pyproject.toml`
 
 **步骤：**
-1. 保持 `fastapi`/`uvicorn`/`sse-starlette` 归入 `web` extra。
+1. 将 `fastapi`/`uvicorn`/`sse-starlette` 作为默认依赖。
 2. 明确前端构建产物（`web/dist`）在打包时被包含到 wheel/sdist。
 3. 验证：
-   - `uv sync --extra web`
+   - `uv sync`
    - `uv build` 后检查产物含静态文件（若有 dist）
 
 **验收标准：**
-- 不安装 `web` extra 时不引入 web 依赖。
-- 安装 `web` extra 可正常运行 `klaude web`。
+- 默认安装后可直接运行 `klaude web`。
+- 无需额外安装任何 Web 依赖扩展包。
 
 ---
 
@@ -47,13 +47,13 @@
    - `POST /api/sessions/{id}/respond`
    - `POST /api/sessions/{id}/model`
    - `GET /api/sessions/{id}/history`
-   - `GET /api/sessions/{id}/events` (SSE)
+   - `WS /api/sessions/{id}/ws`
    - `GET /api/files`
 3. 明确 `POST /api/sessions` 的语义：用于“新建 Session”按钮，以及默认新会话草稿在发送首条消息时的懒创建。
 
 **验收标准：**
 - API 返回码、响应结构与文档一致。
-- SSE 能按 `session_id` 正确推流。
+- WebSocket 能按 `session_id` 正确双向通信与事件推送。
 - 文件端点具备路径白名单保护。
 
 ---

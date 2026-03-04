@@ -14,6 +14,7 @@ dependencies = [
     "ddgs>=9.9.3",
     "diff-match-patch>=20241021",
     "filelock>=3.20.3",
+    "fastapi",
     "google-genai>=1.56.0",
     "markdown-it-py>=4.0.0",
     "openai>=2.24.0",
@@ -22,8 +23,10 @@ dependencies = [
     "python-socks>=2.8.1",
     "pyyaml>=6.0.2",
     "rich>=14.1.0",
+    "sse-starlette",
     "trafilatura>=2.0.0",
     "typer>=0.17.3",
+    "uvicorn",
 ]
 
 [project.scripts]
@@ -32,6 +35,8 @@ klaude-code = "klaude_code.cli.main:app"
 
 [tool.uv.build-backend]
 module-name = "klaude_code"
+data = { data = "web/dist" }
+source-include = ["web/dist/**"]
 
 [dependency-groups]
 dev = [
@@ -98,6 +103,7 @@ type = "layers"
 layers = [
     "klaude_code.cli",
     "klaude_code.tui",
+    "klaude_code.web",
     "klaude_code.app",
     "klaude_code.core",
     "klaude_code.skill",

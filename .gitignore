@@ -20,3 +20,5 @@ debug.log
 .jj/
 .claude-trace/
 node_modules/
+*.tsbuildinfo
+.pnpm-store/

@@ -11,6 +11,7 @@ from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.cost_cmd import register_cost_commands
 from klaude_code.cli.debug import prepare_debug_logging
+from klaude_code.cli.web_cmd import register_web_commands
 from klaude_code.cli.self_update import register_self_upgrade_commands, version_option_callback
 from klaude_code.session import Session
 from klaude_code.tui.terminal.session_selector import select_session_sync
@@ -137,6 +138,7 @@ app = typer.Typer(
 register_auth_commands(app)
 register_config_commands(app)
 register_cost_commands(app)
+register_web_commands(app)
 register_self_upgrade_commands(app)
 
 
