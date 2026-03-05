@@ -67,8 +67,10 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
           const apiState = states[session.id] ?? "idle";
           const prev = next[session.id];
           if (prev === undefined) continue;
-          // Skip if WS is actively connected (it has more accurate state)
-          if (prev.wsState === "connected" || prev.wsState === "connecting") continue;
+          const wsActive = prev.wsState === "connected" || prev.wsState === "connecting";
+          // WS should be the source of truth, but polling still backfills when we missed
+          // initial task events (for example, opening a session while it is already running).
+          if (wsActive && !(prev.sessionState === "idle" && apiState !== "idle")) continue;
           if (prev.sessionState !== apiState) {
             next[session.id] = { ...prev, sessionState: apiState as SessionRuntimeState["sessionState"] };
             changed = true;

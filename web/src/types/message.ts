@@ -113,6 +113,14 @@ export interface DeveloperMessageItem {
   items: DeveloperUIItem[];
 }
 
+export interface TaskWorkedItem {
+  id: MessageItemId;
+  type: "task_worked";
+  timestamp: ItemTimestamp;
+  durationSeconds: number;
+  turnCount: number;
+}
+
 export interface UnknownEventItem {
   id: MessageItemId;
   type: "unknown_event";
@@ -127,4 +135,5 @@ export type MessageItem =
   | AssistantTextItem
   | ToolBlockItem
   | DeveloperMessageItem
+  | TaskWorkedItem
   | UnknownEventItem;

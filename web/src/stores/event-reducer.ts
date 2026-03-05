@@ -38,7 +38,6 @@ export function createInitialState(): ReducerState {
 const SKIP_EVENT_TYPES = new Set([
   "task.start",
   "task.finish",
-  "task.metadata",
   "turn.start",
   "turn.end",
   "usage",
@@ -61,6 +60,13 @@ const SKIP_EVENT_TYPES = new Set([
   "usage.snapshot",
   "end",
 ]);
+
+const WORKED_LINE_DURATION_THRESHOLD_S = 60;
+const WORKED_LINE_TURN_COUNT_THRESHOLD = 4;
+
+function parseFiniteNumber(raw: unknown): number | null {
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+}
 
 function parseStringArray(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -179,6 +185,39 @@ export function reduceEvent(
       return {
         ...state,
         items: [...state.items, { id, type: "developer_message", timestamp: ts, items: uiItems }],
+        nextId: state.nextId + 1,
+      };
+    }
+
+    case "task.metadata": {
+      const metadata = event.metadata;
+      if (metadata === null || typeof metadata !== "object") return state;
+
+      const mainAgent = (metadata as Record<string, unknown>).main_agent;
+      if (mainAgent === null || typeof mainAgent !== "object") return state;
+
+      const durationSeconds = parseFiniteNumber((mainAgent as Record<string, unknown>).task_duration_s);
+      if (durationSeconds === null) return state;
+
+      const turnCountRaw = parseFiniteNumber((mainAgent as Record<string, unknown>).turn_count);
+      const turnCount = Math.max(0, Math.floor(turnCountRaw ?? 0));
+      const shouldShowWorkedLine =
+        durationSeconds > WORKED_LINE_DURATION_THRESHOLD_S || turnCount > WORKED_LINE_TURN_COUNT_THRESHOLD;
+      if (!shouldShowWorkedLine) return state;
+
+      const id = makeId(state);
+      return {
+        ...state,
+        items: [
+          ...state.items,
+          {
+            id,
+            type: "task_worked",
+            timestamp: ts,
+            durationSeconds: Math.max(0, durationSeconds),
+            turnCount,
+          },
+        ],
         nextId: state.nextId + 1,
       };
     }

@@ -4,6 +4,7 @@ import { ThinkingBlock } from "./ThinkingBlock";
 import { AssistantText } from "./AssistantText";
 import { ToolBlock } from "./ToolBlock";
 import { DeveloperMessage } from "./DeveloperMessage";
+import { TaskWorked } from "./TaskWorked";
 import { UnknownEvent } from "./UnknownEvent";
 
 interface MessageItemProps {
@@ -22,6 +23,8 @@ export function MessageItem({ item }: MessageItemProps): JSX.Element {
       return <ToolBlock item={item} />;
     case "developer_message":
       return <DeveloperMessage item={item} />;
+    case "task_worked":
+      return <TaskWorked item={item} />;
     case "unknown_event":
       return <UnknownEvent item={item} />;
   }
