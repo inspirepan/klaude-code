@@ -1,4 +1,21 @@
-import type { MessageItem } from "../types/message";
+import type { MessageImagePart, MessageItem } from "../types/message";
+
+function parseUserMessageImages(raw: unknown): MessageImagePart[] {
+  if (!Array.isArray(raw)) return [];
+  const images: MessageImagePart[] = [];
+  for (const item of raw) {
+    if (typeof item !== "object" || item === null) continue;
+    const part = item as Record<string, unknown>;
+    if (part.type === "image_url" && typeof part.url === "string") {
+      images.push({ type: "image_url", url: part.url });
+      continue;
+    }
+    if (part.type === "image_file" && typeof part.file_path === "string") {
+      images.push({ type: "image_file", file_path: part.file_path });
+    }
+  }
+  return images;
+}
 
 export interface ReducerState {
   items: MessageItem[];
@@ -72,9 +89,10 @@ export function reduceEvent(
     case "user.message": {
       const id = makeId(state);
       const content = typeof event.content === "string" ? event.content : "";
+      const images = parseUserMessageImages(event.images);
       return {
         ...state,
-        items: [...state.items, { id, type: "user_message", timestamp: ts, content }],
+        items: [...state.items, { id, type: "user_message", timestamp: ts, content, images }],
         nextId: state.nextId + 1,
       };
     }

@@ -3,11 +3,24 @@ export type MessageItemId = string;
 /** Unix timestamp in seconds, null if unavailable */
 export type ItemTimestamp = number | null;
 
+export interface MessageImageURLPart {
+  type: "image_url";
+  url: string;
+}
+
+export interface MessageImageFilePart {
+  type: "image_file";
+  file_path: string;
+}
+
+export type MessageImagePart = MessageImageURLPart | MessageImageFilePart;
+
 export interface UserMessageItem {
   id: MessageItemId;
   type: "user_message";
   timestamp: ItemTimestamp;
   content: string;
+  images: MessageImagePart[];
 }
 
 export interface ThinkingBlockItem {

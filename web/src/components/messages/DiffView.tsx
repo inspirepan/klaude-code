@@ -5,6 +5,19 @@ import { preloadHighlighter } from "@pierre/diffs";
 import type { ToolBlockItem } from "../../types/message";
 
 const SHADOW_ICON_CSS = `
+[data-diffs-header],
+[data-header-content],
+[data-header-content] [data-prev-name],
+[data-header-content] [data-title],
+[data-diffs-header] [data-metadata] {
+  font-family: var(--diffs-font-family, "TX-02", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace) !important;
+}
+
+[data-diffs-header] {
+  min-height: 24px !important;
+  padding-inline: 12px !important;
+}
+
 [data-change-icon] { display: none !important; }
 [data-header-content]::before {
   content: "";
@@ -74,9 +87,6 @@ function rebuildUnifiedDiff(data: DiffUIExtra): string {
   return parts.join("\n");
 }
 
-// Single-file tools already show path in the ToolBlock header
-const SINGLE_FILE_TOOLS = new Set(["Edit", "Write"]);
-
 interface DiffViewProps {
   item: ToolBlockItem;
   uiExtra?: DiffUIExtra;
@@ -103,8 +113,6 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
 
   if (!extra) return null;
 
-  const hideFileHeader = SINGLE_FILE_TOOLS.has(item.toolName);
-
   const patch = useMemo(() => {
     if (extra.raw_unified_diff) return extra.raw_unified_diff;
     return rebuildUnifiedDiff(extra);
@@ -118,7 +126,6 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
           theme: "github-light",
           themeType: "light",
           overflow: "wrap",
-          disableFileHeader: hideFileHeader,
           diffStyle: "unified",
           diffIndicators: "bars",
           lineDiffType: "word",

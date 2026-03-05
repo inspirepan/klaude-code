@@ -57,3 +57,7 @@ export async function createSession(workDir?: string): Promise<CreateSessionResp
     body: payload ?? {},
   });
 }
+
+export function buildFileApiUrl(path: string): string {
+  return `/api/files?${new URLSearchParams({ path }).toString()}`;
+}

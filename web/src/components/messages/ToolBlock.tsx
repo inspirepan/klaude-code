@@ -6,6 +6,7 @@ import { DiffView, isDiffUIExtra } from "./DiffView";
 import { TodoListView, isTodoListUIExtra } from "./TodoListView";
 import { MarkdownDocView, isMarkdownDocUIExtra } from "./MarkdownDocView";
 import { QuestionSummaryView, isQuestionSummaryUIExtra } from "./QuestionSummaryView";
+import { ImageResultView, isImageUIExtra } from "./ImageResultView";
 
 const PLAN_TOOLS = new Set(["TodoWrite", "update_plan"]);
 
@@ -54,7 +55,7 @@ function extractHeaderDetail(toolName: string, args: string): string {
 }
 
 function hasRichUIExtra(extra: Record<string, unknown>): boolean {
-  if (isDiffUIExtra(extra) || isTodoListUIExtra(extra) || isMarkdownDocUIExtra(extra) || isQuestionSummaryUIExtra(extra)) return true;
+  if (isDiffUIExtra(extra) || isTodoListUIExtra(extra) || isMarkdownDocUIExtra(extra) || isQuestionSummaryUIExtra(extra) || isImageUIExtra(extra)) return true;
   if (extra.type === "multi" && Array.isArray(extra.items)) {
     return (extra.items as Record<string, unknown>[]).some(hasRichUIExtra);
   }
@@ -63,8 +64,8 @@ function hasRichUIExtra(extra: Record<string, unknown>): boolean {
 
 function shouldExpandResult(item: ToolBlockItem): boolean {
   if (item.resultStatus === "error") return false;
-  if (item.toolName === "Read") return false;
   if (item.uiExtra !== null && hasRichUIExtra(item.uiExtra)) return true;
+  if (item.toolName === "Read") return false;
   return false;
 }
 
@@ -88,6 +89,9 @@ function RichUIExtraBlock({ extra, item }: { extra: Record<string, unknown>; ite
         <QuestionSummaryView uiExtra={extra} />
       </div>
     );
+  }
+  if (isImageUIExtra(extra)) {
+    return <ImageResultView uiExtra={extra} />;
   }
   return null;
 }
@@ -181,9 +185,10 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
   const detail = extractHeaderDetail(item.toolName, item.arguments);
   const isBash = item.toolName === "Bash";
   const hasResult = item.result !== null && item.result.length > 0;
+  const isEmptyResult = item.result !== null && item.result.length === 0;
   const isError = item.resultStatus === "error";
   const hasRich = item.uiExtra !== null && hasRichUIExtra(item.uiExtra);
-  const expandable = hasResult || hasRich;
+  const expandable = hasResult || isEmptyResult || hasRich;
 
   const detailColor = isError
     ? "text-red-700"
@@ -227,34 +232,41 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
 
       {/* result: full width */}
       {open ? (
-        <div className="col-span-2 min-w-0 mt-1 pl-[22px]">
-          {hasRich ? (
-            <RichResult item={item} />
-          ) : hasResult ? (() => {
-            const lines = item.result!.split("\n");
-            const truncated = !showMore && lines.length > RESULT_LINE_LIMIT;
-            const displayed = truncated ? lines.slice(0, RESULT_LINE_LIMIT).join("\n") : item.result!;
-            return (
-              <div onClick={(e) => e.stopPropagation()}>
-                <pre
-                  className={`mt-1 text-sm leading-relaxed whitespace-pre-wrap break-words font-mono ${
-                    isError ? "text-red-700" : "text-zinc-400"
-                  }`}
-                >
-                  {displayed}
-                </pre>
-                {lines.length > RESULT_LINE_LIMIT ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowMore((v) => !v)}
-                    className="mt-1 text-xs text-zinc-400 hover:text-zinc-600 cursor-pointer transition-colors font-sans"
+        <div className="col-span-2 min-w-0 mt-1 grid grid-cols-[16px_1fr] gap-x-1.5">
+          <div className="flex justify-center">
+            <div className="w-px bg-zinc-200" />
+          </div>
+          <div className="min-w-0">
+            {hasRich ? (
+              <RichResult item={item} />
+            ) : hasResult ? (() => {
+              const lines = item.result!.split("\n");
+              const truncated = !showMore && lines.length > RESULT_LINE_LIMIT;
+              const displayed = truncated ? lines.slice(0, RESULT_LINE_LIMIT).join("\n") : item.result!;
+              return (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <pre
+                    className={`mt-1 text-sm leading-relaxed whitespace-pre-wrap break-words font-mono ${
+                      isError ? "text-red-700" : "text-zinc-400"
+                    }`}
                   >
-                    {showMore ? "Show less" : `Show more (${lines.length - RESULT_LINE_LIMIT} lines)`}
-                  </button>
-                ) : null}
-              </div>
-            );
-          })() : null}
+                    {displayed}
+                  </pre>
+                  {lines.length > RESULT_LINE_LIMIT ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowMore((v) => !v)}
+                      className="mt-1 text-xs text-zinc-400 hover:text-zinc-600 cursor-pointer transition-colors font-sans"
+                    >
+                      {showMore ? "Show less" : `Show more (${lines.length - RESULT_LINE_LIMIT} lines)`}
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })() : isEmptyResult ? (
+              <div className="mt-1 text-sm font-mono text-zinc-400">(no content)</div>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </div>
