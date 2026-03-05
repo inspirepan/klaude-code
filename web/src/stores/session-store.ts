@@ -7,6 +7,7 @@ import {
   fetchSessionGroups,
   fetchSessionHistory,
   unarchiveSession,
+  type RunningSessionState,
 } from "../api/client";
 import { connectSessionWs, type SessionWsConnection, type WsErrorFrame, type WsEventEnvelope } from "../api/ws";
 import type {
@@ -80,30 +81,60 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
     }
 
     set((state) => {
-      const next = { ...state.runtimeBySessionId };
-      let changed = false;
+      const nextRuntime = { ...state.runtimeBySessionId };
+      let runtimeChanged = false;
+      let groupsChanged = false;
+      let nextGroups = state.groups;
+
       for (const group of state.groups) {
         for (const session of group.sessions) {
-          const apiState = states[session.id] ?? "idle";
-          const prev = next[session.id];
+          const running: RunningSessionState | undefined = states[session.id];
+          const apiState = running?.session_state ?? "idle";
+          const prev = nextRuntime[session.id];
           if (prev === undefined) continue;
           const wsActive = prev.wsState === "connected" || prev.wsState === "connecting";
-          // WS should be the source of truth, but polling still backfills when we missed
-          // initial task events (for example, opening a session while it is already running).
           const shouldBackfillRunning = prev.sessionState === "idle" && apiState !== "idle";
           const shouldClearStaleRunning = prev.sessionState === "running" && apiState === "idle";
-          if (wsActive && !shouldBackfillRunning && !shouldClearStaleRunning) continue;
-          if (prev.sessionState !== apiState) {
-            next[session.id] = { ...prev, sessionState: apiState as SessionRuntimeState["sessionState"] };
-            changed = true;
+          if (!wsActive || shouldBackfillRunning || shouldClearStaleRunning) {
+            if (prev.sessionState !== apiState) {
+              nextRuntime[session.id] = { ...prev, sessionState: apiState as SessionRuntimeState["sessionState"] };
+              runtimeChanged = true;
+            }
+          }
+
+          if (running?.user_messages !== undefined && running.user_messages.length > 0) {
+            const lastApi = running.user_messages[running.user_messages.length - 1];
+            const lastLocal = session.user_messages[session.user_messages.length - 1];
+            if (lastApi !== lastLocal) {
+              nextGroups = updateSessionInGroups(nextGroups, session.id, { user_messages: running.user_messages });
+              groupsChanged = true;
+            }
           }
         }
       }
-      return changed ? { runtimeBySessionId: next } : {};
+
+      const patch: Partial<SessionStoreState> = {};
+      if (runtimeChanged) patch.runtimeBySessionId = nextRuntime;
+      if (groupsChanged) patch.groups = nextGroups;
+      return patch;
     });
   } catch {
     // Silently ignore polling errors
   }
+}
+
+function updateSessionInGroups(
+  groups: SessionGroup[],
+  sessionId: string,
+  patch: Partial<SessionSummary>,
+): SessionGroup[] {
+  return groups.map((group) => {
+    const idx = group.sessions.findIndex((s) => s.id === sessionId);
+    if (idx === -1) return group;
+    const sessions = [...group.sessions];
+    sessions[idx] = { ...sessions[idx], ...patch };
+    return { ...group, sessions };
+  });
 }
 
 function pushSessionUrl(sessionId: ActiveSessionId): void {

@@ -111,6 +111,30 @@ def list_file_running_states(home: Path) -> dict[str, Literal["running", "waitin
     return result
 
 
+def read_session_user_messages(home: Path, session_ids: set[str]) -> dict[str, list[str]]:
+    """Read user_messages from meta.json for the given session IDs."""
+    if not session_ids:
+        return {}
+    result: dict[str, list[str]] = {}
+    for meta_path in _iter_meta_files(home):
+        data = _read_json_dict(meta_path)
+        if data is None or data.get("deleted_at") is not None:
+            continue
+        sid = str(data.get("id", meta_path.parent.name))
+        if sid not in session_ids:
+            continue
+        user_messages_raw = data.get("user_messages")
+        user_messages: list[str] = []
+        if isinstance(user_messages_raw, list):
+            for msg in cast(list[Any], user_messages_raw):
+                if isinstance(msg, str):
+                    user_messages.append(msg)
+        result[sid] = user_messages
+        if len(result) == len(session_ids):
+            break
+    return result
+
+
 def resolve_session_work_dir(home: Path, session_id: str) -> Path | None:
     for meta_path in _iter_meta_files(home):
         data = _read_json_dict(meta_path)

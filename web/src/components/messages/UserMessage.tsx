@@ -9,7 +9,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
   const hasText = item.content.length > 0;
 
   return (
-    <div className="rounded-xl bg-[#f0f0f2] border border-neutral-200/60 px-4 py-3">
+    <div className="rounded-xl bg-neutral-100 border border-neutral-200/60 px-4 py-3">
       {item.images.length > 0 ? (
         <div className="space-y-2 mb-2">
           {item.images.map((image, idx) => {

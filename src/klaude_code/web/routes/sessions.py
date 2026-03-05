@@ -18,6 +18,7 @@ from klaude_code.session.session import Session, get_store_for_path
 from klaude_code.web.session_index import (
     list_file_running_states,
     list_main_sessions,
+    read_session_user_messages,
     resolve_session_work_dir,
     soft_delete_session,
 )
@@ -97,7 +98,7 @@ async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[di
 @router.get("/running")
 async def list_running_sessions(
     state: WebAppState = WEB_STATE_DEP,
-) -> dict[str, dict[str, str]]:
+) -> dict[str, dict[str, Any]]:
     """Return runtime states for sessions that have active actors."""
     runtime_states = _runtime_session_states(state)
     states: dict[str, str] = {
@@ -108,7 +109,13 @@ async def list_running_sessions(
     for sid, file_state in list_file_running_states(state.home_dir).items():
         if sid not in states:
             states[sid] = file_state
-    return {"states": states}
+    user_messages_map = read_session_user_messages(state.home_dir, set(states.keys()))
+    return {
+        "states": {
+            sid: {"session_state": session_state, "user_messages": user_messages_map.get(sid, [])}
+            for sid, session_state in states.items()
+        }
+    }
 
 
 @router.post("")

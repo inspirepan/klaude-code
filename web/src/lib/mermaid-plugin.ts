@@ -13,7 +13,7 @@ export const mermaid = {
     render: async (_id: string, source: string) => ({
       svg: renderMermaidSVG(source, {
         bg: "#ffffff",
-        fg: "#27272a",
+        fg: "#262626",
         transparent: true,
         font: "Geist, system-ui, sans-serif",
         padding: 24,
