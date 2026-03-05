@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, PanelLeftClose, RefreshCw } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
-import { SessionCard } from "./SessionCard";
 import { useSessionStore } from "../../stores/session-store";
 import { useAppStore } from "../../stores/app-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,6 +20,7 @@ export function LeftSidebar(): JSX.Element {
   const refreshSessions = useSessionStore((state) => state.refreshSessions);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<Record<string, boolean>>({});
 
   const activeGroups = useMemo(
     () =>
@@ -33,12 +33,21 @@ export function LeftSidebar(): JSX.Element {
     [groups],
   );
 
-  const archivedSessions = useMemo(
+  const archivedGroups = useMemo(
     () =>
       groups
-        .flatMap((group) => group.sessions.filter((session) => session.archived))
-        .sort((a, b) => b.updated_at - a.updated_at),
+        .map((group) => ({
+          ...group,
+          sessions: group.sessions.filter((session) => session.archived),
+        }))
+        .filter((group) => group.sessions.length > 0)
+        .sort((a, b) => (b.sessions[0]?.updated_at ?? 0) - (a.sessions[0]?.updated_at ?? 0)),
     [groups],
+  );
+
+  const archivedSessionCount = useMemo(
+    () => archivedGroups.reduce((count, group) => count + group.sessions.length, 0),
+    [archivedGroups],
   );
 
   return (
@@ -123,44 +132,57 @@ export function LeftSidebar(): JSX.Element {
             />
           ))}
 
-          <div className="mt-4 border-t border-zinc-200 pt-2">
-            <button
-              type="button"
-              className="w-full flex items-center gap-1 px-2 py-1.5 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100/50 transition-colors"
-              onClick={() => {
-                setArchivedExpanded((prev) => !prev);
-              }}
-            >
-              {archivedExpanded ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
-              <span className="flex-1 text-[13px] text-left">Archived</span>
-              <span className="text-[12px] text-zinc-400">{archivedSessions.length}</span>
-            </button>
-
-            {archivedExpanded ? (
-              archivedSessions.length > 0 ? (
-                <div className="mt-0.5 space-y-0.5">
-                  {archivedSessions.map((session) => (
-                    <SessionCard
-                      key={session.id}
-                      session={session}
-                      active={activeSessionId === session.id}
-                      runtime={runtimeBySessionId[session.id] ?? { sessionState: "idle", wsState: "idle", lastError: null }}
-                      onClick={() => {
-                        void selectSession(session.id);
-                      }}
-                      onToggleArchive={(sessionId, archived) => {
-                        void setSessionArchived(sessionId, archived);
-                      }}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="px-2 py-1 text-[12px] text-zinc-400">No archived sessions</div>
-              )
-            ) : null}
-          </div>
         </div>
       </ScrollArea>
+
+      <div className="border-t border-zinc-200 px-3 py-2 shrink-0">
+        {archivedExpanded ? (
+          archivedGroups.length > 0 ? (
+            <ScrollArea className="w-full max-h-[40vh]" viewportClassName="!h-auto max-h-[40vh]">
+              <div className="pt-1">
+                {archivedGroups.map((group) => (
+                  <ProjectGroup
+                    key={`archived-${group.work_dir}`}
+                    workDir={group.work_dir}
+                    sessions={group.sessions}
+                    collapsed={archivedCollapsedByWorkDir[group.work_dir] ?? false}
+                    activeSessionId={activeSessionId}
+                    runtimeBySessionId={runtimeBySessionId}
+                    onToggle={() => {
+                      setArchivedCollapsedByWorkDir((prev) => ({
+                        ...prev,
+                        [group.work_dir]: !(prev[group.work_dir] ?? false),
+                      }));
+                    }}
+                    onSelectSession={(sessionId) => {
+                      void selectSession(sessionId);
+                    }}
+                    onToggleArchive={(sessionId, archived) => {
+                      void setSessionArchived(sessionId, archived);
+                    }}
+                  />
+                ))}
+              </div>
+            </ScrollArea>
+          ) : (
+            <div className="px-2 py-1 text-[12px] text-zinc-400">No archived sessions</div>
+          )
+        ) : null}
+
+        <div className={archivedExpanded ? "mt-1.5" : undefined}>
+          <button
+            type="button"
+            className="w-full flex items-center gap-1 px-2 py-1.5 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100/50 transition-colors"
+            onClick={() => {
+              setArchivedExpanded((prev) => !prev);
+            }}
+          >
+            {archivedExpanded ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
+            <span className="flex-1 text-[13px] text-left">Archived</span>
+            <span className="text-[12px] text-zinc-400">{archivedSessionCount}</span>
+          </button>
+        </div>
+      </div>
     </aside>
   );
 }

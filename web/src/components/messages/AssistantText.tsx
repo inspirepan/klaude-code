@@ -5,6 +5,7 @@ import { code } from "@streamdown/code";
 
 import type { AssistantTextItem } from "../../types/message";
 import { mermaid } from "../../lib/mermaid-plugin";
+import { useParsedFrontmatter, FrontmatterTable } from "./FrontmatterTable";
 
 interface AssistantTextProps {
   item: AssistantTextItem;
@@ -15,6 +16,7 @@ const plugins = { code, mermaid };
 export function AssistantText({ item }: AssistantTextProps): JSX.Element {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef(0);
+  const { entries, body } = useParsedFrontmatter(item.content);
 
   useEffect(() => () => window.clearTimeout(timerRef.current), []);
 
@@ -30,8 +32,9 @@ export function AssistantText({ item }: AssistantTextProps): JSX.Element {
 
   return (
     <div className="assistant-text group/assistant relative">
+      {entries ? <FrontmatterTable entries={entries} /> : null}
       <Streamdown isAnimating={item.isStreaming} plugins={plugins}>
-        {item.content}
+        {body}
       </Streamdown>
       {!item.isStreaming && item.content.split("\n").length > 5 ? (
         <button

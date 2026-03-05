@@ -2,6 +2,7 @@ import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 
 import { mermaid } from "../../lib/mermaid-plugin";
+import { useParsedFrontmatter, FrontmatterTable } from "./FrontmatterTable";
 
 interface MarkdownDocUIExtra {
   type: "markdown_doc";
@@ -20,14 +21,17 @@ interface MarkdownDocViewProps {
 }
 
 export function MarkdownDocView({ uiExtra }: MarkdownDocViewProps): JSX.Element {
+  const { entries, body } = useParsedFrontmatter(uiExtra.content);
+
   return (
-    <div className="mt-1 rounded-lg border border-zinc-200/80 overflow-hidden">
+    <div className="mt-1 rounded-lg border border-zinc-200/80 overflow-hidden font-sans">
       <div className="px-3 py-1.5 bg-zinc-50 border-b border-zinc-200/80 text-xs text-zinc-400 font-mono truncate">
         {uiExtra.file_path}
       </div>
       <div className="px-4 py-3 text-sm markdown-doc-view">
+        {entries ? <FrontmatterTable entries={entries} /> : null}
         <Streamdown isAnimating={false} plugins={plugins}>
-          {uiExtra.content}
+          {body}
         </Streamdown>
       </div>
     </div>

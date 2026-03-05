@@ -232,6 +232,41 @@ body {
   font-size: 0.875em;
 }
 
+/* Frontmatter metadata table */
+.frontmatter-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1em;
+  font-size: 0.875em;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.frontmatter-table tr {
+  border-bottom: 1px solid hsl(var(--border));
+}
+.frontmatter-table tr:last-child {
+  border-bottom: none;
+}
+.frontmatter-table td {
+  padding: 0.4em 0.75em;
+  vertical-align: top;
+  line-height: 1.5;
+}
+.frontmatter-table .frontmatter-key {
+  white-space: nowrap;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted));
+  width: 1%;
+  font-family: "TX-02", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+.frontmatter-table .frontmatter-value {
+  color: hsl(var(--foreground));
+  word-break: break-word;
+}
+
 /* Thin scrollbar for message list */
 .scrollbar-thin {
   scrollbar-width: thin;
