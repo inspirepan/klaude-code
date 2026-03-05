@@ -74,7 +74,7 @@ export function ProjectGroup({
             }}
           >
             <span className="text-[13px] font-normal flex-1 pl-6">
-              加载更多 ({sessions.length - 10})
+              Load more ({sessions.length - 10})
             </span>
           </button>
         )}

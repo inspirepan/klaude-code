@@ -30,8 +30,8 @@ export function LeftSidebar(): JSX.Element {
           onClick={() => {
             setSidebarOpen(false);
           }}
-          title="收起侧边栏"
-          aria-label="收起侧边栏"
+          title="Collapse sidebar"
+          aria-label="Collapse sidebar"
         >
           <PanelLeftClose className="w-4 h-4" />
         </button>
@@ -41,7 +41,7 @@ export function LeftSidebar(): JSX.Element {
         <div className="px-3 pb-3">
           {loadError !== null ? (
             <div className="mt-3 p-3 border border-dashed border-zinc-300 rounded-lg bg-white">
-              <div className="font-semibold mb-1">加载失败</div>
+              <div className="font-semibold mb-1">Load failed</div>
               <div className="text-sm text-zinc-500 break-words">{loadError}</div>
               <button
                 type="button"
@@ -50,7 +50,7 @@ export function LeftSidebar(): JSX.Element {
                   void refreshSessions();
                 }}
               >
-                点击重试
+                Click to retry
               </button>
             </div>
           ) : null}
@@ -58,14 +58,14 @@ export function LeftSidebar(): JSX.Element {
           {loadError === null && loading && groups.length === 0 ? (
             <div className="flex items-center gap-2 px-2 py-2 text-zinc-500">
               <div className="w-4 h-4 rounded-full border-2 border-zinc-200 border-t-zinc-500 animate-spin" />
-              <span className="text-[13px] font-medium">加载中...</span>
+              <span className="text-[13px] font-medium">Loading...</span>
             </div>
           ) : null}
 
           {loadError === null && !loading && groups.length === 0 ? (
             <div className="px-2 py-2 text-zinc-500">
-              <div className="text-[13px] font-medium">暂无会话</div>
-              <div className="text-[12px] mt-0.5">点击上方“New Agent”开始</div>
+              <div className="text-[13px] font-medium">No sessions yet</div>
+              <div className="text-[12px] mt-0.5">Click "New Agent" above to start</div>
             </div>
           ) : null}
 

@@ -18,8 +18,8 @@ export function MainPanel(): JSX.Element {
           onClick={() => {
             setSidebarOpen(true);
           }}
-          title="展开侧边栏"
-          aria-label="展开侧边栏"
+          title="Expand sidebar"
+          aria-label="Expand sidebar"
         >
           <PanelLeftOpen className="w-4 h-4" />
         </button>
@@ -31,15 +31,15 @@ export function MainPanel(): JSX.Element {
           onClick={() => {
             void selectSession(activeSessionId);
           }}
-          title="刷新会话"
-          aria-label="刷新会话"
+          title="Refresh session"
+          aria-label="Refresh session"
         >
           <RefreshCw className="w-4 h-4" />
         </button>
       ) : null}
       {activeSessionId === "draft" ? (
         <div className="flex-1 flex items-center justify-center text-zinc-400 text-[15px]">
-          新会话草稿（详情区待实现）
+          New session draft (details area pending)
         </div>
       ) : (
         <MessageList sessionId={activeSessionId} />

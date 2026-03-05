@@ -13,37 +13,37 @@ function getSessionTitle(session: SessionSummary): string {
   if (firstMessage !== undefined && firstMessage.length > 0) {
     return firstMessage;
   }
-  return "新会话";
+  return "New session";
 }
 
 function getSessionExcerpt(session: SessionSummary): string {
   if (session.user_messages.length > 1) {
-    return session.user_messages[session.user_messages.length - 1] ?? "已恢复会话";
+    return session.user_messages[session.user_messages.length - 1] ?? "Restored session";
   }
   if (session.messages_count > 1) {
-    return `包含 ${session.messages_count} 条消息`;
+    return `${session.messages_count} messages`;
   }
-  return session.model_name ? `模型: ${session.model_name}` : "草稿会话";
+  return session.model_name ? `Model: ${session.model_name}` : "Draft session";
 }
 
 function formatRelativeTime(timestampSeconds: number): string {
   const deltaSeconds = Math.max(0, Math.floor(Date.now() / 1000 - timestampSeconds));
   if (deltaSeconds < 60) {
-    return "刚刚";
+    return "Just now";
   }
   if (deltaSeconds < 3600) {
-    return `${Math.floor(deltaSeconds / 60)} 分钟`;
+    return `${Math.floor(deltaSeconds / 60)} min`;
   }
   if (deltaSeconds < 86400) {
-    return `${Math.floor(deltaSeconds / 3600)} 小时`;
+    return `${Math.floor(deltaSeconds / 3600)} hr`;
   }
   if (deltaSeconds < 604800) {
-    return `${Math.floor(deltaSeconds / 86400)} 天`;
+    return `${Math.floor(deltaSeconds / 86400)} day`;
   }
   if (deltaSeconds < 2592000) {
-    return `${Math.floor(deltaSeconds / 604800)} 周`;
+    return `${Math.floor(deltaSeconds / 604800)} wk`;
   }
-  return `${Math.floor(deltaSeconds / 2592000)} 个月`;
+  return `${Math.floor(deltaSeconds / 2592000)} mo`;
 }
 
 export function SessionCard({ session, active, runtime, onClick }: SessionCardProps): JSX.Element {
