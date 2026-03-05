@@ -169,7 +169,7 @@ async def archive_session(session_id: str, state: WebAppState = WEB_STATE_DEP) -
         raise HTTPException(status_code=404, detail="session not found")
 
     store = get_store_for_path(work_dir)
-    archived = store.update_meta(session_id, {"archived": True, "updated_at": time.time()})
+    archived = store.update_meta(session_id, {"archived": True})
     if not archived:
         raise HTTPException(status_code=500, detail="failed to archive session")
 
@@ -185,7 +185,7 @@ async def unarchive_session(session_id: str, state: WebAppState = WEB_STATE_DEP)
         raise HTTPException(status_code=404, detail="session not found")
 
     store = get_store_for_path(work_dir)
-    unarchived = store.update_meta(session_id, {"archived": False, "updated_at": time.time()})
+    unarchived = store.update_meta(session_id, {"archived": False})
     if not unarchived:
         raise HTTPException(status_code=500, detail="failed to unarchive session")
     return {"ok": True}
