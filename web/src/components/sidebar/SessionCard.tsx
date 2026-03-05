@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, CheckCircle, Loader } from "lucide-react";
+import { Archive, ArchiveRestore, CheckCircle, CirclePause, Loader } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 
 interface SessionCardProps {
@@ -18,13 +18,10 @@ function getSessionTitle(session: SessionSummary): string {
 }
 
 function getSessionExcerpt(session: SessionSummary): string {
-  if (session.user_messages.length > 1) {
+  if (session.user_messages.length > 0) {
     return session.user_messages[session.user_messages.length - 1] ?? "Restored session";
   }
-  if (session.messages_count > 1) {
-    return `${session.messages_count} messages`;
-  }
-  return session.model_name ? `Model: ${session.model_name}` : "Draft session";
+  return "No user message yet";
 }
 
 function formatRelativeTime(timestampSeconds: number): string {
@@ -47,43 +44,64 @@ function formatRelativeTime(timestampSeconds: number): string {
   return `${Math.floor(deltaSeconds / 2592000)} mo`;
 }
 
+function getRuntimeIcon(runtime: SessionRuntimeState): JSX.Element {
+  if (runtime.sessionState === "running") {
+    return <Loader className="shrink-0 w-3.5 h-3.5 text-zinc-400 animate-spin" />;
+  }
+  if (runtime.sessionState === "waiting_user_input") {
+    return <CirclePause className="shrink-0 w-3.5 h-3.5 text-amber-500" />;
+  }
+  return <CheckCircle className="shrink-0 w-3.5 h-3.5 text-zinc-400" />;
+}
+
 export function SessionCard({ session, active, runtime, onClick, onToggleArchive }: SessionCardProps): JSX.Element {
   const title = getSessionTitle(session);
+  const excerpt = getSessionExcerpt(session);
   const updatedAt = formatRelativeTime(session.updated_at);
+  const messageCountLabel = session.messages_count >= 0 ? `${session.messages_count} messages` : "N/A messages";
+  const modelLabel = session.model_name ?? "N/A model";
 
   return (
     <div className="group relative">
       <button
-        className={`w-full flex items-center justify-between gap-3 px-2 py-[6px] rounded-md text-left transition-colors ${
+        className={`w-full rounded-md px-2 py-2 text-left transition-colors ${
           active ? "bg-zinc-200/60" : "hover:bg-zinc-100/80"
         }`}
         type="button"
         onClick={onClick}
         title={title}
       >
-        <span className="text-[14px] text-zinc-700 font-normal truncate flex-1 pl-1 flex items-center gap-1.5">
-          {runtime.sessionState !== "idle" ? (
-            <Loader className="shrink-0 w-3.5 h-3.5 text-zinc-400 animate-spin" />
-          ) : (
-            <CheckCircle className="shrink-0 w-3.5 h-3.5 text-zinc-400" />
-          )}
-          {title}
-        </span>
-        <span className="text-[13px] text-zinc-400 shrink-0 transition-opacity group-hover:opacity-0">{updatedAt}</span>
+        <div className="min-w-0 pl-1">
+          <div className="flex items-center gap-1.5 min-w-0 pr-14">
+            {getRuntimeIcon(runtime)}
+            <span className="text-[14px] leading-5 text-zinc-700 truncate flex-1">{title}</span>
+          </div>
+
+          <div className="mt-0.5 pl-5 text-[13px] leading-5 text-zinc-500 truncate">{excerpt}</div>
+
+          <div className="mt-0.5 pl-5 text-[11px] leading-4 text-zinc-400 truncate">
+            {messageCountLabel} · {modelLabel}
+          </div>
+        </div>
       </button>
 
-      <button
-        type="button"
-        className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-200/60 hover:text-zinc-700 group-hover:opacity-100 focus:opacity-100"
-        title={session.archived ? "Unarchive session" : "Archive session"}
-        aria-label={session.archived ? "Unarchive session" : "Archive session"}
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggleArchive(session.id, !session.archived);
-        }}
-      >
-        {session.archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-      </button>
+      <div className="absolute right-2 top-2 h-5 w-12">
+        <span className="pointer-events-none absolute inset-0 text-[12px] leading-5 text-zinc-400 text-right whitespace-nowrap transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">
+          {updatedAt}
+        </span>
+        <button
+          type="button"
+          className="absolute inset-0 inline-flex items-center justify-end rounded text-zinc-400 opacity-0 transition-opacity hover:text-zinc-700 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+          title={session.archived ? "Unarchive session" : "Archive session"}
+          aria-label={session.archived ? "Unarchive session" : "Archive session"}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleArchive(session.id, !session.archived);
+          }}
+        >
+          {session.archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+        </button>
+      </div>
     </div>
   );
 }
