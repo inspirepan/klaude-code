@@ -233,6 +233,14 @@ body {
   background-color: rgba(161, 161, 170, 0.5);
 }
 
+/* Override @pierre/diffs font with project mono font */
+.diff-view {
+  --diffs-font-family: "TX-02", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace !important;
+  --diffs-font-fallback: "TX-02", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

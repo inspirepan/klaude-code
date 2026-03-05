@@ -148,9 +148,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 <div className="flex-1 min-w-0">
                   <MessageItem item={item} />
                 </div>
-                <div className="hidden sm:block shrink-0 pt-1 text-right whitespace-nowrap">
+                <div className="hidden sm:block shrink-0 text-right whitespace-nowrap">
                   {time ? (
-                    <span className="text-[11px] tabular-nums text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 select-none">
+                    <span className="text-xs leading-none tabular-nums text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 select-none relative -top-0.5 pb-0.5">
                       {time}
                     </span>
                   ) : null}

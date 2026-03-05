@@ -1,42 +1,8 @@
 import { useState } from "react";
-import {
-  ChevronRight,
-  Loader2,
-  Terminal,
-  FileText,
-  FilePenLine,
-  FilePlus,
-  FileDiff,
-  ListChecks,
-  Globe,
-  Search,
-  CircleHelp,
-  CheckCircle,
-  Undo2,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import type { ToolBlockItem } from "../../types/message";
 import { DiffView } from "./DiffView";
-
-const TOOL_ICONS: Record<string, LucideIcon> = {
-  Bash: Terminal,
-  Read: FileText,
-  Edit: FilePenLine,
-  Write: FilePlus,
-  apply_patch: FileDiff,
-  TodoWrite: ListChecks,
-  update_plan: ListChecks,
-  WebFetch: Globe,
-  WebSearch: Search,
-  AskUserQuestion: CircleHelp,
-  report_back: CheckCircle,
-  Rewind: Undo2,
-};
-
-const SKIP_ICON_TOOLS = new Set(["Agent"]);
 
 // Tools whose result is expanded by default
 const EXPAND_RESULT_TOOLS = new Set([
@@ -46,11 +12,6 @@ const EXPAND_RESULT_TOOLS = new Set([
   "ask_user_question_summary",
   "image",
 ]);
-
-function getToolIcon(toolName: string): LucideIcon | null {
-  if (SKIP_ICON_TOOLS.has(toolName)) return null;
-  return TOOL_ICONS[toolName] ?? Wrench;
-}
 
 function extractHeaderDetail(toolName: string, args: string): string {
   try {
@@ -108,68 +69,90 @@ interface ToolBlockProps {
   item: ToolBlockItem;
 }
 
+const RESULT_LINE_LIMIT = 15;
+
 export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
   const defaultExpanded = shouldExpandResult(item);
   const [open, setOpen] = useState(defaultExpanded);
+  const [showMore, setShowMore] = useState(false);
 
-  const Icon = getToolIcon(item.toolName);
   const detail = extractHeaderDetail(item.toolName, item.arguments);
   const isBash = item.toolName === "Bash";
   const hasResult = item.result !== null && item.result.length > 0;
   const isError = item.resultStatus === "error";
   const hasDiff = item.uiExtra !== null && (item.uiExtra as Record<string, unknown>).type === "diff";
+  const expandable = hasResult || hasDiff;
 
-  const leftColor = isError || item.resultStatus === "aborted"
-    ? "border-l-red-400"
-    : item.resultStatus === "success"
-      ? "border-l-emerald-500"
-      : "border-l-zinc-300";
+  const detailColor = isError
+    ? "text-red-700"
+    : item.resultStatus === "aborted"
+      ? "text-zinc-400"
+      : "text-zinc-400";
 
   return (
-    <div className={`rounded-md border border-zinc-200/80 border-l-[3px] ${leftColor}`}>
-      <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger className="flex items-center gap-2 px-3 py-2 text-sm w-full cursor-pointer group">
-          {Icon ? <Icon className="w-3.5 h-3.5 text-zinc-400 shrink-0" /> : null}
-          <span className="font-medium text-zinc-600">{item.toolName}</span>
-          {detail ? (
-            isBash ? (
-              <code className="bg-zinc-50 rounded px-1.5 py-0.5 text-xs font-mono text-zinc-500 truncate min-w-0">
-                {detail}
-              </code>
-            ) : (
-              <span className="text-zinc-400 truncate min-w-0">{detail}</span>
-            )
-          ) : null}
-          <span className="flex-1" />
-          {item.isStreaming ? (
-            <Loader2 className="w-3.5 h-3.5 text-zinc-400 animate-spin shrink-0" />
-          ) : null}
-          {hasResult || hasDiff ? (
-            <ChevronRight
-              className={`w-3.5 h-3.5 text-zinc-300 transition-transform duration-150 shrink-0 ${open ? "rotate-90" : ""}`}
-            />
-          ) : null}
-        </CollapsibleTrigger>
-        {hasDiff ? (
-          <CollapsibleContent>
-            <div className="px-3 pt-1 pb-2">
-              <div className="rounded-lg border border-zinc-200/80 overflow-hidden">
-                <DiffView item={item} />
-              </div>
-            </div>
-          </CollapsibleContent>
-        ) : hasResult ? (
-          <CollapsibleContent>
-            <pre
-              className={`px-3 pt-1 pb-2 text-xs leading-relaxed whitespace-pre-wrap break-words font-mono ${
-                isError ? "text-red-600" : "text-zinc-500"
-              }`}
-            >
-              {item.result}
-            </pre>
-          </CollapsibleContent>
+    <div
+      className={`grid grid-cols-[auto_1fr] gap-x-1.5 items-start text-[15px] font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      onClick={() => expandable && setOpen((v) => !v)}
+    >
+      {/* left col: chevron + vertical line + tool name */}
+      <div className="flex items-start gap-1.5 self-stretch">
+        <div className="flex flex-col items-center self-stretch">
+          <ChevronRight
+            className={`w-4 h-4 text-zinc-300 transition-transform duration-150 shrink-0 mt-1 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
+          />
+          {open ? <div className="w-px bg-zinc-200 flex-1 mt-1" /> : null}
+        </div>
+        <span className="font-normal text-zinc-500 whitespace-nowrap font-sans tracking-[0.03em]">{item.toolName}</span>
+        {item.isStreaming ? (
+          <Loader2 className="w-3 h-3 text-zinc-400 animate-spin shrink-0 mt-0.5" />
         ) : null}
-      </Collapsible>
+      </div>
+
+      {/* right col: detail (truncated or wrapped) + result */}
+      <div className="min-w-0">
+        {detail ? (
+          isBash ? (
+            <code className={`inline-block max-w-full text-sm bg-zinc-100 rounded px-1.5 py-0.5 ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
+              {detail}
+            </code>
+          ) : (
+            <span className={`inline-block max-w-full text-sm bg-zinc-100 rounded px-1.5 py-0.5 ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
+              {detail}
+            </span>
+          )
+        ) : null}
+        {open ? (
+          hasDiff ? (
+            <div className="mt-1 rounded-lg border border-zinc-200/80 overflow-hidden">
+              <DiffView item={item} />
+            </div>
+          ) : hasResult ? (() => {
+            const lines = item.result!.split("\n");
+            const truncated = !showMore && lines.length > RESULT_LINE_LIMIT;
+            const displayed = truncated ? lines.slice(0, RESULT_LINE_LIMIT).join("\n") : item.result!;
+            return (
+              <div onClick={(e) => e.stopPropagation()}>
+                <pre
+                  className={`mt-1 text-sm leading-relaxed whitespace-pre-wrap break-words font-mono ${
+                    isError ? "text-red-700" : "text-zinc-400"
+                  }`}
+                >
+                  {displayed}
+                </pre>
+                {lines.length > RESULT_LINE_LIMIT ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowMore((v) => !v)}
+                    className="mt-1 text-xs text-zinc-400 hover:text-zinc-600 cursor-pointer transition-colors font-sans"
+                  >
+                    {showMore ? "Show less" : `Show more (${lines.length - RESULT_LINE_LIMIT} lines)`}
+                  </button>
+                ) : null}
+              </div>
+            );
+          })() : null
+        ) : null}
+      </div>
     </div>
   );
 }
