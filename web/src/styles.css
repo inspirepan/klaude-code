@@ -104,6 +104,12 @@ body {
   letter-spacing: 0.03em;
   color: #171717;
 }
+.assistant-text code,
+.assistant-text pre,
+.assistant-text kbd,
+.assistant-text samp {
+  letter-spacing: normal;
+}
 /* Tailwind preflight resets many element styles; restore them for Streamdown */
 .assistant-text hr {
   margin-top: 1.5em;

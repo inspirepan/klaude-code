@@ -64,6 +64,14 @@ function hasRichUIExtra(extra: Record<string, unknown>): boolean {
   return false;
 }
 
+function hasDiffUIExtra(extra: Record<string, unknown>): boolean {
+  if (isDiffUIExtra(extra)) return true;
+  if (extra.type === "multi" && Array.isArray(extra.items)) {
+    return (extra.items as Record<string, unknown>[]).some(hasDiffUIExtra);
+  }
+  return false;
+}
+
 function shouldExpandResult(item: ToolBlockItem): boolean {
   if (item.resultStatus === "error") return false;
   if (item.uiExtra !== null && hasRichUIExtra(item.uiExtra)) return true;
@@ -207,6 +215,7 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
   const isEmptyResult = item.result !== null && item.result.length === 0;
   const isError = item.resultStatus === "error";
   const hasRich = item.uiExtra !== null && hasRichUIExtra(item.uiExtra);
+  const hideResultRail = item.uiExtra !== null && hasDiffUIExtra(item.uiExtra);
   const expandable = hasResult || isEmptyResult || hasRich;
 
   const detailColor = isError
@@ -253,7 +262,7 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
       {open ? (
         <div className="col-span-2 min-w-0 mt-1 grid grid-cols-[16px_1fr] gap-x-1.5">
           <div className="flex justify-center">
-            <div className="w-px bg-neutral-200" />
+            {hideResultRail ? null : <div className="w-px bg-neutral-200" />}
           </div>
           <div className="min-w-0">
             {hasRich ? (

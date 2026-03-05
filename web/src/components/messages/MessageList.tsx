@@ -2,7 +2,12 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Loader2, ChevronUp } from "lucide-react";
 
 import { useMessageStore } from "../../stores/message-store";
-import type { MessageItem as MessageItemType, UserMessageItem, ItemTimestamp } from "../../types/message";
+import type {
+  MessageItem as MessageItemType,
+  UserMessageItem,
+  ItemTimestamp,
+  AssistantTextItem,
+} from "../../types/message";
 import { MessageItem } from "./MessageItem";
 import { SearchBar } from "./SearchBar";
 import { SearchProvider, type SearchState } from "./search-context";
@@ -60,6 +65,10 @@ function findMatchingItemIds(items: MessageItemType[], query: string): string[] 
     .map((item) => item.id);
 }
 
+function isCopyableAssistantText(item: MessageItemType): item is AssistantTextItem {
+  return item.type === "assistant_text" && !item.isStreaming && item.content.split("\n").length > 5;
+}
+
 export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const items = useMessageStore((state) => state.messagesBySessionId[sessionId] ?? EMPTY_ITEMS);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -69,6 +78,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
+  const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
+  const copyTimerRef = useRef(0);
 
   const searchMatchItemIds = useMemo(
     () => findMatchingItemIds(items, searchQuery),
@@ -124,6 +135,20 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     setSearchOpen(false);
     setSearchQuery("");
     setSearchActiveIndex(-1);
+  }, []);
+
+  useEffect(() => () => window.clearTimeout(copyTimerRef.current), []);
+
+  const handleCopy = useCallback(async (item: MessageItemType) => {
+    if (!isCopyableAssistantText(item)) return;
+    try {
+      await navigator.clipboard.writeText(item.content);
+      setCopiedItemId(item.id);
+      window.clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = window.setTimeout(() => setCopiedItemId(null), 2000);
+    } catch {
+      // ignore
+    }
   }, []);
 
   const userMessages = useMemo(
@@ -240,6 +265,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             {items.map((item) => {
               const time = formatTime(item.timestamp);
               const isActive = item.id === activeItemId;
+              const canCopy = isCopyableAssistantText(item);
+              const copied = copiedItemId === item.id;
               return (
                 <div
                   key={item.id}
@@ -248,12 +275,34 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 >
                   <div className={`flex-1 min-w-0 transition-shadow duration-150 rounded-lg ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}>
                     <MessageItem item={item} />
+                    {canCopy ? (
+                      <div className="sm:hidden mt-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(item)}
+                          className="text-xs leading-none text-neutral-300 hover:text-neutral-500 transition-colors duration-150 cursor-pointer"
+                          title={copied ? "Copied" : "Copy"}
+                        >
+                          {copied ? "[Copied]" : "[Copy]"}
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="hidden sm:block shrink-0 text-right whitespace-nowrap">
+                  <div className="hidden sm:flex shrink-0 text-right whitespace-nowrap flex-col items-end gap-1 pt-0.5">
                     {time ? (
                       <span className="text-xs leading-none tabular-nums text-neutral-300 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 select-none relative -top-0.5 pb-1">
                         {time}
                       </span>
+                    ) : null}
+                    {canCopy ? (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(item)}
+                        className="text-xs leading-none text-neutral-300 hover:text-neutral-500 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 cursor-pointer"
+                        title={copied ? "Copied" : "Copy"}
+                      >
+                        {copied ? "[Copied]" : "[Copy]"}
+                      </button>
                     ) : null}
                   </div>
                 </div>
