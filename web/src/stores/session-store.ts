@@ -67,6 +67,18 @@ function updateRuntimeState(
 async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): Promise<void> {
   try {
     const states = await fetchRunningSessions();
+    const currentState = get();
+    const knownSessionIds = new Set<string>();
+    for (const group of currentState.groups) {
+      for (const session of group.sessions) {
+        knownSessionIds.add(session.id);
+      }
+    }
+    const hasUnknownSessionId = Object.keys(states).some((sessionId) => !knownSessionIds.has(sessionId));
+    if (hasUnknownSessionId && !currentState.loading) {
+      void currentState.refreshSessions();
+    }
+
     set((state) => {
       const next = { ...state.runtimeBySessionId };
       let changed = false;
@@ -78,7 +90,9 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
           const wsActive = prev.wsState === "connected" || prev.wsState === "connecting";
           // WS should be the source of truth, but polling still backfills when we missed
           // initial task events (for example, opening a session while it is already running).
-          if (wsActive && !(prev.sessionState === "idle" && apiState !== "idle")) continue;
+          const shouldBackfillRunning = prev.sessionState === "idle" && apiState !== "idle";
+          const shouldClearStaleRunning = prev.sessionState === "running" && apiState === "idle";
+          if (wsActive && !shouldBackfillRunning && !shouldClearStaleRunning) continue;
           if (prev.sessionState !== apiState) {
             next[session.id] = { ...prev, sessionState: apiState as SessionRuntimeState["sessionState"] };
             changed = true;
