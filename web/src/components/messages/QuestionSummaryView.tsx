@@ -28,13 +28,13 @@ export function QuestionSummaryView({ uiExtra }: QuestionSummaryViewProps): JSX.
     <div className="flex flex-col gap-1.5 text-sm py-1">
       {uiExtra.items.map((item, i) => (
         <div key={i} className="flex flex-col gap-0.5">
-          <div className="flex items-start gap-1.5 text-zinc-600">
-            <span className="shrink-0 text-zinc-400">●</span>
+          <div className="flex items-start gap-1.5 text-neutral-600">
+            <span className="shrink-0 text-neutral-400">●</span>
             <span>{item.question}</span>
           </div>
           <div className="flex items-start gap-1.5 pl-[calc(1ch+6px)]">
-            <span className="shrink-0 text-zinc-300">&rarr;</span>
-            <span className={item.answered ? "text-zinc-500" : "text-amber-600"}>
+            <span className="shrink-0 text-neutral-300">&rarr;</span>
+            <span className={item.answered ? "text-neutral-500" : "text-amber-600"}>
               {item.summary}
             </span>
           </div>

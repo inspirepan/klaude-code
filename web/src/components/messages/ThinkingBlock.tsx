@@ -17,7 +17,7 @@ const thinkingComponents = { strong: Strong };
 
 export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
   return (
-    <div className="thinking-block text-sm text-zinc-400 leading-relaxed">
+    <div className="thinking-block text-sm text-neutral-400 leading-relaxed">
       <Streamdown isAnimating={item.isStreaming} plugins={plugins} components={thinkingComponents}>
         {item.content}
       </Streamdown>

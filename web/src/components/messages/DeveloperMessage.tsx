@@ -6,7 +6,7 @@ interface DeveloperMessageProps {
 }
 
 function PathPill({ path }: { path: string }): JSX.Element {
-  const classes = "font-mono text-xs text-zinc-400 bg-zinc-100 border border-zinc-200/70 rounded px-1.5 py-0.5";
+  const classes = "font-mono text-xs text-neutral-400 bg-neutral-100 border border-neutral-200/70 rounded px-1.5 py-0.5";
   return (
     <code className={classes} title={path}>
       {path}
@@ -17,7 +17,7 @@ function PathPill({ path }: { path: string }): JSX.Element {
 function Row({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <div className="grid grid-cols-[14px_1fr] gap-x-2 items-start">
-      <span className="text-zinc-400 font-mono leading-6 select-none">+</span>
+      <span className="text-neutral-400 font-mono leading-6 select-none">+</span>
       <div className="min-w-0 leading-6">{children}</div>
     </div>
   );
@@ -62,8 +62,8 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
   const images = collectImages(item.items);
 
   return (
-    <div className="rounded-lg border border-zinc-200/80 bg-zinc-50/40 px-3.5 py-2.5 text-[15px]">
-      <div className="flex flex-col gap-0.5 text-sm text-zinc-500 font-sans">
+    <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/40 px-3.5 py-2.5 text-[15px]">
+      <div className="flex flex-col gap-0.5 text-sm text-neutral-500 font-sans">
         {item.items.map((ui, idx) => {
           switch (ui.type) {
             case "memory_loaded":
@@ -71,7 +71,7 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
                 <Row key={`memory-${idx}`}>
                   <div className="flex flex-col gap-0.5">
                     <span>Load memory</span>
-                    <ul className="list-disc pl-5 space-y-0.5 marker:text-zinc-400">
+                    <ul className="list-disc pl-5 space-y-0.5 marker:text-neutral-400">
                       {ui.files.map((f) => (
                         <li key={f.path}>
                           <PathPill path={f.path} />
@@ -86,7 +86,7 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
                 <Row key={`external-${idx}`}>
                   <div className="flex flex-col gap-0.5">
                     <span>Read after external changes</span>
-                    <ul className="list-disc pl-5 space-y-0.5 marker:text-zinc-400">
+                    <ul className="list-disc pl-5 space-y-0.5 marker:text-neutral-400">
                       {ui.paths.map((p) => (
                         <li key={p}>
                           <PathPill path={p} />
@@ -111,7 +111,7 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
                     <Row key={`${g.operation}-${g.mentionedIn ?? ""}-${g.paths.join(",")}`}>
                       <div className="flex flex-col gap-0.5">
                         <span>{g.operation}</span>
-                        <ul className="list-disc pl-5 space-y-0.5 marker:text-zinc-400">
+                        <ul className="list-disc pl-5 space-y-0.5 marker:text-neutral-400">
                           {g.paths.map((p) => (
                             <li key={p}>
                               <PathPill path={p} />
@@ -158,7 +158,7 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
               key={p}
               src={buildFileApiUrl(p)}
               alt={p}
-              className="block w-full h-auto max-h-[220px] object-contain rounded-md border border-zinc-200/70 bg-white"
+              className="block w-full h-auto max-h-[220px] object-contain rounded-md border border-neutral-200/70 bg-white"
               loading="lazy"
             />
           ))}

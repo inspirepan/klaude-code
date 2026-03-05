@@ -40,7 +40,7 @@ export function AssistantText({ item }: AssistantTextProps): JSX.Element {
         <button
           type="button"
           onClick={handleCopy}
-          className="mt-3 text-zinc-300 hover:text-zinc-500 opacity-0 group-hover/assistant:opacity-100 transition-opacity duration-150 cursor-pointer"
+          className="mt-3 text-neutral-300 hover:text-neutral-500 opacity-0 group-hover/assistant:opacity-100 transition-opacity duration-150 cursor-pointer"
           title={copied ? "Copied" : "Copy"}
         >
           {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}

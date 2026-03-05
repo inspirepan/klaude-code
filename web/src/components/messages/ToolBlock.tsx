@@ -72,7 +72,7 @@ function shouldExpandResult(item: ToolBlockItem): boolean {
 function RichUIExtraBlock({ extra, item }: { extra: Record<string, unknown>; item: ToolBlockItem }): JSX.Element | null {
   if (isDiffUIExtra(extra)) {
     return (
-      <div className="mt-1 rounded-lg border border-zinc-200/80 overflow-hidden">
+      <div className="mt-1 rounded-lg border border-neutral-200/80 overflow-hidden">
         <DiffView item={item} uiExtra={extra} />
       </div>
     );
@@ -85,7 +85,7 @@ function RichUIExtraBlock({ extra, item }: { extra: Record<string, unknown>; ite
   }
   if (isQuestionSummaryUIExtra(extra)) {
     return (
-      <div className="rounded-lg border border-zinc-200/80 bg-zinc-50/50 px-3.5 py-2.5">
+      <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2.5">
         <QuestionSummaryView uiExtra={extra} />
       </div>
     );
@@ -137,14 +137,14 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg border border-zinc-200/80 bg-zinc-50/50 px-3.5 py-2.5 text-[15px]">
+    <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2.5 text-[15px]">
       {explanation ? (
-        <p className="text-sm text-zinc-500 font-sans mb-1.5">{explanation}</p>
+        <p className="text-sm text-neutral-500 font-sans mb-1.5">{explanation}</p>
       ) : null}
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 text-zinc-400 text-sm font-sans">
+        <div className="flex items-center gap-1.5 text-neutral-400 text-sm font-sans">
           <Loader2 className="w-3 h-3 animate-spin" />
           <span>Planning...</span>
         </div>
@@ -157,11 +157,11 @@ function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
   const questionExtra = item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg border border-zinc-200/80 bg-zinc-50/50 px-3.5 py-2.5 text-[15px]">
+    <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2.5 text-[15px]">
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 text-zinc-400 text-sm font-sans">
+        <div className="flex items-center gap-1.5 text-neutral-400 text-sm font-sans">
           <Loader2 className="w-3 h-3 animate-spin" />
           <span>Waiting for answer...</span>
         </div>
@@ -193,8 +193,8 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
   const detailColor = isError
     ? "text-red-700"
     : item.resultStatus === "aborted"
-      ? "text-zinc-400"
-      : "text-zinc-400";
+      ? "text-neutral-400"
+      : "text-neutral-400";
 
   return (
     <div
@@ -205,13 +205,13 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
       <div className="flex items-start gap-1.5 self-stretch">
         <div className="flex flex-col items-center self-stretch">
           <ChevronRight
-            className={`w-4 h-4 text-zinc-300 transition-transform duration-150 shrink-0 mt-1 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
+            className={`w-4 h-4 text-neutral-300 transition-transform duration-150 shrink-0 mt-1 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
           />
-          {open ? <div className="w-px bg-zinc-200 flex-1 mt-1" /> : null}
+          {open ? <div className="w-px bg-neutral-200 flex-1 mt-1" /> : null}
         </div>
-        <span className="font-normal text-zinc-500 whitespace-nowrap font-sans tracking-[0.03em]">{item.toolName}</span>
+        <span className="font-normal text-neutral-500 whitespace-nowrap font-sans tracking-[0.03em]">{item.toolName}</span>
         {item.isStreaming ? (
-          <Loader2 className="w-3 h-3 text-zinc-400 animate-spin shrink-0 mt-0.5" />
+          <Loader2 className="w-3 h-3 text-neutral-400 animate-spin shrink-0 mt-0.5" />
         ) : null}
       </div>
 
@@ -219,11 +219,11 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
       <div className="min-w-0">
         {detail ? (
           isBash ? (
-            <code className={`inline-block max-w-full text-sm bg-zinc-100 rounded px-1.5 py-0.5 ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
+            <code className={`inline-block max-w-full text-sm bg-neutral-100 rounded px-1.5 py-0.5 ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
               {detail}
             </code>
           ) : (
-            <span className={`inline-block max-w-full text-sm bg-zinc-100 rounded px-1.5 py-0.5 ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
+            <span className={`inline-block max-w-full text-sm bg-neutral-100 rounded px-1.5 py-0.5 ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
               {detail}
             </span>
           )
@@ -234,7 +234,7 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
       {open ? (
         <div className="col-span-2 min-w-0 mt-1 grid grid-cols-[16px_1fr] gap-x-1.5">
           <div className="flex justify-center">
-            <div className="w-px bg-zinc-200" />
+            <div className="w-px bg-neutral-200" />
           </div>
           <div className="min-w-0">
             {hasRich ? (
@@ -247,7 +247,7 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
                 <div onClick={(e) => e.stopPropagation()}>
                   <pre
                     className={`mt-1 text-sm leading-relaxed whitespace-pre-wrap break-words font-mono ${
-                      isError ? "text-red-700" : "text-zinc-400"
+                      isError ? "text-red-700" : "text-neutral-400"
                     }`}
                   >
                     {displayed}
@@ -256,7 +256,7 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
                     <button
                       type="button"
                       onClick={() => setShowMore((v) => !v)}
-                      className="mt-1 text-xs text-zinc-400 hover:text-zinc-600 cursor-pointer transition-colors font-sans"
+                      className="mt-1 text-xs text-neutral-400 hover:text-neutral-600 cursor-pointer transition-colors font-sans"
                     >
                       {showMore ? "Show less" : `Show more (${lines.length - RESULT_LINE_LIMIT} lines)`}
                     </button>
@@ -264,7 +264,7 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
                 </div>
               );
             })() : isEmptyResult ? (
-              <div className="mt-1 text-sm font-mono text-zinc-400">(no content)</div>
+              <div className="mt-1 text-sm font-mono text-neutral-400">(no content)</div>
             ) : null}
           </div>
         </div>

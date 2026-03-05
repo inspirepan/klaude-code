@@ -14,7 +14,7 @@ export function MainPanel(): JSX.Element {
       {!sidebarOpen ? (
         <button
           type="button"
-          className="absolute top-3 left-3 z-20 h-10 w-10 inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+          className="absolute top-3 left-3 z-20 h-10 w-10 inline-flex items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"
           onClick={() => {
             setSidebarOpen(true);
           }}
@@ -27,7 +27,7 @@ export function MainPanel(): JSX.Element {
       {activeSessionId !== "draft" ? (
         <button
           type="button"
-          className="absolute top-3 right-3 z-20 h-10 w-10 inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+          className="absolute top-3 right-3 z-20 h-10 w-10 inline-flex items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"
           onClick={() => {
             void selectSession(activeSessionId);
           }}
@@ -38,7 +38,7 @@ export function MainPanel(): JSX.Element {
         </button>
       ) : null}
       {activeSessionId === "draft" ? (
-        <div className="flex-1 flex items-center justify-center text-zinc-400 text-[15px]">
+        <div className="flex-1 flex items-center justify-center text-neutral-400 text-[15px]">
           New session draft (details area pending)
         </div>
       ) : (

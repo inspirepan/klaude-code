@@ -9,7 +9,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
   const hasText = item.content.length > 0;
 
   return (
-    <div className="rounded-xl bg-[#f0f0f2] border border-zinc-200/60 px-4 py-3">
+    <div className="rounded-xl bg-[#f0f0f2] border border-neutral-200/60 px-4 py-3">
       {item.images.length > 0 ? (
         <div className="space-y-2 mb-2">
           {item.images.map((image, idx) => {
@@ -20,7 +20,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
                 key={`${image.type}-${idx}`}
                 src={src}
                 alt={alt}
-                className="block max-w-full max-h-[360px] w-auto h-auto rounded-md border border-zinc-200/70 bg-white"
+                className="block max-w-full max-h-[360px] w-auto h-auto rounded-md border border-neutral-200/70 bg-white"
                 loading="lazy"
               />
             );
@@ -28,7 +28,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
         </div>
       ) : null}
       {hasText ? (
-        <p className="text-[15px] leading-relaxed text-zinc-800 whitespace-pre-wrap break-words m-0">
+        <p className="text-[15px] leading-relaxed text-neutral-800 whitespace-pre-wrap break-words m-0">
           {item.content}
         </p>
       ) : null}

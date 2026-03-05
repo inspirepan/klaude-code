@@ -109,7 +109,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   if (items.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="w-5 h-5 text-zinc-300 animate-spin" />
+        <Loader2 className="w-5 h-5 text-neutral-300 animate-spin" />
       </div>
     );
   }
@@ -120,11 +120,11 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         <button
           type="button"
           onClick={scrollToOrigin}
-          className="absolute top-0 left-0 right-0 z-10 border-b border-zinc-100 bg-white/90 backdrop-blur-sm cursor-pointer hover:bg-zinc-50/90 transition-colors"
+          className="absolute top-0 left-0 right-0 z-10 border-b border-neutral-100 bg-white/90 backdrop-blur-sm cursor-pointer hover:bg-neutral-50/90 transition-colors"
         >
           <div className="max-w-3xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-2">
-            <ChevronUp className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-            <span className="text-sm text-zinc-500 truncate">{stickyMsg.item.content}</span>
+            <ChevronUp className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+            <span className="text-sm text-neutral-500 truncate">{stickyMsg.item.content}</span>
           </div>
         </button>
       ) : null}
@@ -150,7 +150,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 </div>
                 <div className="hidden sm:block shrink-0 text-right whitespace-nowrap">
                   {time ? (
-                    <span className="text-xs leading-none tabular-nums text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 select-none relative -top-0.5 pb-1">
+                    <span className="text-xs leading-none tabular-nums text-neutral-300 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 select-none relative -top-0.5 pb-1">
                       {time}
                     </span>
                   ) : null}

@@ -43,11 +43,11 @@ export function ProjectGroup({
       onOpenChange={onToggle}
       className="mb-3"
     >
-      <CollapsibleTrigger className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100/50 transition-colors group">
+      <CollapsibleTrigger className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100/50 transition-colors group">
         {collapsed ? (
-          <Folder className="w-4 h-4 shrink-0 text-zinc-400 group-hover:text-zinc-600" />
+          <Folder className="w-4 h-4 shrink-0 text-neutral-400 group-hover:text-neutral-600" />
         ) : (
-          <FolderOpen className="w-4 h-4 shrink-0 text-zinc-400 group-hover:text-zinc-600" />
+          <FolderOpen className="w-4 h-4 shrink-0 text-neutral-400 group-hover:text-neutral-600" />
         )}
         <span className="flex-1 text-[13px] font-normal truncate text-left" title={workDir}>
           {workDirLabel(workDir)}
@@ -70,7 +70,7 @@ export function ProjectGroup({
         {hasMore && !showAll && (
           <button
             type="button"
-            className="w-full flex items-center px-2 py-[6px] rounded-md text-left transition-colors hover:bg-zinc-100/80 text-zinc-400 hover:text-zinc-600"
+            className="w-full flex items-center px-2 py-[6px] rounded-md text-left transition-colors hover:bg-neutral-100/80 text-neutral-400 hover:text-neutral-600"
             onClick={(e) => {
               e.stopPropagation();
               setShowAll(true);

@@ -16,9 +16,9 @@ export function isTodoListUIExtra(extra: unknown): extra is TodoListUIExtra {
 }
 
 const statusConfig = {
-  pending: { mark: "\u25A2", markClass: "text-zinc-300", textClass: "text-zinc-500" },
-  in_progress: { mark: "\u25C9", markClass: "text-amber-500", textClass: "text-zinc-700" },
-  completed: { mark: "\u2714", markClass: "text-emerald-500", textClass: "text-zinc-400 line-through" },
+  pending: { mark: "\u25A2", markClass: "text-neutral-300", textClass: "text-neutral-500" },
+  in_progress: { mark: "\u25C9", markClass: "text-amber-500", textClass: "text-neutral-700" },
+  completed: { mark: "\u2714", markClass: "text-emerald-500", textClass: "text-neutral-400 line-through" },
 } as const;
 
 interface TodoListViewProps {
