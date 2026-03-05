@@ -19,22 +19,27 @@ export function isQuestionSummaryUIExtra(
 
 interface QuestionSummaryViewProps {
   uiExtra: AskUserQuestionSummaryUIExtra;
+  compact?: boolean;
 }
 
-export function QuestionSummaryView({ uiExtra }: QuestionSummaryViewProps): JSX.Element {
-  const title = <div className="text-xs text-neutral-600 font-semibold tracking-[0.06em]">QUESTION</div>;
+export function QuestionSummaryView({ uiExtra, compact = false }: QuestionSummaryViewProps): JSX.Element {
+  const title = (
+    <div className={`${compact ? "text-[11px]" : "text-xs"} text-neutral-600 font-semibold tracking-[0.06em]`}>
+      QUESTION
+    </div>
+  );
 
   if (!uiExtra.items.length) {
     return (
       <div className="flex flex-col gap-1.5 py-1">
         {title}
-        <span className="text-sm text-amber-600">(No answer provided)</span>
+        <span className={`${compact ? "text-[13px]" : "text-sm"} text-amber-600`}>(No answer provided)</span>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2.5 text-sm py-1 leading-relaxed">
+    <div className={`flex flex-col gap-2.5 ${compact ? "text-[13px]" : "text-sm"} py-1 leading-relaxed`}>
       {title}
       {uiExtra.items.map((item, i) => (
         <div key={i} className="flex flex-col gap-1">

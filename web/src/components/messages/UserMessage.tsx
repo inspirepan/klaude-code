@@ -4,9 +4,10 @@ import { HighlightText } from "./HighlightText";
 
 interface UserMessageProps {
   item: UserMessageItem;
+  compact?: boolean;
 }
 
-export function UserMessage({ item }: UserMessageProps): JSX.Element {
+export function UserMessage({ item, compact = false }: UserMessageProps): JSX.Element {
   const hasText = item.content.length > 0;
 
   return (
@@ -29,7 +30,9 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
         </div>
       ) : null}
       {hasText ? (
-        <p className="text-[15px] leading-relaxed text-neutral-800 whitespace-pre-wrap break-words m-0">
+        <p
+          className={`${compact ? "text-[14px]" : "text-[15px]"} leading-relaxed text-neutral-800 whitespace-pre-wrap break-words m-0`}
+        >
           <HighlightText>{item.content}</HighlightText>
         </p>
       ) : null}

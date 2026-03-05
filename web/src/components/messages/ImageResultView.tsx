@@ -13,9 +13,10 @@ export function isImageUIExtra(extra: unknown): extra is ImageUIExtra {
 
 interface ImageResultViewProps {
   uiExtra: ImageUIExtra;
+  compact?: boolean;
 }
 
-export function ImageResultView({ uiExtra }: ImageResultViewProps): JSX.Element {
+export function ImageResultView({ uiExtra, compact = false }: ImageResultViewProps): JSX.Element {
   return (
     <div className="mt-1 rounded-lg border border-neutral-200/80 overflow-hidden bg-white">
       <img
@@ -24,7 +25,7 @@ export function ImageResultView({ uiExtra }: ImageResultViewProps): JSX.Element 
         className="block max-w-full max-h-[420px] w-auto h-auto"
         loading="lazy"
       />
-      <div className="px-3 py-1.5 bg-neutral-50 border-t border-neutral-200/80 text-xs text-neutral-400 font-mono truncate">
+      <div className={`px-3 py-1.5 bg-neutral-50 border-t border-neutral-200/80 ${compact ? "text-[11px]" : "text-xs"} text-neutral-400 font-mono truncate`}>
         {uiExtra.file_path}
       </div>
     </div>

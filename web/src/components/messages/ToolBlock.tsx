@@ -79,34 +79,42 @@ function shouldExpandResult(item: ToolBlockItem): boolean {
   return false;
 }
 
-function RichUIExtraBlock({ extra, item }: { extra: Record<string, unknown>; item: ToolBlockItem }): JSX.Element | null {
+function RichUIExtraBlock({
+  extra,
+  item,
+  compact,
+}: {
+  extra: Record<string, unknown>;
+  item: ToolBlockItem;
+  compact: boolean;
+}): JSX.Element | null {
   if (isDiffUIExtra(extra)) {
     return (
-      <div className="mt-1 rounded-lg border border-neutral-200/80 overflow-hidden">
+      <div className="mt-0.5 rounded-lg border border-neutral-200/80 overflow-hidden">
         <DiffView item={item} uiExtra={extra} />
       </div>
     );
   }
   if (isTodoListUIExtra(extra)) {
-    return <TodoListView uiExtra={extra} />;
+    return <TodoListView uiExtra={extra} compact={compact} />;
   }
   if (isMarkdownDocUIExtra(extra)) {
-    return <MarkdownDocView uiExtra={extra} />;
+    return <MarkdownDocView uiExtra={extra} compact={compact} />;
   }
   if (isQuestionSummaryUIExtra(extra)) {
     return (
       <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2.5">
-        <QuestionSummaryView uiExtra={extra} />
+        <QuestionSummaryView uiExtra={extra} compact={compact} />
       </div>
     );
   }
   if (isImageUIExtra(extra)) {
-    return <ImageResultView uiExtra={extra} />;
+    return <ImageResultView uiExtra={extra} compact={compact} />;
   }
   return null;
 }
 
-function RichResult({ item }: { item: ToolBlockItem }): JSX.Element | null {
+function RichResult({ item, compact }: { item: ToolBlockItem; compact: boolean }): JSX.Element | null {
   const extra = item.uiExtra;
   if (!extra) return null;
 
@@ -115,17 +123,18 @@ function RichResult({ item }: { item: ToolBlockItem }): JSX.Element | null {
     return (
       <div className="flex flex-col gap-1">
         {items.map((sub, i) => (
-          <RichUIExtraBlock key={i} extra={sub} item={item} />
+          <RichUIExtraBlock key={i} extra={sub} item={item} compact={compact} />
         ))}
       </div>
     );
   }
 
-  return <RichUIExtraBlock extra={extra} item={item} />;
+  return <RichUIExtraBlock extra={extra} item={item} compact={compact} />;
 }
 
 interface ToolBlockProps {
   item: ToolBlockItem;
+  compact?: boolean;
 }
 
 const RESULT_LINE_LIMIT = 15;
@@ -138,7 +147,7 @@ function extractPlanExplanation(args: string): string {
   return "";
 }
 
-function PlanBlock({ item }: ToolBlockProps): JSX.Element {
+function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
   const explanation = useMemo(() => {
     if (item.toolName === "update_plan") return extractPlanExplanation(item.arguments);
     return "";
@@ -147,14 +156,14 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2.5 text-[15px]">
+    <div className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[14px]" : "text-[15px]"}`}>
       {explanation ? (
-        <p className="text-sm text-neutral-500 font-sans mb-1.5">{explanation}</p>
+        <p className={`${compact ? "text-[13px]" : "text-sm"} text-neutral-500 font-sans mb-1`}>{explanation}</p>
       ) : null}
       {todoExtra ? (
-        <TodoListView uiExtra={todoExtra} />
+        <TodoListView uiExtra={todoExtra} compact={compact} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 text-neutral-400 text-sm font-sans">
+        <div className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}>
           <Loader2 className="w-3 h-3 animate-spin" />
           <span>Planning...</span>
         </div>
@@ -163,15 +172,15 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
   );
 }
 
-function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
+function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
   const questionExtra = item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2.5 text-[15px]">
+    <div className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[14px]" : "text-[15px]"}`}>
       {questionExtra ? (
-        <QuestionSummaryView uiExtra={questionExtra} />
+        <QuestionSummaryView uiExtra={questionExtra} compact={compact} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 text-neutral-400 text-sm font-sans">
+        <div className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}>
           <Loader2 className="w-3 h-3 animate-spin" />
           <span>Waiting for answer...</span>
         </div>
@@ -180,14 +189,18 @@ function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
   );
 }
 
-export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
+export function ToolBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
   const { matchItemIds } = useSearch();
+  const bodyTextClass = compact ? "text-[14px]" : "text-[15px]";
+  const subTextClass = compact ? "text-[13px]" : "text-sm";
+  const miniTextClass = compact ? "text-[11px]" : "text-xs";
+  const detailChipClass = compact ? "" : "bg-neutral-100 rounded px-1.5 py-0.5";
 
   if (PLAN_TOOLS.has(item.toolName)) {
-    return <PlanBlock item={item} />;
+    return <PlanBlock item={item} compact={compact} />;
   }
   if (item.toolName === "AskUserQuestion") {
-    return <QuestionBlock item={item} />;
+    return <QuestionBlock item={item} compact={compact} />;
   }
 
   const defaultExpanded = shouldExpandResult(item);
@@ -226,7 +239,7 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
 
   return (
     <div
-      className={`grid grid-cols-[auto_1fr] gap-x-1.5 items-start text-[15px] font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`-my-1 grid grid-cols-[auto_1fr] gap-x-1.5 items-start ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
       {/* left col: chevron + vertical line + tool name */}
@@ -247,11 +260,11 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
       <div className="min-w-0">
         {detail ? (
           isBash ? (
-            <code className={`inline-block max-w-full text-sm bg-neutral-100 rounded px-1.5 py-0.5 ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
+            <code className={`inline-block max-w-full ${subTextClass} ${detailChipClass} ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
               <HighlightText>{detail}</HighlightText>
             </code>
           ) : (
-            <span className={`inline-block max-w-full text-sm bg-neutral-100 rounded px-1.5 py-0.5 ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
+            <span className={`inline-block max-w-full ${subTextClass} ${detailChipClass} ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
               <HighlightText>{detail}</HighlightText>
             </span>
           )
@@ -260,13 +273,13 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
 
       {/* result: full width */}
       {open ? (
-        <div className="col-span-2 min-w-0 mt-1 grid grid-cols-[16px_1fr] gap-x-1.5">
+        <div className="col-span-2 min-w-0 mt-0.5 grid grid-cols-[16px_1fr] gap-x-1.5">
           <div className="flex justify-center">
             {hideResultRail ? null : <div className="w-px bg-neutral-200" />}
           </div>
           <div className="min-w-0">
             {hasRich ? (
-              <RichResult item={item} />
+              <RichResult item={item} compact={compact} />
             ) : hasResult ? (() => {
               const lines = item.result!.split("\n");
               const truncated = !showMore && lines.length > RESULT_LINE_LIMIT;
@@ -274,7 +287,7 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
               return (
                 <div onClick={(e) => e.stopPropagation()}>
                   <pre
-                    className={`mt-1 text-sm leading-relaxed whitespace-pre-wrap break-words font-mono ${
+                    className={`mt-0.5 ${subTextClass} leading-relaxed whitespace-pre-wrap break-words font-mono ${
                       isError ? "text-red-700" : "text-neutral-400"
                     }`}
                   >
@@ -284,7 +297,7 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
                     <button
                       type="button"
                       onClick={() => setShowMore((v) => !v)}
-                      className="mt-1 text-xs text-neutral-400 hover:text-neutral-600 cursor-pointer transition-colors font-sans"
+                      className={`mt-0.5 ${miniTextClass} text-neutral-400 hover:text-neutral-600 cursor-pointer transition-colors font-sans`}
                     >
                       {showMore ? "Show less" : `Show more (${lines.length - RESULT_LINE_LIMIT} lines)`}
                     </button>
@@ -292,7 +305,7 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
                 </div>
               );
             })() : isEmptyResult ? (
-              <div className="mt-1 text-sm font-mono text-neutral-400">(no content)</div>
+              <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-400`}>(no content)</div>
             ) : null}
           </div>
         </div>

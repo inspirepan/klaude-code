@@ -7,15 +7,16 @@ import { useParsedFrontmatter, FrontmatterTable } from "./FrontmatterTable";
 
 interface AssistantTextProps {
   item: AssistantTextItem;
+  compact?: boolean;
 }
 
 const plugins = { code, mermaid };
 
-export function AssistantText({ item }: AssistantTextProps): JSX.Element {
+export function AssistantText({ item, compact = false }: AssistantTextProps): JSX.Element {
   const { entries, body } = useParsedFrontmatter(item.content);
 
   return (
-    <div className="assistant-text relative">
+    <div className={`assistant-text relative ${compact ? "assistant-text-compact" : ""}`}>
       {entries ? <FrontmatterTable entries={entries} /> : null}
       <Streamdown isAnimating={item.isStreaming} plugins={plugins}>
         {body}

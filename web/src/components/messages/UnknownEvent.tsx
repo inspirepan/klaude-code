@@ -7,9 +7,10 @@ import { useSearch } from "./search-context";
 
 interface UnknownEventProps {
   item: UnknownEventItem;
+  compact?: boolean;
 }
 
-export function UnknownEvent({ item }: UnknownEventProps): JSX.Element {
+export function UnknownEvent({ item, compact = false }: UnknownEventProps): JSX.Element {
   const { matchItemIds } = useSearch();
   const [open, setOpen] = useState(false);
   const isSearchMatch = matchItemIds.includes(item.id);
@@ -33,10 +34,10 @@ export function UnknownEvent({ item }: UnknownEventProps): JSX.Element {
         <ChevronRight
           className={`w-3 h-3 transition-transform duration-150 ${open ? "rotate-90" : ""}`}
         />
-        <span className="text-xs select-none">{item.eventType}</span>
+        <span className={`${compact ? "text-[11px]" : "text-xs"} select-none`}>{item.eventType}</span>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <pre className="mt-1 text-xs text-neutral-400 bg-neutral-50 rounded p-2 overflow-x-auto">
+        <pre className={`mt-1 ${compact ? "text-[11px]" : "text-xs"} text-neutral-400 bg-neutral-50 rounded p-2 overflow-x-auto`}>
           {JSON.stringify(item.rawEvent, null, 2)}
         </pre>
       </CollapsibleContent>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { Loader2 } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 
 import { useMessageStore } from "../../stores/message-store";
 import type {
@@ -12,10 +12,33 @@ import { SearchBar } from "./SearchBar";
 import { SearchProvider, type SearchState } from "./search-context";
 
 const EMPTY_ITEMS: MessageItemType[] = [];
+const EMPTY_SUB_AGENT_DESC_MAP: Record<string, string> = {};
+const EMPTY_SUB_AGENT_TYPE_MAP: Record<string, string> = {};
+const EMPTY_SUB_AGENT_FINISHED_MAP: Record<string, boolean> = {};
 
 interface MessageListProps {
   sessionId: string;
 }
+
+function shortSessionId(id: string): string {
+  return id.slice(0, 8);
+}
+
+interface SectionItemBlock {
+  type: "item";
+  item: MessageItemType;
+}
+
+interface SectionSubAgentBlock {
+  type: "sub_agent_group";
+  groupId: string;
+  sourceSessionId: string;
+  sourceSessionType: string | null;
+  sourceSessionDesc: string | null;
+  items: MessageItemType[];
+}
+
+type SectionBlock = SectionItemBlock | SectionSubAgentBlock;
 
 function formatTime(ts: ItemTimestamp): string | null {
   if (ts === null) return null;
@@ -23,6 +46,36 @@ function formatTime(ts: ItemTimestamp): string | null {
   const time = date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
   const day = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${day} ${time}`;
+}
+
+function extractToolPreviewDetail(toolName: string, args: string): string {
+  try {
+    const parsed = JSON.parse(args) as Record<string, unknown>;
+    switch (toolName) {
+      case "Bash":
+        return typeof parsed.command === "string" ? parsed.command : "";
+      case "Read":
+      case "Edit":
+      case "Write":
+        return typeof parsed.file_path === "string" ? parsed.file_path : "";
+      case "WebFetch":
+        return typeof parsed.url === "string" ? parsed.url : "";
+      case "WebSearch":
+        return typeof parsed.query === "string" ? parsed.query : "";
+      case "Agent":
+        return typeof parsed.description === "string" ? parsed.description : "";
+      default:
+        return "";
+    }
+  } catch {
+    return args.trim().split("\n")[0] ?? "";
+  }
+}
+
+function previewAssistantResult(content: string): { text: string; hasMore: boolean } {
+  const lines = content.split("\n");
+  if (lines.length <= 10) return { text: content, hasMore: false };
+  return { text: lines.slice(0, 10).join("\n"), hasMore: true };
 }
 
 function extractSearchableText(item: MessageItemType): string {
@@ -58,6 +111,15 @@ function isCopyableAssistantText(item: MessageItemType): item is AssistantTextIt
 
 export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const items = useMessageStore((state) => state.messagesBySessionId[sessionId] ?? EMPTY_ITEMS);
+  const subAgentDescBySessionId = useMessageStore(
+    (state) => state.reducerStateBySessionId[sessionId]?.subAgentDescBySessionId ?? EMPTY_SUB_AGENT_DESC_MAP,
+  );
+  const subAgentTypeBySessionId = useMessageStore(
+    (state) => state.reducerStateBySessionId[sessionId]?.subAgentTypeBySessionId ?? EMPTY_SUB_AGENT_TYPE_MAP,
+  );
+  const subAgentFinishedBySessionId = useMessageStore(
+    (state) => state.reducerStateBySessionId[sessionId]?.subAgentFinishedBySessionId ?? EMPTY_SUB_AGENT_FINISHED_MAP,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -65,11 +127,25 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
+  const [collapsedSubAgentGroups, setCollapsedSubAgentGroups] = useState<Record<string, boolean>>({});
   const copyTimerRef = useRef(0);
 
+  const visibleItems = useMemo(
+    () =>
+      items.filter((item) => {
+        if (item.type === "tool_block" && item.toolName === "Agent") return false;
+        const sourceSessionId = item.sessionId ?? sessionId;
+        if (sourceSessionId !== sessionId && (item.type === "developer_message" || item.type === "thinking")) {
+          return false;
+        }
+        return true;
+      }),
+    [items, sessionId],
+  );
+
   const searchMatchItemIds = useMemo(
-    () => findMatchingItemIds(items, searchQuery),
-    [items, searchQuery],
+    () => findMatchingItemIds(visibleItems, searchQuery),
+    [visibleItems, searchQuery],
   );
 
   // Reset active index when matches change
@@ -101,7 +177,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     if (!itemId) return;
     const el = itemRefsMap.current.get(itemId);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [searchActiveIndex, searchMatchItemIds]);
+  }, [searchActiveIndex, searchMatchItemIds, collapsedSubAgentGroups]);
 
   const handleSearchQueryChange = useCallback((query: string) => {
     setSearchQuery(query);
@@ -138,7 +214,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   }, []);
 
   // Restore scroll position when items first load for a session
-  const hasItems = items.length > 0;
+  const hasItems = visibleItems.length > 0;
   useEffect(() => {
     if (!hasItems) return;
     const saved = sessionStorage.getItem(`scroll-${sessionId}`);
@@ -157,7 +233,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     if (nearBottom) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [items.length]);
+  }, [visibleItems.length]);
 
   const handleScroll = useCallback(() => {
     const container = scrollRef.current;
@@ -173,13 +249,15 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     }
   }, []);
 
-  // Group items into sections starting at each user message so that
+  // Group items into sections starting at each main-session user message so that
   // CSS sticky is scoped to each section's containing block.
   const sections = useMemo(() => {
     const result: MessageItemType[][] = [];
     let current: MessageItemType[] = [];
-    for (const item of items) {
-      if (item.type === "user_message" && current.length > 0) {
+    for (const item of visibleItems) {
+      const sourceSessionId = item.sessionId ?? sessionId;
+      const isMainSessionUserMessage = item.type === "user_message" && sourceSessionId === sessionId;
+      if (isMainSessionUserMessage && current.length > 0) {
         result.push(current);
         current = [];
       }
@@ -187,17 +265,76 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     }
     if (current.length > 0) result.push(current);
     return result;
-  }, [items]);
+  }, [visibleItems, sessionId]);
 
-  if (items.length === 0) {
+  const sectionBlocks = useMemo(() => {
+    return sections.map((section) => {
+      const blocks: SectionBlock[] = [];
+      let i = 0;
+      while (i < section.length) {
+        const item = section[i];
+        const sourceSessionId = item.sessionId ?? sessionId;
+        if (sourceSessionId === sessionId) {
+          blocks.push({ type: "item", item });
+          i += 1;
+          continue;
+        }
+
+        const groupItems: MessageItemType[] = [item];
+        i += 1;
+        while (i < section.length) {
+          const next = section[i];
+          const nextSourceSessionId = next.sessionId ?? sessionId;
+          if (nextSourceSessionId !== sourceSessionId) break;
+          groupItems.push(next);
+          i += 1;
+        }
+
+        blocks.push({
+          type: "sub_agent_group",
+          groupId: `${groupItems[0].id}-${sourceSessionId}`,
+          sourceSessionId,
+          sourceSessionType: subAgentTypeBySessionId[sourceSessionId] ?? null,
+          sourceSessionDesc: subAgentDescBySessionId[sourceSessionId] ?? null,
+          items: groupItems,
+        });
+      }
+      return blocks;
+    });
+  }, [sections, sessionId, subAgentDescBySessionId, subAgentTypeBySessionId]);
+
+  const subAgentGroupIdByItemId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const blocks of sectionBlocks) {
+      for (const block of blocks) {
+        if (block.type !== "sub_agent_group") continue;
+        for (const item of block.items) {
+          map.set(item.id, block.groupId);
+        }
+      }
+    }
+    return map;
+  }, [sectionBlocks]);
+
+  const activeItemId = searchActiveIndex >= 0 ? searchMatchItemIds[searchActiveIndex] : null;
+
+  useEffect(() => {
+    if (!activeItemId) return;
+    const groupId = subAgentGroupIdByItemId.get(activeItemId);
+    if (!groupId) return;
+    setCollapsedSubAgentGroups((prev) => {
+      if (!prev[groupId]) return prev;
+      return { ...prev, [groupId]: false };
+    });
+  }, [activeItemId, subAgentGroupIdByItemId]);
+
+  if (!hasItems) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <Loader2 className="w-5 h-5 text-neutral-300 animate-spin" />
       </div>
     );
   }
-
-  const activeItemId = searchActiveIndex >= 0 ? searchMatchItemIds[searchActiveIndex] : null;
 
   return (
     <SearchProvider value={searchState}>
@@ -219,9 +356,145 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin"
         >
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-5">
-            {sections.map((section) => (
+            {sections.map((section, sectionIndex) => (
               <div key={section[0].id} className="space-y-5">
-                {section.map((item) => {
+                {sectionBlocks[sectionIndex]?.map((block) => {
+                  if (block.type === "sub_agent_group") {
+                    const collapsed = collapsedSubAgentGroups[block.groupId] ?? true;
+                    const toolItems = block.items.filter(
+                      (item): item is Extract<MessageItemType, { type: "tool_block" }> => item.type === "tool_block",
+                    );
+                    const previewTools = toolItems.slice(-3);
+                    const moreToolsCount = Math.max(0, toolItems.length - previewTools.length);
+                    const isFinished = subAgentFinishedBySessionId[block.sourceSessionId] === true;
+                    const lastAssistantItem = [...block.items].reverse().find(
+                      (item): item is AssistantTextItem =>
+                        item.type === "assistant_text" && !item.isStreaming && item.content.trim().length > 0,
+                    );
+                    const resultPreview =
+                      isFinished && lastAssistantItem ? previewAssistantResult(lastAssistantItem.content) : null;
+                    return (
+                      <div key={block.groupId} className="group/subagent flex gap-4 min-w-0">
+                        <div className="flex-1 min-w-0 rounded-xl border border-neutral-200/80 bg-white">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCollapsedSubAgentGroups((prev) => ({ ...prev, [block.groupId]: !collapsed }));
+                          }}
+                          className="w-full px-3.5 py-2.5 flex items-center gap-1.5 text-left cursor-pointer"
+                        >
+                          <ChevronRight className={`w-3.5 h-3.5 text-neutral-300 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`} />
+                          <span className="text-[14px] font-medium font-sans tracking-[0.02em] text-neutral-700 whitespace-nowrap">
+                            {block.sourceSessionType ? `Agent(${block.sourceSessionType})` : "Agent"}
+                          </span>
+                          <span className="text-sm text-neutral-600 truncate">
+                            {block.sourceSessionDesc ?? `Sub Agent ${shortSessionId(block.sourceSessionId)}`}
+                          </span>
+                        </button>
+                        {collapsed ? (
+                          <div className="px-3.5 pb-3.5 pt-0.5">
+                            {resultPreview ? (
+                              <>
+                                <div className="text-xs text-neutral-400 mb-1.5">{toolItems.length} tools</div>
+                              <div className="mt-2.5">
+                                <div className="relative rounded-lg border border-neutral-200/80 bg-neutral-50/70 px-2.5 py-2 overflow-hidden">
+                                  <pre className="text-xs leading-relaxed whitespace-pre-wrap break-words font-mono text-neutral-500">
+                                    {resultPreview.text}
+                                  </pre>
+                                  {resultPreview.hasMore ? (
+                                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-neutral-50/95 to-transparent" />
+                                  ) : null}
+                                </div>
+                              </div>
+                              </>
+                            ) : (
+                              <>
+                                {moreToolsCount > 0 ? (
+                                  <div className="text-xs text-neutral-400 mb-1.5">{moreToolsCount} more tools</div>
+                                ) : null}
+                                {previewTools.length > 0 ? (
+                                  <div className="space-y-1.5">
+                                    {previewTools.map((toolItem) => {
+                                      const detail = extractToolPreviewDetail(toolItem.toolName, toolItem.arguments);
+                                      return (
+                                        <div key={toolItem.id} className="min-w-0 flex items-start gap-1.5 text-[12px]">
+                                          <span className="font-sans text-neutral-500 whitespace-nowrap tracking-[0.02em]">
+                                            {toolItem.toolName}
+                                          </span>
+                                          {detail ? (
+                                            <code className="min-w-0 max-w-full truncate bg-neutral-100 rounded px-1.5 py-0.5 text-neutral-500 font-mono">
+                                              {detail}
+                                            </code>
+                                          ) : null}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="text-xs text-neutral-400">No tool calls</div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-5 px-3.5 pb-3.5 pt-0.5">
+                            {block.items.map((item, index) => {
+                              const time = formatTime(item.timestamp);
+                              const prevTime = index > 0 ? formatTime(block.items[index - 1]!.timestamp) : null;
+                              const displayTime = time && time !== prevTime ? time : null;
+                              const isActive = item.id === activeItemId;
+                              const canCopy = isCopyableAssistantText(item);
+                              const copied = copiedItemId === item.id;
+                              return (
+                                <div
+                                  key={item.id}
+                                  ref={(el) => setItemRef(item.id, el)}
+                                  className="group/row relative min-w-0"
+                                >
+                                  <div className={`flex-1 min-w-0 transition-shadow duration-150 rounded-xl bg-neutral-50/60 ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}>
+                                    <MessageItem item={item} compact />
+                                    {canCopy ? (
+                                      <div className="sm:hidden mt-1 flex justify-end">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCopy(item)}
+                                          className="text-xs leading-none text-neutral-300 hover:text-neutral-500 transition-colors duration-150 cursor-pointer"
+                                          title={copied ? "Copied" : "Copy"}
+                                        >
+                                          {copied ? "[Copied]" : "[Copy]"}
+                                        </button>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                  <div className="hidden sm:flex absolute top-0 left-[calc(100%+24px)] w-[112px] text-right whitespace-nowrap flex-col items-end gap-1 pt-0.5">
+                                    {displayTime ? (
+                                      <span className="text-xs leading-none tabular-nums text-neutral-300 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 select-none relative -top-0.5 pb-1">
+                                        {displayTime}
+                                      </span>
+                                    ) : null}
+                                    {canCopy ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCopy(item)}
+                                        className="text-xs leading-none text-neutral-300 hover:text-neutral-500 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 cursor-pointer"
+                                        title={copied ? "Copied" : "Copy"}
+                                      >
+                                        {copied ? "[Copied]" : "[Copy]"}
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        </div>
+                        <div className="hidden sm:block shrink-0 w-[112px]" />
+                      </div>
+                    );
+                  }
+
+                  const item = block.item;
                   const time = formatTime(item.timestamp);
                   const isActive = item.id === activeItemId;
                   const canCopy = isCopyableAssistantText(item);

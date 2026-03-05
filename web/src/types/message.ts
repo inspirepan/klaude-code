@@ -19,6 +19,7 @@ export interface UserMessageItem {
   id: MessageItemId;
   type: "user_message";
   timestamp: ItemTimestamp;
+  sessionId: string | null;
   content: string;
   images: MessageImagePart[];
 }
@@ -27,6 +28,7 @@ export interface ThinkingBlockItem {
   id: MessageItemId;
   type: "thinking";
   timestamp: ItemTimestamp;
+  sessionId: string | null;
   content: string;
   isStreaming: boolean;
 }
@@ -35,6 +37,7 @@ export interface AssistantTextItem {
   id: MessageItemId;
   type: "assistant_text";
   timestamp: ItemTimestamp;
+  sessionId: string | null;
   content: string;
   isStreaming: boolean;
 }
@@ -43,6 +46,7 @@ export interface ToolBlockItem {
   id: MessageItemId;
   type: "tool_block";
   timestamp: ItemTimestamp;
+  sessionId: string | null;
   toolCallId: string;
   toolName: string;
   arguments: string;
@@ -110,6 +114,7 @@ export interface DeveloperMessageItem {
   id: MessageItemId;
   type: "developer_message";
   timestamp: ItemTimestamp;
+  sessionId: string | null;
   items: DeveloperUIItem[];
 }
 
@@ -117,6 +122,7 @@ export interface TaskWorkedItem {
   id: MessageItemId;
   type: "task_worked";
   timestamp: ItemTimestamp;
+  sessionId: string | null;
   durationSeconds: number;
   turnCount: number;
 }
@@ -125,6 +131,7 @@ export interface UnknownEventItem {
   id: MessageItemId;
   type: "unknown_event";
   timestamp: ItemTimestamp;
+  sessionId: string | null;
   eventType: string;
   rawEvent: Record<string, unknown>;
 }

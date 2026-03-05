@@ -23,6 +23,9 @@ export interface ReducerState {
   activeTextIndex: number;
   activeThinkingIndex: number;
   toolBlockByCallId: Map<string, number>;
+  subAgentDescBySessionId: Record<string, string>;
+  subAgentTypeBySessionId: Record<string, string>;
+  subAgentFinishedBySessionId: Record<string, boolean>;
 }
 
 export function createInitialState(): ReducerState {
@@ -32,12 +35,13 @@ export function createInitialState(): ReducerState {
     activeTextIndex: -1,
     activeThinkingIndex: -1,
     toolBlockByCallId: new Map(),
+    subAgentDescBySessionId: {},
+    subAgentTypeBySessionId: {},
+    subAgentFinishedBySessionId: {},
   };
 }
 
 const SKIP_EVENT_TYPES = new Set([
-  "task.start",
-  "task.finish",
   "turn.start",
   "turn.end",
   "usage",
@@ -163,6 +167,10 @@ function resolveTimestamp(explicit: number | null, event: Record<string, unknown
   return null;
 }
 
+function resolveSessionId(event: Record<string, unknown>): string | null {
+  return typeof event.session_id === "string" ? event.session_id : null;
+}
+
 export function reduceEvent(
   state: ReducerState,
   eventType: string,
@@ -174,8 +182,70 @@ export function reduceEvent(
   }
 
   const ts = resolveTimestamp(timestamp, event);
+  const sourceSessionId = resolveSessionId(event);
 
   switch (eventType) {
+    case "task.start": {
+      const sessionId = sourceSessionId;
+      let changed = false;
+      let nextDescBySessionId = state.subAgentDescBySessionId;
+      let nextTypeBySessionId = state.subAgentTypeBySessionId;
+      let nextFinishedBySessionId = state.subAgentFinishedBySessionId;
+
+      if (sessionId !== null && state.subAgentFinishedBySessionId[sessionId] !== false) {
+        nextFinishedBySessionId = {
+          ...state.subAgentFinishedBySessionId,
+          [sessionId]: false,
+        };
+        changed = true;
+      }
+
+      const subAgentState = event.sub_agent_state;
+      if (sessionId !== null && subAgentState !== null && typeof subAgentState === "object") {
+        const subAgentType = (subAgentState as Record<string, unknown>).sub_agent_type;
+        if (
+          typeof subAgentType === "string"
+          && subAgentType.length > 0
+          && state.subAgentTypeBySessionId[sessionId] !== subAgentType
+        ) {
+          nextTypeBySessionId = {
+            ...state.subAgentTypeBySessionId,
+            [sessionId]: subAgentType,
+          };
+          changed = true;
+        }
+
+        const desc = (subAgentState as Record<string, unknown>).sub_agent_desc;
+        if (typeof desc === "string" && desc.length > 0 && state.subAgentDescBySessionId[sessionId] !== desc) {
+          nextDescBySessionId = {
+            ...state.subAgentDescBySessionId,
+            [sessionId]: desc,
+          };
+          changed = true;
+        }
+      }
+
+      if (!changed) return state;
+      return {
+        ...state,
+        subAgentDescBySessionId: nextDescBySessionId,
+        subAgentTypeBySessionId: nextTypeBySessionId,
+        subAgentFinishedBySessionId: nextFinishedBySessionId,
+      };
+    }
+
+    case "task.finish": {
+      if (sourceSessionId === null) return state;
+      if (state.subAgentFinishedBySessionId[sourceSessionId] === true) return state;
+      return {
+        ...state,
+        subAgentFinishedBySessionId: {
+          ...state.subAgentFinishedBySessionId,
+          [sourceSessionId]: true,
+        },
+      };
+    }
+
     case "developer.message": {
       const rawItem = event.item;
       const itemObj = rawItem !== null && typeof rawItem === "object" ? (rawItem as Record<string, unknown>) : null;
@@ -184,7 +254,7 @@ export function reduceEvent(
       const id = makeId(state);
       return {
         ...state,
-        items: [...state.items, { id, type: "developer_message", timestamp: ts, items: uiItems }],
+        items: [...state.items, { id, type: "developer_message", timestamp: ts, sessionId: sourceSessionId, items: uiItems }],
         nextId: state.nextId + 1,
       };
     }
@@ -214,6 +284,7 @@ export function reduceEvent(
             id,
             type: "task_worked",
             timestamp: ts,
+            sessionId: sourceSessionId,
             durationSeconds: Math.max(0, durationSeconds),
             turnCount,
           },
@@ -228,7 +299,7 @@ export function reduceEvent(
       const images = parseUserMessageImages(event.images);
       return {
         ...state,
-        items: [...state.items, { id, type: "user_message", timestamp: ts, content, images }],
+        items: [...state.items, { id, type: "user_message", timestamp: ts, sessionId: sourceSessionId, content, images }],
         nextId: state.nextId + 1,
       };
     }
@@ -238,7 +309,7 @@ export function reduceEvent(
       const index = state.items.length;
       return {
         ...state,
-        items: [...state.items, { id, type: "thinking", timestamp: ts, content: "", isStreaming: true }],
+        items: [...state.items, { id, type: "thinking", timestamp: ts, sessionId: sourceSessionId, content: "", isStreaming: true }],
         nextId: state.nextId + 1,
         activeThinkingIndex: index,
       };
@@ -270,7 +341,7 @@ export function reduceEvent(
       const index = state.items.length;
       return {
         ...state,
-        items: [...state.items, { id, type: "assistant_text", timestamp: ts, content: "", isStreaming: true }],
+        items: [...state.items, { id, type: "assistant_text", timestamp: ts, sessionId: sourceSessionId, content: "", isStreaming: true }],
         nextId: state.nextId + 1,
         activeTextIndex: index,
       };
@@ -327,6 +398,7 @@ export function reduceEvent(
             id,
             type: "tool_block",
             timestamp: ts,
+            sessionId: sourceSessionId,
             toolCallId,
             toolName: typeof event.tool_name === "string" ? event.tool_name : "",
             arguments: "",
@@ -372,6 +444,7 @@ export function reduceEvent(
             id,
             type: "tool_block",
             timestamp: ts,
+            sessionId: sourceSessionId,
             toolCallId,
             toolName,
             arguments: args,
@@ -446,7 +519,7 @@ export function reduceEvent(
         ...state,
         items: [
           ...state.items,
-          { id, type: "unknown_event", timestamp: ts, eventType, rawEvent: event },
+          { id, type: "unknown_event", timestamp: ts, sessionId: sourceSessionId, eventType, rawEvent: event },
         ],
         nextId: state.nextId + 1,
       };

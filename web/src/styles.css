@@ -104,6 +104,9 @@ body {
   letter-spacing: 0.03em;
   color: #171717;
 }
+.assistant-text.assistant-text-compact {
+  font-size: 14px;
+}
 .assistant-text code,
 .assistant-text pre,
 .assistant-text kbd,
