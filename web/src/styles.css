@@ -241,6 +241,58 @@ body {
   font-size: 0.875em;
 }
 
+/* ── Compaction summary markdown ── */
+.compaction-summary-md code,
+.compaction-summary-md pre,
+.compaction-summary-md kbd,
+.compaction-summary-md samp {
+  letter-spacing: normal;
+}
+.compaction-summary-md p {
+  margin-top: 0;
+  margin-bottom: 0.7em;
+}
+.compaction-summary-md p:last-child {
+  margin-bottom: 0;
+}
+.compaction-summary-md ul,
+.compaction-summary-md ol {
+  margin-top: 0.45em;
+  margin-bottom: 0.7em;
+  padding-left: 1.4em;
+}
+.compaction-summary-md li {
+  margin-bottom: 0.2em;
+}
+.compaction-summary-md code:not(pre code) {
+  background: rgba(255, 255, 255, 0.72);
+  color: rgb(70 88 120);
+  padding: 0.1em 0.38em;
+  border-radius: 0.35rem;
+  font-size: 0.88em;
+}
+.compaction-summary-md .compaction-task-item {
+  list-style: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin-left: -1.4em;
+}
+.compaction-summary-md .compaction-task-item > input[type="checkbox"] {
+  display: none;
+}
+.compaction-summary-md .compaction-task-icon {
+  color: rgb(136 154 180);
+  margin-top: 0.22em;
+  flex-shrink: 0;
+}
+.compaction-summary-md .compaction-task-icon.is-checked {
+  color: rgb(92 112 146);
+}
+.compaction-summary-md .compaction-task-text {
+  min-width: 0;
+}
+
 /* Frontmatter metadata table */
 .frontmatter-table {
   width: 100%;

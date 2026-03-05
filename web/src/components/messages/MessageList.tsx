@@ -92,6 +92,8 @@ function extractSearchableText(item: MessageItemType): string {
       return "";
     case "task_worked":
       return "";
+    case "compaction_summary":
+      return item.content;
     case "unknown_event":
       return `${item.eventType}\n${JSON.stringify(item.rawEvent)}`;
   }

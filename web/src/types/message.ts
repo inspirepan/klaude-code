@@ -127,6 +127,14 @@ export interface TaskWorkedItem {
   turnCount: number;
 }
 
+export interface CompactionSummaryItem {
+  id: MessageItemId;
+  type: "compaction_summary";
+  timestamp: ItemTimestamp;
+  sessionId: string | null;
+  content: string;
+}
+
 export interface UnknownEventItem {
   id: MessageItemId;
   type: "unknown_event";
@@ -142,5 +150,6 @@ export type MessageItem =
   | AssistantTextItem
   | ToolBlockItem
   | DeveloperMessageItem
+  | CompactionSummaryItem
   | TaskWorkedItem
   | UnknownEventItem;

@@ -49,7 +49,6 @@ const SKIP_EVENT_TYPES = new Set([
   "replay.history",
   "error",
   "compaction.start",
-  "compaction.end",
   "rewind",
   "user.interaction.request",
   "user.interaction.resolved",
@@ -171,6 +170,16 @@ function resolveSessionId(event: Record<string, unknown>): string | null {
   return typeof event.session_id === "string" ? event.session_id : null;
 }
 
+function parseCompactionSummary(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const text = raw.trim();
+  if (text.length === 0) return null;
+  const match = text.match(/<summary>([\s\S]*?)<\/summary>/);
+  if (!match) return text;
+  const inner = match[1]?.trim() ?? "";
+  return inner.length > 0 ? inner : text;
+}
+
 export function reduceEvent(
   state: ReducerState,
   eventType: string,
@@ -185,6 +194,17 @@ export function reduceEvent(
   const sourceSessionId = resolveSessionId(event);
 
   switch (eventType) {
+    case "compaction.end": {
+      const summary = parseCompactionSummary(event.summary);
+      if (summary === null) return state;
+      const id = makeId(state);
+      return {
+        ...state,
+        items: [...state.items, { id, type: "compaction_summary", timestamp: ts, sessionId: sourceSessionId, content: summary }],
+        nextId: state.nextId + 1,
+      };
+    }
+
     case "task.start": {
       const sessionId = sourceSessionId;
       let changed = false;

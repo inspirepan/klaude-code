@@ -5,6 +5,7 @@ import { AssistantText } from "./AssistantText";
 import { ToolBlock } from "./ToolBlock";
 import { DeveloperMessage } from "./DeveloperMessage";
 import { TaskWorked } from "./TaskWorked";
+import { CompactionSummary } from "./CompactionSummary";
 import { UnknownEvent } from "./UnknownEvent";
 
 interface MessageItemProps {
@@ -26,6 +27,8 @@ export function MessageItem({ item, compact = false }: MessageItemProps): JSX.El
       return <DeveloperMessage item={item} />;
     case "task_worked":
       return <TaskWorked item={item} compact={compact} />;
+    case "compaction_summary":
+      return <CompactionSummary item={item} />;
     case "unknown_event":
       return <UnknownEvent item={item} compact={compact} />;
   }
