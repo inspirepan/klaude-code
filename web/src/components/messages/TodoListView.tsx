@@ -11,8 +11,8 @@ interface TodoListUIExtra {
   };
 }
 
-export function isTodoListUIExtra(extra: Record<string, unknown>): extra is TodoListUIExtra {
-  return extra.type === "todo_list";
+export function isTodoListUIExtra(extra: unknown): extra is TodoListUIExtra {
+  return typeof extra === "object" && extra !== null && (extra as { type?: unknown }).type === "todo_list";
 }
 
 const statusConfig = {

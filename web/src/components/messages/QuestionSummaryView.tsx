@@ -10,9 +10,9 @@ interface AskUserQuestionSummaryUIExtra {
 }
 
 export function isQuestionSummaryUIExtra(
-  extra: Record<string, unknown>,
+  extra: unknown,
 ): extra is AskUserQuestionSummaryUIExtra {
-  return extra.type === "ask_user_question_summary";
+  return typeof extra === "object" && extra !== null && (extra as { type?: unknown }).type === "ask_user_question_summary";
 }
 
 interface QuestionSummaryViewProps {

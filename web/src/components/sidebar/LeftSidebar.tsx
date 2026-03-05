@@ -1,4 +1,4 @@
-import { PanelLeftClose } from "lucide-react";
+import { PanelLeftClose, RefreshCw } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
 import { useSessionStore } from "../../stores/session-store";
@@ -24,6 +24,17 @@ export function LeftSidebar(): JSX.Element {
         <div className="flex-1">
           <NewSessionButton onClick={selectDraft} />
         </div>
+        <button
+          type="button"
+          className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+          onClick={() => {
+            void refreshSessions();
+          }}
+          title="Refresh sessions"
+          aria-label="Refresh sessions"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+        </button>
         <button
           type="button"
           className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"

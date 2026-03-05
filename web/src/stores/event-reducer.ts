@@ -1,4 +1,4 @@
-import type { MessageImagePart, MessageItem } from "../types/message";
+import type { DeveloperUIItem, MessageImagePart, MessageItem } from "../types/message";
 
 function parseUserMessageImages(raw: unknown): MessageImagePart[] {
   if (!Array.isArray(raw)) return [];
@@ -43,7 +43,6 @@ const SKIP_EVENT_TYPES = new Set([
   "turn.end",
   "usage",
   "welcome",
-  "developer.message",
   "replay.history",
   "error",
   "compaction.start",
@@ -62,6 +61,91 @@ const SKIP_EVENT_TYPES = new Set([
   "usage.snapshot",
   "end",
 ]);
+
+function parseStringArray(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((v): v is string => typeof v === "string");
+}
+
+function parseDeveloperUIItems(raw: unknown): DeveloperUIItem[] {
+  if (raw === null || typeof raw !== "object") return [];
+  const extra = raw as Record<string, unknown>;
+  if (!Array.isArray(extra.items)) return [];
+
+  const out: DeveloperUIItem[] = [];
+  for (const item of extra.items) {
+    if (item === null || typeof item !== "object") continue;
+    const ui = item as Record<string, unknown>;
+    const t = ui.type;
+    if (typeof t !== "string") continue;
+
+    switch (t) {
+      case "memory_loaded": {
+        if (!Array.isArray(ui.files)) break;
+        const files = ui.files
+          .filter((f): f is Record<string, unknown> => f !== null && typeof f === "object")
+          .map((f) => ({
+            path: typeof f.path === "string" ? f.path : "",
+            mentioned_patterns: parseStringArray(f.mentioned_patterns),
+          }))
+          .filter((f) => f.path.length > 0);
+        if (files.length === 0) break;
+        out.push({ type: "memory_loaded", files });
+        break;
+      }
+      case "external_file_changes": {
+        const paths = parseStringArray(ui.paths).filter((p) => p.length > 0);
+        if (paths.length === 0) break;
+        out.push({ type: "external_file_changes", paths });
+        break;
+      }
+      case "todo_reminder": {
+        const reason = ui.reason;
+        if (reason !== "empty" && reason !== "not_used_recently") break;
+        out.push({ type: "todo_reminder", reason });
+        break;
+      }
+      case "at_file_ops": {
+        if (!Array.isArray(ui.ops)) break;
+        const ops = ui.ops
+          .filter((o): o is Record<string, unknown> => o !== null && typeof o === "object")
+          .map((o) => ({
+            operation: o.operation === "Read" || o.operation === "List" ? o.operation : null,
+            path: typeof o.path === "string" ? o.path : "",
+            mentioned_in: typeof o.mentioned_in === "string" ? o.mentioned_in : null,
+          }))
+          .filter((o): o is { operation: "Read" | "List"; path: string; mentioned_in: string | null } =>
+            o.operation !== null && o.path.length > 0
+          );
+        if (ops.length === 0) break;
+        out.push({ type: "at_file_ops", ops });
+        break;
+      }
+      case "user_images": {
+        const count = typeof ui.count === "number" ? ui.count : 0;
+        const paths = parseStringArray(ui.paths).filter((p) => p.length > 0);
+        out.push({ type: "user_images", count, paths });
+        break;
+      }
+      case "skill_activated": {
+        const name = typeof ui.name === "string" ? ui.name : "";
+        if (name.length === 0) break;
+        out.push({ type: "skill_activated", name });
+        break;
+      }
+      case "at_file_images": {
+        const paths = parseStringArray(ui.paths).filter((p) => p.length > 0);
+        if (paths.length === 0) break;
+        out.push({ type: "at_file_images", paths });
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  return out;
+}
 
 function makeId(state: ReducerState): string {
   return `msg-${state.nextId}`;
@@ -86,6 +170,19 @@ export function reduceEvent(
   const ts = resolveTimestamp(timestamp, event);
 
   switch (eventType) {
+    case "developer.message": {
+      const rawItem = event.item;
+      const itemObj = rawItem !== null && typeof rawItem === "object" ? (rawItem as Record<string, unknown>) : null;
+      const uiItems = parseDeveloperUIItems(itemObj?.ui_extra);
+      if (uiItems.length === 0) return state;
+      const id = makeId(state);
+      return {
+        ...state,
+        items: [...state.items, { id, type: "developer_message", timestamp: ts, items: uiItems }],
+        nextId: state.nextId + 1,
+      };
+    }
+
     case "user.message": {
       const id = makeId(state);
       const content = typeof event.content === "string" ? event.content : "";

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect } from "react";
 import { PatchDiff } from "@pierre/diffs/react";
-import { preloadHighlighter } from "@pierre/diffs";
+import { DEFAULT_THEMES, preloadHighlighter } from "@pierre/diffs";
 
 import type { ToolBlockItem } from "../../types/message";
 
@@ -34,7 +34,10 @@ const SHADOW_ICON_CSS = `
 `;
 
 // Eagerly start loading the highlighter
-preloadHighlighter();
+preloadHighlighter({
+  themes: [DEFAULT_THEMES.light, DEFAULT_THEMES.dark],
+  langs: ["text", "ansi"],
+});
 
 interface DiffUIExtra {
   type: "diff";
@@ -51,8 +54,8 @@ interface DiffUIExtra {
   raw_unified_diff: string | null;
 }
 
-export function isDiffUIExtra(extra: Record<string, unknown>): extra is DiffUIExtra {
-  return extra.type === "diff";
+export function isDiffUIExtra(extra: unknown): extra is DiffUIExtra {
+  return typeof extra === "object" && extra !== null && (extra as { type?: unknown }).type === "diff";
 }
 
 /**

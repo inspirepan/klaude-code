@@ -52,6 +52,67 @@ export interface ToolBlockItem {
   isStreaming: boolean;
 }
 
+export interface MemoryLoadedUIItem {
+  type: "memory_loaded";
+  files: Array<{
+    path: string;
+    mentioned_patterns: string[];
+  }>;
+}
+
+export interface ExternalFileChangesUIItem {
+  type: "external_file_changes";
+  paths: string[];
+}
+
+export interface TodoReminderUIItem {
+  type: "todo_reminder";
+  reason: "empty" | "not_used_recently";
+}
+
+export interface AtFileOp {
+  operation: "Read" | "List";
+  path: string;
+  mentioned_in: string | null;
+}
+
+export interface AtFileOpsUIItem {
+  type: "at_file_ops";
+  ops: AtFileOp[];
+}
+
+export interface UserImagesUIItem {
+  type: "user_images";
+  count: number;
+  paths: string[];
+}
+
+export interface SkillActivatedUIItem {
+  type: "skill_activated";
+  name: string;
+}
+
+export interface AtFileImagesUIItem {
+  type: "at_file_images";
+  paths: string[];
+}
+
+export type DeveloperUIItem =
+  | MemoryLoadedUIItem
+  | ExternalFileChangesUIItem
+  | TodoReminderUIItem
+  | AtFileOpsUIItem
+  | UserImagesUIItem
+  | SkillActivatedUIItem
+  | AtFileImagesUIItem;
+
+export interface DeveloperMessageItem {
+  id: MessageItemId;
+  type: "developer_message";
+  timestamp: ItemTimestamp;
+  items: DeveloperUIItem[];
+}
+
 export interface UnknownEventItem {
   id: MessageItemId;
   type: "unknown_event";
@@ -65,4 +126,5 @@ export type MessageItem =
   | ThinkingBlockItem
   | AssistantTextItem
   | ToolBlockItem
+  | DeveloperMessageItem
   | UnknownEventItem;

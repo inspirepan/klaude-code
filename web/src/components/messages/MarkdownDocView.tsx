@@ -9,8 +9,8 @@ interface MarkdownDocUIExtra {
   content: string;
 }
 
-export function isMarkdownDocUIExtra(extra: Record<string, unknown>): extra is MarkdownDocUIExtra {
-  return extra.type === "markdown_doc";
+export function isMarkdownDocUIExtra(extra: unknown): extra is MarkdownDocUIExtra {
+  return typeof extra === "object" && extra !== null && (extra as { type?: unknown }).type === "markdown_doc";
 }
 
 const plugins = { code, mermaid };
