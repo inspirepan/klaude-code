@@ -1,7 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { ChevronRight, Loader2 } from "lucide-react";
 
 import type { ToolBlockItem } from "../../types/message";
+import { useSearch } from "./search-context";
+import { HighlightText } from "./HighlightText";
 import { DiffView, isDiffUIExtra } from "./DiffView";
 import { TodoListView, isTodoListUIExtra } from "./TodoListView";
 import { MarkdownDocView, isMarkdownDocUIExtra } from "./MarkdownDocView";
@@ -171,6 +173,8 @@ function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
 }
 
 export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
+  const { matchItemIds } = useSearch();
+
   if (PLAN_TOOLS.has(item.toolName)) {
     return <PlanBlock item={item} />;
   }
@@ -181,6 +185,21 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
   const defaultExpanded = shouldExpandResult(item);
   const [open, setOpen] = useState(defaultExpanded);
   const [showMore, setShowMore] = useState(false);
+  const isSearchMatch = matchItemIds.includes(item.id);
+  const wasAutoExpanded = useRef(false);
+
+  // Auto-expand when search matches inside this tool block
+  useEffect(() => {
+    if (isSearchMatch && !open) {
+      setOpen(true);
+      wasAutoExpanded.current = true;
+    }
+    if (!isSearchMatch && wasAutoExpanded.current) {
+      setOpen(defaultExpanded);
+      wasAutoExpanded.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSearchMatch]);
 
   const detail = extractHeaderDetail(item.toolName, item.arguments);
   const isBash = item.toolName === "Bash";
@@ -220,11 +239,11 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
         {detail ? (
           isBash ? (
             <code className={`inline-block max-w-full text-sm bg-neutral-100 rounded px-1.5 py-0.5 ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
-              {detail}
+              <HighlightText>{detail}</HighlightText>
             </code>
           ) : (
             <span className={`inline-block max-w-full text-sm bg-neutral-100 rounded px-1.5 py-0.5 ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
-              {detail}
+              <HighlightText>{detail}</HighlightText>
             </span>
           )
         ) : null}
@@ -250,7 +269,7 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
                       isError ? "text-red-700" : "text-neutral-400"
                     }`}
                   >
-                    {displayed}
+                    <HighlightText>{displayed}</HighlightText>
                   </pre>
                   {lines.length > RESULT_LINE_LIMIT ? (
                     <button

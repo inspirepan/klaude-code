@@ -4,6 +4,8 @@ import { Loader2, ChevronUp } from "lucide-react";
 import { useMessageStore } from "../../stores/message-store";
 import type { MessageItem as MessageItemType, UserMessageItem, ItemTimestamp } from "../../types/message";
 import { MessageItem } from "./MessageItem";
+import { SearchBar } from "./SearchBar";
+import { SearchProvider, type SearchState } from "./search-context";
 
 const EMPTY_ITEMS: MessageItemType[] = [];
 
@@ -31,12 +33,98 @@ function formatTime(ts: ItemTimestamp): string | null {
   return `${day} ${time}`;
 }
 
+function extractSearchableText(item: MessageItemType): string {
+  switch (item.type) {
+    case "user_message":
+      return item.content;
+    case "thinking":
+      return item.content;
+    case "assistant_text":
+      return item.content;
+    case "tool_block":
+      return `${item.toolName}\n${item.arguments}\n${item.result ?? ""}`;
+    case "developer_message":
+      return "";
+    case "task_worked":
+      return "";
+    case "unknown_event":
+      return `${item.eventType}\n${JSON.stringify(item.rawEvent)}`;
+  }
+}
+
+function findMatchingItemIds(items: MessageItemType[], query: string): string[] {
+  if (!query.trim()) return [];
+  const lower = query.toLowerCase();
+  return items
+    .filter((item) => extractSearchableText(item).toLowerCase().includes(lower))
+    .map((item) => item.id);
+}
+
 export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const items = useMessageStore((state) => state.messagesBySessionId[sessionId] ?? EMPTY_ITEMS);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
   const [stickyMsg, setStickyMsg] = useState<StickyUserMessage | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
+
+  const searchMatchItemIds = useMemo(
+    () => findMatchingItemIds(items, searchQuery),
+    [items, searchQuery],
+  );
+
+  // Reset active index when matches change
+  useEffect(() => {
+    setSearchActiveIndex(searchMatchItemIds.length > 0 ? 0 : -1);
+  }, [searchMatchItemIds]);
+
+  const searchState = useMemo<SearchState>(
+    () => ({ query: searchQuery, matchItemIds: searchMatchItemIds, activeIndex: searchActiveIndex }),
+    [searchQuery, searchMatchItemIds, searchActiveIndex],
+  );
+
+  // Cmd+F intercept
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // Scroll to active search match
+  useEffect(() => {
+    if (searchActiveIndex < 0 || searchMatchItemIds.length === 0) return;
+    const itemId = searchMatchItemIds[searchActiveIndex];
+    if (!itemId) return;
+    const el = itemRefsMap.current.get(itemId);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [searchActiveIndex, searchMatchItemIds]);
+
+  const handleSearchQueryChange = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
+
+  const handleSearchNext = useCallback(() => {
+    if (searchMatchItemIds.length === 0) return;
+    setSearchActiveIndex((prev) => (prev + 1) % searchMatchItemIds.length);
+  }, [searchMatchItemIds.length]);
+
+  const handleSearchPrev = useCallback(() => {
+    if (searchMatchItemIds.length === 0) return;
+    setSearchActiveIndex((prev) => (prev - 1 + searchMatchItemIds.length) % searchMatchItemIds.length);
+  }, [searchMatchItemIds.length]);
+
+  const handleSearchClose = useCallback(() => {
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSearchActiveIndex(-1);
+  }, []);
 
   const userMessages = useMemo(
     () => items.filter((i): i is UserMessageItem => i.type === "user_message"),
@@ -114,53 +202,67 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     );
   }
 
-  return (
-    <div className="flex-1 min-h-0 relative">
-      {stickyMsg ? (
-        <button
-          type="button"
-          onClick={scrollToOrigin}
-          className="absolute top-0 left-0 right-0 z-10 border-b border-neutral-100 bg-white/90 backdrop-blur-sm cursor-pointer hover:bg-neutral-50/90 transition-colors"
-        >
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-2">
-            <ChevronUp className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-            <span className="text-sm text-neutral-500 truncate">{stickyMsg.item.content}</span>
-          </div>
-        </button>
-      ) : null}
+  const activeItemId = searchActiveIndex >= 0 ? searchMatchItemIds[searchActiveIndex] : null;
 
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin"
-      >
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-5">
-          {items.map((item) => {
-            const time = formatTime(item.timestamp);
-            return (
-              <div
-                key={item.id}
-                ref={(el) => {
-                  if (item.type === "user_message") setItemRef(item.id, el);
-                }}
-                className="group/row flex gap-4 min-w-0"
-              >
-                <div className="flex-1 min-w-0">
-                  <MessageItem item={item} />
+  return (
+    <SearchProvider value={searchState}>
+      <div className="flex-1 min-h-0 relative">
+        {searchOpen ? (
+          <SearchBar
+            totalMatches={searchMatchItemIds.length}
+            activeIndex={searchActiveIndex}
+            onQueryChange={handleSearchQueryChange}
+            onNext={handleSearchNext}
+            onPrev={handleSearchPrev}
+            onClose={handleSearchClose}
+          />
+        ) : null}
+
+        {stickyMsg ? (
+          <button
+            type="button"
+            onClick={scrollToOrigin}
+            className="absolute top-0 left-0 right-0 z-10 border-b border-neutral-100 bg-white/90 backdrop-blur-sm cursor-pointer hover:bg-neutral-50/90 transition-colors"
+          >
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-2">
+              <ChevronUp className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+              <span className="text-sm text-neutral-500 truncate">{stickyMsg.item.content}</span>
+            </div>
+          </button>
+        ) : null}
+
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin"
+        >
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-5">
+            {items.map((item) => {
+              const time = formatTime(item.timestamp);
+              const isActive = item.id === activeItemId;
+              return (
+                <div
+                  key={item.id}
+                  ref={(el) => setItemRef(item.id, el)}
+                  className="group/row flex gap-4 min-w-0"
+                >
+                  <div className={`flex-1 min-w-0 transition-shadow duration-150 rounded-lg ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}>
+                    <MessageItem item={item} />
+                  </div>
+                  <div className="hidden sm:block shrink-0 text-right whitespace-nowrap">
+                    {time ? (
+                      <span className="text-xs leading-none tabular-nums text-neutral-300 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 select-none relative -top-0.5 pb-1">
+                        {time}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="hidden sm:block shrink-0 text-right whitespace-nowrap">
-                  {time ? (
-                    <span className="text-xs leading-none tabular-nums text-neutral-300 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 select-none relative -top-0.5 pb-1">
-                      {time}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            );
-          })}
-          <div ref={bottomRef} />
+              );
+            })}
+            <div ref={bottomRef} />
+          </div>
         </div>
       </div>
-    </div>
+    </SearchProvider>
   );
 }

@@ -54,15 +54,19 @@ function getRuntimeIcon(runtime: SessionRuntimeState): JSX.Element {
   return <CheckCircle className="shrink-0 w-3.5 h-3.5 text-neutral-400" />;
 }
 
+function shortenFileRefs(text: string): string {
+  return text.replace(/@[\w./\\-]+\/([^/\s]+)/g, "@$1");
+}
+
 export function SessionCard({ session, active, runtime, onClick, onToggleArchive }: SessionCardProps): JSX.Element {
-  const title = getSessionTitle(session);
-  const excerpt = getSessionExcerpt(session);
+  const title = shortenFileRefs(getSessionTitle(session));
+  const excerpt = shortenFileRefs(getSessionExcerpt(session));
   const updatedAt = formatRelativeTime(session.updated_at);
   const messageCountLabel = session.messages_count >= 0 ? `${session.messages_count} messages` : "N/A messages";
   const modelLabel = session.model_name ?? "N/A model";
 
   return (
-    <div className="group relative">
+    <div className="group">
       <button
         className={`w-full rounded-md px-2 py-2 text-left transition-colors ${
           active ? "bg-neutral-200/60" : "hover:bg-neutral-100/80"
@@ -72,9 +76,26 @@ export function SessionCard({ session, active, runtime, onClick, onToggleArchive
         title={title}
       >
         <div className="min-w-0 pl-1">
-          <div className="flex items-center gap-1.5 min-w-0 pr-14">
+          <div className="flex items-center gap-1.5 min-w-0">
             {getRuntimeIcon(runtime)}
             <span className="text-[14px] leading-5 text-neutral-700 truncate flex-1">{title}</span>
+            <div className="relative shrink-0 h-5 -translate-y-0.5">
+              <span className="text-[12px] leading-5 text-neutral-400 whitespace-nowrap transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">
+                {updatedAt}
+              </span>
+              <button
+                type="button"
+                className="absolute inset-0 inline-flex items-center justify-end rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+                title={session.archived ? "Unarchive session" : "Archive session"}
+                aria-label={session.archived ? "Unarchive session" : "Archive session"}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleArchive(session.id, !session.archived);
+                }}
+              >
+                {session.archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+              </button>
+            </div>
           </div>
 
           <div className="mt-0.5 pl-5 text-[13px] leading-5 text-neutral-500 truncate">{excerpt}</div>
@@ -84,24 +105,6 @@ export function SessionCard({ session, active, runtime, onClick, onToggleArchive
           </div>
         </div>
       </button>
-
-      <div className="absolute right-2 top-2 h-5 w-12">
-        <span className="pointer-events-none absolute inset-0 text-[12px] leading-5 text-neutral-400 text-right whitespace-nowrap transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">
-          {updatedAt}
-        </span>
-        <button
-          type="button"
-          className="absolute inset-0 inline-flex items-center justify-end rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-          title={session.archived ? "Unarchive session" : "Archive session"}
-          aria-label={session.archived ? "Unarchive session" : "Archive session"}
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleArchive(session.id, !session.archived);
-          }}
-        >
-          {session.archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-        </button>
-      </div>
     </div>
   );
 }

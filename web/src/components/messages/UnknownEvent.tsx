@@ -1,15 +1,31 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ChevronRight } from "lucide-react";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import type { UnknownEventItem } from "../../types/message";
+import { useSearch } from "./search-context";
 
 interface UnknownEventProps {
   item: UnknownEventItem;
 }
 
 export function UnknownEvent({ item }: UnknownEventProps): JSX.Element {
+  const { matchItemIds } = useSearch();
   const [open, setOpen] = useState(false);
+  const isSearchMatch = matchItemIds.includes(item.id);
+  const wasAutoExpanded = useRef(false);
+
+  useEffect(() => {
+    if (isSearchMatch && !open) {
+      setOpen(true);
+      wasAutoExpanded.current = true;
+    }
+    if (!isSearchMatch && wasAutoExpanded.current) {
+      setOpen(false);
+      wasAutoExpanded.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSearchMatch]);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>

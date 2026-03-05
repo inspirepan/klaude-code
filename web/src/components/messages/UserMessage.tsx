@@ -1,5 +1,6 @@
 import type { UserMessageItem } from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
+import { HighlightText } from "./HighlightText";
 
 interface UserMessageProps {
   item: UserMessageItem;
@@ -29,7 +30,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
       ) : null}
       {hasText ? (
         <p className="text-[15px] leading-relaxed text-neutral-800 whitespace-pre-wrap break-words m-0">
-          {item.content}
+          <HighlightText>{item.content}</HighlightText>
         </p>
       ) : null}
     </div>
