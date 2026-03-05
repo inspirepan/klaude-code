@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { createSession, fetchSessionGroups, fetchSessionHistory } from "../api/client";
+import { createSession, fetchRunningSessions, fetchSessionGroups, fetchSessionHistory } from "../api/client";
 import { connectSessionWs, type SessionWsConnection, type WsErrorFrame, type WsEventEnvelope } from "../api/ws";
 import type {
   ActiveSessionId,
@@ -33,6 +33,8 @@ interface ActiveConnection {
 }
 
 let activeConnection: ActiveConnection | null = null;
+let runtimePollTimer: ReturnType<typeof setInterval> | null = null;
+const RUNTIME_POLL_INTERVAL = 3000;
 
 const defaultRuntimeState: SessionRuntimeState = {
   sessionState: "idle",
@@ -52,6 +54,32 @@ function updateRuntimeState(
       ...patch,
     },
   };
+}
+
+async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): Promise<void> {
+  try {
+    const states = await fetchRunningSessions();
+    set((state) => {
+      const next = { ...state.runtimeBySessionId };
+      let changed = false;
+      for (const group of state.groups) {
+        for (const session of group.sessions) {
+          const apiState = states[session.id] ?? "idle";
+          const prev = next[session.id];
+          if (prev === undefined) continue;
+          // Skip if WS is actively connected (it has more accurate state)
+          if (prev.wsState === "connected" || prev.wsState === "connecting") continue;
+          if (prev.sessionState !== apiState) {
+            next[session.id] = { ...prev, sessionState: apiState as SessionRuntimeState["sessionState"] };
+            changed = true;
+          }
+        }
+      }
+      return changed ? { runtimeBySessionId: next } : {};
+    });
+  } catch {
+    // Silently ignore polling errors
+  }
 }
 
 function pushSessionUrl(sessionId: ActiveSessionId): void {
@@ -252,6 +280,12 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     }
 
     set({ initialized: true });
+
+    if (runtimePollTimer === null) {
+      runtimePollTimer = setInterval(() => {
+        void pollRuntimeStates(get, set);
+      }, RUNTIME_POLL_INTERVAL);
+    }
   },
   refreshSessions: async () => {
     set({ loading: true, loadError: null });

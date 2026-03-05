@@ -26,9 +26,8 @@ function isToday(date: Date): boolean {
 function formatTime(ts: ItemTimestamp): string | null {
   if (ts === null) return null;
   const date = new Date(ts * 1000);
-  const time = date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  if (isToday(date)) return time;
-  const day = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const time = date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  const day = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${day} ${time}`;
 }
 
@@ -149,7 +148,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 <div className="flex-1 min-w-0">
                   <MessageItem item={item} />
                 </div>
-                <div className="hidden sm:block w-16 shrink-0 pt-1 text-right">
+                <div className="hidden sm:block shrink-0 pt-1 text-right whitespace-nowrap">
                   {time ? (
                     <span className="text-[11px] tabular-nums text-zinc-300 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 select-none">
                       {time}

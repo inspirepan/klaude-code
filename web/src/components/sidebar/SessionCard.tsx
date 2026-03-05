@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { CheckCircle, Loader } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 
 interface SessionCardProps {
@@ -59,11 +59,15 @@ export function SessionCard({ session, active, runtime, onClick }: SessionCardPr
       onClick={onClick}
       title={title}
     >
-      <span className="text-[14px] text-zinc-700 font-normal truncate flex-1 pl-6">
+      <span className="text-[14px] text-zinc-700 font-normal truncate flex-1 pl-1 flex items-center gap-1.5">
+        {runtime.sessionState !== "idle" ? (
+          <Loader className="shrink-0 w-3.5 h-3.5 text-zinc-400 animate-spin" />
+        ) : (
+          <CheckCircle className="shrink-0 w-3.5 h-3.5 text-zinc-400" />
+        )}
         {title}
       </span>
-      <span className="text-[13px] text-zinc-400 flex items-center gap-1.5 shrink-0">
-        {runtime.sessionState !== "idle" && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+      <span className="text-[13px] text-zinc-400 shrink-0">
         {updatedAt}
       </span>
     </button>

@@ -90,6 +90,15 @@ async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[di
     return {"groups": groups}
 
 
+@router.get("/running")
+async def list_running_sessions(
+    state: WebAppState = WEB_STATE_DEP,
+) -> dict[str, dict[str, str]]:
+    """Return runtime states for sessions that have active actors."""
+    states: dict[str, str] = dict(_runtime_session_states(state))
+    return {"states": states}
+
+
 @router.post("")
 async def create_session(
     payload: CreateSessionRequest,

@@ -234,6 +234,8 @@ async def _receive_commands(session_id: str, websocket: WebSocket) -> None:
 
 @router.websocket("/api/sessions/{session_id}/ws")
 async def session_websocket(websocket: WebSocket, session_id: str) -> None:
+    send_task: asyncio.Task[None] | None = None
+    recv_task: asyncio.Task[None] | None = None
     try:
         await websocket.accept()
         state = get_web_state_from_ws(websocket)
@@ -276,3 +278,9 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                 raise exc
     except (WebSocketDisconnect, asyncio.CancelledError):
         return
+    finally:
+        tasks_to_cancel = [task for task in (send_task, recv_task) if task is not None and not task.done()]
+        for task in tasks_to_cancel:
+            task.cancel()
+        if tasks_to_cancel:
+            _ = await asyncio.gather(*tasks_to_cancel, return_exceptions=True)

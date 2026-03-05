@@ -33,6 +33,15 @@ export async function fetchSessionHistory(sessionId: string): Promise<SessionHis
   return await requestJson<SessionHistoryResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/history`);
 }
 
+interface RunningSessionsResponse {
+  states: Record<string, string>;
+}
+
+export async function fetchRunningSessions(): Promise<Record<string, string>> {
+  const result = await requestJson<RunningSessionsResponse>("/api/sessions/running");
+  return result.states;
+}
+
 interface CreateSessionRequest {
   work_dir?: string;
 }

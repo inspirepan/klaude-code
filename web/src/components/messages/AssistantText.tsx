@@ -32,7 +32,7 @@ export function AssistantText({ item }: AssistantTextProps): JSX.Element {
       <Streamdown isAnimating={item.isStreaming} plugins={plugins}>
         {item.content}
       </Streamdown>
-      {!item.isStreaming && item.content.length > 0 ? (
+      {!item.isStreaming && item.content.split("\n").length > 5 ? (
         <button
           type="button"
           onClick={handleCopy}
