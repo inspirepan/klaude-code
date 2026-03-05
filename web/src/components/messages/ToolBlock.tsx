@@ -1,17 +1,13 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ChevronRight, Loader2 } from "lucide-react";
 
 import type { ToolBlockItem } from "../../types/message";
-import { DiffView } from "./DiffView";
+import { DiffView, isDiffUIExtra } from "./DiffView";
+import { TodoListView, isTodoListUIExtra } from "./TodoListView";
+import { MarkdownDocView, isMarkdownDocUIExtra } from "./MarkdownDocView";
+import { QuestionSummaryView, isQuestionSummaryUIExtra } from "./QuestionSummaryView";
 
-// Tools whose result is expanded by default
-const EXPAND_RESULT_TOOLS = new Set([
-  "diff",
-  "read_preview",
-  "todo_list",
-  "ask_user_question_summary",
-  "image",
-]);
+const PLAN_TOOLS = new Set(["TodoWrite", "update_plan"]);
 
 function extractHeaderDetail(toolName: string, args: string): string {
   try {
@@ -57,12 +53,61 @@ function extractHeaderDetail(toolName: string, args: string): string {
   }
 }
 
+function hasRichUIExtra(extra: Record<string, unknown>): boolean {
+  if (isDiffUIExtra(extra) || isTodoListUIExtra(extra) || isMarkdownDocUIExtra(extra) || isQuestionSummaryUIExtra(extra)) return true;
+  if (extra.type === "multi" && Array.isArray(extra.items)) {
+    return (extra.items as Record<string, unknown>[]).some(hasRichUIExtra);
+  }
+  return false;
+}
+
 function shouldExpandResult(item: ToolBlockItem): boolean {
   if (item.resultStatus === "error") return false;
   if (item.toolName === "Read") return false;
-  if (item.uiExtra !== null) return true;
-  if (EXPAND_RESULT_TOOLS.has(item.toolName)) return true;
+  if (item.uiExtra !== null && hasRichUIExtra(item.uiExtra)) return true;
   return false;
+}
+
+function RichUIExtraBlock({ extra, item }: { extra: Record<string, unknown>; item: ToolBlockItem }): JSX.Element | null {
+  if (isDiffUIExtra(extra)) {
+    return (
+      <div className="mt-1 rounded-lg border border-zinc-200/80 overflow-hidden">
+        <DiffView item={item} uiExtra={extra} />
+      </div>
+    );
+  }
+  if (isTodoListUIExtra(extra)) {
+    return <TodoListView uiExtra={extra} />;
+  }
+  if (isMarkdownDocUIExtra(extra)) {
+    return <MarkdownDocView uiExtra={extra} />;
+  }
+  if (isQuestionSummaryUIExtra(extra)) {
+    return (
+      <div className="rounded-lg border border-zinc-200/80 bg-zinc-50/50 px-3.5 py-2.5">
+        <QuestionSummaryView uiExtra={extra} />
+      </div>
+    );
+  }
+  return null;
+}
+
+function RichResult({ item }: { item: ToolBlockItem }): JSX.Element | null {
+  const extra = item.uiExtra;
+  if (!extra) return null;
+
+  if (extra.type === "multi" && Array.isArray(extra.items)) {
+    const items = extra.items as Record<string, unknown>[];
+    return (
+      <div className="flex flex-col gap-1">
+        {items.map((sub, i) => (
+          <RichUIExtraBlock key={i} extra={sub} item={item} />
+        ))}
+      </div>
+    );
+  }
+
+  return <RichUIExtraBlock extra={extra} item={item} />;
 }
 
 interface ToolBlockProps {
@@ -71,7 +116,64 @@ interface ToolBlockProps {
 
 const RESULT_LINE_LIMIT = 15;
 
+function extractPlanExplanation(args: string): string {
+  try {
+    const parsed = JSON.parse(args);
+    if (typeof parsed.explanation === "string") return parsed.explanation.trim();
+  } catch { /* ignore */ }
+  return "";
+}
+
+function PlanBlock({ item }: ToolBlockProps): JSX.Element {
+  const explanation = useMemo(() => {
+    if (item.toolName === "update_plan") return extractPlanExplanation(item.arguments);
+    return "";
+  }, [item.toolName, item.arguments]);
+
+  const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
+
+  return (
+    <div className="rounded-lg border border-zinc-200/80 bg-zinc-50/50 px-3.5 py-2.5 text-[15px]">
+      {explanation ? (
+        <p className="text-sm text-zinc-500 font-sans mb-1.5">{explanation}</p>
+      ) : null}
+      {todoExtra ? (
+        <TodoListView uiExtra={todoExtra} />
+      ) : item.isStreaming ? (
+        <div className="flex items-center gap-1.5 text-zinc-400 text-sm font-sans">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          <span>Planning...</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
+  const questionExtra = item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
+
+  return (
+    <div className="rounded-lg border border-zinc-200/80 bg-zinc-50/50 px-3.5 py-2.5 text-[15px]">
+      {questionExtra ? (
+        <QuestionSummaryView uiExtra={questionExtra} />
+      ) : item.isStreaming ? (
+        <div className="flex items-center gap-1.5 text-zinc-400 text-sm font-sans">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          <span>Waiting for answer...</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
+  if (PLAN_TOOLS.has(item.toolName)) {
+    return <PlanBlock item={item} />;
+  }
+  if (item.toolName === "AskUserQuestion") {
+    return <QuestionBlock item={item} />;
+  }
+
   const defaultExpanded = shouldExpandResult(item);
   const [open, setOpen] = useState(defaultExpanded);
   const [showMore, setShowMore] = useState(false);
@@ -80,8 +182,8 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
   const isBash = item.toolName === "Bash";
   const hasResult = item.result !== null && item.result.length > 0;
   const isError = item.resultStatus === "error";
-  const hasDiff = item.uiExtra !== null && (item.uiExtra as Record<string, unknown>).type === "diff";
-  const expandable = hasResult || hasDiff;
+  const hasRich = item.uiExtra !== null && hasRichUIExtra(item.uiExtra);
+  const expandable = hasResult || hasRich;
 
   const detailColor = isError
     ? "text-red-700"
@@ -108,7 +210,7 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
         ) : null}
       </div>
 
-      {/* right col: detail (truncated or wrapped) + result */}
+      {/* right col: detail only */}
       <div className="min-w-0">
         {detail ? (
           isBash ? (
@@ -121,11 +223,13 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
             </span>
           )
         ) : null}
-        {open ? (
-          hasDiff ? (
-            <div className="mt-1 rounded-lg border border-zinc-200/80 overflow-hidden">
-              <DiffView item={item} />
-            </div>
+      </div>
+
+      {/* result: full width */}
+      {open ? (
+        <div className="col-span-2 min-w-0 mt-1 pl-[22px]">
+          {hasRich ? (
+            <RichResult item={item} />
           ) : hasResult ? (() => {
             const lines = item.result!.split("\n");
             const truncated = !showMore && lines.length > RESULT_LINE_LIMIT;
@@ -150,9 +254,9 @@ export function ToolBlock({ item }: ToolBlockProps): JSX.Element {
                 ) : null}
               </div>
             );
-          })() : null
-        ) : null}
-      </div>
+          })() : null}
+        </div>
+      ) : null}
     </div>
   );
 }

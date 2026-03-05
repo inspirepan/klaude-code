@@ -204,6 +204,24 @@ body {
   margin-top: 0.75em;
   margin-bottom: 0.75em;
 }
+/* Streamdown table: strip all wrapper chrome */
+.assistant-text [data-streamdown="table-wrapper"] {
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  border: none;
+  background: none;
+  border-radius: 0;
+}
+.assistant-text [data-streamdown="table-wrapper"] > :not(div:has(table)) {
+  display: none;
+}
+.assistant-text [data-streamdown="table-wrapper"] > div:has(table) {
+  border: none;
+  border-radius: 0;
+  background: none;
+  padding: 0;
+}
 .assistant-text img {
   max-width: 100%;
 }
@@ -240,6 +258,7 @@ body {
   --diffs-font-fallback: "TX-02", ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace !important;
 }
+/* @pierre/diffs icon override is injected into Shadow DOM via DiffView.tsx */
 
 @layer base {
   :root {

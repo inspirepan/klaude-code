@@ -1,8 +1,24 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import { PatchDiff } from "@pierre/diffs/react";
 import { preloadHighlighter } from "@pierre/diffs";
 
 import type { ToolBlockItem } from "../../types/message";
+
+const SHADOW_ICON_CSS = `
+[data-change-icon] { display: none !important; }
+[data-header-content]::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  background: color-mix(in lab, var(--diffs-fg) 45%, var(--diffs-bg));
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z'/%3E%3Cpath d='m15 5 4 4'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z'/%3E%3Cpath d='m15 5 4 4'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+`;
 
 // Eagerly start loading the highlighter
 preloadHighlighter();
@@ -22,7 +38,7 @@ interface DiffUIExtra {
   raw_unified_diff: string | null;
 }
 
-function isDiffUIExtra(extra: Record<string, unknown>): extra is DiffUIExtra {
+export function isDiffUIExtra(extra: Record<string, unknown>): extra is DiffUIExtra {
   return extra.type === "diff";
 }
 
@@ -63,21 +79,39 @@ const SINGLE_FILE_TOOLS = new Set(["Edit", "Write"]);
 
 interface DiffViewProps {
   item: ToolBlockItem;
+  uiExtra?: DiffUIExtra;
 }
 
-export function DiffView({ item }: DiffViewProps): JSX.Element | null {
-  if (!item.uiExtra || !isDiffUIExtra(item.uiExtra)) return null;
+export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
+  const extra = uiExtra ?? (item.uiExtra && isDiffUIExtra(item.uiExtra) ? item.uiExtra : null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    // @pierre/diffs renders inside Shadow DOM; inject CSS to replace the file-header icon
+    const shadowRoots = el.querySelectorAll("*");
+    for (const node of shadowRoots) {
+      const sr = node.shadowRoot;
+      if (!sr || sr.querySelector("style[data-icon-override]")) continue;
+      const style = document.createElement("style");
+      style.setAttribute("data-icon-override", "");
+      style.textContent = SHADOW_ICON_CSS;
+      sr.appendChild(style);
+    }
+  });
+
+  if (!extra) return null;
 
   const hideFileHeader = SINGLE_FILE_TOOLS.has(item.toolName);
 
   const patch = useMemo(() => {
-    const extra = item.uiExtra as DiffUIExtra;
     if (extra.raw_unified_diff) return extra.raw_unified_diff;
     return rebuildUnifiedDiff(extra);
-  }, [item.uiExtra]);
+  }, [extra]);
 
   return (
-    <div className="diff-view">
+    <div className="diff-view" ref={containerRef}>
       <PatchDiff
         patch={patch}
         options={{

@@ -4,12 +4,13 @@ import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 
 import type { AssistantTextItem } from "../../types/message";
+import { mermaid } from "../../lib/mermaid-plugin";
 
 interface AssistantTextProps {
   item: AssistantTextItem;
 }
 
-const plugins = { code };
+const plugins = { code, mermaid };
 
 export function AssistantText({ item }: AssistantTextProps): JSX.Element {
   const [copied, setCopied] = useState(false);
