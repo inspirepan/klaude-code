@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { Loader2, ChevronUp } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import { useMessageStore } from "../../stores/message-store";
 import type {
   MessageItem as MessageItemType,
-  UserMessageItem,
   ItemTimestamp,
   AssistantTextItem,
 } from "../../types/message";
@@ -16,18 +15,6 @@ const EMPTY_ITEMS: MessageItemType[] = [];
 
 interface MessageListProps {
   sessionId: string;
-}
-
-interface StickyUserMessage {
-  item: UserMessageItem;
-  originId: string;
-}
-
-function isToday(date: Date): boolean {
-  const now = new Date();
-  return date.getFullYear() === now.getFullYear()
-    && date.getMonth() === now.getMonth()
-    && date.getDate() === now.getDate();
 }
 
 function formatTime(ts: ItemTimestamp): string | null {
@@ -74,7 +61,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
-  const [stickyMsg, setStickyMsg] = useState<StickyUserMessage | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
@@ -151,11 +137,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     }
   }, []);
 
-  const userMessages = useMemo(
-    () => items.filter((i): i is UserMessageItem => i.type === "user_message"),
-    [items],
-  );
-
   // Restore scroll position when items first load for a session
   const hasItems = items.length > 0;
   useEffect(() => {
@@ -181,35 +162,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const handleScroll = useCallback(() => {
     const container = scrollRef.current;
     if (!container) return;
-
     sessionStorage.setItem(`scroll-${sessionId}`, String(container.scrollTop));
-
-    const containerTop = container.getBoundingClientRect().top;
-    let lastAbove: UserMessageItem | null = null;
-
-    for (const msg of userMessages) {
-      const el = itemRefsMap.current.get(msg.id);
-      if (!el) continue;
-      const rect = el.getBoundingClientRect();
-      if (rect.bottom < containerTop) {
-        lastAbove = msg;
-      }
-    }
-
-    if (lastAbove) {
-      setStickyMsg((prev) =>
-        prev?.originId === lastAbove.id ? prev : { item: lastAbove, originId: lastAbove.id },
-      );
-    } else {
-      setStickyMsg((prev) => (prev === null ? prev : null));
-    }
-  }, [sessionId, userMessages]);
-
-  const scrollToOrigin = useCallback(() => {
-    if (!stickyMsg) return;
-    const el = itemRefsMap.current.get(stickyMsg.originId);
-    el?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [stickyMsg]);
+  }, [sessionId]);
 
   const setItemRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) {
@@ -218,6 +172,22 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       itemRefsMap.current.delete(id);
     }
   }, []);
+
+  // Group items into sections starting at each user message so that
+  // CSS sticky is scoped to each section's containing block.
+  const sections = useMemo(() => {
+    const result: MessageItemType[][] = [];
+    let current: MessageItemType[] = [];
+    for (const item of items) {
+      if (item.type === "user_message" && current.length > 0) {
+        result.push(current);
+        current = [];
+      }
+      current.push(item);
+    }
+    if (current.length > 0) result.push(current);
+    return result;
+  }, [items]);
 
   if (items.length === 0) {
     return (
@@ -243,71 +213,63 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           />
         ) : null}
 
-        {stickyMsg ? (
-          <button
-            type="button"
-            onClick={scrollToOrigin}
-            className="absolute top-0 left-0 right-0 z-10 border-b border-neutral-100 bg-white/90 backdrop-blur-sm cursor-pointer hover:bg-neutral-50/90 transition-colors"
-          >
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-2">
-              <ChevronUp className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-              <span className="text-sm text-neutral-500 truncate">{stickyMsg.item.content}</span>
-            </div>
-          </button>
-        ) : null}
-
         <div
           ref={scrollRef}
           onScroll={handleScroll}
           className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin"
         >
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-5">
-            {items.map((item) => {
-              const time = formatTime(item.timestamp);
-              const isActive = item.id === activeItemId;
-              const canCopy = isCopyableAssistantText(item);
-              const copied = copiedItemId === item.id;
-              return (
-                <div
-                  key={item.id}
-                  ref={(el) => setItemRef(item.id, el)}
-                  className="group/row flex gap-4 min-w-0"
-                >
-                  <div className={`flex-1 min-w-0 transition-shadow duration-150 rounded-lg ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}>
-                    <MessageItem item={item} />
-                    {canCopy ? (
-                      <div className="sm:hidden mt-1 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(item)}
-                          className="text-xs leading-none text-neutral-300 hover:text-neutral-500 transition-colors duration-150 cursor-pointer"
-                          title={copied ? "Copied" : "Copy"}
-                        >
-                          {copied ? "[Copied]" : "[Copy]"}
-                        </button>
+            {sections.map((section) => (
+              <div key={section[0].id} className="space-y-5">
+                {section.map((item) => {
+                  const time = formatTime(item.timestamp);
+                  const isActive = item.id === activeItemId;
+                  const canCopy = isCopyableAssistantText(item);
+                  const copied = copiedItemId === item.id;
+                  const isUser = item.type === "user_message";
+                  return (
+                    <div
+                      key={item.id}
+                      ref={(el) => setItemRef(item.id, el)}
+                      className={`group/row flex gap-4 min-w-0 ${isUser ? "sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 -mt-2.5 pt-2.5 bg-white" : ""}`}
+                    >
+                      <div className={`flex-1 min-w-0 transition-shadow duration-150 rounded-xl ${isUser ? "shadow-[0_4px_14px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.04)]" : ""} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}>
+                        <MessageItem item={item} />
+                        {canCopy ? (
+                          <div className="sm:hidden mt-1 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(item)}
+                              className="text-xs leading-none text-neutral-300 hover:text-neutral-500 transition-colors duration-150 cursor-pointer"
+                              title={copied ? "Copied" : "Copy"}
+                            >
+                              {copied ? "[Copied]" : "[Copy]"}
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
-                  <div className="hidden sm:flex shrink-0 text-right whitespace-nowrap flex-col items-end gap-1 pt-0.5">
-                    {time ? (
-                      <span className="text-xs leading-none tabular-nums text-neutral-300 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 select-none relative -top-0.5 pb-1">
-                        {time}
-                      </span>
-                    ) : null}
-                    {canCopy ? (
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(item)}
-                        className="text-xs leading-none text-neutral-300 hover:text-neutral-500 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 cursor-pointer"
-                        title={copied ? "Copied" : "Copy"}
-                      >
-                        {copied ? "[Copied]" : "[Copy]"}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
+                      <div className="hidden sm:flex shrink-0 text-right whitespace-nowrap flex-col items-end gap-1 pt-0.5">
+                        {time ? (
+                          <span className="text-xs leading-none tabular-nums text-neutral-300 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 select-none relative -top-0.5 pb-1">
+                            {time}
+                          </span>
+                        ) : null}
+                        {canCopy ? (
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(item)}
+                            className="text-xs leading-none text-neutral-300 hover:text-neutral-500 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150 cursor-pointer"
+                            title={copied ? "Copied" : "Copy"}
+                          >
+                            {copied ? "[Copied]" : "[Copy]"}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
             <div ref={bottomRef} />
           </div>
         </div>
