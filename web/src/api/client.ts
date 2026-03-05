@@ -58,6 +58,26 @@ export async function createSession(workDir?: string): Promise<CreateSessionResp
   });
 }
 
+interface ArchiveSessionResponse {
+  ok: boolean;
+}
+
+export async function archiveSession(sessionId: string): Promise<boolean> {
+  const result = await requestJson<ArchiveSessionResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/archive`, {
+    method: "POST",
+    body: {},
+  });
+  return result.ok;
+}
+
+export async function unarchiveSession(sessionId: string): Promise<boolean> {
+  const result = await requestJson<ArchiveSessionResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/unarchive`, {
+    method: "POST",
+    body: {},
+  });
+  return result.ok;
+}
+
 export function buildFileApiUrl(path: string): string {
   return `/api/files?${new URLSearchParams({ path }).toString()}`;
 }

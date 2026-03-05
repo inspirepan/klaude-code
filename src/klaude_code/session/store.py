@@ -201,6 +201,7 @@ def build_meta_snapshot(
     messages_count: int,
     model_name: str | None,
     session_state: model.SessionRuntimeState | None,
+    archived: bool,
     model_config_name: str | None,
     model_thinking: llm_param.Thinking | None,
     next_checkpoint_id: int = 0,
@@ -218,6 +219,7 @@ def build_meta_snapshot(
         "messages_count": messages_count,
         "model_name": model_name,
         "session_state": session_state.value if session_state is not None else None,
+        "archived": archived,
         "model_config_name": model_config_name,
         "model_thinking": model_thinking.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
         if model_thinking

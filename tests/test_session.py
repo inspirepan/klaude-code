@@ -562,6 +562,7 @@ class TestSessionPersistence:
                 work_dir=project_dir,
                 model_name="test-model",
                 session_state=model.SessionRuntimeState.RUNNING,
+                archived=True,
                 model_config_name="test-config-model",
                 model_thinking=llm_param.Thinking(reasoning_effort="high"),
             )
@@ -575,6 +576,7 @@ class TestSessionPersistence:
             assert loaded.work_dir == project_dir
             assert loaded.model_name == "test-model"
             assert loaded.session_state == model.SessionRuntimeState.RUNNING
+            assert loaded.archived is True
             assert loaded.model_config_name == "test-config-model"
             assert loaded.model_thinking is not None
             assert loaded.model_thinking.reasoning_effort == "high"
@@ -605,6 +607,7 @@ class TestSessionPersistence:
             assert meta.id == session.id
             assert meta.model_name == "test-model"
             assert meta.session_state == model.SessionRuntimeState.IDLE
+            assert meta.archived is False
             assert meta.model_config_name == "test-config-model"
             assert len(meta.conversation_history) == 0
             await close_default_store()
@@ -1015,6 +1018,25 @@ class TestForkSessionCommand:
 
         arun(_test())
 
+    def test_most_recent_session_id_skips_archived(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            archived_session = Session(work_dir=project_dir, archived=True)
+            archived_session.append_history([message.UserMessage(parts=message.text_parts_from_str("old"))])
+            await archived_session.wait_for_flush()
+
+            visible_session = Session(work_dir=project_dir)
+            visible_session.append_history([message.UserMessage(parts=message.text_parts_from_str("new"))])
+            await visible_session.wait_for_flush()
+
+            assert Session.most_recent_session_id(work_dir=project_dir) == visible_session.id
+            await close_default_store()
+
+        arun(_test())
+
 
 class TestSessionMetaBrief:
     """Tests for Session.SessionMetaBrief model."""
@@ -1029,6 +1051,7 @@ class TestSessionMetaBrief:
             user_messages=["Hello world"],
             messages_count=5,
             model_name="gpt-4",
+            archived=True,
         )
         assert meta.id == "test123"
         assert meta.created_at == 1700000000.0
@@ -1038,6 +1061,7 @@ class TestSessionMetaBrief:
         assert meta.user_messages == ["Hello world"]
         assert meta.messages_count == 5
         assert meta.model_name == "gpt-4"
+        assert meta.archived is True
 
     def test_default_values(self):
         meta = Session.SessionMetaBrief(
@@ -1051,6 +1075,7 @@ class TestSessionMetaBrief:
         assert meta.messages_count == -1
         assert meta.model_name is None
         assert meta.session_state is None
+        assert meta.archived is False
 
 
 class TestSessionExists:

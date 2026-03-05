@@ -16,6 +16,7 @@ from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
 from klaude_code.session.session import Session, get_store_for_path
 from klaude_code.web.session_index import (
+    list_file_running_states,
     list_main_sessions,
     resolve_session_work_dir,
     soft_delete_session,
@@ -24,7 +25,9 @@ from klaude_code.web.state import WebAppState, get_web_state
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 WEB_STATE_DEP: Final = Depends(get_web_state)
-SESSION_STATE_IDLE: Final = cast(Literal["idle", "running", "waiting_user_input"], protocol_model.SessionRuntimeState.IDLE.value)
+SESSION_STATE_IDLE: Final = cast(
+    Literal["idle", "running", "waiting_user_input"], protocol_model.SessionRuntimeState.IDLE.value
+)
 
 
 def _derive_session_state_from_snapshot(snapshot: Any) -> Literal["idle", "running", "waiting_user_input"]:
@@ -73,7 +76,7 @@ async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[di
     groups_by_work_dir: dict[str, list[dict[str, Any]]] = {}
     runtime_states = _runtime_session_states(state)
     for item in list_main_sessions(state.home_dir):
-        session_state = runtime_states.get(item.id, item.session_state or SESSION_STATE_IDLE)
+        session_state = item.session_state or runtime_states.get(item.id, SESSION_STATE_IDLE)
         groups_by_work_dir.setdefault(item.work_dir, []).append(
             {
                 "id": item.id,
@@ -84,6 +87,7 @@ async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[di
                 "messages_count": item.messages_count,
                 "model_name": item.model_name,
                 "session_state": session_state,
+                "archived": item.archived,
             }
         )
     groups = [{"work_dir": work_dir, "sessions": sessions} for work_dir, sessions in groups_by_work_dir.items()]
@@ -95,7 +99,15 @@ async def list_running_sessions(
     state: WebAppState = WEB_STATE_DEP,
 ) -> dict[str, dict[str, str]]:
     """Return runtime states for sessions that have active actors."""
-    states: dict[str, str] = dict(_runtime_session_states(state))
+    runtime_states = _runtime_session_states(state)
+    states: dict[str, str] = {
+        session_id: session_state
+        for session_id, session_state in runtime_states.items()
+        if session_state in ("running", "waiting_user_input")
+    }
+    for sid, file_state in list_file_running_states(state.home_dir).items():
+        if sid not in states:
+            states[sid] = file_state
     return {"states": states}
 
 
@@ -110,7 +122,9 @@ async def create_session(
 
     session_id = uuid4().hex
     try:
-        await state.runtime.submit_and_wait(op.InitAgentOperation(session_id=session_id, work_dir=target_work_dir.resolve()))
+        await state.runtime.submit_and_wait(
+            op.InitAgentOperation(session_id=session_id, work_dir=target_work_dir.resolve())
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"failed to create session: {exc}") from exc
 
@@ -134,10 +148,40 @@ async def create_session(
             "messages_count": 0,
             "model_name": current_model_name,
             "session_state": "idle",
+            "archived": False,
         }
         meta_path.parent.mkdir(parents=True, exist_ok=True)
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"session_id": session_id}
+
+
+@router.post("/{session_id}/archive")
+async def archive_session(session_id: str, state: WebAppState = WEB_STATE_DEP) -> dict[str, bool]:
+    work_dir = resolve_session_work_dir(state.home_dir, session_id)
+    if work_dir is None:
+        raise HTTPException(status_code=404, detail="session not found")
+
+    store = get_store_for_path(work_dir)
+    archived = store.update_meta(session_id, {"archived": True, "updated_at": time.time()})
+    if not archived:
+        raise HTTPException(status_code=500, detail="failed to archive session")
+
+    with contextlib.suppress(Exception):
+        _ = await state.runtime.close_session(session_id, force=True)
+    return {"ok": True}
+
+
+@router.post("/{session_id}/unarchive")
+async def unarchive_session(session_id: str, state: WebAppState = WEB_STATE_DEP) -> dict[str, bool]:
+    work_dir = resolve_session_work_dir(state.home_dir, session_id)
+    if work_dir is None:
+        raise HTTPException(status_code=404, detail="session not found")
+
+    store = get_store_for_path(work_dir)
+    unarchived = store.update_meta(session_id, {"archived": False, "updated_at": time.time()})
+    if not unarchived:
+        raise HTTPException(status_code=500, detail="failed to unarchive session")
+    return {"ok": True}
 
 
 @router.delete("/{session_id}")

@@ -34,6 +34,7 @@ class SessionSummary:
     messages_count: int
     model_name: str | None
     session_state: Literal["idle", "running", "waiting_user_input"] | None
+    archived: bool
 
 
 def list_main_sessions(home: Path) -> list[SessionSummary]:
@@ -75,6 +76,8 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
         session_state: Literal["idle", "running", "waiting_user_input"] | None = None
         if session_state_raw in {"idle", "running", "waiting_user_input"}:
             session_state = cast(Literal["idle", "running", "waiting_user_input"], session_state_raw)
+        archived_raw = data.get("archived")
+        archived = archived_raw if isinstance(archived_raw, bool) else False
 
         summaries.append(
             SessionSummary(
@@ -86,11 +89,26 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
                 messages_count=messages_count,
                 model_name=model_name,
                 session_state=session_state,
+                archived=archived,
             )
         )
 
     summaries.sort(key=lambda item: item.updated_at, reverse=True)
     return summaries
+
+
+def list_file_running_states(home: Path) -> dict[str, Literal["running", "waiting_user_input"]]:
+    """Return session IDs whose on-disk meta records a non-idle state (lightweight scan)."""
+    result: dict[str, Literal["running", "waiting_user_input"]] = {}
+    for meta_path in _iter_meta_files(home):
+        data = _read_json_dict(meta_path)
+        if data is None or data.get("deleted_at") is not None or data.get("sub_agent_state") is not None:
+            continue
+        state = data.get("session_state")
+        if state in ("running", "waiting_user_input"):
+            sid = str(data.get("id", meta_path.parent.name))
+            result[sid] = state
+    return result
 
 
 def resolve_session_work_dir(home: Path, session_id: str) -> Path | None:

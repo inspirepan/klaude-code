@@ -11,6 +11,7 @@ export interface SessionSummary {
   messages_count: number;
   model_name: string | null;
   session_state: ApiSessionState;
+  archived: boolean;
 }
 
 export interface SessionGroup {

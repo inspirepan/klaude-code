@@ -66,6 +66,7 @@ class Session(BaseModel):
     todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     model_name: str | None = None
     session_state: model.SessionRuntimeState | None = None
+    archived: bool = False
 
     next_checkpoint_id: int = 0
 
@@ -174,6 +175,8 @@ class Session(BaseModel):
         except ValueError:
             session_state = None
         model_config_name = raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None
+        archived_raw = raw.get("archived")
+        archived = archived_raw if isinstance(archived_raw, bool) else False
 
         next_checkpoint_id = int(raw.get("next_checkpoint_id", 0))
 
@@ -192,6 +195,7 @@ class Session(BaseModel):
             updated_at=updated_at,
             model_name=model_name,
             session_state=session_state,
+            archived=archived,
             model_config_name=model_config_name,
             model_thinking=model_thinking,
             next_checkpoint_id=next_checkpoint_id,
@@ -249,6 +253,7 @@ class Session(BaseModel):
             messages_count=self.messages_count,
             model_name=self.model_name,
             session_state=self.session_state,
+            archived=self.archived,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
             next_checkpoint_id=self.next_checkpoint_id,
@@ -409,6 +414,8 @@ class Session(BaseModel):
                 continue
             if data.get("sub_agent_state") is not None:
                 continue
+            if data.get("archived") is True:
+                continue
             sid = str(data.get("id", meta_path.parent.name))
             try:
                 ts = float(data.get("updated_at", 0.0))
@@ -472,10 +479,14 @@ class Session(BaseModel):
                         if isinstance(part, message.ThinkingTextPart):
                             if assistant_open:
                                 assistant_open = False
-                                yield events.AssistantTextEndEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
+                                yield events.AssistantTextEndEvent(
+                                    response_id=am.response_id, session_id=self.id, timestamp=msg_ts
+                                )
                             if not thinking_open:
                                 thinking_open = True
-                                yield events.ThinkingStartEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
+                                yield events.ThinkingStartEvent(
+                                    response_id=am.response_id, session_id=self.id, timestamp=msg_ts
+                                )
                             if part.text:
                                 if thinking_had_content:
                                     yield events.ThinkingDeltaEvent(
@@ -496,12 +507,16 @@ class Session(BaseModel):
                         if thinking_open:
                             thinking_open = False
                             thinking_had_content = False
-                            yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
+                            yield events.ThinkingEndEvent(
+                                response_id=am.response_id, session_id=self.id, timestamp=msg_ts
+                            )
 
                         if isinstance(part, message.TextPart):
                             if not assistant_open:
                                 assistant_open = True
-                                yield events.AssistantTextStartEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
+                                yield events.AssistantTextStartEvent(
+                                    response_id=am.response_id, session_id=self.id, timestamp=msg_ts
+                                )
                             if part.text:
                                 yield events.AssistantTextDeltaEvent(
                                     content=part.text,
@@ -513,7 +528,9 @@ class Session(BaseModel):
                     if thinking_open:
                         yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
                     if assistant_open:
-                        yield events.AssistantTextEndEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
+                        yield events.AssistantTextEndEvent(
+                            response_id=am.response_id, session_id=self.id, timestamp=msg_ts
+                        )
 
                     for part in am.parts:
                         if not isinstance(part, message.ToolCallPart):
@@ -572,7 +589,9 @@ class Session(BaseModel):
                 case message.DeveloperMessage() as dm:
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm, timestamp=msg_ts)
                 case message.StreamErrorItem() as se:
-                    yield events.ErrorEvent(error_message=se.error, can_retry=False, session_id=self.id, timestamp=msg_ts)
+                    yield events.ErrorEvent(
+                        error_message=se.error, can_retry=False, session_id=self.id, timestamp=msg_ts
+                    )
                 case message.InterruptEntry():
                     yield events.InterruptEvent(session_id=self.id, timestamp=msg_ts)
                 case message.RewindEntry() as be:
@@ -626,7 +645,9 @@ class Session(BaseModel):
                 task_result = f"{trimmed}\n\n{footer}" if trimmed.strip() else footer
 
         yield events.TaskFinishEvent(
-            session_id=self.id, task_result=task_result or "", has_structured_output=has_structured_output,
+            session_id=self.id,
+            task_result=task_result or "",
+            has_structured_output=has_structured_output,
             timestamp=msg_ts,
         )
 
@@ -658,6 +679,7 @@ class Session(BaseModel):
         messages_count: int = -1
         model_name: str | None = None
         session_state: model.SessionRuntimeState | None = None
+        archived: bool = False
 
     @classmethod
     def list_sessions(cls, work_dir: Path) -> list[SessionMetaBrief]:
@@ -727,9 +749,13 @@ class Session(BaseModel):
             model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
             session_state_raw = data.get("session_state")
             try:
-                session_state = model.SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
+                session_state = (
+                    model.SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
+                )
             except ValueError:
                 session_state = None
+            archived_raw = data.get("archived")
+            archived = archived_raw if isinstance(archived_raw, bool) else False
 
             items.append(
                 Session.SessionMetaBrief(
@@ -742,6 +768,7 @@ class Session(BaseModel):
                     messages_count=messages_count,
                     model_name=model_name,
                     session_state=session_state,
+                    archived=archived,
                 )
             )
 

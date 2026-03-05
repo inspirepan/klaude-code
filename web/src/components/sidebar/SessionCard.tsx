@@ -1,4 +1,4 @@
-import { CheckCircle, Loader } from "lucide-react";
+import { Archive, ArchiveRestore, CheckCircle, Loader } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 
 interface SessionCardProps {
@@ -6,6 +6,7 @@ interface SessionCardProps {
   active: boolean;
   runtime: SessionRuntimeState;
   onClick: () => void;
+  onToggleArchive: (sessionId: string, archived: boolean) => void;
 }
 
 function getSessionTitle(session: SessionSummary): string {
@@ -46,30 +47,43 @@ function formatRelativeTime(timestampSeconds: number): string {
   return `${Math.floor(deltaSeconds / 2592000)} mo`;
 }
 
-export function SessionCard({ session, active, runtime, onClick }: SessionCardProps): JSX.Element {
+export function SessionCard({ session, active, runtime, onClick, onToggleArchive }: SessionCardProps): JSX.Element {
   const title = getSessionTitle(session);
   const updatedAt = formatRelativeTime(session.updated_at);
 
   return (
-    <button
-      className={`w-full flex items-center justify-between gap-3 px-2 py-[6px] rounded-md text-left transition-colors ${
-        active ? "bg-zinc-200/60" : "hover:bg-zinc-100/80"
-      }`}
-      type="button"
-      onClick={onClick}
-      title={title}
-    >
-      <span className="text-[14px] text-zinc-700 font-normal truncate flex-1 pl-1 flex items-center gap-1.5">
-        {runtime.sessionState !== "idle" ? (
-          <Loader className="shrink-0 w-3.5 h-3.5 text-zinc-400 animate-spin" />
-        ) : (
-          <CheckCircle className="shrink-0 w-3.5 h-3.5 text-zinc-400" />
-        )}
-        {title}
-      </span>
-      <span className="text-[13px] text-zinc-400 shrink-0">
-        {updatedAt}
-      </span>
-    </button>
+    <div className="group relative">
+      <button
+        className={`w-full flex items-center justify-between gap-3 px-2 py-[6px] rounded-md text-left transition-colors ${
+          active ? "bg-zinc-200/60" : "hover:bg-zinc-100/80"
+        }`}
+        type="button"
+        onClick={onClick}
+        title={title}
+      >
+        <span className="text-[14px] text-zinc-700 font-normal truncate flex-1 pl-1 flex items-center gap-1.5">
+          {runtime.sessionState !== "idle" ? (
+            <Loader className="shrink-0 w-3.5 h-3.5 text-zinc-400 animate-spin" />
+          ) : (
+            <CheckCircle className="shrink-0 w-3.5 h-3.5 text-zinc-400" />
+          )}
+          {title}
+        </span>
+        <span className="text-[13px] text-zinc-400 shrink-0 transition-opacity group-hover:opacity-0">{updatedAt}</span>
+      </button>
+
+      <button
+        type="button"
+        className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-200/60 hover:text-zinc-700 group-hover:opacity-100 focus:opacity-100"
+        title={session.archived ? "Unarchive session" : "Archive session"}
+        aria-label={session.archived ? "Unarchive session" : "Archive session"}
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggleArchive(session.id, !session.archived);
+        }}
+      >
+        {session.archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+      </button>
+    </div>
   );
 }

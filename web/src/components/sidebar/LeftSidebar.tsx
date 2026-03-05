@@ -1,6 +1,8 @@
-import { PanelLeftClose, RefreshCw } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, PanelLeftClose, RefreshCw } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
+import { SessionCard } from "./SessionCard";
 import { useSessionStore } from "../../stores/session-store";
 import { useAppStore } from "../../stores/app-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,9 +16,30 @@ export function LeftSidebar(): JSX.Element {
   const loadError = useSessionStore((state) => state.loadError);
   const selectDraft = useSessionStore((state) => state.selectDraft);
   const toggleGroup = useSessionStore((state) => state.toggleGroup);
+  const setSessionArchived = useSessionStore((state) => state.setSessionArchived);
   const selectSession = useSessionStore((state) => state.selectSession);
   const refreshSessions = useSessionStore((state) => state.refreshSessions);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
+  const [archivedExpanded, setArchivedExpanded] = useState(false);
+
+  const activeGroups = useMemo(
+    () =>
+      groups
+        .map((group) => ({
+          ...group,
+          sessions: group.sessions.filter((session) => !session.archived),
+        }))
+        .filter((group) => group.sessions.length > 0),
+    [groups],
+  );
+
+  const archivedSessions = useMemo(
+    () =>
+      groups
+        .flatMap((group) => group.sessions.filter((session) => session.archived))
+        .sort((a, b) => b.updated_at - a.updated_at),
+    [groups],
+  );
 
   return (
     <aside className="w-[260px] min-w-[260px] border-r border-zinc-200 bg-zinc-50 flex flex-col">
@@ -80,7 +103,7 @@ export function LeftSidebar(): JSX.Element {
             </div>
           ) : null}
 
-          {groups.map((group) => (
+          {activeGroups.map((group) => (
             <ProjectGroup
               key={group.work_dir}
               workDir={group.work_dir}
@@ -94,8 +117,48 @@ export function LeftSidebar(): JSX.Element {
               onSelectSession={(sessionId) => {
                 void selectSession(sessionId);
               }}
+              onToggleArchive={(sessionId, archived) => {
+                void setSessionArchived(sessionId, archived);
+              }}
             />
           ))}
+
+          <div className="mt-4 border-t border-zinc-200 pt-2">
+            <button
+              type="button"
+              className="w-full flex items-center gap-1 px-2 py-1.5 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100/50 transition-colors"
+              onClick={() => {
+                setArchivedExpanded((prev) => !prev);
+              }}
+            >
+              {archivedExpanded ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
+              <span className="flex-1 text-[13px] text-left">Archived</span>
+              <span className="text-[12px] text-zinc-400">{archivedSessions.length}</span>
+            </button>
+
+            {archivedExpanded ? (
+              archivedSessions.length > 0 ? (
+                <div className="mt-0.5 space-y-0.5">
+                  {archivedSessions.map((session) => (
+                    <SessionCard
+                      key={session.id}
+                      session={session}
+                      active={activeSessionId === session.id}
+                      runtime={runtimeBySessionId[session.id] ?? { sessionState: "idle", wsState: "idle", lastError: null }}
+                      onClick={() => {
+                        void selectSession(session.id);
+                      }}
+                      onToggleArchive={(sessionId, archived) => {
+                        void setSessionArchived(sessionId, archived);
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="px-2 py-1 text-[12px] text-zinc-400">No archived sessions</div>
+              )
+            ) : null}
+          </div>
         </div>
       </ScrollArea>
     </aside>

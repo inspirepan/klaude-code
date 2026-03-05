@@ -12,6 +12,7 @@ interface ProjectGroupProps {
   runtimeBySessionId: Record<string, SessionRuntimeState>;
   onToggle: () => void;
   onSelectSession: (sessionId: string) => void;
+  onToggleArchive: (sessionId: string, archived: boolean) => void;
 }
 
 function workDirLabel(workDir: string): string {
@@ -30,6 +31,7 @@ export function ProjectGroup({
   runtimeBySessionId,
   onToggle,
   onSelectSession,
+  onToggleArchive,
 }: ProjectGroupProps): JSX.Element {
   const [showAll, setShowAll] = useState(false);
   const displaySessions = showAll ? sessions : sessions.slice(0, 10);
@@ -62,6 +64,7 @@ export function ProjectGroup({
             onClick={() => {
               onSelectSession(session.id);
             }}
+            onToggleArchive={onToggleArchive}
           />
         ))}
         {hasMore && !showAll && (

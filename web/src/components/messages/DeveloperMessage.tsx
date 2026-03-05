@@ -5,11 +5,8 @@ interface DeveloperMessageProps {
   item: DeveloperMessageItem;
 }
 
-function PathPill({ path, variant }: { path: string; variant?: "default" | "skill" }): JSX.Element {
-  const classes =
-    variant === "skill"
-      ? "font-mono text-xs text-zinc-700 bg-zinc-100 border border-zinc-200/70 rounded px-1.5 py-0.5"
-      : "font-mono text-xs text-zinc-600 bg-white/60 border border-zinc-200/70 rounded px-1.5 py-0.5";
+function PathPill({ path }: { path: string }): JSX.Element {
+  const classes = "font-mono text-xs text-zinc-400 bg-zinc-100 border border-zinc-200/70 rounded px-1.5 py-0.5";
   return (
     <code className={classes} title={path}>
       {path}
@@ -72,25 +69,32 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
             case "memory_loaded":
               return (
                 <Row key={`memory-${idx}`}>
-                  <span className="mr-1">Load memory</span>
-                  <span className="inline-flex flex-wrap gap-1 align-middle">
-                    {ui.files.map((f) => (
-                      <PathPill key={f.path} path={f.path} />
-                    ))}
-                  </span>
+                  <div className="flex flex-col gap-0.5">
+                    <span>Load memory</span>
+                    <ul className="list-disc pl-5 space-y-0.5 marker:text-zinc-400">
+                      {ui.files.map((f) => (
+                        <li key={f.path}>
+                          <PathPill path={f.path} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </Row>
               );
             case "external_file_changes":
               return (
-                <div key={`external-${idx}`} className="flex flex-col gap-0.5">
-                  {ui.paths.map((p) => (
-                    <Row key={p}>
-                      <span className="mr-1">Read</span>
-                      <PathPill path={p} />
-                      <span className="ml-1">after external changes</span>
-                    </Row>
-                  ))}
-                </div>
+                <Row key={`external-${idx}`}>
+                  <div className="flex flex-col gap-0.5">
+                    <span>Read after external changes</span>
+                    <ul className="list-disc pl-5 space-y-0.5 marker:text-zinc-400">
+                      {ui.paths.map((p) => (
+                        <li key={p}>
+                          <PathPill path={p} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </Row>
               );
             case "todo_reminder": {
               const text = ui.reason === "empty" ? "Todo list is empty" : "Todo hasn't been updated recently";
@@ -105,18 +109,22 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
                 <div key={`ops-${idx}`} className="flex flex-col gap-0.5">
                   {groupAtFileOps(ui.ops).map((g) => (
                     <Row key={`${g.operation}-${g.mentionedIn ?? ""}-${g.paths.join(",")}`}>
-                      <span className="mr-1">{g.operation}</span>
-                      <span className="inline-flex flex-wrap gap-1 align-middle">
-                        {g.paths.map((p) => (
-                          <PathPill key={p} path={p} />
-                        ))}
-                      </span>
-                      {g.mentionedIn ? (
-                        <>
-                          <span className="mx-1">mentioned in</span>
-                          <PathPill path={g.mentionedIn} />
-                        </>
-                      ) : null}
+                      <div className="flex flex-col gap-0.5">
+                        <span>{g.operation}</span>
+                        <ul className="list-disc pl-5 space-y-0.5 marker:text-zinc-400">
+                          {g.paths.map((p) => (
+                            <li key={p}>
+                              <PathPill path={p} />
+                            </li>
+                          ))}
+                        </ul>
+                        {g.mentionedIn ? (
+                          <div>
+                            <span className="mr-1">mentioned in</span>
+                            <PathPill path={g.mentionedIn} />
+                          </div>
+                        ) : null}
+                      </div>
                     </Row>
                   ))}
                 </div>
@@ -133,7 +141,7 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
               return (
                 <Row key={`skill-${idx}`}>
                   <span className="mr-1">Activated skill</span>
-                  <PathPill path={ui.name} variant="skill" />
+                  <PathPill path={ui.name} />
                 </Row>
               );
             case "at_file_images":

@@ -1,6 +1,13 @@
 import { create } from "zustand";
 
-import { createSession, fetchRunningSessions, fetchSessionGroups, fetchSessionHistory } from "../api/client";
+import {
+  archiveSession,
+  createSession,
+  fetchRunningSessions,
+  fetchSessionGroups,
+  fetchSessionHistory,
+  unarchiveSession,
+} from "../api/client";
 import { connectSessionWs, type SessionWsConnection, type WsErrorFrame, type WsEventEnvelope } from "../api/ws";
 import type {
   ActiveSessionId,
@@ -22,6 +29,7 @@ interface SessionStoreState {
   init: () => Promise<void>;
   refreshSessions: () => Promise<void>;
   toggleGroup: (workDir: string) => void;
+  setSessionArchived: (sessionId: string, archived: boolean) => Promise<void>;
   selectDraft: () => void;
   selectSession: (sessionId: string) => Promise<void>;
   createSessionFromDraft: (firstMessage: string, workDir?: string) => Promise<string>;
@@ -325,6 +333,26 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       },
     }));
   },
+  setSessionArchived: async (sessionId: string, archived: boolean) => {
+    if (archived) {
+      await archiveSession(sessionId);
+    } else {
+      await unarchiveSession(sessionId);
+    }
+
+    set((state) => ({
+      groups: state.groups
+        .map((group) => ({
+          ...group,
+          sessions: group.sessions
+            .map((session) =>
+              session.id === sessionId ? { ...session, archived, updated_at: Date.now() / 1000 } : session,
+            )
+            .sort((a, b) => b.updated_at - a.updated_at),
+        }))
+        .filter((group) => group.sessions.length > 0),
+    }));
+  },
   selectDraft: () => {
     closeActiveConnectionIfNeeded(null);
     set({ activeSessionId: "draft" });
@@ -370,6 +398,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         messages_count: 0,
         model_name: null,
         session_state: "idle",
+        archived: false,
       };
 
     set((state) => ({
