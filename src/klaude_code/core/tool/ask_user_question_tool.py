@@ -256,7 +256,7 @@ class AskUserQuestionTool(ToolABC):
                 option = option_by_id.get(option_id)
                 if option is None:
                     continue
-                selected_lines.append(f"{option.label} {option.description}".strip())
+                selected_lines.append(f"{option.label}: {option.description}".strip())
 
             if not selected_lines:
                 free_text = (answer.note or "").strip()
@@ -270,7 +270,7 @@ class AskUserQuestionTool(ToolABC):
                     summary_items.append(
                         model.AskUserQuestionSummaryItem(
                             question=question.question,
-                            summary=", ".join(selected_lines),
+                            summary="\n".join(f"• {line}" for line in selected_lines),
                             answered=True,
                         )
                     )

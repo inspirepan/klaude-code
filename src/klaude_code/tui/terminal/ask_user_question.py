@@ -101,6 +101,46 @@ def _split_title_number_prefix(
     return (first_style, row_num_text), tokens[1:]
 
 
+def _normalize_question_selection[T](
+    question: QuestionPrompt[T],
+    selected_values: list[T],
+    input_text: str,
+) -> list[T]:
+    """Normalize selection state when the free-text Other row is used."""
+    if question.other_value is None or not input_text.strip():
+        return selected_values
+
+    if question.multi_select:
+        if question.other_value in selected_values:
+            return selected_values
+        return [*selected_values, question.other_value]
+
+    return [question.other_value]
+
+
+def _normalize_question_result[T](
+    question: QuestionPrompt[T],
+    result: QuestionSelectResult[T],
+) -> QuestionSelectResult[T]:
+    return QuestionSelectResult(
+        selected_values=_normalize_question_selection(question, list(result.selected_values), result.input_text),
+        input_text=result.input_text.strip(),
+    )
+
+
+def _has_unconfirmed_edits[T](
+    question: QuestionPrompt[T],
+    confirmed_result: QuestionSelectResult[T],
+    draft_result: QuestionSelectResult[T],
+    *,
+    is_answered: bool,
+) -> bool:
+    if not is_answered:
+        return False
+
+    return _normalize_question_result(question, confirmed_result) != _normalize_question_result(question, draft_result)
+
+
 def select_questions[T](
     *,
     questions: list[QuestionPrompt[T]],
@@ -244,8 +284,7 @@ def select_questions[T](
         else:
             input_text = input_text_by_question[question_idx]
 
-        if question.other_value is not None and question.other_value not in values and input_text.strip():
-            values.append(question.other_value)
+        values = _normalize_question_selection(question, values, input_text)
 
         return QuestionSelectResult(selected_values=values, input_text=input_text)
 
@@ -280,8 +319,9 @@ def select_questions[T](
             return "(No answer provided)"
 
         question = questions[question_idx]
+        selected_values = _normalize_question_selection(question, list(result.selected_values), result.input_text)
         parts: list[str] = []
-        for value in result.selected_values:
+        for value in selected_values:
             if question.other_value is not None and value == question.other_value:
                 other_text = result.input_text.strip()
                 parts.append(f"Other: {other_text}" if other_text else "Other")
@@ -298,13 +338,24 @@ def select_questions[T](
 
         return ", ".join(parts) if parts else "(No answer provided)"
 
+    def _question_has_unconfirmed_edits(question_idx: int) -> bool:
+        return _has_unconfirmed_edits(
+            questions[question_idx],
+            confirmed_results[question_idx],
+            _build_draft_result_for(question_idx),
+            is_answered=answered_by_question[question_idx],
+        )
+
+    def _has_any_unconfirmed_edits() -> bool:
+        return any(_question_has_unconfirmed_edits(idx) for idx in range(len(questions)))
+
     def get_tabs_tokens() -> list[tuple[str, str]]:
         tokens: list[tuple[str, str]] = []
         if has_submit_tab:
             tokens.append(("class:meta", "← "))
         for idx, question in enumerate(questions):
             tab_style = "class:question_tab_active" if idx == active_tab_idx else "class:question_tab_inactive"
-            check = "✔" if answered_by_question[idx] else "☐"
+            check = "◐" if _question_has_unconfirmed_edits(idx) else ("✔" if answered_by_question[idx] else "☐")
             tokens.append((tab_style, f" {check} {question.header} "))
             tokens.append(("class:text", " "))
 
@@ -381,10 +432,16 @@ def select_questions[T](
             tokens.append((summary_style, f"{_answer_summary(idx)}\n"))
 
         tokens.append(("class:text", "\n"))
-        if _all_answered():
-            tokens.append(("class:question", "Ready to submit your answers?\n\n"))
+        warnings: list[str] = []
+        if not _all_answered():
+            warnings.append("You have not answered all questions")
+        if _has_any_unconfirmed_edits():
+            warnings.append("You have unconfirmed edits")
+
+        if warnings:
+            tokens.append(("class:warning", "\n".join(warnings) + "\n\n"))
         else:
-            tokens.append(("class:warning", "You have not answered all questions\n\n"))
+            tokens.append(("class:question", "Ready to submit your answers?\n\n"))
 
         options = ["Submit answers", "Cancel"]
         for idx, option in enumerate(options, start=1):
@@ -622,13 +679,20 @@ def select_questions[T](
     )
 
     max_row_num = max(len(question.items) + 1 for question in questions)
-    has_multi_select_other_question = any(
-        question.multi_select and question.other_value is not None for question in questions
-    )
-    input_prefix_template = f" {pointer} " + f"{max_row_num}. " + ("[ ] " if has_multi_select_other_question else "")
+
+    def _input_prefix_template() -> str:
+        template = f" {pointer} " + f"{max_row_num}. "
+        if _is_submit_tab():
+            return template
+
+        question = _current_question()
+        if question.multi_select and question.other_value is not None:
+            return template + "[ ] "
+        return template
+
     input_prefix_window = Window(
         FormattedTextControl(get_input_prefix_tokens),
-        width=max(1, len(input_prefix_template)),
+        width=lambda: max(1, len(_input_prefix_template())),
         height=1,
         dont_extend_height=Always(),
         always_hide_cursor=Always(),

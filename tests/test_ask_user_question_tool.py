@@ -96,9 +96,9 @@ def test_ask_user_question_success_response() -> None:
     result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context(_callback)))
     assert result.status == "success"
     assert result.continue_agent is True
-    assert result.output_text == "Question: What should we do?\nAnswer:\n- A Option A\n- Other: custom"
+    assert result.output_text == "Question: What should we do?\nAnswer:\n- A: Option A\n- Other: custom"
     assert isinstance(result.ui_extra, model.AskUserQuestionSummaryUIExtra)
-    assert result.ui_extra.items[0].summary == "A Option A, Other: custom"
+    assert result.ui_extra.items[0].summary == "• A: Option A\n• Other: custom"
     assert result.ui_extra.items[0].answered is True
 
 
@@ -171,7 +171,7 @@ def test_ask_user_question_single_select_format() -> None:
 
     result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context(_callback)))
     assert result.status == "success"
-    assert result.output_text == "Question: Choose one\nAnswer: B Option B"
+    assert result.output_text == "Question: Choose one\nAnswer: B: Option B"
 
 
 def test_ask_user_question_input_only_formats_as_other() -> None:
@@ -260,4 +260,4 @@ def test_ask_user_question_missing_answer_and_separator_format() -> None:
 
     result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context(_callback)))
     assert result.status == "success"
-    assert result.output_text == ("Question: Q1\nAnswer: A Option A\n---\nQuestion: Q2\nAnswer: (No answer provided)")
+    assert result.output_text == ("Question: Q1\nAnswer: A: Option A\n---\nQuestion: Q2\nAnswer: (No answer provided)")
