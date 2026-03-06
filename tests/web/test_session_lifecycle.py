@@ -153,7 +153,9 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
         list_response = app_env.client.get("/api/sessions")
         assert list_response.status_code == 200
         groups = list_response.json()["groups"]
-        listed_session = next(session for group in groups for session in group["sessions"] if session["id"] == session_id)
+        listed_session = next(
+            session for group in groups for session in group["sessions"] if session["id"] == session_id
+        )
         listed_state = str(listed_session["session_state"])
         if listed_state == "idle":
             break
