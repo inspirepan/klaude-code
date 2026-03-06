@@ -857,6 +857,8 @@ class _AtFilesCompleter(Completer):
 
             if len(matching_files) < file_quota:
                 matching_files.append(p)
+            else:
+                scan_truncated = True
 
             # Collect matching parent directories, walking upwards until repo root.
             # This allows completing into directories like "image/tools/" even
@@ -866,10 +868,11 @@ class _AtFilesCompleter(Completer):
                 if dir_matches_keyword(parent):
                     cand = f"{parent}/"
                     if cand not in dir_seen:
+                        if len(dir_list) >= dir_quota:
+                            scan_truncated = True
+                            break
                         dir_seen.add(cand)
                         dir_list.append(cand)
-                        if len(dir_list) >= dir_quota:
-                            break
                 parent = os.path.dirname(parent)
 
             if len(matching_files) >= file_quota and len(dir_list) >= dir_quota:
