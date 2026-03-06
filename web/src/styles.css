@@ -84,6 +84,66 @@ body {
   color: #171717;
 }
 
+@keyframes status-success-settle {
+  0% {
+    color: #166534;
+    opacity: 1;
+    transform: scale(0.9);
+  }
+
+  18% {
+    color: #166534;
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  100% {
+    color: #a3a3a3;
+    opacity: 0.82;
+    transform: scale(1);
+  }
+}
+
+.status-success-settle {
+  animation: status-success-settle 1.6s ease-out forwards;
+}
+
+@keyframes status-success-card-settle {
+  0% {
+    background-color: rgba(220, 252, 231, 0.96);
+  }
+
+  18% {
+    background-color: rgba(220, 252, 231, 0.88);
+  }
+
+  100% {
+    background-color: rgba(245, 245, 245, 0);
+  }
+}
+
+@keyframes status-success-card-settle-active {
+  0% {
+    background-color: rgba(220, 252, 231, 0.96);
+  }
+
+  18% {
+    background-color: rgba(220, 252, 231, 0.88);
+  }
+
+  100% {
+    background-color: rgba(229, 229, 229, 0.6);
+  }
+}
+
+.status-success-card-settle {
+  animation: status-success-card-settle 1.6s ease-out forwards;
+}
+
+.status-success-card-settle-active {
+  animation: status-success-card-settle-active 1.6s ease-out forwards;
+}
+
 .app-shell {
   display: flex;
   width: 100%;

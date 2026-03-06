@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from "react";
 import { Archive, ArchiveRestore, CheckCircle, CirclePause, Loader } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
+import { cn } from "@/lib/utils";
 
 interface SessionCardProps {
   session: SessionSummary;
@@ -44,12 +46,15 @@ function formatRelativeTime(timestampSeconds: number): string {
   return `${Math.floor(deltaSeconds / 2592000)} mo`;
 }
 
-function getRuntimeIcon(runtime: SessionRuntimeState): JSX.Element {
+function getRuntimeIcon(runtime: SessionRuntimeState, showSuccessState: boolean): JSX.Element {
   if (runtime.sessionState === "running") {
     return <Loader className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-400" />;
   }
   if (runtime.sessionState === "waiting_user_input") {
     return <CirclePause className="h-3.5 w-3.5 shrink-0 text-amber-500" />;
+  }
+  if (showSuccessState) {
+    return <CheckCircle className="status-success-settle h-3.5 w-3.5 shrink-0" />;
   }
   return <CheckCircle className="h-3.5 w-3.5 shrink-0 text-neutral-400" />;
 }
@@ -65,6 +70,10 @@ export function SessionCard({
   onClick,
   onToggleArchive,
 }: SessionCardProps): JSX.Element {
+  const [showSuccessState, setShowSuccessState] = useState(false);
+  const previousSessionStateRef = useRef(runtime.sessionState);
+  const successAnimationFrameRef = useRef<number | null>(null);
+  const successTimeoutRef = useRef<number | null>(null);
   const title = shortenFileRefs(getSessionTitle(session));
   const excerpt = shortenFileRefs(getSessionExcerpt(session));
   const updatedAt = formatRelativeTime(session.updated_at);
@@ -72,19 +81,59 @@ export function SessionCard({
     session.messages_count >= 0 ? `${session.messages_count} messages` : "N/A messages";
   const modelLabel = session.model_name ?? "N/A model";
 
+  useEffect(() => {
+    const previousSessionState = previousSessionStateRef.current;
+    previousSessionStateRef.current = runtime.sessionState;
+
+    if (previousSessionState === "running" && runtime.sessionState === "idle") {
+      if (successAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(successAnimationFrameRef.current);
+      }
+      if (successTimeoutRef.current !== null) {
+        window.clearTimeout(successTimeoutRef.current);
+      }
+      successAnimationFrameRef.current = window.requestAnimationFrame(() => {
+        setShowSuccessState(true);
+        successAnimationFrameRef.current = null;
+        successTimeoutRef.current = window.setTimeout(() => {
+          setShowSuccessState(false);
+          successTimeoutRef.current = null;
+        }, 1600);
+      });
+    }
+  }, [runtime.sessionState]);
+
+  useEffect(() => {
+    return () => {
+      if (successAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(successAnimationFrameRef.current);
+      }
+      if (successTimeoutRef.current !== null) {
+        window.clearTimeout(successTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div className="group">
       <button
-        className={`w-full rounded-md px-2 py-2 text-left transition-colors ${
-          active ? "bg-neutral-200/60" : "hover:bg-neutral-100/80"
-        }`}
+        className={cn(
+          "w-full rounded-lg px-2 py-2 text-left transition-colors",
+          showSuccessState
+            ? active
+              ? "status-success-card-settle-active"
+              : "status-success-card-settle"
+            : active
+              ? "bg-neutral-200/60"
+              : "hover:bg-neutral-100/80",
+        )}
         type="button"
         onClick={onClick}
         title={title}
       >
         <div className="min-w-0 pl-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            {getRuntimeIcon(runtime)}
+            {getRuntimeIcon(runtime, showSuccessState)}
             <span className="flex-1 truncate text-[14px] leading-5 text-neutral-700">{title}</span>
             <div className="relative h-5 shrink-0 -translate-y-0.5">
               <span className="whitespace-nowrap text-[12px] leading-5 text-neutral-400 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0">

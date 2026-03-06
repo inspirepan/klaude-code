@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, PanelLeftClose, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, ChevronRight, PanelLeftClose, RefreshCw } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
 import { useSessionStore } from "../../stores/session-store";
@@ -20,9 +20,46 @@ export function LeftSidebar(): JSX.Element {
   const refreshSessions = useSessionStore((state) => state.refreshSessions);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  const [showRefreshSuccessState, setShowRefreshSuccessState] = useState(false);
   const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
     Record<string, boolean>
   >({});
+  const previousLoadingRef = useRef(loading);
+  const refreshSuccessAnimationFrameRef = useRef<number | null>(null);
+  const refreshSuccessTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const previousLoading = previousLoadingRef.current;
+    previousLoadingRef.current = loading;
+
+    if (previousLoading && !loading) {
+      if (refreshSuccessAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(refreshSuccessAnimationFrameRef.current);
+      }
+      if (refreshSuccessTimeoutRef.current !== null) {
+        window.clearTimeout(refreshSuccessTimeoutRef.current);
+      }
+      refreshSuccessAnimationFrameRef.current = window.requestAnimationFrame(() => {
+        setShowRefreshSuccessState(true);
+        refreshSuccessAnimationFrameRef.current = null;
+        refreshSuccessTimeoutRef.current = window.setTimeout(() => {
+          setShowRefreshSuccessState(false);
+          refreshSuccessTimeoutRef.current = null;
+        }, 1600);
+      });
+    }
+  }, [loading]);
+
+  useEffect(() => {
+    return () => {
+      if (refreshSuccessAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(refreshSuccessAnimationFrameRef.current);
+      }
+      if (refreshSuccessTimeoutRef.current !== null) {
+        window.clearTimeout(refreshSuccessTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const activeGroups = useMemo(
     () =>
@@ -67,7 +104,13 @@ export function LeftSidebar(): JSX.Element {
           title="Refresh sessions"
           aria-label="Refresh sessions"
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          {loading ? (
+            <RefreshCw className="h-4 w-4 animate-spin" />
+          ) : showRefreshSuccessState ? (
+            <Check className="status-success-settle h-4 w-4" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
         </button>
         <button
           type="button"
