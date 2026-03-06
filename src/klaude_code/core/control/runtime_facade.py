@@ -168,9 +168,7 @@ class RuntimeFacade:
             work_dir = agent.session.work_dir
         except AttributeError:
             return
-        await asyncio.to_thread(
-            Session.persist_runtime_state, session_id, session_state, work_dir
-        )
+        await asyncio.to_thread(Session.persist_runtime_state, session_id, session_state, work_dir)
 
     async def _sync_session_state_from_snapshot(self, session_id: str) -> None:
         await self._persist_session_state(session_id, self._derive_session_state_from_snapshot(session_id))
@@ -321,9 +319,7 @@ class RuntimeFacade:
         # Never reclaim the primary (TUI-active) session.
         primary = self._operation_dispatcher.current_session_id()
         exclude = {primary} if primary is not None else None
-        return await self.session_registry.reclaim_idle_sessions(
-            idle_for_seconds=idle_for_seconds, exclude=exclude
-        )
+        return await self.session_registry.reclaim_idle_sessions(idle_for_seconds=idle_for_seconds, exclude=exclude)
 
     async def wait_for(self, operation_id: str) -> None:
         await self._operation_awaiter.wait_for(operation_id)

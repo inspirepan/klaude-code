@@ -279,7 +279,6 @@ def parse_data_url(url: str) -> tuple[str, str, bytes]:
     return mime_type, base64_payload, decoded
 
 
-
 def normalize_image_data_url(url: str) -> str:
     """Normalize a data URL image by resizing oversized images to 4.5MB."""
 

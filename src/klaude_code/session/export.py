@@ -448,7 +448,9 @@ def _render_event_item(
                 result = tool_results.get(part.call_id)
                 blocks.append(_format_tool_call(part, result, item.created_at))
                 if result is not None:
-                    sub_agent_html = _render_sub_agent_session(result, seen_session_ids, nesting_level, work_dir=work_dir)
+                    sub_agent_html = _render_sub_agent_session(
+                        result, seen_session_ids, nesting_level, work_dir=work_dir
+                    )
                     if sub_agent_html:
                         blocks.append(sub_agent_html)
     elif isinstance(item, model.TaskMetadataItem):
@@ -517,7 +519,14 @@ def _build_messages_html(
         # 1. Render User Message
         if turn.user_message:
             blocks.append(
-                _render_event_item(turn.user_message, tool_results, seen_session_ids, nesting_level, assistant_counter, work_dir=work_dir)
+                _render_event_item(
+                    turn.user_message,
+                    tool_results,
+                    seen_session_ids,
+                    nesting_level,
+                    assistant_counter,
+                    work_dir=work_dir,
+                )
             )
 
         if not turn.body_items:
@@ -552,7 +561,9 @@ def _build_messages_html(
             step_label = f"{step_count} steps" if step_count != 1 else "1 step"
 
             collapsed_html = "".join(
-                _render_event_item(item, tool_results, seen_session_ids, nesting_level, assistant_counter, work_dir=work_dir)
+                _render_event_item(
+                    item, tool_results, seen_session_ids, nesting_level, assistant_counter, work_dir=work_dir
+                )
                 for item in collapsible_items
             )
 
@@ -570,7 +581,11 @@ def _build_messages_html(
 
         # 4. Render Visible Items
         for item in visible_items:
-            blocks.append(_render_event_item(item, tool_results, seen_session_ids, nesting_level, assistant_counter, work_dir=work_dir))
+            blocks.append(
+                _render_event_item(
+                    item, tool_results, seen_session_ids, nesting_level, assistant_counter, work_dir=work_dir
+                )
+            )
 
     return "\n".join(blocks)
 

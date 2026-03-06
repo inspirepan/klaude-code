@@ -565,9 +565,7 @@ class AgentOperationHandler:
             )
 
         session = (
-            Session.create(work_dir=work_dir)
-            if session_id is None
-            else Session.load(session_id, work_dir=work_dir)
+            Session.create(work_dir=work_dir) if session_id is None else Session.load(session_id, work_dir=work_dir)
         )
 
         runtime = self._ensure_session_actor(session.id)

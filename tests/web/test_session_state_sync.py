@@ -39,9 +39,7 @@ def _wait_until_state(meta_path: Path, expected: str, *, timeout_s: float = 2.0)
         if _session_state_from_meta(meta_path) == expected:
             return
         time.sleep(0.01)
-    raise AssertionError(
-        f"session_state did not become {expected!r}, got: {_session_state_from_meta(meta_path)!r}"
-    )
+    raise AssertionError(f"session_state did not become {expected!r}, got: {_session_state_from_meta(meta_path)!r}")
 
 
 @pytest.fixture

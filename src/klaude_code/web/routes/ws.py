@@ -186,9 +186,7 @@ async def _forward_events(session_id: str, websocket: WebSocket) -> None:
     subscription = state.event_bus.subscribe(session_id)
     try:
         async for envelope in subscription:
-            await websocket.send_json(
-                envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True)
-            )
+            await websocket.send_json(envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True))
     except (WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError):
         return
 

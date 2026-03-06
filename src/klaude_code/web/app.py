@@ -87,6 +87,7 @@ def create_app(
     if static_root is not None:
         app.mount("/", StaticFiles(directory=str(static_root), html=True), name="web-static")
     else:
+
         @app.get("/")
         async def root() -> JSONResponse:  # pyright: ignore[reportUnusedFunction]
             return JSONResponse(

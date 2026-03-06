@@ -110,12 +110,7 @@ def test_list_sessions_reports_running_state(app_env: AppEnv) -> None:
     list_response = app_env.client.get("/api/sessions")
     assert list_response.status_code == 200
     groups = list_response.json()["groups"]
-    listed_session = next(
-        session
-        for group in groups
-        for session in group["sessions"]
-        if session["id"] == session_id
-    )
+    listed_session = next(session for group in groups for session in group["sessions"] if session["id"] == session_id)
     assert listed_session["session_state"] == "running"
 
 
@@ -153,12 +148,7 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
     list_response = app_env.client.get("/api/sessions")
     assert list_response.status_code == 200
     groups = list_response.json()["groups"]
-    listed_session = next(
-        session
-        for group in groups
-        for session in group["sessions"]
-        if session["id"] == session_id
-    )
+    listed_session = next(session for group in groups for session in group["sessions"] if session["id"] == session_id)
     assert listed_session["session_state"] == "idle"
 
 
@@ -216,6 +206,8 @@ def test_updated_at_changes_only_when_session_content_changes(app_env: AppEnv) -
         time.sleep(0.01)
         latest_updated_at = _updated_at_from_meta(meta_path)
     assert latest_updated_at > initial_updated_at
+
+
 """
 from __future__ import annotations
 
