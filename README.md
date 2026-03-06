@@ -84,14 +84,23 @@ On first run, you'll be prompted to select a model. Your choice is saved as `mai
 
 #### Built-in Providers
 
-| Provider    | Env Variable          | Models                                                                        |
-|-------------|-----------------------|-------------------------------------------------------------------------------|
-| anthropic   | `ANTHROPIC_API_KEY`   | sonnet, opus                                                                  |
-| openai      | `OPENAI_API_KEY`      | gpt-5.2                                                                       |
-| openrouter  | `OPENROUTER_API_KEY`  | gpt-5.2, gpt-5.2-fast, gpt-5.1-codex-max, sonnet, opus, haiku, kimi, gemini-* |
-| deepseek    | `DEEPSEEK_API_KEY`    | deepseek                                                                      |
-| moonshot    | `MOONSHOT_API_KEY`    | kimi@moonshot                                                                 |
-| codex       | N/A (OAuth)           | gpt-5.2-codex (requires ChatGPT Pro subscription)                             |
+| Provider         | Env Variable                                                                 | Models                                                                                                   |
+|------------------|------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| anthropic        | `ANTHROPIC_API_KEY`                                                          | sonnet, sonnet-no-thinking, opus, haiku                                                                 |
+| openai           | `OPENAI_API_KEY`                                                             | gpt-5.4-high, gpt-5.4-xhigh, gpt-5.3-codex, gpt-5.3-codex-xhigh                                         |
+| openrouter       | `OPENROUTER_API_KEY`                                                         | gpt-5.3-codex, gpt-5.3-codex-xhigh, gpt-5.4-high, gpt-5.4-xhigh, kimi, haiku, sonnet, sonnet-no-thinking, opus, gemini-pro, gemini-flash, grok, minimax, glm |
+| google           | `GOOGLE_API_KEY` or `GEMINI_API_KEY`                                         | gemini-pro, gemini-flash                                                                                |
+| google-vertex    | `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | gemini-pro, gemini-flash                                                                                |
+| bedrock          | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`                   | sonnet                                                                                                   |
+| deepseek         | `DEEPSEEK_API_KEY`                                                           | deepseek                                                                                                 |
+| moonshot         | `MOONSHOT_API_KEY`                                                           | kimi                                                                                                     |
+| opencode-zen     | `OPENCODE_API_KEY`                                                           | minimax, kimi                                                                                            |
+| cerebras         | `CEREBRAS_API_KEY`                                                           | glm                                                                                                      |
+| claude-max       | N/A (OAuth, disabled by default)                                             | sonnet, sonnet-no-thinking, opus, haiku                                                                 |
+| codex            | N/A (OAuth)                                                                  | gpt-5.3-codex, gpt-5.3-codex-xhigh, gpt-5.4-high, gpt-5.4-xhigh (requires ChatGPT Pro subscription)    |
+| github-copilot   | N/A (OAuth)                                                                  | gpt-5.3-codex, gpt-5.3-codex-xhigh, gpt-5.4-high, gpt-5.4-xhigh, sonnet, sonnet-4.5, haiku, opus       |
+| ark-api          | `ARK_API_KEY`                                                                | seed-pro, seed-code                                                                                      |
+| ark-coding-plan  | `ARK_API_KEY`                                                                | seed-code, kimi                                                                                          |
 
 List all configured providers and models:
 
