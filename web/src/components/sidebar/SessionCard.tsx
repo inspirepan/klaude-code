@@ -48,7 +48,7 @@ function formatRelativeTime(timestampSeconds: number): string {
 
 function getRuntimeIcon(runtime: SessionRuntimeState, showSuccessState: boolean): JSX.Element {
   if (runtime.sessionState === "running") {
-    return <Loader className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-400" />;
+    return <Loader className="h-3.5 w-3.5 shrink-0 animate-spin text-blue-400" />;
   }
   if (runtime.sessionState === "waiting_user_input") {
     return <CirclePause className="h-3.5 w-3.5 shrink-0 text-amber-500" />;
@@ -136,9 +136,20 @@ export function SessionCard({
             {getRuntimeIcon(runtime, showSuccessState)}
             <span className="flex-1 truncate text-[14px] leading-5 text-neutral-700">{title}</span>
             <div className="relative h-5 shrink-0 -translate-y-0.5">
-              <span className="whitespace-nowrap text-[12px] leading-5 text-neutral-400 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0">
-                {updatedAt}
-              </span>
+              {runtime.sessionState === "running" ? (
+                <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 text-[11px] leading-5 text-blue-500 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0">
+                  Running
+                  <span className="running-dots">
+                    <span>.</span>
+                    <span>.</span>
+                    <span>.</span>
+                  </span>
+                </span>
+              ) : (
+                <span className="whitespace-nowrap text-[12px] leading-5 text-neutral-400 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0">
+                  {updatedAt}
+                </span>
+              )}
               <button
                 type="button"
                 className="absolute inset-0 inline-flex items-center justify-end rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
