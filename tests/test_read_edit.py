@@ -95,7 +95,8 @@ class TestReadTool(BaseTempDirTest):
         self.assertEqual(res.status, "error")
         self.assertEqual(res.output_text, "<tool_use_error>File does not exist.</tool_use_error>")
 
-    def test_read_file_not_exist_with_suggestions(self):
+    def test_read_file_not_exist_no_directory_match(self):
+        # When the stem matches a regular file (not a directory), no suggestions are shown
         existing = os.path.abspath("global")
         with open(existing, "w", encoding="utf-8") as f:
             f.write("x\n")
@@ -104,9 +105,7 @@ class TestReadTool(BaseTempDirTest):
         res = arun(ReadTool.call(json.dumps({"file_path": missing}), self.tool_context))
 
         self.assertEqual(res.status, "error")
-        self.assertIn("File not found:", res.output_text or "")
-        self.assertIn("Did you mean one of these?", res.output_text or "")
-        self.assertIn(existing, res.output_text or "")
+        self.assertEqual(res.output_text, "<tool_use_error>File does not exist.</tool_use_error>")
 
     def test_read_file_not_exist_with_directory_preview(self):
         manager_dir = Path("manager")
@@ -127,9 +126,8 @@ class TestReadTool(BaseTempDirTest):
         res = arun(ReadTool.call(json.dumps({"file_path": missing}), self.tool_context))
 
         self.assertEqual(res.status, "error")
-        self.assertIn("Closest match:", res.output_text or "")
+        self.assertIn("Did you mean one of these?", res.output_text or "")
         self.assertIn(f"- {manager_dir.resolve()} (directory)", res.output_text or "")
-        self.assertIn("Likely files inside:", res.output_text or "")
         self.assertIn(f"- {init_py}", res.output_text or "")
         self.assertIn(f"- {manager_py}", res.output_text or "")
         self.assertIn(f"- {llm_clients_py}", res.output_text or "")
