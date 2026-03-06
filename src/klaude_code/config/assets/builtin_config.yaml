@@ -37,15 +37,25 @@ provider_list:
   api_key: ${OPENAI_API_KEY}
   model_list:
 
-  - model_name: gpt-5.2-high
-    model_id: gpt-5.2
+  - model_name: gpt-5.4-high
+    model_id: gpt-5.4
     max_tokens: 128000
     context_limit: 400000
     verbosity: high
     thinking:
       reasoning_effort: high
       reasoning_summary: concise
-    cost: { input: 1.75, output: 14, cache_read: 0.17 }
+    cost: { input: 2.5, output: 15, cache_read: 0.25 }
+
+  - model_name: gpt-5.4-xhigh
+    model_id: gpt-5.4
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: high
+    thinking:
+      reasoning_effort: xhigh
+      reasoning_summary: concise
+    cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
   - model_id: gpt-5.3-codex
     thinking:
@@ -87,15 +97,25 @@ provider_list:
     max_tokens: 128000
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
-  - model_name: gpt-5.2-high
-    model_id: openai/gpt-5.2
+  - model_name: gpt-5.4-high
+    model_id: openai/gpt-5.4
     max_tokens: 128000
     context_limit: 400000
     verbosity: high
     thinking:
       reasoning_effort: high
       reasoning_summary: concise
-    cost: { input: 1.75, output: 14, cache_read: 0.17 }
+    cost: { input: 2.5, output: 15, cache_read: 0.25 }
+
+  - model_name: gpt-5.4-xhigh
+    model_id: openai/gpt-5.4
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: high
+    thinking:
+      reasoning_effort: xhigh
+      reasoning_summary: concise
+    cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
   - model_name: kimi
     model_id: moonshotai/kimi-k2.5
@@ -340,6 +360,26 @@ provider_list:
     max_tokens: 128000
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
+  - model_name: gpt-5.4-high
+    model_id: gpt-5.4
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: high
+    thinking:
+      reasoning_effort: high
+      reasoning_summary: concise
+    cost: { input: 2.5, output: 15, cache_read: 0.25 }
+
+  - model_name: gpt-5.4-xhigh
+    model_id: gpt-5.4
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: high
+    thinking:
+      reasoning_effort: xhigh
+      reasoning_summary: concise
+    cost: { input: 2.5, output: 15, cache_read: 0.25 }
+
 - provider_name: github-copilot
   protocol: github_copilot_oauth
   model_list:
@@ -360,6 +400,26 @@ provider_list:
     context_limit: 400000
     max_tokens: 128000
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
+
+  - model_name: gpt-5.4-high
+    model_id: gpt-5.4
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: high
+    thinking:
+      reasoning_effort: high
+      reasoning_summary: concise
+    cost: { input: 2.5, output: 15, cache_read: 0.25 }
+
+  - model_name: gpt-5.4-xhigh
+    model_id: gpt-5.4
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: high
+    thinking:
+      reasoning_effort: xhigh
+      reasoning_summary: concise
+    cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
   - model_name: sonnet
     model_id: claude-sonnet-4-6
@@ -438,4 +498,3 @@ provider_list:
 
 sub_agent_models:
   explore: sonnet-no-thinking
-
