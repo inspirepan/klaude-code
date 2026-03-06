@@ -39,13 +39,13 @@ export function ProjectGroup({
 
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-3">
-      <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900">
+      <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-neutral-700 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900">
         {collapsed ? (
-          <Folder className="h-4 w-4 shrink-0 text-neutral-400 group-hover:text-neutral-600" />
+          <Folder className="h-4 w-4 shrink-0 -translate-y-px text-neutral-500 group-hover:text-neutral-700" />
         ) : (
-          <FolderOpen className="h-4 w-4 shrink-0 text-neutral-400 group-hover:text-neutral-600" />
+          <FolderOpen className="h-4 w-4 shrink-0 -translate-y-px text-neutral-500 group-hover:text-neutral-700" />
         )}
-        <span className="flex-1 truncate text-left text-[13px] font-normal" title={workDir}>
+        <span className="flex-1 truncate text-left text-[13px] font-medium" title={workDir}>
           {workDirLabel(workDir)}
         </span>
       </CollapsibleTrigger>
