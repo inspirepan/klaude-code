@@ -162,10 +162,36 @@ def test_git_paths_for_keyword_includes_all_tools_dirs_even_when_many_files_matc
 
     candidates, truncated = completer._git_paths_for_keyword(tmp_path, "tools", max_results=5)  # pyright: ignore[reportPrivateUsage]
 
-    assert not truncated
+    assert truncated
     assert {
         "auxiliary/tools/",
         "image/tools/",
         "video/tools/",
         "three_d/tools/",
     }.issubset(set(candidates))
+
+
+def test_complete_paths_refines_past_incomplete_git_results(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A narrower query must not reuse an incomplete cached git result set."""
+
+    toolblock = tmp_path / "web" / "src" / "components" / "messages" / "ToolBlock.tsx"
+    toolblock.parent.mkdir(parents=True)
+    toolblock.write_text("export {}\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    completer = _AtFilesCompleter(max_results=5)  # pyright: ignore[reportPrivateUsage]
+    monkeypatch.setattr(completer, "_get_git_repo_root", lambda _cwd: tmp_path)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+
+    git_lines = [f"src/tooling/tool_{i}.py" for i in range(20)] + ["web/src/components/messages/ToolBlock.tsx"]
+
+    def fake_run_cmd(cmd: list[str], cwd: Path | None = None, *, timeout_sec: float) -> _CmdResult:
+        assert cmd[:2] == ["git", "ls-files"]
+        return _CmdResult(True, git_lines)
+
+    monkeypatch.setattr(completer, "_run_cmd", fake_run_cmd)
+
+    broad = completer._complete_paths(tmp_path, "tool")  # pyright: ignore[reportPrivateUsage]
+    refined = completer._complete_paths(tmp_path, "toolblock")  # pyright: ignore[reportPrivateUsage]
+
+    assert "web/src/components/messages/ToolBlock.tsx" not in broad
+    assert refined == ["web/src/components/messages/ToolBlock.tsx"]
