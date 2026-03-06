@@ -1,5 +1,9 @@
+import asyncio
 import sys
+from collections.abc import Iterator
 from pathlib import Path
+
+import pytest
 
 
 def setup_src_path():
@@ -10,3 +14,20 @@ def setup_src_path():
 
 
 setup_src_path()
+
+from klaude_code.session.session import close_default_store  # noqa: E402
+
+
+@pytest.fixture
+def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """Redirect HOME/Path.home() to a per-test temp directory and close session stores afterward."""
+
+    fake_home = tmp_path / "home"
+    fake_home.mkdir(exist_ok=True)
+
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    yield fake_home
+
+    asyncio.run(close_default_store())
