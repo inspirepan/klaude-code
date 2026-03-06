@@ -123,8 +123,9 @@ function parseDeveloperUIItems(raw: unknown): DeveloperUIItem[] {
             path: typeof o.path === "string" ? o.path : "",
             mentioned_in: typeof o.mentioned_in === "string" ? o.mentioned_in : null,
           }))
-          .filter((o): o is { operation: "Read" | "List"; path: string; mentioned_in: string | null } =>
-            o.operation !== null && o.path.length > 0
+          .filter(
+            (o): o is { operation: "Read" | "List"; path: string; mentioned_in: string | null } =>
+              o.operation !== null && o.path.length > 0,
           );
         if (ops.length === 0) break;
         out.push({ type: "at_file_ops", ops });
@@ -200,7 +201,16 @@ export function reduceEvent(
       const id = makeId(state);
       return {
         ...state,
-        items: [...state.items, { id, type: "compaction_summary", timestamp: ts, sessionId: sourceSessionId, content: summary }],
+        items: [
+          ...state.items,
+          {
+            id,
+            type: "compaction_summary",
+            timestamp: ts,
+            sessionId: sourceSessionId,
+            content: summary,
+          },
+        ],
         nextId: state.nextId + 1,
       };
     }
@@ -224,9 +234,9 @@ export function reduceEvent(
       if (sessionId !== null && subAgentState !== null && typeof subAgentState === "object") {
         const subAgentType = (subAgentState as Record<string, unknown>).sub_agent_type;
         if (
-          typeof subAgentType === "string"
-          && subAgentType.length > 0
-          && state.subAgentTypeBySessionId[sessionId] !== subAgentType
+          typeof subAgentType === "string" &&
+          subAgentType.length > 0 &&
+          state.subAgentTypeBySessionId[sessionId] !== subAgentType
         ) {
           nextTypeBySessionId = {
             ...state.subAgentTypeBySessionId,
@@ -236,7 +246,11 @@ export function reduceEvent(
         }
 
         const desc = (subAgentState as Record<string, unknown>).sub_agent_desc;
-        if (typeof desc === "string" && desc.length > 0 && state.subAgentDescBySessionId[sessionId] !== desc) {
+        if (
+          typeof desc === "string" &&
+          desc.length > 0 &&
+          state.subAgentDescBySessionId[sessionId] !== desc
+        ) {
           nextDescBySessionId = {
             ...state.subAgentDescBySessionId,
             [sessionId]: desc,
@@ -268,13 +282,25 @@ export function reduceEvent(
 
     case "developer.message": {
       const rawItem = event.item;
-      const itemObj = rawItem !== null && typeof rawItem === "object" ? (rawItem as Record<string, unknown>) : null;
+      const itemObj =
+        rawItem !== null && typeof rawItem === "object"
+          ? (rawItem as Record<string, unknown>)
+          : null;
       const uiItems = parseDeveloperUIItems(itemObj?.ui_extra);
       if (uiItems.length === 0) return state;
       const id = makeId(state);
       return {
         ...state,
-        items: [...state.items, { id, type: "developer_message", timestamp: ts, sessionId: sourceSessionId, items: uiItems }],
+        items: [
+          ...state.items,
+          {
+            id,
+            type: "developer_message",
+            timestamp: ts,
+            sessionId: sourceSessionId,
+            items: uiItems,
+          },
+        ],
         nextId: state.nextId + 1,
       };
     }
@@ -286,13 +312,16 @@ export function reduceEvent(
       const mainAgent = (metadata as Record<string, unknown>).main_agent;
       if (mainAgent === null || typeof mainAgent !== "object") return state;
 
-      const durationSeconds = parseFiniteNumber((mainAgent as Record<string, unknown>).task_duration_s);
+      const durationSeconds = parseFiniteNumber(
+        (mainAgent as Record<string, unknown>).task_duration_s,
+      );
       if (durationSeconds === null) return state;
 
       const turnCountRaw = parseFiniteNumber((mainAgent as Record<string, unknown>).turn_count);
       const turnCount = Math.max(0, Math.floor(turnCountRaw ?? 0));
       const shouldShowWorkedLine =
-        durationSeconds > WORKED_LINE_DURATION_THRESHOLD_S || turnCount > WORKED_LINE_TURN_COUNT_THRESHOLD;
+        durationSeconds > WORKED_LINE_DURATION_THRESHOLD_S ||
+        turnCount > WORKED_LINE_TURN_COUNT_THRESHOLD;
       if (!shouldShowWorkedLine) return state;
 
       const id = makeId(state);
@@ -319,7 +348,10 @@ export function reduceEvent(
       const images = parseUserMessageImages(event.images);
       return {
         ...state,
-        items: [...state.items, { id, type: "user_message", timestamp: ts, sessionId: sourceSessionId, content, images }],
+        items: [
+          ...state.items,
+          { id, type: "user_message", timestamp: ts, sessionId: sourceSessionId, content, images },
+        ],
         nextId: state.nextId + 1,
       };
     }
@@ -329,7 +361,17 @@ export function reduceEvent(
       const index = state.items.length;
       return {
         ...state,
-        items: [...state.items, { id, type: "thinking", timestamp: ts, sessionId: sourceSessionId, content: "", isStreaming: true }],
+        items: [
+          ...state.items,
+          {
+            id,
+            type: "thinking",
+            timestamp: ts,
+            sessionId: sourceSessionId,
+            content: "",
+            isStreaming: true,
+          },
+        ],
         nextId: state.nextId + 1,
         activeThinkingIndex: index,
       };
@@ -361,7 +403,17 @@ export function reduceEvent(
       const index = state.items.length;
       return {
         ...state,
-        items: [...state.items, { id, type: "assistant_text", timestamp: ts, sessionId: sourceSessionId, content: "", isStreaming: true }],
+        items: [
+          ...state.items,
+          {
+            id,
+            type: "assistant_text",
+            timestamp: ts,
+            sessionId: sourceSessionId,
+            content: "",
+            isStreaming: true,
+          },
+        ],
         nextId: state.nextId + 1,
         activeTextIndex: index,
       };
@@ -384,9 +436,10 @@ export function reduceEvent(
       const item = state.items[idx];
       if (item.type !== "assistant_text") return state;
       // For durable events replayed from history, content is on the end event
-      const content = typeof event.content === "string" && event.content.length > 0
-        ? event.content
-        : item.content;
+      const content =
+        typeof event.content === "string" && event.content.length > 0
+          ? event.content
+          : item.content;
       const nextItems = [...state.items];
       nextItems[idx] = { ...item, content, isStreaming: false };
       return { ...state, items: nextItems, activeTextIndex: -1 };
@@ -487,21 +540,22 @@ export function reduceEvent(
       if (item.type !== "tool_block") return state;
 
       const result = typeof event.result === "string" ? event.result : null;
-      const status = typeof event.status === "string"
-        ? (event.status as "success" | "error" | "aborted")
-        : null;
+      const status =
+        typeof event.status === "string" ? (event.status as "success" | "error" | "aborted") : null;
       const uiExtra =
         event.ui_extra !== null && typeof event.ui_extra === "object"
           ? (event.ui_extra as Record<string, unknown>)
           : null;
 
       // For durable replay, tool_name and arguments may also be present
-      const toolName = typeof event.tool_name === "string" && event.tool_name.length > 0
-        ? event.tool_name
-        : item.toolName;
-      const args = typeof event.arguments === "string" && event.arguments.length > 0
-        ? event.arguments
-        : item.arguments;
+      const toolName =
+        typeof event.tool_name === "string" && event.tool_name.length > 0
+          ? event.tool_name
+          : item.toolName;
+      const args =
+        typeof event.arguments === "string" && event.arguments.length > 0
+          ? event.arguments
+          : item.arguments;
 
       const nextItems = [...state.items];
       nextItems[idx] = {
@@ -539,7 +593,14 @@ export function reduceEvent(
         ...state,
         items: [
           ...state.items,
-          { id, type: "unknown_event", timestamp: ts, sessionId: sourceSessionId, eventType, rawEvent: event },
+          {
+            id,
+            type: "unknown_event",
+            timestamp: ts,
+            sessionId: sourceSessionId,
+            eventType,
+            rawEvent: event,
+          },
         ],
         nextId: state.nextId + 1,
       };

@@ -28,8 +28,10 @@ export function TaskWorked({ item, compact = false }: TaskWorkedProps): JSX.Elem
   const suffix = item.turnCount === 1 ? "step" : "steps";
 
   return (
-    <div className={`inline-flex items-center gap-1.5 ${compact ? "text-[13px]" : "text-sm"} tracking-[0.03em] text-emerald-700`}>
-      <Check className="w-3.5 h-3.5" strokeWidth={2.25} />
+    <div
+      className={`inline-flex items-center gap-1.5 ${compact ? "text-[13px]" : "text-sm"} tracking-[0.03em] text-emerald-700`}
+    >
+      <Check className="h-3.5 w-3.5" strokeWidth={2.25} />
       <span>
         Worked for {formatElapsedCompact(item.durationSeconds)}
         {item.turnCount > 0 ? ` in ${item.turnCount} ${suffix}` : ""}

@@ -8,7 +8,7 @@ export function NewSessionButton({ onClick }: NewSessionButtonProps): JSX.Elemen
   return (
     <Button
       variant="outline"
-      className="w-full justify-center rounded-lg text-[14px] font-normal text-neutral-900 border-gray-200 h-8 hover:bg-neutral-100"
+      className="h-8 w-full justify-center rounded-lg border-gray-200 text-[14px] font-normal text-neutral-900 hover:bg-neutral-100"
       onClick={onClick}
     >
       New Agent

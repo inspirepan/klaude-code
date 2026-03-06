@@ -55,7 +55,9 @@ interface DiffUIExtra {
 }
 
 export function isDiffUIExtra(extra: unknown): extra is DiffUIExtra {
-  return typeof extra === "object" && extra !== null && (extra as { type?: unknown }).type === "diff";
+  return (
+    typeof extra === "object" && extra !== null && (extra as { type?: unknown }).type === "diff"
+  );
 }
 
 /**
@@ -114,12 +116,13 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
     }
   });
 
-  if (!extra) return null;
-
   const patch = useMemo(() => {
+    if (!extra) return null;
     if (extra.raw_unified_diff) return extra.raw_unified_diff;
     return rebuildUnifiedDiff(extra);
   }, [extra]);
+
+  if (!extra || patch === null) return null;
 
   return (
     <div className="diff-view" ref={containerRef}>

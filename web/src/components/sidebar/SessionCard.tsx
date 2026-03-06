@@ -46,23 +46,30 @@ function formatRelativeTime(timestampSeconds: number): string {
 
 function getRuntimeIcon(runtime: SessionRuntimeState): JSX.Element {
   if (runtime.sessionState === "running") {
-    return <Loader className="shrink-0 w-3.5 h-3.5 text-neutral-400 animate-spin" />;
+    return <Loader className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-400" />;
   }
   if (runtime.sessionState === "waiting_user_input") {
-    return <CirclePause className="shrink-0 w-3.5 h-3.5 text-amber-500" />;
+    return <CirclePause className="h-3.5 w-3.5 shrink-0 text-amber-500" />;
   }
-  return <CheckCircle className="shrink-0 w-3.5 h-3.5 text-neutral-400" />;
+  return <CheckCircle className="h-3.5 w-3.5 shrink-0 text-neutral-400" />;
 }
 
 function shortenFileRefs(text: string): string {
   return text.replace(/@[\w./\\-]+\/([^/\s]+)/g, "@$1");
 }
 
-export function SessionCard({ session, active, runtime, onClick, onToggleArchive }: SessionCardProps): JSX.Element {
+export function SessionCard({
+  session,
+  active,
+  runtime,
+  onClick,
+  onToggleArchive,
+}: SessionCardProps): JSX.Element {
   const title = shortenFileRefs(getSessionTitle(session));
   const excerpt = shortenFileRefs(getSessionExcerpt(session));
   const updatedAt = formatRelativeTime(session.updated_at);
-  const messageCountLabel = session.messages_count >= 0 ? `${session.messages_count} messages` : "N/A messages";
+  const messageCountLabel =
+    session.messages_count >= 0 ? `${session.messages_count} messages` : "N/A messages";
   const modelLabel = session.model_name ?? "N/A model";
 
   return (
@@ -76,16 +83,16 @@ export function SessionCard({ session, active, runtime, onClick, onToggleArchive
         title={title}
       >
         <div className="min-w-0 pl-1">
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5">
             {getRuntimeIcon(runtime)}
-            <span className="text-[14px] leading-5 text-neutral-700 truncate flex-1">{title}</span>
-            <div className="relative shrink-0 h-5 -translate-y-0.5">
-              <span className="text-[12px] leading-5 text-neutral-400 whitespace-nowrap transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">
+            <span className="flex-1 truncate text-[14px] leading-5 text-neutral-700">{title}</span>
+            <div className="relative h-5 shrink-0 -translate-y-0.5">
+              <span className="whitespace-nowrap text-[12px] leading-5 text-neutral-400 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0">
                 {updatedAt}
               </span>
               <button
                 type="button"
-                className="absolute inset-0 inline-flex items-center justify-end rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+                className="absolute inset-0 inline-flex items-center justify-end rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
                 title={session.archived ? "Unarchive session" : "Archive session"}
                 aria-label={session.archived ? "Unarchive session" : "Archive session"}
                 onClick={(event) => {
@@ -93,14 +100,20 @@ export function SessionCard({ session, active, runtime, onClick, onToggleArchive
                   onToggleArchive(session.id, !session.archived);
                 }}
               >
-                {session.archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                {session.archived ? (
+                  <ArchiveRestore className="h-3.5 w-3.5" />
+                ) : (
+                  <Archive className="h-3.5 w-3.5" />
+                )}
               </button>
             </div>
           </div>
 
-          <div className="mt-0.5 pl-5 text-[13px] leading-5 text-neutral-500 truncate">{excerpt}</div>
+          <div className="mt-0.5 truncate pl-5 text-[13px] leading-5 text-neutral-500">
+            {excerpt}
+          </div>
 
-          <div className="mt-0.5 pl-5 text-[11px] leading-4 text-neutral-400 truncate">
+          <div className="mt-0.5 truncate pl-5 text-[11px] leading-4 text-neutral-400">
             {messageCountLabel} · {modelLabel}
           </div>
         </div>

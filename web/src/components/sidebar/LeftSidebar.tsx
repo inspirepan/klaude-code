@@ -20,7 +20,9 @@ export function LeftSidebar(): JSX.Element {
   const refreshSessions = useSessionStore((state) => state.refreshSessions);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
-  const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<Record<string, boolean>>({});
+  const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
+    Record<string, boolean>
+  >({});
 
   const activeGroups = useMemo(
     () =>
@@ -51,44 +53,44 @@ export function LeftSidebar(): JSX.Element {
   );
 
   return (
-    <aside className="w-[260px] min-w-[260px] border-r border-neutral-200 bg-neutral-50 flex flex-col">
-      <div className="px-3 py-2 flex items-center gap-2">
+    <aside className="flex w-[260px] min-w-[260px] flex-col border-r border-neutral-200 bg-neutral-50">
+      <div className="flex items-center gap-2 px-3 py-2">
         <div className="flex-1">
           <NewSessionButton onClick={selectDraft} />
         </div>
         <button
           type="button"
-          className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors cursor-pointer"
+          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
           onClick={() => {
             void refreshSessions();
           }}
           title="Refresh sessions"
           aria-label="Refresh sessions"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
         </button>
         <button
           type="button"
-          className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors cursor-pointer"
+          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
           onClick={() => {
             setSidebarOpen(false);
           }}
           title="Collapse sidebar"
           aria-label="Collapse sidebar"
         >
-          <PanelLeftClose className="w-4 h-4" />
+          <PanelLeftClose className="h-4 w-4" />
         </button>
       </div>
 
-      <ScrollArea className="flex-1 w-full min-h-0" type="auto">
+      <ScrollArea className="min-h-0 w-full flex-1" type="auto">
         <div className="px-3 pb-3">
           {loadError !== null ? (
-            <div className="mt-3 p-3 border border-dashed border-neutral-300 rounded-lg bg-white">
-              <div className="font-semibold mb-1">Load failed</div>
-              <div className="text-sm text-neutral-500 break-words">{loadError}</div>
+            <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3">
+              <div className="mb-1 font-semibold">Load failed</div>
+              <div className="break-words text-sm text-neutral-500">{loadError}</div>
               <button
                 type="button"
-                className="mt-2 border border-neutral-300 rounded-md bg-white px-2.5 py-1.5 text-sm cursor-pointer"
+                className="mt-2 cursor-pointer rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm"
                 onClick={() => {
                   void refreshSessions();
                 }}
@@ -100,7 +102,7 @@ export function LeftSidebar(): JSX.Element {
 
           {loadError === null && loading && groups.length === 0 ? (
             <div className="flex items-center gap-2 px-2 py-2 text-neutral-500">
-              <div className="w-4 h-4 rounded-full border-2 border-neutral-200 border-t-neutral-500 animate-spin" />
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-500" />
               <span className="text-[13px] font-medium">Loading...</span>
             </div>
           ) : null}
@@ -108,7 +110,7 @@ export function LeftSidebar(): JSX.Element {
           {loadError === null && !loading && groups.length === 0 ? (
             <div className="px-2 py-2 text-neutral-500">
               <div className="text-[13px] font-medium">No sessions yet</div>
-              <div className="text-[12px] mt-0.5">Click "New Agent" above to start</div>
+              <div className="mt-0.5 text-[12px]">Click "New Agent" above to start</div>
             </div>
           ) : null}
 
@@ -131,14 +133,13 @@ export function LeftSidebar(): JSX.Element {
               }}
             />
           ))}
-
         </div>
       </ScrollArea>
 
-      <div className="border-t border-neutral-200 px-3 py-2 shrink-0">
+      <div className="shrink-0 border-t border-neutral-200 px-3 py-2">
         {archivedExpanded ? (
           archivedGroups.length > 0 ? (
-            <ScrollArea className="w-full max-h-[40vh]" viewportClassName="!h-auto max-h-[40vh]">
+            <ScrollArea className="max-h-[40vh] w-full" viewportClassName="!h-auto max-h-[40vh]">
               <div className="pt-1">
                 {archivedGroups.map((group) => (
                   <ProjectGroup
@@ -172,13 +173,17 @@ export function LeftSidebar(): JSX.Element {
         <div className={archivedExpanded ? "mt-1.5" : undefined}>
           <button
             type="button"
-            className="w-full flex items-center gap-1 px-2 py-1.5 rounded-md text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100/50 transition-colors"
+            className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900"
             onClick={() => {
               setArchivedExpanded((prev) => !prev);
             }}
           >
-            {archivedExpanded ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
-            <span className="flex-1 text-[13px] text-left">Archived</span>
+            {archivedExpanded ? (
+              <ChevronDown className="h-4 w-4 shrink-0" />
+            ) : (
+              <ChevronRight className="h-4 w-4 shrink-0" />
+            )}
+            <span className="flex-1 text-left text-[13px]">Archived</span>
             <span className="text-[12px] text-neutral-400">{archivedSessionCount}</span>
           </button>
         </div>

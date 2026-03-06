@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Folder, FolderOpen, MoreHorizontal } from "lucide-react";
+import { Folder, FolderOpen } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SessionCard } from "./SessionCard";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
@@ -38,18 +38,14 @@ export function ProjectGroup({
   const hasMore = sessions.length > 10;
 
   return (
-    <Collapsible
-      open={!collapsed}
-      onOpenChange={onToggle}
-      className="mb-3"
-    >
-      <CollapsibleTrigger className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100/50 transition-colors group">
+    <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-3">
+      <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900">
         {collapsed ? (
-          <Folder className="w-4 h-4 shrink-0 text-neutral-400 group-hover:text-neutral-600" />
+          <Folder className="h-4 w-4 shrink-0 text-neutral-400 group-hover:text-neutral-600" />
         ) : (
-          <FolderOpen className="w-4 h-4 shrink-0 text-neutral-400 group-hover:text-neutral-600" />
+          <FolderOpen className="h-4 w-4 shrink-0 text-neutral-400 group-hover:text-neutral-600" />
         )}
-        <span className="flex-1 text-[13px] font-normal truncate text-left" title={workDir}>
+        <span className="flex-1 truncate text-left text-[13px] font-normal" title={workDir}>
           {workDirLabel(workDir)}
         </span>
       </CollapsibleTrigger>
@@ -60,7 +56,13 @@ export function ProjectGroup({
             key={session.id}
             session={session}
             active={activeSessionId === session.id}
-            runtime={runtimeBySessionId[session.id] ?? { sessionState: "idle", wsState: "idle", lastError: null }}
+            runtime={
+              runtimeBySessionId[session.id] ?? {
+                sessionState: "idle",
+                wsState: "idle",
+                lastError: null,
+              }
+            }
             onClick={() => {
               onSelectSession(session.id);
             }}
@@ -70,13 +72,13 @@ export function ProjectGroup({
         {hasMore && !showAll && (
           <button
             type="button"
-            className="w-full flex items-center px-2 py-[6px] rounded-md text-left transition-colors hover:bg-neutral-100/80 text-neutral-400 hover:text-neutral-600"
+            className="flex w-full items-center rounded-md px-2 py-[6px] text-left text-neutral-400 transition-colors hover:bg-neutral-100/80 hover:text-neutral-600"
             onClick={(e) => {
               e.stopPropagation();
               setShowAll(true);
             }}
           >
-            <span className="text-[13px] font-normal flex-1 pl-6">
+            <span className="flex-1 pl-6 text-[13px] font-normal">
               Load more ({sessions.length - 10})
             </span>
           </button>

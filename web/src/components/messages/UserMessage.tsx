@@ -14,7 +14,11 @@ interface UserMessageProps {
 
 export function UserMessage({ item, compact = false }: UserMessageProps): JSX.Element {
   const normalizedContent = useMemo(
-    () => item.content.split("\n").filter((line) => line.trim().length > 0).join("\n"),
+    () =>
+      item.content
+        .split("\n")
+        .filter((line) => line.trim().length > 0)
+        .join("\n"),
     [item.content],
   );
   const hasText = normalizedContent.length > 0;
@@ -60,7 +64,8 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
     return () => observer.disconnect();
   }, [hasText, normalizedContent, compact]);
 
-  const expandedImage = expandedImageIndex === null ? null : item.images[expandedImageIndex] ?? null;
+  const expandedImage =
+    expandedImageIndex === null ? null : (item.images[expandedImageIndex] ?? null);
   const expandedImageSrc = expandedImage
     ? expandedImage.type === "image_file"
       ? buildFileApiUrl(expandedImage.file_path)
@@ -101,12 +106,12 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
               key={`${image.type}-${idx}`}
               type="button"
               onClick={() => setExpandedImageIndex(idx)}
-              className="block w-fit rounded-md border-0 bg-transparent p-0 cursor-zoom-in"
+              className="block w-fit cursor-zoom-in rounded-md border-0 bg-transparent p-0"
             >
               <img
                 src={src}
                 alt={alt}
-                className="block max-w-[260px] max-h-[180px] w-auto h-auto object-contain rounded-md border border-neutral-200/70 bg-white"
+                className="block h-auto max-h-[180px] w-auto max-w-[260px] rounded-md border border-neutral-200/70 bg-white object-contain"
                 loading="lazy"
               />
             </button>
@@ -118,7 +123,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
 
   return (
     <>
-      <div className="rounded-lg border border-neutral-200/80 bg-neutral-50 px-3.5 py-2.5 transition-colors hover:bg-neutral-100 hover:border-neutral-300/60">
+      <div className="rounded-lg border border-neutral-200/80 bg-neutral-50 px-3.5 py-2.5 transition-colors hover:border-neutral-300/60 hover:bg-neutral-100">
         {renderImages()}
         {hasText ? (
           <div>
@@ -129,7 +134,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                   ? { maxHeight: `${collapsedTextMaxHeight}px`, overflow: "hidden" }
                   : undefined
               }
-              className={`${compact ? "text-[14px]" : "text-[15px]"} leading-relaxed text-neutral-800 whitespace-pre-wrap break-words m-0`}
+              className={`${compact ? "text-[14px]" : "text-[15px]"} m-0 whitespace-pre-wrap break-words leading-relaxed text-neutral-800`}
             >
               <HighlightText>{normalizedContent}</HighlightText>
             </p>
@@ -137,7 +142,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
               <button
                 type="button"
                 onClick={() => setShowMore(true)}
-                className={`mt-0.5 ${miniTextClass} text-neutral-400 hover:text-neutral-600 cursor-pointer transition-colors font-sans`}
+                className={`mt-0.5 ${miniTextClass} cursor-pointer font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
               >
                 Show more
               </button>
@@ -161,7 +166,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                 <div className="max-h-[calc(100vh-8rem)] overflow-y-auto px-4 py-3">
                   {renderImages()}
                   <p
-                    className={`${compact ? "text-[14px]" : "text-[15px]"} leading-relaxed text-neutral-800 whitespace-pre-wrap break-words m-0`}
+                    className={`${compact ? "text-[14px]" : "text-[15px]"} m-0 whitespace-pre-wrap break-words leading-relaxed text-neutral-800`}
                   >
                     <HighlightText>{normalizedContent}</HighlightText>
                   </p>
@@ -170,14 +175,13 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                   <button
                     type="button"
                     onClick={() => setShowMore(false)}
-                    className={`${miniTextClass} text-neutral-400 hover:text-neutral-600 cursor-pointer transition-colors font-sans`}
+                    className={`${miniTextClass} cursor-pointer font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
                   >
                     Show less
                   </button>
                 </div>
               </div>
-            </div>
-            ,
+            </div>,
             document.body,
           )
         : null}
@@ -185,7 +189,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
       {expandedImageSrc && expandedImageAlt
         ? createPortal(
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 cursor-zoom-out"
+              className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/75 p-4"
               onClick={() => setExpandedImageIndex(null)}
               role="dialog"
               aria-modal="true"
@@ -194,7 +198,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                 src={expandedImageSrc}
                 alt={expandedImageAlt}
                 onClick={(event) => event.stopPropagation()}
-                className="block max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] w-auto h-auto rounded-lg bg-white shadow-2xl"
+                className="block h-auto max-h-[calc(100vh-2rem)] w-auto max-w-[calc(100vw-2rem)] rounded-lg bg-white shadow-2xl"
               />
             </div>,
             document.body,

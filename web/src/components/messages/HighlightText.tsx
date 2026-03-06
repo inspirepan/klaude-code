@@ -21,7 +21,7 @@ export function HighlightText({ children }: { children: string }): JSX.Element {
     <>
       {parts.map((part, i) =>
         part.toLowerCase() === lower ? (
-          <mark key={i} className="bg-amber-200/80 text-inherit rounded-[2px]">
+          <mark key={i} className="rounded-[2px] bg-amber-200/80 text-inherit">
             {part}
           </mark>
         ) : (

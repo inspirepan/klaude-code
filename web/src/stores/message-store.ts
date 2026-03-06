@@ -8,7 +8,12 @@ interface MessageStoreState {
   messagesBySessionId: Record<string, MessageItem[]>;
   reducerStateBySessionId: Record<string, ReducerState>;
   loadHistoryFromEvents: (sessionId: string, events: ReplayEventEnvelope[]) => void;
-  handleEvent: (sessionId: string, eventType: string, event: Record<string, unknown>, timestamp?: number | null) => void;
+  handleEvent: (
+    sessionId: string,
+    eventType: string,
+    event: Record<string, unknown>,
+    timestamp?: number | null,
+  ) => void;
   clearSession: (sessionId: string) => void;
 }
 
@@ -32,9 +37,13 @@ export const useMessageStore = create<MessageStoreState>((set) => ({
 
   handleEvent: (sessionId, eventType, event, timestamp) => {
     set((state) => {
-      const currentReducerState =
-        state.reducerStateBySessionId[sessionId] ?? createInitialState();
-      const nextReducerState = reduceEvent(currentReducerState, eventType, event, timestamp ?? null);
+      const currentReducerState = state.reducerStateBySessionId[sessionId] ?? createInitialState();
+      const nextReducerState = reduceEvent(
+        currentReducerState,
+        eventType,
+        event,
+        timestamp ?? null,
+      );
       if (nextReducerState === currentReducerState) return state;
       return {
         messagesBySessionId: {

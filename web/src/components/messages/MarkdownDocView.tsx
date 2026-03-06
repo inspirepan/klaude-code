@@ -11,7 +11,11 @@ interface MarkdownDocUIExtra {
 }
 
 export function isMarkdownDocUIExtra(extra: unknown): extra is MarkdownDocUIExtra {
-  return typeof extra === "object" && extra !== null && (extra as { type?: unknown }).type === "markdown_doc";
+  return (
+    typeof extra === "object" &&
+    extra !== null &&
+    (extra as { type?: unknown }).type === "markdown_doc"
+  );
 }
 
 const plugins = { code, mermaid };
@@ -25,8 +29,10 @@ export function MarkdownDocView({ uiExtra, compact = false }: MarkdownDocViewPro
   const { entries, body } = useParsedFrontmatter(uiExtra.content);
 
   return (
-    <div className="mt-1 rounded-lg border border-neutral-200/80 overflow-hidden font-sans">
-      <div className={`px-3 py-1.5 bg-neutral-50 border-b border-neutral-200/80 ${compact ? "text-[11px]" : "text-xs"} text-neutral-400 font-mono truncate`}>
+    <div className="mt-1 overflow-hidden rounded-lg border border-neutral-200/80 font-sans">
+      <div
+        className={`border-b border-neutral-200/80 bg-neutral-50 px-3 py-1.5 ${compact ? "text-[11px]" : "text-xs"} truncate font-mono text-neutral-400`}
+      >
         {uiExtra.file_path}
       </div>
       <div className={`px-4 py-3 ${compact ? "text-[13px]" : "text-sm"} markdown-doc-view`}>
