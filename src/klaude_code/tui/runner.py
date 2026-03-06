@@ -341,9 +341,14 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
 
         for question, selection in zip(payload.questions, selections, strict=False):
-            selected_ids = list(selection.selected_values)
-
             note_text = selection.input_text.strip()
+            selected_ids = list(selection.selected_values)
+            if note_text:
+                if question.multi_select:
+                    if "__other__" not in selected_ids:
+                        selected_ids.append("__other__")
+                else:
+                    selected_ids = ["__other__"]
             other_text = note_text if "__other__" in selected_ids and note_text else None
 
             answers.append(

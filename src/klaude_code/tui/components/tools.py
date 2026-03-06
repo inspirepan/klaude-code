@@ -412,19 +412,23 @@ def render_ask_user_question_summary(ui_extra: model.AskUserQuestionSummaryUIExt
     if not ui_extra.items:
         return Text("(No answer provided)", style=ThemeKey.WARN)
 
-    text = Text()
+    grid = create_grid(overflow="fold")
     for idx, item in enumerate(ui_extra.items):
-        text.append(" ● ", style=ThemeKey.TOOL_RESULT_QUESTION_PROMPT)
-        text.append(item.question.expandtabs(TAB_EXPAND_WIDTH), style=ThemeKey.TOOL_RESULT_QUESTION_PROMPT)
-        text.append("\n")
-        text.append("   → ", style=ThemeKey.TOOL_RESULT_TRUNCATED)
+        grid.add_row(
+            Text("●", style=ThemeKey.TOOL_RESULT_QUESTION_PROMPT),
+            Text(
+                item.question.expandtabs(TAB_EXPAND_WIDTH), style=ThemeKey.TOOL_RESULT_QUESTION_PROMPT, overflow="fold"
+            ),
+        )
         summary_style = ThemeKey.TOOL_PARAM if item.answered else ThemeKey.WARN
-        text.append(item.summary.expandtabs(TAB_EXPAND_WIDTH), style=summary_style)
+        grid.add_row(
+            Text("→", style=ThemeKey.TOOL_RESULT_TRUNCATED),
+            Text(item.summary.expandtabs(TAB_EXPAND_WIDTH), style=summary_style, overflow="fold"),
+        )
         if idx < len(ui_extra.items) - 1:
-            text.append("\n")
+            grid.add_row(Text(""), Text(""))
 
-    text.overflow = "fold"
-    return text
+    return grid
 
 
 def render_read_preview(ui_extra: model.ReadPreviewUIExtra) -> RenderableType:
