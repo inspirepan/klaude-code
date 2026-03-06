@@ -1,5 +1,7 @@
+import asyncio
 import json
 from collections.abc import AsyncGenerator, AsyncIterable
+from contextlib import suppress
 from typing import TYPE_CHECKING, Any, cast, override
 
 import httpx
@@ -230,6 +232,16 @@ class ResponsesWebSocketTransport:
                 yield event
                 if raw_event.get("type") in {"response.completed", "response.failed", "response.incomplete", "error"}:
                     return
+        except asyncio.CancelledError:
+            if self._connection is connection:
+                self._connection = None
+            transport = getattr(connection, "transport", None)
+            if transport is not None:
+                transport.abort()
+            else:
+                with suppress(ConnectionClosed, WebSocketException):
+                    await connection.close()
+            raise
         except ConnectionClosed:
             self._connection = None
             raise
