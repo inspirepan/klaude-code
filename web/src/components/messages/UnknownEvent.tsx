@@ -30,14 +30,18 @@ export function UnknownEvent({ item, compact = false }: UnknownEventProps): JSX.
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex items-center gap-1.5 text-neutral-300 hover:text-neutral-400 transition-colors cursor-pointer">
+      <CollapsibleTrigger className="flex cursor-pointer items-center gap-1.5 text-neutral-300 transition-colors hover:text-neutral-400">
         <ChevronRight
-          className={`w-3 h-3 transition-transform duration-150 ${open ? "rotate-90" : ""}`}
+          className={`h-3 w-3 transition-transform duration-150 ${open ? "rotate-90" : ""}`}
         />
-        <span className={`${compact ? "text-[11px]" : "text-xs"} select-none`}>{item.eventType}</span>
+        <span className={`${compact ? "text-[11px]" : "text-xs"} select-none`}>
+          {item.eventType}
+        </span>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <pre className={`mt-1 ${compact ? "text-[11px]" : "text-xs"} text-neutral-400 bg-neutral-50 rounded p-2 overflow-x-auto`}>
+        <pre
+          className={`mt-1 ${compact ? "text-[11px]" : "text-xs"} overflow-x-auto rounded bg-neutral-50 p-2 text-neutral-400`}
+        >
           {JSON.stringify(item.rawEvent, null, 2)}
         </pre>
       </CollapsibleContent>

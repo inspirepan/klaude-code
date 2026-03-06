@@ -18,14 +18,16 @@ interface ImageResultViewProps {
 
 export function ImageResultView({ uiExtra, compact = false }: ImageResultViewProps): JSX.Element {
   return (
-    <div className="mt-1 rounded-lg border border-neutral-200/80 overflow-hidden bg-white">
+    <div className="mt-1 overflow-hidden rounded-lg border border-neutral-200/80 bg-white">
       <img
         src={buildFileApiUrl(uiExtra.file_path)}
         alt={uiExtra.file_path}
-        className="block max-w-full max-h-[420px] w-auto h-auto"
+        className="block h-auto max-h-[420px] w-auto max-w-full"
         loading="lazy"
       />
-      <div className={`px-3 py-1.5 bg-neutral-50 border-t border-neutral-200/80 ${compact ? "text-[11px]" : "text-xs"} text-neutral-400 font-mono truncate`}>
+      <div
+        className={`border-t border-neutral-200/80 bg-neutral-50 px-3 py-1.5 ${compact ? "text-[11px]" : "text-xs"} truncate font-mono text-neutral-400`}
+      >
         {uiExtra.file_path}
       </div>
     </div>

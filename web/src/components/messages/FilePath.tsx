@@ -8,7 +8,7 @@ interface FilePathProps {
 export function FilePath({ path, expanded = false }: FilePathProps): JSX.Element {
   return (
     <code
-      className={`inline-block max-w-full align-middle font-mono text-sm text-neutral-400 bg-neutral-100 rounded px-1.5 py-0.5 ${expanded ? "whitespace-pre-wrap break-words" : "truncate"}`}
+      className={`inline-block max-w-full rounded bg-neutral-100 px-1.5 py-0.5 align-middle font-mono text-sm text-neutral-400 ${expanded ? "whitespace-pre-wrap break-words" : "truncate"}`}
       title={path}
     >
       {path}

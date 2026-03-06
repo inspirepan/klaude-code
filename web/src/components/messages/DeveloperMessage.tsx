@@ -17,7 +17,9 @@ function plural(n: number, word: string): string {
   return n === 1 ? word : `${word}s`;
 }
 
-function groupAtFileOps(ops: AtFileOp[]): Array<{ operation: string; mentionedIn: string | null; paths: string[] }> {
+function groupAtFileOps(
+  ops: AtFileOp[],
+): Array<{ operation: string; mentionedIn: string | null; paths: string[] }> {
   const ordered: Array<{ operation: string; mentionedIn: string | null; paths: string[] }> = [];
   const idxByKey = new Map<string, number>();
 
@@ -62,23 +64,25 @@ function CollapsibleRow({
 
   return (
     <div
-      className={`-my-1 grid grid-cols-[auto_1fr] gap-x-1.5 items-start text-[15px] font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`-my-1 grid grid-cols-[auto_1fr] items-start gap-x-1.5 font-mono text-[15px] ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
       <div className="flex items-start gap-1.5 self-stretch">
         <div className="flex flex-col items-center self-stretch">
           <ChevronRight
-            className={`w-4 h-4 text-neutral-300 transition-transform duration-150 shrink-0 mt-0.5 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
+            className={`mt-0.5 h-4 w-4 shrink-0 text-neutral-300 transition-transform duration-150 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
           />
-          {open ? <div className="w-px bg-neutral-200 flex-1 mt-1" /> : null}
+          {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
-        <span className="font-normal text-neutral-500 whitespace-nowrap font-sans tracking-[0.03em]">{label}</span>
+        <span className="whitespace-nowrap font-sans font-normal tracking-[0.03em] text-neutral-500">
+          {label}
+        </span>
       </div>
 
       <div className="min-w-0" />
 
       {open ? (
-        <div className="col-span-2 min-w-0 mt-0.5 grid grid-cols-[16px_1fr] gap-x-1.5">
+        <div className="col-span-2 mt-0.5 grid min-w-0 grid-cols-[16px_1fr] gap-x-1.5">
           <div className="flex justify-center">
             <div className="w-px bg-neutral-200" />
           </div>
@@ -93,7 +97,7 @@ function CollapsibleRow({
 
 function PathList({ paths }: { paths: string[] }): JSX.Element {
   return (
-    <ul className="list-disc pl-5 space-y-0.5 marker:text-neutral-400 text-sm">
+    <ul className="list-disc space-y-0.5 pl-5 text-sm marker:text-neutral-400">
       {paths.map((p) => (
         <li key={p}>
           <PathPill path={p} />
@@ -107,7 +111,7 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
   const images = collectImages(item.items);
 
   return (
-    <div className="flex flex-col gap-0.5 text-sm text-neutral-500 font-sans">
+    <div className="flex flex-col gap-0.5 font-sans text-sm text-neutral-500">
       {item.items.map((ui, idx) => {
         switch (ui.type) {
           case "memory_loaded":
@@ -123,7 +127,8 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
               </CollapsibleRow>
             );
           case "todo_reminder": {
-            const text = ui.reason === "empty" ? "Todo list is empty" : "Todo hasn't been updated recently";
+            const text =
+              ui.reason === "empty" ? "Todo list is empty" : "Todo hasn't been updated recently";
             return (
               <CollapsibleRow key={`todo-${idx}`} label={text}>
                 {null}
@@ -149,7 +154,10 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
             ));
           case "user_images":
             return (
-              <CollapsibleRow key={`images-${idx}`} label={`Attached ${ui.count} ${plural(ui.count, "image")}`}>
+              <CollapsibleRow
+                key={`images-${idx}`}
+                label={`Attached ${ui.count} ${plural(ui.count, "image")}`}
+              >
                 {null}
               </CollapsibleRow>
             );
@@ -165,13 +173,13 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
       })}
 
       {images.length > 0 ? (
-        <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {images.map((p) => (
             <img
               key={p}
               src={buildFileApiUrl(p)}
               alt={p}
-              className="block w-full h-auto max-h-[220px] object-contain rounded-md border border-neutral-200/70 bg-white"
+              className="block h-auto max-h-[220px] w-full rounded-md border border-neutral-200/70 bg-white object-contain"
               loading="lazy"
             />
           ))}

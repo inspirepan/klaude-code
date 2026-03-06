@@ -59,7 +59,14 @@ function extractHeaderDetail(toolName: string, args: string): string {
 }
 
 function hasRichUIExtra(extra: Record<string, unknown>): boolean {
-  if (isDiffUIExtra(extra) || isTodoListUIExtra(extra) || isMarkdownDocUIExtra(extra) || isQuestionSummaryUIExtra(extra) || isImageUIExtra(extra)) return true;
+  if (
+    isDiffUIExtra(extra) ||
+    isTodoListUIExtra(extra) ||
+    isMarkdownDocUIExtra(extra) ||
+    isQuestionSummaryUIExtra(extra) ||
+    isImageUIExtra(extra)
+  )
+    return true;
   if (extra.type === "multi" && Array.isArray(extra.items)) {
     return (extra.items as Record<string, unknown>[]).some(hasRichUIExtra);
   }
@@ -92,7 +99,7 @@ function RichUIExtraBlock({
 }): JSX.Element | null {
   if (isDiffUIExtra(extra)) {
     return (
-      <div className="mt-0.5 rounded-lg border border-neutral-200/80 overflow-hidden">
+      <div className="mt-0.5 overflow-hidden rounded-lg border border-neutral-200/80">
         <DiffView item={item} uiExtra={extra} />
       </div>
     );
@@ -116,7 +123,13 @@ function RichUIExtraBlock({
   return null;
 }
 
-function RichResult({ item, compact }: { item: ToolBlockItem; compact: boolean }): JSX.Element | null {
+function RichResult({
+  item,
+  compact,
+}: {
+  item: ToolBlockItem;
+  compact: boolean;
+}): JSX.Element | null {
   const extra = item.uiExtra;
   if (!extra) return null;
 
@@ -145,7 +158,9 @@ function extractPlanExplanation(args: string): string {
   try {
     const parsed = JSON.parse(args);
     if (typeof parsed.explanation === "string") return parsed.explanation.trim();
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return "";
 }
 
@@ -158,15 +173,21 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[14px]" : "text-[15px]"}`}>
+    <div
+      className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[14px]" : "text-[15px]"}`}
+    >
       {explanation ? (
-        <p className={`${compact ? "text-[13px]" : "text-sm"} text-neutral-500 font-sans mb-1`}>{explanation}</p>
+        <p className={`${compact ? "text-[13px]" : "text-sm"} mb-1 font-sans text-neutral-500`}>
+          {explanation}
+        </p>
       ) : null}
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} compact={compact} />
       ) : item.isStreaming ? (
-        <div className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}>
-          <Loader2 className="w-3 h-3 animate-spin" />
+        <div
+          className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}
+        >
+          <Loader2 className="h-3 w-3 animate-spin" />
           <span>Planning...</span>
         </div>
       ) : null}
@@ -175,15 +196,20 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
 }
 
 function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
-  const questionExtra = item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
+  const questionExtra =
+    item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[14px]" : "text-[15px]"}`}>
+    <div
+      className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[14px]" : "text-[15px]"}`}
+    >
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} compact={compact} />
       ) : item.isStreaming ? (
-        <div className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}>
-          <Loader2 className="w-3 h-3 animate-spin" />
+        <div
+          className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}
+        >
+          <Loader2 className="h-3 w-3 animate-spin" />
           <span>Waiting for answer...</span>
         </div>
       ) : null}
@@ -197,13 +223,6 @@ export function ToolBlock({ item, compact = false }: ToolBlockProps): JSX.Elemen
   const subTextClass = compact ? "text-[13px]" : "text-sm";
   const miniTextClass = compact ? "text-[11px]" : "text-xs";
   const detailChipClass = compact ? "" : "bg-neutral-100 rounded px-1.5 py-0.5";
-
-  if (PLAN_TOOLS.has(item.toolName)) {
-    return <PlanBlock item={item} compact={compact} />;
-  }
-  if (item.toolName === "AskUserQuestion") {
-    return <QuestionBlock item={item} compact={compact} />;
-  }
 
   const defaultExpanded = shouldExpandResult(item);
   const [open, setOpen] = useState(defaultExpanded);
@@ -224,6 +243,13 @@ export function ToolBlock({ item, compact = false }: ToolBlockProps): JSX.Elemen
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSearchMatch]);
 
+  if (PLAN_TOOLS.has(item.toolName)) {
+    return <PlanBlock item={item} compact={compact} />;
+  }
+  if (item.toolName === "AskUserQuestion") {
+    return <QuestionBlock item={item} compact={compact} />;
+  }
+
   const detail = extractHeaderDetail(item.toolName, item.arguments);
   const isBash = item.toolName === "Bash";
   const hasResult = item.result !== null && item.result.length > 0;
@@ -241,20 +267,22 @@ export function ToolBlock({ item, compact = false }: ToolBlockProps): JSX.Elemen
 
   return (
     <div
-      className={`-my-1 grid grid-cols-[auto_1fr] gap-x-1.5 items-start ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`-my-1 grid grid-cols-[auto_1fr] items-start gap-x-1.5 ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
       {/* left col: chevron + vertical line + tool name */}
       <div className="flex items-start gap-1.5 self-stretch">
         <div className="flex flex-col items-center self-stretch">
           <ChevronRight
-            className={`w-4 h-4 text-neutral-300 transition-transform duration-150 shrink-0 mt-1 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
+            className={`mt-1 h-4 w-4 shrink-0 text-neutral-300 transition-transform duration-150 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
           />
-          {open ? <div className="w-px bg-neutral-200 flex-1 mt-1" /> : null}
+          {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
-        <span className="font-normal text-neutral-500 whitespace-nowrap font-sans tracking-[0.03em]">{item.toolName}</span>
+        <span className="whitespace-nowrap font-sans font-normal tracking-[0.03em] text-neutral-500">
+          {item.toolName}
+        </span>
         {item.isStreaming ? (
-          <Loader2 className="w-3 h-3 text-neutral-400 animate-spin shrink-0 mt-0.5" />
+          <Loader2 className="mt-0.5 h-3 w-3 shrink-0 animate-spin text-neutral-400" />
         ) : null}
       </div>
 
@@ -264,11 +292,15 @@ export function ToolBlock({ item, compact = false }: ToolBlockProps): JSX.Elemen
           FILE_PATH_TOOLS.has(item.toolName) ? (
             <FilePath path={detail} expanded={open} />
           ) : isBash ? (
-            <code className={`inline-block max-w-full ${subTextClass} ${detailChipClass} ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
+            <code
+              className={`inline-block max-w-full ${subTextClass} ${detailChipClass} ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}
+            >
               <HighlightText>{detail}</HighlightText>
             </code>
           ) : (
-            <span className={`inline-block max-w-full ${subTextClass} ${detailChipClass} ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
+            <span
+              className={`inline-block max-w-full ${subTextClass} ${detailChipClass} ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}
+            >
               <HighlightText>{detail}</HighlightText>
             </span>
           )
@@ -277,39 +309,47 @@ export function ToolBlock({ item, compact = false }: ToolBlockProps): JSX.Elemen
 
       {/* result: full width */}
       {open ? (
-        <div className="col-span-2 min-w-0 mt-0.5 grid grid-cols-[16px_1fr] gap-x-1.5">
+        <div className="col-span-2 mt-0.5 grid min-w-0 grid-cols-[16px_1fr] gap-x-1.5">
           <div className="flex justify-center">
             {hideResultRail ? null : <div className="w-px bg-neutral-200" />}
           </div>
           <div className="min-w-0">
             {hasRich ? (
               <RichResult item={item} compact={compact} />
-            ) : hasResult ? (() => {
-              const lines = item.result!.split("\n");
-              const truncated = !showMore && lines.length > RESULT_LINE_LIMIT;
-              const displayed = truncated ? lines.slice(0, RESULT_LINE_LIMIT).join("\n") : item.result!;
-              return (
-                <div onClick={(e) => e.stopPropagation()}>
-                  <pre
-                    className={`mt-0.5 ${subTextClass} leading-relaxed whitespace-pre-wrap break-words font-mono ${
-                      isError ? "text-red-700" : "text-neutral-400"
-                    }`}
-                  >
-                    <HighlightText>{displayed}</HighlightText>
-                  </pre>
-                  {lines.length > RESULT_LINE_LIMIT ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowMore((v) => !v)}
-                      className={`mt-0.5 ${miniTextClass} text-neutral-400 hover:text-neutral-600 cursor-pointer transition-colors font-sans`}
+            ) : hasResult ? (
+              (() => {
+                const lines = item.result!.split("\n");
+                const truncated = !showMore && lines.length > RESULT_LINE_LIMIT;
+                const displayed = truncated
+                  ? lines.slice(0, RESULT_LINE_LIMIT).join("\n")
+                  : item.result!;
+                return (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <pre
+                      className={`mt-0.5 ${subTextClass} whitespace-pre-wrap break-words font-mono leading-relaxed ${
+                        isError ? "text-red-700" : "text-neutral-400"
+                      }`}
                     >
-                      {showMore ? "Show less" : `Show more (${lines.length - RESULT_LINE_LIMIT} lines)`}
-                    </button>
-                  ) : null}
-                </div>
-              );
-            })() : isEmptyResult ? (
-              <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-400`}>(no content)</div>
+                      <HighlightText>{displayed}</HighlightText>
+                    </pre>
+                    {lines.length > RESULT_LINE_LIMIT ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowMore((v) => !v)}
+                        className={`mt-0.5 ${miniTextClass} cursor-pointer font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
+                      >
+                        {showMore
+                          ? "Show less"
+                          : `Show more (${lines.length - RESULT_LINE_LIMIT} lines)`}
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })()
+            ) : isEmptyResult ? (
+              <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-400`}>
+                (no content)
+              </div>
             ) : null}
           </div>
         </div>

@@ -10,7 +10,14 @@ interface SearchBarProps {
   onClose: () => void;
 }
 
-export function SearchBar({ totalMatches, activeIndex, onQueryChange, onNext, onPrev, onClose }: SearchBarProps): JSX.Element {
+export function SearchBar({
+  totalMatches,
+  activeIndex,
+  onQueryChange,
+  onNext,
+  onPrev,
+  onClose,
+}: SearchBarProps): JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
 
@@ -46,9 +53,9 @@ export function SearchBar({ totalMatches, activeIndex, onQueryChange, onNext, on
   );
 
   return (
-    <div className="absolute top-2 right-4 sm:right-6 z-20">
-      <div className="flex items-center gap-1.5 bg-white border border-neutral-200 rounded-lg shadow-sm px-3 py-1.5">
-        <Search className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+    <div className="absolute right-4 top-2 z-20 sm:right-6">
+      <div className="flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 shadow-sm">
+        <Search className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
         <input
           ref={inputRef}
           type="text"
@@ -56,36 +63,36 @@ export function SearchBar({ totalMatches, activeIndex, onQueryChange, onNext, on
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder="Search..."
-          className="text-sm text-neutral-700 placeholder:text-neutral-300 outline-none bg-transparent w-48"
+          className="w-48 bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-300"
         />
         {value ? (
-          <span className="text-xs text-neutral-400 tabular-nums whitespace-nowrap">
+          <span className="whitespace-nowrap text-xs tabular-nums text-neutral-400">
             {totalMatches > 0 ? `${activeIndex + 1} / ${totalMatches}` : "0 / 0"}
           </span>
         ) : null}
-        <div className="flex items-center gap-0.5 ml-1">
+        <div className="ml-1 flex items-center gap-0.5">
           <button
             type="button"
             onClick={onPrev}
             disabled={totalMatches === 0}
-            className="p-0.5 text-neutral-400 hover:text-neutral-600 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+            className="cursor-pointer p-0.5 text-neutral-400 hover:text-neutral-600 disabled:cursor-default disabled:opacity-30"
           >
-            <ChevronUp className="w-3.5 h-3.5" />
+            <ChevronUp className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             onClick={onNext}
             disabled={totalMatches === 0}
-            className="p-0.5 text-neutral-400 hover:text-neutral-600 disabled:opacity-30 cursor-pointer disabled:cursor-default"
+            className="cursor-pointer p-0.5 text-neutral-400 hover:text-neutral-600 disabled:cursor-default disabled:opacity-30"
           >
-            <ChevronDown className="w-3.5 h-3.5" />
+            <ChevronDown className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="p-0.5 text-neutral-400 hover:text-neutral-600 cursor-pointer ml-0.5"
+            className="ml-0.5 cursor-pointer p-0.5 text-neutral-400 hover:text-neutral-600"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>

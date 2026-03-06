@@ -14,19 +14,19 @@ export function MainPanel(): JSX.Element {
   return (
     <main className="main-panel relative">
       {showToolbar ? (
-        <div className="flex items-center justify-between px-3 py-2 shrink-0">
+        <div className="flex shrink-0 items-center justify-between px-3 py-2">
           <div>
             {!sidebarOpen ? (
               <button
                 type="button"
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors cursor-pointer"
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
                 onClick={() => {
                   setSidebarOpen(true);
                 }}
                 title="Expand sidebar"
                 aria-label="Expand sidebar"
               >
-                <PanelLeftOpen className="w-4 h-4" />
+                <PanelLeftOpen className="h-4 w-4" />
               </button>
             ) : null}
           </div>
@@ -34,21 +34,21 @@ export function MainPanel(): JSX.Element {
             {activeSessionId !== "draft" ? (
               <button
                 type="button"
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors cursor-pointer"
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
                 onClick={() => {
                   void selectSession(activeSessionId);
                 }}
                 title="Refresh session"
                 aria-label="Refresh session"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className="h-4 w-4" />
               </button>
             ) : null}
           </div>
         </div>
       ) : null}
       {activeSessionId === "draft" ? (
-        <div className="flex-1 flex items-center justify-center text-neutral-400 text-[15px]">
+        <div className="flex flex-1 items-center justify-center text-[15px] text-neutral-400">
           New session draft (details area pending)
         </div>
       ) : (

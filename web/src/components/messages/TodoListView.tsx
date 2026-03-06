@@ -12,13 +12,21 @@ interface TodoListUIExtra {
 }
 
 export function isTodoListUIExtra(extra: unknown): extra is TodoListUIExtra {
-  return typeof extra === "object" && extra !== null && (extra as { type?: unknown }).type === "todo_list";
+  return (
+    typeof extra === "object" &&
+    extra !== null &&
+    (extra as { type?: unknown }).type === "todo_list"
+  );
 }
 
 const statusConfig = {
   pending: { mark: "\u25A2", markClass: "text-neutral-300", textClass: "text-neutral-500" },
   in_progress: { mark: "\u25C9", markClass: "text-amber-500", textClass: "text-neutral-700" },
-  completed: { mark: "\u2714", markClass: "text-emerald-500", textClass: "text-neutral-400 line-through" },
+  completed: {
+    mark: "\u2714",
+    markClass: "text-emerald-500",
+    textClass: "text-neutral-400 line-through",
+  },
 } as const;
 
 interface TodoListViewProps {
@@ -40,7 +48,7 @@ export function TodoListView({ uiExtra, compact = false }: TodoListViewProps): J
 
         return (
           <div key={i} className="flex items-start gap-2 leading-relaxed">
-            <span className={`w-4 text-center shrink-0 ${markClass}`}>{config.mark}</span>
+            <span className={`w-4 shrink-0 text-center ${markClass}`}>{config.mark}</span>
             <span className={textClass}>{todo.content}</span>
           </div>
         );

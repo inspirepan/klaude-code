@@ -9,13 +9,17 @@ import {
   unarchiveSession,
   type RunningSessionState,
 } from "../api/client";
-import { connectSessionWs, type SessionWsConnection, type WsErrorFrame, type WsEventEnvelope } from "../api/ws";
+import {
+  connectSessionWs,
+  type SessionWsConnection,
+  type WsErrorFrame,
+  type WsEventEnvelope,
+} from "../api/ws";
 import type {
   ActiveSessionId,
   SessionGroup,
   SessionRuntimeState,
   SessionSummary,
-  SessionWsState,
 } from "../types/session";
 import { useMessageStore } from "./message-store";
 
@@ -75,7 +79,9 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
         knownSessionIds.add(session.id);
       }
     }
-    const hasUnknownSessionId = Object.keys(states).some((sessionId) => !knownSessionIds.has(sessionId));
+    const hasUnknownSessionId = Object.keys(states).some(
+      (sessionId) => !knownSessionIds.has(sessionId),
+    );
     if (hasUnknownSessionId && !currentState.loading) {
       void currentState.refreshSessions();
     }
@@ -97,7 +103,10 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
           const shouldClearStaleRunning = prev.sessionState === "running" && apiState === "idle";
           if (!wsActive || shouldBackfillRunning || shouldClearStaleRunning) {
             if (prev.sessionState !== apiState) {
-              nextRuntime[session.id] = { ...prev, sessionState: apiState as SessionRuntimeState["sessionState"] };
+              nextRuntime[session.id] = {
+                ...prev,
+                sessionState: apiState as SessionRuntimeState["sessionState"],
+              };
               runtimeChanged = true;
             }
           }
@@ -106,7 +115,9 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
             const lastApi = running.user_messages[running.user_messages.length - 1];
             const lastLocal = session.user_messages[session.user_messages.length - 1];
             if (lastApi !== lastLocal) {
-              nextGroups = updateSessionInGroups(nextGroups, session.id, { user_messages: running.user_messages });
+              nextGroups = updateSessionInGroups(nextGroups, session.id, {
+                user_messages: running.user_messages,
+              });
               groupsChanged = true;
             }
           }
@@ -243,10 +254,18 @@ function handleWsError(errorFrame: WsErrorFrame, sessionId: string, set: SetStat
   }));
 }
 
-function handleWsEvent(eventEnvelope: WsEventEnvelope, get: () => SessionStoreState, set: SetState): void {
+function handleWsEvent(
+  eventEnvelope: WsEventEnvelope,
+  get: () => SessionStoreState,
+  set: SetState,
+): void {
   const targetSessionId = eventEnvelope.session_id;
   set((state) => ({
-    runtimeBySessionId: patchRuntimeByEvent(state.runtimeBySessionId, targetSessionId, eventEnvelope.event_type),
+    runtimeBySessionId: patchRuntimeByEvent(
+      state.runtimeBySessionId,
+      targetSessionId,
+      eventEnvelope.event_type,
+    ),
   }));
 
   const wsTimestamp = typeof eventEnvelope.timestamp === "number" ? eventEnvelope.timestamp : null;
@@ -355,7 +374,8 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
             const previous = state.runtimeBySessionId[session.id];
             const previousWsState = previous?.wsState;
             const shouldKeepPrevious =
-              previous !== undefined && (previousWsState === "connected" || previousWsState === "connecting");
+              previous !== undefined &&
+              (previousWsState === "connected" || previousWsState === "connecting");
             acc[session.id] = {
               sessionState: shouldKeepPrevious ? previous.sessionState : session.session_state,
               wsState: previous?.wsState ?? "idle",
@@ -391,7 +411,9 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
           ...group,
           sessions: group.sessions
             .map((session) =>
-              session.id === sessionId ? { ...session, archived, updated_at: Date.now() / 1000 } : session,
+              session.id === sessionId
+                ? { ...session, archived, updated_at: Date.now() / 1000 }
+                : session,
             )
             .sort((a, b) => b.updated_at - a.updated_at),
         }))
@@ -433,18 +455,17 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     const { session_id: sessionId } = await createSession(workDir);
     const fallbackWorkDir = workDir ?? "";
     const selectedSession = findSession(get().groups, sessionId);
-    const sessionSummary: SessionSummary =
-      selectedSession ?? {
-        id: sessionId,
-        created_at: nowSeconds,
-        updated_at: nowSeconds,
-        work_dir: fallbackWorkDir,
-        user_messages: firstMessage.trim().length > 0 ? [firstMessage] : [],
-        messages_count: 0,
-        model_name: null,
-        session_state: "idle",
-        archived: false,
-      };
+    const sessionSummary: SessionSummary = selectedSession ?? {
+      id: sessionId,
+      created_at: nowSeconds,
+      updated_at: nowSeconds,
+      work_dir: fallbackWorkDir,
+      user_messages: firstMessage.trim().length > 0 ? [firstMessage] : [],
+      messages_count: 0,
+      model_name: null,
+      session_state: "idle",
+      archived: false,
+    };
 
     set((state) => ({
       groups: upsertSessionIntoGroups(state.groups, sessionSummary),

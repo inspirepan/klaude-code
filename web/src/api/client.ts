@@ -30,7 +30,9 @@ export async function fetchSessionGroups(): Promise<SessionGroup[]> {
 }
 
 export async function fetchSessionHistory(sessionId: string): Promise<SessionHistoryResponse> {
-  return await requestJson<SessionHistoryResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/history`);
+  return await requestJson<SessionHistoryResponse>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/history`,
+  );
 }
 
 export interface RunningSessionState {
@@ -56,7 +58,8 @@ interface CreateSessionResponse {
 }
 
 export async function createSession(workDir?: string): Promise<CreateSessionResponse> {
-  const payload: CreateSessionRequest | undefined = workDir === undefined ? undefined : { work_dir: workDir };
+  const payload: CreateSessionRequest | undefined =
+    workDir === undefined ? undefined : { work_dir: workDir };
   return await requestJson<CreateSessionResponse>("/api/sessions", {
     method: "POST",
     body: payload ?? {},
@@ -68,18 +71,24 @@ interface ArchiveSessionResponse {
 }
 
 export async function archiveSession(sessionId: string): Promise<boolean> {
-  const result = await requestJson<ArchiveSessionResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/archive`, {
-    method: "POST",
-    body: {},
-  });
+  const result = await requestJson<ArchiveSessionResponse>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/archive`,
+    {
+      method: "POST",
+      body: {},
+    },
+  );
   return result.ok;
 }
 
 export async function unarchiveSession(sessionId: string): Promise<boolean> {
-  const result = await requestJson<ArchiveSessionResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/unarchive`, {
-    method: "POST",
-    body: {},
-  });
+  const result = await requestJson<ArchiveSessionResponse>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/unarchive`,
+    {
+      method: "POST",
+      body: {},
+    },
+  );
   return result.ok;
 }
 

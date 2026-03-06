@@ -34,7 +34,9 @@ function isErrorFrame(payload: unknown): payload is WsErrorFrame {
     return false;
   }
   const record = payload as Record<string, unknown>;
-  return record.type === "error" && typeof record.code === "string" && typeof record.message === "string";
+  return (
+    record.type === "error" && typeof record.code === "string" && typeof record.message === "string"
+  );
 }
 
 function isEventEnvelope(payload: unknown): payload is WsEventEnvelope {
@@ -45,7 +47,10 @@ function isEventEnvelope(payload: unknown): payload is WsEventEnvelope {
   return typeof record.event_type === "string" && typeof record.session_id === "string";
 }
 
-export function connectSessionWs(sessionId: string, handlers: SessionWsHandlers): SessionWsConnection {
+export function connectSessionWs(
+  sessionId: string,
+  handlers: SessionWsHandlers,
+): SessionWsConnection {
   const wsUrl = `${resolveWsBaseUrl()}/api/sessions/${encodeURIComponent(sessionId)}/ws`;
   const socket = new WebSocket(wsUrl);
 

@@ -1,4 +1,10 @@
-import { Children, isValidElement, type ComponentPropsWithoutRef, type ReactElement, type ReactNode } from "react";
+import {
+  Children,
+  isValidElement,
+  type ComponentPropsWithoutRef,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 import { CheckCircle2, Circle } from "lucide-react";
@@ -12,7 +18,9 @@ interface CompactionSummaryProps {
 
 const plugins = { code, mermaid };
 
-function isTaskCheckboxNode(node: ReactNode): node is ReactElement<{ type?: string; checked?: boolean }> {
+function isTaskCheckboxNode(
+  node: ReactNode,
+): node is ReactElement<{ type?: string; checked?: boolean }> {
   return isValidElement(node) && node.type === "input" && node.props.type === "checkbox";
 }
 
@@ -35,7 +43,7 @@ function CompactionListItem(props: ComponentPropsWithoutRef<"li">): JSX.Element 
   return (
     <li {...rest} className={["compaction-task-item", className].filter(Boolean).join(" ")}>
       <span className={`compaction-task-icon ${checked ? "is-checked" : ""}`} aria-hidden>
-        {checked ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+        {checked ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
       </span>
       <span className={`compaction-task-text ${checked ? "is-checked" : ""}`}>{contentNodes}</span>
     </li>
