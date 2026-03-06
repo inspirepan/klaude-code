@@ -11,6 +11,8 @@ from klaude_code.core.bash_mode import run_bash_command
 from klaude_code.protocol import events
 from klaude_code.session.session import Session
 
+pytestmark = pytest.mark.usefixtures("isolated_home")
+
 
 def arun(coro: Any) -> Any:
     return asyncio.run(coro)

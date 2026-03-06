@@ -10,6 +10,8 @@ from klaude_code.protocol import message
 from klaude_code.session.session import Session
 from klaude_code.tui.command import logout_cmd
 
+pytestmark = pytest.mark.usefixtures("isolated_home")
+
 
 class _DummyAgent:
     def __init__(self, session: Session):
