@@ -118,7 +118,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
 
   return (
     <>
-      <div className="rounded-xl border border-neutral-200/60 bg-neutral-100 px-4 py-3">
+      <div className="rounded-lg border border-neutral-200/80 bg-neutral-50 px-3.5 py-2.5 transition-colors hover:bg-neutral-100 hover:border-neutral-300/60">
         {renderImages()}
         {hasText ? (
           <div>
@@ -155,7 +155,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
               aria-modal="true"
             >
               <div
-                className="w-full max-w-3xl overflow-hidden rounded-xl border border-neutral-200/70 bg-neutral-100 shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+                className="w-full max-w-3xl overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-2xl"
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="max-h-[calc(100vh-8rem)] overflow-y-auto px-4 py-3">
