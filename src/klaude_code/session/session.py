@@ -10,7 +10,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
-from klaude_code.const import ProjectPaths, project_key_from_cwd
+from klaude_code.const import ProjectPaths, project_key_from_path
 from klaude_code.protocol import events, llm_param, message, model, tools
 from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
 
@@ -36,13 +36,18 @@ def _read_json_dict(path: Path) -> dict[str, Any] | None:
     return cast(dict[str, Any], raw)
 
 
-def get_default_store() -> JsonlSessionStore:
-    project_key = project_key_from_cwd()
+def get_store_for_path(work_dir: Path) -> JsonlSessionStore:
+    """Return a session store for the given work directory."""
+    project_key = project_key_from_path(work_dir)
     store = _DEFAULT_STORES.get(project_key)
     if store is None:
         store = JsonlSessionStore(project_key=project_key)
         _DEFAULT_STORES[project_key] = store
     return store
+
+
+def get_default_store() -> JsonlSessionStore:
+    return get_store_for_path(Path.cwd())
 
 
 async def close_default_store() -> None:
@@ -60,6 +65,8 @@ class Session(BaseModel):
     file_tracker: dict[str, model.FileStatus] = Field(default_factory=dict)
     todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     model_name: str | None = None
+    session_state: model.SessionRuntimeState | None = None
+    archived: bool = False
 
     next_checkpoint_id: int = 0
 
@@ -72,7 +79,10 @@ class Session(BaseModel):
 
     _messages_count_cache: int | None = PrivateAttr(default=None)
     _user_messages_cache: list[str] | None = PrivateAttr(default=None)
-    _store: JsonlSessionStore = PrivateAttr(default_factory=get_default_store)
+    _store: JsonlSessionStore = PrivateAttr(default=None)  # type: ignore[assignment]  # set in model_post_init
+
+    def model_post_init(self, __context: Any) -> None:
+        self._store = get_store_for_path(self.work_dir)
 
     @property
     def messages_count(self) -> int:
@@ -105,34 +115,30 @@ class Session(BaseModel):
         return self._user_messages_cache
 
     @classmethod
-    def paths(cls) -> ProjectPaths:
-        return get_default_store().paths
+    def paths(cls, work_dir: Path) -> ProjectPaths:
+        return get_store_for_path(work_dir).paths
 
     @classmethod
-    def exists(cls, id: str) -> bool:
-        """Return True if a persisted session exists for the current project."""
+    def exists(cls, id: str, work_dir: Path) -> bool:
+        """Return True if a persisted session exists for the given project."""
 
-        paths = cls.paths()
+        paths = cls.paths(work_dir)
         return paths.meta_file(id).exists() or paths.events_file(id).exists()
 
     @classmethod
-    def create(cls, id: str | None = None, *, work_dir: Path | None = None) -> Session:
-        session = Session(id=id or uuid.uuid4().hex, work_dir=work_dir or Path.cwd())
-        session._store = get_default_store()
-        return session
+    def create(cls, id: str | None = None, *, work_dir: Path) -> Session:
+        return Session(id=id or uuid.uuid4().hex, work_dir=work_dir)
 
     @classmethod
-    def load_meta(cls, id: str) -> Session:
-        store = get_default_store()
+    def load_meta(cls, id: str, work_dir: Path) -> Session:
+        store = get_store_for_path(work_dir)
         raw = store.load_meta(id)
         if raw is None:
-            session = Session(id=id, work_dir=Path.cwd())
-            session._store = store
-            return session
+            return Session(id=id, work_dir=work_dir)
 
         work_dir_str = raw.get("work_dir")
         if not isinstance(work_dir_str, str) or not work_dir_str:
-            work_dir_str = str(Path.cwd())
+            work_dir_str = str(work_dir)
 
         sub_agent_state_raw = raw.get("sub_agent_state")
         sub_agent_state = (
@@ -163,7 +169,14 @@ class Session(BaseModel):
         created_at = float(raw.get("created_at", time.time()))
         updated_at = float(raw.get("updated_at", created_at))
         model_name = raw.get("model_name") if isinstance(raw.get("model_name"), str) else None
+        session_state_raw = raw.get("session_state")
+        try:
+            session_state = model.SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
+        except ValueError:
+            session_state = None
         model_config_name = raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None
+        archived_raw = raw.get("archived")
+        archived = archived_raw if isinstance(archived_raw, bool) else False
 
         next_checkpoint_id = int(raw.get("next_checkpoint_id", 0))
 
@@ -172,7 +185,7 @@ class Session(BaseModel):
             llm_param.Thinking.model_validate(model_thinking_raw) if isinstance(model_thinking_raw, dict) else None
         )
 
-        session = Session(
+        return Session(
             id=id,
             work_dir=Path(work_dir_str),
             sub_agent_state=sub_agent_state,
@@ -181,20 +194,25 @@ class Session(BaseModel):
             created_at=created_at,
             updated_at=updated_at,
             model_name=model_name,
+            session_state=session_state,
+            archived=archived,
             model_config_name=model_config_name,
             model_thinking=model_thinking,
             next_checkpoint_id=next_checkpoint_id,
         )
-        session._store = store
+
+    @classmethod
+    def load(cls, id: str, work_dir: Path) -> Session:
+        session = cls.load_meta(id, work_dir)
+        session.conversation_history = session._store.load_history(id)
         return session
 
     @classmethod
-    def load(cls, id: str) -> Session:
-        store = get_default_store()
-        session = cls.load_meta(id)
-        session._store = store
-        session.conversation_history = store.load_history(id)
-        return session
+    def persist_runtime_state(cls, session_id: str, session_state: model.SessionRuntimeState, work_dir: Path) -> None:
+        store = get_store_for_path(work_dir)
+        # Runtime state transitions should not affect session recency ordering.
+        # Only content writes (append_history) update `updated_at`.
+        store.update_meta(session_id, {"session_state": session_state.value})
 
     def append_history(self, items: Sequence[message.HistoryEvent]) -> None:
         if not items:
@@ -234,6 +252,8 @@ class Session(BaseModel):
             updated_at=self.updated_at,
             messages_count=self.messages_count,
             model_name=self.model_name,
+            session_state=self.session_state,
+            archived=self.archived,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
             next_checkpoint_id=self.next_checkpoint_id,
@@ -359,7 +379,7 @@ class Session(BaseModel):
                          If -1, copy all history.
         """
 
-        forked = Session.create(id=new_id, work_dir=self.work_dir)
+        forked = Session(id=new_id or uuid.uuid4().hex, work_dir=self.work_dir)
 
         forked.sub_agent_state = None
         forked.model_name = self.model_name
@@ -384,8 +404,8 @@ class Session(BaseModel):
         await self._store.wait_for_flush(self.id)
 
     @classmethod
-    def most_recent_session_id(cls) -> str | None:
-        store = get_default_store()
+    def most_recent_session_id(cls, work_dir: Path) -> str | None:
+        store = get_store_for_path(work_dir)
         latest_id: str | None = None
         latest_ts: float = -1.0
         for meta_path in store.iter_meta_files():
@@ -393,6 +413,8 @@ class Session(BaseModel):
             if data is None:
                 continue
             if data.get("sub_agent_state") is not None:
+                continue
+            if data.get("archived") is True:
                 continue
             sid = str(data.get("id", meta_path.parent.name))
             try:
@@ -431,13 +453,18 @@ class Session(BaseModel):
         history = self.conversation_history
         history_len = len(history)
         yield events.TaskStartEvent(session_id=self.id, sub_agent_state=self.sub_agent_state)
+        msg_ts: float = 0.0
         for idx, it in enumerate(history):
+            # Track the original message creation time
+            if hasattr(it, "created_at"):
+                msg_ts = it.created_at.timestamp()
+
             # Flush pending tool calls if current item won't consume them
             if pending_tool_calls and not isinstance(it, message.ToolResultMessage):
                 yield from pending_tool_calls.values()
                 pending_tool_calls.clear()
             if self.need_turn_start(prev_item, it):
-                yield events.TurnStartEvent(session_id=self.id)
+                yield events.TurnStartEvent(session_id=self.id, timestamp=msg_ts)
             match it:
                 case message.AssistantMessage() as am:
                     last_assistant_content = message.join_text_parts(am.parts)
@@ -452,21 +479,27 @@ class Session(BaseModel):
                         if isinstance(part, message.ThinkingTextPart):
                             if assistant_open:
                                 assistant_open = False
-                                yield events.AssistantTextEndEvent(response_id=am.response_id, session_id=self.id)
+                                yield events.AssistantTextEndEvent(
+                                    response_id=am.response_id, session_id=self.id, timestamp=msg_ts
+                                )
                             if not thinking_open:
                                 thinking_open = True
-                                yield events.ThinkingStartEvent(response_id=am.response_id, session_id=self.id)
+                                yield events.ThinkingStartEvent(
+                                    response_id=am.response_id, session_id=self.id, timestamp=msg_ts
+                                )
                             if part.text:
                                 if thinking_had_content:
                                     yield events.ThinkingDeltaEvent(
                                         content="  \n  \n",
                                         response_id=am.response_id,
                                         session_id=self.id,
+                                        timestamp=msg_ts,
                                     )
                                 yield events.ThinkingDeltaEvent(
                                     content=part.text,
                                     response_id=am.response_id,
                                     session_id=self.id,
+                                    timestamp=msg_ts,
                                 )
                                 thinking_had_content = True
                             continue
@@ -474,23 +507,30 @@ class Session(BaseModel):
                         if thinking_open:
                             thinking_open = False
                             thinking_had_content = False
-                            yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id)
+                            yield events.ThinkingEndEvent(
+                                response_id=am.response_id, session_id=self.id, timestamp=msg_ts
+                            )
 
                         if isinstance(part, message.TextPart):
                             if not assistant_open:
                                 assistant_open = True
-                                yield events.AssistantTextStartEvent(response_id=am.response_id, session_id=self.id)
+                                yield events.AssistantTextStartEvent(
+                                    response_id=am.response_id, session_id=self.id, timestamp=msg_ts
+                                )
                             if part.text:
                                 yield events.AssistantTextDeltaEvent(
                                     content=part.text,
                                     response_id=am.response_id,
                                     session_id=self.id,
+                                    timestamp=msg_ts,
                                 )
 
                     if thinking_open:
-                        yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id)
+                        yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
                     if assistant_open:
-                        yield events.AssistantTextEndEvent(response_id=am.response_id, session_id=self.id)
+                        yield events.AssistantTextEndEvent(
+                            response_id=am.response_id, session_id=self.id, timestamp=msg_ts
+                        )
 
                     for part in am.parts:
                         if not isinstance(part, message.ToolCallPart):
@@ -503,14 +543,16 @@ class Session(BaseModel):
                             arguments=part.arguments_json,
                             response_id=am.response_id,
                             session_id=self.id,
+                            timestamp=msg_ts,
                         )
                     if am.stop_reason == "aborted":
-                        yield events.InterruptEvent(session_id=self.id)
+                        yield events.InterruptEvent(session_id=self.id, timestamp=msg_ts)
                     if am.usage is not None:
                         yield events.UsageEvent(
                             session_id=self.id,
                             usage=am.usage,
                             response_id=am.response_id,
+                            timestamp=msg_ts,
                         )
                 case message.ToolResultMessage() as tr:
                     if tr.call_id in pending_tool_calls:
@@ -528,6 +570,7 @@ class Session(BaseModel):
                         status=status,
                         task_metadata=tr.task_metadata,
                         is_last_in_turn=is_last_in_turn,
+                        timestamp=msg_ts,
                     )
                     yield from self._iter_sub_agent_history(tr, seen_sub_agent_sessions)
                 case message.UserMessage() as um:
@@ -538,16 +581,19 @@ class Session(BaseModel):
                         content=message.join_text_parts(um.parts),
                         session_id=self.id,
                         images=images or None,
+                        timestamp=msg_ts,
                     )
                 case model.TaskMetadataItem() as mt:
                     if self.sub_agent_state is None:
-                        yield events.TaskMetadataEvent(session_id=self.id, metadata=mt)
+                        yield events.TaskMetadataEvent(session_id=self.id, metadata=mt, timestamp=msg_ts)
                 case message.DeveloperMessage() as dm:
-                    yield events.DeveloperMessageEvent(session_id=self.id, item=dm)
+                    yield events.DeveloperMessageEvent(session_id=self.id, item=dm, timestamp=msg_ts)
                 case message.StreamErrorItem() as se:
-                    yield events.ErrorEvent(error_message=se.error, can_retry=False, session_id=self.id)
+                    yield events.ErrorEvent(
+                        error_message=se.error, can_retry=False, session_id=self.id, timestamp=msg_ts
+                    )
                 case message.InterruptEntry():
-                    yield events.InterruptEvent(session_id=self.id)
+                    yield events.InterruptEvent(session_id=self.id, timestamp=msg_ts)
                 case message.RewindEntry() as be:
                     yield events.RewindEvent(
                         session_id=self.id,
@@ -556,9 +602,10 @@ class Session(BaseModel):
                         rationale=be.rationale,
                         original_user_message=be.original_user_message,
                         messages_discarded=None,
+                        timestamp=msg_ts,
                     )
                 case message.CompactionEntry() as ce:
-                    yield events.CompactionStartEvent(session_id=self.id, reason="threshold")
+                    yield events.CompactionStartEvent(session_id=self.id, reason="threshold", timestamp=msg_ts)
                     yield events.CompactionEndEvent(
                         session_id=self.id,
                         reason="threshold",
@@ -568,6 +615,7 @@ class Session(BaseModel):
                         kept_from_index=ce.first_kept_index,
                         summary=ce.summary,
                         kept_items_brief=ce.kept_items_brief,
+                        timestamp=msg_ts,
                     )
                 case message.CacheHitRateEntry() as cr:
                     yield events.CacheHitRateEvent(
@@ -575,6 +623,7 @@ class Session(BaseModel):
                         cache_hit_rate=cr.cache_hit_rate,
                         cached_tokens=cr.cached_tokens,
                         prev_turn_input_tokens=cr.prev_turn_input_tokens,
+                        timestamp=msg_ts,
                     )
                 case message.SystemMessage():
                     pass
@@ -596,7 +645,10 @@ class Session(BaseModel):
                 task_result = f"{trimmed}\n\n{footer}" if trimmed.strip() else footer
 
         yield events.TaskFinishEvent(
-            session_id=self.id, task_result=task_result or "", has_structured_output=has_structured_output
+            session_id=self.id,
+            task_result=task_result or "",
+            has_structured_output=has_structured_output,
+            timestamp=msg_ts,
         )
 
     def _iter_sub_agent_history(
@@ -612,7 +664,7 @@ class Session(BaseModel):
             return
         seen_sub_agent_sessions.add(session_id)
         try:
-            sub_session = Session.load(session_id)
+            sub_session = Session.load(session_id, work_dir=self.work_dir)
         except (OSError, json.JSONDecodeError, ValueError):
             return
         yield from sub_session.get_history_item()
@@ -626,10 +678,12 @@ class Session(BaseModel):
         user_messages: list[str] = []
         messages_count: int = -1
         model_name: str | None = None
+        session_state: model.SessionRuntimeState | None = None
+        archived: bool = False
 
     @classmethod
-    def list_sessions(cls) -> list[SessionMetaBrief]:
-        store = get_default_store()
+    def list_sessions(cls, work_dir: Path) -> list[SessionMetaBrief]:
+        store = get_store_for_path(work_dir)
 
         def _get_user_messages(session_id: str) -> list[str]:
             events_path = store.paths.events_file(session_id)
@@ -681,7 +735,7 @@ class Session(BaseModel):
             sid = str(data.get("id", meta_path.parent.name))
             created = float(data.get("created_at", meta_path.stat().st_mtime))
             updated = float(data.get("updated_at", meta_path.stat().st_mtime))
-            work_dir = str(data.get("work_dir", ""))
+            session_work_dir = str(data.get("work_dir", ""))
 
             user_messages_raw = data.get("user_messages")
             if isinstance(user_messages_raw, list) and all(
@@ -693,17 +747,28 @@ class Session(BaseModel):
                 _maybe_backfill_user_messages(meta_path=meta_path, meta=data, user_messages=user_messages)
             messages_count = int(data.get("messages_count", -1))
             model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
+            session_state_raw = data.get("session_state")
+            try:
+                session_state = (
+                    model.SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
+                )
+            except ValueError:
+                session_state = None
+            archived_raw = data.get("archived")
+            archived = archived_raw if isinstance(archived_raw, bool) else False
 
             items.append(
                 Session.SessionMetaBrief(
                     id=sid,
                     created_at=created,
                     updated_at=updated,
-                    work_dir=work_dir,
+                    work_dir=session_work_dir,
                     path=str(meta_path),
                     user_messages=user_messages,
                     messages_count=messages_count,
                     model_name=model_name,
+                    session_state=session_state,
+                    archived=archived,
                 )
             )
 
@@ -711,11 +776,12 @@ class Session(BaseModel):
         return items
 
     @classmethod
-    def resolve_sub_agent_session_id(cls, resume: str) -> str:
+    def resolve_sub_agent_session_id(cls, resume: str, work_dir: Path) -> str:
         """Resolve a sub-agent session id from an id prefix.
 
         Args:
             resume: Full session id or a unique prefix.
+            work_dir: Project working directory.
 
         Returns:
             The resolved full session id.
@@ -728,7 +794,7 @@ class Session(BaseModel):
         if not prefix:
             raise ValueError("resume cannot be empty")
 
-        store = get_default_store()
+        store = get_store_for_path(work_dir)
         matches: set[str] = set()
 
         for meta_path in store.iter_meta_files():
@@ -754,11 +820,12 @@ class Session(BaseModel):
         return resolved[0]
 
     @classmethod
-    def find_sessions_by_prefix(cls, prefix: str) -> list[str]:
+    def find_sessions_by_prefix(cls, prefix: str, work_dir: Path) -> list[str]:
         """Find main session IDs matching a prefix.
 
         Args:
             prefix: Session ID prefix to match.
+            work_dir: Project working directory.
 
         Returns:
             List of matching session IDs, sorted alphabetically.
@@ -767,7 +834,7 @@ class Session(BaseModel):
         if not prefix:
             return []
 
-        store = get_default_store()
+        store = get_store_for_path(work_dir)
         matches: set[str] = set()
 
         for meta_path in store.iter_meta_files():
@@ -784,17 +851,18 @@ class Session(BaseModel):
         return sorted(matches)
 
     @classmethod
-    def shortest_unique_prefix(cls, session_id: str, min_length: int = 4) -> str:
+    def shortest_unique_prefix(cls, session_id: str, work_dir: Path, min_length: int = 4) -> str:
         """Find the shortest unique prefix for a session ID.
 
         Args:
             session_id: The session ID to find prefix for.
+            work_dir: Project working directory.
             min_length: Minimum prefix length (default 4).
 
         Returns:
             The shortest prefix that uniquely identifies this session.
         """
-        store = get_default_store()
+        store = get_store_for_path(work_dir)
         other_ids: list[str] = []
 
         for meta_path in store.iter_meta_files():
@@ -816,5 +884,5 @@ class Session(BaseModel):
         return session_id
 
     @classmethod
-    def exports_dir(cls) -> Path:
-        return get_default_store().paths.exports_dir
+    def exports_dir(cls, work_dir: Path) -> Path:
+        return get_store_for_path(work_dir).paths.exports_dir

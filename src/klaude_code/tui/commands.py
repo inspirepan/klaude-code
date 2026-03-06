@@ -39,8 +39,8 @@ class RenderNotice(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
-class RenderSessionStatus(RenderCommand):
-    event: events.SessionStatusEvent
+class RenderSessionStats(RenderCommand):
+    event: events.SessionStatsEvent
 
 
 @dataclass(frozen=True, slots=True)

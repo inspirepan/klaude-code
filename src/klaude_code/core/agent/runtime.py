@@ -30,7 +30,7 @@ from klaude_code.core.loaded_skills import (
     get_loaded_skill_warnings_by_location,
 )
 from klaude_code.core.memory import get_existing_memory_paths_by_location
-from klaude_code.core.session_status import build_session_status_ui_extra
+from klaude_code.core.session_stats import build_session_stats_ui_extra
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
@@ -160,7 +160,7 @@ class SubAgentExecutor:
 
         if resume_session_id:
             try:
-                child_session = Session.load(resume_session_id)
+                child_session = Session.load(resume_session_id, work_dir=parent_session.work_dir)
             except (OSError, ValueError, json.JSONDecodeError) as exc:
                 return SubAgentResult(
                     task_result=f"Failed to resume sub-agent session '{resume_session_id}': {exc}",
@@ -203,6 +203,7 @@ class SubAgentExecutor:
             clients.get_client(state.sub_agent_type),
             state.sub_agent_type,
             output_schema=state.output_schema,
+            work_dir=parent_session.work_dir,
         )
 
         child_agent = Agent(session=child_session, profile=child_profile)
@@ -543,8 +544,12 @@ class AgentOperationHandler:
             return None
         return runtime.get_agent()
 
-    async def ensure_agent(self, session_id: str | None = None) -> Agent:
-        """Return the agent for a session, creating or loading as needed."""
+    async def ensure_agent(self, session_id: str | None = None, *, work_dir: Path | None = None) -> Agent:
+        """Return the agent for a session, creating or loading as needed.
+
+        work_dir is required when the session needs to be created or loaded from disk.
+        It can be omitted when the agent is already initialized in memory.
+        """
 
         if session_id is not None:
             runtime = self._get_session_actor(session_id)
@@ -553,7 +558,15 @@ class AgentOperationHandler:
                 if existing is not None:
                     return existing
 
-        session = Session.create() if session_id is None else Session.load(session_id)
+        if work_dir is None:
+            raise ValueError(
+                "work_dir is required to create or load a session; "
+                "the agent must be initialized via InitAgentOperation first"
+            )
+
+        session = (
+            Session.create(work_dir=work_dir) if session_id is None else Session.load(session_id, work_dir=work_dir)
+        )
 
         runtime = self._ensure_session_actor(session.id)
         existing = runtime.get_agent()
@@ -562,7 +575,7 @@ class AgentOperationHandler:
 
         session_clients = self._ensure_session_llm_clients(session)
 
-        profile = self._model_profile_provider.build_profile(session_clients.main)
+        profile = self._model_profile_provider.build_profile(session_clients.main, work_dir=session.work_dir)
         agent = Agent(
             session=session,
             profile=profile,
@@ -593,8 +606,8 @@ class AgentOperationHandler:
         )
         return agent
 
-    async def init_agent(self, session_id: str) -> None:
-        agent = await self.ensure_agent(session_id)
+    async def init_agent(self, session_id: str, *, work_dir: Path) -> None:
+        agent = await self.ensure_agent(session_id, work_dir=work_dir)
         self._primary_session_id = agent.session.id
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
@@ -746,7 +759,7 @@ class AgentOperationHandler:
 
         new_agent = Agent(
             session=new_session,
-            profile=self._model_profile_provider.build_profile(session_clients.main),
+            profile=self._model_profile_provider.build_profile(session_clients.main, work_dir=new_session.work_dir),
             compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
         )
@@ -796,6 +809,19 @@ class AgentOperationHandler:
 
         for _task_id, task in tasks_to_cancel:
             task.cancel()
+        pending_tasks = [task for _task_id, task in tasks_to_cancel if not task.done()]
+        if not pending_tasks:
+            return
+        try:
+            _ = await asyncio.wait_for(
+                asyncio.gather(*pending_tasks, return_exceptions=True),
+                timeout=2.0,
+            )
+        except TimeoutError:
+            log_debug(
+                f"Interrupt timeout while waiting task cancellation for: {scope}",
+                debug_type=DebugType.EXECUTION,
+            )
 
     async def _run_agent_task(
         self,
@@ -965,7 +991,7 @@ class ModelSwitcher:
         config = load_config()
         llm_config = config.get_model_config(model_name)
         llm_client = create_llm_client(llm_config)
-        agent.set_model_profile(self._model_profile_provider.build_profile(llm_client))
+        agent.set_model_profile(self._model_profile_provider.build_profile(llm_client, work_dir=agent.session.work_dir))
 
         agent.session.model_config_name = model_name
         agent.session.model_thinking = llm_config.thinking
@@ -1017,8 +1043,8 @@ class AgentRunner:
     def current_agent(self) -> Agent | None:
         return self._operation_handler.current_agent
 
-    async def init_agent(self, session_id: str) -> None:
-        await self._operation_handler.init_agent(session_id)
+    async def init_agent(self, session_id: str, *, work_dir: Path) -> None:
+        await self._operation_handler.init_agent(session_id, work_dir=work_dir)
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._operation_handler.run_agent(operation)
@@ -1035,8 +1061,8 @@ class AgentRunner:
     async def interrupt(self, session_id: str) -> None:
         await self._operation_handler.interrupt(session_id)
 
-    async def ensure_agent(self, session_id: str) -> Agent:
-        return await self._operation_handler.ensure_agent(session_id)
+    async def ensure_agent(self, session_id: str, *, work_dir: Path | None = None) -> Agent:
+        return await self._operation_handler.ensure_agent(session_id, work_dir=work_dir)
 
     def get_session_llm_clients(self, session_id: str) -> LLMClients:
         return self._operation_handler.get_session_llm_clients(session_id)
@@ -1524,12 +1550,12 @@ class ConfigHandler:
             runner=_runner,
         )
 
-    async def handle_get_session_status(self, operation: op.GetSessionStatusOperation) -> None:
+    async def handle_get_session_stats(self, operation: op.GetSessionStatsOperation) -> None:
         agent = await self._agent_runner.ensure_agent(operation.session_id)
         await self._emit_event(
-            events.SessionStatusEvent(
+            events.SessionStatsEvent(
                 session_id=agent.session.id,
-                status=build_session_status_ui_extra(agent.session),
+                stats=build_session_stats_ui_extra(agent.session),
             )
         )
 
@@ -1681,7 +1707,7 @@ class OperationDispatcher:
 
     async def handle_init_agent(self, operation: op.InitAgentOperation) -> None:
         """Initialize an agent for a session and replay history to UI."""
-        await self._agent_runner.init_agent(operation.session_id)
+        await self._agent_runner.init_agent(operation.session_id, work_dir=operation.work_dir)
 
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._agent_runner.run_agent(operation)
@@ -1716,8 +1742,8 @@ class OperationDispatcher:
     async def handle_request_sub_agent_model(self, operation: op.RequestSubAgentModelOperation) -> None:
         await self._config_handler.handle_request_sub_agent_model(operation)
 
-    async def handle_get_session_status(self, operation: op.GetSessionStatusOperation) -> None:
-        await self._config_handler.handle_get_session_status(operation)
+    async def handle_get_session_stats(self, operation: op.GetSessionStatsOperation) -> None:
+        await self._config_handler.handle_get_session_stats(operation)
 
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
         await self._agent_runner.clear_session(operation.session_id)

@@ -17,9 +17,11 @@ def set_terminal_title(title: str) -> None:
         stream.flush()
 
 
-def update_terminal_title(model_name: str | None = None, *, prefix: str | None = None) -> None:
+def update_terminal_title(
+    model_name: str | None = None, *, prefix: str | None = None, work_dir: str | None = None
+) -> None:
     """Update terminal title with folder name and optional model name."""
-    folder_name = os.path.basename(os.getcwd())
+    folder_name = os.path.basename(work_dir or os.getcwd())
     if model_name:
         model_alias = model_name.split("@")[0]
         title = f"klaude [{model_alias}] · {folder_name}"

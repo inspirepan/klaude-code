@@ -2,7 +2,7 @@
 """Property-based tests for session codec module."""
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -120,3 +120,32 @@ def test_codec_jsonl_roundtrip(item: "message.HistoryEvent") -> None:
     assert decoded is not None
     assert type(decoded) is type(item)
     assert decoded.model_dump(exclude={"created_at"}) == item.model_dump(exclude={"created_at"})
+
+
+def test_decode_conversation_item_unknown_tool_ui_extra_falls_back_to_none() -> None:
+    from klaude_code.protocol import message
+    from klaude_code.session.codec import decode_conversation_item
+
+    obj: dict[str, Any] = {
+        "type": "ToolResultMessage",
+        "data": {
+            "role": "tool",
+            "call_id": "call_123",
+            "tool_name": "render_mermaid",
+            "status": "success",
+            "output_text": "rendered",
+            "parts": [],
+            "ui_extra": {
+                "type": "mermaid_link",
+                "file_path": "/tmp/diagram.png",
+                "line_count": 70,
+            },
+        },
+    }
+
+    decoded = decode_conversation_item(obj)
+
+    assert isinstance(decoded, message.ToolResultMessage)
+    assert decoded.ui_extra is None
+    assert decoded.call_id == "call_123"
+    assert decoded.tool_name == "render_mermaid"

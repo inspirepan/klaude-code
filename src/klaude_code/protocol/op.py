@@ -8,6 +8,7 @@ that the executor uses to handle different types of requests.
 from __future__ import annotations
 
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 from uuid import uuid4
 
@@ -35,7 +36,7 @@ class OperationType(Enum):
     REQUEST_MODEL = "request_model"
     REQUEST_THINKING = "request_thinking"
     REQUEST_SUB_AGENT_MODEL = "request_sub_agent_model"
-    GET_SESSION_STATUS = "get_session_status"
+    GET_SESSION_STATS = "get_session_stats"
     CLEAR_SESSION = "clear_session"
     EXPORT_SESSION = "export_session"
     INTERRUPT = "interrupt"
@@ -204,14 +205,14 @@ class RequestSubAgentModelOperation(Operation):
         await handler.handle_request_sub_agent_model(self)
 
 
-class GetSessionStatusOperation(Operation):
-    """Operation for querying current session status summary."""
+class GetSessionStatsOperation(Operation):
+    """Operation for querying current session stats summary."""
 
-    type: OperationType = OperationType.GET_SESSION_STATUS
+    type: OperationType = OperationType.GET_SESSION_STATS
     session_id: str
 
     async def execute(self, handler: OperationHandler) -> None:
-        await handler.handle_get_session_status(self)
+        await handler.handle_get_session_stats(self)
 
 
 class ClearSessionOperation(Operation):
@@ -272,12 +273,13 @@ class UserInteractionRespondOperation(Operation):
 class InitAgentOperation(Operation):
     """Operation for initializing an agent and replaying history if any.
 
-    The caller must always provide session_id.
+    The caller must always provide session_id and work_dir.
     If the target session does not exist yet, a new session will be initialized.
     """
 
     type: OperationType = OperationType.INIT_AGENT
     session_id: str
+    work_dir: Path
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_init_agent(self)

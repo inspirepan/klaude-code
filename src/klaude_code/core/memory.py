@@ -9,7 +9,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code.const import ProjectPaths, project_key_from_cwd
+from klaude_code.const import ProjectPaths, project_key_from_path
 
 MEMORY_FILE_NAMES = ["AGENTS.md", "CLAUDE.md", "AGENT.md"]
 
@@ -70,7 +70,7 @@ def get_existing_memory_paths_by_location(*, work_dir: Path) -> dict[str, list[s
     """Return existing memory file paths grouped by location for WelcomeEvent."""
     result = get_existing_memory_files(work_dir=work_dir)
 
-    paths = ProjectPaths(project_key=project_key_from_cwd())
+    paths = ProjectPaths(project_key=project_key_from_path(work_dir))
     auto_memory_path = paths.memory_dir / AUTO_MEMORY_FILE
     if auto_memory_path.exists() and auto_memory_path.is_file():
         result.setdefault("project", []).append(str(auto_memory_path))
@@ -167,19 +167,19 @@ def discover_memory_files_near_paths(
     return memories
 
 
-def get_auto_memory_path() -> Path:
+def get_auto_memory_path(work_dir: Path) -> Path:
     """Return the path to the per-project MEMORY.md (may not exist yet)."""
-    paths = ProjectPaths(project_key=project_key_from_cwd())
+    paths = ProjectPaths(project_key=project_key_from_path(work_dir))
     return paths.memory_dir / AUTO_MEMORY_FILE
 
 
-def load_auto_memory() -> Memory | None:
+def load_auto_memory(work_dir: Path) -> Memory | None:
     """Load the per-project MEMORY.md from the auto-memory directory.
 
     Returns the Memory object if the file exists, or None.
     Content is truncated to AUTO_MEMORY_MAX_LINES lines.
     """
-    memory_path = get_auto_memory_path()
+    memory_path = get_auto_memory_path(work_dir)
     if not memory_path.exists() or not memory_path.is_file():
         return None
     try:

@@ -36,7 +36,7 @@ class _FakeAgentRunner:
         return self._agent
 
 
-def test_get_session_status_operation_emits_status_event(tmp_path: Path) -> None:
+def test_get_session_stats_operation_emits_status_event(tmp_path: Path) -> None:
     async def _test() -> None:
         session = Session(work_dir=tmp_path)
         emitted: list[events.Event] = []
@@ -61,9 +61,9 @@ def test_get_session_status_operation_emits_status_event(tmp_path: Path) -> None
             on_model_change=None,
         )
 
-        await handler.handle_get_session_status(op.GetSessionStatusOperation(session_id=session.id))
+        await handler.handle_get_session_stats(op.GetSessionStatsOperation(session_id=session.id))
         assert len(emitted) == 1
-        assert isinstance(emitted[0], events.SessionStatusEvent)
-        assert emitted[0].status.session_id == session.id
+        assert isinstance(emitted[0], events.SessionStatsEvent)
+        assert emitted[0].stats.session_id == session.id
 
     arun(_test())

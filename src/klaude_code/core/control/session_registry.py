@@ -198,10 +198,17 @@ class SessionRegistry:
         await runtime.stop()
         return True
 
-    async def reclaim_idle_sessions(self, *, idle_for_seconds: float = 0.0) -> list[str]:
+    async def reclaim_idle_sessions(
+        self,
+        *,
+        idle_for_seconds: float = 0.0,
+        exclude: set[str] | None = None,
+    ) -> list[str]:
         reclaimed: list[str] = []
         now = time.monotonic()
         for session_id in list(self._session_actors):
+            if exclude and session_id in exclude:
+                continue
             runtime = self._session_actors.get(session_id)
             if runtime is None:
                 continue

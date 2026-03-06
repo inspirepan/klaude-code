@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Sequence
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -98,6 +99,7 @@ def _build_turn_executor(
 
     session_ctx = SessionContext(
         session_id="session-test",
+        work_dir=Path("/tmp"),
         get_conversation_history=lambda: history,
         append_history=append_history,
         file_tracker=cast(Any, SimpleNamespace()),

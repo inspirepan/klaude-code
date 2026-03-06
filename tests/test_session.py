@@ -502,16 +502,16 @@ class TestSession:
 class TestSessionDirectories:
     """Tests for Session directory methods."""
 
-    def test_base_dir_under_home(self):
-        base = Session.paths().base_dir
+    def test_base_dir_under_home(self, tmp_path: Path):
+        base = Session.paths(tmp_path).base_dir
         assert base.parent == Path.home() / ".klaude" / "projects"
 
-    def test_sessions_dir_under_base(self):
-        sessions_dir = Session.paths().sessions_dir
+    def test_sessions_dir_under_base(self, tmp_path: Path):
+        sessions_dir = Session.paths(tmp_path).sessions_dir
         assert sessions_dir.name == "sessions"
 
-    def test_exports_dir_under_base(self):
-        exports_dir = Session.paths().exports_dir
+    def test_exports_dir_under_base(self, tmp_path: Path):
+        exports_dir = Session.paths(tmp_path).exports_dir
         assert exports_dir.name == "exports"
 
 
@@ -561,6 +561,8 @@ class TestSessionPersistence:
             session = Session(
                 work_dir=project_dir,
                 model_name="test-model",
+                session_state=model.SessionRuntimeState.RUNNING,
+                archived=True,
                 model_config_name="test-config-model",
                 model_thinking=llm_param.Thinking(reasoning_effort="high"),
             )
@@ -569,10 +571,12 @@ class TestSessionPersistence:
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("persist"))])
             await session.wait_for_flush()
 
-            loaded = Session.load(session.id)
+            loaded = Session.load(session.id, work_dir=project_dir)
             assert loaded.id == session.id
             assert loaded.work_dir == project_dir
             assert loaded.model_name == "test-model"
+            assert loaded.session_state == model.SessionRuntimeState.RUNNING
+            assert loaded.archived is True
             assert loaded.model_config_name == "test-config-model"
             assert loaded.model_thinking is not None
             assert loaded.model_thinking.reasoning_effort == "high"
@@ -590,6 +594,7 @@ class TestSessionPersistence:
 
         async def _test() -> None:
             session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config-model")
+            session.session_state = model.SessionRuntimeState.IDLE
             session.append_history(
                 [
                     message.UserMessage(parts=message.text_parts_from_str("Hello")),
@@ -598,9 +603,11 @@ class TestSessionPersistence:
             )
             await session.wait_for_flush()
 
-            meta = Session.load_meta(session.id)
+            meta = Session.load_meta(session.id, work_dir=project_dir)
             assert meta.id == session.id
             assert meta.model_name == "test-model"
+            assert meta.session_state == model.SessionRuntimeState.IDLE
+            assert meta.archived is False
             assert meta.model_config_name == "test-config-model"
             assert len(meta.conversation_history) == 0
             await close_default_store()
@@ -613,9 +620,9 @@ class TestSessionPersistence:
         monkeypatch.chdir(project_dir)
 
         # Load a session that doesn't exist
-        loaded = Session.load("nonexistent123")
+        loaded = Session.load("nonexistent123", work_dir=project_dir)
         assert loaded.id == "nonexistent123"
-        assert loaded.work_dir == Path.cwd()
+        assert loaded.work_dir == project_dir
 
     def test_append_history(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
@@ -634,10 +641,10 @@ class TestSessionPersistence:
             assert len(session.conversation_history) == 2
             assert session.messages_count == 2
 
-            events_file = Session.paths().events_file(session.id)
+            events_file = Session.paths(project_dir).events_file(session.id)
             assert events_file.exists()
 
-            loaded = Session.load(session.id)
+            loaded = Session.load(session.id, work_dir=project_dir)
             assert len(loaded.conversation_history) == 2
             await close_default_store()
 
@@ -649,7 +656,7 @@ class TestSessionPersistence:
         monkeypatch.chdir(project_dir)
 
         async def _test() -> None:
-            sub_session = Session.create(id="sub-session")
+            sub_session = Session.create(id="sub-session", work_dir=project_dir)
             sub_session.append_history(
                 [
                     message.AssistantMessage(
@@ -665,7 +672,7 @@ class TestSessionPersistence:
             )
             await sub_session.wait_for_flush()
 
-            main_session = Session.create(id="main-session")
+            main_session = Session.create(id="main-session", work_dir=project_dir)
             main_session.append_history(
                 [
                     message.AssistantMessage(
@@ -688,7 +695,7 @@ class TestSessionPersistence:
             )
             await main_session.wait_for_flush()
 
-            reloaded = Session.load(main_session.id)
+            reloaded = Session.load(main_session.id, work_dir=project_dir)
             events_list = list(reloaded.get_history_item())
 
             parent_call_index = next(
@@ -734,7 +741,7 @@ class TestSessionPersistence:
             sub_session.append_history([message.AssistantMessage(parts=message.text_parts_from_str("done"))])
             await sub_session.wait_for_flush()
 
-            reloaded = Session.load(sub_session.id)
+            reloaded = Session.load(sub_session.id, work_dir=project_dir)
             events_list = list(reloaded.get_history_item())
             finish_events = [e for e in events_list if isinstance(e, events.TaskFinishEvent)]
             assert len(finish_events) == 1
@@ -758,7 +765,7 @@ class TestSessionPersistence:
             )
             await session.wait_for_flush()
 
-            reloaded = Session.load(session.id)
+            reloaded = Session.load(session.id, work_dir=project_dir)
             events_list = list(reloaded.get_history_item())
             assert any(isinstance(e, events.InterruptEvent) for e in events_list)
             await close_default_store()
@@ -794,7 +801,7 @@ class TestSessionPersistence:
             )
             await session.wait_for_flush()
 
-            reloaded = Session.load(session.id)
+            reloaded = Session.load(session.id, work_dir=project_dir)
             events_list = list(reloaded.get_history_item())
             usage_events = [e for e in events_list if isinstance(e, events.UsageEvent)]
             assert len(usage_events) == 1
@@ -818,7 +825,7 @@ class TestSessionListAndClean:
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
 
-        sessions = Session.list_sessions()
+        sessions = Session.list_sessions(work_dir=project_dir)
         assert sessions == []
 
     def test_list_sessions_returns_metadata(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -831,7 +838,7 @@ class TestSessionListAndClean:
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("Test message"))])
             await session.wait_for_flush()
 
-            sessions = Session.list_sessions()
+            sessions = Session.list_sessions(work_dir=project_dir)
             assert len(sessions) == 1
             meta = sessions[0]
             assert meta.id == session.id
@@ -851,7 +858,7 @@ class TestSessionListAndClean:
         from klaude_code.session.codec import encode_jsonl_line
 
         session_id = "backfill_test"
-        paths = Session.paths()
+        paths = Session.paths(project_dir)
         session_dir = paths.session_dir(session_id)
         session_dir.mkdir(parents=True, exist_ok=True)
 
@@ -884,7 +891,7 @@ class TestSessionListAndClean:
             encoding="utf-8",
         )
 
-        sessions = Session.list_sessions()
+        sessions = Session.list_sessions(work_dir=project_dir)
         assert len(sessions) == 1
         assert sessions[0].id == session_id
         assert sessions[0].user_messages == ["m1", "m2"]
@@ -911,7 +918,7 @@ class TestForkSessionCommand:
             assert len(result.events) == 1
             assert isinstance(result.events[0], events.NoticeEvent)
             assert result.events[0].content == "(no messages to fork)"
-            assert Session.list_sessions() == []
+            assert Session.list_sessions(work_dir=project_dir) == []
             await close_default_store()
 
         arun(_test())
@@ -952,8 +959,8 @@ class TestForkSessionCommand:
             assert new_id
             assert new_id != session.id
 
-            assert Session.exists(new_id)
-            forked = Session.load(new_id)
+            assert Session.exists(new_id, work_dir=project_dir)
+            forked = Session.load(new_id, work_dir=project_dir)
             assert forked.work_dir == session.work_dir
             assert forked.model_name == session.model_name
             assert forked.model_config_name == session.model_config_name
@@ -986,7 +993,7 @@ class TestForkSessionCommand:
             session2.append_history([message.UserMessage(parts=message.text_parts_from_str("Second"))])
             await session2.wait_for_flush()
 
-            sessions = Session.list_sessions()
+            sessions = Session.list_sessions(work_dir=project_dir)
             assert len(sessions) == 2
             assert sessions[0].id == session2.id
             assert sessions[1].id == session1.id
@@ -1000,13 +1007,32 @@ class TestForkSessionCommand:
         monkeypatch.chdir(project_dir)
 
         # No sessions yet
-        assert Session.most_recent_session_id() is None
+        assert Session.most_recent_session_id(work_dir=project_dir) is None
 
         async def _test() -> None:
             session = Session(work_dir=project_dir)
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
             await session.wait_for_flush()
-            assert Session.most_recent_session_id() == session.id
+            assert Session.most_recent_session_id(work_dir=project_dir) == session.id
+            await close_default_store()
+
+        arun(_test())
+
+    def test_most_recent_session_id_skips_archived(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            archived_session = Session(work_dir=project_dir, archived=True)
+            archived_session.append_history([message.UserMessage(parts=message.text_parts_from_str("old"))])
+            await archived_session.wait_for_flush()
+
+            visible_session = Session(work_dir=project_dir)
+            visible_session.append_history([message.UserMessage(parts=message.text_parts_from_str("new"))])
+            await visible_session.wait_for_flush()
+
+            assert Session.most_recent_session_id(work_dir=project_dir) == visible_session.id
             await close_default_store()
 
         arun(_test())
@@ -1025,6 +1051,7 @@ class TestSessionMetaBrief:
             user_messages=["Hello world"],
             messages_count=5,
             model_name="gpt-4",
+            archived=True,
         )
         assert meta.id == "test123"
         assert meta.created_at == 1700000000.0
@@ -1034,6 +1061,7 @@ class TestSessionMetaBrief:
         assert meta.user_messages == ["Hello world"]
         assert meta.messages_count == 5
         assert meta.model_name == "gpt-4"
+        assert meta.archived is True
 
     def test_default_values(self):
         meta = Session.SessionMetaBrief(
@@ -1046,11 +1074,13 @@ class TestSessionMetaBrief:
         assert meta.user_messages == []
         assert meta.messages_count == -1
         assert meta.model_name is None
+        assert meta.session_state is None
+        assert meta.archived is False
 
 
 class TestSessionExists:
-    def test_returns_false_when_missing(self):
-        assert Session.exists("does-not-exist") is False
+    def test_returns_false_when_missing(self, tmp_path: Path):
+        assert Session.exists("does-not-exist", work_dir=tmp_path) is False
 
     def test_returns_true_when_persisted(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
@@ -1062,7 +1092,7 @@ class TestSessionExists:
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
             await session.wait_for_flush()
 
-            assert Session.exists(session.id) is True
+            assert Session.exists(session.id, work_dir=project_dir) is True
             await close_default_store()
 
         arun(_test())
@@ -1117,7 +1147,7 @@ class TestFindSessionsByPrefix:
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("Test"))])
             await session.wait_for_flush()
 
-            matches = Session.find_sessions_by_prefix("abc")
+            matches = Session.find_sessions_by_prefix("abc", work_dir=project_dir)
             assert matches == ["abcd1234"]
             await close_default_store()
 
@@ -1137,7 +1167,7 @@ class TestFindSessionsByPrefix:
             s2.append_history([message.UserMessage(parts=message.text_parts_from_str("Test 2"))])
             await s2.wait_for_flush()
 
-            matches = Session.find_sessions_by_prefix("abc")
+            matches = Session.find_sessions_by_prefix("abc", work_dir=project_dir)
             assert sorted(matches) == ["abc123", "abc456"]
             await close_default_store()
 
@@ -1153,7 +1183,7 @@ class TestFindSessionsByPrefix:
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("Test"))])
             await session.wait_for_flush()
 
-            matches = Session.find_sessions_by_prefix("abc")
+            matches = Session.find_sessions_by_prefix("abc", work_dir=project_dir)
             assert matches == []
             await close_default_store()
 
@@ -1176,7 +1206,7 @@ class TestFindSessionsByPrefix:
             sub_session.append_history([message.AssistantMessage(parts=message.text_parts_from_str("Done"))])
             await sub_session.wait_for_flush()
 
-            matches = Session.find_sessions_by_prefix("abc")
+            matches = Session.find_sessions_by_prefix("abc", work_dir=project_dir)
             assert matches == ["abc_main"]
             await close_default_store()
 
@@ -1192,7 +1222,7 @@ class TestFindSessionsByPrefix:
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("Test"))])
             await session.wait_for_flush()
 
-            matches = Session.find_sessions_by_prefix("ABCD")
+            matches = Session.find_sessions_by_prefix("ABCD", work_dir=project_dir)
             assert matches == ["AbCd1234"]
             await close_default_store()
 
@@ -1212,7 +1242,7 @@ class TestShortestUniquePrefix:
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("Test"))])
             await session.wait_for_flush()
 
-            prefix = Session.shortest_unique_prefix("abcdef123456")
+            prefix = Session.shortest_unique_prefix("abcdef123456", work_dir=project_dir)
             assert prefix == "abcd"  # min_length is 4
             await close_default_store()
 
@@ -1232,8 +1262,8 @@ class TestShortestUniquePrefix:
             s2.append_history([message.UserMessage(parts=message.text_parts_from_str("Test 2"))])
             await s2.wait_for_flush()
 
-            prefix1 = Session.shortest_unique_prefix("abcd1111")
-            prefix2 = Session.shortest_unique_prefix("abcd2222")
+            prefix1 = Session.shortest_unique_prefix("abcd1111", work_dir=project_dir)
+            prefix2 = Session.shortest_unique_prefix("abcd2222", work_dir=project_dir)
             assert prefix1 == "abcd1"
             assert prefix2 == "abcd2"
             await close_default_store()
@@ -1258,7 +1288,7 @@ class TestShortestUniquePrefix:
             await sub.wait_for_flush()
 
             # Sub-agent should not affect the prefix calculation for main session
-            prefix = Session.shortest_unique_prefix("abcd1111")
+            prefix = Session.shortest_unique_prefix("abcd1111", work_dir=project_dir)
             assert prefix == "abcd"  # min_length, since abcd2222 is a sub-agent
             await close_default_store()
 

@@ -72,6 +72,7 @@ def _build_executor(
 
     session_ctx = SessionContext(
         session_id=session.id,
+        work_dir=session.work_dir,
         get_conversation_history=session.get_llm_history,
         append_history=session.append_history,
         file_tracker=session.file_tracker,

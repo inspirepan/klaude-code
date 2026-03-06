@@ -8,9 +8,13 @@ from klaude_code.core import memory
 def test_load_auto_memory_without_truncation(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     file_path = tmp_path / "MEMORY.md"
     file_path.write_text("line1\nline2\n", encoding="utf-8")
-    monkeypatch.setattr(memory, "get_auto_memory_path", lambda: file_path)
 
-    loaded = memory.load_auto_memory()
+    def _auto_memory_path(_work_dir: Path) -> Path:
+        return file_path
+
+    monkeypatch.setattr(memory, "get_auto_memory_path", _auto_memory_path)
+
+    loaded = memory.load_auto_memory(work_dir=tmp_path)
 
     assert loaded is not None
     assert loaded.path == str(file_path)
@@ -22,9 +26,13 @@ def test_load_auto_memory_with_truncation_notice(monkeypatch: pytest.MonkeyPatch
     lines = [f"line {i}" for i in range(1, memory.AUTO_MEMORY_MAX_LINES + 6)]
     file_path = tmp_path / "MEMORY.md"
     file_path.write_text("\n".join(lines), encoding="utf-8")
-    monkeypatch.setattr(memory, "get_auto_memory_path", lambda: file_path)
 
-    loaded = memory.load_auto_memory()
+    def _auto_memory_path(_work_dir: Path) -> Path:
+        return file_path
+
+    monkeypatch.setattr(memory, "get_auto_memory_path", _auto_memory_path)
+
+    loaded = memory.load_auto_memory(work_dir=tmp_path)
 
     assert loaded is not None
     assert loaded.instruction == (

@@ -37,7 +37,7 @@ from klaude_code.tui.commands import (
     RenderInterrupt,
     RenderNotice,
     RenderRewind,
-    RenderSessionStatus,
+    RenderSessionStats,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
@@ -846,8 +846,8 @@ class DisplayStateMachine:
                 cmds.append(RenderNotice(e))
                 return cmds
 
-            case events.SessionStatusEvent() as e:
-                cmds.append(RenderSessionStatus(e))
+            case events.SessionStatsEvent() as e:
+                cmds.append(RenderSessionStats(e))
                 return cmds
 
             case events.ModelChangedEvent() as e:

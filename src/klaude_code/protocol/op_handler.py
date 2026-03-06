@@ -19,7 +19,7 @@ if TYPE_CHECKING:
         CompactSessionOperation,
         ContinueAgentOperation,
         ExportSessionOperation,
-        GetSessionStatusOperation,
+        GetSessionStatsOperation,
         InitAgentOperation,
         InterruptOperation,
         RequestModelOperation,
@@ -78,8 +78,8 @@ class OperationHandler(Protocol):
         """Handle an interactive request sub-agent model operation."""
         ...
 
-    async def handle_get_session_status(self, operation: GetSessionStatusOperation) -> None:
-        """Handle a get session status operation."""
+    async def handle_get_session_stats(self, operation: GetSessionStatsOperation) -> None:
+        """Handle a get session stats operation."""
         ...
 
     async def handle_clear_session(self, operation: ClearSessionOperation) -> None:

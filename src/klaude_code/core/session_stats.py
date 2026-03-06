@@ -109,11 +109,11 @@ def collect_message_stats(session: Session) -> MessageStats:
     )
 
 
-def build_session_status_ui_extra(session: Session) -> model.SessionStatusUIExtra:
+def build_session_stats_ui_extra(session: Session) -> model.SessionStatsUIExtra:
     aggregated = accumulate_session_usage(session)
     message_stats = collect_message_stats(session)
-    events_file_path = str(Session.paths().events_file(session.id))
-    return model.SessionStatusUIExtra(
+    events_file_path = str(Session.paths(session.work_dir).events_file(session.id))
+    return model.SessionStatsUIExtra(
         events_file_path=events_file_path,
         session_id=session.id,
         user_messages_count=message_stats.user_messages,

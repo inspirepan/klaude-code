@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
@@ -17,10 +19,10 @@ def render_notice(e: events.NoticeEvent) -> RenderableType:
     return truncate_middle(content, base_style=style)
 
 
-def render_session_status(e: events.SessionStatusEvent) -> RenderableType:
-    """Render session status with overview and per-model breakdown."""
-    status = e.status
-    usage = status.usage
+def render_session_stats(e: events.SessionStatsEvent) -> RenderableType:
+    """Render session stats with overview and per-model breakdown."""
+    stats = e.stats
+    usage = stats.usage
 
     def section_title(title: str) -> Text:
         return Text(title, style=ThemeKey.SESSION_STATUS_BOLD)
@@ -39,8 +41,8 @@ def render_session_status(e: events.SessionStatusEvent) -> RenderableType:
     blocks.append(
         kv_table(
             [
-                ("File", status.events_file_path),
-                ("ID", status.session_id),
+                ("File", stats.events_file_path),
+                ("ID", stats.session_id),
             ]
         )
     )
@@ -50,10 +52,10 @@ def render_session_status(e: events.SessionStatusEvent) -> RenderableType:
     blocks.append(
         kv_table(
             [
-                ("User", _format_int(status.user_messages_count)),
-                ("Assistant", _format_int(status.assistant_messages_count)),
-                ("Tool Exection", _format_int(status.tool_results_count)),
-                ("Total", _format_int(status.total_messages_count)),
+                ("User", _format_int(stats.user_messages_count)),
+                ("Assistant", _format_int(stats.assistant_messages_count)),
+                ("Tool Exection", _format_int(stats.tool_results_count)),
+                ("Total", _format_int(stats.total_messages_count)),
             ]
         )
     )
@@ -62,7 +64,7 @@ def render_session_status(e: events.SessionStatusEvent) -> RenderableType:
     blocks.append(section_title("Cost"))
     blocks.append(kv_table([("Total", _format_cost(usage.total_cost, usage.currency))]))
 
-    if status.by_model:
+    if stats.by_model:
         blocks.append(Text())
         blocks.append(section_title("Usage by model"))
 
@@ -70,7 +72,7 @@ def render_session_status(e: events.SessionStatusEvent) -> RenderableType:
         by_model_table.add_column(style=ThemeKey.SESSION_STATUS, overflow="fold")
         by_model_table.add_column(style=ThemeKey.SESSION_STATUS, overflow="fold")
 
-        for meta in status.by_model:
+        for meta in stats.by_model:
             model_label = meta.model_name
             if meta.provider:
                 model_label = f"{meta.model_name} ({meta.provider.lower().replace(' ', '-')})"
@@ -119,7 +121,7 @@ def _render_fork_session_output(e: events.NoticeEvent) -> RenderableType:
 
     grid = Table.grid(padding=(0, 1))
     session_id = e.ui_extra.session_id
-    short_id = Session.shortest_unique_prefix(session_id)
+    short_id = Session.shortest_unique_prefix(session_id, work_dir=Path.cwd())
     grid.add_column(style=ThemeKey.TOOL_RESULT, overflow="fold")
 
     grid.add_row(Text("Session forked. Resume command copied to clipboard:", style=ThemeKey.TOOL_RESULT))

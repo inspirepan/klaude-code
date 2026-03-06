@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, cast, get_args
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from klaude_code.protocol import message
 
@@ -39,13 +39,21 @@ def decode_conversation_item(obj: dict[str, Any]) -> message.HistoryEvent | None
     data = obj.get("data", {})
     if not isinstance(t, str) or not isinstance(data, dict):
         return None
+    payload = cast(dict[str, Any], data)
     cls = _CONVERSATION_ITEM_TYPES.get(t)
     if cls is None:
         return None
     try:
-        item = cls(**data)
-    except TypeError:
-        return None
+        item = cls(**payload)
+    except (TypeError, ValidationError):
+        if "ui_extra" not in payload:
+            return None
+        data_without_ui_extra: dict[str, Any] = dict(payload)
+        data_without_ui_extra["ui_extra"] = None
+        try:
+            item = cls(**data_without_ui_extra)
+        except (TypeError, ValidationError):
+            return None
     # pyright: ignore[reportReturnType]
     return item  # type: ignore[return-value]
 

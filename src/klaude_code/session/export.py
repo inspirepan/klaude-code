@@ -120,7 +120,7 @@ def get_default_export_path(session: Session) -> Path:
     """Get default export path for a session."""
     from klaude_code.session.session import Session as SessionClass
 
-    exports_dir = SessionClass.exports_dir()
+    exports_dir = SessionClass.exports_dir(session.work_dir)
     timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     first_msg = get_first_user_message(session.conversation_history)
     sanitized_msg = _sanitize_filename(first_msg)
@@ -400,6 +400,7 @@ def _render_event_item(
     seen_session_ids: set[str],
     nesting_level: int,
     assistant_counter: list[int],
+    work_dir: Path | None = None,
 ) -> str:
     blocks: list[str] = []
 
@@ -447,7 +448,9 @@ def _render_event_item(
                 result = tool_results.get(part.call_id)
                 blocks.append(_format_tool_call(part, result, item.created_at))
                 if result is not None:
-                    sub_agent_html = _render_sub_agent_session(result, seen_session_ids, nesting_level)
+                    sub_agent_html = _render_sub_agent_session(
+                        result, seen_session_ids, nesting_level, work_dir=work_dir
+                    )
                     if sub_agent_html:
                         blocks.append(sub_agent_html)
     elif isinstance(item, model.TaskMetadataItem):
@@ -502,6 +505,7 @@ def _build_messages_html(
     *,
     seen_session_ids: set[str] | None = None,
     nesting_level: int = 0,
+    work_dir: Path | None = None,
 ) -> str:
     if seen_session_ids is None:
         seen_session_ids = set()
@@ -515,7 +519,14 @@ def _build_messages_html(
         # 1. Render User Message
         if turn.user_message:
             blocks.append(
-                _render_event_item(turn.user_message, tool_results, seen_session_ids, nesting_level, assistant_counter)
+                _render_event_item(
+                    turn.user_message,
+                    tool_results,
+                    seen_session_ids,
+                    nesting_level,
+                    assistant_counter,
+                    work_dir=work_dir,
+                )
             )
 
         if not turn.body_items:
@@ -550,7 +561,9 @@ def _build_messages_html(
             step_label = f"{step_count} steps" if step_count != 1 else "1 step"
 
             collapsed_html = "".join(
-                _render_event_item(item, tool_results, seen_session_ids, nesting_level, assistant_counter)
+                _render_event_item(
+                    item, tool_results, seen_session_ids, nesting_level, assistant_counter, work_dir=work_dir
+                )
                 for item in collapsible_items
             )
 
@@ -568,7 +581,11 @@ def _build_messages_html(
 
         # 4. Render Visible Items
         for item in visible_items:
-            blocks.append(_render_event_item(item, tool_results, seen_session_ids, nesting_level, assistant_counter))
+            blocks.append(
+                _render_event_item(
+                    item, tool_results, seen_session_ids, nesting_level, assistant_counter, work_dir=work_dir
+                )
+            )
 
     return "\n".join(blocks)
 
@@ -937,6 +954,7 @@ def _render_sub_agent_session(
     tool_result: message.ToolResultMessage,
     seen_session_ids: set[str],
     nesting_level: int,
+    work_dir: Path | None = None,
 ) -> str | None:
     """Render sub-agent session history when a tool result references it."""
     from klaude_code.session.session import Session
@@ -951,8 +969,11 @@ def _render_sub_agent_session(
 
     seen_session_ids.add(session_id)
 
+    if work_dir is None:
+        return None
+
     try:
-        sub_session = Session.load(session_id)
+        sub_session = Session.load(session_id, work_dir=work_dir)
     except (OSError, json.JSONDecodeError, ValueError):
         return None
 
@@ -964,6 +985,7 @@ def _render_sub_agent_session(
         sub_tool_results,
         seen_session_ids=seen_session_ids,
         nesting_level=nesting_level + 1,
+        work_dir=work_dir,
     )
 
     if not sub_html:
@@ -998,7 +1020,7 @@ def build_export_html(
     """
     history = session.conversation_history
     tool_results = {item.call_id: item for item in history if isinstance(item, message.ToolResultMessage)}
-    messages_html = _build_messages_html(history, tool_results)
+    messages_html = _build_messages_html(history, tool_results, work_dir=session.work_dir)
     if not messages_html:
         messages_html = '<div class="text-dim p-4 italic">No messages recorded for this session yet.</div>'
 

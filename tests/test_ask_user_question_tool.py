@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Awaitable, Callable, Coroutine
+from pathlib import Path
 from typing import Any, TypeVar
 
 from klaude_code.core.tool.ask_user_question_tool import AskUserQuestionTool
@@ -30,6 +31,7 @@ def _context(
         file_tracker={},
         todo_context=todo_context,
         session_id="s1",
+        work_dir=Path("/tmp"),
         request_user_interaction=callback,
     )
 

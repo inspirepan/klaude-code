@@ -1,6 +1,7 @@
 import asyncio
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import typer
@@ -11,6 +12,7 @@ from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.cost_cmd import register_cost_commands
 from klaude_code.cli.debug import prepare_debug_logging
 from klaude_code.cli.self_update import register_self_upgrade_commands, version_option_callback
+from klaude_code.cli.web_cmd import register_web_commands
 from klaude_code.session import Session
 from klaude_code.tui.terminal.session_selector import select_session_sync
 from klaude_code.tui.terminal.title import update_terminal_title
@@ -136,6 +138,7 @@ app = typer.Typer(
 register_auth_commands(app)
 register_config_commands(app)
 register_cost_commands(app)
+register_web_commands(app)
 register_self_upgrade_commands(app)
 
 
@@ -211,8 +214,8 @@ def main_callback(
             raise typer.Exit(2)
 
         # Resolve resume_by_id with prefix matching support
-        if resume_by_id_value is not None and not Session.exists(resume_by_id_value):
-            matches = Session.find_sessions_by_prefix(resume_by_id_value)
+        if resume_by_id_value is not None and not Session.exists(resume_by_id_value, work_dir=Path.cwd()):
+            matches = Session.find_sessions_by_prefix(resume_by_id_value, work_dir=Path.cwd())
             if not matches:
                 log((f"Error: session id '{resume_by_id_value}' not found for this project", "red"))
                 log(("Hint: run `klaude --resume` to select an existing session", "yellow"))
@@ -255,7 +258,7 @@ def main_callback(
                 return
         # If user didn't pick, allow fallback to --continue
         if session_id is None and continue_:
-            session_id = Session.most_recent_session_id()
+            session_id = Session.most_recent_session_id(work_dir=Path.cwd())
 
         if resume_by_id_value is not None:
             session_id = resume_by_id_value
@@ -265,7 +268,7 @@ def main_callback(
             from klaude_code.config import load_config
             from klaude_code.log import log
 
-            session_meta = Session.load_meta(session_id)
+            session_meta = Session.load_meta(session_id, work_dir=Path.cwd())
             cfg = load_config()
 
             if session_meta.model_config_name:

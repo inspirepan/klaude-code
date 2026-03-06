@@ -44,7 +44,7 @@ from klaude_code.tui.commands import (
     RenderInterrupt,
     RenderNotice,
     RenderRewind,
-    RenderSessionStatus,
+    RenderSessionStats,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
@@ -542,10 +542,10 @@ class TUICommandRenderer:
             self.print(c_command_output.render_notice(e))
             self.print()
 
-    def display_session_status(self, e: events.SessionStatusEvent) -> None:
+    def display_session_stats(self, e: events.SessionStatsEvent) -> None:
         with self.session_print_context(e.session_id):
             self.print()
-            self.print(c_command_output.render_session_status(e))
+            self.print(c_command_output.render_session_stats(e))
             self.print()
 
     def display_bash_command_start(self, e: events.BashCommandStartEvent) -> None:
@@ -865,8 +865,8 @@ class TUICommandRenderer:
                     self.display_developer_message(event)
                 case RenderNotice(event=event):
                     self.display_notice(event)
-                case RenderSessionStatus(event=event):
-                    self.display_session_status(event)
+                case RenderSessionStats(event=event):
+                    self.display_session_stats(event)
                 case RenderBashCommandStart(event=event):
                     self.display_bash_command_start(event)
                 case AppendBashCommandOutput(event=event):

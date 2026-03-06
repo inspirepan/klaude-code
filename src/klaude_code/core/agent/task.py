@@ -4,6 +4,7 @@ import asyncio
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 from klaude_code.const import (
     INITIAL_RETRY_DELAY_S,
@@ -197,6 +198,7 @@ class SessionContext:
     """
 
     session_id: str
+    work_dir: Path
     get_conversation_history: Callable[[], list[message.HistoryEvent]]
     append_history: Callable[[Sequence[message.HistoryEvent]], None]
     file_tracker: FileTracker

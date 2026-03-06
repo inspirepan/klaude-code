@@ -4,6 +4,7 @@ import asyncio
 import json
 from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, TypeVar
 
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
@@ -140,6 +141,7 @@ def test_ask_user_question_end_to_end_submitted() -> None:
             file_tracker={},
             todo_context=todo_context,
             session_id="s1",
+            work_dir=Path("/tmp"),
             request_user_interaction=_request,
         )
 
@@ -196,6 +198,7 @@ def test_ask_user_question_end_to_end_cancelled_by_manager() -> None:
             file_tracker={},
             todo_context=todo_context,
             session_id="s1",
+            work_dir=Path("/tmp"),
             request_user_interaction=_request,
         )
 

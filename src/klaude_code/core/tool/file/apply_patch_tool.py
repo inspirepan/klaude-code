@@ -20,7 +20,9 @@ class ApplyPatchHandler:
     @classmethod
     async def handle_apply_patch(cls, patch_text: str, context: ToolContext) -> message.ToolResultMessage:
         try:
-            output, ui_extra = await asyncio.to_thread(cls._apply_patch_in_thread, patch_text, context.file_tracker)
+            output, ui_extra = await asyncio.to_thread(
+                cls._apply_patch_in_thread, patch_text, context.file_tracker, context.work_dir
+            )
         except apply_patch_module.DiffError as error:
             return message.ToolResultMessage(status="error", output_text=str(error))
         except Exception as error:  # pragma: no cover  # unexpected errors bubbled to tool result
@@ -32,13 +34,15 @@ class ApplyPatchHandler:
         )
 
     @staticmethod
-    def _apply_patch_in_thread(patch_text: str, file_tracker: FileTracker) -> tuple[str, model.ToolResultUIExtra]:
+    def _apply_patch_in_thread(
+        patch_text: str, file_tracker: FileTracker, work_dir: Path
+    ) -> tuple[str, model.ToolResultUIExtra]:
         ap = apply_patch_module
         normalized_start = patch_text.lstrip()
         if not normalized_start.startswith("*** Begin Patch"):
             raise ap.DiffError("apply_patch content must start with *** Begin Patch")
 
-        workspace_root = os.path.realpath(os.getcwd())
+        workspace_root = os.path.realpath(str(work_dir))
 
         def resolve_path(path: str) -> str:
             candidate = os.path.realpath(path if os.path.isabs(path) else os.path.join(workspace_root, path))

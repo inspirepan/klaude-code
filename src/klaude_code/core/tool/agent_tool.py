@@ -110,12 +110,12 @@ class AgentTool(ToolABC):
         resume_sub_agent_type: str | None = None
         if isinstance(resume_raw, str) and resume_raw.strip():
             try:
-                resume_session_id = Session.resolve_sub_agent_session_id(resume_raw)
+                resume_session_id = Session.resolve_sub_agent_session_id(resume_raw, work_dir=context.work_dir)
             except ValueError as exc:
                 return message.ToolResultMessage(status="error", output_text=str(exc))
 
             try:
-                resume_session = Session.load(resume_session_id)
+                resume_session = Session.load(resume_session_id, work_dir=context.work_dir)
             except (OSError, ValueError, json.JSONDecodeError) as exc:
                 return message.ToolResultMessage(
                     status="error",

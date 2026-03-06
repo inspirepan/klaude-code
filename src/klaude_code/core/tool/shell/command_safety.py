@@ -10,7 +10,7 @@ class SafetyCheckResult:
         self.error_msg = error_msg
 
 
-def _is_safe_rm_argv(argv: list[str]) -> SafetyCheckResult:
+def _is_safe_rm_argv(argv: list[str], work_dir: str | None = None) -> SafetyCheckResult:
     """Check safety of rm command arguments."""
     # Enforce strict safety rules for rm operands
     # - Forbid absolute paths, tildes, wildcards (*?[), and trailing '/'
@@ -18,7 +18,7 @@ def _is_safe_rm_argv(argv: list[str]) -> SafetyCheckResult:
     # - If -r/-R/-rf/-fr present: only allow relative paths whose targets
     #   exist and are not symbolic links
 
-    cwd = os.getcwd()
+    cwd = work_dir or os.getcwd()
     workspace_root = os.path.realpath(cwd)
 
     recursive = False
@@ -85,14 +85,14 @@ def _is_safe_rm_argv(argv: list[str]) -> SafetyCheckResult:
     return SafetyCheckResult(True)
 
 
-def _is_safe_trash_argv(argv: list[str]) -> SafetyCheckResult:
+def _is_safe_trash_argv(argv: list[str], work_dir: str | None = None) -> SafetyCheckResult:
     """Check safety of trash command arguments."""
     # Apply similar safety rules as rm but slightly more permissive
     # - Forbid absolute paths, tildes, wildcards (*?[), and trailing '/'
     # - Resolve each operand with realpath and ensure it stays under CWD
     # - Unlike rm, allow symlinks since trash is less destructive
 
-    cwd = os.getcwd()
+    cwd = work_dir or os.getcwd()
     workspace_root = os.path.realpath(cwd)
 
     end_of_opts = False
@@ -140,23 +140,23 @@ def _is_safe_trash_argv(argv: list[str]) -> SafetyCheckResult:
     return SafetyCheckResult(True)
 
 
-def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
+def _is_safe_argv(argv: list[str], work_dir: str | None = None) -> SafetyCheckResult:
     if not argv:
         return SafetyCheckResult(False, "Empty command")
 
     cmd0 = argv[0]
 
     if cmd0 == "rm":
-        return _is_safe_rm_argv(argv)
+        return _is_safe_rm_argv(argv, work_dir)
 
     if cmd0 == "trash":
-        return _is_safe_trash_argv(argv)
+        return _is_safe_trash_argv(argv, work_dir)
 
     # Default allow when command is not explicitly restricted
     return SafetyCheckResult(True)
 
 
-def is_safe_command(command: str) -> SafetyCheckResult:
+def is_safe_command(command: str, work_dir: str | None = None) -> SafetyCheckResult:
     """Determine if a command is safe enough to run.
 
     Only rm and trash commands are checked for safety. All other commands
@@ -172,4 +172,4 @@ def is_safe_command(command: str) -> SafetyCheckResult:
     if not argv:
         return SafetyCheckResult(False, "Empty command")
 
-    return _is_safe_argv(argv)
+    return _is_safe_argv(argv, work_dir)

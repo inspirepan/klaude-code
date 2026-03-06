@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -21,7 +22,9 @@ def arun(coro: Any) -> Any:
 
 def _tool_context(*, run_subtask: RunSubtask | None = None) -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
-    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", run_subtask=run_subtask)
+    return ToolContext(
+        file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path("/tmp"), run_subtask=run_subtask
+    )
 
 
 def test_agent_tool_schema() -> None:
