@@ -555,10 +555,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                     <div
                       key={item.id}
                       ref={(el) => setItemRef(item.id, el)}
-                      className={`group/row flex min-w-0 gap-4 ${isUser ? "sticky top-0 z-10 -mx-4 -mt-2.5 bg-white px-4 pt-2.5 sm:-mx-6 sm:px-6" : ""}`}
+                      className={`group/row flex min-w-0 gap-4 ${isUser ? "sticky top-0 z-10 -mx-4 -mt-2.5 px-4 pt-2.5 sm:-mx-6 sm:px-6" : ""}`}
                     >
                       <div
-                        className={`min-w-0 flex-1 rounded-xl transition-shadow duration-150 ${isUser ? "shadow-[0_4px_14px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.04)]" : ""} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
+                        className={`min-w-0 flex-1 transition-shadow duration-150 ${isUser ? "overflow-hidden rounded-lg shadow-[0_4px_14px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.04)]" : "rounded-xl"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
                       >
                         <MessageItem item={item} />
                         {canCopy ? (
