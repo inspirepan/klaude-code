@@ -15,7 +15,7 @@ def setup_src_path():
 
 setup_src_path()
 
-from klaude_code.session.session import close_default_store
+from klaude_code.session.session import close_default_store  # noqa: E402
 
 
 @pytest.fixture
