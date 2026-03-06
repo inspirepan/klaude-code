@@ -56,6 +56,14 @@ class _ImportErrorAsyncIterator:
         raise ImportError("python-socks is required to use a SOCKS proxy")
 
 
+class _ConnectionResetAsyncIterator:
+    def __aiter__(self) -> _ConnectionResetAsyncIterator:
+        return self
+
+    async def __anext__(self) -> object:
+        raise ConnectionResetError("connection reset by peer")
+
+
 class _ListAsyncIterator:
     def __init__(self, items: list[object]) -> None:
         self._items = items
@@ -189,3 +197,18 @@ def test_responses_stream_import_error_becomes_stream_error_item() -> None:
     error_items = [item for item in items if isinstance(item, message.StreamErrorItem)]
     assert error_items
     assert "python-socks is required" in error_items[0].error
+
+
+def test_responses_stream_connection_reset_becomes_stream_error_item() -> None:
+    param = _basic_call_param(model_id="gpt-4.1-mini")
+    stream = ResponsesLLMStream(
+        cast(Any, _ConnectionResetAsyncIterator()),
+        param=param,
+        metadata_tracker=MetadataTracker(),
+    )
+
+    items = _collect_stream(stream)
+    error_items = [item for item in items if isinstance(item, message.StreamErrorItem)]
+    assert error_items
+    assert "ConnectionResetError" in error_items[0].error
+    assert any(isinstance(item, message.AssistantMessage) for item in items)

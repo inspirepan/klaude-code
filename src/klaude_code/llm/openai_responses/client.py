@@ -401,7 +401,7 @@ async def parse_responses_stream(
                         str(event),
                         debug_type=DebugType.LLM_STREAM,
                     )
-    except (openai.OpenAIError, httpx.HTTPError, WebSocketException, json.JSONDecodeError, ImportError) as e:
+    except (openai.OpenAIError, httpx.HTTPError, WebSocketException, OSError, json.JSONDecodeError, ImportError) as e:
         yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
         state.stop_reason = "error"
 
