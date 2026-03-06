@@ -153,27 +153,6 @@ def _image_mime_type(file_path: str) -> str:
     return mime_type
 
 
-def _missing_file_suggestions(file_path: str, *, max_suggestions: int = 3) -> list[str]:
-    directory = os.path.dirname(file_path)
-    base = os.path.basename(file_path).lower()
-    if not directory or not base:
-        return []
-
-    try:
-        entries = sorted(os.listdir(directory), key=str.lower)
-    except OSError:
-        return []
-
-    suggestions: list[str] = []
-    for entry in entries:
-        entry_lower = entry.lower()
-        if entry_lower == base or entry_lower in base or base in entry_lower:
-            suggestions.append(os.path.join(directory, entry))
-            if len(suggestions) >= max_suggestions:
-                break
-    return suggestions
-
-
 def _missing_file_directory_candidate(file_path: str) -> str | None:
     directory = os.path.dirname(file_path)
     stem = Path(file_path).stem
@@ -228,25 +207,23 @@ def _directory_file_preview(
 
 
 def _missing_file_error(file_path: str) -> str:
-    suggestions = _missing_file_suggestions(file_path)
     directory_candidate = _missing_file_directory_candidate(file_path)
 
-    if not suggestions and directory_candidate is None:
+    if directory_candidate is None:
         return "<tool_use_error>File does not exist.</tool_use_error>"
 
-    message_lines = ["File not found:", file_path]
-    if suggestions:
-        suggested_paths = "\n".join(suggestions)
-        message_lines.extend(["Did you mean one of these?", suggested_paths])
-
-    if directory_candidate is not None:
-        message_lines.extend(["", "Closest match:", f"- {directory_candidate} (directory)"])
-        preview_files, remaining_count = _directory_file_preview(directory_candidate, file_path)
-        if preview_files:
-            message_lines.extend(["", "Likely files inside:"])
-            message_lines.extend(f"- {path}" for path in preview_files)
-            if remaining_count > 0:
-                message_lines.append(f"(+{remaining_count} more files; use Bash ls for full listing)")
+    message_lines = [
+        "File not found:",
+        file_path,
+        "",
+        "Did you mean one of these?",
+        f"- {directory_candidate} (directory)",
+    ]
+    preview_files, remaining_count = _directory_file_preview(directory_candidate, file_path)
+    message_lines.extend(f"- {path}" for path in preview_files)
+    if remaining_count > 0:
+        message_lines.append(f"(+{remaining_count} more files; use Bash ls for full listing)")
+    message_lines.append("\nNote: Read cannot open directories. Use Bash `ls` or `tree` to browse.")
 
     return f"<tool_use_error>{'\n'.join(message_lines)}</tool_use_error>"
 
