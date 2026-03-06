@@ -3,18 +3,14 @@ import { ChevronRight } from "lucide-react";
 
 import type { DeveloperMessageItem, AtFileOp, DeveloperUIItem } from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
+import { FilePath } from "./FilePath";
 
 interface DeveloperMessageProps {
   item: DeveloperMessageItem;
 }
 
 function PathPill({ path }: { path: string }): JSX.Element {
-  const classes = "font-mono text-xs text-neutral-400 bg-neutral-100 border border-neutral-200/70 rounded px-1.5 py-0.5";
-  return (
-    <code className={classes} title={path}>
-      {path}
-    </code>
-  );
+  return <FilePath path={path} />;
 }
 
 function plural(n: number, word: string): string {

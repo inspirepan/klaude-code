@@ -118,7 +118,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
 
   return (
     <>
-      <div className="rounded-lg border border-neutral-200/40 bg-neutral-50 px-3.5 py-2.5 transition-colors hover:bg-neutral-100/60 hover:border-neutral-200/60">
+      <div className="rounded-lg border border-neutral-200/80 bg-neutral-50 px-3.5 py-2.5 transition-colors hover:bg-neutral-100 hover:border-neutral-300/60">
         {renderImages()}
         {hasText ? (
           <div>

@@ -52,13 +52,13 @@ export function LeftSidebar(): JSX.Element {
 
   return (
     <aside className="w-[260px] min-w-[260px] border-r border-neutral-200 bg-neutral-50 flex flex-col">
-      <div className="p-3 flex items-center gap-2">
+      <div className="px-3 py-2 flex items-center gap-2">
         <div className="flex-1">
           <NewSessionButton onClick={selectDraft} />
         </div>
         <button
           type="button"
-          className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"
+          className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors cursor-pointer"
           onClick={() => {
             void refreshSessions();
           }}
@@ -69,7 +69,7 @@ export function LeftSidebar(): JSX.Element {
         </button>
         <button
           type="button"
-          className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"
+          className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors cursor-pointer"
           onClick={() => {
             setSidebarOpen(false);
           }}

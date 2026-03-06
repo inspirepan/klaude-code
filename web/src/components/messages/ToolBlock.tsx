@@ -5,12 +5,14 @@ import type { ToolBlockItem } from "../../types/message";
 import { useSearch } from "./search-context";
 import { HighlightText } from "./HighlightText";
 import { DiffView, isDiffUIExtra } from "./DiffView";
+import { FilePath } from "./FilePath";
 import { TodoListView, isTodoListUIExtra } from "./TodoListView";
 import { MarkdownDocView, isMarkdownDocUIExtra } from "./MarkdownDocView";
 import { QuestionSummaryView, isQuestionSummaryUIExtra } from "./QuestionSummaryView";
 import { ImageResultView, isImageUIExtra } from "./ImageResultView";
 
 const PLAN_TOOLS = new Set(["TodoWrite", "update_plan"]);
+const FILE_PATH_TOOLS = new Set(["Read", "Edit", "Write", "Glob", "Grep"]);
 
 function extractHeaderDetail(toolName: string, args: string): string {
   try {
@@ -259,7 +261,9 @@ export function ToolBlock({ item, compact = false }: ToolBlockProps): JSX.Elemen
       {/* right col: detail only */}
       <div className="min-w-0">
         {detail ? (
-          isBash ? (
+          FILE_PATH_TOOLS.has(item.toolName) ? (
+            <FilePath path={detail} expanded={open} />
+          ) : isBash ? (
             <code className={`inline-block max-w-full ${subTextClass} ${detailChipClass} ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}>
               <HighlightText>{detail}</HighlightText>
             </code>
