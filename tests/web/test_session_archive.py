@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .conftest import AppEnv
 
@@ -14,12 +14,19 @@ def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
 
 
 def _find_listed_session(groups: list[dict[str, Any]], session_id: str) -> dict[str, Any]:
-    return next(
-        session
-        for group in groups
-        for session in group["sessions"]
-        if isinstance(session, dict) and session.get("id") == session_id
-    )
+    sessions: list[dict[str, Any]] = []
+    for group in groups:
+        raw_sessions_obj = group.get("sessions")
+        if not isinstance(raw_sessions_obj, list):
+            continue
+        raw_sessions = cast(list[Any], raw_sessions_obj)
+        for session in raw_sessions:
+            if isinstance(session, dict):
+                sessions.append(cast(dict[str, Any], session))
+    for session in sessions:
+        if session.get("id") == session_id:
+            return session
+    raise AssertionError(f"Session not found in listing: {session_id}")
 
 
 def test_archive_session_marks_metadata_and_listed_flag(app_env: AppEnv) -> None:

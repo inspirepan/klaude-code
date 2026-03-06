@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
+from concurrent.futures import CancelledError as FutureCancelledError
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -160,6 +161,8 @@ async def _handle_incoming_frame(
         )
         return
     except Exception as exc:
+        if isinstance(exc, FutureCancelledError):
+            return
         await _send_error_frame(
             websocket,
             code="invalid_payload",
@@ -187,15 +190,16 @@ async def _forward_events(session_id: str, websocket: WebSocket) -> None:
     try:
         async for envelope in subscription:
             await websocket.send_json(envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True))
-    except (WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError):
+    except (WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError, asyncio.CancelledError, FutureCancelledError):
         return
 
 
 async def _receive_commands(session_id: str, websocket: WebSocket) -> None:
+    background_submits: set[asyncio.Task[None]] = set()
     while True:
         try:
             payload = await websocket.receive_json()
-        except (WebSocketDisconnect, anyio.ClosedResourceError):
+        except (WebSocketDisconnect, anyio.ClosedResourceError, asyncio.CancelledError, FutureCancelledError):
             return
         except Exception:
             with contextlib.suppress(Exception):
@@ -225,6 +229,12 @@ async def _receive_commands(session_id: str, websocket: WebSocket) -> None:
                 message="Invalid payload",
                 detail=exc.errors(),
             )
+            continue
+
+        if isinstance(frame, InterruptFrame):
+            submit_task = asyncio.create_task(_handle_incoming_frame(session_id, frame, websocket))
+            background_submits.add(submit_task)
+            submit_task.add_done_callback(background_submits.discard)
             continue
 
         await _handle_incoming_frame(session_id, frame, websocket)
@@ -261,20 +271,18 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
         recv_task = asyncio.create_task(_receive_commands(session_id, websocket))
         done, pending = await asyncio.wait({send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED)
 
-        for task in pending:
-            task.cancel()
         if pending:
             _ = await asyncio.gather(*pending, return_exceptions=True)
 
         for task in done:
-            with contextlib.suppress(asyncio.CancelledError):
+            with contextlib.suppress(asyncio.CancelledError, FutureCancelledError):
                 exc = task.exception()
                 if exc is None:
                     continue
                 if isinstance(exc, WebSocketDisconnect):
                     continue
                 raise exc
-    except (WebSocketDisconnect, asyncio.CancelledError):
+    except (WebSocketDisconnect, asyncio.CancelledError, FutureCancelledError):
         return
     finally:
         tasks_to_cancel = [task for task in (send_task, recv_task) if task is not None and not task.done()]

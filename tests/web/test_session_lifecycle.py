@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from klaude_code.protocol import message
 
@@ -17,8 +17,9 @@ def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
 
 
 def _updated_at_from_meta(meta_path: Path) -> float:
-    raw = json.loads(meta_path.read_text(encoding="utf-8"))
-    assert isinstance(raw, dict)
+    raw_obj = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert isinstance(raw_obj, dict)
+    raw = cast(dict[str, Any], raw_obj)
     return float(raw["updated_at"])
 
 
@@ -139,17 +140,26 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
             event = websocket.receive_json()
             if event.get("event_type") != "operation.finished":
                 continue
-            payload = event.get("event")
-            if isinstance(payload, dict) and payload.get("operation_type") == "interrupt":
+            payload_obj = event.get("event")
+            payload = cast(dict[str, Any], payload_obj) if isinstance(payload_obj, dict) else None
+            if payload is not None and payload.get("operation_type") == "interrupt":
                 interrupt_finished = event
                 break
         assert interrupt_finished is not None
 
-    list_response = app_env.client.get("/api/sessions")
-    assert list_response.status_code == 200
-    groups = list_response.json()["groups"]
-    listed_session = next(session for group in groups for session in group["sessions"] if session["id"] == session_id)
-    assert listed_session["session_state"] == "idle"
+    deadline = time.time() + 2.0
+    listed_state = "running"
+    while time.time() < deadline:
+        list_response = app_env.client.get("/api/sessions")
+        assert list_response.status_code == 200
+        groups = list_response.json()["groups"]
+        listed_session = next(session for group in groups for session in group["sessions"] if session["id"] == session_id)
+        listed_state = str(listed_session["session_state"])
+        if listed_state == "idle":
+            break
+        time.sleep(0.01)
+
+    assert listed_state == "idle"
 
 
 def test_updated_at_changes_only_when_session_content_changes(app_env: AppEnv) -> None:

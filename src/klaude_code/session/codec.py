@@ -39,15 +39,16 @@ def decode_conversation_item(obj: dict[str, Any]) -> message.HistoryEvent | None
     data = obj.get("data", {})
     if not isinstance(t, str) or not isinstance(data, dict):
         return None
+    payload = cast(dict[str, Any], data)
     cls = _CONVERSATION_ITEM_TYPES.get(t)
     if cls is None:
         return None
     try:
-        item = cls(**data)
+        item = cls(**payload)
     except (TypeError, ValidationError):
-        if "ui_extra" not in data:
+        if "ui_extra" not in payload:
             return None
-        data_without_ui_extra = dict(data)
+        data_without_ui_extra: dict[str, Any] = dict(payload)
         data_without_ui_extra["ui_extra"] = None
         try:
             item = cls(**data_without_ui_extra)

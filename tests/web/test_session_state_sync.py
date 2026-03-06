@@ -1,9 +1,10 @@
+# pyright: reportPrivateUsage=false
 from __future__ import annotations
 
 import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -21,10 +22,11 @@ def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
 
 def _session_state_from_meta(meta_path: Path) -> str | None:
     try:
-        raw = json.loads(meta_path.read_text(encoding="utf-8"))
+        raw_obj = json.loads(meta_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
-    assert isinstance(raw, dict)
+    assert isinstance(raw_obj, dict)
+    raw = cast(dict[str, Any], raw_obj)
     state = raw.get("session_state")
     return state if isinstance(state, str) else None
 
@@ -164,8 +166,9 @@ def test_session_state_stays_waiting_during_user_interaction(app_env: AppEnv, sl
 def test_ws_init_does_not_override_persisted_running_state(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
     meta_path = _meta_path_for_session(app_env, session_id)
-    raw = json.loads(meta_path.read_text(encoding="utf-8"))
-    assert isinstance(raw, dict)
+    raw_obj = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert isinstance(raw_obj, dict)
+    raw = cast(dict[str, Any], raw_obj)
     raw["session_state"] = "running"
     meta_path.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
 

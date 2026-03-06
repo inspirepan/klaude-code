@@ -2,7 +2,7 @@
 """Property-based tests for session codec module."""
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -126,7 +126,7 @@ def test_decode_conversation_item_unknown_tool_ui_extra_falls_back_to_none() -> 
     from klaude_code.protocol import message
     from klaude_code.session.codec import decode_conversation_item
 
-    obj = {
+    obj: dict[str, Any] = {
         "type": "ToolResultMessage",
         "data": {
             "role": "tool",
