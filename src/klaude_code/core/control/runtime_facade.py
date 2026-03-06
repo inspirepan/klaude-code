@@ -330,6 +330,13 @@ class RuntimeFacade:
 
     async def stop(self) -> None:
         self._stopped = True
+        sessions_to_idle: list[tuple[str, Agent]] = []
+        for runtime in self.session_registry.list_session_actors():
+            agent = runtime.get_agent()
+            if agent is None:
+                continue
+            sessions_to_idle.append((runtime.session_id, agent))
+
         cancelled_requests = self._operation_dispatcher.cancel_pending_user_interactions(session_id=None)
         for request in cancelled_requests:
             await self._operation_dispatcher.emit_event(
@@ -358,6 +365,20 @@ class RuntimeFacade:
 
         if tasks_to_await:
             await asyncio.gather(*tasks_to_await, return_exceptions=True)
+
+        for _session_id, agent in sessions_to_idle:
+            with contextlib.suppress(Exception):
+                await agent.session.wait_for_flush()
+
+        for session_id, agent in sessions_to_idle:
+            agent.session.session_state = model.SessionRuntimeState.IDLE
+            with contextlib.suppress(Exception):
+                await asyncio.to_thread(
+                    Session.persist_runtime_state,
+                    session_id,
+                    model.SessionRuntimeState.IDLE,
+                    agent.session.work_dir,
+                )
 
         await self.session_registry.stop()
         await self._operation_awaiter.stop()
