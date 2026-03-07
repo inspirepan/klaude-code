@@ -118,7 +118,7 @@ export function SessionCard({
     <div className="group">
       <button
         className={cn(
-          "w-full rounded-lg px-2 py-2 text-left transition-colors",
+          "grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-1.5 rounded-lg px-2 py-2 text-left transition-colors",
           showSuccessState
             ? active
               ? "status-success-card-settle-active"
@@ -135,38 +135,6 @@ export function SessionCard({
           <div className="flex min-w-0 items-center gap-1.5">
             {getRuntimeIcon(runtime, showSuccessState)}
             <span className="flex-1 truncate text-[14px] leading-5 text-neutral-700">{title}</span>
-            <div className="relative h-5 shrink-0 -translate-y-0.5">
-              {runtime.sessionState === "running" ? (
-                <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 text-[11px] leading-5 text-blue-500 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0">
-                  Running
-                  <span className="running-dots">
-                    <span>.</span>
-                    <span>.</span>
-                    <span>.</span>
-                  </span>
-                </span>
-              ) : (
-                <span className="whitespace-nowrap text-[12px] leading-5 text-neutral-400 transition-opacity group-focus-within:opacity-0 group-hover:opacity-0">
-                  {updatedAt}
-                </span>
-              )}
-              <button
-                type="button"
-                className="absolute inset-0 inline-flex items-center justify-end rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
-                title={session.archived ? "Unarchive session" : "Archive session"}
-                aria-label={session.archived ? "Unarchive session" : "Archive session"}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onToggleArchive(session.id, !session.archived);
-                }}
-              >
-                {session.archived ? (
-                  <ArchiveRestore className="h-3.5 w-3.5" />
-                ) : (
-                  <Archive className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </div>
           </div>
 
           <div className="mt-0.5 truncate pl-5 text-[13px] leading-5 text-neutral-500">
@@ -176,6 +144,40 @@ export function SessionCard({
           <div className="mt-0.5 truncate pl-5 text-[11px] leading-4 text-neutral-400">
             {messageCountLabel} · {modelLabel}
           </div>
+        </div>
+
+        <div className="flex flex-col items-end justify-between gap-1 py-0.5">
+          {runtime.sessionState === "running" ? (
+            <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 text-[11px] leading-5 text-blue-500">
+              Running
+              <span className="running-dots">
+                <span>.</span>
+                <span>.</span>
+                <span>.</span>
+              </span>
+            </span>
+          ) : (
+            <span className="whitespace-nowrap text-[12px] leading-5 text-neutral-400">
+              {updatedAt}
+            </span>
+          )}
+
+          <button
+            type="button"
+            className="inline-flex h-5 w-5 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
+            title={session.archived ? "Unarchive session" : "Archive session"}
+            aria-label={session.archived ? "Unarchive session" : "Archive session"}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleArchive(session.id, !session.archived);
+            }}
+          >
+            {session.archived ? (
+              <ArchiveRestore className="h-3.5 w-3.5" />
+            ) : (
+              <Archive className="h-3.5 w-3.5" />
+            )}
+          </button>
         </div>
       </button>
     </div>
