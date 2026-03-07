@@ -28,4 +28,7 @@ def register_web_commands(app: typer.Typer) -> None:
                 raise typer.Exit(2) from None
             raise
 
-        asyncio.run(start_web_server(host=host, port=port, no_open=no_open, debug=debug))
+        try:
+            asyncio.run(start_web_server(host=host, port=port, no_open=no_open, debug=debug))
+        except KeyboardInterrupt:
+            raise typer.Exit(130) from None

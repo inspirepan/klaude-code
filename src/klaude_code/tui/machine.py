@@ -331,8 +331,6 @@ class SpinnerStatusState:
                 status_text.append_text(activity_text)
         elif activity_text:
             status_text = activity_text
-            if self._todo_status is None:
-                activity_text.append(" …", style=ThemeKey.STATUS_TEXT)
         else:
             status_text = Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT)
 
