@@ -229,9 +229,9 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
   const { matchItemIds } = useSearch();
   const bodyTextClass = compact ? "text-[13px]" : "text-[14px]";
   const subTextClass = compact ? "text-[13px]" : "text-sm";
-  const headerDetailTextClass = "text-[13px]";
+  const headerDetailTextClass = "!text-[13px]";
   const miniTextClass = compact ? "text-[11px]" : "text-xs";
-  const detailChipClass = compact ? "" : "bg-neutral-100 rounded px-1.5 py-0.5";
+  const detailChipClass = "rounded bg-neutral-100 px-1.5 py-0.5 align-middle";
 
   const defaultExpanded = shouldExpandResult(item);
   const [open, setOpen] = useState(defaultExpanded);
@@ -287,11 +287,11 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
           />
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
-        <span className="relative top-px whitespace-nowrap font-sans font-normal text-neutral-500">
+        <span className="relative top-[2px] whitespace-nowrap font-sans font-normal text-neutral-500">
           {item.toolName}
         </span>
         {item.isStreaming ? (
-          <Loader2 className="mt-0.5 h-3 w-3 shrink-0 animate-spin text-neutral-400" />
+          <Loader2 className="mt-0.5 h-3 w-3 shrink-0 translate-y-px animate-spin text-neutral-400" />
         ) : null}
       </div>
 

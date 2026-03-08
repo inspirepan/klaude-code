@@ -318,9 +318,19 @@ function handleWsEvent(
 
   const wsTimestamp = typeof eventEnvelope.timestamp === "number" ? eventEnvelope.timestamp : null;
   const messageStore = useMessageStore.getState();
-  messageStore.handleEvent(rootSessionId, eventEnvelope.event_type, eventEnvelope.event ?? {}, wsTimestamp);
+  messageStore.handleEvent(
+    rootSessionId,
+    eventEnvelope.event_type,
+    eventEnvelope.event ?? {},
+    wsTimestamp,
+  );
   if (targetSessionId !== rootSessionId) {
-    messageStore.handleEvent(targetSessionId, eventEnvelope.event_type, eventEnvelope.event ?? {}, wsTimestamp);
+    messageStore.handleEvent(
+      targetSessionId,
+      eventEnvelope.event_type,
+      eventEnvelope.event ?? {},
+      wsTimestamp,
+    );
   }
 
   if (eventEnvelope.event_type !== "task.finish") {

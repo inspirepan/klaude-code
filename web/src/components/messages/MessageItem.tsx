@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 import type { MessageItem as MessageItemType } from "../../types/message";
 import { UserMessage } from "./UserMessage";
 import { ThinkingBlock } from "./ThinkingBlock";
@@ -15,7 +17,7 @@ interface MessageItemProps {
   workDir?: string;
 }
 
-export function MessageItem({ item, compact = false, workDir }: MessageItemProps): JSX.Element {
+function MessageItemInner({ item, compact = false, workDir }: MessageItemProps): JSX.Element {
   switch (item.type) {
     case "user_message":
       return <UserMessage key={item.id} item={item} compact={compact} />;
@@ -37,3 +39,9 @@ export function MessageItem({ item, compact = false, workDir }: MessageItemProps
       return <UnknownEvent item={item} compact={compact} />;
   }
 }
+
+export const MessageItem = memo(
+  MessageItemInner,
+  (prev, next) =>
+    prev.item === next.item && prev.compact === next.compact && prev.workDir === next.workDir,
+);

@@ -151,10 +151,7 @@ function parseFiniteNumber(raw: unknown): number | null {
   return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
 }
 
-function getSessionStatus(
-  state: ReducerState,
-  sessionId: string,
-): SessionStatusState {
+function getSessionStatus(state: ReducerState, sessionId: string): SessionStatusState {
   return state.statusBySessionId[sessionId] ?? createInitialSessionStatus(sessionId);
 }
 
@@ -307,7 +304,9 @@ function reduceStatusEvent(
 
     case "interrupt": {
       if (sessionId === null) return state;
-      const nextState = updateSessionStatus(state, sessionId, (current) => clearTaskScopedStatus(current));
+      const nextState = updateSessionStatus(state, sessionId, (current) =>
+        clearTaskScopedStatus(current),
+      );
       const interruptedSession = getSessionStatus(nextState, sessionId);
       if (interruptedSession.isSubAgent) {
         return nextState;
@@ -469,7 +468,11 @@ function reduceStatusEvent(
         if (!current.isSubAgent && rawToolName === "Agent") {
           return current;
         }
-        return setActiveToolCall(current, toolCallId, getToolActiveForm(rawToolName, argumentsText));
+        return setActiveToolCall(
+          current,
+          toolCallId,
+          getToolActiveForm(rawToolName, argumentsText),
+        );
       });
     }
 
@@ -477,7 +480,9 @@ function reduceStatusEvent(
       if (sessionId === null) return state;
       const toolCallId = typeof event.tool_call_id === "string" ? event.tool_call_id : "";
       if (toolCallId.length === 0) return state;
-      return updateSessionStatus(state, sessionId, (current) => clearActiveToolCall(current, toolCallId));
+      return updateSessionStatus(state, sessionId, (current) =>
+        clearActiveToolCall(current, toolCallId),
+      );
     }
 
     case "usage": {
@@ -492,7 +497,11 @@ function reduceStatusEvent(
       const outputTokens = parseFiniteNumber(payload.output_tokens) ?? 0;
       const reasoningTokens = parseFiniteNumber(payload.reasoning_tokens) ?? 0;
       const hasTokenUsage =
-        inputTokens > 0 || cachedTokens > 0 || cacheWriteTokens > 0 || outputTokens > 0 || reasoningTokens > 0;
+        inputTokens > 0 ||
+        cachedTokens > 0 ||
+        cacheWriteTokens > 0 ||
+        outputTokens > 0 ||
+        reasoningTokens > 0;
 
       const contextPercent = parseFiniteNumber(payload.context_usage_percent);
       const contextLimit = parseFiniteNumber(payload.context_limit);

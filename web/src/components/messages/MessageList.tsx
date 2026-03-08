@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { ChevronRight, CircleHelp, Loader2, PanelLeftOpen, PanelRightOpen, RefreshCw } from "lucide-react";
+import {
+  ChevronRight,
+  CircleHelp,
+  Loader2,
+  PanelLeftOpen,
+  PanelRightOpen,
+  RefreshCw,
+} from "lucide-react";
 
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
@@ -31,6 +38,13 @@ interface MessageListProps {
 
 function shortSessionId(id: string): string {
   return id.slice(0, 8);
+}
+
+function formatSubAgentTypeLabel(type: string | null): string {
+  if (type === null || type.trim().length === 0) {
+    return "Agent";
+  }
+  return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 function getSessionTitle(session: SessionSummary | null): string {
@@ -129,9 +143,7 @@ function formatCurrency(total: number, currency: string): string {
 function summarizeToolCalls(activeToolCalls: Record<string, number>): string | null {
   const entries = Object.entries(activeToolCalls);
   if (entries.length === 0) return null;
-  return entries
-    .map(([name, count]) => (count > 1 ? `${name} × ${count}` : name))
-    .join(", ");
+  return entries.map(([name, count]) => (count > 1 ? `${name} × ${count}` : name)).join(", ");
 }
 
 function getSessionActivityText(status: SessionStatusState | null): string | null {
@@ -165,7 +177,10 @@ function getSessionSummaryParts(status: SessionStatusState | null, nowSeconds: n
   if (status.totalCost !== null) {
     parts.push(formatCurrency(status.totalCost, status.currency));
   }
-  if (status.taskStartedAt !== null && (status.taskActive || status.awaitingInput || status.compacting)) {
+  if (
+    status.taskStartedAt !== null &&
+    (status.taskActive || status.awaitingInput || status.compacting)
+  ) {
     parts.push(formatElapsed(nowSeconds - status.taskStartedAt));
   }
   return parts;
@@ -212,7 +227,10 @@ function getSessionMetaRows(
   if (status.totalCost !== null) {
     rows.push({ label: "Cost", value: formatCurrency(status.totalCost, status.currency) });
   }
-  if (status.taskStartedAt !== null && (status.taskActive || status.awaitingInput || status.compacting)) {
+  if (
+    status.taskStartedAt !== null &&
+    (status.taskActive || status.awaitingInput || status.compacting)
+  ) {
     rows.push({ label: "Elapsed", value: formatElapsed(nowSeconds - status.taskStartedAt) });
   }
   return rows;
@@ -663,10 +681,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                           subAgentStatus,
                           nowSeconds,
                         );
-                        const subAgentMetaRows = getSessionMetaRows(
-                          subAgentStatus,
-                          nowSeconds,
-                        );
+                        const subAgentMetaRows = getSessionMetaRows(subAgentStatus, nowSeconds);
                         const hasSubAgentStatus =
                           subAgentActivityText !== null ||
                           subAgentSummaryParts.length > 0 ||
@@ -695,7 +710,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                             : null;
                         return (
                           <div key={block.groupId} className="group/subagent flex min-w-0 gap-4">
-                            <div className="min-w-0 flex-1 rounded-xl border border-neutral-200/80 bg-white">
+                            <div className="min-w-0 flex-1 rounded-2xl border border-neutral-200/80 bg-white shadow-sm shadow-neutral-200/40">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -704,20 +719,20 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                     [block.groupId]: !collapsed,
                                   }));
                                 }}
-                                className="flex w-full cursor-pointer items-center gap-1.5 px-3.5 py-2.5 text-left"
+                                className="flex w-full cursor-pointer items-center gap-2 px-4 py-3 text-left"
                               >
                                 <ChevronRight
-                                  className={`h-3.5 w-3.5 text-neutral-300 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
+                                  className={`h-3.5 w-3.5 shrink-0 text-neutral-300 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
                                 />
-                                <span className="whitespace-nowrap font-sans text-[14px] font-semibold text-neutral-700">
-                                  {block.sourceSessionType
-                                    ? `Agent(${block.sourceSessionType})`
-                                    : "Agent"}
-                                </span>
-                                <span className="truncate text-sm text-neutral-600">
-                                  {block.sourceSessionDesc ??
-                                    `Sub Agent ${shortSessionId(block.sourceSessionId)}`}
-                                </span>
+                                <div className="flex min-w-0 items-baseline gap-2">
+                                  <span className="whitespace-nowrap text-[14px] font-semibold text-neutral-800">
+                                    {formatSubAgentTypeLabel(block.sourceSessionType)}
+                                  </span>
+                                  <span className="truncate text-[14px] text-neutral-600">
+                                    {block.sourceSessionDesc ??
+                                      `Sub Agent ${shortSessionId(block.sourceSessionId)}`}
+                                  </span>
+                                </div>
                               </button>
                               {hasSubAgentStatus ? (
                                 <div className="px-3.5 pb-2 pt-0 text-[12px]">
@@ -726,7 +741,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                       {subAgentActivityText}
                                     </div>
                                   ) : null}
-                                  {subAgentSummaryParts.length > 0 || subAgentMetaRows.length > 0 ? (
+                                  {subAgentSummaryParts.length > 0 ||
+                                  subAgentMetaRows.length > 0 ? (
                                     <div className="mt-1 flex items-center gap-2">
                                       {subAgentSummaryParts.length > 0 ? (
                                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-neutral-400">
@@ -765,7 +781,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                             <CircleHelp className="h-3 w-3" />
                                           </button>
                                           {subAgentMetaOpen[block.groupId] ? (
-                                            <div className="absolute left-0 top-full z-20 mt-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
+                                            <div className="absolute right-0 top-full z-20 mt-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
                                               <div className="space-y-1.5 text-[12px] leading-5">
                                                 {subAgentMetaRows.map((row) => (
                                                   <div
@@ -775,7 +791,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                                     <span className="text-neutral-400">
                                                       {row.label}
                                                     </span>
-                                                    <span className="font-mono text-neutral-600">
+                                                    <span className="text-right font-mono text-neutral-600">
                                                       {row.value}
                                                     </span>
                                                   </div>
@@ -901,6 +917,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                     const isActive = item.id === activeItemId;
                                     const canCopy = isCopyableAssistantText(item);
                                     const copied = copiedItemId === item.id;
+                                    const usesInlineToolLayout = item.type === "tool_block";
                                     return (
                                       <div
                                         key={item.id}
@@ -908,7 +925,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                         className="group/row relative min-w-0"
                                       >
                                         <div
-                                          className={`min-w-0 flex-1 rounded-xl bg-neutral-50/60 transition-shadow duration-150 ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
+                                          className={`min-w-0 flex-1 rounded-xl transition-shadow duration-150 ${usesInlineToolLayout ? "" : "bg-neutral-50/60"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
                                         >
                                           <MessageItem
                                             item={item}
@@ -1064,9 +1081,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                         <div className="absolute bottom-full right-0 z-20 mb-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
                           <div className="space-y-1.5 text-[12px] leading-5">
                             {mainMetaRows.map((row) => (
-                              <div key={row.label} className="flex items-start justify-between gap-4">
+                              <div
+                                key={row.label}
+                                className="flex items-start justify-between gap-4"
+                              >
                                 <span className="text-neutral-400">{row.label}</span>
-                                <span className="font-mono text-neutral-600">{row.value}</span>
+                                <span className="text-right font-mono text-neutral-600">
+                                  {row.value}
+                                </span>
                               </div>
                             ))}
                           </div>
