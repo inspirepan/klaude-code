@@ -3,25 +3,15 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { SessionStatusState } from "../../stores/event-reducer";
 import type { SessionRuntimeState } from "../../types/session";
+import {
+  getSessionActivityText,
+  getSessionMetaRows,
+  getSessionSummaryParts,
+} from "../messages/message-list-ui";
 
 interface SessionStatusBarProps {
   status: SessionStatusState | null;
   runtime: SessionRuntimeState | null;
-}
-
-function getStatusLabel(status: SessionStatusState | null): string | null {
-  if (status === null) return null;
-  return status.awaitingInput
-    ? "Waiting for input …"
-    : status.compacting
-      ? "Compacting …"
-      : status.thinkingActive
-        ? "Thinking …"
-        : status.isComposing
-          ? "Typing …"
-          : status.taskActive
-            ? "Running …"
-            : null;
 }
 
 function getRuntimeStatusLabel(runtime: SessionRuntimeState | null): string | null {
@@ -29,99 +19,6 @@ function getRuntimeStatusLabel(runtime: SessionRuntimeState | null): string | nu
   if (runtime.sessionState === "waiting_user_input") return "Waiting for input …";
   if (runtime.sessionState === "running") return "Running …";
   return null;
-}
-
-function formatCompactNumber(value: number): string {
-  if (!Number.isFinite(value)) return "0";
-  if (Math.abs(value) < 1000) return Math.round(value).toString();
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(
-    value,
-  );
-}
-
-function formatElapsed(totalSeconds: number): string {
-  const seconds = Math.max(0, Math.floor(totalSeconds));
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  if (minutes < 60) return `${minutes}m${remainingSeconds.toString().padStart(2, "0")}s`;
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return `${hours}h${remainingMinutes.toString().padStart(2, "0")}m`;
-}
-
-function formatCurrency(total: number, currency: string): string {
-  const symbol = currency === "CNY" ? "¥" : "$";
-  return `${symbol}${total.toFixed(4)}`;
-}
-
-function getSessionSummaryParts(status: SessionStatusState | null, nowSeconds: number): string[] {
-  if (status === null) return [];
-
-  const parts: string[] = [];
-  if (status.contextPercent !== null) {
-    parts.push(`${status.contextPercent.toFixed(1)}%`);
-  }
-  if (status.totalCost !== null) {
-    parts.push(formatCurrency(status.totalCost, status.currency));
-  }
-  if (
-    status.taskStartedAt !== null &&
-    (status.taskActive || status.awaitingInput || status.compacting)
-  ) {
-    parts.push(formatElapsed(nowSeconds - status.taskStartedAt));
-  }
-  return parts;
-}
-
-function getSessionMetaRows(
-  status: SessionStatusState | null,
-  nowSeconds: number,
-): Array<{ label: string; value: string }> {
-  if (status === null) return [];
-
-  const rows: Array<{ label: string; value: string }> = [];
-  if (status.tokenInput !== null) {
-    rows.push({ label: "Input", value: formatCompactNumber(status.tokenInput) });
-  }
-  if ((status.tokenCached ?? 0) > 0) {
-    rows.push({
-      label: "Cached",
-      value:
-        status.cacheHitRate !== null
-          ? `${formatCompactNumber(status.tokenCached ?? 0)} (${Math.round(status.cacheHitRate * 100)}%)`
-          : formatCompactNumber(status.tokenCached ?? 0),
-    });
-  }
-  if ((status.tokenCacheWrite ?? 0) > 0) {
-    rows.push({ label: "Cache write", value: formatCompactNumber(status.tokenCacheWrite ?? 0) });
-  }
-  if (status.tokenOutput !== null) {
-    rows.push({ label: "Output", value: formatCompactNumber(status.tokenOutput) });
-  }
-  if ((status.tokenThought ?? 0) > 0) {
-    rows.push({ label: "Thought", value: formatCompactNumber(status.tokenThought ?? 0) });
-  }
-  if (
-    status.contextSize !== null &&
-    status.contextEffectiveLimit !== null &&
-    status.contextPercent !== null
-  ) {
-    rows.push({
-      label: "Context",
-      value: `${formatCompactNumber(status.contextSize)}/${formatCompactNumber(status.contextEffectiveLimit)} (${status.contextPercent.toFixed(1)}%)`,
-    });
-  }
-  if (status.totalCost !== null) {
-    rows.push({ label: "Cost", value: formatCurrency(status.totalCost, status.currency) });
-  }
-  if (
-    status.taskStartedAt !== null &&
-    (status.taskActive || status.awaitingInput || status.compacting)
-  ) {
-    rows.push({ label: "Elapsed", value: formatElapsed(nowSeconds - status.taskStartedAt) });
-  }
-  return rows;
 }
 
 export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JSX.Element | null {
@@ -148,7 +45,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
   }, [hasLiveStatus]);
 
   const nowSeconds = nowMs / 1000;
-  const statusLabel = getStatusLabel(status) ?? getRuntimeStatusLabel(runtime);
+  const statusLabel = getSessionActivityText(status) ?? getRuntimeStatusLabel(runtime);
   const summaryParts = useMemo(
     () => getSessionSummaryParts(status, nowSeconds),
     [nowSeconds, status],
