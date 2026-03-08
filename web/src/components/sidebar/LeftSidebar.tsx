@@ -148,14 +148,14 @@ export function LeftSidebar(): JSX.Element {
           {loadError === null && loading && groups.length === 0 ? (
             <div className="flex items-center gap-2 px-2 py-2 text-neutral-500">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-500" />
-              <span className="text-[12px] font-semibold">Loading…</span>
+              <span className="text-xs font-semibold">Loading…</span>
             </div>
           ) : null}
 
           {loadError === null && !loading && groups.length === 0 ? (
             <div className="px-2 py-2 text-neutral-500">
-              <div className="text-[12px] font-semibold">No sessions yet</div>
-              <div className="mt-0.5 text-[11px]">Click "New Agent" above to start</div>
+              <div className="text-xs font-semibold">No sessions yet</div>
+              <div className="mt-0.5 text-2xs">Click "New Agent" above to start</div>
             </div>
           ) : null}
 
@@ -219,7 +219,7 @@ export function LeftSidebar(): JSX.Element {
               </div>
             </ScrollArea>
           ) : (
-            <div className="px-2 py-1 text-[11px] text-neutral-400">No archived sessions</div>
+            <div className="px-2 py-1 text-2xs text-neutral-400">No archived sessions</div>
           )
         ) : null}
 
@@ -236,8 +236,8 @@ export function LeftSidebar(): JSX.Element {
             ) : (
               <ChevronRight className="h-4 w-4 shrink-0" />
             )}
-            <span className="flex-1 text-left text-[12px]">Archived</span>
-            <span className="text-[11px] text-neutral-400">{archivedSessionCount}</span>
+            <span className="flex-1 text-left text-xs">Archived</span>
+            <span className="text-2xs text-neutral-400">{archivedSessionCount}</span>
           </button>
         </div>
       </div>

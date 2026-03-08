@@ -37,7 +37,7 @@ export function MessageListHeader({
         </button>
       ) : null}
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-baseline gap-2 text-[14px] leading-5">
+        <div className="flex min-w-0 items-baseline gap-2 text-sm leading-5">
           <span className="truncate font-semibold text-neutral-800" title={primaryTitle}>
             {primaryTitle}
           </span>
@@ -47,14 +47,14 @@ export function MessageListHeader({
             </span>
           ) : null}
           {sessionReadOnly ? (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-2xs font-medium text-amber-700">
               <Lock className="h-3 w-3" />
               <span>Read-only</span>
             </span>
           ) : null}
           {workspacePath ? (
             <span
-              className="truncate font-sans text-[14px] leading-5 text-neutral-400"
+              className="truncate font-sans text-sm leading-5 text-neutral-400"
               title={workspacePath}
             >
               {workspacePath}
@@ -63,7 +63,7 @@ export function MessageListHeader({
         </div>
       </div>
       {sessionReadOnly ? (
-        <div className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] text-amber-800">
+        <div className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-1 text-2xs text-amber-800">
           This session is owned by another live runtime. Web can observe it, but cannot send control
           actions.
         </div>

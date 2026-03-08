@@ -57,8 +57,8 @@ export function CompactionSummary({ item }: CompactionSummaryProps): JSX.Element
     <div className="relative mt-4 pt-5">
       <div className="pointer-events-none absolute left-1/2 top-0 w-[200vw] -translate-x-1/2 border-t border-neutral-200/80" />
       <div className="rounded-xl bg-blue-50/55 px-5 py-5">
-        <div className="mb-2 text-sm font-semibold text-[#5b6f92]">Compacted</div>
-        <div className="compaction-summary-md text-[#2f3f5f]">
+        <div className="mb-2 text-sm font-semibold text-compaction-label">Compacted</div>
+        <div className="compaction-summary-md text-compaction-text">
           <Streamdown plugins={plugins} components={compactionComponents}>
             {item.content}
           </Streamdown>

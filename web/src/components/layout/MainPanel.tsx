@@ -30,7 +30,7 @@ export function MainPanel(): JSX.Element {
               </button>
             ) : null}
             <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-baseline gap-2 text-[14px] leading-5">
+              <div className="flex min-w-0 items-baseline gap-2 text-sm leading-5">
                 <span className="truncate font-semibold text-neutral-800">New session</span>
               </div>
             </div>
@@ -51,8 +51,8 @@ export function MainPanel(): JSX.Element {
 
           <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-8 sm:px-6">
             <div className="w-full max-w-2xl rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/60 px-6 py-10 text-center">
-              <div className="text-[16px] font-semibold text-neutral-700">Start a new session</div>
-              <div className="mt-2 text-[14px] leading-6 text-neutral-500">
+              <div className="text-base font-semibold text-neutral-700">Start a new session</div>
+              <div className="mt-2 text-sm leading-6 text-neutral-500">
                 Choose a workspace below, then send your first message.
               </div>
             </div>

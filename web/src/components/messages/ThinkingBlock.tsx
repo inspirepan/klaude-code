@@ -11,7 +11,7 @@ interface ThinkingBlockProps {
 const plugins = { code };
 
 function Strong(props: React.ComponentPropsWithoutRef<"strong">): JSX.Element {
-  return <strong style={{ fontWeight: 400, color: "rgb(163 163 163)" }} {...props} />;
+  return <strong className="font-normal text-neutral-400" {...props} />;
 }
 
 const thinkingComponents = { strong: Strong };

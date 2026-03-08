@@ -70,7 +70,7 @@ function CollapsibleRow({
 
   return (
     <div
-      className={`grid grid-cols-[auto_1fr] items-start gap-x-2 py-0.5 font-mono text-[14px] leading-6 ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`grid grid-cols-[auto_1fr] items-start gap-x-1.5 py-0.5 font-mono text-sm leading-6 ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
       <div className="flex items-start gap-1.5 self-stretch">
@@ -90,7 +90,7 @@ function CollapsibleRow({
       <div className="min-w-0" />
 
       {open ? (
-        <div className="col-span-2 mt-1 grid min-w-0 grid-cols-[18px_1fr] gap-x-2">
+        <div className="col-span-2 mt-1 grid min-w-0 grid-cols-[16px_1fr] gap-x-1.5">
           <div className="flex justify-center">
             <div className="w-px bg-neutral-200" />
           </div>
@@ -105,7 +105,7 @@ function CollapsibleRow({
 
 function PathList({ paths }: { paths: string[] }): JSX.Element {
   return (
-    <ul className="list-disc space-y-1 pl-5 text-[14px] leading-6 marker:text-neutral-400">
+    <ul className="list-disc space-y-1 pl-5 text-sm leading-6 marker:text-neutral-400">
       {paths.map((p) => (
         <li key={p}>
           <PathPill path={p} />
@@ -156,7 +156,7 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
                 <div className="flex flex-col gap-1">
                   <PathList paths={g.paths} />
                   {g.mentionedIn ? (
-                    <div className="text-[14px] leading-6">
+                    <div className="text-sm leading-6">
                       <span className="mr-1">mentioned in</span>
                       <PathPill path={g.mentionedIn} />
                     </div>

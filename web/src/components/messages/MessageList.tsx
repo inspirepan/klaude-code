@@ -1,19 +1,16 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { ChevronRight, CircleHelp } from "lucide-react";
 
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
 import { useSessionStore } from "../../stores/session-store";
 import type { SessionStatusState } from "../../stores/event-reducer";
-import type {
-  MessageItem as MessageItemType,
-  ItemTimestamp,
-  AssistantTextItem,
-} from "../../types/message";
+import type { MessageItem as MessageItemType } from "../../types/message";
 import type { SessionSummary } from "../../types/session";
-import { MessageItem } from "./MessageItem";
 import { MessageListHeader } from "./MessageListHeader";
+import { MessageRow } from "./MessageRow";
 import { SearchBar } from "./SearchBar";
+import { SubAgentGroupCard } from "./SubAgentGroupCard";
+import { formatTime, isCopyableAssistantText } from "./message-list-ui";
 import { SearchProvider, type SearchState } from "./search-context";
 
 const EMPTY_ITEMS: MessageItemType[] = [];
@@ -21,24 +18,9 @@ const EMPTY_SUB_AGENT_DESC_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_TYPE_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_FINISHED_MAP: Record<string, boolean> = {};
 const EMPTY_STATUS_MAP: Record<string, SessionStatusState> = {};
-const COMPACT_NUMBER_FORMATTER = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
 
 interface MessageListProps {
   sessionId: string;
-}
-
-function shortSessionId(id: string): string {
-  return id.slice(0, 8);
-}
-
-function formatSubAgentTypeLabel(type: string | null): string {
-  if (type === null || type.trim().length === 0) {
-    return "Agent";
-  }
-  return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 function getSessionTitle(session: SessionSummary | null): string {
@@ -81,155 +63,6 @@ interface SectionSubAgentBlock {
 
 type SectionBlock = SectionItemBlock | SectionSubAgentBlock;
 
-function formatTime(ts: ItemTimestamp): string | null {
-  if (ts === null) return null;
-  const date = new Date(ts * 1000);
-  const time = date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const day = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${day} ${time}`;
-}
-
-function extractToolPreviewDetail(toolName: string, args: string): string {
-  try {
-    const parsed = JSON.parse(args) as Record<string, unknown>;
-    switch (toolName) {
-      case "Bash":
-        return typeof parsed.command === "string" ? parsed.command : "";
-      case "Read":
-      case "Edit":
-      case "Write":
-        return typeof parsed.file_path === "string" ? parsed.file_path : "";
-      case "WebFetch":
-        return typeof parsed.url === "string" ? parsed.url : "";
-      case "WebSearch":
-        return typeof parsed.query === "string" ? parsed.query : "";
-      case "Agent":
-        return typeof parsed.description === "string" ? parsed.description : "";
-      default:
-        return "";
-    }
-  } catch {
-    return args.trim().split("\n")[0] ?? "";
-  }
-}
-
-function previewAssistantResult(content: string): { text: string; hasMore: boolean } {
-  const lines = content.split("\n");
-  if (lines.length <= 10) return { text: content, hasMore: false };
-  return { text: lines.slice(0, 10).join("\n"), hasMore: true };
-}
-
-function formatCompactNumber(value: number): string {
-  if (!Number.isFinite(value)) return "0";
-  if (Math.abs(value) < 1000) return Math.round(value).toString();
-  return COMPACT_NUMBER_FORMATTER.format(value);
-}
-
-function formatElapsed(totalSeconds: number): string {
-  const seconds = Math.max(0, Math.floor(totalSeconds));
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  if (minutes < 60) return `${minutes}m${remainingSeconds.toString().padStart(2, "0")}s`;
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return `${hours}h${remainingMinutes.toString().padStart(2, "0")}m`;
-}
-
-function formatCurrency(total: number, currency: string): string {
-  const symbol = currency === "CNY" ? "¥" : "$";
-  return `${symbol}${total.toFixed(4)}`;
-}
-
-function getSessionActivityText(status: SessionStatusState | null): string | null {
-  if (status === null) return null;
-  return status.awaitingInput
-    ? "Waiting for input …"
-    : status.compacting
-      ? "Compacting …"
-      : status.thinkingActive
-        ? "Thinking …"
-        : status.isComposing
-          ? "Typing …"
-          : status.taskActive
-            ? "Running …"
-            : null;
-}
-
-function getSessionSummaryParts(status: SessionStatusState | null, nowSeconds: number): string[] {
-  if (status === null) return [];
-
-  const parts: string[] = [];
-  if (status.contextPercent !== null) {
-    parts.push(`${status.contextPercent.toFixed(1)}%`);
-  }
-  if (status.totalCost !== null) {
-    parts.push(formatCurrency(status.totalCost, status.currency));
-  }
-  if (
-    status.taskStartedAt !== null &&
-    (status.taskActive || status.awaitingInput || status.compacting)
-  ) {
-    parts.push(formatElapsed(nowSeconds - status.taskStartedAt));
-  }
-  return parts;
-}
-
-function getSessionMetaRows(
-  status: SessionStatusState | null,
-  nowSeconds: number,
-): Array<{ label: string; value: string }> {
-  if (status === null) return [];
-
-  const rows: Array<{ label: string; value: string }> = [];
-  if (status.tokenInput !== null) {
-    rows.push({ label: "Input", value: formatCompactNumber(status.tokenInput) });
-  }
-  if ((status.tokenCached ?? 0) > 0) {
-    rows.push({
-      label: "Cached",
-      value:
-        status.cacheHitRate !== null
-          ? `${formatCompactNumber(status.tokenCached ?? 0)} (${Math.round(status.cacheHitRate * 100)}%)`
-          : formatCompactNumber(status.tokenCached ?? 0),
-    });
-  }
-  if ((status.tokenCacheWrite ?? 0) > 0) {
-    rows.push({ label: "Cache write", value: formatCompactNumber(status.tokenCacheWrite ?? 0) });
-  }
-  if (status.tokenOutput !== null) {
-    rows.push({ label: "Output", value: formatCompactNumber(status.tokenOutput) });
-  }
-  if ((status.tokenThought ?? 0) > 0) {
-    rows.push({ label: "Thought", value: formatCompactNumber(status.tokenThought ?? 0) });
-  }
-  if (
-    status.contextSize !== null &&
-    status.contextEffectiveLimit !== null &&
-    status.contextPercent !== null
-  ) {
-    rows.push({
-      label: "Context",
-      value: `${formatCompactNumber(status.contextSize)}/${formatCompactNumber(status.contextEffectiveLimit)} (${status.contextPercent.toFixed(1)}%)`,
-    });
-  }
-  if (status.totalCost !== null) {
-    rows.push({ label: "Cost", value: formatCurrency(status.totalCost, status.currency) });
-  }
-  if (
-    status.taskStartedAt !== null &&
-    (status.taskActive || status.awaitingInput || status.compacting)
-  ) {
-    rows.push({ label: "Elapsed", value: formatElapsed(nowSeconds - status.taskStartedAt) });
-  }
-  return rows;
-}
-
 function extractSearchableText(item: MessageItemType): string {
   switch (item.type) {
     case "user_message":
@@ -261,10 +94,6 @@ function findMatchingItemIds(items: MessageItemType[], query: string): string[] 
   return items
     .filter((item) => extractSearchableText(item).toLowerCase().includes(lower))
     .map((item) => item.id);
-}
-
-function isCopyableAssistantText(item: MessageItemType): item is AssistantTextItem {
-  return item.type === "assistant_text" && !item.isStreaming && item.content.split("\n").length > 5;
 }
 
 export function MessageList({ sessionId }: MessageListProps): JSX.Element {
@@ -620,364 +449,56 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                           activeGroupId === block.groupId
                             ? false
                             : (collapsedSubAgentGroups[block.groupId] ?? true);
-                        const toolItems = block.items.filter(
-                          (item): item is Extract<MessageItemType, { type: "tool_block" }> =>
-                            item.type === "tool_block",
-                        );
-                        const previewTools = toolItems.slice(-3);
-                        const moreToolsCount = Math.max(0, toolItems.length - previewTools.length);
                         const isFinished =
                           subAgentFinishedBySessionId[block.sourceSessionId] === true;
-                        const subAgentStatus = statusBySessionId[block.sourceSessionId] ?? null;
-                        const subAgentActivityText = getSessionActivityText(subAgentStatus);
-                        const subAgentSummaryParts = getSessionSummaryParts(
-                          subAgentStatus,
-                          nowSeconds,
-                        );
-                        const subAgentMetaRows = getSessionMetaRows(subAgentStatus, nowSeconds);
-                        const hasSubAgentStatus =
-                          subAgentActivityText !== null ||
-                          subAgentSummaryParts.length > 0 ||
-                          subAgentMetaRows.length > 0;
-                        const lastAssistantItem = [...block.items]
-                          .reverse()
-                          .find(
-                            (item): item is AssistantTextItem =>
-                              item.type === "assistant_text" && item.content.trim().length > 0,
-                          );
-                        const lastCompletedAssistantItem = [...block.items]
-                          .reverse()
-                          .find(
-                            (item): item is AssistantTextItem =>
-                              item.type === "assistant_text" &&
-                              !item.isStreaming &&
-                              item.content.trim().length > 0,
-                          );
-                        const resultPreview =
-                          isFinished && lastCompletedAssistantItem
-                            ? previewAssistantResult(lastCompletedAssistantItem.content)
-                            : null;
-                        const streamingPreview =
-                          !isFinished && lastAssistantItem
-                            ? previewAssistantResult(lastAssistantItem.content)
-                            : null;
                         return (
-                          <div key={block.groupId} className="group/subagent flex min-w-0 gap-4">
-                            <div className="min-w-0 flex-1 rounded-2xl border border-neutral-200/80 bg-white shadow-sm shadow-neutral-200/40">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCollapsedSubAgentGroups((prev) => ({
-                                    ...prev,
-                                    [block.groupId]: !collapsed,
-                                  }));
-                                }}
-                                className="flex w-full cursor-pointer items-center gap-2 px-4 py-3 text-left"
-                              >
-                                <ChevronRight
-                                  className={`h-3.5 w-3.5 shrink-0 text-neutral-300 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
-                                />
-                                <div className="flex min-w-0 items-baseline gap-2">
-                                  <span className="whitespace-nowrap text-[14px] font-semibold text-neutral-800">
-                                    {formatSubAgentTypeLabel(block.sourceSessionType)}
-                                  </span>
-                                  <span className="truncate text-[14px] text-neutral-600">
-                                    {block.sourceSessionDesc ??
-                                      `Sub Agent ${shortSessionId(block.sourceSessionId)}`}
-                                  </span>
-                                </div>
-                              </button>
-                              {hasSubAgentStatus ? (
-                                <div className="px-3.5 pb-2 pt-0 text-[12px]">
-                                  {subAgentActivityText ? (
-                                    <div className="truncate font-mono text-neutral-500">
-                                      {subAgentActivityText}
-                                    </div>
-                                  ) : null}
-                                  {subAgentSummaryParts.length > 0 ||
-                                  subAgentMetaRows.length > 0 ? (
-                                    <div className="mt-1 flex items-center gap-2">
-                                      {subAgentSummaryParts.length > 0 ? (
-                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-neutral-400">
-                                          {subAgentSummaryParts.map((part) => (
-                                            <span key={part}>{part}</span>
-                                          ))}
-                                        </div>
-                                      ) : null}
-                                      {subAgentMetaRows.length > 0 ? (
-                                        <div
-                                          className="relative"
-                                          onMouseEnter={() => {
-                                            setSubAgentMetaOpen((prev) => ({
-                                              ...prev,
-                                              [block.groupId]: true,
-                                            }));
-                                          }}
-                                          onMouseLeave={() => {
-                                            setSubAgentMetaOpen((prev) => ({
-                                              ...prev,
-                                              [block.groupId]: false,
-                                            }));
-                                          }}
-                                        >
-                                          <button
-                                            type="button"
-                                            className="inline-flex h-5 w-5 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-                                            aria-label="Show sub-agent metadata"
-                                            onClick={() => {
-                                              setSubAgentMetaOpen((prev) => ({
-                                                ...prev,
-                                                [block.groupId]: !prev[block.groupId],
-                                              }));
-                                            }}
-                                          >
-                                            <CircleHelp className="h-3 w-3" />
-                                          </button>
-                                          {subAgentMetaOpen[block.groupId] ? (
-                                            <div className="absolute right-0 top-full z-20 mt-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
-                                              <div className="space-y-1.5 text-[12px] leading-5">
-                                                {subAgentMetaRows.map((row) => (
-                                                  <div
-                                                    key={row.label}
-                                                    className="flex items-start justify-between gap-4"
-                                                  >
-                                                    <span className="text-neutral-400">
-                                                      {row.label}
-                                                    </span>
-                                                    <span className="text-right font-mono text-neutral-600">
-                                                      {row.value}
-                                                    </span>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          ) : null}
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                              {collapsed ? (
-                                <div className="px-3.5 pb-3.5 pt-0.5">
-                                  {resultPreview ? (
-                                    <>
-                                      <div className="mb-1.5 text-xs text-neutral-400">
-                                        {toolItems.length} tools
-                                      </div>
-                                      <div className="mt-2.5">
-                                        <div className="relative overflow-hidden rounded-lg border border-neutral-200/80 bg-neutral-50/70 px-2.5 py-2">
-                                          <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-neutral-500">
-                                            {resultPreview.text}
-                                          </pre>
-                                          {resultPreview.hasMore ? (
-                                            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-neutral-50/95 to-transparent" />
-                                          ) : null}
-                                        </div>
-                                      </div>
-                                    </>
-                                  ) : streamingPreview ? (
-                                    <>
-                                      <div className="mb-1.5 flex items-center gap-2 text-xs text-neutral-400">
-                                        <span>Running</span>
-                                        <span>·</span>
-                                        <span>{toolItems.length} tools</span>
-                                      </div>
-                                      <div className="space-y-2.5">
-                                        {previewTools.length > 0 ? (
-                                          <div className="space-y-1.5">
-                                            {previewTools.map((toolItem) => {
-                                              const detail = extractToolPreviewDetail(
-                                                toolItem.toolName,
-                                                toolItem.arguments,
-                                              );
-                                              return (
-                                                <div
-                                                  key={toolItem.id}
-                                                  className="flex min-w-0 items-baseline gap-1.5 text-[11px]"
-                                                >
-                                                  <div className="flex items-baseline gap-1">
-                                                    <span className="relative top-px whitespace-nowrap font-sans text-neutral-500">
-                                                      {toolItem.toolName}
-                                                    </span>
-                                                    {toolItem.isStreaming ? (
-                                                      <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
-                                                    ) : null}
-                                                  </div>
-                                                  {detail ? (
-                                                    <code className="min-w-0 max-w-full truncate rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-neutral-500">
-                                                      {detail}
-                                                    </code>
-                                                  ) : null}
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        ) : null}
-                                        <div className="relative overflow-hidden rounded-lg border border-neutral-200/80 bg-neutral-50/70 px-2.5 py-2">
-                                          <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-neutral-500">
-                                            {streamingPreview.text}
-                                          </pre>
-                                          {streamingPreview.hasMore ? (
-                                            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-neutral-50/95 to-transparent" />
-                                          ) : null}
-                                        </div>
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <>
-                                      {moreToolsCount > 0 ? (
-                                        <div className="mb-1.5 text-xs text-neutral-400">
-                                          {moreToolsCount} more tools
-                                        </div>
-                                      ) : null}
-                                      {previewTools.length > 0 ? (
-                                        <div className="space-y-1.5">
-                                          {previewTools.map((toolItem) => {
-                                            const detail = extractToolPreviewDetail(
-                                              toolItem.toolName,
-                                              toolItem.arguments,
-                                            );
-                                            return (
-                                              <div
-                                                key={toolItem.id}
-                                                className="flex min-w-0 items-baseline gap-1.5 text-[11px]"
-                                              >
-                                                <span className="relative top-px whitespace-nowrap font-sans text-neutral-500">
-                                                  {toolItem.toolName}
-                                                </span>
-                                                {detail ? (
-                                                  <code className="min-w-0 max-w-full truncate rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-neutral-500">
-                                                    {detail}
-                                                  </code>
-                                                ) : null}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      ) : (
-                                        <div className="text-xs text-neutral-400">
-                                          No tool calls
-                                        </div>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="space-y-5 px-3.5 pb-3.5 pt-0.5">
-                                  {block.items.map((item, index) => {
-                                    const time = formatTime(item.timestamp);
-                                    const prevTime =
-                                      index > 0
-                                        ? formatTime(block.items[index - 1]!.timestamp)
-                                        : null;
-                                    const displayTime = time && time !== prevTime ? time : null;
-                                    const isActive = item.id === activeItemId;
-                                    const canCopy = isCopyableAssistantText(item);
-                                    const copied = copiedItemId === item.id;
-                                    const usesInlineToolLayout = item.type === "tool_block";
-                                    return (
-                                      <div
-                                        key={item.id}
-                                        ref={(el) => setItemRef(item.id, el)}
-                                        className="group/row relative min-w-0"
-                                      >
-                                        <div
-                                          className={`min-w-0 flex-1 rounded-xl transition-shadow duration-150 ${usesInlineToolLayout ? "" : "bg-neutral-50/60"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
-                                        >
-                                          <MessageItem
-                                            item={item}
-                                            compact
-                                            workDir={workspacePath}
-                                          />
-                                          {canCopy ? (
-                                            <div className="mt-1 flex justify-end sm:hidden">
-                                              <button
-                                                type="button"
-                                                onClick={() => handleCopy(item)}
-                                                className="cursor-pointer text-xs leading-none text-neutral-300 transition-colors duration-150 hover:text-neutral-500"
-                                                title={copied ? "Copied" : "Copy"}
-                                              >
-                                                {copied ? "[Copied]" : "[Copy]"}
-                                              </button>
-                                            </div>
-                                          ) : null}
-                                        </div>
-                                        <div className="absolute left-[calc(100%+24px)] top-0 hidden w-[112px] flex-col items-end gap-1 whitespace-nowrap pt-0.5 text-right sm:flex">
-                                          {displayTime ? (
-                                            <span className="relative -top-0.5 select-none pb-1 text-xs tabular-nums leading-none text-neutral-300 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100">
-                                              {displayTime}
-                                            </span>
-                                          ) : null}
-                                          {canCopy ? (
-                                            <button
-                                              type="button"
-                                              onClick={() => handleCopy(item)}
-                                              className="cursor-pointer text-xs leading-none text-neutral-300 opacity-0 transition-opacity duration-150 hover:text-neutral-500 group-hover/row:opacity-100"
-                                              title={copied ? "Copied" : "Copy"}
-                                            >
-                                              {copied ? "[Copied]" : "[Copy]"}
-                                            </button>
-                                          ) : null}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                            <div className="hidden w-[112px] shrink-0 sm:block" />
-                          </div>
+                          <SubAgentGroupCard
+                            key={block.groupId}
+                            sourceSessionId={block.sourceSessionId}
+                            sourceSessionType={block.sourceSessionType}
+                            sourceSessionDesc={block.sourceSessionDesc}
+                            items={block.items}
+                            collapsed={collapsed}
+                            status={statusBySessionId[block.sourceSessionId] ?? null}
+                            isFinished={isFinished}
+                            nowSeconds={nowSeconds}
+                            activeItemId={activeItemId}
+                            copiedItemId={copiedItemId}
+                            metaOpen={subAgentMetaOpen[block.groupId] === true}
+                            workDir={workspacePath}
+                            onToggleCollapsed={() => {
+                              setCollapsedSubAgentGroups((prev) => ({
+                                ...prev,
+                                [block.groupId]: !collapsed,
+                              }));
+                            }}
+                            onMetaOpenChange={(open) => {
+                              setSubAgentMetaOpen((prev) => ({
+                                ...prev,
+                                [block.groupId]: open,
+                              }));
+                            }}
+                            onCopy={handleCopy}
+                            setItemRef={setItemRef}
+                          />
                         );
                       }
 
                       const item = block.item;
-                      const time = formatTime(item.timestamp);
-                      const isActive = item.id === activeItemId;
-                      const canCopy = isCopyableAssistantText(item);
-                      const copied = copiedItemId === item.id;
-                      const isUser = item.type === "user_message";
                       return (
-                        <div
+                        <MessageRow
                           key={item.id}
-                          ref={(el) => setItemRef(item.id, el)}
-                          className={`group/row flex min-w-0 gap-4 ${isUser ? "sticky top-0 z-10 -mx-4 -mt-2.5 px-4 pt-2.5 sm:-mx-6 sm:px-6" : ""}`}
-                        >
-                          <div
-                            className={`min-w-0 flex-1 transition-shadow duration-150 ${isUser ? "overflow-hidden rounded-[22px] shadow-sm" : "rounded-xl"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
-                          >
-                            <MessageItem item={item} workDir={workspacePath} />
-                            {canCopy ? (
-                              <div className="mt-1 flex justify-end sm:hidden">
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopy(item)}
-                                  className="cursor-pointer text-xs leading-none text-neutral-300 transition-colors duration-150 hover:text-neutral-500"
-                                  title={copied ? "Copied" : "Copy"}
-                                >
-                                  {copied ? "[Copied]" : "[Copy]"}
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="hidden shrink-0 flex-col items-end gap-1 whitespace-nowrap pt-0.5 text-right sm:flex">
-                            {time ? (
-                              <span className="relative -top-0.5 select-none pb-1 text-xs tabular-nums leading-none text-neutral-300 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100">
-                                {time}
-                              </span>
-                            ) : null}
-                            {canCopy ? (
-                              <button
-                                type="button"
-                                onClick={() => handleCopy(item)}
-                                className="cursor-pointer text-xs leading-none text-neutral-300 opacity-0 transition-opacity duration-150 hover:text-neutral-500 group-hover/row:opacity-100"
-                                title={copied ? "Copied" : "Copy"}
-                              >
-                                {copied ? "[Copied]" : "[Copy]"}
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
+                          item={item}
+                          variant="main"
+                          workDir={workspacePath}
+                          isActive={item.id === activeItemId}
+                          displayTime={formatTime(item.timestamp)}
+                          copied={copiedItemId === item.id}
+                          onCopy={handleCopy}
+                          itemRef={(el) => {
+                            setItemRef(item.id, el);
+                          }}
+                        />
                       );
                     })}
                   </div>
@@ -995,7 +516,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             ) : (
               <div className="flex min-h-[240px] items-center justify-center">
                 <div className="rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/70 px-6 py-10 text-center">
-                  <div className="text-[15px] font-semibold text-neutral-700">No messages yet</div>
+                  <div className="text-base font-semibold text-neutral-700">No messages yet</div>
                   <div className="mt-1 text-[13px] text-neutral-500">
                     Send a message below to start this session.
                   </div>

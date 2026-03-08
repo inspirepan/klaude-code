@@ -319,7 +319,7 @@ body {
 }
 .compaction-summary-md code:not(pre code) {
   background: rgba(255, 255, 255, 0.72);
-  color: rgb(70 88 120);
+  color: var(--compaction-code, rgb(70 88 120));
   padding: 0.1em 0.38em;
   border-radius: 0.35rem;
   font-size: 0.88em;
@@ -335,12 +335,12 @@ body {
   display: none;
 }
 .compaction-summary-md .compaction-task-icon {
-  color: rgb(136 154 180);
+  color: var(--compaction-icon, rgb(136 154 180));
   margin-top: 0.22em;
   flex-shrink: 0;
 }
 .compaction-summary-md .compaction-task-icon.is-checked {
-  color: rgb(92 112 146);
+  color: var(--compaction-icon-checked, rgb(92 112 146));
 }
 .compaction-summary-md .compaction-task-text {
   min-width: 0;
@@ -441,6 +441,9 @@ body {
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
+    --compaction-code: rgb(70 88 120);
+    --compaction-icon: rgb(136 154 180);
+    --compaction-icon-checked: rgb(92 112 146);
   }
   .dark {
     --background: 0 0% 3.9%;

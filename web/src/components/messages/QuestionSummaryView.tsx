@@ -11,7 +11,7 @@ export function QuestionSummaryView({
   compact = false,
 }: QuestionSummaryViewProps): JSX.Element {
   const title = (
-    <div className={`${compact ? "text-[11px]" : "text-xs"} font-semibold text-neutral-600`}>
+    <div className={`${compact ? "text-2xs" : "text-xs"} font-semibold text-neutral-600`}>
       QUESTION
     </div>
   );
