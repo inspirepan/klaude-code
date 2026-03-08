@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { ChevronRight, Loader } from "lucide-react";
 
 import type { ToolBlockItem } from "../../types/message";
 import { useSearch } from "./search-context";
@@ -195,7 +195,7 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
         <div
           className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}
         >
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <Loader className="h-3 w-3 animate-spin" />
           <span>Planning…</span>
         </div>
       ) : null}
@@ -217,7 +217,7 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
         <div
           className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}
         >
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <Loader className="h-3 w-3 animate-spin" />
           <span>Waiting for answer…</span>
         </div>
       ) : null}
@@ -291,7 +291,7 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
           {item.toolName}
         </span>
         {item.isStreaming ? (
-          <Loader2 className="mt-0.5 h-3 w-3 shrink-0 translate-y-px animate-spin text-neutral-400" />
+          <Loader className="mt-0.5 h-3 w-3 shrink-0 translate-y-px animate-spin text-neutral-400" />
         ) : null}
       </div>
 
