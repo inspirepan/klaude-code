@@ -51,10 +51,10 @@ export function ProjectGroup({
             <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
           )}
           <div className="min-w-0 flex-1 text-left" title={workDir}>
-            <div className="truncate text-[14px] font-semibold leading-5 text-neutral-800">
+            <div className="truncate text-sm font-semibold leading-5 text-neutral-800">
               {workDirLabel(workDir)}
             </div>
-            <div className="mt-0.5 truncate text-[11px] leading-4 text-neutral-400" title={workDir}>
+            <div className="mt-0.5 truncate text-2xs leading-4 text-neutral-400" title={workDir}>
               {workDir}
             </div>
           </div>
@@ -96,13 +96,13 @@ export function ProjectGroup({
           {hasMore && !showAll && (
             <button
               type="button"
-              className="flex w-full items-center rounded-md px-2 py-[6px] text-left text-neutral-400 transition-colors hover:bg-neutral-100/80 hover:text-neutral-600"
+              className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-neutral-400 transition-colors hover:bg-neutral-100/80 hover:text-neutral-600"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowAll(true);
               }}
             >
-              <span className="flex-1 pl-6 text-[12px] font-normal">
+              <span className="flex-1 pl-6 text-xs font-normal">
                 Load more ({sessions.length - 10})
               </span>
             </button>

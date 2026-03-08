@@ -15,6 +15,9 @@ export default {
         sans: ["IBM Plex Sans", ...defaultTheme.fontFamily.sans],
         mono: ["TX-02", ...defaultTheme.fontFamily.mono],
       },
+      fontSize: {
+        "2xs": ["0.6875rem", { lineHeight: "1rem" }], // 11px
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
@@ -55,6 +58,15 @@ export default {
           DEFAULT: "hsl(var(--sidebar) / <alpha-value>)",
           foreground: "hsl(var(--sidebar-foreground) / <alpha-value>)",
           border: "hsl(var(--sidebar-border) / <alpha-value>)",
+        },
+        "user-bubble": {
+          DEFAULT: "rgb(229, 243, 255)",
+          hover: "rgb(219, 238, 255)",
+          text: "rgb(0, 40, 77)",
+        },
+        compaction: {
+          label: "#5b6f92",
+          text: "#2f3f5f",
         },
         border: "hsl(var(--border) / <alpha-value>)",
         input: "hsl(var(--input) / <alpha-value>)",

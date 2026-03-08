@@ -678,17 +678,17 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                   className={`h-3.5 w-3.5 shrink-0 text-neutral-300 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
                                 />
                                 <div className="flex min-w-0 items-baseline gap-2">
-                                  <span className="whitespace-nowrap text-[14px] font-semibold text-neutral-800">
+                                  <span className="whitespace-nowrap text-sm font-semibold text-neutral-800">
                                     {formatSubAgentTypeLabel(block.sourceSessionType)}
                                   </span>
-                                  <span className="truncate text-[14px] text-neutral-600">
+                                  <span className="truncate text-sm text-neutral-600">
                                     {block.sourceSessionDesc ??
                                       `Sub Agent ${shortSessionId(block.sourceSessionId)}`}
                                   </span>
                                 </div>
                               </button>
                               {hasSubAgentStatus ? (
-                                <div className="px-3.5 pb-2 pt-0 text-[12px]">
+                                <div className="px-3.5 pb-2 pt-0 text-xs">
                                   {subAgentActivityText ? (
                                     <div className="truncate font-mono text-neutral-500">
                                       {subAgentActivityText}
@@ -735,7 +735,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                           </button>
                                           {subAgentMetaOpen[block.groupId] ? (
                                             <div className="absolute right-0 top-full z-20 mt-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
-                                              <div className="space-y-1.5 text-[12px] leading-5">
+                                              <div className="space-y-1.5 text-xs leading-5">
                                                 {subAgentMetaRows.map((row) => (
                                                   <div
                                                     key={row.label}
@@ -794,10 +794,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                               return (
                                                 <div
                                                   key={toolItem.id}
-                                                  className="flex min-w-0 items-baseline gap-1.5 text-[11px]"
+                                                  className="flex min-w-0 items-center gap-1.5 text-2xs"
                                                 >
-                                                  <div className="flex items-baseline gap-1">
-                                                    <span className="relative top-px whitespace-nowrap font-sans text-neutral-500">
+                                                  <div className="flex items-center gap-1">
+                                                    <span className="whitespace-nowrap font-sans text-neutral-500">
                                                       {toolItem.toolName}
                                                     </span>
                                                     {toolItem.isStreaming ? (
@@ -841,9 +841,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                             return (
                                               <div
                                                 key={toolItem.id}
-                                                className="flex min-w-0 items-baseline gap-1.5 text-[11px]"
+                                                className="flex min-w-0 items-center gap-1.5 text-2xs"
                                               >
-                                                <span className="relative top-px whitespace-nowrap font-sans text-neutral-500">
+                                                <span className="whitespace-nowrap font-sans text-neutral-500">
                                                   {toolItem.toolName}
                                                 </span>
                                                 {detail ? (
@@ -995,7 +995,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             ) : (
               <div className="flex min-h-[240px] items-center justify-center">
                 <div className="rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/70 px-6 py-10 text-center">
-                  <div className="text-[15px] font-semibold text-neutral-700">No messages yet</div>
+                  <div className="text-base font-semibold text-neutral-700">No messages yet</div>
                   <div className="mt-1 text-[13px] text-neutral-500">
                     Send a message below to start this session.
                   </div>

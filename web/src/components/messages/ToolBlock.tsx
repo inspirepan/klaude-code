@@ -184,7 +184,7 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
 
   return (
     <div
-      className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[13px]" : "text-[14px]"}`}
+      className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[13px]" : "text-sm"}`}
     >
       {explanation ? (
         <p className={`${compact ? "text-[13px]" : "text-sm"} mb-1 font-sans text-neutral-500`}>
@@ -211,7 +211,7 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
 
   return (
     <div
-      className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[13px]" : "text-[14px]"}`}
+      className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[13px]" : "text-sm"}`}
     >
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} compact={compact} />
@@ -229,10 +229,10 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
 
 export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): JSX.Element {
   const { matchItemIds } = useSearch();
-  const bodyTextClass = compact ? "text-[13px]" : "text-[14px]";
+  const bodyTextClass = compact ? "text-[13px]" : "text-sm";
   const subTextClass = compact ? "text-[13px]" : "text-sm";
   const headerDetailTextClass = "!text-[13px]";
-  const miniTextClass = compact ? "text-[11px]" : "text-xs";
+  const miniTextClass = compact ? "text-2xs" : "text-xs";
   const detailChipClass = "rounded bg-neutral-100 px-1.5 py-0.5 align-middle";
 
   const defaultExpanded = shouldExpandResult(item);
@@ -278,24 +278,24 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
 
   return (
     <div
-      className={`-my-1 grid grid-cols-[auto_1fr] items-baseline gap-x-1.5 ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`-my-1 grid grid-cols-[auto_1fr] items-center gap-x-1.5 ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
       {/* left col: chevron + vertical line + tool name */}
-      <div className="flex items-baseline gap-1.5 self-stretch">
-        <div className="flex flex-col items-center self-stretch">
+      <div className="flex items-center gap-1.5 self-stretch">
+        <div className={`flex flex-col items-center${open ? "self-stretch" : ""}`}>
           <ChevronRight
-            className={`mt-1 h-4 w-4 shrink-0 text-neutral-300 transition-transform duration-150 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
+            className={`h-4 w-4 shrink-0 text-neutral-300 transition-transform duration-150 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
           />
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
-        <span className="relative top-[0.5px] whitespace-nowrap font-sans font-normal text-neutral-500">
+        <span className="whitespace-nowrap font-sans font-normal text-neutral-500">
           {item.toolName}
         </span>
       </div>
 
       {/* right col: detail + spinner */}
-      <div className="flex min-w-0 items-baseline gap-1.5">
+      <div className="flex min-w-0 items-center gap-1.5">
         {detail ? (
           FILE_PATH_TOOLS.has(item.toolName) ? (
             <FilePath
@@ -319,9 +319,7 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
           )
         ) : null}
         {item.isStreaming ? (
-          <span className="inline-flex translate-y-[5px]">
-            <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
-          </span>
+          <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
         ) : null}
       </div>
 

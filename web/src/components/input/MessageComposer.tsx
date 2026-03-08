@@ -121,13 +121,10 @@ export function MessageComposer(): JSX.Element {
         {isDraft ? (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-3">
-              <label
-                htmlFor="draft-workspace"
-                className="text-[12px] font-semibold text-neutral-600"
-              >
+              <label htmlFor="draft-workspace" className="text-xs font-semibold text-neutral-600">
                 Workspace
               </label>
-              <span className="text-[11px] text-neutral-400">Choose or type a local path</span>
+              <span className="text-2xs text-neutral-400">Choose or type a local path</span>
             </div>
             <div ref={workspacePickerRef} className="relative">
               <div
@@ -178,7 +175,7 @@ export function MessageComposer(): JSX.Element {
 
               {workspaceMenuOpen ? (
                 <div className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur">
-                  <div className="px-2.5 pb-1 pt-1 text-[11px] font-medium uppercase tracking-[0.08em] text-neutral-400">
+                  <div className="px-2.5 pb-1 pt-1 text-2xs font-medium uppercase tracking-[0.08em] text-neutral-400">
                     Recent workspaces
                   </div>
                   {filteredWorkspaceOptions.length > 0 ? (
@@ -208,7 +205,7 @@ export function MessageComposer(): JSX.Element {
                               <div className="truncate text-[13px] font-medium leading-5 text-neutral-800">
                                 {workDirLabel(workspace)}
                               </div>
-                              <div className="truncate text-[11px] leading-4 text-neutral-400">
+                              <div className="truncate text-2xs leading-4 text-neutral-400">
                                 {workspace}
                               </div>
                             </div>
@@ -217,7 +214,7 @@ export function MessageComposer(): JSX.Element {
                       })}
                     </div>
                   ) : (
-                    <div className="px-3 py-3 text-[12px] text-neutral-400">
+                    <div className="px-3 py-3 text-xs text-neutral-400">
                       No matching workspace. You can still type any local path.
                     </div>
                   )}
@@ -242,11 +239,11 @@ export function MessageComposer(): JSX.Element {
             }}
             rows={3}
             placeholder={isDraft ? "Message Klaude about this workspace..." : "Send a follow-up..."}
-            className="max-h-64 min-h-[72px] w-full resize-y border-0 bg-transparent px-2 py-1 text-[14px] leading-6 text-neutral-800 outline-none placeholder:text-neutral-400"
+            className="max-h-64 min-h-[72px] w-full resize-y border-0 bg-transparent px-2 py-1 text-sm leading-6 text-neutral-800 outline-none placeholder:text-neutral-400"
           />
 
           <div className="mt-2 flex items-center justify-between gap-3 border-t border-neutral-100 px-2 pt-2">
-            <div className="text-[11px] text-neutral-400">
+            <div className="text-2xs text-neutral-400">
               {isDraft
                 ? normalizedDraftWorkDir.length > 0
                   ? normalizedDraftWorkDir
