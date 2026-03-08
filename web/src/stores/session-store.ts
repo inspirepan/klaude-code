@@ -26,6 +26,7 @@ import { useMessageStore } from "./message-store";
 interface SessionStoreState {
   groups: SessionGroup[];
   activeSessionId: ActiveSessionId;
+  draftWorkDir: string;
   loading: boolean;
   loadError: string | null;
   collapsedByWorkDir: Record<string, boolean>;
@@ -37,8 +38,10 @@ interface SessionStoreState {
   toggleGroup: (workDir: string) => void;
   setSessionArchived: (sessionId: string, archived: boolean) => Promise<void>;
   selectDraft: () => void;
+  setDraftWorkDir: (workDir: string) => void;
   selectSession: (sessionId: string) => Promise<void>;
   createSessionFromDraft: (firstMessage: string, workDir?: string) => Promise<string>;
+  sendMessage: (sessionId: string, text: string) => Promise<void>;
 }
 
 interface ActiveConnection {
@@ -186,6 +189,18 @@ function upsertSessionIntoGroups(groups: SessionGroup[], session: SessionSummary
   }
   targetGroup.sessions.sort((a, b) => b.updated_at - a.updated_at);
   return nextGroups;
+}
+
+function getLatestWorkDir(groups: SessionGroup[]): string {
+  let latestSession: SessionSummary | null = null;
+  for (const group of groups) {
+    for (const session of group.sessions) {
+      if (latestSession === null || session.updated_at > latestSession.updated_at) {
+        latestSession = session;
+      }
+    }
+  }
+  return latestSession?.work_dir ?? "";
 }
 
 function patchRuntimeByEvent(
@@ -419,6 +434,7 @@ function findSession(groups: SessionGroup[], sessionId: string): SessionSummary 
 export const useSessionStore = create<SessionStoreState>((set, get) => ({
   groups: [],
   activeSessionId: "draft",
+  draftWorkDir: "",
   loading: false,
   loadError: null,
   collapsedByWorkDir: {},
@@ -456,6 +472,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       set((state) => ({
         groups,
         loading: false,
+        draftWorkDir: state.draftWorkDir || getLatestWorkDir(groups),
         collapsedByWorkDir: mergeCollapseState(groups, state.collapsedByWorkDir),
         runtimeBySessionId: groups.reduce<Record<string, SessionRuntimeState>>((acc, group) => {
           for (const session of group.sessions) {
@@ -509,9 +526,17 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     }));
   },
   selectDraft: () => {
+    const activeSession =
+      get().activeSessionId === "draft" ? null : findSession(get().groups, get().activeSessionId);
     closeActiveConnectionIfNeeded(null);
-    set({ activeSessionId: "draft" });
+    set((state) => ({
+      activeSessionId: "draft",
+      draftWorkDir: activeSession?.work_dir ?? state.draftWorkDir,
+    }));
     pushSessionUrl("draft");
+  },
+  setDraftWorkDir: (workDir: string) => {
+    set({ draftWorkDir: workDir });
   },
   selectSession: async (sessionId: string) => {
     pushSessionUrl(sessionId);
@@ -543,9 +568,10 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     openSessionWs(sessionId, get, set);
   },
   createSessionFromDraft: async (firstMessage: string, workDir?: string) => {
+    const normalizedWorkDir = workDir?.trim() || undefined;
     const nowSeconds = Date.now() / 1000;
-    const { session_id: sessionId } = await createSession(workDir);
-    const fallbackWorkDir = workDir ?? "";
+    const { session_id: sessionId } = await createSession(normalizedWorkDir);
+    const fallbackWorkDir = normalizedWorkDir ?? "";
     const selectedSession = findSession(get().groups, sessionId);
     const sessionSummary: SessionSummary = selectedSession ?? {
       id: sessionId,
@@ -582,5 +608,15 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     openSessionWs(sessionId, get, set);
     activeConnection?.connection.send({ type: "message", text: firstMessage });
     return sessionId;
+  },
+  sendMessage: async (sessionId: string, text: string) => {
+    const normalizedText = text.trim();
+    if (normalizedText.length === 0) {
+      return;
+    }
+    if (activeConnection?.sessionId !== sessionId) {
+      openSessionWs(sessionId, get, set);
+    }
+    activeConnection?.connection.send({ type: "message", text: normalizedText });
   },
 }));

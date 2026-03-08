@@ -11,7 +11,7 @@ import anyio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, ValidationError
 
-from klaude_code.protocol import llm_param, message, model, op, user_interaction
+from klaude_code.protocol import events, llm_param, message, model, op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
 from klaude_code.session.session import Session
 from klaude_code.web.session_index import resolve_session_work_dir
@@ -117,6 +117,9 @@ async def _handle_incoming_frame(
 
     try:
         if isinstance(frame, MessageFrame):
+            await runtime.emit_event(
+                events.UserMessageEvent(content=frame.text, session_id=session_id, images=frame.images)
+            )
             await runtime.submit(
                 op.RunAgentOperation(
                     session_id=session_id,

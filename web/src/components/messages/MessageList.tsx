@@ -136,6 +136,7 @@ function isCopyableAssistantText(item: MessageItemType): item is AssistantTextIt
 export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
   const selectSession = useSessionStore((state) => state.selectSession);
+  const runtime = useSessionStore((state) => state.runtimeBySessionId[sessionId] ?? null);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen);
@@ -157,6 +158,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
+  const shouldStickToBottomRef = useRef(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
@@ -288,21 +290,27 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     } else {
       bottomRef.current?.scrollIntoView();
     }
+    const container = scrollRef.current;
+    if (container) {
+      shouldStickToBottomRef.current =
+        container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+    }
   }, [sessionId, hasItems]);
 
-  // Auto-scroll on new messages only when near bottom
+  // Auto-scroll on streamed updates only when user is already near bottom.
   useEffect(() => {
     const container = scrollRef.current;
     if (!container) return;
-    const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-    if (nearBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (shouldStickToBottomRef.current) {
+      container.scrollTo({ top: container.scrollHeight });
     }
-  }, [visibleItems.length]);
+  }, [visibleItems]);
 
   const handleScroll = useCallback(() => {
     const container = scrollRef.current;
     if (!container) return;
+    shouldStickToBottomRef.current =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 150;
     sessionStorage.setItem(`scroll-${sessionId}`, String(container.scrollTop));
   }, [sessionId]);
 
@@ -693,9 +701,18 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 ))}
                 <div ref={bottomRef} />
               </>
-            ) : (
+            ) : runtime?.wsState === "connecting" ? (
               <div className="flex min-h-[240px] items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-neutral-300" />
+              </div>
+            ) : (
+              <div className="flex min-h-[240px] items-center justify-center">
+                <div className="rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/70 px-6 py-10 text-center">
+                  <div className="text-[15px] font-semibold text-neutral-700">No messages yet</div>
+                  <div className="mt-1 text-[13px] text-neutral-500">
+                    Send a message below to start this session.
+                  </div>
+                </div>
               </div>
             )}
           </div>
