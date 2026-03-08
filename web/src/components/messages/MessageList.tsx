@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import {
-  ChevronRight,
-  CircleHelp,
-  Lock,
-  PanelLeftOpen,
-  PanelRightOpen,
-  RefreshCw,
-} from "lucide-react";
+import { ChevronRight, CircleHelp } from "lucide-react";
 
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
@@ -19,6 +12,7 @@ import type {
 } from "../../types/message";
 import type { SessionSummary } from "../../types/session";
 import { MessageItem } from "./MessageItem";
+import { MessageListHeader } from "./MessageListHeader";
 import { SearchBar } from "./SearchBar";
 import { SearchProvider, type SearchState } from "./search-context";
 
@@ -275,7 +269,6 @@ function isCopyableAssistantText(item: MessageItemType): item is AssistantTextIt
 
 export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
-  const refreshSession = useSessionStore((state) => state.refreshSession);
   const runtime = useSessionStore((state) => state.runtimeBySessionId[sessionId] ?? null);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
@@ -307,7 +300,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [collapsedSubAgentGroups, setCollapsedSubAgentGroups] = useState<Record<string, boolean>>(
     {},
   );
@@ -365,11 +357,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   const resolvedSearchActiveIndex =
     activeItemId === null ? -1 : searchMatchItemIds.indexOf(activeItemId);
-  const refreshDisabled =
-    refreshing ||
-    runtime?.sessionState === "running" ||
-    runtime?.sessionState === "waiting_user_input";
-
   const searchState = useMemo<SearchState>(
     () => ({
       query: searchQuery,
@@ -421,15 +408,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     setSearchQuery("");
     setSearchActiveIndex(-1);
   }, []);
-
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await refreshSession(sessionId);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refreshSession, sessionId]);
 
   useEffect(() => () => window.clearTimeout(copyTimerRef.current), []);
 
@@ -615,80 +593,16 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           />
         ) : null}
 
-        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 py-2 backdrop-blur sm:px-6">
-          {!sidebarOpen ? (
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-              onClick={() => {
-                setSidebarOpen(true);
-              }}
-              title="Expand sidebar"
-              aria-label="Expand sidebar"
-            >
-              <PanelLeftOpen className="h-4 w-4" />
-            </button>
-          ) : null}
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-baseline gap-2 text-[14px] leading-5">
-              <span className="truncate font-semibold text-neutral-800" title={primaryTitle}>
-                {primaryTitle}
-              </span>
-              {secondaryTitle ? (
-                <span className="truncate text-neutral-500" title={secondaryTitle}>
-                  {secondaryTitle}
-                </span>
-              ) : null}
-              {sessionReadOnly ? (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                  <Lock className="h-3 w-3" />
-                  <span>Read-only</span>
-                </span>
-              ) : null}
-              {workspacePath ? (
-                <span
-                  className="truncate font-sans text-[14px] leading-5 text-neutral-400"
-                  title={workspacePath}
-                >
-                  {workspacePath}
-                </span>
-              ) : null}
-            </div>
-          </div>
-          {sessionReadOnly ? (
-            <div className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] text-amber-800">
-              This session is owned by another live runtime. Web can observe it, but cannot send
-              control actions.
-            </div>
-          ) : null}
-          <button
-            type="button"
-            disabled={refreshDisabled}
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-            onClick={() => {
-              void handleRefresh();
-            }}
-            title={refreshDisabled ? "Wait until current task completes" : "Refresh session"}
-            aria-label="Refresh session"
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""} ${refreshDisabled ? "opacity-40" : ""}`}
-            />
-          </button>
-          {!rightSidebarOpen ? (
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-              onClick={() => {
-                setRightSidebarOpen(true);
-              }}
-              title="Expand right sidebar"
-              aria-label="Expand right sidebar"
-            >
-              <PanelRightOpen className="h-4 w-4" />
-            </button>
-          ) : null}
-        </div>
+        <MessageListHeader
+          primaryTitle={primaryTitle}
+          secondaryTitle={secondaryTitle}
+          workspacePath={workspacePath}
+          sessionReadOnly={sessionReadOnly}
+          sidebarOpen={sidebarOpen}
+          rightSidebarOpen={rightSidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          setRightSidebarOpen={setRightSidebarOpen}
+        />
 
         <div
           ref={scrollRef}
