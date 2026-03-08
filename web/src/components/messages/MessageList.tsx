@@ -18,7 +18,7 @@ import type {
   ItemTimestamp,
   AssistantTextItem,
 } from "../../types/message";
-import type { SessionSummary } from "../../types/session";
+import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { MessageItem } from "./MessageItem";
 import { SearchBar } from "./SearchBar";
 import { SearchProvider, type SearchState } from "./search-context";
@@ -154,6 +154,13 @@ function getSessionActivityText(status: SessionStatusState | null): string | nul
           : status.taskActive
             ? "Running …"
             : null;
+}
+
+function getRuntimeActivityText(runtime: SessionRuntimeState | null): string | null {
+  if (runtime === null) return null;
+  if (runtime.sessionState === "waiting_user_input") return "Waiting for input …";
+  if (runtime.sessionState === "running") return "Running …";
+  return null;
 }
 
 function getSessionSummaryParts(status: SessionStatusState | null, nowSeconds: number): string[] {
@@ -412,12 +419,16 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     () =>
       Object.values(statusBySessionId).some(
         (status) => status.taskActive || status.awaitingInput || status.compacting,
-      ),
-    [statusBySessionId],
+      ) ||
+      runtime?.sessionState === "running" ||
+      runtime?.sessionState === "waiting_user_input",
+    [runtime?.sessionState, statusBySessionId],
   );
   const hasExecutingStatus = useMemo(
-    () => Object.values(statusBySessionId).some((status) => status.taskActive || status.compacting),
-    [statusBySessionId],
+    () =>
+      Object.values(statusBySessionId).some((status) => status.taskActive || status.compacting) ||
+      runtime?.sessionState === "running",
+    [runtime?.sessionState, statusBySessionId],
   );
 
   useEffect(() => {
@@ -562,7 +573,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     activeItemId === null ? null : (subAgentGroupIdByItemId.get(activeItemId) ?? null);
   const nowSeconds = nowMs / 1000;
   const mainSessionStatus = statusBySessionId[sessionId] ?? null;
-  const mainActivityText = getSessionActivityText(mainSessionStatus);
+  const mainActivityText =
+    getSessionActivityText(mainSessionStatus) ?? getRuntimeActivityText(runtime);
   const mainSummaryParts = getSessionSummaryParts(mainSessionStatus, nowSeconds);
   const mainMetaRows = getSessionMetaRows(mainSessionStatus, nowSeconds);
   const inlineStatusLabel = hasExecutingStatus ? (mainActivityText ?? "Running …") : null;
