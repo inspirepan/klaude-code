@@ -35,8 +35,6 @@ klaude-code = "klaude_code.cli.main:app"
 
 [tool.uv.build-backend]
 module-name = "klaude_code"
-data = { data = "web/dist" }
-source-include = ["web/dist/**"]
 
 [dependency-groups]
 dev = [
