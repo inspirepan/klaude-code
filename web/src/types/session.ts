@@ -30,6 +30,7 @@ export interface SessionSummary {
   messages_count: number;
   model_name: string | null;
   session_state: ApiSessionState;
+  read_only: boolean;
   archived: boolean;
   todos: TodoItem[];
   file_change_summary: FileChangeSummary;

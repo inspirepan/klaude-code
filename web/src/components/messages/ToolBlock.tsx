@@ -291,7 +291,7 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
           {item.toolName}
         </span>
         {item.isStreaming ? (
-          <Loader className="mt-0.5 h-3 w-3 shrink-0 translate-y-px animate-spin text-neutral-400" />
+          <Loader className="mt-0.5 h-3 w-3 shrink-0 translate-y-[2px] animate-spin text-neutral-400" />
         ) : null}
       </div>
 

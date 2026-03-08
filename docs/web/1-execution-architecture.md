@@ -117,7 +117,7 @@ class EventEnvelope(BaseModel):
 
 ### 2.1 核心结论：复用而非重建
 
-当前架构的关注点分离已经足够好。Web server 模式不重写核心执行层，只新增一个 Web 适配层（替代 TUI 的 runner + display + interaction handler），与 `RuntimeFacade` 和 `EventBus` 在同一个 asyncio 事件循环中运行。
+当前架构的关注点分离已经足够好。Web server 模式不重写核心执行层，只新增一个 Web 适配层（替代 TUI 的 runner + display + interaction handler）。对于 **Web 进程自己发起的 session**，仍然是 `RuntimeFacade + EventBus` 在同一个 asyncio 事件循环中运行；对于 **其他 klaude TUI 进程**，通过额外的本机 IPC relay 把 `EventEnvelope` 转发给 Web。
 
 ### 2.2 通信模型：WebSocket + REST
 
@@ -139,6 +139,21 @@ class EventEnvelope(BaseModel):
 5. **FastAPI 原生支持 WebSocket** -- 与 ASGI 和 asyncio 事件循环无缝集成。
 
 **REST 端点保留用于无状态操作**：session 列表查询、创建新 session、加载历史、文件服务等不需要实时连接的操作仍走 HTTP。
+
+### 2.2.1 跨进程实时事件：Unix socket relay
+
+`EventBus` 仍然保持进程内语义，不直接做跨进程共享。跨进程实时流通过一个轻量 relay 补上：
+
+- `klaude web` 启动一个本机 Unix domain socket server
+- 其他 TUI/runtime 进程在本地 `EventBus.publish()` 后，best-effort mirror 一份 `EventEnvelope` 到该 socket
+- Web 进程把 **本进程 EventBus 事件** 和 **relay 收到的外部事件** 合并成统一的 live event stream，供 WebSocket 订阅
+
+这样保留了核心层的单进程简单性，同时让 Web 能看到其他进程发出的 ephemeral 事件（如 `assistant.text.delta`、`thinking.delta`、`bash.command.output.delta`）。
+
+为避免 Web 误控制其他活跃 runtime，session meta 会持久化 `runtime_owner` 和 heartbeat：
+
+- heartbeat 新鲜：foreign-owned session 在 Web 中是只读，只能观察
+- heartbeat 过期：视为 owner 已失活，Web 可以在下次连接时接管该 session
 
 ### 2.3 分层架构
 
@@ -163,10 +178,12 @@ Browser (N 个 tab)
 ┌──────────────────┴───────────────────────────┐
 │  Layer 2: Web Adapter                        │
 │  WebSessionManager                           │
-│    - 管理 WS 连接与 EventBus 订阅的映射         │
+│    - 管理 WS 连接与 live event stream 的映射    │
 │    - 将 WS 上行消息转换为 Operation 提交         │
 │  WebInteractionHandler (InteractionHandlerABC)│
 │    - 将交互请求推送到 WS，等待 WS 上行响应       │
+│  Event Relay                                 │
+│    - 合并本进程 EventBus 与外部 TUI 进程事件      │
 └──────────────────┬───────────────────────────┘
                    |
 ┌──────────────────┴───────────────────────────┐

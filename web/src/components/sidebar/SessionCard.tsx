@@ -5,6 +5,7 @@ import {
   CircleCheck,
   CirclePause,
   Loader,
+  Lock,
   MessagesSquare,
 } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
@@ -200,6 +201,12 @@ export function SessionCard({
           <span className="flex-1 truncate text-[13px] leading-5 text-neutral-800">
             {primaryTitle}
           </span>
+          {session.read_only ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] leading-4 text-amber-700">
+              <Lock className="h-3 w-3" />
+              <span>Read-only</span>
+            </span>
+          ) : null}
           <DiffStats
             added={diffSummary.diff_lines_added}
             removed={diffSummary.diff_lines_removed}

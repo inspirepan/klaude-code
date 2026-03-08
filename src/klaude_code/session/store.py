@@ -203,6 +203,8 @@ def build_meta_snapshot(
     messages_count: int,
     model_name: str | None,
     session_state: model.SessionRuntimeState | None,
+    runtime_owner: model.SessionOwner | None,
+    runtime_owner_heartbeat_at: float | None,
     archived: bool,
     model_config_name: str | None,
     model_thinking: llm_param.Thinking | None,
@@ -223,6 +225,8 @@ def build_meta_snapshot(
         "messages_count": messages_count,
         "model_name": model_name,
         "session_state": session_state.value if session_state is not None else None,
+        "runtime_owner": runtime_owner.model_dump(mode="json") if runtime_owner is not None else None,
+        "runtime_owner_heartbeat_at": runtime_owner_heartbeat_at,
         "archived": archived,
         "model_config_name": model_config_name,
         "model_thinking": model_thinking.model_dump(mode="json", exclude_defaults=True, exclude_none=True)

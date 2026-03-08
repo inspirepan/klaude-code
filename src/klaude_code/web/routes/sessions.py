@@ -15,6 +15,7 @@ from klaude_code.protocol import model as protocol_model
 from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
 from klaude_code.session.session import Session, get_store_for_path
+from klaude_code.web.session_access import is_session_read_only, load_session_read_only
 from klaude_code.web.session_index import (
     list_file_running_states,
     list_main_sessions,
@@ -78,7 +79,14 @@ async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[di
     groups_by_work_dir: dict[str, list[dict[str, Any]]] = {}
     runtime_states = _runtime_session_states(state)
     for item in list_main_sessions(state.home_dir):
-        session_state = item.session_state or runtime_states.get(item.id, SESSION_STATE_IDLE)
+        session_state = runtime_states.get(item.id, item.session_state or SESSION_STATE_IDLE)
+        read_only = is_session_read_only(
+            state=state,
+            session_id=item.id,
+            session_state=session_state,
+            runtime_owner=item.runtime_owner,
+            runtime_owner_heartbeat_at=item.runtime_owner_heartbeat_at,
+        )
         groups_by_work_dir.setdefault(item.work_dir, []).append(
             {
                 "id": item.id,
@@ -90,6 +98,7 @@ async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[di
                 "messages_count": item.messages_count,
                 "model_name": item.model_name,
                 "session_state": session_state,
+                "read_only": read_only,
                 "archived": item.archived,
                 "todos": item.todos,
                 "file_change_summary": item.file_change_summary,
@@ -120,6 +129,11 @@ async def list_running_sessions(
         "states": {
             sid: {
                 "session_state": session_state,
+                "read_only": load_session_read_only(
+                    state,
+                    session_id=sid,
+                    work_dir=resolve_session_work_dir(state.home_dir, sid) or state.work_dir,
+                ),
                 "title": title_map.get(sid),
                 "user_messages": user_messages_map.get(sid, []),
             }
@@ -166,6 +180,8 @@ async def create_session(
             "messages_count": 0,
             "model_name": current_model_name,
             "session_state": "idle",
+            "runtime_owner": state.runtime.session_owner.model_dump(mode="json"),
+            "runtime_owner_heartbeat_at": time.time(),
             "archived": False,
             "todos": [],
             "file_change_summary": {
@@ -249,8 +265,11 @@ async def post_message(
     payload: MessageRequest,
     state: WebAppState = WEB_STATE_DEP,
 ) -> dict[str, str]:
-    if resolve_session_work_dir(state.home_dir, session_id) is None:
+    work_dir = resolve_session_work_dir(state.home_dir, session_id)
+    if work_dir is None:
         raise HTTPException(status_code=404, detail="session not found")
+    if load_session_read_only(state, session_id=session_id, work_dir=work_dir):
+        raise HTTPException(status_code=409, detail="session is owned by another runtime and is read-only")
 
     await state.runtime.emit_event(
         protocol_events.UserMessageEvent(content=payload.text, session_id=session_id, images=payload.images)
@@ -267,6 +286,11 @@ async def post_message(
 
 @router.post("/{session_id}/interrupt")
 async def interrupt_session(session_id: str, state: WebAppState = WEB_STATE_DEP) -> dict[str, str]:
+    work_dir = resolve_session_work_dir(state.home_dir, session_id)
+    if work_dir is None:
+        raise HTTPException(status_code=404, detail="session not found")
+    if load_session_read_only(state, session_id=session_id, work_dir=work_dir):
+        raise HTTPException(status_code=409, detail="session is owned by another runtime and is read-only")
     operation_id = await state.runtime.submit(op.InterruptOperation(session_id=session_id))
     return {"operation_id": operation_id}
 
@@ -277,6 +301,11 @@ async def respond_interaction(
     payload: RespondRequest,
     state: WebAppState = WEB_STATE_DEP,
 ) -> dict[str, bool]:
+    work_dir = resolve_session_work_dir(state.home_dir, session_id)
+    if work_dir is None:
+        raise HTTPException(status_code=404, detail="session not found")
+    if load_session_read_only(state, session_id=session_id, work_dir=work_dir):
+        raise HTTPException(status_code=409, detail="session is owned by another runtime and is read-only")
     await state.runtime.submit(
         op.UserInteractionRespondOperation(
             session_id=session_id,
@@ -293,6 +322,11 @@ async def change_model(
     payload: ModelRequest,
     state: WebAppState = WEB_STATE_DEP,
 ) -> dict[str, str]:
+    work_dir = resolve_session_work_dir(state.home_dir, session_id)
+    if work_dir is None:
+        raise HTTPException(status_code=404, detail="session not found")
+    if load_session_read_only(state, session_id=session_id, work_dir=work_dir):
+        raise HTTPException(status_code=409, detail="session is owned by another runtime and is read-only")
     operation_id = await state.runtime.submit(
         op.ChangeModelOperation(
             session_id=session_id,
