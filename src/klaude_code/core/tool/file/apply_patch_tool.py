@@ -91,9 +91,7 @@ class ApplyPatchHandler:
                 file_diff = build_structured_file_diff(
                     change.old_content or "", change.new_content or "", file_path=change_path
                 )
-                file_change_summary.add_diff(
-                    added=file_diff.stats_add, removed=file_diff.stats_remove, path=resolved
-                )
+                file_change_summary.add_diff(added=file_diff.stats_add, removed=file_diff.stats_remove, path=resolved)
 
         md_items: list[model.MarkdownDocUIExtra] = []
         for change_path, change in commit.changes.items():
