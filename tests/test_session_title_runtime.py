@@ -76,7 +76,9 @@ def test_generate_session_title_uses_only_user_messages() -> None:
     assert "<current_user_message>" in rendered
     assert "first request" in rendered
     assert "latest request about src/app.py" in rendered
-    assert "focus on the current user message" in rendered.lower()
+    assert "prefer the main substantive task/topic of the current user message" in rendered.lower()
+    assert "workflow or administrative follow-up" in rendered.lower()
+    assert "reflect user intent, not internal tool usage or skill execution" in rendered.lower()
     assert "assistant" not in rendered.lower()
     assert client.calls[0].system is not None
     assert "same language" in client.calls[0].system.lower()

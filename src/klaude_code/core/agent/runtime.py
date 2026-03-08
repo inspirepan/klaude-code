@@ -164,15 +164,21 @@ def _build_session_title_input(user_messages: list[str]) -> list[message.Message
             parts=[
                 message.TextPart(
                     text=(
-                        "Generate a concise session title for the current user message.\n"
+                        "Generate a very short session title.\n"
                         "Requirements:\n"
-                        "- focus on the current user message\n"
-                        "- use previous user messages only as supporting context for references or follow-ups\n"
-                        "- capture the main task/topic of the current user message\n"
-                        "- max 8 words\n"
+                        "- prefer the main substantive task/topic of the current user message\n"
+                        "- if the current user message is mainly a workflow or administrative follow-up "
+                        "(for example: commit, open PR, run tests, continue, publish, rebase), "
+                        "use previous user messages to infer the most relevant recent substantive task instead\n"
+                        "- use previous user messages to resolve references, follow-ups, and wrap-up actions\n"
+                        "- reflect user intent, not internal tool usage or skill execution\n"
+                        "- prefer 2-4 words; hard max 6 words\n"
+                        "- use a compact noun phrase, not a full sentence\n"
+                        "- omit filler words, politeness, and unnecessary verbs\n"
                         "- single line\n"
                         "- use the same language as the user's messages; do not translate\n"
-                        "- keep important file paths or technologies when central to the request\n\n"
+                        "- keep important file paths or technologies only when central to the request\n"
+                        "- choose the shortest title that still clearly distinguishes the session\n\n"
                         f"<previous_user_messages>\n{rendered_previous_messages}\n</previous_user_messages>\n\n"
                         f"<current_user_message>\n{current_user_message}\n</current_user_message>"
                     )

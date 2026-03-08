@@ -76,7 +76,7 @@ function getRuntimeIcon(
   hasUnreadCompletion: boolean,
 ): JSX.Element {
   if (runtime.sessionState === "running") {
-    return <Loader className="h-3.5 w-3.5 shrink-0 animate-spin text-blue-400" />;
+    return <Loader className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-400" />;
   }
   if (runtime.sessionState === "waiting_user_input") {
     return <CirclePause className="h-3.5 w-3.5 shrink-0 text-amber-500" />;
@@ -172,11 +172,6 @@ export function SessionCard({
         <div className="flex min-w-0 items-center gap-1.5 pl-1">
           {getRuntimeIcon(runtime, showSuccessState, hasUnreadCompletion)}
           <span className="flex-1 truncate text-[13px] leading-5 text-neutral-800">{title}</span>
-          {runtime.sessionState === "running" ? (
-            <span className="inline-flex shrink-0 items-center rounded-full bg-blue-50 px-1.5 text-[10px] leading-4 text-blue-500">
-              Running…
-            </span>
-          ) : null}
         </div>
 
         <div className="flex min-w-0 items-center gap-1 pl-6 pr-1 text-[10px] leading-4 text-neutral-400">
@@ -185,32 +180,36 @@ export function SessionCard({
             <span>{messageCountLabel}</span>
             <span>·</span>
             <span className="truncate">{modelLabel}</span>
+            {runtime.sessionState === "running" ? (
+              <>
+                <span>·</span>
+                <span className="inline-flex shrink-0 items-center rounded-full bg-blue-50 px-1.5 text-[10px] leading-4 text-blue-500">
+                  Running…
+                </span>
+              </>
+            ) : null}
           </div>
 
           <div className="ml-auto flex items-center">
-            {runtime.sessionState !== "running" && (
-              <>
-                <span className="whitespace-nowrap group-hover:hidden" title={updatedAtDetailed}>
-                  {updatedAt}
-                </span>
-                <button
-                  type="button"
-                  className="hidden h-4 w-4 items-center justify-center rounded text-neutral-400 hover:text-neutral-700 focus:outline-none group-hover:inline-flex"
-                  title={session.archived ? "Unarchive session" : "Archive session"}
-                  aria-label={session.archived ? "Unarchive session" : "Archive session"}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onToggleArchive(session.id, !session.archived);
-                  }}
-                >
-                  {session.archived ? (
-                    <ArchiveRestore className="h-3 w-3" />
-                  ) : (
-                    <Archive className="h-3 w-3" />
-                  )}
-                </button>
-              </>
-            )}
+            <span className="whitespace-nowrap group-hover:hidden" title={updatedAtDetailed}>
+              {updatedAt}
+            </span>
+            <button
+              type="button"
+              className="hidden h-4 w-4 items-center justify-center rounded text-neutral-400 hover:text-neutral-700 focus:outline-none group-hover:inline-flex"
+              title={session.archived ? "Unarchive session" : "Archive session"}
+              aria-label={session.archived ? "Unarchive session" : "Archive session"}
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleArchive(session.id, !session.archived);
+              }}
+            >
+              {session.archived ? (
+                <ArchiveRestore className="h-3 w-3" />
+              ) : (
+                <Archive className="h-3 w-3" />
+              )}
+            </button>
           </div>
         </div>
       </div>
