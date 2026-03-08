@@ -54,6 +54,7 @@ class LLMClients:
     main: LLMClientABC
     main_model_alias: str = ""
     sub_clients: dict[SubAgentType, LLMClientABC] = dataclass_field(default_factory=_default_sub_clients)
+    fast: LLMClientABC | None = None
     compact: LLMClientABC | None = None
 
     def get_client(self, sub_agent_type: SubAgentType | None = None) -> LLMClientABC:
@@ -66,6 +67,9 @@ class LLMClients:
 
     def get_compact_client(self) -> LLMClientABC:
         return self.compact or self.main
+
+    def get_fast_client(self) -> LLMClientABC:
+        return self.fast or self.main
 
 
 def build_llm_clients(
@@ -87,6 +91,16 @@ def build_llm_clients(
 
     main_client = create_llm_client(llm_config)
 
+    fast_client: LLMClientABC | None = None
+    if config.fast_model:
+        fast_llm_config = config.get_model_config(config.fast_model)
+        log_debug(
+            "Fast LLM config",
+            fast_llm_config.model_dump_json(exclude_none=True),
+            debug_type=DebugType.LLM_CONFIG,
+        )
+        fast_client = create_llm_client(fast_llm_config)
+
     compact_client: LLMClientABC | None = None
     if config.compact_model:
         compact_llm_config = config.get_model_config(config.compact_model)
@@ -98,7 +112,7 @@ def build_llm_clients(
         compact_client = create_llm_client(compact_llm_config)
 
     if skip_sub_agents:
-        return LLMClients(main=main_client, main_model_alias=model_name, compact=compact_client)
+        return LLMClients(main=main_client, main_model_alias=model_name, fast=fast_client, compact=compact_client)
 
     helper = SubAgentModelHelper(config)
     sub_agent_configs = helper.build_sub_agent_client_configs()
@@ -119,7 +133,13 @@ def build_llm_clients(
                 debug_type=DebugType.LLM_CONFIG,
             )
 
-    return LLMClients(main=main_client, main_model_alias=model_name, sub_clients=sub_clients, compact=compact_client)
+    return LLMClients(
+        main=main_client,
+        main_model_alias=model_name,
+        sub_clients=sub_clients,
+        fast=fast_client,
+        compact=compact_client,
+    )
 
 
 _SESSION_TITLE_SYSTEM_PROMPT = (
@@ -132,22 +152,27 @@ _SESSION_TITLE_MAX_TOKENS = 1024
 
 
 def _build_session_title_input(user_messages: list[str]) -> list[message.Message]:
-    rendered_messages = "\n\n".join(
-        f"[{idx}] {msg.strip()}" for idx, msg in enumerate(user_messages, start=1) if msg.strip()
+    current_user_message = user_messages[-1].strip()
+    previous_user_messages = [msg.strip() for msg in user_messages[:-1] if msg.strip()]
+    rendered_previous_messages = "\n\n".join(
+        f"[{idx}] {msg}" for idx, msg in enumerate(previous_user_messages, start=1)
     )
     return [
         message.UserMessage(
             parts=[
                 message.TextPart(
                     text=(
-                        "Generate a concise session title from these user messages.\n"
+                        "Generate a concise session title for the current user message.\n"
                         "Requirements:\n"
-                        "- capture the main task/topic\n"
+                        "- focus on the current user message\n"
+                        "- use previous user messages only as supporting context for references or follow-ups\n"
+                        "- capture the main task/topic of the current user message\n"
                         "- max 8 words\n"
                         "- single line\n"
                         "- use the same language as the user's messages; do not translate\n"
                         "- keep important file paths or technologies when central to the request\n\n"
-                        f"<user-messages>\n{rendered_messages}\n</user-messages>"
+                        f"<previous_user_messages>\n{rendered_previous_messages}\n</previous_user_messages>\n\n"
+                        f"<current_user_message>\n{current_user_message}\n</current_user_message>"
                     )
                 )
             ]
@@ -414,6 +439,7 @@ def _clone_llm_clients(template: LLMClients) -> LLMClients:
         sub_clients={
             sub_agent_type: _clone_llm_client(client) for sub_agent_type, client in template.sub_clients.items()
         },
+        fast=_clone_llm_client(template.fast) if template.fast is not None else None,
         compact=_clone_llm_client(template.compact) if template.compact is not None else None,
     )
 
@@ -692,10 +718,10 @@ class AgentOperationHandler:
 
     async def _refresh_session_title(self, session: Session, *, user_messages_snapshot: list[str]) -> None:
         session_clients = self.get_session_llm_clients(session.id)
-        title_client = session_clients.compact or session_clients.main
-        if session_clients.compact is None:
+        title_client = session_clients.fast or session_clients.main
+        if session_clients.fast is None:
             log_debug(
-                f"[SessionTitle] compact client unavailable; falling back to main model for session {session.id}",
+                f"[SessionTitle] fast client unavailable; falling back to main model for session {session.id}",
                 debug_type=DebugType.RESPONSE,
             )
 
@@ -734,7 +760,7 @@ class AgentOperationHandler:
         task.add_done_callback(_cleanup)
 
     def _should_refresh_session_title_during_task(self, session_id: str) -> bool:
-        return self.get_session_llm_clients(session_id).compact is not None
+        return self.get_session_llm_clients(session_id).fast is not None
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)

@@ -34,6 +34,7 @@ Tests are located in the `tests/` directory.
 - Test files should be placed in `tests/` directory
 - Test naming convention: `test_*.py`
 - Run tests with `pytest` command
+- For tests that create or persist `Session` data, use the `isolated_home` fixture from `tests/conftest.py` so `HOME`/`Path.home()` point to a per-test temp directory and do not pollute the real `~/.klaude` session store
 
 ## Python Type Hints
 

@@ -218,6 +218,7 @@ class UserConfig(BaseModel):
     """User configuration (what gets saved to disk)."""
 
     main_model: str | None = None
+    fast_model: str | None = None
     compact_model: str | None = None
     sub_agent_models: dict[str, str] = Field(default_factory=dict)
     theme: str | None = None
@@ -247,6 +248,7 @@ class Config(BaseModel):
     """Merged configuration (builtin + user) for runtime use."""
 
     main_model: str | None = None
+    fast_model: str | None = None
     compact_model: str | None = None
     sub_agent_models: dict[str, str] = Field(default_factory=dict)
     theme: str | None = None
@@ -451,6 +453,7 @@ class Config(BaseModel):
 
         # Sync user-modifiable fields from merged config to user config
         user_config.main_model = self.main_model
+        user_config.fast_model = self.fast_model
         user_config.compact_model = self.compact_model
         user_config.sub_agent_models = self.sub_agent_models
         user_config.theme = self.theme
@@ -484,6 +487,7 @@ def get_example_config() -> UserConfig:
     """Generate example config for user reference (will be commented out)."""
     return UserConfig(
         main_model="opus",
+        fast_model="gemini-flash",
         compact_model="gemini-flash",
         sub_agent_models={"general-purpose": "sonnet", "explore": "haiku"},
         provider_list=[
@@ -580,6 +584,7 @@ def _merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Co
         revalidated_providers = [ProviderConfig.model_validate(p.model_dump()) for p in builtin_config.provider_list]
         merged = Config(
             main_model=builtin_config.main_model,
+            fast_model=builtin_config.fast_model,
             compact_model=builtin_config.compact_model,
             sub_agent_models=dict(builtin_config.sub_agent_models),
             theme=builtin_config.theme,
@@ -618,6 +623,7 @@ def _merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Co
     revalidated_providers = [ProviderConfig.model_validate(p.model_dump()) for p in merged_providers.values()]
     merged = Config(
         main_model=user_config.main_model or builtin_config.main_model,
+        fast_model=user_config.fast_model or builtin_config.fast_model,
         compact_model=user_config.compact_model or builtin_config.compact_model,
         sub_agent_models=merged_sub_agent_models,
         theme=user_config.theme or builtin_config.theme,

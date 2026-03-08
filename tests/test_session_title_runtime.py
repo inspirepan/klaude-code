@@ -7,10 +7,13 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
-from klaude_code.core.agent.runtime import AgentOperationHandler, LLMClients, _generate_session_title
+import pytest
+
+from klaude_code.config.config import Config, ModelConfig, ProviderConfig
+from klaude_code.core.agent.runtime import AgentOperationHandler, LLMClients, _generate_session_title, build_llm_clients
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import llm_param, message
-from klaude_code.session.session import Session, close_default_store
+from klaude_code.session.session import Session
 
 
 class _FakeStream(LLMStreamABC):
@@ -26,9 +29,12 @@ class _FakeStream(LLMStreamABC):
 
 
 class _FakeLLMClient(LLMClientABC):
-    def __init__(self, items: list[message.LLMStreamItem]) -> None:
+    def __init__(
+        self, items: list[message.LLMStreamItem], *, config: llm_param.LLMConfigParameter | None = None
+    ) -> None:
         super().__init__(
-            llm_param.LLMConfigParameter(
+            config
+            or llm_param.LLMConfigParameter(
                 provider_name="test",
                 protocol=llm_param.LLMClientProtocol.OPENAI,
                 model_id="fake-compact",
@@ -64,19 +70,107 @@ def test_generate_session_title_uses_only_user_messages() -> None:
     assert title == "Fix session title generation"
     assert len(client.calls) == 1
     rendered = message.join_text_parts(client.calls[0].input[0].parts)
+    assert "<previous_user_messages>" in rendered
+    assert "<current_user_message>" in rendered
     assert "first request" in rendered
     assert "latest request about src/app.py" in rendered
+    assert "focus on the current user message" in rendered.lower()
     assert "assistant" not in rendered.lower()
     assert client.calls[0].system is not None
     assert "same language" in client.calls[0].system.lower()
 
 
-def test_schedule_session_title_refresh_runs_in_background(tmp_path: Path) -> None:
+def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = ProviderConfig(
+        provider_name="test-provider",
+        protocol=llm_param.LLMClientProtocol.OPENAI,
+        api_key="test-key",
+        model_list=[
+            ModelConfig(model_name="main-model", model_id="main-model-id"),
+            ModelConfig(model_name="fast-model", model_id="fast-model-id"),
+            ModelConfig(model_name="compact-model", model_id="compact-model-id"),
+        ],
+    )
+    config = Config(
+        provider_list=[provider],
+        main_model="main-model",
+        fast_model="fast-model",
+        compact_model="compact-model",
+    )
+
+    def _create_client(llm_config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        return _FakeLLMClient([], config=llm_config)
+
+    monkeypatch.setattr(
+        "klaude_code.core.agent.runtime.create_llm_client",
+        _create_client,
+    )
+
+    clients = build_llm_clients(config, skip_sub_agents=True)
+
+    assert clients.main.model_name == "main-model-id"
+    assert clients.fast is not None
+    assert clients.fast.model_name == "fast-model-id"
+    assert clients.compact is not None
+    assert clients.compact.model_name == "compact-model-id"
+
+
+def test_refresh_session_title_prefers_fast_client(tmp_path: Path, isolated_home: Path) -> None:
+    del isolated_home
+
+    async def _test() -> None:
+        main_client = _FakeLLMClient([])
+        compact_client = _FakeLLMClient([])
+        fast_client = _FakeLLMClient(
+            [message.AssistantMessage(parts=[message.TextPart(text="最新标题")], stop_reason="stop")]
+        )
+        emitted: list[Any] = []
+
+        async def _emit(event: Any) -> None:
+            emitted.append(event)
+
+        handler = AgentOperationHandler(
+            emit_event=_emit,
+            llm_clients=LLMClients(main=main_client, fast=fast_client, compact=compact_client),
+            model_profile_provider=cast_any(object()),
+            sub_agent_manager=cast_any(object()),
+            on_child_task_state_change=_noop_child_task_state_change,
+            ensure_session_actor=_unexpected_session_actor,
+            get_session_actor=lambda _sid: None,
+            get_session_actor_for_operation=lambda _op: None,
+            list_session_actors=lambda: [],
+            register_task=_noop_register_task,
+            remove_task=_noop_remove_task,
+            request_user_interaction=_noop_request_user_interaction,
+        )
+        session = Session(work_dir=tmp_path)
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("继续优化标题生成"))])
+        handler.get_session_llm_clients = lambda _sid: LLMClients(  # type: ignore[method-assign]
+            main=main_client,
+            fast=fast_client,
+            compact=compact_client,
+        )
+
+        await session.wait_for_flush()
+        await handler._refresh_session_title(session, user_messages_snapshot=list(session.user_messages))
+
+        assert len(fast_client.calls) == 1
+        assert len(compact_client.calls) == 0
+        assert len(main_client.calls) == 0
+        assert session.title == "最新标题"
+        assert emitted[-1].title == "最新标题"
+
+    asyncio.run(_test())
+
+
+def test_schedule_session_title_refresh_runs_in_background(tmp_path: Path, isolated_home: Path) -> None:
+    del isolated_home
+
     async def _test() -> None:
         client = _FakeLLMClient([])
         handler = AgentOperationHandler(
             emit_event=_noop_emit,
-            llm_clients=LLMClients(main=client, compact=client),
+            llm_clients=LLMClients(main=client, fast=client, compact=client),
             model_profile_provider=cast_any(object()),
             sub_agent_manager=cast_any(object()),
             on_child_task_state_change=_noop_child_task_state_change,
@@ -108,7 +202,6 @@ def test_schedule_session_title_refresh_runs_in_background(tmp_path: Path) -> No
 
         release.set()
         await handler._title_refresh_tasks[session.id]
-        await close_default_store()
 
     asyncio.run(_test())
 

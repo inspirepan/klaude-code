@@ -138,6 +138,24 @@ def read_session_user_messages(home: Path, session_ids: set[str]) -> dict[str, l
     return result
 
 
+def read_session_titles(home: Path, session_ids: set[str]) -> dict[str, str | None]:
+    """Read title from meta.json for the given session IDs."""
+    if not session_ids:
+        return {}
+    result: dict[str, str | None] = {}
+    for meta_path in _iter_meta_files(home):
+        data = _read_json_dict(meta_path)
+        if data is None or data.get("deleted_at") is not None:
+            continue
+        sid = str(data.get("id", meta_path.parent.name))
+        if sid not in session_ids:
+            continue
+        result[sid] = data.get("title") if isinstance(data.get("title"), str) else None
+        if len(result) == len(session_ids):
+            break
+    return result
+
+
 def resolve_session_work_dir(home: Path, session_id: str) -> Path | None:
     for meta_path in _iter_meta_files(home):
         data = _read_json_dict(meta_path)

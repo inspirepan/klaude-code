@@ -18,6 +18,7 @@ from klaude_code.session.session import Session, get_store_for_path
 from klaude_code.web.session_index import (
     list_file_running_states,
     list_main_sessions,
+    read_session_titles,
     read_session_user_messages,
     resolve_session_work_dir,
     soft_delete_session,
@@ -110,10 +111,16 @@ async def list_running_sessions(
     for sid, file_state in list_file_running_states(state.home_dir).items():
         if sid not in states:
             states[sid] = file_state
-    user_messages_map = read_session_user_messages(state.home_dir, set(states.keys()))
+    session_ids = set(states.keys())
+    user_messages_map = read_session_user_messages(state.home_dir, session_ids)
+    title_map = read_session_titles(state.home_dir, session_ids)
     return {
         "states": {
-            sid: {"session_state": session_state, "user_messages": user_messages_map.get(sid, [])}
+            sid: {
+                "session_state": session_state,
+                "title": title_map.get(sid),
+                "user_messages": user_messages_map.get(sid, []),
+            }
             for sid, session_state in states.items()
         }
     }

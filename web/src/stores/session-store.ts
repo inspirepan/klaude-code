@@ -349,6 +349,7 @@ function areSessionGroupsEqual(a: SessionGroup[], b: SessionGroup[]): boolean {
         leftSession.created_at !== rightSession.created_at ||
         leftSession.updated_at !== rightSession.updated_at ||
         leftSession.work_dir !== rightSession.work_dir ||
+        leftSession.title !== rightSession.title ||
         leftSession.messages_count !== rightSession.messages_count ||
         leftSession.model_name !== rightSession.model_name ||
         leftSession.session_state !== rightSession.session_state ||
@@ -515,6 +516,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       created_at: nowSeconds,
       updated_at: nowSeconds,
       work_dir: fallbackWorkDir,
+      title: null,
       user_messages: firstMessage.trim().length > 0 ? [firstMessage] : [],
       messages_count: 0,
       model_name: null,

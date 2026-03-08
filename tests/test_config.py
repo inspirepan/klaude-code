@@ -163,6 +163,15 @@ class TestConfig:
         )
         assert config.theme == "dark"
 
+    def test_config_with_fast_model(self, sample_provider: ProviderConfig) -> None:
+        config = Config(
+            provider_list=[sample_provider],
+            main_model="test-model",
+            fast_model="fast-model",
+        )
+
+        assert config.fast_model == "fast-model"
+
     def test_get_model_config(self, sample_config: Config) -> None:
         """Test getting model config by name."""
         llm_config = sample_config.get_model_config("test-model")
@@ -472,6 +481,7 @@ class TestConfigSave:
         config = Config(
             provider_list=[provider_config],
             main_model="test-model",
+            fast_model="fast-model",
         )
 
         asyncio.run(config.save())
@@ -480,6 +490,7 @@ class TestConfigSave:
         saved_content = yaml.safe_load(test_config_path.read_text())
         # Only main_model should be saved, not the (builtin) provider_list
         assert saved_content["main_model"] == "test-model"
+        assert saved_content["fast_model"] == "fast-model"
         assert "provider_list" not in saved_content
 
     def test_save_config_with_user_providers(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -604,6 +615,7 @@ class TestLoadConfig:
 
         config_dict = {
             "main_model": "my-model",
+            "fast_model": "my-fast-model",
             "provider_list": [
                 {
                     "provider_name": "my-provider",
@@ -627,6 +639,7 @@ class TestLoadConfig:
 
         assert result is not None
         assert result.main_model == "my-model"
+        assert result.fast_model == "my-fast-model"
         # User provider is merged with builtin providers
         provider_names = [p.provider_name for p in result.provider_list]
         assert "my-provider" in provider_names
