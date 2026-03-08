@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { ChevronRight, Loader2, PanelLeftOpen, PanelRightOpen, RefreshCw } from "lucide-react";
+import { ChevronRight, CircleHelp, Loader2, PanelLeftOpen, PanelRightOpen, RefreshCw } from "lucide-react";
 
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
@@ -155,48 +155,67 @@ function getSessionActivityText(status: SessionStatusState | null): string | nul
   return toolSummary ?? baseStatus;
 }
 
-function getSessionMetadataParts(status: SessionStatusState | null, nowSeconds: number): string[] {
+function getSessionSummaryParts(status: SessionStatusState | null, nowSeconds: number): string[] {
   if (status === null) return [];
 
   const parts: string[] = [];
-  if (status.tokenInput !== null && status.tokenOutput !== null) {
-    const tokenParts = [`↑${formatCompactNumber(status.tokenInput)}`];
-    if ((status.tokenCached ?? 0) > 0) {
-      const cacheText =
-        status.cacheHitRate !== null
-          ? `◎${formatCompactNumber(status.tokenCached ?? 0)} (${Math.round(status.cacheHitRate * 100)}%)`
-          : `◎${formatCompactNumber(status.tokenCached ?? 0)}`;
-      tokenParts.push(cacheText);
-    }
-    if ((status.tokenCacheWrite ?? 0) > 0) {
-      tokenParts.push(`⊕${formatCompactNumber(status.tokenCacheWrite ?? 0)}`);
-    }
-    tokenParts.push(`↓${formatCompactNumber(status.tokenOutput)}`);
-    if ((status.tokenThought ?? 0) > 0) {
-      tokenParts.push(`∿${formatCompactNumber(status.tokenThought ?? 0)}`);
-    }
-    parts.push(tokenParts.join(" "));
+  if (status.contextPercent !== null) {
+    parts.push(`${status.contextPercent.toFixed(1)}%`);
   }
+  if (status.totalCost !== null) {
+    parts.push(formatCurrency(status.totalCost, status.currency));
+  }
+  if (status.taskStartedAt !== null && (status.taskActive || status.awaitingInput || status.compacting)) {
+    parts.push(formatElapsed(nowSeconds - status.taskStartedAt));
+  }
+  return parts;
+}
 
+function getSessionMetaRows(
+  status: SessionStatusState | null,
+  nowSeconds: number,
+): Array<{ label: string; value: string }> {
+  if (status === null) return [];
+
+  const rows: Array<{ label: string; value: string }> = [];
+  if (status.tokenInput !== null) {
+    rows.push({ label: "Input", value: formatCompactNumber(status.tokenInput) });
+  }
+  if ((status.tokenCached ?? 0) > 0) {
+    rows.push({
+      label: "Cached",
+      value:
+        status.cacheHitRate !== null
+          ? `${formatCompactNumber(status.tokenCached ?? 0)} (${Math.round(status.cacheHitRate * 100)}%)`
+          : formatCompactNumber(status.tokenCached ?? 0),
+    });
+  }
+  if ((status.tokenCacheWrite ?? 0) > 0) {
+    rows.push({ label: "Cache write", value: formatCompactNumber(status.tokenCacheWrite ?? 0) });
+  }
+  if (status.tokenOutput !== null) {
+    rows.push({ label: "Output", value: formatCompactNumber(status.tokenOutput) });
+  }
+  if ((status.tokenThought ?? 0) > 0) {
+    rows.push({ label: "Thought", value: formatCompactNumber(status.tokenThought ?? 0) });
+  }
   if (
     status.contextSize !== null &&
     status.contextEffectiveLimit !== null &&
     status.contextPercent !== null
   ) {
-    parts.push(
-      `${formatCompactNumber(status.contextSize)}/${formatCompactNumber(status.contextEffectiveLimit)} (${status.contextPercent.toFixed(1)}%)`,
-    );
+    rows.push({
+      label: "Context",
+      value: `${formatCompactNumber(status.contextSize)}/${formatCompactNumber(status.contextEffectiveLimit)} (${status.contextPercent.toFixed(1)}%)`,
+    });
   }
-
   if (status.totalCost !== null) {
-    parts.push(formatCurrency(status.totalCost, status.currency));
+    rows.push({ label: "Cost", value: formatCurrency(status.totalCost, status.currency) });
   }
-
   if (status.taskStartedAt !== null && (status.taskActive || status.awaitingInput || status.compacting)) {
-    parts.push(formatElapsed(nowSeconds - status.taskStartedAt));
+    rows.push({ label: "Elapsed", value: formatElapsed(nowSeconds - status.taskStartedAt) });
   }
-
-  return parts;
+  return rows;
 }
 
 function extractSearchableText(item: MessageItemType): string {
@@ -271,7 +290,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const [collapsedSubAgentGroups, setCollapsedSubAgentGroups] = useState<Record<string, boolean>>(
     {},
   );
+  const [subAgentMetaOpen, setSubAgentMetaOpen] = useState<Record<string, boolean>>({});
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [metaOpen, setMetaOpen] = useState(false);
   const copyTimerRef = useRef(0);
 
   const session = useMemo(
@@ -472,6 +493,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const sectionBlocks = useMemo(() => {
     return sections.map((section) => {
       const blocks: SectionBlock[] = [];
+      const subAgentBlockIndexBySessionId = new Map<string, number>();
       let i = 0;
       while (i < section.length) {
         const item = section[i];
@@ -482,24 +504,28 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           continue;
         }
 
-        const groupItems: MessageItemType[] = [item];
-        i += 1;
-        while (i < section.length) {
-          const next = section[i];
-          const nextSourceSessionId = next.sessionId ?? sessionId;
-          if (nextSourceSessionId !== sourceSessionId) break;
-          groupItems.push(next);
+        const existingBlockIndex = subAgentBlockIndexBySessionId.get(sourceSessionId);
+        if (existingBlockIndex !== undefined) {
+          const existingBlock = blocks[existingBlockIndex];
+          if (existingBlock?.type === "sub_agent_group") {
+            existingBlock.items.push(item);
+          }
           i += 1;
+          continue;
         }
 
+        const groupItems: MessageItemType[] = [item];
+        const blockIndex = blocks.length;
         blocks.push({
           type: "sub_agent_group",
-          groupId: `${groupItems[0].id}-${sourceSessionId}`,
+          groupId: `${section[0]?.id ?? sourceSessionId}-${sourceSessionId}`,
           sourceSessionId,
           sourceSessionType: subAgentTypeBySessionId[sourceSessionId] ?? null,
           sourceSessionDesc: subAgentDescBySessionId[sourceSessionId] ?? null,
           items: groupItems,
         });
+        subAgentBlockIndexBySessionId.set(sourceSessionId, blockIndex);
+        i += 1;
       }
       return blocks;
     });
@@ -523,7 +549,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const nowSeconds = nowMs / 1000;
   const mainSessionStatus = statusBySessionId[sessionId] ?? null;
   const mainActivityText = getSessionActivityText(mainSessionStatus);
-  const mainMetadataParts = getSessionMetadataParts(mainSessionStatus, nowSeconds);
+  const mainSummaryParts = getSessionSummaryParts(mainSessionStatus, nowSeconds);
+  const mainMetaRows = getSessionMetaRows(mainSessionStatus, nowSeconds);
   const mainStatusLabel =
     mainActivityText ??
     (runtime?.wsState === "connecting"
@@ -632,12 +659,18 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                           subAgentFinishedBySessionId[block.sourceSessionId] === true;
                         const subAgentStatus = statusBySessionId[block.sourceSessionId] ?? null;
                         const subAgentActivityText = getSessionActivityText(subAgentStatus);
-                        const subAgentMetadataParts = getSessionMetadataParts(
+                        const subAgentSummaryParts = getSessionSummaryParts(
+                          subAgentStatus,
+                          nowSeconds,
+                        );
+                        const subAgentMetaRows = getSessionMetaRows(
                           subAgentStatus,
                           nowSeconds,
                         );
                         const hasSubAgentStatus =
-                          subAgentActivityText !== null || subAgentMetadataParts.length > 0;
+                          subAgentActivityText !== null ||
+                          subAgentSummaryParts.length > 0 ||
+                          subAgentMetaRows.length > 0;
                         const lastAssistantItem = [...block.items]
                           .reverse()
                           .find(
@@ -689,15 +722,69 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                               {hasSubAgentStatus ? (
                                 <div className="px-3.5 pb-2 pt-0 text-[12px]">
                                   {subAgentActivityText ? (
-                                    <div className="truncate text-neutral-500">
+                                    <div className="truncate font-mono text-neutral-500">
                                       {subAgentActivityText}
                                     </div>
                                   ) : null}
-                                  {subAgentMetadataParts.length > 0 ? (
-                                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-neutral-400">
-                                      {subAgentMetadataParts.map((part) => (
-                                        <span key={part}>{part}</span>
-                                      ))}
+                                  {subAgentSummaryParts.length > 0 || subAgentMetaRows.length > 0 ? (
+                                    <div className="mt-1 flex items-center gap-2">
+                                      {subAgentSummaryParts.length > 0 ? (
+                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-neutral-400">
+                                          {subAgentSummaryParts.map((part) => (
+                                            <span key={part}>{part}</span>
+                                          ))}
+                                        </div>
+                                      ) : null}
+                                      {subAgentMetaRows.length > 0 ? (
+                                        <div
+                                          className="relative"
+                                          onMouseEnter={() => {
+                                            setSubAgentMetaOpen((prev) => ({
+                                              ...prev,
+                                              [block.groupId]: true,
+                                            }));
+                                          }}
+                                          onMouseLeave={() => {
+                                            setSubAgentMetaOpen((prev) => ({
+                                              ...prev,
+                                              [block.groupId]: false,
+                                            }));
+                                          }}
+                                        >
+                                          <button
+                                            type="button"
+                                            className="inline-flex h-5 w-5 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                                            aria-label="Show sub-agent metadata"
+                                            onClick={() => {
+                                              setSubAgentMetaOpen((prev) => ({
+                                                ...prev,
+                                                [block.groupId]: !prev[block.groupId],
+                                              }));
+                                            }}
+                                          >
+                                            <CircleHelp className="h-3 w-3" />
+                                          </button>
+                                          {subAgentMetaOpen[block.groupId] ? (
+                                            <div className="absolute left-0 top-full z-20 mt-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
+                                              <div className="space-y-1.5 text-[12px] leading-5">
+                                                {subAgentMetaRows.map((row) => (
+                                                  <div
+                                                    key={row.label}
+                                                    className="flex items-start justify-between gap-4"
+                                                  >
+                                                    <span className="text-neutral-400">
+                                                      {row.label}
+                                                    </span>
+                                                    <span className="font-mono text-neutral-600">
+                                                      {row.value}
+                                                    </span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      ) : null}
                                     </div>
                                   ) : null}
                                 </div>
@@ -728,14 +815,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                         <span>{toolItems.length} tools</span>
                                       </div>
                                       <div className="space-y-2.5">
-                                        <div className="relative overflow-hidden rounded-lg border border-neutral-200/80 bg-neutral-50/70 px-2.5 py-2">
-                                          <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-neutral-500">
-                                            {streamingPreview.text}
-                                          </pre>
-                                          {streamingPreview.hasMore ? (
-                                            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-neutral-50/95 to-transparent" />
-                                          ) : null}
-                                        </div>
                                         {previewTools.length > 0 ? (
                                           <div className="space-y-1.5">
                                             {previewTools.map((toolItem) => {
@@ -761,6 +840,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                             })}
                                           </div>
                                         ) : null}
+                                        <div className="relative overflow-hidden rounded-lg border border-neutral-200/80 bg-neutral-50/70 px-2.5 py-2">
+                                          <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-neutral-500">
+                                            {streamingPreview.text}
+                                          </pre>
+                                          {streamingPreview.hasMore ? (
+                                            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-neutral-50/95 to-transparent" />
+                                          ) : null}
+                                        </div>
                                       </div>
                                     </>
                                   ) : (
@@ -946,15 +1033,47 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 <span
                   className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${hasActiveStatus ? "animate-pulse bg-neutral-700" : "bg-neutral-300"}`}
                 />
-                <span className="truncate text-[13px] font-medium text-neutral-700">
+                <span className="truncate font-mono text-[13px] font-medium text-neutral-700">
                   {mainStatusLabel}
                 </span>
               </div>
-              {mainMetadataParts.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-neutral-400 sm:justify-end">
-                  {mainMetadataParts.map((part) => (
-                    <span key={part}>{part}</span>
-                  ))}
+              {mainSummaryParts.length > 0 || mainMetaRows.length > 0 ? (
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  {mainSummaryParts.length > 0 ? (
+                    <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 font-mono text-[12px] text-neutral-400">
+                      {mainSummaryParts.map((part) => (
+                        <span key={part}>{part}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {mainMetaRows.length > 0 ? (
+                    <div
+                      className="relative"
+                      onMouseEnter={() => setMetaOpen(true)}
+                      onMouseLeave={() => setMetaOpen(false)}
+                    >
+                      <button
+                        type="button"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                        aria-label="Show session metadata"
+                        onClick={() => setMetaOpen((current) => !current)}
+                      >
+                        <CircleHelp className="h-3.5 w-3.5" />
+                      </button>
+                      {metaOpen ? (
+                        <div className="absolute bottom-full right-0 z-20 mb-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
+                          <div className="space-y-1.5 text-[12px] leading-5">
+                            {mainMetaRows.map((row) => (
+                              <div key={row.label} className="flex items-start justify-between gap-4">
+                                <span className="text-neutral-400">{row.label}</span>
+                                <span className="font-mono text-neutral-600">{row.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>
