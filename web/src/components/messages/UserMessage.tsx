@@ -126,7 +126,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                   ? { maxHeight: `${collapsedTextMaxHeight}px`, overflow: "hidden" }
                   : undefined
               }
-              className={`${compact ? "text-[14px]" : "text-[15px]"} m-0 whitespace-pre-wrap break-words leading-relaxed text-neutral-800`}
+              className={`${compact ? "text-[13px]" : "text-[14px]"} m-0 whitespace-pre-wrap break-words leading-relaxed text-neutral-800`}
             >
               <HighlightText>{normalizedContent}</HighlightText>
             </p>
@@ -158,7 +158,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                 <div className="max-h-[calc(100vh-8rem)] overflow-y-auto px-4 py-3">
                   {renderImages()}
                   <p
-                    className={`${compact ? "text-[14px]" : "text-[15px]"} m-0 whitespace-pre-wrap break-words leading-relaxed text-neutral-800`}
+                    className={`${compact ? "text-[13px]" : "text-[14px]"} m-0 whitespace-pre-wrap break-words leading-relaxed text-neutral-800`}
                   >
                     <HighlightText>{normalizedContent}</HighlightText>
                   </p>

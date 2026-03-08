@@ -11,9 +11,10 @@ import { UnknownEvent } from "./UnknownEvent";
 interface MessageItemProps {
   item: MessageItemType;
   compact?: boolean;
+  workDir?: string;
 }
 
-export function MessageItem({ item, compact = false }: MessageItemProps): JSX.Element {
+export function MessageItem({ item, compact = false, workDir }: MessageItemProps): JSX.Element {
   switch (item.type) {
     case "user_message":
       return <UserMessage key={item.id} item={item} compact={compact} />;
@@ -22,7 +23,7 @@ export function MessageItem({ item, compact = false }: MessageItemProps): JSX.El
     case "assistant_text":
       return <AssistantText item={item} compact={compact} />;
     case "tool_block":
-      return <ToolBlock item={item} compact={compact} />;
+      return <ToolBlock item={item} compact={compact} workDir={workDir} />;
     case "developer_message":
       return <DeveloperMessage item={item} />;
     case "task_worked":

@@ -397,7 +397,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           />
         ) : null}
 
-        <div className="flex shrink-0 items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
+        <div className="flex h-12 shrink-0 items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 backdrop-blur sm:px-6">
           {!sidebarOpen ? (
             <button
               type="button"
@@ -412,20 +412,19 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             </button>
           ) : null}
           <div className="min-w-0 flex-1">
-            <div
-              className="truncate text-[15px] font-semibold leading-5 text-neutral-800"
-              title={sessionTitle}
-            >
-              {sessionTitle}
+            <div className="flex min-w-0 items-center gap-2 text-[14px] leading-5">
+              <span className="truncate font-semibold text-neutral-800" title={sessionTitle}>
+                {sessionTitle}
+              </span>
+              {workspacePath ? (
+                <span
+                  className="truncate font-mono text-[11px] leading-4 text-neutral-400"
+                  title={workspacePath}
+                >
+                  {workspacePath}
+                </span>
+              ) : null}
             </div>
-            {workspacePath ? (
-              <div
-                className="mt-0.5 truncate font-mono text-[11px] leading-4 text-neutral-400"
-                title={workspacePath}
-              >
-                {workspacePath}
-              </div>
-            ) : null}
           </div>
           <button
             type="button"
@@ -593,7 +592,11 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                         <div
                                           className={`min-w-0 flex-1 rounded-xl bg-neutral-50/60 transition-shadow duration-150 ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
                                         >
-                                          <MessageItem item={item} compact />
+                                          <MessageItem
+                                            item={item}
+                                            compact
+                                            workDir={workspacePath}
+                                          />
                                           {canCopy ? (
                                             <div className="mt-1 flex justify-end sm:hidden">
                                               <button
@@ -650,7 +653,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                           <div
                             className={`min-w-0 flex-1 transition-shadow duration-150 ${isUser ? "overflow-hidden rounded-lg shadow-[0_4px_14px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.04)]" : "rounded-xl"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
                           >
-                            <MessageItem item={item} />
+                            <MessageItem item={item} workDir={workspacePath} />
                             {canCopy ? (
                               <div className="mt-1 flex justify-end sm:hidden">
                                 <button

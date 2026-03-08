@@ -157,6 +157,7 @@ function RichResult({
 interface ToolBlockProps {
   item: ToolBlockItem;
   compact?: boolean;
+  workDir?: string;
 }
 
 const RESULT_LINE_LIMIT = 15;
@@ -181,7 +182,7 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
 
   return (
     <div
-      className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[14px]" : "text-[15px]"}`}
+      className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[13px]" : "text-[14px]"}`}
     >
       {explanation ? (
         <p className={`${compact ? "text-[13px]" : "text-sm"} mb-1 font-sans text-neutral-500`}>
@@ -208,7 +209,7 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
 
   return (
     <div
-      className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[14px]" : "text-[15px]"}`}
+      className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[13px]" : "text-[14px]"}`}
     >
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} compact={compact} />
@@ -224,9 +225,9 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
   );
 }
 
-export function ToolBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
+export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): JSX.Element {
   const { matchItemIds } = useSearch();
-  const bodyTextClass = compact ? "text-[14px]" : "text-[15px]";
+  const bodyTextClass = compact ? "text-[13px]" : "text-[14px]";
   const subTextClass = compact ? "text-[13px]" : "text-sm";
   const miniTextClass = compact ? "text-[11px]" : "text-xs";
   const detailChipClass = compact ? "" : "bg-neutral-100 rounded px-1.5 py-0.5";
@@ -297,7 +298,7 @@ export function ToolBlock({ item, compact = false }: ToolBlockProps): JSX.Elemen
       <div className="min-w-0">
         {detail ? (
           FILE_PATH_TOOLS.has(item.toolName) ? (
-            <FilePath path={detail} expanded={open} />
+            <FilePath path={detail} expanded={open} workDir={workDir} />
           ) : isBash ? (
             <code
               className={`inline-block max-w-full ${subTextClass} ${detailChipClass} ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}
