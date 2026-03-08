@@ -272,6 +272,8 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
         done, pending = await asyncio.wait({send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED)
 
         if pending:
+            for task in pending:
+                task.cancel()
             _ = await asyncio.gather(*pending, return_exceptions=True)
 
         for task in done:
