@@ -414,13 +414,13 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             </button>
           ) : null}
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-2 text-[14px] leading-5">
+            <div className="flex min-w-0 items-baseline gap-2 text-[14px] leading-5">
               <span className="truncate font-semibold text-neutral-800" title={sessionTitle}>
                 {sessionTitle}
               </span>
               {workspacePath ? (
                 <span
-                  className="truncate font-mono text-[11px] leading-4 text-neutral-400"
+                  className="truncate font-mono text-[14px] leading-5 text-neutral-400"
                   title={workspacePath}
                 >
                   {workspacePath}

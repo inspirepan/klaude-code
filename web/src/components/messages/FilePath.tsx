@@ -25,19 +25,14 @@ export function FilePath({
   truncateFromStart = false,
 }: FilePathProps): JSX.Element {
   const display = toDisplayPath(path, workDir);
-  const lastSlashIndex = display.lastIndexOf("/");
-  const hasParentPath = lastSlashIndex > 0;
-  const parentPath = hasParentPath ? display.slice(0, lastSlashIndex + 1) : "";
-  const fileName = hasParentPath ? display.slice(lastSlashIndex + 1) : display;
 
-  if (!expanded && truncateFromStart && hasParentPath) {
+  if (!expanded && truncateFromStart) {
     return (
       <code
-        className={`inline-flex min-w-0 max-w-full items-baseline rounded bg-neutral-100 px-1.5 py-0.5 align-middle font-mono text-sm text-neutral-400 ${className ?? ""}`}
+        className={`inline-block max-w-full truncate rounded bg-neutral-100 px-1.5 py-0.5 text-left align-middle font-mono text-sm text-neutral-400 [direction:rtl] ${className ?? ""}`}
         title={path}
       >
-        <span className="min-w-0 truncate">{parentPath}</span>
-        <span className="shrink-0">{fileName}</span>
+        {display}
       </code>
     );
   }

@@ -116,7 +116,7 @@ export function RightSidebar(): JSX.Element {
                   return (
                     <div
                       key={`${kind}-${path}`}
-                      className="flex items-center gap-1.5 leading-relaxed"
+                      className="flex items-baseline gap-1.5 leading-relaxed"
                     >
                       <span
                         className={`shrink-0 text-[9px] font-semibold uppercase leading-none ${kind === "created" ? "text-emerald-500" : "text-blue-500"}`}
@@ -127,7 +127,7 @@ export function RightSidebar(): JSX.Element {
                         <FilePath
                           path={path}
                           workDir={workDir}
-                          className="!rounded-none !bg-transparent !px-0 !py-0 text-xs !text-neutral-600"
+                          className="!rounded-none !bg-transparent !px-0 !py-0 !font-sans !text-[11px] !leading-none !text-neutral-600"
                           truncateFromStart
                         />
                       </div>
