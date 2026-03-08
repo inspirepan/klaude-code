@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   ChevronRight,
   CircleHelp,
-  Loader,
   Lock,
   PanelLeftOpen,
   PanelRightOpen,
@@ -878,7 +877,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                                       {toolItem.toolName}
                                                     </span>
                                                     {toolItem.isStreaming ? (
-                                                      <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-400" />
+                                                      <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
                                                     ) : null}
                                                   </div>
                                                   {detail ? (
@@ -1062,7 +1061,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 {inlineStatusLabel ? (
                   <div className="flex min-w-0 gap-4">
                     <div className="flex min-w-0 flex-1 items-center gap-2.5 px-1 text-neutral-500">
-                      <Loader className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                      <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-[1.5px] border-neutral-300 border-t-neutral-500" />
                       <span className="truncate font-mono text-[13px] font-medium">
                         {inlineStatusLabel}
                       </span>
@@ -1074,7 +1073,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
               </>
             ) : runtime?.wsState === "connecting" ? (
               <div className="flex min-h-[240px] items-center justify-center">
-                <Loader className="h-5 w-5 animate-spin text-neutral-300" />
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-500" />
               </div>
             ) : (
               <div className="flex min-h-[240px] items-center justify-center">

@@ -4,7 +4,6 @@ import {
   ArchiveRestore,
   CircleCheck,
   CirclePause,
-  Loader,
   Lock,
   MessagesSquare,
 } from "lucide-react";
@@ -77,7 +76,9 @@ function getRuntimeIcon(
   hasUnreadCompletion: boolean,
 ): JSX.Element {
   if (runtime.sessionState === "running") {
-    return <Loader className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-400" />;
+    return (
+      <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-[1.5px] border-neutral-300 border-t-neutral-500" />
+    );
   }
   if (runtime.sessionState === "waiting_user_input") {
     return <CirclePause className="h-3.5 w-3.5 shrink-0 text-amber-500" />;

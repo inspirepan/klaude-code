@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
+import "streamdown/styles.css";
 
 import type { AssistantTextItem } from "../../types/message";
 import { mermaid } from "../../lib/mermaid-plugin";
@@ -12,14 +14,42 @@ interface AssistantTextProps {
 }
 
 const plugins = { code, mermaid };
+const STREAM_THROTTLE_MS = 48;
 
 export function AssistantText({ item, compact = false }: AssistantTextProps): JSX.Element {
-  const { entries, body } = useParsedFrontmatter(item.content);
+  const [displayContent, setDisplayContent] = useState(item.content);
+  const pendingContentRef = useRef(item.content);
+
+  useEffect(() => {
+    pendingContentRef.current = item.content;
+  }, [item.content]);
+
+  useEffect(() => {
+    if (!item.isStreaming) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setDisplayContent((current) =>
+        current === pendingContentRef.current ? current : pendingContentRef.current,
+      );
+    }, STREAM_THROTTLE_MS);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [item.isStreaming]);
+
+  const content = item.isStreaming ? displayContent : item.content;
+  const { entries, body } = useParsedFrontmatter(content);
 
   return (
     <div className={`assistant-text relative ${compact ? "assistant-text-compact" : ""}`}>
       {entries ? <FrontmatterTable entries={entries} /> : null}
-      <Streamdown isAnimating={item.isStreaming} plugins={plugins}>
+      <Streamdown
+        mode="streaming"
+        isAnimating={item.isStreaming}
+        animated={{ animation: "fadeIn", duration: 140, sep: "word" }}
+        plugins={plugins}
+      >
         {body}
       </Streamdown>
     </div>
