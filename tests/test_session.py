@@ -6,7 +6,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn
 
 import pytest
 from typer.testing import CliRunner
@@ -15,6 +15,7 @@ from klaude_code.protocol import events, llm_param, message, model
 from klaude_code.protocol.llm_param import ToolSchema
 from klaude_code.session import export
 from klaude_code.session.session import Session, close_default_store
+from klaude_code.session.store import JsonlSessionWriter, build_meta_snapshot
 
 
 class _ForkSessionDummyAgent:
@@ -622,6 +623,65 @@ class TestSessionPersistence:
             assert meta.archived is False
             assert meta.model_config_name == "test-config-model"
             assert len(meta.conversation_history) == 0
+            await close_default_store()
+
+        arun(_test())
+
+    def test_append_history_does_not_overwrite_newer_runtime_state(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        original_write_batch_sync = JsonlSessionWriter._write_batch_sync
+
+        def _slow_write_batch_sync(self: JsonlSessionWriter, batch: Any) -> None:
+            time.sleep(0.2)
+            original_write_batch_sync(self, batch)
+
+        monkeypatch.setattr(JsonlSessionWriter, "_write_batch_sync", _slow_write_batch_sync)
+
+        async def _test() -> None:
+            session = Session(work_dir=project_dir)
+            meta_path = Session.paths(project_dir).meta_file(session.id)
+            meta_path.parent.mkdir(parents=True, exist_ok=True)
+            meta_path.write_text(
+                json.dumps(
+                    build_meta_snapshot(
+                        session_id=session.id,
+                        work_dir=project_dir,
+                        title=session.title,
+                        sub_agent_state=session.sub_agent_state,
+                        file_tracker=session.file_tracker,
+                        file_change_summary=session.file_change_summary,
+                        todos=list(session.todos),
+                        user_messages=session.user_messages,
+                        created_at=session.created_at,
+                        updated_at=session.updated_at,
+                        messages_count=session.messages_count,
+                        model_name=session.model_name,
+                        session_state=session.session_state,
+                        runtime_owner=session.runtime_owner,
+                        runtime_owner_heartbeat_at=session.runtime_owner_heartbeat_at,
+                        archived=session.archived,
+                        model_config_name=session.model_config_name,
+                        model_thinking=session.model_thinking,
+                        next_checkpoint_id=session.next_checkpoint_id,
+                    ),
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("Hello"))])
+
+            Session.persist_runtime_state(session.id, model.SessionRuntimeState.RUNNING, project_dir)
+
+            await session.wait_for_flush()
+
+            loaded = Session.load_meta(session.id, work_dir=project_dir)
+            assert loaded.session_state == model.SessionRuntimeState.RUNNING
             await close_default_store()
 
         arun(_test())

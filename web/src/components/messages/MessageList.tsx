@@ -335,6 +335,16 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       }),
     [items, sessionId],
   );
+  const hasStreamingAssistantText = useMemo(
+    () =>
+      visibleItems.some(
+        (item) =>
+          item.type === "assistant_text" &&
+          (item.sessionId ?? sessionId) === sessionId &&
+          item.isStreaming,
+      ),
+    [sessionId, visibleItems],
+  );
 
   const searchMatchItemIds = useMemo(
     () => findMatchingItemIds(visibleItems, searchQuery),
@@ -1051,7 +1061,11 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                     })}
                   </div>
                 ))}
-                <div ref={bottomRef} />
+                <div
+                  ref={bottomRef}
+                  aria-hidden="true"
+                  className={`transition-[height] duration-150 ${hasStreamingAssistantText ? "h-40" : "h-0"}`}
+                />
               </>
             ) : runtime?.wsState === "connecting" ? (
               <div className="flex min-h-[240px] items-center justify-center">

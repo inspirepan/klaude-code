@@ -14,7 +14,7 @@ interface AssistantTextProps {
 }
 
 const plugins = { code, mermaid };
-const STREAM_REFRESH_INTERVAL_MS = 200;
+const STREAM_REFRESH_INTERVAL_MS = 280;
 
 export function AssistantText({ item, compact = false }: AssistantTextProps): JSX.Element {
   const [displayContent, setDisplayContent] = useState(item.content);
@@ -48,7 +48,7 @@ export function AssistantText({ item, compact = false }: AssistantTextProps): JS
       <Streamdown
         mode="streaming"
         isAnimating={item.isStreaming}
-        animated={{ animation: "fadeIn", duration: 140, sep: "word" }}
+        animated={{ animation: "fadeIn", duration: 220, sep: "word" }}
         plugins={plugins}
       >
         {body}
