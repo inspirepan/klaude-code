@@ -127,6 +127,13 @@ export interface TaskWorkedItem {
   turnCount: number;
 }
 
+export interface InterruptItem {
+  id: MessageItemId;
+  type: "interrupt";
+  timestamp: ItemTimestamp;
+  sessionId: string | null;
+}
+
 export interface CompactionSummaryItem {
   id: MessageItemId;
   type: "compaction_summary";
@@ -150,6 +157,7 @@ export type MessageItem =
   | AssistantTextItem
   | ToolBlockItem
   | DeveloperMessageItem
+  | InterruptItem
   | CompactionSummaryItem
   | TaskWorkedItem
   | UnknownEventItem;

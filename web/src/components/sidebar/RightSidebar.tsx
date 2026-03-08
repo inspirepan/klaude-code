@@ -124,7 +124,12 @@ export function RightSidebar(): JSX.Element {
                         {kind === "created" ? "N" : "M"}
                       </span>
                       <div className="min-w-0 flex-1 overflow-hidden">
-                        <FilePath path={path} workDir={workDir} className="text-xs" />
+                        <FilePath
+                          path={path}
+                          workDir={workDir}
+                          className="!rounded-none !bg-transparent !px-0 !py-0 text-xs !text-neutral-600"
+                          truncateFromStart
+                        />
                       </div>
                       {stats ? (
                         <span className="inline-flex shrink-0 items-center gap-1 text-[10px]">

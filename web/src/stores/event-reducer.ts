@@ -578,9 +578,19 @@ export function reduceEvent(
         }
         return item;
       });
+      const id = makeId(state);
       return {
         ...state,
-        items: nextItems,
+        items: [
+          ...nextItems,
+          {
+            id,
+            type: "interrupt",
+            timestamp: ts,
+            sessionId: sourceSessionId,
+          },
+        ],
+        nextId: state.nextId + 1,
         activeTextIndex: -1,
         activeThinkingIndex: -1,
       };

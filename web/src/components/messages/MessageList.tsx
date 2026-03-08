@@ -112,6 +112,8 @@ function extractSearchableText(item: MessageItemType): string {
       return "";
     case "task_worked":
       return "";
+    case "interrupt":
+      return "Interrupted by user";
     case "compaction_summary":
       return item.content;
     case "unknown_event":

@@ -5,6 +5,7 @@ import { AssistantText } from "./AssistantText";
 import { ToolBlock } from "./ToolBlock";
 import { DeveloperMessage } from "./DeveloperMessage";
 import { TaskWorked } from "./TaskWorked";
+import { InterruptMessage } from "./InterruptMessage";
 import { CompactionSummary } from "./CompactionSummary";
 import { UnknownEvent } from "./UnknownEvent";
 
@@ -28,6 +29,8 @@ export function MessageItem({ item, compact = false, workDir }: MessageItemProps
       return <DeveloperMessage item={item} />;
     case "task_worked":
       return <TaskWorked item={item} compact={compact} />;
+    case "interrupt":
+      return <InterruptMessage item={item} compact={compact} />;
     case "compaction_summary":
       return <CompactionSummary item={item} />;
     case "unknown_event":
