@@ -135,7 +135,7 @@ function isCopyableAssistantText(item: MessageItemType): item is AssistantTextIt
 
 export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
-  const selectSession = useSessionStore((state) => state.selectSession);
+  const refreshSession = useSessionStore((state) => state.refreshSession);
   const runtime = useSessionStore((state) => state.runtimeBySessionId[sessionId] ?? null);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
@@ -204,6 +204,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   const resolvedSearchActiveIndex =
     activeItemId === null ? -1 : searchMatchItemIds.indexOf(activeItemId);
+  const refreshDisabled =
+    refreshing ||
+    runtime?.sessionState === "running" ||
+    runtime?.sessionState === "waiting_user_input";
 
   const searchState = useMemo<SearchState>(
     () => ({
@@ -260,11 +264,11 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await selectSession(sessionId);
+      await refreshSession(sessionId);
     } finally {
       setRefreshing(false);
     }
-  }, [selectSession, sessionId]);
+  }, [refreshSession, sessionId]);
 
   useEffect(() => () => window.clearTimeout(copyTimerRef.current), []);
 
@@ -438,14 +442,17 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           </div>
           <button
             type="button"
+            disabled={refreshDisabled}
             className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
             onClick={() => {
               void handleRefresh();
             }}
-            title="Refresh session"
+            title={refreshDisabled ? "Wait until current task completes" : "Refresh session"}
             aria-label="Refresh session"
           >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""} ${refreshDisabled ? "opacity-40" : ""}`}
+            />
           </button>
           {!rightSidebarOpen ? (
             <button

@@ -40,6 +40,7 @@ interface SessionStoreState {
   selectDraft: () => void;
   setDraftWorkDir: (workDir: string) => void;
   selectSession: (sessionId: string) => Promise<void>;
+  refreshSession: (sessionId: string) => Promise<void>;
   createSessionFromDraft: (firstMessage: string, workDir?: string) => Promise<string>;
   sendMessage: (sessionId: string, text: string) => Promise<void>;
 }
@@ -224,6 +225,14 @@ function patchRuntimeByEvent(
 }
 
 function openSessionWs(sessionId: string, get: () => SessionStoreState, set: SetState): void {
+  const runtime = get().runtimeBySessionId[sessionId] ?? defaultRuntimeState;
+  if (
+    activeConnection?.sessionId === sessionId &&
+    (runtime.wsState === "connected" || runtime.wsState === "connecting")
+  ) {
+    return;
+  }
+
   closeActiveConnectionIfNeeded(sessionId);
 
   set((state) => ({
@@ -243,6 +252,9 @@ function openSessionWs(sessionId: string, get: () => SessionStoreState, set: Set
       }));
     },
     onClose: () => {
+      if (activeConnection?.connection === connection) {
+        activeConnection = null;
+      }
       set((state) => ({
         runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
           wsState: "disconnected",
@@ -267,6 +279,19 @@ function handleWsError(errorFrame: WsErrorFrame, sessionId: string, set: SetStat
       lastError: `${errorFrame.code}: ${errorFrame.message}`,
     }),
   }));
+}
+
+async function loadSessionHistory(sessionId: string): Promise<void> {
+  const history = await fetchSessionHistory(sessionId);
+  useMessageStore.getState().loadHistoryFromEvents(sessionId, history.events);
+}
+
+function hasReusableConnection(sessionId: string, state: SessionStoreState): boolean {
+  const runtime = state.runtimeBySessionId[sessionId] ?? defaultRuntimeState;
+  return (
+    activeConnection?.sessionId === sessionId &&
+    (runtime.wsState === "connected" || runtime.wsState === "connecting")
+  );
 }
 
 function handleWsEvent(
@@ -539,6 +564,22 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     set({ draftWorkDir: workDir });
   },
   selectSession: async (sessionId: string) => {
+    const currentState = get();
+    const currentRuntime = currentState.runtimeBySessionId[sessionId] ?? defaultRuntimeState;
+    const sameActiveSession = currentState.activeSessionId === sessionId;
+    const reusableConnection = hasReusableConnection(sessionId, currentState);
+    const isStreamingSession =
+      currentRuntime.sessionState === "running" ||
+      currentRuntime.sessionState === "waiting_user_input";
+
+    if (sameActiveSession && isStreamingSession) {
+      if (!reusableConnection) {
+        openSessionWs(sessionId, get, set);
+      }
+      pushSessionUrl(sessionId);
+      return;
+    }
+
     pushSessionUrl(sessionId);
     set((state) => ({
       activeSessionId: sessionId,
@@ -547,14 +588,13 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         [sessionId]: false,
       },
       runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
-        wsState: "connecting",
+        wsState: reusableConnection ? currentRuntime.wsState : "connecting",
         lastError: null,
       }),
     }));
 
     try {
-      const history = await fetchSessionHistory(sessionId);
-      useMessageStore.getState().loadHistoryFromEvents(sessionId, history.events);
+      await loadSessionHistory(sessionId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       set((state) => ({
@@ -565,7 +605,41 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       }));
     }
 
-    openSessionWs(sessionId, get, set);
+    if (!reusableConnection) {
+      openSessionWs(sessionId, get, set);
+    }
+  },
+  refreshSession: async (sessionId: string) => {
+    const currentState = get();
+    const runtime = currentState.runtimeBySessionId[sessionId] ?? defaultRuntimeState;
+    const isStreamingSession =
+      runtime.sessionState === "running" || runtime.sessionState === "waiting_user_input";
+
+    if (isStreamingSession) {
+      return;
+    }
+
+    set((state) => ({
+      runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
+        lastError: null,
+      }),
+    }));
+
+    try {
+      await loadSessionHistory(sessionId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      set((state) => ({
+        runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
+          lastError: message,
+        }),
+      }));
+      return;
+    }
+
+    if (!hasReusableConnection(sessionId, get())) {
+      openSessionWs(sessionId, get, set);
+    }
   },
   createSessionFromDraft: async (firstMessage: string, workDir?: string) => {
     const normalizedWorkDir = workDir?.trim() || undefined;

@@ -171,6 +171,37 @@ function resolveSessionId(event: Record<string, unknown>): string | null {
   return typeof event.session_id === "string" ? event.session_id : null;
 }
 
+function resolveResponseId(event: Record<string, unknown>): string | null {
+  return typeof event.response_id === "string" ? event.response_id : null;
+}
+
+function findAssistantTextIndex(
+  state: ReducerState,
+  params: { sessionId: string | null; responseId: string | null },
+): number {
+  const { sessionId, responseId } = params;
+  if (responseId !== null) {
+    for (let i = state.items.length - 1; i >= 0; i -= 1) {
+      const item = state.items[i];
+      if (item?.type !== "assistant_text") continue;
+      if (item.sessionId === sessionId && item.responseId === responseId) {
+        return i;
+      }
+    }
+  }
+
+  const activeItem = state.items[state.activeTextIndex];
+  if (
+    activeItem !== undefined &&
+    activeItem.type === "assistant_text" &&
+    activeItem.sessionId === sessionId
+  ) {
+    return state.activeTextIndex;
+  }
+
+  return -1;
+}
+
 function parseCompactionSummary(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const text = raw.trim();
@@ -193,6 +224,7 @@ export function reduceEvent(
 
   const ts = resolveTimestamp(timestamp, event);
   const sourceSessionId = resolveSessionId(event);
+  const responseId = resolveResponseId(event);
 
   switch (eventType) {
     case "compaction.end": {
@@ -410,6 +442,7 @@ export function reduceEvent(
             type: "assistant_text",
             timestamp: ts,
             sessionId: sourceSessionId,
+            responseId,
             content: "",
             isStreaming: true,
           },
@@ -431,7 +464,7 @@ export function reduceEvent(
     }
 
     case "assistant.text.end": {
-      const idx = state.activeTextIndex;
+      const idx = findAssistantTextIndex(state, { sessionId: sourceSessionId, responseId });
       if (idx < 0 || idx >= state.items.length) return state;
       const item = state.items[idx];
       if (item.type !== "assistant_text") return state;
@@ -442,7 +475,47 @@ export function reduceEvent(
           : item.content;
       const nextItems = [...state.items];
       nextItems[idx] = { ...item, content, isStreaming: false };
-      return { ...state, items: nextItems, activeTextIndex: -1 };
+      return {
+        ...state,
+        items: nextItems,
+        activeTextIndex: idx === state.activeTextIndex ? -1 : state.activeTextIndex,
+      };
+    }
+
+    case "response.complete": {
+      const content = typeof event.content === "string" ? event.content : "";
+      if (content.length === 0) return state;
+
+      const idx = findAssistantTextIndex(state, { sessionId: sourceSessionId, responseId });
+      if (idx >= 0 && idx < state.items.length) {
+        const item = state.items[idx];
+        if (item.type !== "assistant_text") return state;
+        const nextItems = [...state.items];
+        nextItems[idx] = { ...item, content, isStreaming: false };
+        return {
+          ...state,
+          items: nextItems,
+          activeTextIndex: idx === state.activeTextIndex ? -1 : state.activeTextIndex,
+        };
+      }
+
+      const id = makeId(state);
+      return {
+        ...state,
+        items: [
+          ...state.items,
+          {
+            id,
+            type: "assistant_text",
+            timestamp: ts,
+            sessionId: sourceSessionId,
+            responseId,
+            content,
+            isStreaming: false,
+          },
+        ],
+        nextId: state.nextId + 1,
+      };
     }
 
     case "tool.call.start": {
