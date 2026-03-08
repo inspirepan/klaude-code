@@ -156,6 +156,20 @@ class JsonlSessionStore:
                 return False
             return True
 
+    def create_meta_if_missing(self, session_id: str, meta: dict[str, Any]) -> bool:
+        meta_path = self._paths.meta_file(session_id)
+        with self._meta_lock:
+            if meta_path.exists():
+                return False
+            try:
+                meta_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp_path = meta_path.with_name(f"{meta_path.stem}.{uuid.uuid4().hex}.c.tmp")
+                tmp_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+                tmp_path.replace(meta_path)
+            except OSError:
+                return False
+            return True
+
     def load_history(self, session_id: str) -> list[message.HistoryEvent]:
         events_path = self._paths.events_file(session_id)
         if not events_path.exists():
