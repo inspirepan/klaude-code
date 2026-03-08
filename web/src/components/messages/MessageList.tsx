@@ -4,6 +4,7 @@ import { ChevronRight, Loader2, PanelLeftOpen, PanelRightOpen, RefreshCw } from 
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
 import { useSessionStore } from "../../stores/session-store";
+import type { SessionStatusState } from "../../stores/event-reducer";
 import type {
   MessageItem as MessageItemType,
   ItemTimestamp,
@@ -18,6 +19,11 @@ const EMPTY_ITEMS: MessageItemType[] = [];
 const EMPTY_SUB_AGENT_DESC_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_TYPE_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_FINISHED_MAP: Record<string, boolean> = {};
+const EMPTY_STATUS_MAP: Record<string, SessionStatusState> = {};
+const COMPACT_NUMBER_FORMATTER = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
 
 interface MessageListProps {
   sessionId: string;
@@ -98,6 +104,101 @@ function previewAssistantResult(content: string): { text: string; hasMore: boole
   return { text: lines.slice(0, 10).join("\n"), hasMore: true };
 }
 
+function formatCompactNumber(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  if (Math.abs(value) < 1000) return Math.round(value).toString();
+  return COMPACT_NUMBER_FORMATTER.format(value);
+}
+
+function formatElapsed(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes < 60) return `${minutes}m${remainingSeconds.toString().padStart(2, "0")}s`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours}h${remainingMinutes.toString().padStart(2, "0")}m`;
+}
+
+function formatCurrency(total: number, currency: string): string {
+  const symbol = currency === "CNY" ? "¥" : "$";
+  return `${symbol}${total.toFixed(4)}`;
+}
+
+function summarizeToolCalls(activeToolCalls: Record<string, number>): string | null {
+  const entries = Object.entries(activeToolCalls);
+  if (entries.length === 0) return null;
+  return entries
+    .map(([name, count]) => (count > 1 ? `${name} × ${count}` : name))
+    .join(", ");
+}
+
+function getSessionActivityText(status: SessionStatusState | null): string | null {
+  if (status === null) return null;
+  const toolSummary = summarizeToolCalls(status.activeToolCalls);
+  const baseStatus = status.awaitingInput
+    ? "Waiting for input …"
+    : status.compacting
+      ? "Compacting …"
+      : status.thinkingActive
+        ? "Thinking …"
+        : status.isComposing
+          ? "Typing …"
+          : status.taskActive
+            ? "Running …"
+            : null;
+
+  if (baseStatus !== null && toolSummary !== null && !status.isComposing && !status.awaitingInput) {
+    return `${baseStatus} | ${toolSummary}`;
+  }
+  return toolSummary ?? baseStatus;
+}
+
+function getSessionMetadataParts(status: SessionStatusState | null, nowSeconds: number): string[] {
+  if (status === null) return [];
+
+  const parts: string[] = [];
+  if (status.tokenInput !== null && status.tokenOutput !== null) {
+    const tokenParts = [`↑${formatCompactNumber(status.tokenInput)}`];
+    if ((status.tokenCached ?? 0) > 0) {
+      const cacheText =
+        status.cacheHitRate !== null
+          ? `◎${formatCompactNumber(status.tokenCached ?? 0)} (${Math.round(status.cacheHitRate * 100)}%)`
+          : `◎${formatCompactNumber(status.tokenCached ?? 0)}`;
+      tokenParts.push(cacheText);
+    }
+    if ((status.tokenCacheWrite ?? 0) > 0) {
+      tokenParts.push(`⊕${formatCompactNumber(status.tokenCacheWrite ?? 0)}`);
+    }
+    tokenParts.push(`↓${formatCompactNumber(status.tokenOutput)}`);
+    if ((status.tokenThought ?? 0) > 0) {
+      tokenParts.push(`∿${formatCompactNumber(status.tokenThought ?? 0)}`);
+    }
+    parts.push(tokenParts.join(" "));
+  }
+
+  if (
+    status.contextSize !== null &&
+    status.contextEffectiveLimit !== null &&
+    status.contextPercent !== null
+  ) {
+    parts.push(
+      `${formatCompactNumber(status.contextSize)}/${formatCompactNumber(status.contextEffectiveLimit)} (${status.contextPercent.toFixed(1)}%)`,
+    );
+  }
+
+  if (status.totalCost !== null) {
+    parts.push(formatCurrency(status.totalCost, status.currency));
+  }
+
+  if (status.taskStartedAt !== null && (status.taskActive || status.awaitingInput || status.compacting)) {
+    parts.push(formatElapsed(nowSeconds - status.taskStartedAt));
+  }
+
+  return parts;
+}
+
 function extractSearchableText(item: MessageItemType): string {
   switch (item.type) {
     case "user_message":
@@ -155,6 +256,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       state.reducerStateBySessionId[sessionId]?.subAgentFinishedBySessionId ??
       EMPTY_SUB_AGENT_FINISHED_MAP,
   );
+  const statusBySessionId = useMessageStore(
+    (state) => state.reducerStateBySessionId[sessionId]?.statusBySessionId ?? EMPTY_STATUS_MAP,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -167,6 +271,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const [collapsedSubAgentGroups, setCollapsedSubAgentGroups] = useState<Record<string, boolean>>(
     {},
   );
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const copyTimerRef = useRef(0);
 
   const session = useMemo(
@@ -271,6 +376,25 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   }, [refreshSession, sessionId]);
 
   useEffect(() => () => window.clearTimeout(copyTimerRef.current), []);
+
+  const hasActiveStatus = useMemo(
+    () =>
+      Object.values(statusBySessionId).some(
+        (status) => status.taskActive || status.awaitingInput || status.compacting,
+      ),
+    [statusBySessionId],
+  );
+
+  useEffect(() => {
+    if (!hasActiveStatus) return;
+    setNowMs(Date.now());
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [hasActiveStatus]);
 
   const handleCopy = useCallback(async (item: MessageItemType) => {
     if (!isCopyableAssistantText(item)) return;
@@ -396,6 +520,19 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   const activeGroupId =
     activeItemId === null ? null : (subAgentGroupIdByItemId.get(activeItemId) ?? null);
+  const nowSeconds = nowMs / 1000;
+  const mainSessionStatus = statusBySessionId[sessionId] ?? null;
+  const mainActivityText = getSessionActivityText(mainSessionStatus);
+  const mainMetadataParts = getSessionMetadataParts(mainSessionStatus, nowSeconds);
+  const mainStatusLabel =
+    mainActivityText ??
+    (runtime?.wsState === "connecting"
+      ? "Connecting …"
+      : runtime?.sessionState === "waiting_user_input"
+        ? "Waiting for input …"
+        : runtime?.wsState === "disconnected"
+          ? "Disconnected"
+          : "Idle");
 
   return (
     <SearchProvider value={searchState}>
@@ -493,6 +630,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                         const moreToolsCount = Math.max(0, toolItems.length - previewTools.length);
                         const isFinished =
                           subAgentFinishedBySessionId[block.sourceSessionId] === true;
+                        const subAgentStatus = statusBySessionId[block.sourceSessionId] ?? null;
+                        const subAgentActivityText = getSessionActivityText(subAgentStatus);
+                        const subAgentMetadataParts = getSessionMetadataParts(
+                          subAgentStatus,
+                          nowSeconds,
+                        );
+                        const hasSubAgentStatus =
+                          subAgentActivityText !== null || subAgentMetadataParts.length > 0;
                         const lastAssistantItem = [...block.items]
                           .reverse()
                           .find(
@@ -541,6 +686,22 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                     `Sub Agent ${shortSessionId(block.sourceSessionId)}`}
                                 </span>
                               </button>
+                              {hasSubAgentStatus ? (
+                                <div className="px-3.5 pb-2 pt-0 text-[12px]">
+                                  {subAgentActivityText ? (
+                                    <div className="truncate text-neutral-500">
+                                      {subAgentActivityText}
+                                    </div>
+                                  ) : null}
+                                  {subAgentMetadataParts.length > 0 ? (
+                                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-neutral-400">
+                                      {subAgentMetadataParts.map((part) => (
+                                        <span key={part}>{part}</span>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ) : null}
                               {collapsed ? (
                                 <div className="px-3.5 pb-3.5 pt-0.5">
                                   {resultPreview ? (
@@ -775,6 +936,28 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        <div className="shrink-0 border-t border-neutral-200/80 bg-white/95 backdrop-blur">
+          <div className="mx-auto max-w-4xl px-4 py-2.5 sm:px-6">
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span
+                  className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${hasActiveStatus ? "animate-pulse bg-neutral-700" : "bg-neutral-300"}`}
+                />
+                <span className="truncate text-[13px] font-medium text-neutral-700">
+                  {mainStatusLabel}
+                </span>
+              </div>
+              {mainMetadataParts.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-neutral-400 sm:justify-end">
+                  {mainMetadataParts.map((part) => (
+                    <span key={part}>{part}</span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
