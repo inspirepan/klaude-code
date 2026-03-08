@@ -1,4 +1,9 @@
-import type { SessionGroup, SessionHistoryResponse } from "../types/session";
+import type {
+  FileChangeSummary,
+  SessionGroup,
+  SessionHistoryResponse,
+  SessionSummary,
+} from "../types/session";
 
 interface JsonRequestOptions {
   method?: "GET" | "POST" | "DELETE";
@@ -24,9 +29,34 @@ interface SessionGroupsResponse {
   groups: SessionGroup[];
 }
 
+function normalizeFileChangeSummary(
+  summary: Partial<FileChangeSummary> | null | undefined,
+): FileChangeSummary {
+  return {
+    created_files: Array.isArray(summary?.created_files) ? summary.created_files : [],
+    edited_files: Array.isArray(summary?.edited_files) ? summary.edited_files : [],
+    diff_lines_added: typeof summary?.diff_lines_added === "number" ? summary.diff_lines_added : 0,
+    diff_lines_removed:
+      typeof summary?.diff_lines_removed === "number" ? summary.diff_lines_removed : 0,
+    file_diffs:
+      summary?.file_diffs && typeof summary.file_diffs === "object" ? summary.file_diffs : {},
+  };
+}
+
+function normalizeSessionSummary(session: SessionSummary): SessionSummary {
+  return {
+    ...session,
+    todos: Array.isArray(session.todos) ? session.todos : [],
+    file_change_summary: normalizeFileChangeSummary(session.file_change_summary),
+  };
+}
+
 export async function fetchSessionGroups(): Promise<SessionGroup[]> {
   const result = await requestJson<SessionGroupsResponse>("/api/sessions");
-  return result.groups;
+  return result.groups.map((group) => ({
+    ...group,
+    sessions: group.sessions.map(normalizeSessionSummary),
+  }));
 }
 
 export async function fetchSessionHistory(sessionId: string): Promise<SessionHistoryResponse> {

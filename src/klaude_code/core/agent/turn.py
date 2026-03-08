@@ -407,6 +407,7 @@ class TurnExecutor:
             todo_context=session_ctx.todo_context,
             session_id=session_ctx.session_id,
             work_dir=session_ctx.work_dir,
+            file_change_summary=session_ctx.file_change_summary,
             run_subtask=session_ctx.run_subtask,
             sub_agent_resume_claims=SubAgentResumeClaims(),
             rewind_manager=ctx.rewind_manager,

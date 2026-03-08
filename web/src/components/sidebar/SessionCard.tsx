@@ -94,6 +94,18 @@ function shortenFileRefs(text: string): string {
   return text.replace(/@[\w./\\-]+\/([^/\s]+)/g, "@$1");
 }
 
+function DiffStats({ added, removed }: { added: number; removed: number }): JSX.Element | null {
+  if (added <= 0 && removed <= 0) {
+    return null;
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[10px] leading-4">
+      {added > 0 ? <span className="text-emerald-600">+{added}</span> : null}
+      {removed > 0 ? <span className="text-rose-600">-{removed}</span> : null}
+    </span>
+  );
+}
+
 export function SessionCard({
   session,
   active,
@@ -111,6 +123,7 @@ export function SessionCard({
   const updatedAtDetailed = formatDetailedTime(session.updated_at);
   const messageCountLabel = session.messages_count >= 0 ? String(session.messages_count) : "N/A";
   const modelLabel = session.model_name ?? "N/A model";
+  const diffSummary = session.file_change_summary;
 
   useEffect(() => {
     const previousSessionState = previousSessionStateRef.current;
@@ -172,6 +185,10 @@ export function SessionCard({
         <div className="flex min-w-0 items-center gap-1.5 pl-1">
           {getRuntimeIcon(runtime, showSuccessState, hasUnreadCompletion)}
           <span className="flex-1 truncate text-[13px] leading-5 text-neutral-800">{title}</span>
+          <DiffStats
+            added={diffSummary.diff_lines_added}
+            removed={diffSummary.diff_lines_removed}
+          />
         </div>
 
         <div className="flex min-w-0 items-center gap-1 pl-6 pr-1 text-[10px] leading-4 text-neutral-400">

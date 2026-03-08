@@ -202,6 +202,7 @@ class SessionContext:
     get_conversation_history: Callable[[], list[message.HistoryEvent]]
     append_history: Callable[[Sequence[message.HistoryEvent]], None]
     file_tracker: FileTracker
+    file_change_summary: model.FileChangeSummary
     todo_context: TodoContext
     run_subtask: RunSubtask | None
     request_user_interaction: RequestUserInteraction | None

@@ -195,6 +195,7 @@ def build_meta_snapshot(
     title: str | None,
     sub_agent_state: model.SubAgentState | None,
     file_tracker: dict[str, model.FileStatus],
+    file_change_summary: model.FileChangeSummary,
     todos: list[model.TodoItem],
     user_messages: list[str],
     created_at: float,
@@ -213,6 +214,7 @@ def build_meta_snapshot(
         "title": title,
         "sub_agent_state": sub_agent_state.model_dump(mode="json") if sub_agent_state else None,
         "file_tracker": {path: status.model_dump(mode="json") for path, status in file_tracker.items()},
+        "file_change_summary": file_change_summary.model_dump(mode="json", exclude_defaults=True),
         "todos": [todo.model_dump(mode="json", exclude_defaults=True) for todo in todos],
         # Cache user messages to avoid scanning events.jsonl during session listing.
         "user_messages": list(user_messages),

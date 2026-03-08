@@ -103,6 +103,7 @@ def _build_turn_executor(
         get_conversation_history=lambda: history,
         append_history=append_history,
         file_tracker=cast(Any, SimpleNamespace()),
+        file_change_summary=cast(Any, SimpleNamespace()),
         todo_context=cast(Any, SimpleNamespace()),
         run_subtask=None,
         request_user_interaction=None,

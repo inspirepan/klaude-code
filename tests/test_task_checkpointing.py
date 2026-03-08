@@ -76,6 +76,7 @@ def _build_executor(
         get_conversation_history=session.get_llm_history,
         append_history=session.append_history,
         file_tracker=session.file_tracker,
+        file_change_summary=session.file_change_summary,
         todo_context=build_todo_context(session),
         run_subtask=None,
         request_user_interaction=None,

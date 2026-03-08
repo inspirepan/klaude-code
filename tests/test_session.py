@@ -569,6 +569,12 @@ class TestSessionPersistence:
             )
             session.todos = [model.TodoItem(content="Task 1", status="pending")]
             session.file_tracker = {"/path/to/file": model.FileStatus(mtime=1234567890.0)}
+            session.file_change_summary = model.FileChangeSummary(
+                created_files=["/path/to/created"],
+                edited_files=["/path/to/edited"],
+                diff_lines_added=5,
+                diff_lines_removed=2,
+            )
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("persist"))])
             await session.wait_for_flush()
 
@@ -585,6 +591,10 @@ class TestSessionPersistence:
             assert len(loaded.todos) == 1
             assert loaded.todos[0].content == "Task 1"
             assert "/path/to/file" in loaded.file_tracker
+            assert loaded.file_change_summary.created_files == ["/path/to/created"]
+            assert loaded.file_change_summary.edited_files == ["/path/to/edited"]
+            assert loaded.file_change_summary.diff_lines_added == 5
+            assert loaded.file_change_summary.diff_lines_removed == 2
             await close_default_store()
 
         arun(_test())
@@ -940,6 +950,9 @@ class TestForkSessionCommand:
             session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config")
             session.model_thinking = llm_param.Thinking(type="enabled", budget_tokens=123)
             session.file_tracker["/path/to/file"] = model.FileStatus(mtime=time.time(), content_sha256="abc")
+            session.file_change_summary.record_created("/path/to/created")
+            session.file_change_summary.record_edited("/path/to/edited")
+            session.file_change_summary.add_diff(added=4, removed=1)
             session.todos.append(model.TodoItem(content="t1", status="pending"))
             session.append_history(
                 [
@@ -970,6 +983,7 @@ class TestForkSessionCommand:
             assert forked.model_config_name == session.model_config_name
             assert forked.model_thinking == session.model_thinking
             assert forked.file_tracker.keys() == session.file_tracker.keys()
+            assert forked.file_change_summary == session.file_change_summary
             assert len(forked.todos) == len(session.todos)
             assert len(forked.conversation_history) == len(session.conversation_history)
             assert isinstance(forked.conversation_history[0], message.UserMessage)

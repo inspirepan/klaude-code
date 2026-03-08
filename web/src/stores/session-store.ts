@@ -354,13 +354,49 @@ function areSessionGroupsEqual(a: SessionGroup[], b: SessionGroup[]): boolean {
         leftSession.model_name !== rightSession.model_name ||
         leftSession.session_state !== rightSession.session_state ||
         leftSession.archived !== rightSession.archived ||
-        leftSession.user_messages.length !== rightSession.user_messages.length
+        leftSession.user_messages.length !== rightSession.user_messages.length ||
+        leftSession.todos.length !== rightSession.todos.length ||
+        leftSession.file_change_summary.created_files.length !==
+          rightSession.file_change_summary.created_files.length ||
+        leftSession.file_change_summary.edited_files.length !==
+          rightSession.file_change_summary.edited_files.length ||
+        leftSession.file_change_summary.diff_lines_added !==
+          rightSession.file_change_summary.diff_lines_added ||
+        leftSession.file_change_summary.diff_lines_removed !==
+          rightSession.file_change_summary.diff_lines_removed
       ) {
         return false;
       }
 
       for (let k = 0; k < leftSession.user_messages.length; k += 1) {
         if (leftSession.user_messages[k] !== rightSession.user_messages[k]) {
+          return false;
+        }
+      }
+
+      for (let k = 0; k < leftSession.todos.length; k += 1) {
+        if (
+          leftSession.todos[k]?.content !== rightSession.todos[k]?.content ||
+          leftSession.todos[k]?.status !== rightSession.todos[k]?.status
+        ) {
+          return false;
+        }
+      }
+
+      for (let k = 0; k < leftSession.file_change_summary.created_files.length; k += 1) {
+        if (
+          leftSession.file_change_summary.created_files[k] !==
+          rightSession.file_change_summary.created_files[k]
+        ) {
+          return false;
+        }
+      }
+
+      for (let k = 0; k < leftSession.file_change_summary.edited_files.length; k += 1) {
+        if (
+          leftSession.file_change_summary.edited_files[k] !==
+          rightSession.file_change_summary.edited_files[k]
+        ) {
           return false;
         }
       }
@@ -522,6 +558,14 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       model_name: null,
       session_state: "idle",
       archived: false,
+      todos: [],
+      file_change_summary: {
+        created_files: [],
+        edited_files: [],
+        diff_lines_added: 0,
+        diff_lines_removed: 0,
+        file_diffs: {},
+      },
     };
 
     set((state) => ({

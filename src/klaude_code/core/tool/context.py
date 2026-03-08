@@ -100,6 +100,7 @@ class ToolContext:
     todo_context: TodoContext
     session_id: str
     work_dir: Path
+    file_change_summary: model.FileChangeSummary | None = None
     run_subtask: RunSubtask | None = None
     sub_agent_resume_claims: SubAgentResumeClaims | None = None
     record_sub_agent_session_id: Callable[[str], None] | None = None

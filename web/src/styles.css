@@ -159,12 +159,12 @@ body {
 
 /* ── Assistant markdown (Streamdown handles element styles) ── */
 .assistant-text {
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.7;
   color: #171717;
 }
 .assistant-text.assistant-text-compact {
-  font-size: 14px;
+  font-size: 13px;
 }
 /* Tailwind preflight resets many element styles; restore them for Streamdown */
 .assistant-text hr {

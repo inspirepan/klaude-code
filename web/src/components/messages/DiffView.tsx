@@ -15,7 +15,7 @@ const SHADOW_ICON_CSS = `
 }
 
 [data-diffs-header] {
-  min-height: 24px !important;
+  min-height: 32px !important;
   padding-inline: 12px !important;
 }
 

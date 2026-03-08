@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { ChevronRight, Loader2, PanelLeftOpen, RefreshCw } from "lucide-react";
+import { ChevronRight, Loader2, PanelLeftOpen, PanelRightOpen, RefreshCw } from "lucide-react";
 
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
@@ -112,6 +112,8 @@ function extractSearchableText(item: MessageItemType): string {
       return "";
     case "task_worked":
       return "";
+    case "interrupt":
+      return "Interrupted by user";
     case "compaction_summary":
       return item.content;
     case "unknown_event":
@@ -136,6 +138,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const selectSession = useSessionStore((state) => state.selectSession);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
+  const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen);
+  const setRightSidebarOpen = useAppStore((state) => state.setRightSidebarOpen);
   const items = useMessageStore((state) => state.messagesBySessionId[sessionId] ?? EMPTY_ITEMS);
   const subAgentDescBySessionId = useMessageStore(
     (state) =>
@@ -395,7 +399,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           />
         ) : null}
 
-        <div className="flex shrink-0 items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
+        <div className="flex h-12 shrink-0 items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 backdrop-blur sm:px-6">
           {!sidebarOpen ? (
             <button
               type="button"
@@ -410,20 +414,19 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             </button>
           ) : null}
           <div className="min-w-0 flex-1">
-            <div
-              className="truncate text-[15px] font-semibold leading-5 text-neutral-800"
-              title={sessionTitle}
-            >
-              {sessionTitle}
+            <div className="flex min-w-0 items-center gap-2 text-[14px] leading-5">
+              <span className="truncate font-semibold text-neutral-800" title={sessionTitle}>
+                {sessionTitle}
+              </span>
+              {workspacePath ? (
+                <span
+                  className="truncate font-mono text-[11px] leading-4 text-neutral-400"
+                  title={workspacePath}
+                >
+                  {workspacePath}
+                </span>
+              ) : null}
             </div>
-            {workspacePath ? (
-              <div
-                className="mt-0.5 truncate font-mono text-[11px] leading-4 text-neutral-400"
-                title={workspacePath}
-              >
-                {workspacePath}
-              </div>
-            ) : null}
           </div>
           <button
             type="button"
@@ -436,6 +439,19 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
           </button>
+          {!rightSidebarOpen ? (
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+              onClick={() => {
+                setRightSidebarOpen(true);
+              }}
+              title="Expand right sidebar"
+              aria-label="Expand right sidebar"
+            >
+              <PanelRightOpen className="h-4 w-4" />
+            </button>
+          ) : null}
         </div>
 
         <div
@@ -578,7 +594,11 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                         <div
                                           className={`min-w-0 flex-1 rounded-xl bg-neutral-50/60 transition-shadow duration-150 ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
                                         >
-                                          <MessageItem item={item} compact />
+                                          <MessageItem
+                                            item={item}
+                                            compact
+                                            workDir={workspacePath}
+                                          />
                                           {canCopy ? (
                                             <div className="mt-1 flex justify-end sm:hidden">
                                               <button
@@ -633,9 +653,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                           className={`group/row flex min-w-0 gap-4 ${isUser ? "sticky top-0 z-10 -mx-4 -mt-2.5 px-4 pt-2.5 sm:-mx-6 sm:px-6" : ""}`}
                         >
                           <div
-                            className={`min-w-0 flex-1 transition-shadow duration-150 ${isUser ? "overflow-hidden rounded-lg shadow-[0_4px_14px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.04)]" : "rounded-xl"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
+                            className={`min-w-0 flex-1 transition-shadow duration-150 ${isUser ? "overflow-hidden rounded-[22px] shadow-sm" : "rounded-xl"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
                           >
-                            <MessageItem item={item} />
+                            <MessageItem item={item} workDir={workspacePath} />
                             {canCopy ? (
                               <div className="mt-1 flex justify-end sm:hidden">
                                 <button

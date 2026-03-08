@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.file._utils import file_exists, hash_text_sha256, is_directory, read_text, write_text
-from klaude_code.core.tool.file.diff_builder import build_structured_diff
+from klaude_code.core.tool.file.diff_builder import build_structured_diff, build_structured_file_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
@@ -121,6 +121,18 @@ class WriteTool(ToolABC):
                 mtime=Path(file_path).stat().st_mtime,
                 content_sha256=hash_text_sha256(args.content),
                 is_memory=is_mem,
+            )
+
+        file_diff = build_structured_file_diff(before, args.content, file_path=file_path)
+        if context.file_change_summary is not None:
+            if exists:
+                context.file_change_summary.record_edited(file_path)
+            else:
+                context.file_change_summary.record_created(file_path)
+            context.file_change_summary.add_diff(
+                added=file_diff.stats_add,
+                removed=file_diff.stats_remove,
+                path=file_path,
             )
 
         # For markdown files, use MarkdownDocUIExtra to render content as markdown

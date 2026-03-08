@@ -64,6 +64,7 @@ class Session(BaseModel):
     conversation_history: list[message.HistoryEvent] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     sub_agent_state: model.SubAgentState | None = None
     file_tracker: dict[str, model.FileStatus] = Field(default_factory=dict)
+    file_change_summary: model.FileChangeSummary = Field(default_factory=model.FileChangeSummary)
     todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     model_name: str | None = None
     session_state: model.SessionRuntimeState | None = None
@@ -156,6 +157,15 @@ class Session(BaseModel):
                     except ValidationError:
                         continue
 
+        file_change_summary_raw = raw.get("file_change_summary")
+        if isinstance(file_change_summary_raw, dict):
+            try:
+                file_change_summary = model.FileChangeSummary.model_validate(file_change_summary_raw)
+            except ValidationError:
+                file_change_summary = model.FileChangeSummary()
+        else:
+            file_change_summary = model.FileChangeSummary()
+
         todos_raw = raw.get("todos")
         todos: list[model.TodoItem] = []
         if isinstance(todos_raw, list):
@@ -192,6 +202,7 @@ class Session(BaseModel):
             work_dir=Path(work_dir_str),
             sub_agent_state=sub_agent_state,
             file_tracker=file_tracker,
+            file_change_summary=file_change_summary,
             todos=todos,
             created_at=created_at,
             updated_at=updated_at,
@@ -250,6 +261,7 @@ class Session(BaseModel):
             title=self.title,
             sub_agent_state=self.sub_agent_state,
             file_tracker=self.file_tracker,
+            file_change_summary=self.file_change_summary,
             todos=list(self.todos),
             user_messages=self.user_messages,
             created_at=self.created_at,
@@ -401,6 +413,7 @@ class Session(BaseModel):
         forked.model_thinking = self.model_thinking.model_copy(deep=True) if self.model_thinking is not None else None
         forked.next_checkpoint_id = self.next_checkpoint_id
         forked.file_tracker = {k: v.model_copy(deep=True) for k, v in self.file_tracker.items()}
+        forked.file_change_summary = self.file_change_summary.model_copy(deep=True)
         forked.todos = [todo.model_copy(deep=True) for todo in self.todos]
 
         history_to_copy = (

@@ -200,6 +200,13 @@ class EditTool(ToolABC):
             )
         )
         ui_extra = build_structured_diff(before, after, file_path=file_path)
+        if context.file_change_summary is not None:
+            context.file_change_summary.record_edited(file_path)
+            context.file_change_summary.add_diff(
+                added=ui_extra.files[0].stats_add,
+                removed=ui_extra.files[0].stats_remove,
+                path=file_path,
+            )
 
         # Update tracker with new mtime and content hash
         with contextlib.suppress(Exception):

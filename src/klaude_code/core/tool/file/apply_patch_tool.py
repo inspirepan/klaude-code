@@ -21,7 +21,11 @@ class ApplyPatchHandler:
     async def handle_apply_patch(cls, patch_text: str, context: ToolContext) -> message.ToolResultMessage:
         try:
             output, ui_extra = await asyncio.to_thread(
-                cls._apply_patch_in_thread, patch_text, context.file_tracker, context.work_dir
+                cls._apply_patch_in_thread,
+                patch_text,
+                context.file_tracker,
+                context.file_change_summary,
+                context.work_dir,
             )
         except apply_patch_module.DiffError as error:
             return message.ToolResultMessage(status="error", output_text=str(error))
@@ -35,7 +39,10 @@ class ApplyPatchHandler:
 
     @staticmethod
     def _apply_patch_in_thread(
-        patch_text: str, file_tracker: FileTracker, work_dir: Path
+        patch_text: str,
+        file_tracker: FileTracker,
+        file_change_summary: model.FileChangeSummary | None,
+        work_dir: Path,
     ) -> tuple[str, model.ToolResultUIExtra]:
         ap = apply_patch_module
         normalized_start = patch_text.lstrip()
@@ -71,6 +78,20 @@ class ApplyPatchHandler:
         patch, _ = ap.text_to_patch(patch_text, orig)
         commit = ap.patch_to_commit(patch, orig)
         diff_ui = ApplyPatchHandler._commit_to_structured_diff(commit)
+
+        if file_change_summary is not None:
+            for change_path, change in commit.changes.items():
+                resolved = resolve_path(change_path)
+                if change.type == apply_patch_module.ActionType.ADD:
+                    file_change_summary.record_created(resolved)
+                elif change.type == apply_patch_module.ActionType.UPDATE:
+                    tracked_path = change.move_path if change.move_path else change_path
+                    resolved = resolve_path(tracked_path)
+                    file_change_summary.record_edited(resolved)
+                file_diff = build_structured_file_diff(
+                    change.old_content or "", change.new_content or "", file_path=change_path
+                )
+                file_change_summary.add_diff(added=file_diff.stats_add, removed=file_diff.stats_remove, path=resolved)
 
         md_items: list[model.MarkdownDocUIExtra] = []
         for change_path, change in commit.changes.items():
@@ -163,6 +184,17 @@ class ApplyPatchHandler:
 
         raw_unified_diff = "\n".join(raw_chunks) if raw_chunks else ""
         return model.DiffUIExtra(files=files, raw_unified_diff=raw_unified_diff)
+
+    @staticmethod
+    def _commit_diff_totals(commit: apply_patch_module.Commit) -> tuple[int, int]:
+        added = 0
+        removed = 0
+        for path in sorted(commit.changes):
+            change = commit.changes[path]
+            file_diff = build_structured_file_diff(change.old_content or "", change.new_content or "", file_path=path)
+            added += file_diff.stats_add
+            removed += file_diff.stats_remove
+        return added, removed
 
 
 @register(tools.APPLY_PATCH)

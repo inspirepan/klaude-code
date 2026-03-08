@@ -22,6 +22,7 @@ from klaude_code.core.tool import (  # noqa: E402
     BashTool,
     EditTool,
     ReadTool,
+    WriteTool,
     build_todo_context,
 )
 from klaude_code.core.tool.context import ToolContext  # noqa: E402
@@ -55,6 +56,7 @@ class BaseTempDirTest(unittest.TestCase):
             todo_context=build_todo_context(self.session),
             session_id=self.session.id,
             work_dir=Path(self._tmp.name).resolve(),
+            file_change_summary=self.session.file_change_summary,
         )
 
     def tearDown(self) -> None:
@@ -601,6 +603,61 @@ class TestEditTool(BaseTempDirTest):
             res.output_text,
             "File has been modified externally. Either by user or a linter. Read it first before writing to it.",
         )
+
+    def test_edit_records_changed_file_and_diff_totals(self):
+        p = os.path.abspath("tracked_edit.txt")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write("one\ntwo\n")
+        _ = arun(ReadTool.call(json.dumps({"file_path": p}), self.tool_context))
+
+        res = arun(
+            EditTool.call(
+                json.dumps(
+                    {
+                        "file_path": p,
+                        "old_string": "one",
+                        "new_string": "ONE",
+                        "replace_all": False,
+                    }
+                ),
+                self.tool_context,
+            )
+        )
+
+        self.assertEqual(res.status, "success")
+        self.assertEqual(self.session.file_change_summary.created_files, [])
+        self.assertEqual(self.session.file_change_summary.edited_files, [p])
+        self.assertEqual(self.session.file_change_summary.diff_lines_added, 1)
+        self.assertEqual(self.session.file_change_summary.diff_lines_removed, 1)
+
+
+class TestWriteTool(BaseTempDirTest):
+    def test_write_records_created_and_edited_files_with_diff_totals(self):
+        p = os.path.abspath("write_target.txt")
+
+        create_res = arun(
+            WriteTool.call(
+                json.dumps({"file_path": p, "content": "alpha\nbeta\n"}),
+                self.tool_context,
+            )
+        )
+        self.assertEqual(create_res.status, "success")
+        self.assertEqual(self.session.file_change_summary.created_files, [p])
+        self.assertEqual(self.session.file_change_summary.edited_files, [])
+        self.assertEqual(self.session.file_change_summary.diff_lines_added, 2)
+        self.assertEqual(self.session.file_change_summary.diff_lines_removed, 0)
+
+        overwrite_res = arun(
+            WriteTool.call(
+                json.dumps({"file_path": p, "content": "alpha\nBETA\n"}),
+                self.tool_context,
+            )
+        )
+        self.assertEqual(overwrite_res.status, "success")
+        self.assertEqual(self.session.file_change_summary.created_files, [p])
+        self.assertEqual(self.session.file_change_summary.edited_files, [p])
+        self.assertEqual(self.session.file_change_summary.diff_lines_added, 3)
+        self.assertEqual(self.session.file_change_summary.diff_lines_removed, 1)
 
 
 class TestBashToolFileTracking(BaseTempDirTest):

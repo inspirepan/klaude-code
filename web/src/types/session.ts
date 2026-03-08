@@ -2,6 +2,24 @@ export type SessionId = string;
 export type ActiveSessionId = SessionId | "draft";
 export type ApiSessionState = "idle" | "running" | "waiting_user_input";
 
+export interface TodoItem {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+}
+
+export interface FileDiffStats {
+  added: number;
+  removed: number;
+}
+
+export interface FileChangeSummary {
+  created_files: string[];
+  edited_files: string[];
+  diff_lines_added: number;
+  diff_lines_removed: number;
+  file_diffs: Record<string, FileDiffStats>;
+}
+
 export interface SessionSummary {
   id: SessionId;
   created_at: number;
@@ -13,6 +31,8 @@ export interface SessionSummary {
   model_name: string | null;
   session_state: ApiSessionState;
   archived: boolean;
+  todos: TodoItem[];
+  file_change_summary: FileChangeSummary;
 }
 
 export interface SessionGroup {
