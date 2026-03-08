@@ -53,8 +53,20 @@ export function connectSessionWs(
 ): SessionWsConnection {
   const wsUrl = `${resolveWsBaseUrl()}/api/sessions/${encodeURIComponent(sessionId)}/ws`;
   const socket = new WebSocket(wsUrl);
+  const pendingFrames: string[] = [];
+
+  function flushPendingFrames(): void {
+    if (socket.readyState !== WebSocket.OPEN || pendingFrames.length === 0) {
+      return;
+    }
+    for (const frame of pendingFrames) {
+      socket.send(frame);
+    }
+    pendingFrames.length = 0;
+  }
 
   socket.addEventListener("open", () => {
+    flushPendingFrames();
     handlers.onOpen?.();
   });
 
@@ -79,9 +91,17 @@ export function connectSessionWs(
 
   return {
     send: (payload: unknown) => {
-      socket.send(JSON.stringify(payload));
+      const frame = JSON.stringify(payload);
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(frame);
+        return;
+      }
+      if (socket.readyState === WebSocket.CONNECTING) {
+        pendingFrames.push(frame);
+      }
     },
     close: () => {
+      pendingFrames.length = 0;
       socket.close();
     },
   };

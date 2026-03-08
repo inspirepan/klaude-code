@@ -11,7 +11,7 @@ import anyio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, ValidationError
 
-from klaude_code.protocol import llm_param, message, model, op, user_interaction
+from klaude_code.protocol import events, llm_param, message, model, op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
 from klaude_code.session.session import Session
 from klaude_code.web.session_index import resolve_session_work_dir
@@ -117,6 +117,9 @@ async def _handle_incoming_frame(
 
     try:
         if isinstance(frame, MessageFrame):
+            await runtime.emit_event(
+                events.UserMessageEvent(content=frame.text, session_id=session_id, images=frame.images)
+            )
             await runtime.submit(
                 op.RunAgentOperation(
                     session_id=session_id,
@@ -186,9 +189,21 @@ def _validate_incoming_frame(payload: dict[str, Any], frame_type: str) -> Incomi
 
 async def _forward_events(session_id: str, websocket: WebSocket) -> None:
     state = get_web_state_from_ws(websocket)
-    subscription = state.event_bus.subscribe(session_id)
+    subscription = state.event_bus.subscribe(None)
+    tracked_task_ids: set[str] = set()
+
+    snapshot = state.runtime.session_registry.snapshot(session_id)
+    if snapshot is not None and snapshot.active_root_task is not None:
+        tracked_task_ids.add(snapshot.active_root_task.task_id)
+
     try:
         async for envelope in subscription:
+            if envelope.session_id == session_id:
+                if envelope.task_id is not None:
+                    tracked_task_ids.add(envelope.task_id)
+            elif envelope.task_id not in tracked_task_ids:
+                continue
+
             await websocket.send_json(envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True))
     except (WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError, asyncio.CancelledError, FutureCancelledError):
         return

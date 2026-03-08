@@ -73,13 +73,13 @@ export function RightSidebar(): JSX.Element {
         <div className="space-y-3 px-3 pb-3">
           {/* Tasks card */}
           <div className="rounded-lg border border-neutral-200/80 bg-white px-3.5 py-2.5">
-            <div className="mb-2 text-[11px] font-semibold tracking-[0.04em] text-neutral-600">
+            <div className="mb-2 text-[12px] font-semibold tracking-[0.04em] text-neutral-600">
               To-Do list
             </div>
             {todos.length === 0 ? (
-              <div className="text-[13px] text-neutral-400">No todos yet</div>
+              <div className="text-[12px] text-neutral-400">No todos yet</div>
             ) : (
-              <div className="flex flex-col gap-0.5 py-1 text-[13px]">
+              <div className="flex flex-col gap-0.5 py-1 text-[12px]">
                 {todos.map((todo) => {
                   const config = todoStatusConfig[todo.status];
                   return (
@@ -100,7 +100,7 @@ export function RightSidebar(): JSX.Element {
 
           {/* File changes card */}
           <div className="rounded-lg border border-neutral-200/80 bg-white px-3.5 py-2.5">
-            <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold tracking-[0.04em] text-neutral-600">
+            <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold tracking-[0.04em] text-neutral-600">
               <span>Files</span>
               <span className="inline-flex items-center gap-1 text-[10px] font-medium normal-case tracking-normal">
                 <span className="text-emerald-600">+{fileChangeSummary.diff_lines_added}</span>
@@ -108,15 +108,15 @@ export function RightSidebar(): JSX.Element {
               </span>
             </div>
             {allFiles.length === 0 ? (
-              <div className="text-[13px] text-neutral-400">No file changes yet</div>
+              <div className="text-[12px] text-neutral-400">No file changes yet</div>
             ) : (
-              <div className="flex flex-col gap-0.5 py-1 text-[13px]">
+              <div className="flex flex-col gap-0.5 py-1 text-[12px]">
                 {allFiles.map(({ path, kind }) => {
                   const stats = fileChangeSummary.file_diffs[path];
                   return (
                     <div
                       key={`${kind}-${path}`}
-                      className="flex items-center gap-1.5 leading-relaxed"
+                      className="flex items-baseline gap-1.5 leading-relaxed"
                     >
                       <span
                         className={`shrink-0 text-[9px] font-semibold uppercase leading-none ${kind === "created" ? "text-emerald-500" : "text-blue-500"}`}
@@ -127,7 +127,7 @@ export function RightSidebar(): JSX.Element {
                         <FilePath
                           path={path}
                           workDir={workDir}
-                          className="!rounded-none !bg-transparent !px-0 !py-0 text-xs !text-neutral-600"
+                          className="!rounded-none !bg-transparent !px-0 !py-0 !font-sans !text-[11px] !leading-none !text-neutral-600"
                           truncateFromStart
                         />
                       </div>

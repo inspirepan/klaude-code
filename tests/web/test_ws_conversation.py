@@ -25,6 +25,7 @@ def test_send_message_receive_events_and_history(app_env: AppEnv) -> None:
         events = collect_events_until(websocket, "operation.finished")
 
     event_types = [event["event_type"] for event in events]
+    assert "user.message" in event_types
     assert "assistant.text.start" in event_types
     assert "assistant.text.delta" in event_types
     assert "assistant.text.end" in event_types

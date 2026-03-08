@@ -1,5 +1,32 @@
 import type { DeveloperUIItem, MessageImagePart, MessageItem } from "../types/message";
 
+export interface SessionStatusState {
+  sessionId: string;
+  isSubAgent: boolean;
+  subAgentType: string | null;
+  subAgentDesc: string | null;
+  taskActive: boolean;
+  awaitingInput: boolean;
+  thinkingActive: boolean;
+  compacting: boolean;
+  isComposing: boolean;
+  assistantCharCount: number;
+  activeToolCalls: Record<string, number>;
+  activeToolCallNamesById: Record<string, string>;
+  tokenInput: number | null;
+  tokenCached: number | null;
+  tokenCacheWrite: number | null;
+  tokenOutput: number | null;
+  tokenThought: number | null;
+  cacheHitRate: number | null;
+  contextSize: number | null;
+  contextEffectiveLimit: number | null;
+  contextPercent: number | null;
+  totalCost: number | null;
+  currency: string;
+  taskStartedAt: number | null;
+}
+
 function parseUserMessageImages(raw: unknown): MessageImagePart[] {
   if (!Array.isArray(raw)) return [];
   const images: MessageImagePart[] = [];
@@ -26,6 +53,36 @@ export interface ReducerState {
   subAgentDescBySessionId: Record<string, string>;
   subAgentTypeBySessionId: Record<string, string>;
   subAgentFinishedBySessionId: Record<string, boolean>;
+  statusBySessionId: Record<string, SessionStatusState>;
+}
+
+function createInitialSessionStatus(sessionId: string): SessionStatusState {
+  return {
+    sessionId,
+    isSubAgent: false,
+    subAgentType: null,
+    subAgentDesc: null,
+    taskActive: false,
+    awaitingInput: false,
+    thinkingActive: false,
+    compacting: false,
+    isComposing: false,
+    assistantCharCount: 0,
+    activeToolCalls: {},
+    activeToolCallNamesById: {},
+    tokenInput: null,
+    tokenCached: null,
+    tokenCacheWrite: null,
+    tokenOutput: null,
+    tokenThought: null,
+    cacheHitRate: null,
+    contextSize: null,
+    contextEffectiveLimit: null,
+    contextPercent: null,
+    totalCost: null,
+    currency: "USD",
+    taskStartedAt: null,
+  };
 }
 
 export function createInitialState(): ReducerState {
@@ -38,6 +95,7 @@ export function createInitialState(): ReducerState {
     subAgentDescBySessionId: {},
     subAgentTypeBySessionId: {},
     subAgentFinishedBySessionId: {},
+    statusBySessionId: {},
   };
 }
 
@@ -66,9 +124,438 @@ const SKIP_EVENT_TYPES = new Set([
 
 const WORKED_LINE_DURATION_THRESHOLD_S = 60;
 const WORKED_LINE_TURN_COUNT_THRESHOLD = 4;
+const DEFAULT_MAX_TOKENS = 32000;
+const TOOL_ACTIVE_FORM: Record<string, string> = {
+  Bash: "Running Bash",
+  Read: "Reading",
+  Edit: "Editing",
+  Write: "Writing",
+  TodoWrite: "Updating Todos",
+  MultiEdit: "Editing",
+  NotebookEdit: "Editing Notebook",
+  Grep: "Searching",
+  Glob: "Scanning Files",
+  LS: "Listing Files",
+  WebFetch: "Fetching Web",
+  WebSearch: "Searching Web",
+  Agent: "Spawning Task",
+  update_plan: "Planning",
+  UpdatePlan: "Planning",
+  AskUserQuestion: "Questioning",
+  Rewind: "Rewinding",
+  ReportBack: "Reporting",
+  ApplyPatch: "Applying Patch",
+};
 
 function parseFiniteNumber(raw: unknown): number | null {
   return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+}
+
+function getSessionStatus(state: ReducerState, sessionId: string): SessionStatusState {
+  return state.statusBySessionId[sessionId] ?? createInitialSessionStatus(sessionId);
+}
+
+function updateSessionStatus(
+  state: ReducerState,
+  sessionId: string,
+  updater: (current: SessionStatusState) => SessionStatusState,
+): ReducerState {
+  const current = getSessionStatus(state, sessionId);
+  const next = updater(current);
+  if (next === current) return state;
+  return {
+    ...state,
+    statusBySessionId: {
+      ...state.statusBySessionId,
+      [sessionId]: next,
+    },
+  };
+}
+
+function clearTaskScopedStatus(status: SessionStatusState): SessionStatusState {
+  return {
+    ...status,
+    taskActive: false,
+    awaitingInput: false,
+    thinkingActive: false,
+    compacting: false,
+    isComposing: false,
+    assistantCharCount: 0,
+    activeToolCalls: {},
+    activeToolCallNamesById: {},
+    taskStartedAt: null,
+  };
+}
+
+function getAgentActiveForm(argumentsText: string): string {
+  try {
+    const parsed = JSON.parse(argumentsText) as Record<string, unknown>;
+    const type = typeof parsed.type === "string" ? parsed.type.trim() : "";
+    if (type === "explore") return "Exploring";
+    if (type === "web") return "Surfing";
+    return "Tasking";
+  } catch {
+    return "Tasking";
+  }
+}
+
+function getToolActiveForm(toolName: string, argumentsText: string | null = null): string {
+  if (toolName === "Agent" && argumentsText !== null) {
+    return getAgentActiveForm(argumentsText);
+  }
+  return TOOL_ACTIVE_FORM[toolName] ?? `Calling ${toolName}`;
+}
+
+function setActiveToolCall(
+  status: SessionStatusState,
+  toolCallId: string,
+  nextToolName: string,
+): SessionStatusState {
+  const previousToolName = status.activeToolCallNamesById[toolCallId] ?? null;
+  if (previousToolName === nextToolName) return status;
+
+  const nextToolCalls = { ...status.activeToolCalls };
+  if (previousToolName !== null) {
+    const previousCount = (nextToolCalls[previousToolName] ?? 0) - 1;
+    if (previousCount <= 0) {
+      delete nextToolCalls[previousToolName];
+    } else {
+      nextToolCalls[previousToolName] = previousCount;
+    }
+  }
+  nextToolCalls[nextToolName] = (nextToolCalls[nextToolName] ?? 0) + 1;
+
+  return {
+    ...status,
+    activeToolCalls: nextToolCalls,
+    activeToolCallNamesById: {
+      ...status.activeToolCallNamesById,
+      [toolCallId]: nextToolName,
+    },
+  };
+}
+
+function clearActiveToolCall(status: SessionStatusState, toolCallId: string): SessionStatusState {
+  const previousToolName = status.activeToolCallNamesById[toolCallId];
+  if (previousToolName === undefined) return status;
+
+  const nextToolCalls = { ...status.activeToolCalls };
+  const previousCount = (nextToolCalls[previousToolName] ?? 0) - 1;
+  if (previousCount <= 0) {
+    delete nextToolCalls[previousToolName];
+  } else {
+    nextToolCalls[previousToolName] = previousCount;
+  }
+
+  const nextToolCallNamesById = { ...status.activeToolCallNamesById };
+  delete nextToolCallNamesById[toolCallId];
+
+  return {
+    ...status,
+    activeToolCalls: nextToolCalls,
+    activeToolCallNamesById: nextToolCallNamesById,
+  };
+}
+
+function reduceStatusEvent(
+  state: ReducerState,
+  eventType: string,
+  event: Record<string, unknown>,
+  timestamp: number | null,
+): ReducerState {
+  const sessionId = resolveSessionId(event);
+
+  switch (eventType) {
+    case "task.start": {
+      if (sessionId === null) return state;
+      return updateSessionStatus(state, sessionId, (current) => {
+        const subAgentState =
+          event.sub_agent_state !== null && typeof event.sub_agent_state === "object"
+            ? (event.sub_agent_state as Record<string, unknown>)
+            : null;
+        return {
+          ...current,
+          isSubAgent: subAgentState !== null,
+          subAgentType:
+            subAgentState !== null && typeof subAgentState.sub_agent_type === "string"
+              ? subAgentState.sub_agent_type
+              : null,
+          subAgentDesc:
+            subAgentState !== null && typeof subAgentState.sub_agent_desc === "string"
+              ? subAgentState.sub_agent_desc
+              : null,
+          taskActive: true,
+          awaitingInput: false,
+          thinkingActive: false,
+          compacting: false,
+          isComposing: false,
+          assistantCharCount: 0,
+          activeToolCalls: {},
+          activeToolCallNamesById: {},
+          taskStartedAt: timestamp,
+        };
+      });
+    }
+
+    case "task.finish": {
+      if (sessionId === null) return state;
+      return updateSessionStatus(state, sessionId, (current) => clearTaskScopedStatus(current));
+    }
+
+    case "interrupt": {
+      if (sessionId === null) return state;
+      const nextState = updateSessionStatus(state, sessionId, (current) =>
+        clearTaskScopedStatus(current),
+      );
+      const interruptedSession = getSessionStatus(nextState, sessionId);
+      if (interruptedSession.isSubAgent) {
+        return nextState;
+      }
+      let changed = false;
+      const nextStatuses: Record<string, SessionStatusState> = { ...nextState.statusBySessionId };
+      for (const [childSessionId, status] of Object.entries(nextState.statusBySessionId)) {
+        if (!status.isSubAgent || !status.taskActive) continue;
+        nextStatuses[childSessionId] = clearTaskScopedStatus(status);
+        changed = true;
+      }
+      if (!changed) return nextState;
+      return {
+        ...nextState,
+        statusBySessionId: nextStatuses,
+      };
+    }
+
+    case "end": {
+      let changed = false;
+      const nextStatuses: Record<string, SessionStatusState> = {};
+      for (const [existingSessionId, status] of Object.entries(state.statusBySessionId)) {
+        if (
+          !status.taskActive &&
+          !status.awaitingInput &&
+          !status.thinkingActive &&
+          !status.compacting &&
+          !status.isComposing &&
+          Object.keys(status.activeToolCalls).length === 0 &&
+          status.taskStartedAt === null
+        ) {
+          nextStatuses[existingSessionId] = status;
+          continue;
+        }
+        nextStatuses[existingSessionId] = clearTaskScopedStatus(status);
+        changed = true;
+      }
+      if (!changed) return state;
+      return {
+        ...state,
+        statusBySessionId: nextStatuses,
+      };
+    }
+
+    case "error": {
+      if (sessionId === null || event.can_retry === true) return state;
+      return updateSessionStatus(state, sessionId, (current) => clearTaskScopedStatus(current));
+    }
+
+    case "user.interaction.request": {
+      if (sessionId === null) return state;
+      return updateSessionStatus(state, sessionId, (current) => ({
+        ...current,
+        awaitingInput: true,
+      }));
+    }
+
+    case "user.interaction.resolved":
+    case "user.interaction.cancelled": {
+      if (sessionId === null) return state;
+      return updateSessionStatus(state, sessionId, (current) => ({
+        ...current,
+        awaitingInput: false,
+      }));
+    }
+
+    case "compaction.start": {
+      if (sessionId === null) return state;
+      return updateSessionStatus(state, sessionId, (current) => ({
+        ...current,
+        compacting: true,
+      }));
+    }
+
+    case "compaction.end": {
+      if (sessionId === null) return state;
+      return updateSessionStatus(state, sessionId, (current) => ({
+        ...current,
+        compacting: false,
+      }));
+    }
+
+    case "thinking.start": {
+      if (sessionId === null) return state;
+      return updateSessionStatus(state, sessionId, (current) => ({
+        ...current,
+        thinkingActive: true,
+      }));
+    }
+
+    case "thinking.end": {
+      if (sessionId === null) return state;
+      return updateSessionStatus(state, sessionId, (current) => ({
+        ...current,
+        thinkingActive: false,
+      }));
+    }
+
+    case "assistant.text.start": {
+      if (sessionId === null) return state;
+      return updateSessionStatus(state, sessionId, (current) => ({
+        ...current,
+        isComposing: true,
+        assistantCharCount: 0,
+        activeToolCalls: {},
+        activeToolCallNamesById: {},
+      }));
+    }
+
+    case "assistant.text.delta": {
+      if (sessionId === null) return state;
+      const deltaLength = typeof event.content === "string" ? event.content.length : 0;
+      if (deltaLength === 0) return state;
+      return updateSessionStatus(state, sessionId, (current) => ({
+        ...current,
+        assistantCharCount: current.assistantCharCount + deltaLength,
+      }));
+    }
+
+    case "assistant.text.end":
+    case "response.complete": {
+      if (sessionId === null) return state;
+      return updateSessionStatus(state, sessionId, (current) => ({
+        ...current,
+        isComposing: false,
+      }));
+    }
+
+    case "tool.call.start": {
+      if (sessionId === null) return state;
+      const toolCallId = typeof event.tool_call_id === "string" ? event.tool_call_id : "";
+      const rawToolName = typeof event.tool_name === "string" ? event.tool_name : "";
+      if (toolCallId.length === 0 || rawToolName.length === 0) return state;
+      return updateSessionStatus(state, sessionId, (current) => {
+        if (!current.isSubAgent && rawToolName === "Agent") {
+          return {
+            ...current,
+            isComposing: false,
+          };
+        }
+        return setActiveToolCall(
+          {
+            ...current,
+            isComposing: false,
+          },
+          toolCallId,
+          getToolActiveForm(rawToolName),
+        );
+      });
+    }
+
+    case "tool.call": {
+      if (sessionId === null) return state;
+      const toolCallId = typeof event.tool_call_id === "string" ? event.tool_call_id : "";
+      const rawToolName = typeof event.tool_name === "string" ? event.tool_name : "";
+      const argumentsText = typeof event.arguments === "string" ? event.arguments : null;
+      if (toolCallId.length === 0 || rawToolName.length === 0) return state;
+      return updateSessionStatus(state, sessionId, (current) => {
+        if (!current.isSubAgent && rawToolName === "Agent") {
+          return current;
+        }
+        return setActiveToolCall(
+          current,
+          toolCallId,
+          getToolActiveForm(rawToolName, argumentsText),
+        );
+      });
+    }
+
+    case "tool.result": {
+      if (sessionId === null) return state;
+      const toolCallId = typeof event.tool_call_id === "string" ? event.tool_call_id : "";
+      if (toolCallId.length === 0) return state;
+      return updateSessionStatus(state, sessionId, (current) =>
+        clearActiveToolCall(current, toolCallId),
+      );
+    }
+
+    case "usage": {
+      if (sessionId === null) return state;
+      const usage = event.usage;
+      if (usage === null || typeof usage !== "object") return state;
+      const payload = usage as Record<string, unknown>;
+
+      const inputTokens = parseFiniteNumber(payload.input_tokens) ?? 0;
+      const cachedTokens = parseFiniteNumber(payload.cached_tokens) ?? 0;
+      const cacheWriteTokens = parseFiniteNumber(payload.cache_write_tokens) ?? 0;
+      const outputTokens = parseFiniteNumber(payload.output_tokens) ?? 0;
+      const reasoningTokens = parseFiniteNumber(payload.reasoning_tokens) ?? 0;
+      const hasTokenUsage =
+        inputTokens > 0 ||
+        cachedTokens > 0 ||
+        cacheWriteTokens > 0 ||
+        outputTokens > 0 ||
+        reasoningTokens > 0;
+
+      const contextPercent = parseFiniteNumber(payload.context_usage_percent);
+      const contextLimit = parseFiniteNumber(payload.context_limit);
+      const maxTokens = parseFiniteNumber(payload.max_tokens) ?? DEFAULT_MAX_TOKENS;
+      const contextSize = parseFiniteNumber(payload.context_size);
+      const totalCost = parseFiniteNumber(payload.total_cost);
+      const currency = typeof payload.currency === "string" ? payload.currency : "USD";
+
+      return updateSessionStatus(state, sessionId, (current) => {
+        let next = current;
+        if (hasTokenUsage) {
+          next = {
+            ...next,
+            tokenInput:
+              (next.tokenInput ?? 0) + Math.max(inputTokens - cachedTokens - cacheWriteTokens, 0),
+            tokenCached: (next.tokenCached ?? 0) + cachedTokens,
+            tokenCacheWrite: (next.tokenCacheWrite ?? 0) + cacheWriteTokens,
+            tokenOutput: (next.tokenOutput ?? 0) + Math.max(outputTokens - reasoningTokens, 0),
+            tokenThought: (next.tokenThought ?? 0) + reasoningTokens,
+          };
+        }
+        if (contextPercent !== null) {
+          const effectiveLimit = (contextLimit ?? 0) - maxTokens;
+          next = {
+            ...next,
+            contextSize,
+            contextEffectiveLimit: effectiveLimit > 0 ? effectiveLimit : null,
+            contextPercent,
+          };
+        }
+        if (totalCost !== null) {
+          next = {
+            ...next,
+            totalCost: (next.totalCost ?? 0) + totalCost,
+            currency,
+          };
+        }
+        return next;
+      });
+    }
+
+    case "cache.hit.rate": {
+      if (sessionId === null) return state;
+      const cacheHitRate = parseFiniteNumber(event.cache_hit_rate);
+      if (cacheHitRate === null) return state;
+      return updateSessionStatus(state, sessionId, (current) => ({
+        ...current,
+        cacheHitRate,
+      }));
+    }
+
+    default:
+      return state;
+  }
 }
 
 function parseStringArray(raw: unknown): string[] {
@@ -171,6 +658,37 @@ function resolveSessionId(event: Record<string, unknown>): string | null {
   return typeof event.session_id === "string" ? event.session_id : null;
 }
 
+function resolveResponseId(event: Record<string, unknown>): string | null {
+  return typeof event.response_id === "string" ? event.response_id : null;
+}
+
+function findAssistantTextIndex(
+  state: ReducerState,
+  params: { sessionId: string | null; responseId: string | null },
+): number {
+  const { sessionId, responseId } = params;
+  if (responseId !== null) {
+    for (let i = state.items.length - 1; i >= 0; i -= 1) {
+      const item = state.items[i];
+      if (item?.type !== "assistant_text") continue;
+      if (item.sessionId === sessionId && item.responseId === responseId) {
+        return i;
+      }
+    }
+  }
+
+  const activeItem = state.items[state.activeTextIndex];
+  if (
+    activeItem !== undefined &&
+    activeItem.type === "assistant_text" &&
+    activeItem.sessionId === sessionId
+  ) {
+    return state.activeTextIndex;
+  }
+
+  return -1;
+}
+
 function parseCompactionSummary(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const text = raw.trim();
@@ -187,22 +705,26 @@ export function reduceEvent(
   event: Record<string, unknown>,
   timestamp: number | null = null,
 ): ReducerState {
+  const stateWithStatus = reduceStatusEvent(state, eventType, event, timestamp);
+
   if (SKIP_EVENT_TYPES.has(eventType)) {
-    return state;
+    return stateWithStatus;
   }
 
   const ts = resolveTimestamp(timestamp, event);
   const sourceSessionId = resolveSessionId(event);
+  const responseId = resolveResponseId(event);
+  const currentState = stateWithStatus;
 
   switch (eventType) {
     case "compaction.end": {
       const summary = parseCompactionSummary(event.summary);
-      if (summary === null) return state;
-      const id = makeId(state);
+      if (summary === null) return currentState;
+      const id = makeId(currentState);
       return {
-        ...state,
+        ...currentState,
         items: [
-          ...state.items,
+          ...currentState.items,
           {
             id,
             type: "compaction_summary",
@@ -211,20 +733,20 @@ export function reduceEvent(
             content: summary,
           },
         ],
-        nextId: state.nextId + 1,
+        nextId: currentState.nextId + 1,
       };
     }
 
     case "task.start": {
       const sessionId = sourceSessionId;
       let changed = false;
-      let nextDescBySessionId = state.subAgentDescBySessionId;
-      let nextTypeBySessionId = state.subAgentTypeBySessionId;
-      let nextFinishedBySessionId = state.subAgentFinishedBySessionId;
+      let nextDescBySessionId = currentState.subAgentDescBySessionId;
+      let nextTypeBySessionId = currentState.subAgentTypeBySessionId;
+      let nextFinishedBySessionId = currentState.subAgentFinishedBySessionId;
 
-      if (sessionId !== null && state.subAgentFinishedBySessionId[sessionId] !== false) {
+      if (sessionId !== null && currentState.subAgentFinishedBySessionId[sessionId] !== false) {
         nextFinishedBySessionId = {
-          ...state.subAgentFinishedBySessionId,
+          ...currentState.subAgentFinishedBySessionId,
           [sessionId]: false,
         };
         changed = true;
@@ -236,10 +758,10 @@ export function reduceEvent(
         if (
           typeof subAgentType === "string" &&
           subAgentType.length > 0 &&
-          state.subAgentTypeBySessionId[sessionId] !== subAgentType
+          currentState.subAgentTypeBySessionId[sessionId] !== subAgentType
         ) {
           nextTypeBySessionId = {
-            ...state.subAgentTypeBySessionId,
+            ...currentState.subAgentTypeBySessionId,
             [sessionId]: subAgentType,
           };
           changed = true;
@@ -249,19 +771,19 @@ export function reduceEvent(
         if (
           typeof desc === "string" &&
           desc.length > 0 &&
-          state.subAgentDescBySessionId[sessionId] !== desc
+          currentState.subAgentDescBySessionId[sessionId] !== desc
         ) {
           nextDescBySessionId = {
-            ...state.subAgentDescBySessionId,
+            ...currentState.subAgentDescBySessionId,
             [sessionId]: desc,
           };
           changed = true;
         }
       }
 
-      if (!changed) return state;
+      if (!changed) return currentState;
       return {
-        ...state,
+        ...currentState,
         subAgentDescBySessionId: nextDescBySessionId,
         subAgentTypeBySessionId: nextTypeBySessionId,
         subAgentFinishedBySessionId: nextFinishedBySessionId,
@@ -269,12 +791,12 @@ export function reduceEvent(
     }
 
     case "task.finish": {
-      if (sourceSessionId === null) return state;
-      if (state.subAgentFinishedBySessionId[sourceSessionId] === true) return state;
+      if (sourceSessionId === null) return currentState;
+      if (currentState.subAgentFinishedBySessionId[sourceSessionId] === true) return currentState;
       return {
-        ...state,
+        ...currentState,
         subAgentFinishedBySessionId: {
-          ...state.subAgentFinishedBySessionId,
+          ...currentState.subAgentFinishedBySessionId,
           [sourceSessionId]: true,
         },
       };
@@ -287,12 +809,12 @@ export function reduceEvent(
           ? (rawItem as Record<string, unknown>)
           : null;
       const uiItems = parseDeveloperUIItems(itemObj?.ui_extra);
-      if (uiItems.length === 0) return state;
-      const id = makeId(state);
+      if (uiItems.length === 0) return currentState;
+      const id = makeId(currentState);
       return {
-        ...state,
+        ...currentState,
         items: [
-          ...state.items,
+          ...currentState.items,
           {
             id,
             type: "developer_message",
@@ -301,34 +823,34 @@ export function reduceEvent(
             items: uiItems,
           },
         ],
-        nextId: state.nextId + 1,
+        nextId: currentState.nextId + 1,
       };
     }
 
     case "task.metadata": {
       const metadata = event.metadata;
-      if (metadata === null || typeof metadata !== "object") return state;
+      if (metadata === null || typeof metadata !== "object") return currentState;
 
       const mainAgent = (metadata as Record<string, unknown>).main_agent;
-      if (mainAgent === null || typeof mainAgent !== "object") return state;
+      if (mainAgent === null || typeof mainAgent !== "object") return currentState;
 
       const durationSeconds = parseFiniteNumber(
         (mainAgent as Record<string, unknown>).task_duration_s,
       );
-      if (durationSeconds === null) return state;
+      if (durationSeconds === null) return currentState;
 
       const turnCountRaw = parseFiniteNumber((mainAgent as Record<string, unknown>).turn_count);
       const turnCount = Math.max(0, Math.floor(turnCountRaw ?? 0));
       const shouldShowWorkedLine =
         durationSeconds > WORKED_LINE_DURATION_THRESHOLD_S ||
         turnCount > WORKED_LINE_TURN_COUNT_THRESHOLD;
-      if (!shouldShowWorkedLine) return state;
+      if (!shouldShowWorkedLine) return currentState;
 
-      const id = makeId(state);
+      const id = makeId(currentState);
       return {
-        ...state,
+        ...currentState,
         items: [
-          ...state.items,
+          ...currentState.items,
           {
             id,
             type: "task_worked",
@@ -338,31 +860,31 @@ export function reduceEvent(
             turnCount,
           },
         ],
-        nextId: state.nextId + 1,
+        nextId: currentState.nextId + 1,
       };
     }
 
     case "user.message": {
-      const id = makeId(state);
+      const id = makeId(currentState);
       const content = typeof event.content === "string" ? event.content : "";
       const images = parseUserMessageImages(event.images);
       return {
-        ...state,
+        ...currentState,
         items: [
-          ...state.items,
+          ...currentState.items,
           { id, type: "user_message", timestamp: ts, sessionId: sourceSessionId, content, images },
         ],
-        nextId: state.nextId + 1,
+        nextId: currentState.nextId + 1,
       };
     }
 
     case "thinking.start": {
-      const id = makeId(state);
-      const index = state.items.length;
+      const id = makeId(currentState);
+      const index = currentState.items.length;
       return {
-        ...state,
+        ...currentState,
         items: [
-          ...state.items,
+          ...currentState.items,
           {
             id,
             type: "thinking",
@@ -372,101 +894,142 @@ export function reduceEvent(
             isStreaming: true,
           },
         ],
-        nextId: state.nextId + 1,
+        nextId: currentState.nextId + 1,
         activeThinkingIndex: index,
       };
     }
 
     case "thinking.delta": {
-      const idx = state.activeThinkingIndex;
-      if (idx < 0 || idx >= state.items.length) return state;
-      const item = state.items[idx];
-      if (item.type !== "thinking") return state;
+      const idx = currentState.activeThinkingIndex;
+      if (idx < 0 || idx >= currentState.items.length) return currentState;
+      const item = currentState.items[idx];
+      if (item.type !== "thinking") return currentState;
       const delta = typeof event.content === "string" ? event.content : "";
-      const nextItems = [...state.items];
+      const nextItems = [...currentState.items];
       nextItems[idx] = { ...item, content: item.content + delta };
-      return { ...state, items: nextItems };
+      return { ...currentState, items: nextItems };
     }
 
     case "thinking.end": {
-      const idx = state.activeThinkingIndex;
-      if (idx < 0 || idx >= state.items.length) return state;
-      const item = state.items[idx];
-      if (item.type !== "thinking") return state;
-      const nextItems = [...state.items];
+      const idx = currentState.activeThinkingIndex;
+      if (idx < 0 || idx >= currentState.items.length) return currentState;
+      const item = currentState.items[idx];
+      if (item.type !== "thinking") return currentState;
+      const nextItems = [...currentState.items];
       nextItems[idx] = { ...item, isStreaming: false };
-      return { ...state, items: nextItems, activeThinkingIndex: -1 };
+      return { ...currentState, items: nextItems, activeThinkingIndex: -1 };
     }
 
     case "assistant.text.start": {
-      const id = makeId(state);
-      const index = state.items.length;
+      const id = makeId(currentState);
+      const index = currentState.items.length;
       return {
-        ...state,
+        ...currentState,
         items: [
-          ...state.items,
+          ...currentState.items,
           {
             id,
             type: "assistant_text",
             timestamp: ts,
             sessionId: sourceSessionId,
+            responseId,
             content: "",
             isStreaming: true,
           },
         ],
-        nextId: state.nextId + 1,
+        nextId: currentState.nextId + 1,
         activeTextIndex: index,
       };
     }
 
     case "assistant.text.delta": {
-      const idx = state.activeTextIndex;
-      if (idx < 0 || idx >= state.items.length) return state;
-      const item = state.items[idx];
-      if (item.type !== "assistant_text") return state;
+      const idx = currentState.activeTextIndex;
+      if (idx < 0 || idx >= currentState.items.length) return currentState;
+      const item = currentState.items[idx];
+      if (item.type !== "assistant_text") return currentState;
       const delta = typeof event.content === "string" ? event.content : "";
-      const nextItems = [...state.items];
+      const nextItems = [...currentState.items];
       nextItems[idx] = { ...item, content: item.content + delta };
-      return { ...state, items: nextItems };
+      return { ...currentState, items: nextItems };
     }
 
     case "assistant.text.end": {
-      const idx = state.activeTextIndex;
-      if (idx < 0 || idx >= state.items.length) return state;
-      const item = state.items[idx];
-      if (item.type !== "assistant_text") return state;
+      const idx = findAssistantTextIndex(currentState, { sessionId: sourceSessionId, responseId });
+      if (idx < 0 || idx >= currentState.items.length) return currentState;
+      const item = currentState.items[idx];
+      if (item.type !== "assistant_text") return currentState;
       // For durable events replayed from history, content is on the end event
       const content =
         typeof event.content === "string" && event.content.length > 0
           ? event.content
           : item.content;
-      const nextItems = [...state.items];
+      const nextItems = [...currentState.items];
       nextItems[idx] = { ...item, content, isStreaming: false };
-      return { ...state, items: nextItems, activeTextIndex: -1 };
+      return {
+        ...currentState,
+        items: nextItems,
+        activeTextIndex: idx === currentState.activeTextIndex ? -1 : currentState.activeTextIndex,
+      };
+    }
+
+    case "response.complete": {
+      const content = typeof event.content === "string" ? event.content : "";
+      if (content.length === 0) return currentState;
+
+      const idx = findAssistantTextIndex(currentState, { sessionId: sourceSessionId, responseId });
+      if (idx >= 0 && idx < currentState.items.length) {
+        const item = currentState.items[idx];
+        if (item.type !== "assistant_text") return currentState;
+        const nextItems = [...currentState.items];
+        nextItems[idx] = { ...item, content, isStreaming: false };
+        return {
+          ...currentState,
+          items: nextItems,
+          activeTextIndex: idx === currentState.activeTextIndex ? -1 : currentState.activeTextIndex,
+        };
+      }
+
+      const id = makeId(currentState);
+      return {
+        ...currentState,
+        items: [
+          ...currentState.items,
+          {
+            id,
+            type: "assistant_text",
+            timestamp: ts,
+            sessionId: sourceSessionId,
+            responseId,
+            content,
+            isStreaming: false,
+          },
+        ],
+        nextId: currentState.nextId + 1,
+      };
     }
 
     case "tool.call.start": {
       const toolCallId = typeof event.tool_call_id === "string" ? event.tool_call_id : "";
-      const existingIdx = state.toolBlockByCallId.get(toolCallId);
+      const existingIdx = currentState.toolBlockByCallId.get(toolCallId);
       if (existingIdx !== undefined) {
         // Already exists (from a previous start), update it
-        const item = state.items[existingIdx];
-        if (item.type !== "tool_block") return state;
-        const nextItems = [...state.items];
+        const item = currentState.items[existingIdx];
+        if (item.type !== "tool_block") return currentState;
+        const nextItems = [...currentState.items];
         nextItems[existingIdx] = {
           ...item,
           toolName: typeof event.tool_name === "string" ? event.tool_name : item.toolName,
         };
-        return { ...state, items: nextItems };
+        return { ...currentState, items: nextItems };
       }
-      const id = makeId(state);
-      const index = state.items.length;
-      const newMap = new Map(state.toolBlockByCallId);
+      const id = makeId(currentState);
+      const index = currentState.items.length;
+      const newMap = new Map(currentState.toolBlockByCallId);
       newMap.set(toolCallId, index);
       return {
-        ...state,
+        ...currentState,
         items: [
-          ...state.items,
+          ...currentState.items,
           {
             id,
             type: "tool_block",
@@ -481,7 +1044,7 @@ export function reduceEvent(
             isStreaming: true,
           },
         ],
-        nextId: state.nextId + 1,
+        nextId: currentState.nextId + 1,
         toolBlockByCallId: newMap,
       };
     }
@@ -491,28 +1054,28 @@ export function reduceEvent(
       const args = typeof event.arguments === "string" ? event.arguments : "";
       const toolName = typeof event.tool_name === "string" ? event.tool_name : "";
 
-      const existingIdx = state.toolBlockByCallId.get(toolCallId);
+      const existingIdx = currentState.toolBlockByCallId.get(toolCallId);
       if (existingIdx !== undefined) {
-        const item = state.items[existingIdx];
-        if (item.type !== "tool_block") return state;
-        const nextItems = [...state.items];
+        const item = currentState.items[existingIdx];
+        if (item.type !== "tool_block") return currentState;
+        const nextItems = [...currentState.items];
         nextItems[existingIdx] = {
           ...item,
           arguments: args || item.arguments,
           toolName: toolName || item.toolName,
         };
-        return { ...state, items: nextItems };
+        return { ...currentState, items: nextItems };
       }
 
       // No existing block, create one
-      const id = makeId(state);
-      const index = state.items.length;
-      const newMap = new Map(state.toolBlockByCallId);
+      const id = makeId(currentState);
+      const index = currentState.items.length;
+      const newMap = new Map(currentState.toolBlockByCallId);
       newMap.set(toolCallId, index);
       return {
-        ...state,
+        ...currentState,
         items: [
-          ...state.items,
+          ...currentState.items,
           {
             id,
             type: "tool_block",
@@ -527,17 +1090,17 @@ export function reduceEvent(
             isStreaming: true,
           },
         ],
-        nextId: state.nextId + 1,
+        nextId: currentState.nextId + 1,
         toolBlockByCallId: newMap,
       };
     }
 
     case "tool.result": {
       const toolCallId = typeof event.tool_call_id === "string" ? event.tool_call_id : "";
-      const idx = state.toolBlockByCallId.get(toolCallId);
-      if (idx === undefined) return state;
-      const item = state.items[idx];
-      if (item.type !== "tool_block") return state;
+      const idx = currentState.toolBlockByCallId.get(toolCallId);
+      if (idx === undefined) return currentState;
+      const item = currentState.items[idx];
+      if (item.type !== "tool_block") return currentState;
 
       const result = typeof event.result === "string" ? event.result : null;
       const status =
@@ -557,7 +1120,7 @@ export function reduceEvent(
           ? event.arguments
           : item.arguments;
 
-      const nextItems = [...state.items];
+      const nextItems = [...currentState.items];
       nextItems[idx] = {
         ...item,
         toolName,
@@ -567,20 +1130,20 @@ export function reduceEvent(
         uiExtra,
         isStreaming: false,
       };
-      return { ...state, items: nextItems };
+      return { ...currentState, items: nextItems };
     }
 
     case "interrupt": {
       // Stop all streaming
-      const nextItems = state.items.map((item) => {
+      const nextItems = currentState.items.map((item) => {
         if ("isStreaming" in item && item.isStreaming) {
           return { ...item, isStreaming: false };
         }
         return item;
       });
-      const id = makeId(state);
+      const id = makeId(currentState);
       return {
-        ...state,
+        ...currentState,
         items: [
           ...nextItems,
           {
@@ -590,7 +1153,7 @@ export function reduceEvent(
             sessionId: sourceSessionId,
           },
         ],
-        nextId: state.nextId + 1,
+        nextId: currentState.nextId + 1,
         activeTextIndex: -1,
         activeThinkingIndex: -1,
       };
@@ -598,11 +1161,11 @@ export function reduceEvent(
 
     default: {
       // Unknown event - show fallback
-      const id = makeId(state);
+      const id = makeId(currentState);
       return {
-        ...state,
+        ...currentState,
         items: [
-          ...state.items,
+          ...currentState.items,
           {
             id,
             type: "unknown_event",
@@ -612,7 +1175,7 @@ export function reduceEvent(
             rawEvent: event,
           },
         ],
-        nextId: state.nextId + 1,
+        nextId: currentState.nextId + 1,
       };
     }
   }

@@ -262,6 +262,8 @@ body {
   border: none;
   border-radius: 0 0 0.75rem 0.75rem;
   padding: 0.5rem 1rem 0.75rem;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 .assistant-text [data-streamdown="code-block"] pre {
   margin: 0;

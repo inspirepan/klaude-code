@@ -38,6 +38,7 @@ export interface AssistantTextItem {
   type: "assistant_text";
   timestamp: ItemTimestamp;
   sessionId: string | null;
+  responseId: string | null;
   content: string;
   isStreaming: boolean;
 }

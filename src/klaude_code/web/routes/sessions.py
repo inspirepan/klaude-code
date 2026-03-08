@@ -252,6 +252,10 @@ async def post_message(
     if resolve_session_work_dir(state.home_dir, session_id) is None:
         raise HTTPException(status_code=404, detail="session not found")
 
+    await state.runtime.emit_event(
+        protocol_events.UserMessageEvent(content=payload.text, session_id=session_id, images=payload.images)
+    )
+
     operation_id = await state.runtime.submit(
         op.RunAgentOperation(
             session_id=session_id,
