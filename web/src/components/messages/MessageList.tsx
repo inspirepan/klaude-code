@@ -141,16 +141,9 @@ function formatCurrency(total: number, currency: string): string {
   return `${symbol}${total.toFixed(4)}`;
 }
 
-function summarizeToolCalls(activeToolCalls: Record<string, number>): string | null {
-  const entries = Object.entries(activeToolCalls);
-  if (entries.length === 0) return null;
-  return entries.map(([name, count]) => (count > 1 ? `${name} × ${count}` : name)).join(", ");
-}
-
 function getSessionActivityText(status: SessionStatusState | null): string | null {
   if (status === null) return null;
-  const toolSummary = summarizeToolCalls(status.activeToolCalls);
-  const baseStatus = status.awaitingInput
+  return status.awaitingInput
     ? "Waiting for input …"
     : status.compacting
       ? "Compacting …"
@@ -161,11 +154,6 @@ function getSessionActivityText(status: SessionStatusState | null): string | nul
           : status.taskActive
             ? "Running …"
             : null;
-
-  if (baseStatus !== null && toolSummary !== null && !status.isComposing && !status.awaitingInput) {
-    return `${baseStatus} | ${toolSummary}`;
-  }
-  return toolSummary ?? baseStatus;
 }
 
 function getSessionSummaryParts(status: SessionStatusState | null, nowSeconds: number): string[] {

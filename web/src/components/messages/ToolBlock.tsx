@@ -287,11 +287,13 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
           />
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
-        <span className="relative top-[2px] whitespace-nowrap font-sans font-normal text-neutral-500">
+        <span className="relative top-[0.5px] whitespace-nowrap font-sans font-normal text-neutral-500">
           {item.toolName}
         </span>
         {item.isStreaming ? (
-          <Loader className="mt-0.5 h-3 w-3 shrink-0 translate-y-[2px] animate-spin text-neutral-400" />
+          <span className="mt-0.5 inline-flex translate-y-[2px]">
+            <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-400" />
+          </span>
         ) : null}
       </div>
 
