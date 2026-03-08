@@ -10,7 +10,13 @@ from typing import Any
 import pytest
 
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
-from klaude_code.core.agent.runtime import AgentOperationHandler, LLMClients, _generate_session_title, build_llm_clients
+from klaude_code.core.agent.runtime import (
+    AgentOperationHandler,
+    LLMClients,
+    _generate_session_title,
+    _normalize_session_title,
+    build_llm_clients,
+)
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import llm_param, message
 from klaude_code.session.session import Session
@@ -57,7 +63,7 @@ def test_generate_session_title_uses_only_user_messages() -> None:
     client = _FakeLLMClient(
         [
             message.AssistantMessage(
-                parts=[message.TextPart(text='  "Fix session title generation"  ')], stop_reason="stop"
+                parts=[message.TextPart(text='  "Session titles | Refine prompts"  ')], stop_reason="stop"
             )
         ]
     )
@@ -70,23 +76,31 @@ def test_generate_session_title_uses_only_user_messages() -> None:
         )
     )
 
-    assert title == "Fix session title generation"
+    assert title == "Session titles | Refine prompts"
     assert len(client.calls) == 1
     rendered = message.join_text_parts(client.calls[0].input[0].parts)
     assert "<previous_user_messages>" in rendered
     assert "<current_user_message>" in rendered
     assert "first request" in rendered
     assert "latest request about src/app.py" in rendered
+    assert "output exactly in the format: overall topic | current task" in rendered.lower()
+    assert "overall topic should summarize the main theme of the whole conversation" in rendered.lower()
+    assert "current task should summarize what the latest user message is currently trying to do" in rendered.lower()
     assert "prefer the main substantive task/topic of the current user message" in rendered.lower()
     assert "workflow or administrative follow-up" in rendered.lower()
     assert "reflect user intent, not internal tool usage or skill execution" in rendered.lower()
-    assert "reuse that previous title exactly" in rendered.lower()
-    assert "prefer a short imperative phrase when natural" in rendered.lower()
+    assert "prefer reusing its overall topic" in rendered.lower()
+    assert "reuse its overall topic unless the conversation theme changed" in rendered.lower()
+    assert "prefer short imperative phrases when natural" in rendered.lower()
     assert "<previous_title>" in rendered
     assert "Existing title" in rendered
     assert "assistant" not in rendered.lower()
     assert client.calls[0].system is not None
     assert "same language" in client.calls[0].system.lower()
+
+
+def test_normalize_session_title_canonicalizes_separator() -> None:
+    assert _normalize_session_title('  "Session titles | Refine prompts"  ') == "Session titles | Refine prompts"
 
 
 def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.MonkeyPatch) -> None:
