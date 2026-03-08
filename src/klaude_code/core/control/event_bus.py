@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
 from uuid import uuid4
@@ -20,6 +20,8 @@ _DISCONNECT_SENTINEL = _DisconnectSentinel()
 _CURRENT_OPERATION_ID: ContextVar[str | None] = ContextVar("klaude_event_operation_id", default=None)
 _CURRENT_TASK_ID: ContextVar[str | None] = ContextVar("klaude_event_task_id", default=None)
 _CURRENT_CAUSATION_ID: ContextVar[str | None] = ContextVar("klaude_event_causation_id", default=None)
+
+type EnvelopePublishHook = Callable[[events.EventEnvelope], Awaitable[None]]
 
 
 @contextlib.contextmanager
@@ -55,7 +57,7 @@ class EventSubscription:
     def __init__(
         self,
         *,
-        bus: EventBus,
+        bus: EnvelopeBus,
         subscriber_id: str,
         queue: asyncio.Queue[events.EventEnvelope | _DisconnectSentinel],
     ) -> None:
@@ -87,39 +89,14 @@ class EventSubscription:
         await self._queue.join()
 
 
-class EventBus:
+class EnvelopeBus:
     def __init__(self, *, subscriber_queue_maxsize: int = 1024) -> None:
         self._subscriber_queue_maxsize = subscriber_queue_maxsize
         self._subscribers: dict[str, _Subscriber] = {}
-        self._session_event_seq: dict[str, int] = {}
 
-    async def publish(
-        self,
-        event: events.Event,
-        *,
-        operation_id: str | None = None,
-        task_id: str | None = None,
-        causation_id: str | None = None,
-    ) -> None:
-        resolved_operation_id = operation_id if operation_id is not None else _CURRENT_OPERATION_ID.get()
-        resolved_task_id = task_id if task_id is not None else _CURRENT_TASK_ID.get()
-        resolved_causation_id = causation_id if causation_id is not None else _CURRENT_CAUSATION_ID.get()
-        event_type = events.event_type_name(event)
-        envelope = events.EventEnvelope(
-            event_id=uuid4().hex,
-            event_seq=self._next_event_seq(event.session_id),
-            session_id=event.session_id,
-            operation_id=resolved_operation_id,
-            task_id=resolved_task_id,
-            causation_id=resolved_causation_id,
-            event_type=event_type,
-            durability=events.event_durability(event_type),
-            timestamp=event.timestamp,
-            event=event,
-        )
-
+    async def publish_envelope(self, envelope: events.EventEnvelope) -> None:
         log_debug(
-            f"[{event.session_id}] publish [{event_type}] seq={envelope.event_seq}",
+            f"[{envelope.session_id}] publish [{envelope.event_type}] seq={envelope.event_seq}",
             debug_type=DebugType.EVENT_BUS,
         )
 
@@ -134,7 +111,7 @@ class EventBus:
 
         if overflowed_ids:
             log_debug(
-                f"[{event.session_id}] overflow: disconnecting {len(overflowed_ids)} subscriber(s)",
+                f"[{envelope.session_id}] overflow: disconnecting {len(overflowed_ids)} subscriber(s)",
                 debug_type=DebugType.EVENT_BUS,
             )
         for subscriber_id in overflowed_ids:
@@ -178,6 +155,59 @@ class EventBus:
                 break
 
         subscriber.queue.put_nowait(_DISCONNECT_SENTINEL)
+
+
+class EventBus:
+    def __init__(
+        self,
+        *,
+        subscriber_queue_maxsize: int = 1024,
+        publish_hook: EnvelopePublishHook | None = None,
+    ) -> None:
+        self._envelope_bus = EnvelopeBus(subscriber_queue_maxsize=subscriber_queue_maxsize)
+        self._publish_hook = publish_hook
+        self._session_event_seq: dict[str, int] = {}
+
+    async def publish(
+        self,
+        event: events.Event,
+        *,
+        operation_id: str | None = None,
+        task_id: str | None = None,
+        causation_id: str | None = None,
+    ) -> None:
+        resolved_operation_id = operation_id if operation_id is not None else _CURRENT_OPERATION_ID.get()
+        resolved_task_id = task_id if task_id is not None else _CURRENT_TASK_ID.get()
+        resolved_causation_id = causation_id if causation_id is not None else _CURRENT_CAUSATION_ID.get()
+        event_type = events.event_type_name(event)
+        envelope = events.EventEnvelope(
+            event_id=uuid4().hex,
+            event_seq=self._next_event_seq(event.session_id),
+            session_id=event.session_id,
+            operation_id=resolved_operation_id,
+            task_id=resolved_task_id,
+            causation_id=resolved_causation_id,
+            event_type=event_type,
+            durability=events.event_durability(event_type),
+            timestamp=event.timestamp,
+            event=event,
+        )
+        await self.publish_envelope(envelope)
+
+    async def publish_envelope(self, envelope: events.EventEnvelope, *, mirror: bool = True) -> None:
+        await self._envelope_bus.publish_envelope(envelope)
+        if not mirror or self._publish_hook is None:
+            return
+        await self._publish_hook(envelope)
+
+    def subscribe(self, session_id: str | None) -> EventSubscription:
+        return self._envelope_bus.subscribe(session_id)
+
+    async def unsubscribe(self, subscriber_id: str) -> None:
+        await self._envelope_bus.unsubscribe(subscriber_id)
+
+    async def detach(self, subscriber_id: str) -> None:
+        await self._envelope_bus.detach(subscriber_id)
 
     def _next_event_seq(self, session_id: str) -> int:
         next_seq = self._session_event_seq.get(session_id, 0) + 1

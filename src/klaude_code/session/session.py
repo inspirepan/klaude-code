@@ -68,6 +68,8 @@ class Session(BaseModel):
     todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     model_name: str | None = None
     session_state: model.SessionRuntimeState | None = None
+    runtime_owner: model.SessionOwner | None = None
+    runtime_owner_heartbeat_at: float | None = None
     archived: bool = False
 
     next_checkpoint_id: int = 0
@@ -186,6 +188,18 @@ class Session(BaseModel):
             session_state = model.SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
         except ValueError:
             session_state = None
+        runtime_owner_raw = raw.get("runtime_owner")
+        if isinstance(runtime_owner_raw, dict):
+            try:
+                runtime_owner = model.SessionOwner.model_validate(runtime_owner_raw)
+            except ValidationError:
+                runtime_owner = None
+        else:
+            runtime_owner = None
+        runtime_owner_heartbeat_raw = raw.get("runtime_owner_heartbeat_at")
+        runtime_owner_heartbeat_at = (
+            float(runtime_owner_heartbeat_raw) if isinstance(runtime_owner_heartbeat_raw, int | float) else None
+        )
         model_config_name = raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None
         archived_raw = raw.get("archived")
         archived = archived_raw if isinstance(archived_raw, bool) else False
@@ -209,6 +223,8 @@ class Session(BaseModel):
             title=title,
             model_name=model_name,
             session_state=session_state,
+            runtime_owner=runtime_owner,
+            runtime_owner_heartbeat_at=runtime_owner_heartbeat_at,
             archived=archived,
             model_config_name=model_config_name,
             model_thinking=model_thinking,
@@ -227,6 +243,22 @@ class Session(BaseModel):
         # Runtime state transitions should not affect session recency ordering.
         # Only content writes (append_history) update `updated_at`.
         store.update_meta(session_id, {"session_state": session_state.value})
+
+    @classmethod
+    def persist_runtime_owner(cls, session_id: str, runtime_owner: model.SessionOwner | None, work_dir: Path) -> None:
+        store = get_store_for_path(work_dir)
+        store.update_meta(
+            session_id,
+            {
+                "runtime_owner": runtime_owner.model_dump(mode="json") if runtime_owner is not None else None,
+                "runtime_owner_heartbeat_at": time.time() if runtime_owner is not None else None,
+            },
+        )
+
+    @classmethod
+    def persist_runtime_owner_heartbeat(cls, session_id: str, timestamp: float, work_dir: Path) -> None:
+        store = get_store_for_path(work_dir)
+        store.update_meta(session_id, {"runtime_owner_heartbeat_at": timestamp})
 
     def append_history(self, items: Sequence[message.HistoryEvent]) -> None:
         if not items:
@@ -269,6 +301,8 @@ class Session(BaseModel):
             messages_count=self.messages_count,
             model_name=self.model_name,
             session_state=self.session_state,
+            runtime_owner=self.runtime_owner,
+            runtime_owner_heartbeat_at=self.runtime_owner_heartbeat_at,
             archived=self.archived,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,

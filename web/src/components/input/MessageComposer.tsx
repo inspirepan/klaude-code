@@ -27,6 +27,11 @@ export function MessageComposer(): JSX.Element {
 
   const isDraft = activeSessionId === "draft";
   const runtime = isDraft ? null : (runtimeBySessionId[activeSessionId] ?? null);
+  const activeSession = isDraft
+    ? null
+    : (groups
+        .flatMap((group) => group.sessions)
+        .find((session) => session.id === activeSessionId) ?? null);
   const workspaceOptions = useMemo(
     () => uniqueWorkspaces(groups.map((group) => group.work_dir)),
     [groups],
@@ -45,10 +50,11 @@ export function MessageComposer(): JSX.Element {
     (runtime.sessionState !== "idle" ||
       runtime.wsState === "connecting" ||
       runtime.wsState === "disconnected");
+  const sessionReadOnly = activeSession?.read_only === true;
   const disableSubmit =
     submitting ||
     normalizedText.length === 0 ||
-    (isDraft ? normalizedDraftWorkDir.length === 0 : sessionBusy);
+    (isDraft ? normalizedDraftWorkDir.length === 0 : sessionBusy || sessionReadOnly);
 
   useEffect(() => {
     setText("");
@@ -235,13 +241,15 @@ export function MessageComposer(): JSX.Element {
                 ? normalizedDraftWorkDir.length > 0
                   ? normalizedDraftWorkDir
                   : "Pick a workspace before sending"
-                : sessionBusy
-                  ? runtime?.sessionState === "running"
-                    ? "Current session is still running"
-                    : runtime?.wsState === "disconnected"
-                      ? "WebSocket is disconnected"
-                      : "Session is temporarily unavailable"
-                  : "Enter to send, Shift+Enter for newline"}
+                : sessionReadOnly
+                  ? "This session is running in another process and is read-only"
+                  : sessionBusy
+                    ? runtime?.sessionState === "running"
+                      ? "Current session is still running"
+                      : runtime?.wsState === "disconnected"
+                        ? "WebSocket is disconnected"
+                        : "Session is temporarily unavailable"
+                    : "Enter to send, Shift+Enter for newline"}
             </div>
             <button
               type="button"

@@ -11,12 +11,19 @@ RoleType = Literal["system", "developer", "user", "assistant", "tool"]
 StopReason = Literal["stop", "length", "tool_use", "error", "aborted"]
 ToolStatus = Literal["success", "error", "aborted"]
 TodoStatusType = Literal["pending", "in_progress", "completed"]
+RuntimeKind = Literal["tui", "web"]
 
 
 class SessionRuntimeState(str, Enum):
     IDLE = "idle"
     RUNNING = "running"
     WAITING_USER_INPUT = "waiting_user_input"
+
+
+class SessionOwner(BaseModel):
+    runtime_id: str
+    runtime_kind: RuntimeKind
+    pid: int
 
 
 class Usage(BaseModel):

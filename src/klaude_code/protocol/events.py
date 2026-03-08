@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 import re
 import time
 from collections.abc import Sequence
-from typing import Literal
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field
 
@@ -59,6 +60,10 @@ __all__ = [
     "UserInteractionResponseReceivedEvent",
     "UserMessageEvent",
     "WelcomeEvent",
+    "event_durability",
+    "event_type_name",
+    "parse_event_envelope",
+    "parse_event_envelope_json",
 ]
 
 
@@ -95,15 +100,7 @@ DURABLE_EVENT_TYPES = frozenset(
 
 
 def event_type_name(event: Event) -> str:
-    event_name = event.__class__.__name__
-    if event_name.endswith("Event"):
-        event_name = event_name[:-5]
-
-    words = re.findall(r"[A-Z]+(?=[A-Z][a-z]|$)|[A-Z]?[a-z]+", event_name)
-    if not words:
-        return "event.unknown"
-
-    return ".".join(word.lower() for word in words)
+    return _event_type_name_from_class_name(event.__class__.__name__)
 
 
 def event_durability(event_type: str) -> Literal["durable", "ephemeral"]:
@@ -391,3 +388,48 @@ class UserInteractionResolvedEvent(Event):
 class UserInteractionCancelledEvent(Event):
     request_id: str
     reason: Literal["user_cancelled", "interrupt", "shutdown", "session_close"]
+
+
+def _event_type_name_from_class_name(class_name: str) -> str:
+    event_name = class_name[:-5] if class_name.endswith("Event") else class_name
+    words = re.findall(r"[A-Z]+(?=[A-Z][a-z]|$)|[A-Z]?[a-z]+", event_name)
+    if not words:
+        return "event.unknown"
+    return ".".join(word.lower() for word in words)
+
+
+def _iter_event_classes(base: type[Event]) -> list[type[Event]]:
+    classes: list[type[Event]] = []
+    for subclass in base.__subclasses__():
+        classes.append(subclass)
+        classes.extend(_iter_event_classes(subclass))
+    return classes
+
+
+_EVENT_TYPE_TO_CLASS = {
+    _event_type_name_from_class_name(event_cls.__name__): event_cls for event_cls in _iter_event_classes(Event)
+}
+
+
+def parse_event_envelope(payload: dict[str, Any]) -> EventEnvelope:
+    raw_event_type = payload.get("event_type")
+    raw_event = payload.get("event")
+    if not isinstance(raw_event_type, str) or not isinstance(raw_event, dict):
+        raise ValueError("invalid event envelope payload")
+
+    event_cls = _EVENT_TYPE_TO_CLASS.get(raw_event_type)
+    if event_cls is None:
+        raise ValueError(f"unknown event type: {raw_event_type}")
+
+    parsed_event = event_cls.model_validate(raw_event)
+    return EventEnvelope.model_validate({**payload, "event": parsed_event})
+
+
+def parse_event_envelope_json(payload: bytes | str) -> EventEnvelope:
+    try:
+        raw = json.loads(payload)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("invalid event envelope json") from exc
+    if not isinstance(raw, dict):
+        raise ValueError("invalid event envelope payload")
+    return parse_event_envelope(cast(dict[str, Any], raw))

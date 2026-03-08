@@ -3,6 +3,7 @@ import {
   ChevronRight,
   CircleHelp,
   Loader,
+  Lock,
   PanelLeftOpen,
   PanelRightOpen,
   RefreshCw,
@@ -321,6 +322,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   );
   const sessionTitle = useMemo(() => getSessionTitle(session), [session]);
   const workspacePath = session?.work_dir ?? "";
+  const sessionReadOnly = session?.read_only === true;
 
   const visibleItems = useMemo(
     () =>
@@ -423,6 +425,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       Object.values(statusBySessionId).some(
         (status) => status.taskActive || status.awaitingInput || status.compacting,
       ),
+    [statusBySessionId],
+  );
+  const hasExecutingStatus = useMemo(
+    () => Object.values(statusBySessionId).some((status) => status.taskActive || status.compacting),
     [statusBySessionId],
   );
 
@@ -571,15 +577,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const mainActivityText = getSessionActivityText(mainSessionStatus);
   const mainSummaryParts = getSessionSummaryParts(mainSessionStatus, nowSeconds);
   const mainMetaRows = getSessionMetaRows(mainSessionStatus, nowSeconds);
-  const mainStatusLabel =
-    mainActivityText ??
-    (runtime?.wsState === "connecting"
-      ? "Connecting …"
-      : runtime?.sessionState === "waiting_user_input"
-        ? "Waiting for input …"
-        : runtime?.wsState === "disconnected"
-          ? "Disconnected"
-          : "Idle");
+  const inlineStatusLabel = hasExecutingStatus ? (mainActivityText ?? "Running …") : null;
 
   return (
     <SearchProvider value={searchState}>
@@ -595,7 +593,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           />
         ) : null}
 
-        <div className="flex h-12 shrink-0 items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 backdrop-blur sm:px-6">
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 py-2 backdrop-blur sm:px-6">
           {!sidebarOpen ? (
             <button
               type="button"
@@ -614,6 +612,12 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
               <span className="truncate font-semibold text-neutral-800" title={sessionTitle}>
                 {sessionTitle}
               </span>
+              {sessionReadOnly ? (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                  <Lock className="h-3 w-3" />
+                  <span>Read-only</span>
+                </span>
+              ) : null}
               {workspacePath ? (
                 <span
                   className="truncate font-mono text-[14px] leading-5 text-neutral-400"
@@ -624,6 +628,12 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
               ) : null}
             </div>
           </div>
+          {sessionReadOnly ? (
+            <div className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] text-amber-800">
+              This session is owned by another live runtime. Web can observe it, but cannot send
+              control actions.
+            </div>
+          ) : null}
           <button
             type="button"
             disabled={refreshDisabled}
@@ -658,7 +668,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           onScroll={handleScroll}
           className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
         >
-          <div className="mx-auto max-w-4xl space-y-5 px-4 py-8 sm:px-6">
+          <div className="mx-auto max-w-4xl space-y-5 px-4 pb-14 pt-8 sm:px-6">
             {hasItems ? (
               <>
                 {sections.map((section, sectionIndex) => (
@@ -1031,6 +1041,17 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                     })}
                   </div>
                 ))}
+                {inlineStatusLabel ? (
+                  <div className="flex min-w-0 gap-4">
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5 px-1 text-neutral-500">
+                      <Loader className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                      <span className="truncate font-mono text-[13px] font-medium">
+                        {inlineStatusLabel}
+                      </span>
+                    </div>
+                    <div className="hidden w-[112px] shrink-0 sm:block" />
+                  </div>
+                ) : null}
                 <div ref={bottomRef} />
               </>
             ) : runtime?.wsState === "connecting" ? (
@@ -1050,64 +1071,51 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-neutral-200/80 bg-white/95 backdrop-blur">
-          <div className="mx-auto max-w-4xl px-4 py-2.5 sm:px-6">
-            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <span
-                  className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${hasActiveStatus ? "animate-pulse bg-neutral-700" : "bg-neutral-300"}`}
-                />
-                <span className="truncate font-mono text-[13px] font-medium text-neutral-700">
-                  {mainStatusLabel}
-                </span>
-              </div>
-              {mainSummaryParts.length > 0 || mainMetaRows.length > 0 ? (
-                <div className="flex items-center gap-2 self-end sm:self-auto">
-                  {mainSummaryParts.length > 0 ? (
-                    <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 font-mono text-[12px] text-neutral-400">
-                      {mainSummaryParts.map((part) => (
-                        <span key={part}>{part}</span>
-                      ))}
-                    </div>
-                  ) : null}
-                  {mainMetaRows.length > 0 ? (
-                    <div
-                      className="relative"
-                      onMouseEnter={() => setMetaOpen(true)}
-                      onMouseLeave={() => setMetaOpen(false)}
+        {mainSummaryParts.length > 0 || mainMetaRows.length > 0 ? (
+          <div className="pointer-events-none absolute bottom-3 left-0 right-0 z-10">
+            <div className="mx-auto flex max-w-4xl justify-end px-4 sm:px-6">
+              <div className="pointer-events-auto flex items-center gap-2 text-neutral-400">
+                {mainSummaryParts.length > 0 ? (
+                  <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 font-mono text-[12px]">
+                    {mainSummaryParts.map((part) => (
+                      <span key={part}>{part}</span>
+                    ))}
+                  </div>
+                ) : null}
+                {mainMetaRows.length > 0 ? (
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setMetaOpen(true)}
+                    onMouseLeave={() => setMetaOpen(false)}
+                  >
+                    <button
+                      type="button"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                      aria-label="Show session metadata"
+                      onClick={() => setMetaOpen((current) => !current)}
                     >
-                      <button
-                        type="button"
-                        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-                        aria-label="Show session metadata"
-                        onClick={() => setMetaOpen((current) => !current)}
-                      >
-                        <CircleHelp className="h-3.5 w-3.5" />
-                      </button>
-                      {metaOpen ? (
-                        <div className="absolute bottom-full right-0 z-20 mb-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
-                          <div className="space-y-1.5 text-[12px] leading-5">
-                            {mainMetaRows.map((row) => (
-                              <div
-                                key={row.label}
-                                className="flex items-start justify-between gap-4"
-                              >
-                                <span className="text-neutral-400">{row.label}</span>
-                                <span className="text-right font-mono text-neutral-600">
-                                  {row.value}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
+                      <CircleHelp className="h-3.5 w-3.5" />
+                    </button>
+                    {metaOpen ? (
+                      <div className="absolute bottom-full right-0 z-20 mb-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
+                        <div className="space-y-1.5 text-[12px] leading-5">
+                          {mainMetaRows.map((row) => (
+                            <div key={row.label} className="flex items-start justify-between gap-4">
+                              <span className="text-neutral-400">{row.label}</span>
+                              <span className="text-right font-mono text-neutral-600">
+                                {row.value}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
       </div>
     </SearchProvider>
   );

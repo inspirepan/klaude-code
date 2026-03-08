@@ -14,6 +14,7 @@ from pydantic import BaseModel, ValidationError
 from klaude_code.protocol import events, llm_param, message, model, op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
 from klaude_code.session.session import Session
+from klaude_code.web.session_access import load_session_read_only
 from klaude_code.web.session_index import resolve_session_work_dir
 from klaude_code.web.state import get_web_state_from_ws
 
@@ -114,6 +115,17 @@ async def _handle_incoming_frame(
 ) -> None:
     state = get_web_state_from_ws(websocket)
     runtime = state.runtime
+    work_dir = resolve_session_work_dir(state.home_dir, session_id)
+    if work_dir is None:
+        await _send_error_frame(websocket, code="session_not_found", message=f"Session not found: {session_id}")
+        return
+    if load_session_read_only(state, session_id=session_id, work_dir=work_dir):
+        await _send_error_frame(
+            websocket,
+            code="session_read_only",
+            message="Session is owned by another runtime and is read-only",
+        )
+        return
 
     try:
         if isinstance(frame, MessageFrame):
@@ -189,7 +201,7 @@ def _validate_incoming_frame(payload: dict[str, Any], frame_type: str) -> Incomi
 
 async def _forward_events(session_id: str, websocket: WebSocket) -> None:
     state = get_web_state_from_ws(websocket)
-    subscription = state.event_bus.subscribe(None)
+    subscription = state.subscribe_events(None)
     tracked_task_ids: set[str] = set()
 
     snapshot = state.runtime.session_registry.snapshot(session_id)
@@ -268,7 +280,8 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             await websocket.close(code=4004)
             return
 
-        if not state.runtime.session_registry.has_session_actor(session_id):
+        read_only = load_session_read_only(state, session_id=session_id, work_dir=work_dir)
+        if not state.runtime.session_registry.has_session_actor(session_id) and not read_only:
             try:
                 await state.runtime.submit_and_wait(op.InitAgentOperation(session_id=session_id, work_dir=work_dir))
             except Exception as exc:

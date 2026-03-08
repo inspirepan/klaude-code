@@ -1,5 +1,3 @@
-import { Check } from "lucide-react";
-
 import type { TaskWorkedItem } from "../../types/message";
 
 interface TaskWorkedProps {
@@ -31,8 +29,8 @@ export function TaskWorked({ item, compact = false }: TaskWorkedProps): JSX.Elem
     <div
       className={`inline-flex items-center gap-1.5 ${compact ? "text-[13px]" : "text-sm"} text-emerald-700`}
     >
-      <Check className="h-3.5 w-3.5" strokeWidth={2.25} />
-      <span>
+      <span className="font-mono leading-none">✔</span>
+      <span className="font-mono">
         Worked for {formatElapsedCompact(item.durationSeconds)}
         {item.turnCount > 0 ? ` in ${item.turnCount} ${suffix}` : ""}
       </span>

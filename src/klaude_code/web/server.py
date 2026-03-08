@@ -12,9 +12,11 @@ from pathlib import Path
 import uvicorn
 
 from klaude_code.app.runtime import AppInitConfig, cleanup_app_components, initialize_app_components
+from klaude_code.log import log
 from klaude_code.web.app import create_app
 from klaude_code.web.display import WebDisplay
 from klaude_code.web.interaction import WebInteractionHandler
+from klaude_code.web.live_events import start_web_live_events
 
 
 @dataclass(frozen=True)
@@ -124,14 +126,24 @@ async def start_web_server(
 ) -> None:
     interaction_handler = WebInteractionHandler()
     components = await initialize_app_components(
-        init_config=AppInitConfig(model=None, debug=debug, vanilla=False),
+        init_config=AppInitConfig(
+            model=None,
+            debug=debug,
+            vanilla=False,
+            runtime_kind="web",
+            enable_event_relay_client=False,
+        ),
         display=WebDisplay(),
         interaction_handler=None,
     )
+    live_events = await start_web_live_events(components.event_bus, home_dir=Path.home())
+    if live_events.relay_error is not None:
+        log((f"Cross-process live events unavailable: {live_events.relay_error}", "yellow"))
 
     app = create_app(
         runtime=components.runtime,
         event_bus=components.event_bus,
+        event_stream=live_events.stream,
         interaction_handler=interaction_handler,
         work_dir=Path.cwd(),
         home_dir=Path.home(),
@@ -151,4 +163,5 @@ async def start_web_server(
         await server.serve()
     finally:
         await _terminate_process(frontend_plan.process)
+        await live_events.aclose()
         await cleanup_app_components(components)

@@ -46,6 +46,7 @@ function normalizeFileChangeSummary(
 function normalizeSessionSummary(session: SessionSummary): SessionSummary {
   return {
     ...session,
+    read_only: session.read_only === true,
     todos: Array.isArray(session.todos) ? session.todos : [],
     file_change_summary: normalizeFileChangeSummary(session.file_change_summary),
   };
@@ -67,6 +68,7 @@ export async function fetchSessionHistory(sessionId: string): Promise<SessionHis
 
 export interface RunningSessionState {
   session_state: string;
+  read_only: boolean;
   title: string | null;
   user_messages: string[];
 }

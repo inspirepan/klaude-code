@@ -4,6 +4,7 @@ import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 import typer
@@ -17,6 +18,7 @@ from klaude_code.core.agent_profile import (
     VanillaModelProfileProvider,
 )
 from klaude_code.core.control.event_bus import EventBus, EventSubscription
+from klaude_code.core.control.event_relay import EventRelayPublisher, event_relay_socket_path
 from klaude_code.core.control.runtime_facade import RuntimeFacade
 from klaude_code.log import log, set_debug_logging
 from klaude_code.protocol import events, op, user_interaction
@@ -24,6 +26,7 @@ from klaude_code.session.session import Session, close_default_store
 
 SESSION_IDLE_TTL_SECONDS = 30 * 60
 SESSION_IDLE_RECLAIM_INTERVAL_SECONDS = 60
+SESSION_OWNER_HEARTBEAT_INTERVAL_SECONDS = 5
 
 
 @dataclass
@@ -33,6 +36,8 @@ class AppInitConfig:
     model: str | None
     debug: bool
     vanilla: bool
+    runtime_kind: Literal["tui", "web"] = "tui"
+    enable_event_relay_client: bool = True
 
 
 @dataclass
@@ -42,11 +47,13 @@ class AppComponents:
     config: Config
     runtime: RuntimeFacade
     event_bus: EventBus
+    event_relay_publisher: EventRelayPublisher | None
     event_bus_subscription: EventSubscription
     display: DisplayABC
     display_task: asyncio.Task[None]
     interaction_task: asyncio.Task[None] | None
     idle_reclaim_task: asyncio.Task[None]
+    owner_heartbeat_task: asyncio.Task[None]
 
     async def wait_for_display_idle(self) -> None:
         """Wait until EventBus subscription has consumed pending events."""
@@ -75,6 +82,12 @@ async def _reclaim_idle_sessions_loop(runtime: RuntimeFacade) -> None:
     while True:
         await asyncio.sleep(SESSION_IDLE_RECLAIM_INTERVAL_SECONDS)
         await runtime.reclaim_idle_sessions(idle_for_seconds=SESSION_IDLE_TTL_SECONDS)
+
+
+async def _heartbeat_session_owners_loop(runtime: RuntimeFacade) -> None:
+    while True:
+        await asyncio.sleep(SESSION_OWNER_HEARTBEAT_INTERVAL_SECONDS)
+        await runtime.heartbeat_session_owners()
 
 
 async def _consume_interactions_from_subscription(
@@ -142,7 +155,11 @@ async def initialize_app_components(
     else:
         model_profile_provider = DefaultModelProfileProvider(config=config)
 
-    event_bus = EventBus()
+    event_relay_publisher: EventRelayPublisher | None = None
+    if init_config.enable_event_relay_client:
+        event_relay_publisher = EventRelayPublisher(socket_path=event_relay_socket_path())
+
+    event_bus = EventBus(publish_hook=event_relay_publisher.publish if event_relay_publisher is not None else None)
     event_bus_subscription = event_bus.subscribe(None)
     interaction_subscription = event_bus.subscribe(None) if interaction_handler is not None else None
 
@@ -151,6 +168,7 @@ async def initialize_app_components(
         llm_clients,
         model_profile_provider=model_profile_provider,
         on_model_change=on_model_change,
+        runtime_kind=init_config.runtime_kind,
     )
 
     if on_model_change is not None:
@@ -171,6 +189,9 @@ async def initialize_app_components(
     idle_reclaim_task = asyncio.create_task(_reclaim_idle_sessions_loop(runtime))
     _drain_background_task_exception(idle_reclaim_task, label="idle-reclaim")
 
+    owner_heartbeat_task = asyncio.create_task(_heartbeat_session_owners_loop(runtime))
+    _drain_background_task_exception(owner_heartbeat_task, label="owner-heartbeat")
+
     display_task = asyncio.create_task(_consume_display_from_subscription(event_bus_subscription, display))
     _drain_background_task_exception(display_task, label="display")
 
@@ -185,11 +206,13 @@ async def initialize_app_components(
         config=config,
         runtime=runtime,
         event_bus=event_bus,
+        event_relay_publisher=event_relay_publisher,
         event_bus_subscription=event_bus_subscription,
         display=display,
         display_task=display_task,
         interaction_task=interaction_task,
         idle_reclaim_task=idle_reclaim_task,
+        owner_heartbeat_task=owner_heartbeat_task,
     )
 
 
@@ -236,6 +259,10 @@ async def cleanup_app_components(components: AppComponents) -> None:
         with contextlib.suppress(asyncio.CancelledError):
             await components.idle_reclaim_task
 
+        components.owner_heartbeat_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await components.owner_heartbeat_task
+
         await components.runtime.stop()
         with contextlib.suppress(Exception):
             await close_default_store()
@@ -245,6 +272,10 @@ async def cleanup_app_components(components: AppComponents) -> None:
 
         with contextlib.suppress(Exception):
             await components.event_bus.publish(events.EndEvent())
+
+        if components.event_relay_publisher is not None:
+            with contextlib.suppress(Exception):
+                await components.event_relay_publisher.aclose()
 
         if components.interaction_task is not None:
             with contextlib.suppress(Exception):

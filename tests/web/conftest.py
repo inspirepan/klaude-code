@@ -135,7 +135,7 @@ def app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     async def _state_initializer() -> WebAppState:
         event_bus = EventBus()
-        runtime = RuntimeFacade(event_bus, LLMClients(main=fake_llm, main_model_alias="fake"))
+        runtime = RuntimeFacade(event_bus, LLMClients(main=fake_llm, main_model_alias="fake"), runtime_kind="web")
         interaction_handler = WebInteractionHandler()
         holder["event_bus"] = event_bus
         holder["runtime"] = runtime

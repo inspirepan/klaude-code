@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request, WebSocket
 
-from klaude_code.core.control.event_bus import EventBus
+from klaude_code.core.control.event_bus import EnvelopeBus, EventBus, EventSubscription
 from klaude_code.core.control.runtime_facade import RuntimeFacade
 from klaude_code.web.interaction import WebInteractionHandler
 
@@ -17,6 +17,11 @@ class WebAppState:
     interaction_handler: WebInteractionHandler
     work_dir: Path
     home_dir: Path
+    event_stream: EnvelopeBus | None = None
+
+    def subscribe_events(self, session_id: str | None) -> EventSubscription:
+        source = self.event_stream or self.event_bus
+        return source.subscribe(session_id)
 
 
 def get_web_state_from_app(app: FastAPI) -> WebAppState:

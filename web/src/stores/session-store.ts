@@ -250,6 +250,7 @@ function openSessionWs(sessionId: string, get: () => SessionStoreState, set: Set
           lastError: null,
         }),
       }));
+      void pollRuntimeStates(get, set);
     },
     onClose: () => {
       if (activeConnection?.connection === connection) {
@@ -273,9 +274,11 @@ function openSessionWs(sessionId: string, get: () => SessionStoreState, set: Set
 }
 
 function handleWsError(errorFrame: WsErrorFrame, sessionId: string, set: SetState): void {
+  const fatal =
+    errorFrame.code === "session_not_found" || errorFrame.code === "session_init_failed";
   set((state) => ({
     runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
-      wsState: "disconnected",
+      wsState: fatal ? "disconnected" : (state.runtimeBySessionId[sessionId]?.wsState ?? "idle"),
       lastError: `${errorFrame.code}: ${errorFrame.message}`,
     }),
   }));
@@ -671,6 +674,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       messages_count: 0,
       model_name: null,
       session_state: "idle",
+      read_only: false,
       archived: false,
       todos: [],
       file_change_summary: {

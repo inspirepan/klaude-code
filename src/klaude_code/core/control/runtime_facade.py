@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
+import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
 from klaude_code.core.agent.agent import Agent
 from klaude_code.core.agent.runtime import LLMClients, OperationDispatcher, OperationDispatcherPorts
@@ -87,7 +91,11 @@ class RuntimeFacade:
         llm_clients: LLMClients,
         model_profile_provider: ModelProfileProvider | None = None,
         on_model_change: Callable[[str], None] | None = None,
+        runtime_kind: Literal["tui", "web"] = "tui",
     ):
+        self.runtime_id = uuid4().hex
+        self.runtime_kind: Literal["tui", "web"] = runtime_kind
+        self.pid = os.getpid()
         self.session_registry = SessionRegistry(
             handle_operation=self._execute_operation,
             reject_operation=self._reject_operation,
@@ -125,6 +133,42 @@ class RuntimeFacade:
         )
         self._operation_awaiter = OperationCompletionAwaiter(event_bus)
         self._stopped = False
+
+    def _session_owner(self) -> model.SessionOwner:
+        return model.SessionOwner(runtime_id=self.runtime_id, runtime_kind=self.runtime_kind, pid=self.pid)
+
+    @property
+    def session_owner(self) -> model.SessionOwner:
+        return self._session_owner()
+
+    def _persist_session_owner(self, session_id: str, work_dir: Path | None = None) -> None:
+        resolved_work_dir = work_dir
+        if resolved_work_dir is None:
+            runtime = self.session_registry.get_session_actor(session_id)
+            if runtime is None:
+                return
+            agent = runtime.get_agent()
+            if agent is None:
+                return
+            agent.session.runtime_owner = self._session_owner()
+            agent.session.runtime_owner_heartbeat_at = time.time()
+            resolved_work_dir = agent.session.work_dir
+        Session.persist_runtime_owner(session_id, self._session_owner(), resolved_work_dir)
+
+    def _clear_session_owner(self, session_id: str, work_dir: Path) -> None:
+        Session.persist_runtime_owner(session_id, None, work_dir)
+
+    async def heartbeat_session_owners(self) -> None:
+        now = time.time()
+        for runtime in self.session_registry.list_session_actors():
+            agent = runtime.get_agent()
+            if agent is None:
+                continue
+            agent.session.runtime_owner = self._session_owner()
+            agent.session.runtime_owner_heartbeat_at = now
+            await asyncio.to_thread(
+                Session.persist_runtime_owner_heartbeat, runtime.session_id, now, agent.session.work_dir
+            )
 
     async def _reject_operation(self, operation: op.Operation, active_task_id: str | None) -> None:
         session_id = getattr(operation, "session_id", None)
@@ -165,10 +209,13 @@ class RuntimeFacade:
             if agent is None:
                 return
             agent.session.session_state = session_state
+            agent.session.runtime_owner = self._session_owner()
+            agent.session.runtime_owner_heartbeat_at = time.time()
             work_dir = agent.session.work_dir
         except AttributeError:
             return
         await asyncio.to_thread(Session.persist_runtime_state, session_id, session_state, work_dir)
+        await asyncio.to_thread(Session.persist_runtime_owner, session_id, self._session_owner(), work_dir)
 
     async def _sync_session_state_from_snapshot(self, session_id: str) -> None:
         await self._persist_session_state(session_id, self._derive_session_state_from_snapshot(session_id))
@@ -252,6 +299,7 @@ class RuntimeFacade:
             operation_id=operation.id,
         )
         if isinstance(operation, op.InitAgentOperation):
+            await asyncio.to_thread(self._persist_session_owner, session_id, operation.work_dir)
             return
         # Ensure queued history writes don't race and overwrite final runtime state.
         await self._wait_for_session_flush(session_id)
@@ -290,12 +338,22 @@ class RuntimeFacade:
 
     async def close_session(self, session_id: str, force: bool = False) -> bool:
         cancelled_requests: list[PendingUserInteractionRequest] = []
+        work_dir: Path | None = None
+        get_actor = getattr(self.session_registry, "get_session_actor", None)
+        if callable(get_actor):
+            runtime = self.session_registry.get_session_actor(session_id)
+            if runtime is not None:
+                agent = runtime.get_agent()
+                if agent is not None:
+                    work_dir = agent.session.work_dir
         if force:
             cancelled_requests = self.session_registry.cancel_pending_interactions_with_requests(session_id=session_id)
 
         closed = await self.session_registry.close_session(session_id, force=force)
         if closed:
             await self._persist_session_state(session_id, model.SessionRuntimeState.IDLE)
+            if work_dir is not None:
+                await asyncio.to_thread(self._clear_session_owner, session_id, work_dir)
             for request in cancelled_requests:
                 await self._operation_dispatcher.emit_event(
                     events.UserInteractionCancelledEvent(
@@ -372,6 +430,7 @@ class RuntimeFacade:
 
         for session_id, agent in sessions_to_idle:
             agent.session.session_state = model.SessionRuntimeState.IDLE
+            agent.session.runtime_owner = None
             with contextlib.suppress(Exception):
                 await asyncio.to_thread(
                     Session.persist_runtime_state,
@@ -379,6 +438,8 @@ class RuntimeFacade:
                     model.SessionRuntimeState.IDLE,
                     agent.session.work_dir,
                 )
+            with contextlib.suppress(Exception):
+                await asyncio.to_thread(Session.persist_runtime_owner, session_id, None, agent.session.work_dir)
 
         await self.session_registry.stop()
         await self._operation_awaiter.stop()

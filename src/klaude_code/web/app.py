@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from klaude_code.core.control.event_bus import EventBus
+from klaude_code.core.control.event_bus import EnvelopeBus, EventBus
 from klaude_code.core.control.runtime_facade import RuntimeFacade
 from klaude_code.web.interaction import WebInteractionHandler
 from klaude_code.web.routes import config_router, files_router, sessions_router, ws_router
@@ -32,6 +32,7 @@ def create_app(
     *,
     runtime: RuntimeFacade | None = None,
     event_bus: EventBus | None = None,
+    event_stream: EnvelopeBus | None = None,
     interaction_handler: WebInteractionHandler | None = None,
     work_dir: Path,
     home_dir: Path | None = None,
@@ -72,6 +73,7 @@ def create_app(
             interaction_handler=interaction_handler,
             work_dir=work_dir.resolve(),
             home_dir=(home_dir or Path.home()).resolve(),
+            event_stream=event_stream,
         )
 
     app.include_router(sessions_router)
