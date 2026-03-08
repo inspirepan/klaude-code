@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Archive, ArchiveRestore, CirclePause, Loader, MessageSquare } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  CircleCheck,
+  CirclePause,
+  Loader,
+  MessageSquare,
+} from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { cn } from "@/lib/utils";
 
@@ -70,9 +77,9 @@ function getRuntimeIcon(
     return <UnreadCompletionDot />;
   }
   if (showSuccessState) {
-    return <MessageSquare className="status-success-settle h-3.5 w-3.5 shrink-0" />;
+    return <CircleCheck className="status-success-settle h-3.5 w-3.5 shrink-0" />;
   }
-  return <MessageSquare className="h-3.5 w-3.5 shrink-0 text-neutral-400" />;
+  return <CircleCheck className="h-3.5 w-3.5 shrink-0 text-neutral-400" />;
 }
 
 function shortenFileRefs(text: string): string {
@@ -94,8 +101,7 @@ export function SessionCard({
   const title = shortenFileRefs(getSessionTitle(session));
   const excerpt = shortenFileRefs(getSessionExcerpt(session));
   const updatedAt = formatRelativeTime(session.updated_at);
-  const messageCountLabel =
-    session.messages_count >= 0 ? `${session.messages_count} messages` : "N/A messages";
+  const messageCountLabel = session.messages_count >= 0 ? String(session.messages_count) : "N/A";
   const modelLabel = session.model_name ?? "N/A model";
 
   useEffect(() => {
@@ -158,8 +164,11 @@ export function SessionCard({
             {excerpt}
           </div>
 
-          <div className="mt-0.5 truncate pl-5 text-[11px] leading-4 text-neutral-400">
-            {messageCountLabel} · {modelLabel}
+          <div className="mt-0.5 flex items-center gap-1 truncate pl-5 text-[11px] leading-4 text-neutral-400">
+            <MessageSquare className="h-3 w-3 shrink-0" />
+            <span>{messageCountLabel}</span>
+            <span>·</span>
+            <span className="truncate">{modelLabel}</span>
           </div>
         </div>
 

@@ -315,7 +315,9 @@ export function ToolBlock({ item, compact = false }: ToolBlockProps): JSX.Elemen
           </div>
           <div className="min-w-0">
             {hasRich ? (
-              <RichResult item={item} compact={compact} />
+              <div onClick={(e) => e.stopPropagation()}>
+                <RichResult item={item} compact={compact} />
+              </div>
             ) : hasResult ? (
               (() => {
                 const lines = item.result!.split("\n");
