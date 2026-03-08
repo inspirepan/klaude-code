@@ -298,6 +298,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const bottomRef = useRef<HTMLDivElement>(null);
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
   const shouldStickToBottomRef = useRef(true);
+  const previousLastVisibleItemIdRef = useRef<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
@@ -470,6 +471,23 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         container.scrollHeight - container.scrollTop - container.clientHeight < 150;
     }
   }, [sessionId, hasItems]);
+
+  useEffect(() => {
+    const lastItem = visibleItems[visibleItems.length - 1];
+    const previousLastItemId = previousLastVisibleItemIdRef.current;
+    previousLastVisibleItemIdRef.current = lastItem?.id ?? null;
+    if (!lastItem || previousLastItemId === null || previousLastItemId === lastItem.id) {
+      return;
+    }
+
+    const sourceSessionId = lastItem.sessionId ?? sessionId;
+    if (sourceSessionId !== sessionId || lastItem.type !== "user_message") {
+      return;
+    }
+
+    shouldStickToBottomRef.current = true;
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [sessionId, visibleItems]);
 
   // Auto-scroll on streamed updates only when user is already near bottom.
   useEffect(() => {

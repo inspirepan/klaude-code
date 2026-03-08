@@ -154,7 +154,7 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
         {isOverflowing ? (
           <button
             type="button"
-            className="self-start pl-2 pb-1 text-xs text-neutral-400 transition-colors hover:text-neutral-600"
+            className="self-start pb-1 pl-2 text-xs text-neutral-400 transition-colors hover:text-neutral-600"
             onClick={() => setExpanded((value) => !value)}
           >
             {expanded ? "Show less" : "Show more"}
