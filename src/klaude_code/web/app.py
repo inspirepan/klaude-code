@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sysconfig
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -19,12 +18,9 @@ from klaude_code.web.state import WebAppState, get_web_state_from_app
 
 def resolve_static_dir() -> Path | None:
     module_dir = Path(__file__).resolve().parent
-    repo_root = module_dir.parents[3]
-
     candidates = [
-        repo_root / "web" / "dist",
         module_dir / "dist",
-        Path(sysconfig.get_path("data")),
+        module_dir.parents[3] / "web" / "dist",
     ]
     for candidate in candidates:
         if candidate.exists() and (candidate / "index.html").exists():

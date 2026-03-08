@@ -10,6 +10,7 @@ This skill manages the release process for klaude-code, including version manage
 ## Prerequisites
 
 - `UV_PUBLISH_TOKEN` environment variable must be set for PyPI publishing
+- `pnpm` must be available to build the bundled web frontend before release
 - Working directory must be the klaude-code repository root
 - Git repository must be clean (no uncommitted changes)
 
@@ -83,12 +84,36 @@ git push origin v<new_version>
 
 ### Step 6: Build and Publish
 
-Build and publish to PyPI:
+Build the frontend, verify the wheel bundles the web assets, then publish to PyPI:
 
 ```bash
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web build
+
 uv build
+
+python - <<'PY'
+from pathlib import Path
+from zipfile import ZipFile
+
+wheel = sorted(Path("dist").glob("*.whl"))[-1]
+with ZipFile(wheel) as archive:
+    names = set(archive.namelist())
+
+required = {
+    "klaude_code/web/dist/index.html",
+}
+missing = sorted(required - names)
+if missing:
+    raise SystemExit(f"Wheel is missing bundled web assets: {', '.join(missing)}")
+
+print(f"Verified bundled web assets in {wheel.name}")
+PY
+
 uv publish
 ```
+
+Do not publish if the wheel verification fails. That means the package build no longer includes the bundled web frontend, so `pip install klaude-code && klaude web` would be broken for end users.
 
 ## Error Handling
 

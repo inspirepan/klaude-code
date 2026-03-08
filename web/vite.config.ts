@@ -19,7 +19,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: "dist",
+    outDir: "../src/klaude_code/web/dist",
     emptyOutDir: true,
   },
 });
