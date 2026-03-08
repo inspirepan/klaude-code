@@ -14,8 +14,9 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from klaude_code.core.tool import ApplyPatchTool  # noqa: E402
-from klaude_code.core.tool.context import TodoContext, ToolContext  # noqa: E402
+from klaude_code.core.tool.context import ToolContext, build_todo_context  # noqa: E402
 from klaude_code.protocol.model import DiffUIExtra  # noqa: E402
+from klaude_code.session.session import Session  # noqa: E402
 
 
 def arun(coro: Any) -> Any:
@@ -23,8 +24,14 @@ def arun(coro: Any) -> Any:
 
 
 def _tool_context() -> ToolContext:
-    todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
-    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path.cwd())
+    session = Session(work_dir=Path.cwd())
+    return ToolContext(
+        file_tracker=session.file_tracker,
+        todo_context=build_todo_context(session),
+        session_id=session.id,
+        work_dir=Path.cwd(),
+        file_change_summary=session.file_change_summary,
+    )
 
 
 class BaseTempDirTest(unittest.TestCase):
@@ -116,6 +123,39 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertEqual(result.output_text, "Done!")
         self.assertTrue(Path(absolute_path).exists())
         self.assertEqual(Path(absolute_path).read_text(), "hello")
+
+    def test_apply_patch_records_created_edited_and_diff_totals(self) -> None:
+        Path("edit.txt").write_text("old\nkeep\n", encoding="utf-8")
+        session = Session(work_dir=Path.cwd())
+        context = ToolContext(
+            file_tracker=session.file_tracker,
+            todo_context=build_todo_context(session),
+            session_id=session.id,
+            work_dir=Path.cwd(),
+            file_change_summary=session.file_change_summary,
+        )
+
+        patch_content = "\n".join(
+            [
+                "*** Begin Patch",
+                "*** Add File: created.md",
+                "+hello",
+                "+world",
+                "*** Update File: edit.txt",
+                "-old",
+                "+new",
+                " keep",
+                "*** End Patch",
+            ]
+        )
+
+        result = arun(ApplyPatchTool.call(json.dumps({"patch": patch_content}), context))
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(session.file_change_summary.created_files, [str(Path("created.md").resolve())])
+        self.assertEqual(session.file_change_summary.edited_files, [str(Path("edit.txt").resolve())])
+        self.assertEqual(session.file_change_summary.diff_lines_added, 3)
+        self.assertEqual(session.file_change_summary.diff_lines_removed, 1)
 
 
 if __name__ == "__main__":

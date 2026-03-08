@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import { MainPanel } from "./components/layout/MainPanel";
 import { LeftSidebar } from "./components/sidebar/LeftSidebar";
+import { RightSidebar } from "./components/sidebar/RightSidebar";
 import { useAppStore } from "./stores/app-store";
 import { useSessionStore } from "./stores/session-store";
 
@@ -10,7 +11,9 @@ const NARROW_BREAKPOINT = 768;
 export default function App(): JSX.Element {
   const init = useSessionStore((state) => state.init);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
+  const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
+  const setRightSidebarOpen = useAppStore((state) => state.setRightSidebarOpen);
 
   useEffect(() => {
     void init();
@@ -34,17 +37,21 @@ export default function App(): JSX.Element {
   useEffect(() => {
     const mq = window.matchMedia(`(max-width: ${NARROW_BREAKPOINT}px)`);
     const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
-      if (e.matches) setSidebarOpen(false);
+      if (e.matches) {
+        setSidebarOpen(false);
+        setRightSidebarOpen(false);
+      }
     };
     handleChange(mq);
     mq.addEventListener("change", handleChange);
     return () => mq.removeEventListener("change", handleChange);
-  }, [setSidebarOpen]);
+  }, [setRightSidebarOpen, setSidebarOpen]);
 
   return (
     <div className="app-shell">
       {sidebarOpen ? <LeftSidebar /> : null}
       <MainPanel />
+      {rightSidebarOpen ? <RightSidebar /> : null}
     </div>
   );
 }

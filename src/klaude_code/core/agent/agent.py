@@ -65,6 +65,7 @@ class Agent:
             get_conversation_history=self.session.get_llm_history,
             append_history=self.session.append_history,
             file_tracker=self.session.file_tracker,
+            file_change_summary=self.session.file_change_summary,
             todo_context=build_todo_context(self.session),
             run_subtask=run_subtask,
             request_user_interaction=self._request_user_interaction,

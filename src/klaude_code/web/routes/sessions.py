@@ -91,6 +91,8 @@ async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[di
                 "model_name": item.model_name,
                 "session_state": session_state,
                 "archived": item.archived,
+                "todos": item.todos,
+                "file_change_summary": item.file_change_summary,
             }
         )
     groups = [{"work_dir": work_dir, "sessions": sessions} for work_dir, sessions in groups_by_work_dir.items()]
@@ -165,6 +167,14 @@ async def create_session(
             "model_name": current_model_name,
             "session_state": "idle",
             "archived": False,
+            "todos": [],
+            "file_change_summary": {
+                "created_files": [],
+                "edited_files": [],
+                "diff_lines_added": 0,
+                "diff_lines_removed": 0,
+                "file_diffs": {},
+            },
         }
         meta_path.parent.mkdir(parents=True, exist_ok=True)
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")

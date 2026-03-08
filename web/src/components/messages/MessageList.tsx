@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { ChevronRight, Loader2, PanelLeftOpen, RefreshCw } from "lucide-react";
+import { ChevronRight, Loader2, PanelLeftOpen, PanelRightOpen, RefreshCw } from "lucide-react";
 
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
@@ -136,6 +136,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const selectSession = useSessionStore((state) => state.selectSession);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
+  const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen);
+  const setRightSidebarOpen = useAppStore((state) => state.setRightSidebarOpen);
   const items = useMessageStore((state) => state.messagesBySessionId[sessionId] ?? EMPTY_ITEMS);
   const subAgentDescBySessionId = useMessageStore(
     (state) =>
@@ -436,6 +438,19 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
           </button>
+          {!rightSidebarOpen ? (
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+              onClick={() => {
+                setRightSidebarOpen(true);
+              }}
+              title="Expand right sidebar"
+              aria-label="Expand right sidebar"
+            >
+              <PanelRightOpen className="h-4 w-4" />
+            </button>
+          ) : null}
         </div>
 
         <div

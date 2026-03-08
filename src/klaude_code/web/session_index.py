@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
+
+type TodoSummary = dict[str, str]
+type FileChangeSummary = dict[str, list[str] | int | dict[str, dict[str, int]]]
 
 
 def _read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -36,6 +40,8 @@ class SessionSummary:
     model_name: str | None
     session_state: Literal["idle", "running", "waiting_user_input"] | None
     archived: bool
+    todos: list[TodoSummary]
+    file_change_summary: FileChangeSummary
 
 
 def list_main_sessions(home: Path) -> list[SessionSummary]:
@@ -81,6 +87,59 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
         archived_raw = data.get("archived")
         archived = archived_raw if isinstance(archived_raw, bool) else False
 
+        todos_raw = data.get("todos")
+        todos: list[TodoSummary] = []
+        if isinstance(todos_raw, list):
+            for todo_raw in cast(list[Any], todos_raw):
+                if not isinstance(todo_raw, dict):
+                    continue
+                todo_dict = cast(dict[str, Any], todo_raw)
+                content = todo_dict.get("content")
+                status = todo_dict.get("status")
+                if isinstance(content, str) and isinstance(status, str):
+                    todos.append({"content": content, "status": status})
+
+        file_change_summary_raw = data.get("file_change_summary")
+        raw_summary = cast(dict[str, Any], file_change_summary_raw) if isinstance(file_change_summary_raw, dict) else {}
+        try:
+            diff_lines_added = int(raw_summary.get("diff_lines_added", 0) or 0)
+        except (TypeError, ValueError):
+            diff_lines_added = 0
+        try:
+            diff_lines_removed = int(raw_summary.get("diff_lines_removed", 0) or 0)
+        except (TypeError, ValueError):
+            diff_lines_removed = 0
+        created_files_raw = raw_summary.get("created_files")
+        edited_files_raw = raw_summary.get("edited_files")
+        created_files = (
+            [item for item in cast(list[Any], created_files_raw) if isinstance(item, str)]
+            if isinstance(created_files_raw, list)
+            else []
+        )
+        edited_files = (
+            [item for item in cast(list[Any], edited_files_raw) if isinstance(item, str)]
+            if isinstance(edited_files_raw, list)
+            else []
+        )
+        file_diffs_raw = raw_summary.get("file_diffs")
+        file_diffs: dict[str, dict[str, int]] = {}
+        if isinstance(file_diffs_raw, dict):
+            for fpath, fstats in cast(dict[str, Any], file_diffs_raw).items():
+                if isinstance(fstats, dict):
+                    fstats_dict = cast(dict[str, Any], fstats)
+                    with contextlib.suppress(TypeError, ValueError):
+                        file_diffs[fpath] = {
+                            "added": int(fstats_dict.get("added", 0) or 0),
+                            "removed": int(fstats_dict.get("removed", 0) or 0),
+                        }
+        file_change_summary: FileChangeSummary = {
+            "created_files": created_files,
+            "edited_files": edited_files,
+            "diff_lines_added": diff_lines_added,
+            "diff_lines_removed": diff_lines_removed,
+            "file_diffs": file_diffs,
+        }
+
         summaries.append(
             SessionSummary(
                 id=sid,
@@ -93,6 +152,8 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
                 model_name=model_name,
                 session_state=session_state,
                 archived=archived,
+                todos=todos,
+                file_change_summary=file_change_summary,
             )
         )
 
