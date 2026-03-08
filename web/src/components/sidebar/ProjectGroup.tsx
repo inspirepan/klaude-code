@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Folder, FolderOpen } from "lucide-react";
+import { Folder, FolderOpen, SquarePen } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SessionCard } from "./SessionCard";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
@@ -12,6 +12,7 @@ interface ProjectGroupProps {
   runtimeBySessionId: Record<string, SessionRuntimeState>;
   completedUnreadBySessionId: Record<string, boolean>;
   onToggle: () => void;
+  onSelectDraft: (workDir: string) => void;
   onSelectSession: (sessionId: string) => void;
   onToggleArchive: (sessionId: string, archived: boolean) => void;
 }
@@ -32,6 +33,7 @@ export function ProjectGroup({
   runtimeBySessionId,
   completedUnreadBySessionId,
   onToggle,
+  onSelectDraft,
   onSelectSession,
   onToggleArchive,
 }: ProjectGroupProps): JSX.Element {
@@ -41,21 +43,34 @@ export function ProjectGroup({
 
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-3">
-      <CollapsibleTrigger className="group flex w-full items-start gap-2 rounded-md px-2 py-2 text-neutral-700 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900">
-        {collapsed ? (
-          <Folder className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
-        ) : (
-          <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
-        )}
-        <div className="min-w-0 flex-1 text-left" title={workDir}>
-          <div className="truncate text-[14px] font-semibold leading-5 text-neutral-800">
-            {workDirLabel(workDir)}
+      <div className="flex items-start gap-1.5">
+        <CollapsibleTrigger className="group flex min-w-0 flex-1 items-start gap-2 rounded-md px-2 py-2 text-neutral-700 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900">
+          {collapsed ? (
+            <Folder className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
+          ) : (
+            <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
+          )}
+          <div className="min-w-0 flex-1 text-left" title={workDir}>
+            <div className="truncate text-[14px] font-semibold leading-5 text-neutral-800">
+              {workDirLabel(workDir)}
+            </div>
+            <div className="mt-0.5 truncate text-[11px] leading-4 text-neutral-400" title={workDir}>
+              {workDir}
+            </div>
           </div>
-          <div className="mt-0.5 truncate text-[11px] leading-4 text-neutral-400" title={workDir}>
-            {workDir}
-          </div>
-        </div>
-      </CollapsibleTrigger>
+        </CollapsibleTrigger>
+        <button
+          type="button"
+          className="mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+          onClick={() => {
+            onSelectDraft(workDir);
+          }}
+          title={`New session in ${workDir}`}
+          aria-label={`New session in ${workDir}`}
+        >
+          <SquarePen className="h-3.5 w-3.5" />
+        </button>
+      </div>
 
       <CollapsibleContent className="ml-4 mt-0.5 border-l border-neutral-200 pl-2.5">
         <div className="space-y-0.5 pb-0.5">

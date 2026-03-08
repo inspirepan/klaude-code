@@ -26,6 +26,7 @@ import { useMessageStore } from "./message-store";
 interface SessionStoreState {
   groups: SessionGroup[];
   activeSessionId: ActiveSessionId;
+  draftWorkDir: string;
   loading: boolean;
   loadError: string | null;
   collapsedByWorkDir: Record<string, boolean>;
@@ -36,9 +37,12 @@ interface SessionStoreState {
   refreshSessions: () => Promise<void>;
   toggleGroup: (workDir: string) => void;
   setSessionArchived: (sessionId: string, archived: boolean) => Promise<void>;
-  selectDraft: () => void;
+  selectDraft: (workDir?: string) => void;
+  setDraftWorkDir: (workDir: string) => void;
   selectSession: (sessionId: string) => Promise<void>;
+  refreshSession: (sessionId: string) => Promise<void>;
   createSessionFromDraft: (firstMessage: string, workDir?: string) => Promise<string>;
+  sendMessage: (sessionId: string, text: string) => Promise<void>;
 }
 
 interface ActiveConnection {
@@ -188,6 +192,18 @@ function upsertSessionIntoGroups(groups: SessionGroup[], session: SessionSummary
   return nextGroups;
 }
 
+function getLatestWorkDir(groups: SessionGroup[]): string {
+  let latestSession: SessionSummary | null = null;
+  for (const group of groups) {
+    for (const session of group.sessions) {
+      if (latestSession === null || session.updated_at > latestSession.updated_at) {
+        latestSession = session;
+      }
+    }
+  }
+  return latestSession?.work_dir ?? "";
+}
+
 function patchRuntimeByEvent(
   current: Record<string, SessionRuntimeState>,
   sessionId: string,
@@ -209,6 +225,14 @@ function patchRuntimeByEvent(
 }
 
 function openSessionWs(sessionId: string, get: () => SessionStoreState, set: SetState): void {
+  const runtime = get().runtimeBySessionId[sessionId] ?? defaultRuntimeState;
+  if (
+    activeConnection?.sessionId === sessionId &&
+    (runtime.wsState === "connected" || runtime.wsState === "connecting")
+  ) {
+    return;
+  }
+
   closeActiveConnectionIfNeeded(sessionId);
 
   set((state) => ({
@@ -228,6 +252,9 @@ function openSessionWs(sessionId: string, get: () => SessionStoreState, set: Set
       }));
     },
     onClose: () => {
+      if (activeConnection?.connection === connection) {
+        activeConnection = null;
+      }
       set((state) => ({
         runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
           wsState: "disconnected",
@@ -238,7 +265,7 @@ function openSessionWs(sessionId: string, get: () => SessionStoreState, set: Set
       handleWsError(errorFrame, sessionId, set);
     },
     onEvent: (eventEnvelope) => {
-      handleWsEvent(eventEnvelope, get, set);
+      handleWsEvent(sessionId, eventEnvelope, get, set);
     },
   });
 
@@ -254,7 +281,21 @@ function handleWsError(errorFrame: WsErrorFrame, sessionId: string, set: SetStat
   }));
 }
 
+async function loadSessionHistory(sessionId: string): Promise<void> {
+  const history = await fetchSessionHistory(sessionId);
+  useMessageStore.getState().loadHistoryFromEvents(sessionId, history.events);
+}
+
+function hasReusableConnection(sessionId: string, state: SessionStoreState): boolean {
+  const runtime = state.runtimeBySessionId[sessionId] ?? defaultRuntimeState;
+  return (
+    activeConnection?.sessionId === sessionId &&
+    (runtime.wsState === "connected" || runtime.wsState === "connecting")
+  );
+}
+
 function handleWsEvent(
+  rootSessionId: string,
   eventEnvelope: WsEventEnvelope,
   get: () => SessionStoreState,
   set: SetState,
@@ -276,9 +317,21 @@ function handleWsEvent(
   }));
 
   const wsTimestamp = typeof eventEnvelope.timestamp === "number" ? eventEnvelope.timestamp : null;
-  useMessageStore
-    .getState()
-    .handleEvent(targetSessionId, eventEnvelope.event_type, eventEnvelope.event ?? {}, wsTimestamp);
+  const messageStore = useMessageStore.getState();
+  messageStore.handleEvent(
+    rootSessionId,
+    eventEnvelope.event_type,
+    eventEnvelope.event ?? {},
+    wsTimestamp,
+  );
+  if (targetSessionId !== rootSessionId) {
+    messageStore.handleEvent(
+      targetSessionId,
+      eventEnvelope.event_type,
+      eventEnvelope.event ?? {},
+      wsTimestamp,
+    );
+  }
 
   if (eventEnvelope.event_type !== "task.finish") {
     return;
@@ -419,6 +472,7 @@ function findSession(groups: SessionGroup[], sessionId: string): SessionSummary 
 export const useSessionStore = create<SessionStoreState>((set, get) => ({
   groups: [],
   activeSessionId: "draft",
+  draftWorkDir: "",
   loading: false,
   loadError: null,
   collapsedByWorkDir: {},
@@ -456,6 +510,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       set((state) => ({
         groups,
         loading: false,
+        draftWorkDir: state.draftWorkDir || getLatestWorkDir(groups),
         collapsedByWorkDir: mergeCollapseState(groups, state.collapsedByWorkDir),
         runtimeBySessionId: groups.reduce<Record<string, SessionRuntimeState>>((acc, group) => {
           for (const session of group.sessions) {
@@ -508,12 +563,37 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         .filter((group) => group.sessions.length > 0),
     }));
   },
-  selectDraft: () => {
+  selectDraft: (workDir?: string) => {
+    const activeSession =
+      get().activeSessionId === "draft" ? null : findSession(get().groups, get().activeSessionId);
+    const nextDraftWorkDir = workDir?.trim() ?? "";
     closeActiveConnectionIfNeeded(null);
-    set({ activeSessionId: "draft" });
+    set((state) => ({
+      activeSessionId: "draft",
+      draftWorkDir: nextDraftWorkDir || activeSession?.work_dir || state.draftWorkDir,
+    }));
     pushSessionUrl("draft");
   },
+  setDraftWorkDir: (workDir: string) => {
+    set({ draftWorkDir: workDir });
+  },
   selectSession: async (sessionId: string) => {
+    const currentState = get();
+    const currentRuntime = currentState.runtimeBySessionId[sessionId] ?? defaultRuntimeState;
+    const sameActiveSession = currentState.activeSessionId === sessionId;
+    const reusableConnection = hasReusableConnection(sessionId, currentState);
+    const isStreamingSession =
+      currentRuntime.sessionState === "running" ||
+      currentRuntime.sessionState === "waiting_user_input";
+
+    if (sameActiveSession && isStreamingSession) {
+      if (!reusableConnection) {
+        openSessionWs(sessionId, get, set);
+      }
+      pushSessionUrl(sessionId);
+      return;
+    }
+
     pushSessionUrl(sessionId);
     set((state) => ({
       activeSessionId: sessionId,
@@ -522,14 +602,13 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         [sessionId]: false,
       },
       runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
-        wsState: "connecting",
+        wsState: reusableConnection ? currentRuntime.wsState : "connecting",
         lastError: null,
       }),
     }));
 
     try {
-      const history = await fetchSessionHistory(sessionId);
-      useMessageStore.getState().loadHistoryFromEvents(sessionId, history.events);
+      await loadSessionHistory(sessionId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       set((state) => ({
@@ -540,12 +619,47 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       }));
     }
 
-    openSessionWs(sessionId, get, set);
+    if (!reusableConnection) {
+      openSessionWs(sessionId, get, set);
+    }
+  },
+  refreshSession: async (sessionId: string) => {
+    const currentState = get();
+    const runtime = currentState.runtimeBySessionId[sessionId] ?? defaultRuntimeState;
+    const isStreamingSession =
+      runtime.sessionState === "running" || runtime.sessionState === "waiting_user_input";
+
+    if (isStreamingSession) {
+      return;
+    }
+
+    set((state) => ({
+      runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
+        lastError: null,
+      }),
+    }));
+
+    try {
+      await loadSessionHistory(sessionId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      set((state) => ({
+        runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
+          lastError: message,
+        }),
+      }));
+      return;
+    }
+
+    if (!hasReusableConnection(sessionId, get())) {
+      openSessionWs(sessionId, get, set);
+    }
   },
   createSessionFromDraft: async (firstMessage: string, workDir?: string) => {
+    const normalizedWorkDir = workDir?.trim() || undefined;
     const nowSeconds = Date.now() / 1000;
-    const { session_id: sessionId } = await createSession(workDir);
-    const fallbackWorkDir = workDir ?? "";
+    const { session_id: sessionId } = await createSession(normalizedWorkDir);
+    const fallbackWorkDir = normalizedWorkDir ?? "";
     const selectedSession = findSession(get().groups, sessionId);
     const sessionSummary: SessionSummary = selectedSession ?? {
       id: sessionId,
@@ -582,5 +696,15 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     openSessionWs(sessionId, get, set);
     activeConnection?.connection.send({ type: "message", text: firstMessage });
     return sessionId;
+  },
+  sendMessage: async (sessionId: string, text: string) => {
+    const normalizedText = text.trim();
+    if (normalizedText.length === 0) {
+      return;
+    }
+    if (activeConnection?.sessionId !== sessionId) {
+      openSessionWs(sessionId, get, set);
+    }
+    activeConnection?.connection.send({ type: "message", text: normalizedText });
   },
 }));

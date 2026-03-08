@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 import type { MessageItem as MessageItemType } from "../../types/message";
 import { UserMessage } from "./UserMessage";
 import { ThinkingBlock } from "./ThinkingBlock";
@@ -5,6 +7,7 @@ import { AssistantText } from "./AssistantText";
 import { ToolBlock } from "./ToolBlock";
 import { DeveloperMessage } from "./DeveloperMessage";
 import { TaskWorked } from "./TaskWorked";
+import { ErrorMessage } from "./ErrorMessage";
 import { InterruptMessage } from "./InterruptMessage";
 import { CompactionSummary } from "./CompactionSummary";
 import { UnknownEvent } from "./UnknownEvent";
@@ -15,7 +18,7 @@ interface MessageItemProps {
   workDir?: string;
 }
 
-export function MessageItem({ item, compact = false, workDir }: MessageItemProps): JSX.Element {
+function MessageItemInner({ item, compact = false, workDir }: MessageItemProps): JSX.Element {
   switch (item.type) {
     case "user_message":
       return <UserMessage key={item.id} item={item} compact={compact} />;
@@ -29,6 +32,8 @@ export function MessageItem({ item, compact = false, workDir }: MessageItemProps
       return <DeveloperMessage item={item} />;
     case "task_worked":
       return <TaskWorked item={item} compact={compact} />;
+    case "error":
+      return <ErrorMessage item={item} compact={compact} />;
     case "interrupt":
       return <InterruptMessage item={item} compact={compact} />;
     case "compaction_summary":
@@ -37,3 +42,9 @@ export function MessageItem({ item, compact = false, workDir }: MessageItemProps
       return <UnknownEvent item={item} compact={compact} />;
   }
 }
+
+export const MessageItem = memo(
+  MessageItemInner,
+  (prev, next) =>
+    prev.item === next.item && prev.compact === next.compact && prev.workDir === next.workDir,
+);
