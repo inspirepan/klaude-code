@@ -37,6 +37,7 @@ export async function fetchSessionHistory(sessionId: string): Promise<SessionHis
 
 export interface RunningSessionState {
   session_state: string;
+  title: string | null;
   user_messages: string[];
 }
 

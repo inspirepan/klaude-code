@@ -7,6 +7,7 @@ export interface SessionSummary {
   created_at: number;
   updated_at: number;
   work_dir: string;
+  title: string | null;
   user_messages: string[];
   messages_count: number;
   model_name: string | null;

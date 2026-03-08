@@ -122,8 +122,8 @@ def get_default_export_path(session: Session) -> Path:
 
     exports_dir = SessionClass.exports_dir(session.work_dir)
     timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    first_msg = get_first_user_message(session.conversation_history)
-    sanitized_msg = _sanitize_filename(first_msg)
+    title = (session.title or "").strip() or get_first_user_message(session.conversation_history)
+    sanitized_msg = _sanitize_filename(title)
     filename = f"{timestamp}_{sanitized_msg}.html"
     return exports_dir / filename
 
@@ -1036,7 +1036,7 @@ def build_export_html(
         ]
     )
     footer_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    first_user_message = get_first_user_message(history)
+    first_user_message = (session.title or "").strip() or get_first_user_message(history)
 
     template = Template(_load_template())
     return template.substitute(

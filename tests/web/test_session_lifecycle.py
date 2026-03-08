@@ -115,6 +115,42 @@ def test_list_sessions_reports_running_state(app_env: AppEnv) -> None:
     assert listed_session["session_state"] == "running"
 
 
+def test_running_sessions_returns_title(app_env: AppEnv) -> None:
+    existing_session_id = app_env.create_session()
+    sessions_dir = _meta_path_for_session(app_env, existing_session_id).parents[1]
+
+    session_id = "manual-running-session"
+    meta_path = sessions_dir / session_id / "meta.json"
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    meta_path.write_text(
+        json.dumps(
+            {
+                "id": session_id,
+                "work_dir": str(app_env.work_dir),
+                "title": "Generated session title",
+                "sub_agent_state": None,
+                "created_at": time.time(),
+                "updated_at": time.time(),
+                "user_messages": ["first message"],
+                "messages_count": 1,
+                "model_name": "fake-model",
+                "session_state": "running",
+                "archived": False,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    response = app_env.client.get("/api/sessions/running")
+    assert response.status_code == 200
+    running = response.json()["states"][session_id]
+    assert running["session_state"] == "running"
+    assert running["title"] == "Generated session title"
+    assert running["user_messages"] == ["first message"]
+
+
 def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
     app_env.fake_llm.enqueue(
         message.AssistantTextDelta(content="still running"),

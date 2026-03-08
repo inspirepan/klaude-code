@@ -30,6 +30,7 @@ class SessionSummary:
     created_at: float
     updated_at: float
     work_dir: str
+    title: str | None
     user_messages: list[str]
     messages_count: int
     model_name: str | None
@@ -57,6 +58,7 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
             updated_at = float(data.get("updated_at", created_at))
         except (TypeError, ValueError):
             updated_at = created_at
+        title = data.get("title") if isinstance(data.get("title"), str) else None
 
         user_messages_raw = data.get("user_messages")
         user_messages: list[str] = []
@@ -85,6 +87,7 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
                 created_at=created_at,
                 updated_at=updated_at,
                 work_dir=work_dir,
+                title=title,
                 user_messages=user_messages,
                 messages_count=messages_count,
                 model_name=model_name,
@@ -130,6 +133,24 @@ def read_session_user_messages(home: Path, session_ids: set[str]) -> dict[str, l
                 if isinstance(msg, str):
                     user_messages.append(msg)
         result[sid] = user_messages
+        if len(result) == len(session_ids):
+            break
+    return result
+
+
+def read_session_titles(home: Path, session_ids: set[str]) -> dict[str, str | None]:
+    """Read title from meta.json for the given session IDs."""
+    if not session_ids:
+        return {}
+    result: dict[str, str | None] = {}
+    for meta_path in _iter_meta_files(home):
+        data = _read_json_dict(meta_path)
+        if data is None or data.get("deleted_at") is not None:
+            continue
+        sid = str(data.get("id", meta_path.parent.name))
+        if sid not in session_ids:
+            continue
+        result[sid] = data.get("title") if isinstance(data.get("title"), str) else None
         if len(result) == len(session_ids):
             break
     return result

@@ -374,7 +374,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             return await _collect_interaction_response(request_event)
 
     def _on_model_change(model_name: str) -> None:
-        update_terminal_title(model_name)
         tui_display.set_model_name(model_name)
 
     components = await initialize_app_components(

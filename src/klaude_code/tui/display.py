@@ -11,6 +11,7 @@ from klaude_code.protocol import events
 from klaude_code.tui.machine import DisplayStateMachine
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.terminal.notifier import Notification, NotificationType, TerminalNotifier
+from klaude_code.tui.terminal.title import update_terminal_title
 
 
 class TUIDisplay(DisplayABC):
@@ -124,6 +125,11 @@ class TUIDisplay(DisplayABC):
     def set_model_name(self, model_name: str | None) -> None:
         """Set model name for terminal title updates."""
         self._machine.set_model_name(model_name)
+        update_terminal_title(
+            model_name,
+            prefix=self._machine.terminal_title_prefix,
+            session_title=self._machine.session_title,
+        )
 
     def notify_ask_user_question(self, *, question_count: int) -> None:
         if question_count <= 0:

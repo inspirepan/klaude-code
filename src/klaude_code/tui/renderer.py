@@ -980,8 +980,8 @@ class TUICommandRenderer:
                     r_status.set_task_start()
                 case TaskClockClear():
                     r_status.clear_task_start()
-                case UpdateTerminalTitlePrefix(prefix=prefix, model_name=model_name):
-                    update_terminal_title(model_name, prefix=prefix)
+                case UpdateTerminalTitlePrefix(prefix=prefix, model_name=model_name, session_title=session_title):
+                    update_terminal_title(model_name, prefix=prefix, session_title=session_title)
                 case _:
                     continue
 

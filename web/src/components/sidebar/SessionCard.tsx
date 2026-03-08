@@ -28,6 +28,10 @@ function UnreadCompletionDot(): JSX.Element {
 }
 
 function getSessionTitle(session: SessionSummary): string {
+  const generatedTitle = session.title?.trim();
+  if (generatedTitle !== undefined && generatedTitle.length > 0) {
+    return generatedTitle;
+  }
   const firstMessage = session.user_messages[0]?.trim();
   if (firstMessage !== undefined && firstMessage.length > 0) {
     return firstMessage;

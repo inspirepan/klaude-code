@@ -82,6 +82,21 @@ klaude
 
 On first run, you'll be prompted to select a model. Your choice is saved as `main_model`.
 
+You can also configure fallback lists for helper models:
+
+```yaml
+fast_model:
+  - haiku
+  - gemini-flash
+  - gpt-5-nano
+
+compact_model:
+  - gemini-flash
+  - haiku
+```
+
+Klaude tries these entries in order and uses the first available model. `fast_model` is used for session-title generation; `compact_model` is used for compact/helper tasks.
+
 #### Built-in Providers
 
 | Provider         | Env Variable                                                                 | Models                                                                                                   |
@@ -154,6 +169,17 @@ You can add custom models to built-in providers or define new ones. Configuratio
 
 ```yaml
 # ~/.klaude/klaude-config.yaml
+main_model: opus
+
+fast_model:
+  - haiku
+  - gemini-flash
+  - gpt-5-nano
+
+compact_model:
+  - gemini-flash
+  - haiku
+
 provider_list:
   # Add/Override models for built-in OpenRouter provider
   - provider_name: openrouter
@@ -183,6 +209,7 @@ provider_list:
 - **Merging**: If `provider_name` matches a built-in provider, settings like `protocol` and `api_key` are inherited.
 - **Overriding**: Use the same `model_name` as a built-in model to override its parameters.
 - **Environment Variables**: Use `${VAR_NAME}` syntax for secrets.
+- **Model Preference Lists**: `fast_model` and `compact_model` accept either a single string or a list of model selectors. When you provide a list, Klaude tries them in order and picks the first available one.
 
 ##### Sub-agent Model Configuration
 

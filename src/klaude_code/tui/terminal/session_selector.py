@@ -22,6 +22,8 @@ def select_session_sync(session_ids: list[str] | None = None) -> str | None:
         display_msgs = format_user_messages_display(opt.user_messages)
         title: list[tuple[str, str]] = []
         title.append(("fg:ansibrightblack", f"{idx:2}. "))
+        if opt.title:
+            title.append(("fg:ansicyan bold", f"{opt.title} "))
         title.append(("class:meta", f"{opt.relative_time} · {opt.messages_count} · {opt.model_name}"))
         title.append(("fg:ansibrightblack dim", f" · {opt.session_id}\n"))
         for i, msg in enumerate(display_msgs):
@@ -34,7 +36,7 @@ def select_session_sync(session_ids: list[str] | None = None) -> str | None:
                 title.append(("class:msg", f"{msg}\n"))
         title.append(("", "\n"))
 
-        search_text = " ".join(opt.user_messages) + f" {opt.model_name} {opt.session_id}"
+        search_text = " ".join(opt.user_messages) + f" {opt.title or ''} {opt.model_name} {opt.session_id}"
         items.append(
             SelectItem(
                 title=title,
