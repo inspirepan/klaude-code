@@ -414,7 +414,7 @@ def render_ask_user_question_summary(ui_extra: model.AskUserQuestionSummaryUIExt
 
     grid = create_grid(overflow="fold")
     for item in ui_extra.items:
-        grid.add_row(Text(""), Text("---"))
+        grid.add_row(Text(""), Text("---", style=ThemeKey.LINES))
         grid.add_row(
             Text("●", style=ThemeKey.TOOL_RESULT_QUESTION_PROMPT),
             Text(

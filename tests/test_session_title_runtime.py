@@ -13,10 +13,9 @@ from klaude_code.config.config import Config, ModelConfig, ProviderConfig
 from klaude_code.core.agent.runtime import (
     AgentOperationHandler,
     LLMClients,
-    _generate_session_title,
-    _normalize_session_title,
     build_llm_clients,
 )
+from klaude_code.core.agent.session_title import _normalize_session_title, generate_session_title
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import llm_param, message
 from klaude_code.session.session import Session
@@ -63,27 +62,27 @@ def test_generate_session_title_uses_only_user_messages() -> None:
     client = _FakeLLMClient(
         [
             message.AssistantMessage(
-                parts=[message.TextPart(text='  "Session titles | Refine prompts"  ')], stop_reason="stop"
+                parts=[message.TextPart(text='  "Session titles — Refine prompts"  ')], stop_reason="stop"
             )
         ]
     )
 
     title = asyncio.run(
-        _generate_session_title(
+        generate_session_title(
             llm_client=client,
             user_messages=["first request", "latest request about src/app.py"],
             previous_title="Existing title",
         )
     )
 
-    assert title == "Session titles | Refine prompts"
+    assert title == "Session titles — Refine prompts"
     assert len(client.calls) == 1
     rendered = message.join_text_parts(client.calls[0].input[0].parts)
     assert "<previous_user_messages>" in rendered
     assert "<current_user_message>" in rendered
     assert "first request" in rendered
     assert "latest request about src/app.py" in rendered
-    assert "output exactly in the format: overall topic | current task" in rendered.lower()
+    assert "output exactly in the format: overall topic — current task" in rendered.lower()
     assert "overall topic should summarize the main theme of the whole conversation" in rendered.lower()
     assert "current task should summarize what the latest user message is currently trying to do" in rendered.lower()
     assert "prefer the main substantive task/topic of the current user message" in rendered.lower()
@@ -100,7 +99,7 @@ def test_generate_session_title_uses_only_user_messages() -> None:
 
 
 def test_normalize_session_title_canonicalizes_separator() -> None:
-    assert _normalize_session_title('  "Session titles | Refine prompts"  ') == "Session titles | Refine prompts"
+    assert _normalize_session_title('  "Session titles | Refine prompts"  ') == "Session titles — Refine prompts"
 
 
 def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.MonkeyPatch) -> None:
