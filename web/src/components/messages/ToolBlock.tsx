@@ -20,6 +20,7 @@ import {
 
 const PLAN_TOOLS = new Set(["TodoWrite", "update_plan"]);
 const FILE_PATH_TOOLS = new Set(["Read", "Edit", "Write", "Glob", "Grep"]);
+const DEFAULT_EXPANDED_TOOLS = new Set(["apply_patch", "Edit", "Write"]);
 
 function extractHeaderDetail(toolName: string, args: string): string {
   try {
@@ -91,6 +92,7 @@ function hasDiffUIExtra(extra: Record<string, unknown>): boolean {
 function shouldExpandResult(item: ToolBlockItem): boolean {
   if (item.resultStatus === "error") return false;
   if (item.uiExtra !== null && hasRichUIExtra(item.uiExtra)) return true;
+  if (DEFAULT_EXPANDED_TOOLS.has(item.toolName)) return true;
   if (item.toolName === "Read") return false;
   return false;
 }
