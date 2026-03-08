@@ -15,7 +15,7 @@ Options:
   --base <branch>         Base branch (default: main)
   --remote <remote>       Git remote (default: origin)
   --label <label>         PR label (default: klaude)
-  --jj-rev <rev>          Revision for jj bookmark (default: auto, prefer @ then @-)
+  --jj-rev <rev>          Revision for jj bookmark (default: auto, skip empty working-copy commits)
   -h, --help              Show this help
 
 Push reviewed changes and create a PR via gh. Auto-detects jj/git mode.
@@ -25,6 +25,21 @@ EOF
 die() {
   echo "Error: $*" >&2
   exit 1
+}
+
+jj_resolve_commit_id() {
+  local rev="$1"
+  jj log -r "$rev" --no-graph --template 'commit_id'
+}
+
+jj_is_empty_rev() {
+  local rev="$1"
+  jj log -r "$rev" --no-graph --template 'empty'
+}
+
+jj_first_line_description() {
+  local rev="$1"
+  jj log -r "$rev" --no-graph --template 'description.first_line()'
 }
 
 title=""
@@ -148,27 +163,52 @@ if [[ "$mode" == "jj" ]]; then
     compare_rev="$(jj log -r "$jj_rev" --no-graph --template 'commit_id')" || die "Failed to resolve jj revision '$jj_rev'."
     compare_ref="$jj_rev"
     commits="$(git log --oneline "$base_ref..$compare_rev")" || die "Failed to list commits from '$base_ref..$compare_ref'."
+    [[ "$(jj_is_empty_rev "$jj_rev")" != "true" ]] || die "jj revision '$jj_rev' is empty.
+Fix: pass a non-empty revision such as the nearest non-empty ancestor (for example '@--'), or describe the actual change commit before retrying."
   else
-    compare_rev="$(jj log -r "@" --no-graph --template 'commit_id')" || die "Failed to resolve jj revision '@'."
-    compare_ref="@"
-    jj_rev="@"
-    commits="$(git log --oneline "$base_ref..$compare_rev" 2>/dev/null || true)"
-
-    if [[ -z "$commits" ]]; then
-      compare_rev="$(jj log -r "@-" --no-graph --template 'commit_id' 2>/dev/null || true)"
-      compare_ref="@-"
-      jj_rev="@-"
-      if [[ -n "$compare_rev" ]]; then
-        commits="$(git log --oneline "$base_ref..$compare_rev" 2>/dev/null || true)"
+    candidate_ref="@"
+    skipped_empty_count=0
+    selected_non_default=0
+    search_depth=0
+    max_search_depth=32
+    while [[ "$search_depth" -lt "$max_search_depth" ]]; do
+      compare_ref="$candidate_ref"
+      compare_rev="$(jj_resolve_commit_id "$candidate_ref" 2>/dev/null || true)"
+      if [[ -z "$compare_rev" ]]; then
+        break
       fi
-      if [[ -n "$commits" ]]; then
-        echo "Info: auto-selected jj revision '@-' for PR (current '@' has no commits ahead of '$base_ref')." >&2
+
+      commits="$(git log --oneline "$base_ref..$compare_rev" 2>/dev/null || true)"
+      if [[ -z "$commits" ]]; then
+        candidate_ref+="-"
+        selected_non_default=1
+        search_depth=$((search_depth + 1))
+        continue
+      fi
+
+      if [[ "$(jj_is_empty_rev "$candidate_ref")" == "true" ]]; then
+        candidate_ref+="-"
+        skipped_empty_count=$((skipped_empty_count + 1))
+        selected_non_default=1
+        search_depth=$((search_depth + 1))
+        continue
+      fi
+
+      compare_ref="$candidate_ref"
+      jj_rev="$candidate_ref"
+      break
+    done
+
+    if [[ -n "$commits" && "$selected_non_default" -eq 1 ]]; then
+      if [[ "$skipped_empty_count" -gt 0 ]]; then
+        echo "Info: auto-selected jj revision '$jj_rev' for PR (skipped $skipped_empty_count empty working-copy commit(s))." >&2
+      else
+        echo "Info: auto-selected jj revision '$jj_rev' for PR (newer revisions have no commits ahead of '$base_ref')." >&2
       fi
     fi
 
-    if [[ -z "$commits" ]]; then
-      compare_ref="@"
-      jj_rev="@"
+    if [[ -z "$jj_rev" ]]; then
+      commits=""
     fi
   fi
 else
@@ -177,6 +217,12 @@ fi
 if [[ -z "$commits" ]]; then
   die "No commits ahead of '$base_ref' at '$compare_ref'. Refusing to create empty PR.
 Fix: ensure changes are committed before running this script."
+fi
+
+if [[ "$mode" == "jj" ]]; then
+  jj_description="$(jj_first_line_description "$jj_rev")" || die "Failed to read description for jj revision '$jj_rev'."
+  [[ -n "${jj_description// }" ]] || die "Selected jj revision '$jj_rev' has no description.
+Fix: run 'jj describe -r $jj_rev -m <description>' and retry, or pass --jj-rev <rev> for the described change commit."
 fi
 
 # --- Push ---
