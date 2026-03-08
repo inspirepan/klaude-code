@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import {
-  ChevronRight,
-  CircleHelp,
-  Lock,
-  PanelLeftOpen,
-  PanelRightOpen,
-  RefreshCw,
-} from "lucide-react";
+import { ChevronRight, Lock, PanelLeftOpen, PanelRightOpen, RefreshCw } from "lucide-react";
 
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
@@ -17,7 +10,7 @@ import type {
   ItemTimestamp,
   AssistantTextItem,
 } from "../../types/message";
-import type { SessionRuntimeState, SessionSummary } from "../../types/session";
+import type { SessionSummary } from "../../types/session";
 import { MessageItem } from "./MessageItem";
 import { SearchBar } from "./SearchBar";
 import { SearchProvider, type SearchState } from "./search-context";
@@ -57,6 +50,18 @@ function getSessionTitle(session: SessionSummary | null): string {
     return firstMessage;
   }
   return "New session";
+}
+
+function splitSessionTitle(title: string): { primary: string; secondary: string | null } {
+  const separator = " — ";
+  const separatorIndex = title.indexOf(separator);
+  if (separatorIndex === -1) {
+    return { primary: title, secondary: null };
+  }
+  return {
+    primary: title.slice(0, separatorIndex),
+    secondary: title.slice(separatorIndex + separator.length),
+  };
 }
 
 interface SectionItemBlock {
@@ -153,13 +158,6 @@ function getSessionActivityText(status: SessionStatusState | null): string | nul
           : status.taskActive
             ? "Running …"
             : null;
-}
-
-function getRuntimeActivityText(runtime: SessionRuntimeState | null): string | null {
-  if (runtime === null) return null;
-  if (runtime.sessionState === "waiting_user_input") return "Waiting for input …";
-  if (runtime.sessionState === "running") return "Running …";
-  return null;
 }
 
 function getSessionSummaryParts(status: SessionStatusState | null, nowSeconds: number): string[] {
@@ -308,7 +306,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   );
   const [subAgentMetaOpen, setSubAgentMetaOpen] = useState<Record<string, boolean>>({});
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [metaOpen, setMetaOpen] = useState(false);
   const copyTimerRef = useRef(0);
 
   const session = useMemo(
@@ -316,6 +313,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     [groups, sessionId],
   );
   const sessionTitle = useMemo(() => getSessionTitle(session), [session]);
+  const { primary: primaryTitle, secondary: secondaryTitle } = useMemo(
+    () => splitSessionTitle(sessionTitle),
+    [sessionTitle],
+  );
   const workspacePath = session?.work_dir ?? "";
   const sessionReadOnly = session?.read_only === true;
 
@@ -424,13 +425,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       runtime?.sessionState === "waiting_user_input",
     [runtime?.sessionState, statusBySessionId],
   );
-  const hasExecutingStatus = useMemo(
-    () =>
-      Object.values(statusBySessionId).some((status) => status.taskActive || status.compacting) ||
-      runtime?.sessionState === "running",
-    [runtime?.sessionState, statusBySessionId],
-  );
-
   useEffect(() => {
     if (!hasActiveStatus) return;
     setNowMs(Date.now());
@@ -589,12 +583,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const activeGroupId =
     activeItemId === null ? null : (subAgentGroupIdByItemId.get(activeItemId) ?? null);
   const nowSeconds = nowMs / 1000;
-  const mainSessionStatus = statusBySessionId[sessionId] ?? null;
-  const mainActivityText =
-    getSessionActivityText(mainSessionStatus) ?? getRuntimeActivityText(runtime);
-  const mainSummaryParts = getSessionSummaryParts(mainSessionStatus, nowSeconds);
-  const mainMetaRows = getSessionMetaRows(mainSessionStatus, nowSeconds);
-  const inlineStatusLabel = hasExecutingStatus ? (mainActivityText ?? "Running …") : null;
 
   return (
     <SearchProvider value={searchState}>
@@ -626,9 +614,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           ) : null}
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-baseline gap-2 text-[14px] leading-5">
-              <span className="truncate font-semibold text-neutral-800" title={sessionTitle}>
-                {sessionTitle}
+              <span className="truncate font-semibold text-neutral-800" title={primaryTitle}>
+                {primaryTitle}
               </span>
+              {secondaryTitle ? (
+                <span className="truncate text-neutral-500" title={secondaryTitle}>
+                  {secondaryTitle}
+                </span>
+              ) : null}
               {sessionReadOnly ? (
                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
                   <Lock className="h-3 w-3" />
@@ -637,7 +630,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
               ) : null}
               {workspacePath ? (
                 <span
-                  className="truncate font-mono text-[14px] leading-5 text-neutral-400"
+                  className="truncate font-sans text-[14px] leading-5 text-neutral-400"
                   title={workspacePath}
                 >
                   {workspacePath}
@@ -1058,17 +1051,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                     })}
                   </div>
                 ))}
-                {inlineStatusLabel ? (
-                  <div className="flex min-w-0 gap-4">
-                    <div className="flex min-w-0 flex-1 items-center gap-2.5 px-1 text-neutral-500">
-                      <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-[1.5px] border-neutral-300 border-t-neutral-500" />
-                      <span className="truncate font-mono text-[13px] font-medium">
-                        {inlineStatusLabel}
-                      </span>
-                    </div>
-                    <div className="hidden w-[112px] shrink-0 sm:block" />
-                  </div>
-                ) : null}
                 <div ref={bottomRef} />
               </>
             ) : runtime?.wsState === "connecting" ? (
@@ -1087,52 +1069,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             )}
           </div>
         </div>
-
-        {mainSummaryParts.length > 0 || mainMetaRows.length > 0 ? (
-          <div className="pointer-events-none absolute bottom-3 left-0 right-0 z-10">
-            <div className="mx-auto flex max-w-4xl justify-end px-4 sm:px-6">
-              <div className="pointer-events-auto flex items-center gap-2 text-neutral-400">
-                {mainSummaryParts.length > 0 ? (
-                  <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 font-mono text-[12px]">
-                    {mainSummaryParts.map((part) => (
-                      <span key={part}>{part}</span>
-                    ))}
-                  </div>
-                ) : null}
-                {mainMetaRows.length > 0 ? (
-                  <div
-                    className="relative"
-                    onMouseEnter={() => setMetaOpen(true)}
-                    onMouseLeave={() => setMetaOpen(false)}
-                  >
-                    <button
-                      type="button"
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-                      aria-label="Show session metadata"
-                      onClick={() => setMetaOpen((current) => !current)}
-                    >
-                      <CircleHelp className="h-3.5 w-3.5" />
-                    </button>
-                    {metaOpen ? (
-                      <div className="absolute bottom-full right-0 z-20 mb-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
-                        <div className="space-y-1.5 text-[12px] leading-5">
-                          {mainMetaRows.map((row) => (
-                            <div key={row.label} className="flex items-start justify-between gap-4">
-                              <span className="text-neutral-400">{row.label}</span>
-                              <span className="text-right font-mono text-neutral-600">
-                                {row.value}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        ) : null}
       </div>
     </SearchProvider>
   );

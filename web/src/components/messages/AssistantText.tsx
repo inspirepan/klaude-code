@@ -14,7 +14,7 @@ interface AssistantTextProps {
 }
 
 const plugins = { code, mermaid };
-const STREAM_THROTTLE_MS = 48;
+const STREAM_REFRESH_INTERVAL_MS = 200;
 
 export function AssistantText({ item, compact = false }: AssistantTextProps): JSX.Element {
   const [displayContent, setDisplayContent] = useState(item.content);
@@ -32,7 +32,8 @@ export function AssistantText({ item, compact = false }: AssistantTextProps): JS
       setDisplayContent((current) =>
         current === pendingContentRef.current ? current : pendingContentRef.current,
       );
-    }, STREAM_THROTTLE_MS);
+    }, STREAM_REFRESH_INTERVAL_MS);
+
     return () => {
       window.clearInterval(timer);
     };
