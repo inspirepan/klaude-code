@@ -62,7 +62,7 @@ export function SearchBar({
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder="Search..."
+          placeholder="Search…"
           className="w-48 bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-300"
         />
         {value ? (

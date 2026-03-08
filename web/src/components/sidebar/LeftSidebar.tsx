@@ -10,6 +10,7 @@ export function LeftSidebar(): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
   const collapsedByWorkDir = useSessionStore((state) => state.collapsedByWorkDir);
   const runtimeBySessionId = useSessionStore((state) => state.runtimeBySessionId);
+  const completedUnreadBySessionId = useSessionStore((state) => state.completedUnreadBySessionId);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const loading = useSessionStore((state) => state.loading);
   const loadError = useSessionStore((state) => state.loadError);
@@ -68,7 +69,8 @@ export function LeftSidebar(): JSX.Element {
           ...group,
           sessions: group.sessions.filter((session) => !session.archived),
         }))
-        .filter((group) => group.sessions.length > 0),
+        .filter((group) => group.sessions.length > 0)
+        .sort((a, b) => a.work_dir.localeCompare(b.work_dir)),
     [groups],
   );
 
@@ -80,7 +82,7 @@ export function LeftSidebar(): JSX.Element {
           sessions: group.sessions.filter((session) => session.archived),
         }))
         .filter((group) => group.sessions.length > 0)
-        .sort((a, b) => (b.sessions[0]?.updated_at ?? 0) - (a.sessions[0]?.updated_at ?? 0)),
+        .sort((a, b) => a.work_dir.localeCompare(b.work_dir)),
     [groups],
   );
 
@@ -90,7 +92,7 @@ export function LeftSidebar(): JSX.Element {
   );
 
   return (
-    <aside className="flex w-[260px] min-w-[260px] flex-col border-r border-neutral-200 bg-neutral-50">
+    <aside className="flex w-[312px] min-w-[312px] flex-col border-r border-neutral-200 bg-neutral-50">
       <div className="flex items-center gap-2 px-3 py-2">
         <div className="flex-1">
           <NewSessionButton onClick={selectDraft} />
@@ -146,14 +148,14 @@ export function LeftSidebar(): JSX.Element {
           {loadError === null && loading && groups.length === 0 ? (
             <div className="flex items-center gap-2 px-2 py-2 text-neutral-500">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-500" />
-              <span className="text-[13px] font-medium">Loading...</span>
+              <span className="text-[12px] font-semibold">Loading…</span>
             </div>
           ) : null}
 
           {loadError === null && !loading && groups.length === 0 ? (
             <div className="px-2 py-2 text-neutral-500">
-              <div className="text-[13px] font-medium">No sessions yet</div>
-              <div className="mt-0.5 text-[12px]">Click "New Agent" above to start</div>
+              <div className="text-[12px] font-semibold">No sessions yet</div>
+              <div className="mt-0.5 text-[11px]">Click "New Agent" above to start</div>
             </div>
           ) : null}
 
@@ -165,6 +167,7 @@ export function LeftSidebar(): JSX.Element {
               collapsed={collapsedByWorkDir[group.work_dir] ?? false}
               activeSessionId={activeSessionId}
               runtimeBySessionId={runtimeBySessionId}
+              completedUnreadBySessionId={completedUnreadBySessionId}
               onToggle={() => {
                 toggleGroup(group.work_dir);
               }}
@@ -192,6 +195,7 @@ export function LeftSidebar(): JSX.Element {
                     collapsed={archivedCollapsedByWorkDir[group.work_dir] ?? false}
                     activeSessionId={activeSessionId}
                     runtimeBySessionId={runtimeBySessionId}
+                    completedUnreadBySessionId={completedUnreadBySessionId}
                     onToggle={() => {
                       setArchivedCollapsedByWorkDir((prev) => ({
                         ...prev,
@@ -209,7 +213,7 @@ export function LeftSidebar(): JSX.Element {
               </div>
             </ScrollArea>
           ) : (
-            <div className="px-2 py-1 text-[12px] text-neutral-400">No archived sessions</div>
+            <div className="px-2 py-1 text-[11px] text-neutral-400">No archived sessions</div>
           )
         ) : null}
 
@@ -226,8 +230,8 @@ export function LeftSidebar(): JSX.Element {
             ) : (
               <ChevronRight className="h-4 w-4 shrink-0" />
             )}
-            <span className="flex-1 text-left text-[13px]">Archived</span>
-            <span className="text-[12px] text-neutral-400">{archivedSessionCount}</span>
+            <span className="flex-1 text-left text-[12px]">Archived</span>
+            <span className="text-[11px] text-neutral-400">{archivedSessionCount}</span>
           </button>
         </div>
       </div>

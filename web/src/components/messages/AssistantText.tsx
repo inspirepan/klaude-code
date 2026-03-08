@@ -3,7 +3,8 @@ import { code } from "@streamdown/code";
 
 import type { AssistantTextItem } from "../../types/message";
 import { mermaid } from "../../lib/mermaid-plugin";
-import { useParsedFrontmatter, FrontmatterTable } from "./FrontmatterTable";
+import { FrontmatterTable } from "./FrontmatterTable";
+import { useParsedFrontmatter } from "./frontmatter";
 
 interface AssistantTextProps {
   item: AssistantTextItem;

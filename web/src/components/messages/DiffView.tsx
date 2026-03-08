@@ -3,6 +3,7 @@ import { PatchDiff } from "@pierre/diffs/react";
 import { DEFAULT_THEMES, preloadHighlighter } from "@pierre/diffs";
 
 import type { ToolBlockItem } from "../../types/message";
+import { isDiffUIExtra, type DiffUIExtra } from "./message-ui-extra";
 
 const SHADOW_ICON_CSS = `
 [data-diffs-header],
@@ -39,54 +40,26 @@ preloadHighlighter({
   langs: ["text", "ansi"],
 });
 
-interface DiffUIExtra {
-  type: "diff";
-  files: Array<{
-    file_path: string;
-    lines: Array<{
-      kind: "ctx" | "add" | "remove" | "gap";
-      new_line_no: number | null;
-      spans: Array<{ op: "equal" | "insert" | "delete"; text: string }>;
-    }>;
-    stats_add: number;
-    stats_remove: number;
-  }>;
-  raw_unified_diff: string | null;
-}
-
-export function isDiffUIExtra(extra: unknown): extra is DiffUIExtra {
-  return (
-    typeof extra === "object" && extra !== null && (extra as { type?: unknown }).type === "diff"
-  );
-}
-
 /**
  * Reconstruct a unified diff string from structured DiffUIExtra data.
  * Used as fallback when raw_unified_diff is not available.
  */
-function rebuildUnifiedDiff(data: DiffUIExtra): string {
-  const parts: string[] = [];
-  for (const file of data.files) {
-    parts.push(`--- a/${file.file_path}`);
-    parts.push(`+++ b/${file.file_path}`);
-    // Emit a single hunk header covering all lines
-    parts.push(`@@ -1 +1 @@`);
-    for (const line of file.lines) {
-      const text = line.spans.map((s) => s.text).join("");
-      switch (line.kind) {
-        case "ctx":
-          parts.push(` ${text}`);
-          break;
-        case "add":
-          parts.push(`+${text}`);
-          break;
-        case "remove":
-          parts.push(`-${text}`);
-          break;
-        case "gap":
-          // Skip gap markers
-          break;
-      }
+function rebuildSingleFileUnifiedDiff(file: DiffUIExtra["files"][number]): string {
+  const parts = [`--- a/${file.file_path}`, `+++ b/${file.file_path}`, "@@ -1 +1 @@"];
+  for (const line of file.lines) {
+    const text = line.spans.map((s) => s.text).join("");
+    switch (line.kind) {
+      case "ctx":
+        parts.push(` ${text}`);
+        break;
+      case "add":
+        parts.push(`+${text}`);
+        break;
+      case "remove":
+        parts.push(`-${text}`);
+        break;
+      case "gap":
+        break;
     }
   }
   return parts.join("\n");
@@ -116,28 +89,41 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
     }
   });
 
-  const patch = useMemo(() => {
+  const patches = useMemo(() => {
     if (!extra) return null;
-    if (extra.raw_unified_diff) return extra.raw_unified_diff;
-    return rebuildUnifiedDiff(extra);
+    if (extra.files.length > 0) {
+      if (extra.files.length === 1 && extra.raw_unified_diff) {
+        return [extra.raw_unified_diff];
+      }
+      return extra.files.map(rebuildSingleFileUnifiedDiff);
+    }
+    if (extra.raw_unified_diff) {
+      return [extra.raw_unified_diff];
+    }
+    return null;
   }, [extra]);
 
-  if (!extra || patch === null) return null;
+  if (!extra || patches === null) return null;
 
   return (
     <div className="diff-view" ref={containerRef}>
-      <PatchDiff
-        patch={patch}
-        options={{
-          theme: "github-light",
-          themeType: "light",
-          overflow: "wrap",
-          diffStyle: "unified",
-          diffIndicators: "bars",
-          lineDiffType: "word",
-          hunkSeparators: "simple",
-        }}
-      />
+      <div className="flex flex-col">
+        {patches.map((patch, index) => (
+          <PatchDiff
+            key={`${item.id}-${index}`}
+            patch={patch}
+            options={{
+              theme: "github-light",
+              themeType: "light",
+              overflow: "wrap",
+              diffStyle: "unified",
+              diffIndicators: "bars",
+              lineDiffType: "word",
+              hunkSeparators: "simple",
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }

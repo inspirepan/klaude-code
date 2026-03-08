@@ -29,7 +29,7 @@ export function TaskWorked({ item, compact = false }: TaskWorkedProps): JSX.Elem
 
   return (
     <div
-      className={`inline-flex items-center gap-1.5 ${compact ? "text-[13px]" : "text-sm"} tracking-[0.03em] text-emerald-700`}
+      className={`inline-flex items-center gap-1.5 ${compact ? "text-[13px]" : "text-sm"} text-emerald-700`}
     >
       <Check className="h-3.5 w-3.5" strokeWidth={2.25} />
       <span>

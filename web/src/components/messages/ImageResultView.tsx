@@ -1,15 +1,5 @@
 import { buildFileApiUrl } from "../../api/client";
-
-interface ImageUIExtra {
-  type: "image";
-  file_path: string;
-}
-
-export function isImageUIExtra(extra: unknown): extra is ImageUIExtra {
-  if (typeof extra !== "object" || extra === null) return false;
-  const record = extra as Record<string, unknown>;
-  return record.type === "image" && typeof record.file_path === "string";
-}
+import type { ImageUIExtra } from "./message-ui-extra";
 
 interface ImageResultViewProps {
   uiExtra: ImageUIExtra;

@@ -15,7 +15,7 @@ export const mermaid = {
         bg: "#ffffff",
         fg: "#262626",
         transparent: true,
-        font: "IBM Plex Sans, system-ui, sans-serif",
+        font: "TX-02, ui-monospace, monospace",
         padding: 24,
       }),
     }),

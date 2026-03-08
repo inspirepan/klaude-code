@@ -4,12 +4,19 @@ import { ChevronRight, Loader2 } from "lucide-react";
 import type { ToolBlockItem } from "../../types/message";
 import { useSearch } from "./search-context";
 import { HighlightText } from "./HighlightText";
-import { DiffView, isDiffUIExtra } from "./DiffView";
+import { DiffView } from "./DiffView";
 import { FilePath } from "./FilePath";
-import { TodoListView, isTodoListUIExtra } from "./TodoListView";
-import { MarkdownDocView, isMarkdownDocUIExtra } from "./MarkdownDocView";
-import { QuestionSummaryView, isQuestionSummaryUIExtra } from "./QuestionSummaryView";
-import { ImageResultView, isImageUIExtra } from "./ImageResultView";
+import { TodoListView } from "./TodoListView";
+import { MarkdownDocView } from "./MarkdownDocView";
+import { QuestionSummaryView } from "./QuestionSummaryView";
+import { ImageResultView } from "./ImageResultView";
+import {
+  isDiffUIExtra,
+  isImageUIExtra,
+  isMarkdownDocUIExtra,
+  isQuestionSummaryUIExtra,
+  isTodoListUIExtra,
+} from "./message-ui-extra";
 
 const PLAN_TOOLS = new Set(["TodoWrite", "update_plan"]);
 const FILE_PATH_TOOLS = new Set(["Read", "Edit", "Write", "Glob", "Grep"]);
@@ -188,7 +195,7 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
           className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}
         >
           <Loader2 className="h-3 w-3 animate-spin" />
-          <span>Planning...</span>
+          <span>Planning…</span>
         </div>
       ) : null}
     </div>
@@ -210,7 +217,7 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
           className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}
         >
           <Loader2 className="h-3 w-3 animate-spin" />
-          <span>Waiting for answer...</span>
+          <span>Waiting for answer…</span>
         </div>
       ) : null}
     </div>
@@ -278,7 +285,7 @@ export function ToolBlock({ item, compact = false }: ToolBlockProps): JSX.Elemen
           />
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
-        <span className="whitespace-nowrap font-sans font-normal tracking-[0.03em] text-neutral-500">
+        <span className="whitespace-nowrap font-sans font-normal text-neutral-500">
           {item.toolName}
         </span>
         {item.isStreaming ? (
@@ -315,7 +322,9 @@ export function ToolBlock({ item, compact = false }: ToolBlockProps): JSX.Elemen
           </div>
           <div className="min-w-0">
             {hasRich ? (
-              <RichResult item={item} compact={compact} />
+              <div onClick={(e) => e.stopPropagation()}>
+                <RichResult item={item} compact={compact} />
+              </div>
             ) : hasResult ? (
               (() => {
                 const lines = item.result!.split("\n");

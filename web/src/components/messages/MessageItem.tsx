@@ -16,7 +16,7 @@ interface MessageItemProps {
 export function MessageItem({ item, compact = false }: MessageItemProps): JSX.Element {
   switch (item.type) {
     case "user_message":
-      return <UserMessage item={item} compact={compact} />;
+      return <UserMessage key={item.id} item={item} compact={compact} />;
     case "thinking":
       return <ThinkingBlock item={item} />;
     case "assistant_text":

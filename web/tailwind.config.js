@@ -12,7 +12,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["IBM Plex Sans", ...defaultTheme.fontFamily.sans],
+        sans: ["TX-02", ...defaultTheme.fontFamily.sans],
         mono: ["TX-02", ...defaultTheme.fontFamily.mono],
       },
       borderRadius: {
