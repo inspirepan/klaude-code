@@ -66,6 +66,7 @@ def test_generate_session_title_uses_only_user_messages() -> None:
         _generate_session_title(
             llm_client=client,
             user_messages=["first request", "latest request about src/app.py"],
+            previous_title="Existing title",
         )
     )
 
@@ -79,6 +80,10 @@ def test_generate_session_title_uses_only_user_messages() -> None:
     assert "prefer the main substantive task/topic of the current user message" in rendered.lower()
     assert "workflow or administrative follow-up" in rendered.lower()
     assert "reflect user intent, not internal tool usage or skill execution" in rendered.lower()
+    assert "reuse that previous title exactly" in rendered.lower()
+    assert "prefer a short imperative phrase when natural" in rendered.lower()
+    assert "<previous_title>" in rendered
+    assert "Existing title" in rendered
     assert "assistant" not in rendered.lower()
     assert client.calls[0].system is not None
     assert "same language" in client.calls[0].system.lower()
@@ -156,7 +161,11 @@ def test_refresh_session_title_prefers_fast_client(tmp_path: Path, isolated_home
         )
 
         await session.wait_for_flush()
-        await handler._refresh_session_title(session, user_messages_snapshot=list(session.user_messages))
+        await handler._refresh_session_title(
+            session,
+            user_messages_snapshot=list(session.user_messages),
+            previous_title_snapshot=None,
+        )
 
         assert len(fast_client.calls) == 1
         assert len(compact_client.calls) == 0
@@ -187,13 +196,18 @@ def test_schedule_session_title_refresh_runs_in_background(tmp_path: Path, isola
             request_user_interaction=_noop_request_user_interaction,
         )
         session = Session(work_dir=tmp_path)
-        session.append_history([message.UserMessage(parts=message.text_parts_from_str("分析一下 session 标题"))])
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("先分析 session 标题"))])
+        session.update_title("已有标题")
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("继续优化标题"))])
 
         started = asyncio.Event()
         release = asyncio.Event()
 
-        async def _fake_refresh(_session: Session, *, user_messages_snapshot: list[str]) -> None:
-            assert user_messages_snapshot == ["分析一下 session 标题"]
+        async def _fake_refresh(
+            _session: Session, *, user_messages_snapshot: list[str], previous_title_snapshot: str | None
+        ) -> None:
+            assert user_messages_snapshot == ["先分析 session 标题", "继续优化标题"]
+            assert previous_title_snapshot == "已有标题"
             started.set()
             await release.wait()
 

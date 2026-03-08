@@ -153,11 +153,21 @@ _SESSION_TITLE_SYSTEM_PROMPT = (
 _SESSION_TITLE_MAX_TOKENS = 1024
 
 
-def _build_session_title_input(user_messages: list[str]) -> list[message.Message]:
+def _build_session_title_input(user_messages: list[str], *, previous_title: str | None = None) -> list[message.Message]:
     current_user_message = user_messages[-1].strip()
     previous_user_messages = [msg.strip() for msg in user_messages[:-1] if msg.strip()]
     rendered_previous_messages = "\n\n".join(
         f"[{idx}] {msg}" for idx, msg in enumerate(previous_user_messages, start=1)
+    )
+    rendered_previous_title = previous_title.strip() if previous_title is not None else ""
+    previous_title_block = (
+        f"<previous_title>\n{rendered_previous_title}\n</previous_title>\n\n" if rendered_previous_title else ""
+    )
+    reuse_previous_title_instruction = (
+        "- if the session already has a previous title and the user's intent has not changed in a meaningful way, "
+        "reuse that previous title exactly\n"
+        if rendered_previous_title
+        else ""
     )
     return [
         message.UserMessage(
@@ -172,13 +182,15 @@ def _build_session_title_input(user_messages: list[str]) -> list[message.Message
                         "use previous user messages to infer the most relevant recent substantive task instead\n"
                         "- use previous user messages to resolve references, follow-ups, and wrap-up actions\n"
                         "- reflect user intent, not internal tool usage or skill execution\n"
+                        f"{reuse_previous_title_instruction}"
                         "- prefer 2-4 words; hard max 6 words\n"
-                        "- use a compact noun phrase, not a full sentence\n"
+                        "- prefer a short imperative phrase when natural; if that would be awkward, use a compact noun phrase instead\n"
                         "- omit filler words, politeness, and unnecessary verbs\n"
                         "- single line\n"
                         "- use the same language as the user's messages; do not translate\n"
                         "- keep important file paths or technologies only when central to the request\n"
                         "- choose the shortest title that still clearly distinguishes the session\n\n"
+                        f"{previous_title_block}"
                         f"<previous_user_messages>\n{rendered_previous_messages}\n</previous_user_messages>\n\n"
                         f"<current_user_message>\n{current_user_message}\n</current_user_message>"
                     )
@@ -195,10 +207,12 @@ def _normalize_session_title(raw: str) -> str | None:
     return title[:120]
 
 
-async def _generate_session_title(*, llm_client: LLMClientABC, user_messages: list[str]) -> str | None:
+async def _generate_session_title(
+    *, llm_client: LLMClientABC, user_messages: list[str], previous_title: str | None = None
+) -> str | None:
     if not user_messages:
         return None
-    title_input = _build_session_title_input(user_messages)
+    title_input = _build_session_title_input(user_messages, previous_title=previous_title)
     call_param = llm_param.LLMCallParameter(
         input=title_input,
         system=_SESSION_TITLE_SYSTEM_PROMPT,
@@ -724,7 +738,13 @@ class AgentOperationHandler:
         agent = await self.ensure_agent(session_id, work_dir=work_dir)
         self._primary_session_id = agent.session.id
 
-    async def _refresh_session_title(self, session: Session, *, user_messages_snapshot: list[str]) -> None:
+    async def _refresh_session_title(
+        self,
+        session: Session,
+        *,
+        user_messages_snapshot: list[str],
+        previous_title_snapshot: str | None,
+    ) -> None:
         session_clients = self.get_session_llm_clients(session.id)
         title_client = session_clients.fast or session_clients.main
         if session_clients.fast is None:
@@ -734,7 +754,11 @@ class AgentOperationHandler:
             )
 
         try:
-            title = await _generate_session_title(llm_client=title_client, user_messages=user_messages_snapshot)
+            title = await _generate_session_title(
+                llm_client=title_client,
+                user_messages=user_messages_snapshot,
+                previous_title=previous_title_snapshot,
+            )
         except asyncio.CancelledError:
             return
         except Exception as exc:
@@ -752,11 +776,18 @@ class AgentOperationHandler:
 
     def _schedule_session_title_refresh(self, session: Session) -> None:
         user_messages_snapshot = list(session.user_messages)
+        previous_title_snapshot = session.title if len(user_messages_snapshot) > 1 else None
         existing = self._title_refresh_tasks.get(session.id)
         if existing is not None and not existing.done():
             existing.cancel()
 
-        task = asyncio.create_task(self._refresh_session_title(session, user_messages_snapshot=user_messages_snapshot))
+        task = asyncio.create_task(
+            self._refresh_session_title(
+                session,
+                user_messages_snapshot=user_messages_snapshot,
+                previous_title_snapshot=previous_title_snapshot,
+            )
+        )
         self._title_refresh_tasks[session.id] = task
 
         def _cleanup(completed: asyncio.Task[None]) -> None:
