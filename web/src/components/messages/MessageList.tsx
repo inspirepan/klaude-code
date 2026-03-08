@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   ChevronRight,
   CircleHelp,
-  Loader2,
+  Loader,
   PanelLeftOpen,
   PanelRightOpen,
   RefreshCw,
@@ -843,11 +843,16 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                               return (
                                                 <div
                                                   key={toolItem.id}
-                                                  className="flex min-w-0 items-start gap-1.5 text-[12px]"
+                                                  className="flex min-w-0 items-baseline gap-1.5 text-[11px]"
                                                 >
-                                                  <span className="whitespace-nowrap font-sans text-neutral-500">
-                                                    {toolItem.toolName}
-                                                  </span>
+                                                  <div className="flex items-baseline gap-1">
+                                                    <span className="relative top-px whitespace-nowrap font-sans text-neutral-500">
+                                                      {toolItem.toolName}
+                                                    </span>
+                                                    {toolItem.isStreaming ? (
+                                                      <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-400" />
+                                                    ) : null}
+                                                  </div>
                                                   {detail ? (
                                                     <code className="min-w-0 max-w-full truncate rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-neutral-500">
                                                       {detail}
@@ -885,9 +890,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                             return (
                                               <div
                                                 key={toolItem.id}
-                                                className="flex min-w-0 items-start gap-1.5 text-[12px]"
+                                                className="flex min-w-0 items-baseline gap-1.5 text-[11px]"
                                               >
-                                                <span className="whitespace-nowrap font-sans text-neutral-500">
+                                                <span className="relative top-px whitespace-nowrap font-sans text-neutral-500">
                                                   {toolItem.toolName}
                                                 </span>
                                                 {detail ? (
@@ -1030,7 +1035,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
               </>
             ) : runtime?.wsState === "connecting" ? (
               <div className="flex min-h-[240px] items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin text-neutral-300" />
+                <Loader className="h-5 w-5 animate-spin text-neutral-300" />
               </div>
             ) : (
               <div className="flex min-h-[240px] items-center justify-center">
