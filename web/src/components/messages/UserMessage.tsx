@@ -115,7 +115,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
 
   return (
     <>
-      <div className="rounded-lg border border-neutral-200/80 bg-neutral-50 px-3.5 py-2.5 transition-colors hover:border-neutral-300/60 hover:bg-neutral-100">
+      <div className="rounded-[22px] bg-[rgb(229,243,255)] px-5 py-2.5 transition-colors hover:bg-[rgb(219,238,255)]">
         {renderImages()}
         {hasText ? (
           <div>
@@ -126,7 +126,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                   ? { maxHeight: `${collapsedTextMaxHeight}px`, overflow: "hidden" }
                   : undefined
               }
-              className={`${compact ? "text-[13px]" : "text-[14px]"} m-0 whitespace-pre-wrap break-words leading-relaxed text-neutral-800`}
+              className={`${compact ? "text-[13px]" : "text-[14px]"} m-0 whitespace-pre-wrap break-words leading-relaxed text-[rgb(0,40,77)]`}
             >
               <HighlightText>{normalizedContent}</HighlightText>
             </p>
@@ -158,7 +158,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                 <div className="max-h-[calc(100vh-8rem)] overflow-y-auto px-4 py-3">
                   {renderImages()}
                   <p
-                    className={`${compact ? "text-[13px]" : "text-[14px]"} m-0 whitespace-pre-wrap break-words leading-relaxed text-neutral-800`}
+                    className={`${compact ? "text-[13px]" : "text-[14px]"} m-0 whitespace-pre-wrap break-words leading-relaxed text-[rgb(0,40,77)]`}
                   >
                     <HighlightText>{normalizedContent}</HighlightText>
                   </p>
