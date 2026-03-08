@@ -165,7 +165,7 @@ def _build_session_title_input(user_messages: list[str], *, previous_title: str 
     )
     reuse_previous_title_instruction = (
         "- if the session already has a previous title and the user's intent has not changed in a meaningful way, "
-        "reuse that previous title exactly\n"
+        "prefer reusing its overall topic and only update the current task when needed\n"
         if rendered_previous_title
         else ""
     )
@@ -176,15 +176,19 @@ def _build_session_title_input(user_messages: list[str], *, previous_title: str 
                     text=(
                         "Generate a very short session title.\n"
                         "Requirements:\n"
+                        "- output exactly in the format: overall topic | current task\n"
+                        "- overall topic should summarize the main theme of the whole conversation and stay stable across follow-ups\n"
+                        "- current task should summarize what the latest user message is currently trying to do\n"
                         "- prefer the main substantive task/topic of the current user message\n"
                         "- if the current user message is mainly a workflow or administrative follow-up "
                         "(for example: commit, open PR, run tests, continue, publish, rebase), "
-                        "use previous user messages to infer the most relevant recent substantive task instead\n"
+                        "use previous user messages to infer the most relevant recent substantive task instead for the current task\n"
                         "- use previous user messages to resolve references, follow-ups, and wrap-up actions\n"
                         "- reflect user intent, not internal tool usage or skill execution\n"
                         f"{reuse_previous_title_instruction}"
-                        "- prefer 2-4 words; hard max 6 words\n"
-                        "- prefer a short imperative phrase when natural; if that would be awkward, use a compact noun phrase instead\n"
+                        "- if there is a previous title, reuse its overall topic unless the conversation theme changed in a meaningful way\n"
+                        "- prefer each segment to be 1-4 words; hard max 6 words per segment\n"
+                        "- prefer short imperative phrases when natural, especially for the current task; if awkward, use compact noun phrases instead\n"
                         "- omit filler words, politeness, and unnecessary verbs\n"
                         "- single line\n"
                         "- use the same language as the user's messages; do not translate\n"
