@@ -94,6 +94,18 @@ function shortenFileRefs(text: string): string {
   return text.replace(/@[\w./\\-]+\/([^/\s]+)/g, "@$1");
 }
 
+function splitSessionTitle(title: string): { primary: string; secondary: string | null } {
+  const separator = " — ";
+  const separatorIndex = title.indexOf(separator);
+  if (separatorIndex === -1) {
+    return { primary: title, secondary: null };
+  }
+  return {
+    primary: title.slice(0, separatorIndex),
+    secondary: title.slice(separatorIndex + separator.length),
+  };
+}
+
 function DiffStats({ added, removed }: { added: number; removed: number }): JSX.Element | null {
   if (added <= 0 && removed <= 0) {
     return null;
@@ -119,6 +131,7 @@ export function SessionCard({
   const successAnimationFrameRef = useRef<number | null>(null);
   const successTimeoutRef = useRef<number | null>(null);
   const title = shortenFileRefs(getSessionTitle(session));
+  const { primary: primaryTitle, secondary: secondaryTitle } = splitSessionTitle(title);
   const updatedAt = formatRelativeTime(session.updated_at);
   const updatedAtDetailed = formatDetailedTime(session.updated_at);
   const messageCountLabel = session.messages_count >= 0 ? String(session.messages_count) : "N/A";
@@ -184,12 +197,20 @@ export function SessionCard({
       >
         <div className="flex min-w-0 items-center gap-1.5 pl-1">
           {getRuntimeIcon(runtime, showSuccessState, hasUnreadCompletion)}
-          <span className="flex-1 truncate text-[13px] leading-5 text-neutral-800">{title}</span>
+          <span className="flex-1 truncate text-[13px] leading-5 text-neutral-800">
+            {primaryTitle}
+          </span>
           <DiffStats
             added={diffSummary.diff_lines_added}
             removed={diffSummary.diff_lines_removed}
           />
         </div>
+
+        {secondaryTitle ? (
+          <div className="min-w-0 truncate pl-6 pr-1 text-[10px] leading-4 text-neutral-400">
+            {secondaryTitle}
+          </div>
+        ) : null}
 
         <div className="flex min-w-0 items-center gap-1 pl-6 pr-1 text-[10px] leading-4 text-neutral-400">
           <div className="flex min-w-0 items-center gap-1 truncate">

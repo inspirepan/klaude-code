@@ -119,7 +119,7 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
   const images = collectImages(item.items);
 
   return (
-    <div className="flex flex-col gap-1.5 font-sans text-sm text-neutral-500">
+    <div className="-my-1 flex flex-col gap-1.5 font-sans text-sm text-neutral-500">
       {item.items.map((ui, idx) => {
         switch (ui.type) {
           case "memory_loaded":
