@@ -190,6 +190,13 @@ provider_list:
       reasoning_effort: medium
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
+  - model_name: gemini-flash-lite
+    model_id: google/gemini-3.1-flash-lite-preview
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: medium
+    cost: { input: 0.25, output: 1.5, cache_read: 0.02 }
+
   - model_name: grok
     model_id: x-ai/grok-4.1-fast
     context_limit: 2000000
@@ -237,6 +244,13 @@ provider_list:
       reasoning_effort: medium
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
+  - model_name: gemini-flash-lite
+    model_id: gemini-3.1-flash-lite-preview
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: medium
+    cost: { input: 0.25, output: 1.5, cache_read: 0.02 }
+
 - provider_name: google-vertex
   protocol: google_vertex
   google_application_credentials: ${GOOGLE_APPLICATION_CREDENTIALS}
@@ -257,6 +271,13 @@ provider_list:
     thinking:
       reasoning_effort: medium
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
+
+  - model_name: gemini-flash-lite
+    model_id: gemini-3.1-flash-lite-preview
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: medium
+    cost: { input: 0.25, output: 1.5, cache_read: 0.02 }
 
 - provider_name: bedrock
   protocol: bedrock
@@ -542,5 +563,5 @@ sub_agent_models:
 compact_model:
 - gemini-flash
 fast_model:
-- gemini-flash
+- gemini-flash-lite
 - haiku
