@@ -379,7 +379,7 @@ export function MessageComposer(): JSX.Element {
                     }
                   }}
                   placeholder="/path/to/workspace"
-                  className="w-full flex-1 border-0 bg-transparent px-2 py-3 font-mono text-[13px] text-neutral-700 outline-none placeholder:text-neutral-400"
+                  className="w-full flex-1 border-0 bg-transparent px-2 py-3 text-[13px] text-neutral-700 outline-none placeholder:text-neutral-400"
                 />
                 <button
                   type="button"
@@ -430,7 +430,7 @@ export function MessageComposer(): JSX.Element {
                               <div className="truncate text-[13px] font-medium leading-5 text-neutral-800">
                                 {workDirLabel(workspace)}
                               </div>
-                              <div className="truncate font-mono text-[11px] leading-4 text-neutral-400">
+                              <div className="truncate text-[11px] leading-4 text-neutral-400">
                                 {workspace}
                               </div>
                             </div>

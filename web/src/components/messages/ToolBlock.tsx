@@ -292,15 +292,10 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
         <span className="relative top-[0.5px] whitespace-nowrap font-sans font-normal text-neutral-500">
           {item.toolName}
         </span>
-        {item.isStreaming ? (
-          <span className="mt-0.5 inline-flex translate-y-[2px]">
-            <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
-          </span>
-        ) : null}
       </div>
 
-      {/* right col: detail only */}
-      <div className="min-w-0">
+      {/* right col: detail + spinner */}
+      <div className="flex min-w-0 items-baseline gap-1.5">
         {detail ? (
           FILE_PATH_TOOLS.has(item.toolName) ? (
             <FilePath
@@ -322,6 +317,11 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
               <HighlightText>{detail}</HighlightText>
             </span>
           )
+        ) : null}
+        {item.isStreaming ? (
+          <span className="inline-flex translate-y-[5px]">
+            <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
+          </span>
         ) : null}
       </div>
 

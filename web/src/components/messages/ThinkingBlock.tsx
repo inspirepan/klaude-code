@@ -2,6 +2,7 @@ import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 
 import type { ThinkingBlockItem } from "../../types/message";
+import { useStreamThrottle } from "./useStreamThrottle";
 
 interface ThinkingBlockProps {
   item: ThinkingBlockItem;
@@ -16,10 +17,17 @@ function Strong(props: React.ComponentPropsWithoutRef<"strong">): JSX.Element {
 const thinkingComponents = { strong: Strong };
 
 export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
+  const content = useStreamThrottle(item.content, item.isStreaming);
+
   return (
     <div className="thinking-block text-sm leading-relaxed text-neutral-500">
-      <Streamdown isAnimating={item.isStreaming} plugins={plugins} components={thinkingComponents}>
-        {item.content}
+      <Streamdown
+        mode="streaming"
+        isAnimating={item.isStreaming}
+        plugins={plugins}
+        components={thinkingComponents}
+      >
+        {content}
       </Streamdown>
     </div>
   );

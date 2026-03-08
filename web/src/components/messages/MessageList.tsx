@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { ChevronRight, Lock, PanelLeftOpen, PanelRightOpen, RefreshCw } from "lucide-react";
+import {
+  ChevronRight,
+  CircleHelp,
+  Lock,
+  PanelLeftOpen,
+  PanelRightOpen,
+  RefreshCw,
+} from "lucide-react";
 
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
@@ -1064,7 +1071,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 <div
                   ref={bottomRef}
                   aria-hidden="true"
-                  className={`transition-[height] duration-150 ${hasStreamingAssistantText ? "h-40" : "h-0"}`}
+                  className={`transition-[height] duration-150 ${hasStreamingAssistantText ? "h-12" : "h-0"}`}
                 />
               </>
             ) : runtime?.wsState === "connecting" ? (
