@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Archive, ArchiveRestore, CheckCircle, CirclePause, Loader } from "lucide-react";
+import { Archive, ArchiveRestore, CirclePause, Loader, MessageSquare } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { cn } from "@/lib/utils";
 
@@ -7,8 +7,17 @@ interface SessionCardProps {
   session: SessionSummary;
   active: boolean;
   runtime: SessionRuntimeState;
+  hasUnreadCompletion: boolean;
   onClick: () => void;
   onToggleArchive: (sessionId: string, archived: boolean) => void;
+}
+
+function UnreadCompletionDot(): JSX.Element {
+  return (
+    <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+      <span className="h-2 w-2 rounded-full bg-green-600" />
+    </span>
+  );
 }
 
 function getSessionTitle(session: SessionSummary): string {
@@ -46,17 +55,24 @@ function formatRelativeTime(timestampSeconds: number): string {
   return `${Math.floor(deltaSeconds / 2592000)} mo`;
 }
 
-function getRuntimeIcon(runtime: SessionRuntimeState, showSuccessState: boolean): JSX.Element {
+function getRuntimeIcon(
+  runtime: SessionRuntimeState,
+  showSuccessState: boolean,
+  hasUnreadCompletion: boolean,
+): JSX.Element {
   if (runtime.sessionState === "running") {
     return <Loader className="h-3.5 w-3.5 shrink-0 animate-spin text-blue-400" />;
   }
   if (runtime.sessionState === "waiting_user_input") {
     return <CirclePause className="h-3.5 w-3.5 shrink-0 text-amber-500" />;
   }
-  if (showSuccessState) {
-    return <CheckCircle className="status-success-settle h-3.5 w-3.5 shrink-0" />;
+  if (hasUnreadCompletion) {
+    return <UnreadCompletionDot />;
   }
-  return <CheckCircle className="h-3.5 w-3.5 shrink-0 text-neutral-400" />;
+  if (showSuccessState) {
+    return <MessageSquare className="status-success-settle h-3.5 w-3.5 shrink-0" />;
+  }
+  return <MessageSquare className="h-3.5 w-3.5 shrink-0 text-neutral-400" />;
 }
 
 function shortenFileRefs(text: string): string {
@@ -67,6 +83,7 @@ export function SessionCard({
   session,
   active,
   runtime,
+  hasUnreadCompletion,
   onClick,
   onToggleArchive,
 }: SessionCardProps): JSX.Element {
@@ -118,7 +135,7 @@ export function SessionCard({
     <div className="group">
       <button
         className={cn(
-          "grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-1.5 rounded-lg px-2 py-2 text-left transition-colors",
+          "grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-1.5 rounded-lg py-2 pl-1.5 pr-2 text-left transition-colors",
           showSuccessState
             ? active
               ? "status-success-card-settle-active"
@@ -133,11 +150,11 @@ export function SessionCard({
       >
         <div className="min-w-0 pl-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            {getRuntimeIcon(runtime, showSuccessState)}
-            <span className="flex-1 truncate text-[14px] leading-5 text-neutral-700">{title}</span>
+            {getRuntimeIcon(runtime, showSuccessState, hasUnreadCompletion)}
+            <span className="flex-1 truncate text-[14px] leading-5 text-neutral-800">{title}</span>
           </div>
 
-          <div className="mt-0.5 truncate pl-5 text-[13px] leading-5 text-neutral-500">
+          <div className="mt-0.5 truncate pl-5 text-[13px] leading-5 text-neutral-400">
             {excerpt}
           </div>
 
@@ -146,7 +163,7 @@ export function SessionCard({
           </div>
         </div>
 
-        <div className="flex flex-col items-end justify-between gap-1 py-0.5">
+        <div className="flex flex-col items-end justify-between gap-1">
           {runtime.sessionState === "running" ? (
             <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 text-[11px] leading-5 text-blue-500">
               Running

@@ -10,6 +10,7 @@ interface ProjectGroupProps {
   collapsed: boolean;
   activeSessionId: string | "draft";
   runtimeBySessionId: Record<string, SessionRuntimeState>;
+  completedUnreadBySessionId: Record<string, boolean>;
   onToggle: () => void;
   onSelectSession: (sessionId: string) => void;
   onToggleArchive: (sessionId: string, archived: boolean) => void;
@@ -29,6 +30,7 @@ export function ProjectGroup({
   collapsed,
   activeSessionId,
   runtimeBySessionId,
+  completedUnreadBySessionId,
   onToggle,
   onSelectSession,
   onToggleArchive,
@@ -39,50 +41,58 @@ export function ProjectGroup({
 
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-3">
-      <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-neutral-700 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900">
+      <CollapsibleTrigger className="group flex w-full items-start gap-2 rounded-md px-2 py-2 text-neutral-700 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900">
         {collapsed ? (
-          <Folder className="h-4 w-4 shrink-0 -translate-y-px text-neutral-500 group-hover:text-neutral-700" />
+          <Folder className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
         ) : (
-          <FolderOpen className="h-4 w-4 shrink-0 -translate-y-px text-neutral-500 group-hover:text-neutral-700" />
+          <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
         )}
-        <span className="flex-1 truncate text-left text-[13px] font-medium" title={workDir}>
-          {workDirLabel(workDir)}
-        </span>
+        <div className="min-w-0 flex-1 text-left" title={workDir}>
+          <div className="truncate text-[15px] font-medium leading-5 text-neutral-800">
+            {workDirLabel(workDir)}
+          </div>
+          <div className="mt-0.5 truncate text-[12px] leading-4 text-neutral-400" title={workDir}>
+            {workDir}
+          </div>
+        </div>
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="mt-0.5 space-y-0.5">
-        {displaySessions.map((session) => (
-          <SessionCard
-            key={session.id}
-            session={session}
-            active={activeSessionId === session.id}
-            runtime={
-              runtimeBySessionId[session.id] ?? {
-                sessionState: "idle",
-                wsState: "idle",
-                lastError: null,
+      <CollapsibleContent className="ml-4 mt-0.5 border-l border-neutral-200 pl-2.5">
+        <div className="space-y-0.5 pb-0.5">
+          {displaySessions.map((session) => (
+            <SessionCard
+              key={session.id}
+              session={session}
+              active={activeSessionId === session.id}
+              runtime={
+                runtimeBySessionId[session.id] ?? {
+                  sessionState: "idle",
+                  wsState: "idle",
+                  lastError: null,
+                }
               }
-            }
-            onClick={() => {
-              onSelectSession(session.id);
-            }}
-            onToggleArchive={onToggleArchive}
-          />
-        ))}
-        {hasMore && !showAll && (
-          <button
-            type="button"
-            className="flex w-full items-center rounded-md px-2 py-[6px] text-left text-neutral-400 transition-colors hover:bg-neutral-100/80 hover:text-neutral-600"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowAll(true);
-            }}
-          >
-            <span className="flex-1 pl-6 text-[13px] font-normal">
-              Load more ({sessions.length - 10})
-            </span>
-          </button>
-        )}
+              hasUnreadCompletion={completedUnreadBySessionId[session.id] === true}
+              onClick={() => {
+                onSelectSession(session.id);
+              }}
+              onToggleArchive={onToggleArchive}
+            />
+          ))}
+          {hasMore && !showAll && (
+            <button
+              type="button"
+              className="flex w-full items-center rounded-md px-2 py-[6px] text-left text-neutral-400 transition-colors hover:bg-neutral-100/80 hover:text-neutral-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowAll(true);
+              }}
+            >
+              <span className="flex-1 pl-6 text-[13px] font-normal">
+                Load more ({sessions.length - 10})
+              </span>
+            </button>
+          )}
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );

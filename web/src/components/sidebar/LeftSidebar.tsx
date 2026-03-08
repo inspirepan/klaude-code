@@ -10,6 +10,7 @@ export function LeftSidebar(): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
   const collapsedByWorkDir = useSessionStore((state) => state.collapsedByWorkDir);
   const runtimeBySessionId = useSessionStore((state) => state.runtimeBySessionId);
+  const completedUnreadBySessionId = useSessionStore((state) => state.completedUnreadBySessionId);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const loading = useSessionStore((state) => state.loading);
   const loadError = useSessionStore((state) => state.loadError);
@@ -90,7 +91,7 @@ export function LeftSidebar(): JSX.Element {
   );
 
   return (
-    <aside className="flex w-[260px] min-w-[260px] flex-col border-r border-neutral-200 bg-neutral-50">
+    <aside className="flex w-[312px] min-w-[312px] flex-col border-r border-neutral-200 bg-neutral-50">
       <div className="flex items-center gap-2 px-3 py-2">
         <div className="flex-1">
           <NewSessionButton onClick={selectDraft} />
@@ -165,6 +166,7 @@ export function LeftSidebar(): JSX.Element {
               collapsed={collapsedByWorkDir[group.work_dir] ?? false}
               activeSessionId={activeSessionId}
               runtimeBySessionId={runtimeBySessionId}
+              completedUnreadBySessionId={completedUnreadBySessionId}
               onToggle={() => {
                 toggleGroup(group.work_dir);
               }}
@@ -192,6 +194,7 @@ export function LeftSidebar(): JSX.Element {
                     collapsed={archivedCollapsedByWorkDir[group.work_dir] ?? false}
                     activeSessionId={activeSessionId}
                     runtimeBySessionId={runtimeBySessionId}
+                    completedUnreadBySessionId={completedUnreadBySessionId}
                     onToggle={() => {
                       setArchivedCollapsedByWorkDir((prev) => ({
                         ...prev,

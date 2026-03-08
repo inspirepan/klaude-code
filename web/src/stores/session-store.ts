@@ -30,6 +30,7 @@ interface SessionStoreState {
   loadError: string | null;
   collapsedByWorkDir: Record<string, boolean>;
   runtimeBySessionId: Record<string, SessionRuntimeState>;
+  completedUnreadBySessionId: Record<string, boolean>;
   initialized: boolean;
   init: () => Promise<void>;
   refreshSessions: () => Promise<void>;
@@ -71,33 +72,36 @@ function updateRuntimeState(
 
 async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): Promise<void> {
   try {
-    const states = await fetchRunningSessions();
-    const currentState = get();
-    const knownSessionIds = new Set<string>();
-    for (const group of currentState.groups) {
-      for (const session of group.sessions) {
-        knownSessionIds.add(session.id);
-      }
-    }
-    const hasUnknownSessionId = Object.keys(states).some(
-      (sessionId) => !knownSessionIds.has(sessionId),
-    );
-    if (hasUnknownSessionId && !currentState.loading) {
-      void currentState.refreshSessions();
-    }
+    const [states, latestGroups] = await Promise.all([
+      fetchRunningSessions(),
+      fetchSessionGroups(),
+    ]);
 
     set((state) => {
-      const nextRuntime = { ...state.runtimeBySessionId };
-      let runtimeChanged = false;
-      let groupsChanged = false;
-      let nextGroups = state.groups;
-
+      const previousSessionsById = new Map<string, SessionSummary>();
       for (const group of state.groups) {
         for (const session of group.sessions) {
+          previousSessionsById.set(session.id, session);
+        }
+      }
+
+      const nextRuntime = { ...state.runtimeBySessionId };
+      const nextCompletedUnread = { ...state.completedUnreadBySessionId };
+      let runtimeChanged = false;
+      let completedUnreadChanged = false;
+      for (const group of latestGroups) {
+        for (const session of group.sessions) {
           const running: RunningSessionState | undefined = states[session.id];
-          const apiState = running?.session_state ?? "idle";
-          const prev = nextRuntime[session.id];
-          if (prev === undefined) continue;
+          const apiState = (running?.session_state ??
+            session.session_state) as SessionRuntimeState["sessionState"];
+          const prev = nextRuntime[session.id] ?? {
+            ...defaultRuntimeState,
+            sessionState: session.session_state,
+          };
+          if (nextRuntime[session.id] === undefined) {
+            nextRuntime[session.id] = prev;
+            runtimeChanged = true;
+          }
           const wsActive = prev.wsState === "connected" || prev.wsState === "connecting";
           const shouldBackfillRunning = prev.sessionState === "idle" && apiState !== "idle";
           const shouldClearStaleRunning = prev.sessionState === "running" && apiState === "idle";
@@ -111,14 +115,20 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
             }
           }
 
-          if (running?.user_messages !== undefined && running.user_messages.length > 0) {
-            const lastApi = running.user_messages[running.user_messages.length - 1];
-            const lastLocal = session.user_messages[session.user_messages.length - 1];
-            if (lastApi !== lastLocal) {
-              nextGroups = updateSessionInGroups(nextGroups, session.id, {
-                user_messages: running.user_messages,
-              });
-              groupsChanged = true;
+          const previousSession = previousSessionsById.get(session.id);
+          const hasBackgroundUpdate =
+            previousSession !== undefined &&
+            previousSession.updated_at < session.updated_at &&
+            state.activeSessionId !== session.id &&
+            apiState === "idle";
+
+          if (
+            (shouldClearStaleRunning || hasBackgroundUpdate) &&
+            state.activeSessionId !== session.id
+          ) {
+            if (nextCompletedUnread[session.id] !== true) {
+              nextCompletedUnread[session.id] = true;
+              completedUnreadChanged = true;
             }
           }
         }
@@ -126,26 +136,16 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
 
       const patch: Partial<SessionStoreState> = {};
       if (runtimeChanged) patch.runtimeBySessionId = nextRuntime;
-      if (groupsChanged) patch.groups = nextGroups;
+      if (!areSessionGroupsEqual(state.groups, latestGroups)) {
+        patch.groups = latestGroups;
+        patch.collapsedByWorkDir = mergeCollapseState(latestGroups, state.collapsedByWorkDir);
+      }
+      if (completedUnreadChanged) patch.completedUnreadBySessionId = nextCompletedUnread;
       return patch;
     });
   } catch {
     // Silently ignore polling errors
   }
-}
-
-function updateSessionInGroups(
-  groups: SessionGroup[],
-  sessionId: string,
-  patch: Partial<SessionSummary>,
-): SessionGroup[] {
-  return groups.map((group) => {
-    const idx = group.sessions.findIndex((s) => s.id === sessionId);
-    if (idx === -1) return group;
-    const sessions = [...group.sessions];
-    sessions[idx] = { ...sessions[idx], ...patch };
-    return { ...group, sessions };
-  });
 }
 
 function pushSessionUrl(sessionId: ActiveSessionId): void {
@@ -266,6 +266,13 @@ function handleWsEvent(
       targetSessionId,
       eventEnvelope.event_type,
     ),
+    completedUnreadBySessionId:
+      eventEnvelope.event_type === "task.finish" && state.activeSessionId !== targetSessionId
+        ? {
+            ...state.completedUnreadBySessionId,
+            [targetSessionId]: true,
+          }
+        : state.completedUnreadBySessionId,
   }));
 
   const wsTimestamp = typeof eventEnvelope.timestamp === "number" ? eventEnvelope.timestamp : null;
@@ -319,6 +326,49 @@ function mergeCollapseState(
   return next;
 }
 
+function areSessionGroupsEqual(a: SessionGroup[], b: SessionGroup[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  for (let i = 0; i < a.length; i += 1) {
+    const leftGroup = a[i];
+    const rightGroup = b[i];
+    if (leftGroup?.work_dir !== rightGroup?.work_dir) {
+      return false;
+    }
+    if (leftGroup.sessions.length !== rightGroup.sessions.length) {
+      return false;
+    }
+
+    for (let j = 0; j < leftGroup.sessions.length; j += 1) {
+      const leftSession = leftGroup.sessions[j];
+      const rightSession = rightGroup.sessions[j];
+      if (
+        leftSession?.id !== rightSession?.id ||
+        leftSession.created_at !== rightSession.created_at ||
+        leftSession.updated_at !== rightSession.updated_at ||
+        leftSession.work_dir !== rightSession.work_dir ||
+        leftSession.messages_count !== rightSession.messages_count ||
+        leftSession.model_name !== rightSession.model_name ||
+        leftSession.session_state !== rightSession.session_state ||
+        leftSession.archived !== rightSession.archived ||
+        leftSession.user_messages.length !== rightSession.user_messages.length
+      ) {
+        return false;
+      }
+
+      for (let k = 0; k < leftSession.user_messages.length; k += 1) {
+        if (leftSession.user_messages[k] !== rightSession.user_messages[k]) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
 function findSession(groups: SessionGroup[], sessionId: string): SessionSummary | null {
   for (const group of groups) {
     const session = group.sessions.find((item) => item.id === sessionId);
@@ -336,6 +386,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   loadError: null,
   collapsedByWorkDir: {},
   runtimeBySessionId: {},
+  completedUnreadBySessionId: {},
   initialized: false,
   init: async () => {
     if (get().initialized) {
@@ -429,6 +480,10 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     pushSessionUrl(sessionId);
     set((state) => ({
       activeSessionId: sessionId,
+      completedUnreadBySessionId: {
+        ...state.completedUnreadBySessionId,
+        [sessionId]: false,
+      },
       runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
         wsState: "connecting",
         lastError: null,
