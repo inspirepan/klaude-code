@@ -320,6 +320,30 @@ class Session(BaseModel):
         self._store.update_meta(self.id, {"title": normalized})
         return True
 
+    def ensure_meta_exists(self) -> None:
+        meta = build_meta_snapshot(
+            session_id=self.id,
+            work_dir=self.work_dir,
+            title=self.title,
+            sub_agent_state=self.sub_agent_state,
+            file_tracker=self.file_tracker,
+            file_change_summary=self.file_change_summary,
+            todos=list(self.todos),
+            user_messages=self.user_messages,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+            messages_count=self.messages_count,
+            model_name=self.model_name,
+            session_state=self.session_state,
+            runtime_owner=self.runtime_owner,
+            runtime_owner_heartbeat_at=self.runtime_owner_heartbeat_at,
+            archived=self.archived,
+            model_config_name=self.model_config_name,
+            model_thinking=self.model_thinking,
+            next_checkpoint_id=self.next_checkpoint_id,
+        )
+        self._store.create_meta_if_missing(self.id, meta)
+
     @property
     def n_checkpoints(self) -> int:
         return self.next_checkpoint_id

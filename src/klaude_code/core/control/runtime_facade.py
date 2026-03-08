@@ -277,6 +277,15 @@ class RuntimeFacade:
         session_id = getattr(operation, "session_id", None)
         if session_id is None:
             return
+        if isinstance(operation, op.InitAgentOperation):
+            runtime = self.session_registry.get_session_actor(session_id)
+            agent = runtime.get_agent() if runtime is not None else None
+            if agent is not None:
+                agent.session.session_state = model.SessionRuntimeState.IDLE
+                agent.session.runtime_owner = self._session_owner()
+                agent.session.runtime_owner_heartbeat_at = time.time()
+                await asyncio.to_thread(agent.session.ensure_meta_exists)
+            await asyncio.to_thread(self._persist_session_owner, session_id, operation.work_dir)
         await self._operation_dispatcher.emit_event(
             events.OperationFinishedEvent(
                 session_id=session_id,
@@ -288,7 +297,6 @@ class RuntimeFacade:
             operation_id=operation.id,
         )
         if isinstance(operation, op.InitAgentOperation):
-            await asyncio.to_thread(self._persist_session_owner, session_id, operation.work_dir)
             return
         await self._sync_session_state_from_snapshot(session_id)
 

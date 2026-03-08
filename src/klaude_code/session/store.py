@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import uuid
+from _thread import LockType
 from collections.abc import Iterable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
@@ -29,8 +31,9 @@ class _WriteBatch:
 
 
 class JsonlSessionWriter:
-    def __init__(self, paths: ProjectPaths) -> None:
+    def __init__(self, paths: ProjectPaths, *, meta_lock: LockType) -> None:
         self._paths = paths
+        self._meta_lock = meta_lock
         self._queue: asyncio.Queue[_WriteBatch | None] = asyncio.Queue()
         self._task: asyncio.Task[None] | None = None
         self._closed = False
@@ -86,22 +89,23 @@ class JsonlSessionWriter:
             f.flush()
 
         meta_path = self._paths.meta_file(batch.session_id)
-        # Use a per-write temp name to avoid concurrent replace races.
-        tmp_path = meta_path.with_name(f"{meta_path.stem}.{uuid.uuid4().hex}.w.tmp")
-        meta = dict(batch.meta)
-        if meta_path.exists():
-            try:
-                raw = json.loads(meta_path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                raw = None
-            if isinstance(raw, dict):
-                current_meta = cast(dict[str, Any], raw)
-                for key in _RUNTIME_META_KEYS:
-                    if key in current_meta:
-                        meta[key] = current_meta[key]
+        with self._meta_lock:
+            # Use a per-write temp name to avoid concurrent replace races.
+            tmp_path = meta_path.with_name(f"{meta_path.stem}.{uuid.uuid4().hex}.w.tmp")
+            meta = dict(batch.meta)
+            if meta_path.exists():
+                try:
+                    raw = json.loads(meta_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    raw = None
+                if isinstance(raw, dict):
+                    current_meta = cast(dict[str, Any], raw)
+                    for key in _RUNTIME_META_KEYS:
+                        if key in current_meta:
+                            meta[key] = current_meta[key]
 
-        tmp_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-        tmp_path.replace(meta_path)
+            tmp_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp_path.replace(meta_path)
 
         if not batch.done.done():
             batch.done.set_result(None)
@@ -110,7 +114,8 @@ class JsonlSessionWriter:
 class JsonlSessionStore:
     def __init__(self, *, project_key: str) -> None:
         self._paths = ProjectPaths(project_key=project_key)
-        self._writer = JsonlSessionWriter(self._paths)
+        self._meta_lock = threading.Lock()
+        self._writer = JsonlSessionWriter(self._paths, meta_lock=self._meta_lock)
         self._last_flush: dict[str, asyncio.Future[None]] = {}
 
     @property
@@ -129,26 +134,41 @@ class JsonlSessionStore:
 
     def update_meta(self, session_id: str, updates: dict[str, Any]) -> bool:
         meta_path = self._paths.meta_file(session_id)
-        if not meta_path.exists():
-            return False
-        try:
-            raw = json.loads(meta_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return False
-        if not isinstance(raw, dict):
-            return False
+        with self._meta_lock:
+            if not meta_path.exists():
+                return False
+            try:
+                raw = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                return False
+            if not isinstance(raw, dict):
+                return False
 
-        data = cast(dict[str, Any], raw)
-        data.update(updates)
+            data = cast(dict[str, Any], raw)
+            data.update(updates)
 
-        try:
-            # Use a per-write temp name to avoid concurrent replace races.
-            tmp_path = meta_path.with_name(f"{meta_path.stem}.{uuid.uuid4().hex}.u.tmp")
-            tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-            tmp_path.replace(meta_path)
-        except OSError:
-            return False
-        return True
+            try:
+                # Use a per-write temp name to avoid concurrent replace races.
+                tmp_path = meta_path.with_name(f"{meta_path.stem}.{uuid.uuid4().hex}.u.tmp")
+                tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+                tmp_path.replace(meta_path)
+            except OSError:
+                return False
+            return True
+
+    def create_meta_if_missing(self, session_id: str, meta: dict[str, Any]) -> bool:
+        meta_path = self._paths.meta_file(session_id)
+        with self._meta_lock:
+            if meta_path.exists():
+                return False
+            try:
+                meta_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp_path = meta_path.with_name(f"{meta_path.stem}.{uuid.uuid4().hex}.c.tmp")
+                tmp_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+                tmp_path.replace(meta_path)
+            except OSError:
+                return False
+            return True
 
     def load_history(self, session_id: str) -> list[message.HistoryEvent]:
         events_path = self._paths.events_file(session_id)

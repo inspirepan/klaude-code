@@ -3,6 +3,7 @@
 
 import asyncio
 import json
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -682,6 +683,78 @@ class TestSessionPersistence:
 
             loaded = Session.load_meta(session.id, work_dir=project_dir)
             assert loaded.session_state == model.SessionRuntimeState.RUNNING
+            await close_default_store()
+
+        arun(_test())
+
+    def test_append_history_does_not_overwrite_runtime_state_updated_during_meta_write(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session(work_dir=project_dir)
+            session.session_state = model.SessionRuntimeState.RUNNING
+            meta_path = Session.paths(project_dir).meta_file(session.id)
+            meta_path.parent.mkdir(parents=True, exist_ok=True)
+            meta_path.write_text(
+                json.dumps(
+                    build_meta_snapshot(
+                        session_id=session.id,
+                        work_dir=project_dir,
+                        title=session.title,
+                        sub_agent_state=session.sub_agent_state,
+                        file_tracker=session.file_tracker,
+                        file_change_summary=session.file_change_summary,
+                        todos=list(session.todos),
+                        user_messages=session.user_messages,
+                        created_at=session.created_at,
+                        updated_at=session.updated_at,
+                        messages_count=session.messages_count,
+                        model_name=session.model_name,
+                        session_state=session.session_state,
+                        runtime_owner=session.runtime_owner,
+                        runtime_owner_heartbeat_at=session.runtime_owner_heartbeat_at,
+                        archived=session.archived,
+                        model_config_name=session.model_config_name,
+                        model_thinking=session.model_thinking,
+                        next_checkpoint_id=session.next_checkpoint_id,
+                    ),
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            original_read_text = Path.read_text
+            update_started = threading.Event()
+            update_finished = threading.Event()
+
+            def _read_text(path: Path, *args: Any, **kwargs: Any) -> str:
+                text = original_read_text(path, *args, **kwargs)
+                if path == meta_path and not update_started.is_set():
+                    update_started.set()
+
+                    def _update_runtime_state() -> None:
+                        Session.persist_runtime_state(session.id, model.SessionRuntimeState.IDLE, project_dir)
+                        update_finished.set()
+
+                    threading.Thread(target=_update_runtime_state, daemon=True).start()
+                    time.sleep(0.05)
+                return text
+
+            monkeypatch.setattr(Path, "read_text", _read_text)
+
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("Hello"))])
+            await session.wait_for_flush()
+
+            assert update_started.is_set()
+            assert update_finished.wait(timeout=1.0)
+
+            loaded = Session.load_meta(session.id, work_dir=project_dir)
+            assert loaded.session_state == model.SessionRuntimeState.IDLE
             await close_default_store()
 
         arun(_test())

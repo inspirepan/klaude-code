@@ -8,10 +8,15 @@ from typing import Any, cast
 
 import pytest
 
-from klaude_code.protocol import message
+from klaude_code.core.agent import runtime as agent_runtime
+from klaude_code.core.agent.runtime import LLMClients
+from klaude_code.core.control.event_bus import EventBus
+from klaude_code.core.control.runtime_facade import RuntimeFacade
+from klaude_code.protocol import message, op
+from klaude_code.session.session import Session, close_default_store
 from klaude_code.session.store import JsonlSessionWriter
 
-from .conftest import AppEnv, collect_events_until, usage
+from .conftest import AppEnv, FakeLLMClient, arun, collect_events_until, usage
 
 
 def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
@@ -73,6 +78,55 @@ def test_session_state_becomes_idle_after_task_finish(app_env: AppEnv, slow_sess
         _ = collect_events_until(websocket, "task.finish")
 
     _wait_until_idle(meta_path)
+
+
+def test_init_agent_creates_idle_meta_before_first_async_flush(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, slow_session_writer: None
+) -> None:
+    home_dir = tmp_path / "home"
+    home_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setattr(Path, "home", cast(Any, classmethod(lambda cls: home_dir)))
+
+    def _identity_clone(client: Any) -> Any:
+        return client
+
+    monkeypatch.setattr(agent_runtime, "_clone_llm_client", _identity_clone)
+
+    work_dir = tmp_path / "work"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    fake_llm = FakeLLMClient()
+    fake_llm.enqueue(
+        message.AssistantMessage(
+            parts=[message.TextPart(text="done")],
+            stop_reason="stop",
+            usage=usage(input_tokens=5, output_tokens=1),
+        )
+    )
+
+    async def _run() -> None:
+        runtime = RuntimeFacade(EventBus(), LLMClients(main=fake_llm, main_model_alias="fake"), runtime_kind="tui")
+        session_id = "runtime-init-session"
+        try:
+            await runtime.submit_and_wait(op.InitAgentOperation(session_id=session_id, work_dir=work_dir))
+
+            meta_path = Session.paths(work_dir).meta_file(session_id)
+            assert _session_state_from_meta(meta_path) == "idle"
+
+            operation_id = await runtime.submit(
+                op.RunAgentOperation(
+                    session_id=session_id,
+                    input=message.UserInputPayload(text="hello"),
+                )
+            )
+            await runtime.wait_for(operation_id)
+
+            _wait_until_idle(meta_path)
+        finally:
+            await runtime.stop()
+            await close_default_store()
+
+    arun(_run())
 
 
 def test_session_state_becomes_idle_after_interrupt(app_env: AppEnv, slow_session_writer: None) -> None:
