@@ -192,6 +192,7 @@ def build_meta_snapshot(
     *,
     session_id: str,
     work_dir: Path,
+    title: str | None,
     sub_agent_state: model.SubAgentState | None,
     file_tracker: dict[str, model.FileStatus],
     todos: list[model.TodoItem],
@@ -209,6 +210,7 @@ def build_meta_snapshot(
     return {
         "id": session_id,
         "work_dir": str(work_dir),
+        "title": title,
         "sub_agent_state": sub_agent_state.model_dump(mode="json") if sub_agent_state else None,
         "file_tracker": {path: status.model_dump(mode="json") for path, status in file_tracker.items()},
         "todos": [todo.model_dump(mode="json", exclude_defaults=True) for todo in todos],

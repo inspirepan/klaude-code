@@ -206,3 +206,4 @@ class RenderRewind(RenderCommand):
 class UpdateTerminalTitlePrefix(RenderCommand):
     prefix: str | None
     model_name: str | None
+    session_title: str | None = None

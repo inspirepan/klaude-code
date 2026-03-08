@@ -30,6 +30,7 @@ class SessionSummary:
     created_at: float
     updated_at: float
     work_dir: str
+    title: str | None
     user_messages: list[str]
     messages_count: int
     model_name: str | None
@@ -57,6 +58,7 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
             updated_at = float(data.get("updated_at", created_at))
         except (TypeError, ValueError):
             updated_at = created_at
+        title = data.get("title") if isinstance(data.get("title"), str) else None
 
         user_messages_raw = data.get("user_messages")
         user_messages: list[str] = []
@@ -85,6 +87,7 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
                 created_at=created_at,
                 updated_at=updated_at,
                 work_dir=work_dir,
+                title=title,
                 user_messages=user_messages,
                 messages_count=messages_count,
                 model_name=model_name,

@@ -560,6 +560,7 @@ class TestSessionPersistence:
         async def _test() -> None:
             session = Session(
                 work_dir=project_dir,
+                title="Persisted title",
                 model_name="test-model",
                 session_state=model.SessionRuntimeState.RUNNING,
                 archived=True,
@@ -574,6 +575,7 @@ class TestSessionPersistence:
             loaded = Session.load(session.id, work_dir=project_dir)
             assert loaded.id == session.id
             assert loaded.work_dir == project_dir
+            assert loaded.title == "Persisted title"
             assert loaded.model_name == "test-model"
             assert loaded.session_state == model.SessionRuntimeState.RUNNING
             assert loaded.archived is True
@@ -835,6 +837,7 @@ class TestSessionListAndClean:
 
         async def _test() -> None:
             session = Session(work_dir=project_dir, model_name="gpt-4")
+            session.update_title("Session summary")
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("Test message"))])
             await session.wait_for_flush()
 
@@ -842,6 +845,7 @@ class TestSessionListAndClean:
             assert len(sessions) == 1
             meta = sessions[0]
             assert meta.id == session.id
+            assert meta.title == "Session summary"
             assert meta.model_name == "gpt-4"
             assert len(meta.user_messages) == 1
             assert meta.user_messages[0] == "Test message"
@@ -1048,6 +1052,7 @@ class TestSessionMetaBrief:
             updated_at=1700001000.0,
             work_dir="/home/user/project",
             path="/home/user/.klaude/projects/test/sessions/test123.json",
+            title="Session title",
             user_messages=["Hello world"],
             messages_count=5,
             model_name="gpt-4",
@@ -1058,6 +1063,7 @@ class TestSessionMetaBrief:
         assert meta.updated_at == 1700001000.0
         assert meta.work_dir == "/home/user/project"
         assert meta.path == "/home/user/.klaude/projects/test/sessions/test123.json"
+        assert meta.title == "Session title"
         assert meta.user_messages == ["Hello world"]
         assert meta.messages_count == 5
         assert meta.model_name == "gpt-4"
@@ -1071,11 +1077,33 @@ class TestSessionMetaBrief:
             work_dir="",
             path="",
         )
+        assert meta.title is None
         assert meta.user_messages == []
         assert meta.messages_count == -1
         assert meta.model_name is None
         assert meta.session_state is None
         assert meta.archived is False
+
+
+class TestSessionTitle:
+    def test_update_title_persists_to_meta(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session(work_dir=project_dir)
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
+            await session.wait_for_flush()
+
+            assert session.update_title("New title") is True
+            assert session.update_title("New title") is False
+
+            loaded = Session.load_meta(session.id, work_dir=project_dir)
+            assert loaded.title == "New title"
+            await close_default_store()
+
+        arun(_test())
 
 
 class TestSessionExists:

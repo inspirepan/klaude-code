@@ -17,6 +17,7 @@ class SessionSelectOption:
     """Option data for session selection UI."""
 
     session_id: str
+    title: str | None
     user_messages: list[str]
     messages_count: str
     relative_time: str
@@ -72,6 +73,7 @@ def build_session_select_options(work_dir: Path | None = None) -> list[SessionSe
         options.append(
             SessionSelectOption(
                 session_id=str(s.id),
+                title=s.title,
                 user_messages=user_messages,
                 messages_count=msg_count,
                 relative_time=_format_time(s.updated_at),

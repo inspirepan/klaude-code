@@ -60,6 +60,7 @@ async def close_default_store() -> None:
 class Session(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     work_dir: Path
+    title: str | None = None
     conversation_history: list[message.HistoryEvent] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     sub_agent_state: model.SubAgentState | None = None
     file_tracker: dict[str, model.FileStatus] = Field(default_factory=dict)
@@ -168,6 +169,7 @@ class Session(BaseModel):
 
         created_at = float(raw.get("created_at", time.time()))
         updated_at = float(raw.get("updated_at", created_at))
+        title = raw.get("title") if isinstance(raw.get("title"), str) else None
         model_name = raw.get("model_name") if isinstance(raw.get("model_name"), str) else None
         session_state_raw = raw.get("session_state")
         try:
@@ -193,6 +195,7 @@ class Session(BaseModel):
             todos=todos,
             created_at=created_at,
             updated_at=updated_at,
+            title=title,
             model_name=model_name,
             session_state=session_state,
             archived=archived,
@@ -244,6 +247,7 @@ class Session(BaseModel):
         meta = build_meta_snapshot(
             session_id=self.id,
             work_dir=self.work_dir,
+            title=self.title,
             sub_agent_state=self.sub_agent_state,
             file_tracker=self.file_tracker,
             todos=list(self.todos),
@@ -259,6 +263,16 @@ class Session(BaseModel):
             next_checkpoint_id=self.next_checkpoint_id,
         )
         self._store.append_and_flush(session_id=self.id, items=items, meta=meta)
+
+    def update_title(self, title: str | None) -> bool:
+        normalized = title.strip() if isinstance(title, str) else None
+        if normalized == "":
+            normalized = None
+        if self.title == normalized:
+            return False
+        self.title = normalized
+        self._store.update_meta(self.id, {"title": normalized})
+        return True
 
     @property
     def n_checkpoints(self) -> int:
@@ -675,6 +689,7 @@ class Session(BaseModel):
         updated_at: float
         work_dir: str
         path: str
+        title: str | None = None
         user_messages: list[str] = []
         messages_count: int = -1
         model_name: str | None = None
@@ -736,6 +751,7 @@ class Session(BaseModel):
             created = float(data.get("created_at", meta_path.stat().st_mtime))
             updated = float(data.get("updated_at", meta_path.stat().st_mtime))
             session_work_dir = str(data.get("work_dir", ""))
+            title = data.get("title") if isinstance(data.get("title"), str) else None
 
             user_messages_raw = data.get("user_messages")
             if isinstance(user_messages_raw, list) and all(
@@ -764,6 +780,7 @@ class Session(BaseModel):
                     updated_at=updated,
                     work_dir=session_work_dir,
                     path=str(meta_path),
+                    title=title,
                     user_messages=user_messages,
                     messages_count=messages_count,
                     model_name=model_name,

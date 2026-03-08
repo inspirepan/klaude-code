@@ -34,7 +34,7 @@ from klaude_code.core.session_stats import build_session_stats_ui_extra
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, message, model, op, user_interaction
+from klaude_code.protocol import events, llm_param, message, model, op, user_interaction
 from klaude_code.protocol.llm_param import LLMConfigParameter, Thinking
 from klaude_code.protocol.op_handler import OperationHandler
 from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
@@ -120,6 +120,84 @@ def build_llm_clients(
             )
 
     return LLMClients(main=main_client, main_model_alias=model_name, sub_clients=sub_clients, compact=compact_client)
+
+
+_SESSION_TITLE_SYSTEM_PROMPT = (
+    "You generate short conversation titles from user messages only. "
+    "Use the same language as the user's messages and do not translate. "
+    "Reply with only the title, no quotes, no markdown, no explanation."
+)
+
+_SESSION_TITLE_MAX_TOKENS = 1024
+
+
+def _build_session_title_input(user_messages: list[str]) -> list[message.Message]:
+    rendered_messages = "\n\n".join(
+        f"[{idx}] {msg.strip()}" for idx, msg in enumerate(user_messages, start=1) if msg.strip()
+    )
+    return [
+        message.UserMessage(
+            parts=[
+                message.TextPart(
+                    text=(
+                        "Generate a concise session title from these user messages.\n"
+                        "Requirements:\n"
+                        "- capture the main task/topic\n"
+                        "- max 8 words\n"
+                        "- single line\n"
+                        "- use the same language as the user's messages; do not translate\n"
+                        "- keep important file paths or technologies when central to the request\n\n"
+                        f"<user-messages>\n{rendered_messages}\n</user-messages>"
+                    )
+                )
+            ]
+        )
+    ]
+
+
+def _normalize_session_title(raw: str) -> str | None:
+    title = " ".join(raw.split()).strip().strip("\"'`“”‘’")
+    if not title:
+        return None
+    return title[:120]
+
+
+async def _generate_session_title(*, llm_client: LLMClientABC, user_messages: list[str]) -> str | None:
+    if not user_messages:
+        return None
+    title_input = _build_session_title_input(user_messages)
+    call_param = llm_param.LLMCallParameter(
+        input=title_input,
+        system=_SESSION_TITLE_SYSTEM_PROMPT,
+        session_id=None,
+    )
+    call_param.max_tokens = _SESSION_TITLE_MAX_TOKENS
+    call_param.tools = None
+
+    log_debug(
+        "[SessionTitle] request",
+        message.join_text_parts(title_input[0].parts).replace("\n", "\\n"),
+        debug_type=DebugType.RESPONSE,
+    )
+
+    stream = await llm_client.call(call_param)
+    parts: list[str] = []
+    final_text: str | None = None
+    stop_reason: str | None = None
+    async for item in stream:
+        if isinstance(item, message.AssistantTextDelta):
+            parts.append(item.content)
+        elif isinstance(item, message.AssistantMessage):
+            final_text = message.join_text_parts(item.parts)
+            stop_reason = item.stop_reason
+        elif isinstance(item, message.StreamErrorItem):
+            raise RuntimeError(item.error)
+
+    title = _normalize_session_title(final_text if final_text is not None else "".join(parts))
+    if stop_reason:
+        log_debug(f"[SessionTitle] stop_reason {stop_reason}", debug_type=DebugType.RESPONSE)
+    log_debug("[SessionTitle] result", title or "<empty>", debug_type=DebugType.RESPONSE)
+    return title
 
 
 class SubAgentExecutor:
@@ -375,6 +453,7 @@ class AgentOperationHandler:
         self._remove_runtime_task = remove_task
         self._request_user_interaction_callback = request_user_interaction
         self._primary_session_id: str | None = None
+        self._title_refresh_tasks: dict[str, asyncio.Task[None]] = {}
 
     async def _request_user_interaction(
         self,
@@ -588,6 +667,7 @@ class AgentOperationHandler:
                 session_id=session.id,
                 work_dir=str(session.work_dir),
                 llm_config=session_clients.main.get_llm_config(),
+                title=session.title,
                 loaded_skills=get_loaded_skill_names_by_location(),
                 loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=session.work_dir),
@@ -610,6 +690,52 @@ class AgentOperationHandler:
         agent = await self.ensure_agent(session_id, work_dir=work_dir)
         self._primary_session_id = agent.session.id
 
+    async def _refresh_session_title(self, session: Session, *, user_messages_snapshot: list[str]) -> None:
+        session_clients = self.get_session_llm_clients(session.id)
+        title_client = session_clients.compact or session_clients.main
+        if session_clients.compact is None:
+            log_debug(
+                f"[SessionTitle] compact client unavailable; falling back to main model for session {session.id}",
+                debug_type=DebugType.RESPONSE,
+            )
+
+        try:
+            title = await _generate_session_title(llm_client=title_client, user_messages=user_messages_snapshot)
+        except asyncio.CancelledError:
+            return
+        except Exception as exc:
+            log_debug(f"Session title generation failed: {exc!s}", debug_type=DebugType.EXECUTION)
+            return
+
+        if session.user_messages != user_messages_snapshot:
+            log_debug(f"[SessionTitle] stale result skipped for session {session.id}", debug_type=DebugType.RESPONSE)
+            return
+        if title is None:
+            return
+        if not session.update_title(title):
+            return
+        await self._emit_event(events.SessionTitleChangedEvent(session_id=session.id, title=title))
+
+    def _schedule_session_title_refresh(self, session: Session) -> None:
+        user_messages_snapshot = list(session.user_messages)
+        existing = self._title_refresh_tasks.get(session.id)
+        if existing is not None and not existing.done():
+            existing.cancel()
+
+        task = asyncio.create_task(self._refresh_session_title(session, user_messages_snapshot=user_messages_snapshot))
+        self._title_refresh_tasks[session.id] = task
+
+        def _cleanup(completed: asyncio.Task[None]) -> None:
+            if self._title_refresh_tasks.get(session.id) is completed:
+                self._title_refresh_tasks.pop(session.id, None)
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                _ = completed.exception()
+
+        task.add_done_callback(_cleanup)
+
+    def _should_refresh_session_title_during_task(self, session_id: str) -> bool:
+        return self.get_session_llm_clients(session_id).compact is not None
+
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
         agent.session.append_history(
@@ -622,6 +748,8 @@ class AgentOperationHandler:
                 )
             ]
         )
+        if self._should_refresh_session_title_during_task(agent.session.id):
+            self._schedule_session_title_refresh(agent.session)
 
         existing_active = self.get_active_task(operation.id)
         if existing_active is not None and not existing_active.task.done():
@@ -782,6 +910,7 @@ class AgentOperationHandler:
                 session_id=new_agent.session.id,
                 work_dir=str(new_agent.session.work_dir),
                 llm_config=session_clients.main.get_llm_config(),
+                title=new_agent.session.title,
                 loaded_skills=get_loaded_skill_names_by_location(),
                 loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=new_agent.session.work_dir),
@@ -884,6 +1013,8 @@ class AgentOperationHandler:
             )
         finally:
             self._remove_task(session_id=session_id, task_id=task_id)
+            if not self._should_refresh_session_title_during_task(session_id):
+                self._schedule_session_title_refresh(agent.session)
             log_debug(
                 f"Cleaned up agent task {task_id}",
                 debug_type=DebugType.EXECUTION,
@@ -1167,6 +1298,7 @@ class ConfigHandler:
                     session_id=agent.session.id,
                     llm_config=llm_config,
                     work_dir=str(agent.session.work_dir),
+                    title=agent.session.title,
                     show_klaude_code_info=False,
                 )
             )
@@ -1196,6 +1328,7 @@ class ConfigHandler:
                     session_id=agent.session.id,
                     work_dir=str(agent.session.work_dir),
                     llm_config=agent.profile.llm_client.get_llm_config(),
+                    title=agent.session.title,
                     show_klaude_code_info=False,
                 )
             )

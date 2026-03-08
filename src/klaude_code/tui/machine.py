@@ -592,16 +592,30 @@ class DisplayStateMachine:
         self._primary_session_id: str | None = None
         self._spinner = SpinnerStatusState()
         self._model_name: str | None = None
+        self._session_title: str | None = None
+        self._terminal_title_prefix: str | None = None
         self._had_sub_agent_status_lines: bool = False
 
     def set_model_name(self, model_name: str | None) -> None:
         self._model_name = model_name
+
+    def set_session_title(self, title: str | None) -> None:
+        self._session_title = title
+
+    @property
+    def terminal_title_prefix(self) -> str | None:
+        return self._terminal_title_prefix
+
+    @property
+    def session_title(self) -> str | None:
+        return self._session_title
 
     def _reset_sessions(self) -> None:
         self._sessions = {}
         self._primary_session_id = None
         self._spinner.reset()
         self._had_sub_agent_status_lines = False
+        self._terminal_title_prefix = None
 
     def _session(self, session_id: str) -> _SessionState:
         existing = self._sessions.get(session_id)
@@ -742,7 +756,15 @@ class DisplayStateMachine:
                     self._reset_sessions()
                     s = self._session(e.session_id)
                 self._primary_session_id = e.session_id
+                self._session_title = e.title
                 cmds.append(RenderWelcome(e))
+                cmds.append(
+                    UpdateTerminalTitlePrefix(
+                        prefix=self._terminal_title_prefix,
+                        model_name=self._model_name,
+                        session_title=self._session_title,
+                    )
+                )
                 return cmds
 
             case events.UserMessageEvent() as e:
@@ -796,7 +818,14 @@ class DisplayStateMachine:
                         self._primary_session_id = e.session_id
                     if not is_replay:
                         cmds.append(TaskClockStart())
-                        cmds.append(UpdateTerminalTitlePrefix(prefix="\u26ac", model_name=self._model_name))
+                        self._terminal_title_prefix = "\u26ac"
+                        cmds.append(
+                            UpdateTerminalTitlePrefix(
+                                prefix=self._terminal_title_prefix,
+                                model_name=self._model_name,
+                                session_title=self._session_title,
+                            )
+                        )
 
                 if not is_replay:
                     cmds.append(SpinnerStart())
@@ -838,6 +867,17 @@ class DisplayStateMachine:
 
             case events.DeveloperMessageEvent() as e:
                 cmds.append(RenderDeveloperMessage(e))
+                return cmds
+
+            case events.SessionTitleChangedEvent() as e:
+                self._session_title = e.title
+                cmds.append(
+                    UpdateTerminalTitlePrefix(
+                        prefix=self._terminal_title_prefix,
+                        model_name=self._model_name,
+                        session_title=self._session_title,
+                    )
+                )
                 return cmds
 
             case events.NoticeEvent() as e:
@@ -1193,7 +1233,14 @@ class DisplayStateMachine:
                     self._spinner.clear_task_state()
                     cmds.append(SpinnerStop())
                     cmds.append(EmitTmuxSignal())
-                    cmds.append(UpdateTerminalTitlePrefix(prefix="\u2714", model_name=self._model_name))
+                    self._terminal_title_prefix = "\u2714"
+                    cmds.append(
+                        UpdateTerminalTitlePrefix(
+                            prefix=self._terminal_title_prefix,
+                            model_name=self._model_name,
+                            session_title=self._session_title,
+                        )
+                    )
                 elif not is_replay:
                     cmds.extend(self._spinner_update_commands())
                 return cmds
@@ -1205,11 +1252,20 @@ class DisplayStateMachine:
                 s.task_active = False
                 s.clear_status_activity()
                 if not s.is_sub_agent:
+                    self._terminal_title_prefix = None
                     self._clear_active_sub_agent_sessions()
                 cmds.append(EndThinkingStream(session_id=e.session_id))
                 cmds.append(EndAssistantStream(session_id=e.session_id))
                 if not is_replay:
                     cmds.append(TaskClockClear())
+                    if not s.is_sub_agent:
+                        cmds.append(
+                            UpdateTerminalTitlePrefix(
+                                prefix=self._terminal_title_prefix,
+                                model_name=self._model_name,
+                                session_title=self._session_title,
+                            )
+                        )
                 else:
                     cmds.append(PrintBlankLine())
                 cmds.append(RenderInterrupt(session_id=e.session_id))
@@ -1234,6 +1290,14 @@ class DisplayStateMachine:
                     self._spinner.reset()
                     cmds.append(SpinnerStop())
                     cmds.append(TaskClockClear())
+                    self._terminal_title_prefix = None
+                    cmds.append(
+                        UpdateTerminalTitlePrefix(
+                            prefix=self._terminal_title_prefix,
+                            model_name=self._model_name,
+                            session_title=self._session_title,
+                        )
+                    )
                 return cmds
 
             case _:

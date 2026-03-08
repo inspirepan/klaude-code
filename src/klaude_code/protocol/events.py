@@ -37,6 +37,7 @@ __all__ = [
     "ResponseEvent",
     "RewindEvent",
     "SessionStatsEvent",
+    "SessionTitleChangedEvent",
     "SubAgentModelChangedEvent",
     "TaskFinishEvent",
     "TaskMetadataEvent",
@@ -163,6 +164,10 @@ class CompactModelChangedEvent(Event):
 
 class SessionStatsEvent(Event):
     stats: model.SessionStatsUIExtra
+
+
+class SessionTitleChangedEvent(Event):
+    title: str
 
 
 class OperationAcceptedEvent(Event):
@@ -293,6 +298,7 @@ class ResponseCompleteEvent(ResponseEvent):
 class WelcomeEvent(Event):
     work_dir: str
     llm_config: llm_param.LLMConfigParameter
+    title: str | None = None
     show_klaude_code_info: bool = True
     loaded_skills: dict[str, list[str]] = Field(default_factory=dict)
     loaded_skill_warnings: dict[str, list[str]] = Field(default_factory=dict)

@@ -84,6 +84,7 @@ async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[di
                 "created_at": item.created_at,
                 "updated_at": item.updated_at,
                 "work_dir": item.work_dir,
+                "title": item.title,
                 "user_messages": item.user_messages,
                 "messages_count": item.messages_count,
                 "model_name": item.model_name,
@@ -148,6 +149,7 @@ async def create_session(
         meta: dict[str, Any] = {
             "id": session_id,
             "work_dir": str(target_work_dir.resolve()),
+            "title": None,
             "sub_agent_state": None,
             "created_at": now,
             "updated_at": now,
