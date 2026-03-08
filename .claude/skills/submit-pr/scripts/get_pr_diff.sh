@@ -20,6 +20,16 @@ die() {
   exit 1
 }
 
+jj_resolve_commit_id() {
+  local rev="$1"
+  jj log -r "$rev" --no-graph --template 'commit_id'
+}
+
+jj_is_empty_rev() {
+  local rev="$1"
+  jj log -r "$rev" --no-graph --template 'empty'
+}
+
 base_branch="main"
 remote="origin"
 
@@ -70,11 +80,55 @@ fi
 head_rev="HEAD"
 head_ref="HEAD"
 if [[ "$mode" == "jj" ]]; then
-  head_rev="$(jj log -r @ --no-graph --template 'commit_id')" || die "Failed to resolve jj revision '@'."
-  head_ref="@"
+  candidate_ref="@"
+  skipped_empty_count=0
+  selected_non_default=0
+  search_depth=0
+  max_search_depth=32
+  commits=""
+
+  while [[ "$search_depth" -lt "$max_search_depth" ]]; do
+    head_ref="$candidate_ref"
+    head_rev="$(jj_resolve_commit_id "$candidate_ref" 2>/dev/null || true)"
+    if [[ -z "$head_rev" ]]; then
+      break
+    fi
+
+    commits="$(git log --oneline "$base_ref..$head_rev" 2>/dev/null || true)"
+    if [[ -z "$commits" ]]; then
+      candidate_ref+="-"
+      selected_non_default=1
+      search_depth=$((search_depth + 1))
+      continue
+    fi
+
+    if [[ "$(jj_is_empty_rev "$candidate_ref")" == "true" ]]; then
+      candidate_ref+="-"
+      skipped_empty_count=$((skipped_empty_count + 1))
+      selected_non_default=1
+      search_depth=$((search_depth + 1))
+      continue
+    fi
+
+    break
+  done
+
+  if [[ -n "$commits" && "$selected_non_default" -eq 1 ]]; then
+    if [[ "$skipped_empty_count" -gt 0 ]]; then
+      echo "Info: auto-selected jj revision '$head_ref' for diff (skipped $skipped_empty_count empty working-copy commit(s))." >&2
+    else
+      echo "Info: auto-selected jj revision '$head_ref' for diff (newer revisions have no commits ahead of '$base_ref')." >&2
+    fi
+  fi
+
+  if [[ -z "$head_rev" ]]; then
+    commits=""
+  fi
 fi
 
-commits="$(git log --oneline "$base_ref..$head_rev")" || die "Failed to list commits from '$base_ref..$head_ref'."
+if [[ -z "${commits:-}" ]]; then
+  commits="$(git log --oneline "$base_ref..$head_rev")" || die "Failed to list commits from '$base_ref..$head_ref'."
+fi
 if [[ -z "$commits" ]]; then
   die "No commits ahead of '$base_ref' at '$head_ref'. Nothing to include in a PR.
 Fix: if you have uncommitted changes, commit them first:
