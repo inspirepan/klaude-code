@@ -17,6 +17,8 @@ from klaude_code.log import log
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 
+type ModelPreference = str | list[str] | None
+
 # Pattern to match ${ENV_VAR} and ${PRIMARY|FALLBACK} syntax
 _ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*(?:\|[A-Za-z_][A-Za-z0-9_]*)*)\}$")
 _PROVIDER_NAME_ALIASES = {
@@ -62,6 +64,37 @@ def resolve_api_key(value: str | None) -> str | None:
     """Resolve an API key value, expanding ${ENV_VAR} syntax if present."""
     _, resolved = parse_env_var_syntax(value)
     return resolved
+
+
+def _normalize_model_preference(value: Any) -> ModelPreference:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        normalized = value.strip()
+        return normalized or None
+    if isinstance(value, list):
+        normalized_list: list[str] = []
+        for item in cast(list[object], value):
+            normalized_item = str(item).strip()
+            if normalized_item:
+                normalized_list.append(normalized_item)
+        return normalized_list or None
+    return value
+
+
+def _iter_model_preference_values(value: ModelPreference) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    return list(value)
+
+
+def format_model_preference(value: ModelPreference) -> str | None:
+    choices = _iter_model_preference_values(value)
+    if not choices:
+        return None
+    return " -> ".join(choices)
 
 
 config_path = Path.home() / ".klaude" / "klaude-config.yaml"
@@ -218,8 +251,8 @@ class UserConfig(BaseModel):
     """User configuration (what gets saved to disk)."""
 
     main_model: str | None = None
-    fast_model: str | None = None
-    compact_model: str | None = None
+    fast_model: str | list[str] | None = None
+    compact_model: str | list[str] | None = None
     sub_agent_models: dict[str, str] = Field(default_factory=dict)
     theme: str | None = None
     provider_list: list[UserProviderConfig] = Field(default_factory=lambda: [])
@@ -227,6 +260,8 @@ class UserConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _normalize_sub_agent_models(cls, data: dict[str, Any]) -> dict[str, Any]:
+        data["fast_model"] = _normalize_model_preference(data.get("fast_model"))
+        data["compact_model"] = _normalize_model_preference(data.get("compact_model"))
         raw_val: Any = data.get("sub_agent_models") or {}
         raw_models: dict[str, Any] = cast(dict[str, Any], raw_val) if isinstance(raw_val, dict) else {}
         normalized: dict[str, str] = {}
@@ -248,8 +283,8 @@ class Config(BaseModel):
     """Merged configuration (builtin + user) for runtime use."""
 
     main_model: str | None = None
-    fast_model: str | None = None
-    compact_model: str | None = None
+    fast_model: str | list[str] | None = None
+    compact_model: str | list[str] | None = None
     sub_agent_models: dict[str, str] = Field(default_factory=dict)
     theme: str | None = None
     provider_list: list[ProviderConfig] = Field(default_factory=lambda: [])
@@ -260,6 +295,8 @@ class Config(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _normalize_sub_agent_models(cls, data: dict[str, Any]) -> dict[str, Any]:
+        data["fast_model"] = _normalize_model_preference(data.get("fast_model"))
+        data["compact_model"] = _normalize_model_preference(data.get("compact_model"))
         raw_val: Any = data.get("sub_agent_models") or {}
         raw_models: dict[str, Any] = cast(dict[str, Any], raw_val) if isinstance(raw_val, dict) else {}
         normalized: dict[str, str] = {}
@@ -285,6 +322,19 @@ class Config(BaseModel):
         if self._user_config is None:
             return {}
         return self._user_config.sub_agent_models
+
+    def get_first_available_model(self, model_preference: ModelPreference) -> str | None:
+        """Resolve a string-or-list model preference to the first available selector."""
+        last_error: ValueError | None = None
+        for model_name in _iter_model_preference_values(model_preference):
+            try:
+                _ = self.get_model_config(model_name)
+                return model_name
+            except ValueError as exc:
+                last_error = exc
+        if last_error is not None:
+            raise last_error
+        return None
 
     @classmethod
     def _split_model_selector(cls, model_selector: str) -> tuple[str, str | None]:
@@ -487,8 +537,8 @@ def get_example_config() -> UserConfig:
     """Generate example config for user reference (will be commented out)."""
     return UserConfig(
         main_model="opus",
-        fast_model="gemini-flash",
-        compact_model="gemini-flash",
+        fast_model=["haiku", "gemini-flash", "gpt-5-nano"],
+        compact_model=["gemini-flash", "haiku"],
         sub_agent_models={"general-purpose": "sonnet", "explore": "haiku"},
         provider_list=[
             UserProviderConfig(

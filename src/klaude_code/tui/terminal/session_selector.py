@@ -23,7 +23,7 @@ def select_session_sync(session_ids: list[str] | None = None) -> str | None:
         title: list[tuple[str, str]] = []
         title.append(("fg:ansibrightblack", f"{idx:2}. "))
         if opt.title:
-            title.append(("fg:ansiblack bold", f"{opt.title} "))
+            title.append(("fg:ansicyan bold", f"{opt.title} "))
         title.append(("class:meta", f"{opt.relative_time} · {opt.messages_count} · {opt.model_name}"))
         title.append(("fg:ansibrightblack dim", f" · {opt.session_id}\n"))
         for i, msg in enumerate(display_msgs):

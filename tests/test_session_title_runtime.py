@@ -56,7 +56,9 @@ class _FakeLLMClient(LLMClientABC):
 def test_generate_session_title_uses_only_user_messages() -> None:
     client = _FakeLLMClient(
         [
-            message.AssistantMessage(parts=[message.TextPart(text='  "Fix session title generation"  ')], stop_reason="stop")
+            message.AssistantMessage(
+                parts=[message.TextPart(text='  "Fix session title generation"  ')], stop_reason="stop"
+            )
         ]
     )
 
@@ -94,8 +96,8 @@ def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.Monkey
     config = Config(
         provider_list=[provider],
         main_model="main-model",
-        fast_model="fast-model",
-        compact_model="compact-model",
+        fast_model=["missing-fast-model", "fast-model"],
+        compact_model=["missing-compact-model", "compact-model"],
     )
 
     def _create_client(llm_config: llm_param.LLMConfigParameter) -> LLMClientABC:

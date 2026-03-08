@@ -172,6 +172,35 @@ class TestConfig:
 
         assert config.fast_model == "fast-model"
 
+    def test_config_accepts_model_preference_lists(self, sample_provider: ProviderConfig) -> None:
+        config = Config(
+            provider_list=[sample_provider],
+            main_model="test-model",
+            fast_model=["fast-a", "fast-b"],
+            compact_model=["compact-a", "compact-b"],
+        )
+
+        assert config.fast_model == ["fast-a", "fast-b"]
+        assert config.compact_model == ["compact-a", "compact-b"]
+
+    def test_get_first_available_model_uses_preference_order(self, sample_provider: ProviderConfig) -> None:
+        provider = ProviderConfig(
+            provider_name=sample_provider.provider_name,
+            protocol=sample_provider.protocol,
+            api_key=sample_provider.api_key,
+            model_list=[
+                *sample_provider.model_list,
+                ModelConfig(model_name="fallback-model", model_id="fallback-id"),
+            ],
+        )
+        config = Config(
+            provider_list=[provider],
+            main_model="test-model",
+            fast_model=["missing-model", "fallback-model"],
+        )
+
+        assert config.get_first_available_model(config.fast_model) == "fallback-model"
+
     def test_get_model_config(self, sample_config: Config) -> None:
         """Test getting model config by name."""
         llm_config = sample_config.get_model_config("test-model")
@@ -493,6 +522,24 @@ class TestConfigSave:
         assert saved_content["fast_model"] == "fast-model"
         assert "provider_list" not in saved_content
 
+    def test_save_config_preserves_model_preference_lists(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        test_config_path = tmp_path / "test-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        config = Config(
+            main_model="test-model",
+            fast_model=["haiku", "gemini-flash", "gpt-5-nano"],
+            compact_model=["haiku", "gemini-flash"],
+        )
+
+        asyncio.run(config.save())
+
+        saved_content = yaml.safe_load(test_config_path.read_text())
+        assert saved_content["fast_model"] == ["haiku", "gemini-flash", "gpt-5-nano"]
+        assert saved_content["compact_model"] == ["haiku", "gemini-flash"]
+
     def test_save_config_with_user_providers(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that save includes user-defined providers."""
         test_config_path = tmp_path / "test-config.yaml"
@@ -615,7 +662,7 @@ class TestLoadConfig:
 
         config_dict = {
             "main_model": "my-model",
-            "fast_model": "my-fast-model",
+            "fast_model": ["missing-fast-model", "my-fast-model"],
             "provider_list": [
                 {
                     "provider_name": "my-provider",
@@ -639,7 +686,7 @@ class TestLoadConfig:
 
         assert result is not None
         assert result.main_model == "my-model"
-        assert result.fast_model == "my-fast-model"
+        assert result.fast_model == ["missing-fast-model", "my-fast-model"]
         # User provider is merged with builtin providers
         provider_names = [p.provider_name for p in result.provider_list]
         assert "my-provider" in provider_names

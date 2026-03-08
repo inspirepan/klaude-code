@@ -535,5 +535,8 @@ provider_list:
 sub_agent_models:
   explore: sonnet-no-thinking
 
-compact_model: gemini-flash
-fast_model: gemini-flash
+compact_model:
+- gemini-flash
+fast_model:
+- gemini-flash
+- haiku

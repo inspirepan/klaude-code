@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
-from klaude_code.config import Config, load_config
+from klaude_code.config import Config, format_model_preference, load_config
 from klaude_code.config.model_matcher import match_model_from_config
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
 from klaude_code.config.thinking import get_thinking_picker_data, parse_thinking_value
@@ -92,8 +92,9 @@ def build_llm_clients(
     main_client = create_llm_client(llm_config)
 
     fast_client: LLMClientABC | None = None
-    if config.fast_model:
-        fast_llm_config = config.get_model_config(config.fast_model)
+    selected_fast_model = config.get_first_available_model(config.fast_model)
+    if selected_fast_model is not None:
+        fast_llm_config = config.get_model_config(selected_fast_model)
         log_debug(
             "Fast LLM config",
             fast_llm_config.model_dump_json(exclude_none=True),
@@ -102,8 +103,9 @@ def build_llm_clients(
         fast_client = create_llm_client(fast_llm_config)
 
     compact_client: LLMClientABC | None = None
-    if config.compact_model:
-        compact_llm_config = config.get_model_config(config.compact_model)
+    selected_compact_model = config.get_first_available_model(config.compact_model)
+    if selected_compact_model is not None:
+        compact_llm_config = config.get_model_config(selected_compact_model)
         log_debug(
             "Compact LLM config",
             compact_llm_config.model_dump_json(exclude_none=True),
@@ -1598,7 +1600,8 @@ class ConfigHandler:
                 user_interaction.OperationSelectOption(
                     id="__compact__",
                     label="Compact",
-                    description=config.compact_model or f"(inherit from main agent: {main_model_name})",
+                    description=format_model_preference(config.compact_model)
+                    or f"(inherit from main agent: {main_model_name})",
                 )
             ]
             for sub_agent in helper.get_available_sub_agents():
