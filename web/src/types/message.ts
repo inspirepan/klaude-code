@@ -135,6 +135,15 @@ export interface InterruptItem {
   sessionId: string | null;
 }
 
+export interface ErrorItem {
+  id: MessageItemId;
+  type: "error";
+  timestamp: ItemTimestamp;
+  sessionId: string | null;
+  message: string;
+  canRetry: boolean;
+}
+
 export interface CompactionSummaryItem {
   id: MessageItemId;
   type: "compaction_summary";
@@ -158,6 +167,7 @@ export type MessageItem =
   | AssistantTextItem
   | ToolBlockItem
   | DeveloperMessageItem
+  | ErrorItem
   | InterruptItem
   | CompactionSummaryItem
   | TaskWorkedItem

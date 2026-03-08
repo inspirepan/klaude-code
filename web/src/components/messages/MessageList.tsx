@@ -250,6 +250,8 @@ function extractSearchableText(item: MessageItemType): string {
       return "";
     case "task_worked":
       return "";
+    case "error":
+      return item.message;
     case "interrupt":
       return "Interrupted by user";
     case "compaction_summary":

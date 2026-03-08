@@ -105,7 +105,6 @@ const SKIP_EVENT_TYPES = new Set([
   "usage",
   "welcome",
   "replay.history",
-  "error",
   "compaction.start",
   "rewind",
   "user.interaction.request",
@@ -184,6 +183,26 @@ function clearTaskScopedStatus(status: SessionStatusState): SessionStatusState {
     activeToolCalls: {},
     activeToolCallNamesById: {},
     taskStartedAt: null,
+  };
+}
+
+function stopStreamingItems(state: ReducerState): ReducerState {
+  let changed = false;
+  const nextItems = state.items.map((item) => {
+    if ("isStreaming" in item && item.isStreaming) {
+      changed = true;
+      return { ...item, isStreaming: false };
+    }
+    return item;
+  });
+  if (!changed && state.activeTextIndex === -1 && state.activeThinkingIndex === -1) {
+    return state;
+  }
+  return {
+    ...state,
+    items: nextItems,
+    activeTextIndex: -1,
+    activeThinkingIndex: -1,
   };
 }
 
@@ -1134,18 +1153,12 @@ export function reduceEvent(
     }
 
     case "interrupt": {
-      // Stop all streaming
-      const nextItems = currentState.items.map((item) => {
-        if ("isStreaming" in item && item.isStreaming) {
-          return { ...item, isStreaming: false };
-        }
-        return item;
-      });
+      const nextState = stopStreamingItems(currentState);
       const id = makeId(currentState);
       return {
-        ...currentState,
+        ...nextState,
         items: [
-          ...nextItems,
+          ...nextState.items,
           {
             id,
             type: "interrupt",
@@ -1154,8 +1167,32 @@ export function reduceEvent(
           },
         ],
         nextId: currentState.nextId + 1,
-        activeTextIndex: -1,
-        activeThinkingIndex: -1,
+      };
+    }
+
+    case "error": {
+      const message = typeof event.error_message === "string" ? event.error_message.trim() : "";
+      const canRetry = event.can_retry === true;
+      if (message.length === 0 || canRetry) {
+        return stopStreamingItems(currentState);
+      }
+
+      const nextState = stopStreamingItems(currentState);
+      const id = makeId(currentState);
+      return {
+        ...nextState,
+        items: [
+          ...nextState.items,
+          {
+            id,
+            type: "error",
+            timestamp: ts,
+            sessionId: sourceSessionId,
+            message,
+            canRetry,
+          },
+        ],
+        nextId: currentState.nextId + 1,
       };
     }
 

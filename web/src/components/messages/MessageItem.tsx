@@ -7,6 +7,7 @@ import { AssistantText } from "./AssistantText";
 import { ToolBlock } from "./ToolBlock";
 import { DeveloperMessage } from "./DeveloperMessage";
 import { TaskWorked } from "./TaskWorked";
+import { ErrorMessage } from "./ErrorMessage";
 import { InterruptMessage } from "./InterruptMessage";
 import { CompactionSummary } from "./CompactionSummary";
 import { UnknownEvent } from "./UnknownEvent";
@@ -31,6 +32,8 @@ function MessageItemInner({ item, compact = false, workDir }: MessageItemProps):
       return <DeveloperMessage item={item} />;
     case "task_worked":
       return <TaskWorked item={item} compact={compact} />;
+    case "error":
+      return <ErrorMessage item={item} compact={compact} />;
     case "interrupt":
       return <InterruptMessage item={item} compact={compact} />;
     case "compaction_summary":
