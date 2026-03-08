@@ -1,4 +1,4 @@
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo, useRef, useEffect, useState } from "react";
 import { PatchDiff } from "@pierre/diffs/react";
 import { DEFAULT_THEMES, preloadHighlighter } from "@pierre/diffs";
 
@@ -70,9 +70,28 @@ interface DiffViewProps {
   uiExtra?: DiffUIExtra;
 }
 
+const COLLAPSED_DIFF_MAX_HEIGHT = 420;
+
 export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
   const extra = uiExtra ?? (item.uiExtra && isDiffUIExtra(item.uiExtra) ? item.uiExtra : null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  const patches = useMemo(() => {
+    if (!extra) return null;
+    if (extra.files.length > 0) {
+      if (extra.files.length === 1 && extra.raw_unified_diff) {
+        return [extra.raw_unified_diff];
+      }
+      return extra.files.map(rebuildSingleFileUnifiedDiff);
+    }
+    if (extra.raw_unified_diff) {
+      return [extra.raw_unified_diff];
+    }
+    return null;
+  }, [extra]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -89,40 +108,58 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
     }
   });
 
-  const patches = useMemo(() => {
-    if (!extra) return null;
-    if (extra.files.length > 0) {
-      if (extra.files.length === 1 && extra.raw_unified_diff) {
-        return [extra.raw_unified_diff];
-      }
-      return extra.files.map(rebuildSingleFileUnifiedDiff);
-    }
-    if (extra.raw_unified_diff) {
-      return [extra.raw_unified_diff];
-    }
-    return null;
-  }, [extra]);
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+
+    const updateOverflow = (): void => {
+      setIsOverflowing(el.scrollHeight > COLLAPSED_DIFF_MAX_HEIGHT);
+    };
+
+    updateOverflow();
+    const observer = new ResizeObserver(updateOverflow);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [patches]);
 
   if (!extra || patches === null) return null;
 
   return (
     <div className="diff-view" ref={containerRef}>
-      <div className="flex flex-col">
-        {patches.map((patch, index) => (
-          <PatchDiff
-            key={`${item.id}-${index}`}
-            patch={patch}
-            options={{
-              theme: "github-light",
-              themeType: "light",
-              overflow: "wrap",
-              diffStyle: "unified",
-              diffIndicators: "bars",
-              lineDiffType: "word",
-              hunkSeparators: "simple",
-            }}
-          />
-        ))}
+      <div className="flex flex-col gap-1">
+        <div
+          className={`relative ${!expanded && isOverflowing ? "max-h-[420px] overflow-hidden" : ""}`}
+        >
+          <div ref={contentRef} className="flex flex-col">
+            {patches.map((patch, index) => (
+              <PatchDiff
+                key={`${item.id}-${index}`}
+                patch={patch}
+                options={{
+                  theme: "github-light",
+                  themeType: "light",
+                  overflow: "wrap",
+                  diffStyle: "unified",
+                  diffIndicators: "bars",
+                  lineDiffType: "word",
+                  hunkSeparators: "simple",
+                }}
+              />
+            ))}
+          </div>
+          {!expanded && isOverflowing ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white via-white/95 to-transparent" />
+          ) : null}
+        </div>
+        {isOverflowing ? (
+          <button
+            type="button"
+            className="self-start pb-1 pl-2 text-xs text-neutral-400 transition-colors hover:text-neutral-600"
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded ? "Show less" : "Show more"}
+          </button>
+        ) : null}
       </div>
     </div>
   );

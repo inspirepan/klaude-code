@@ -11,8 +11,6 @@ export interface SessionStatusState {
   compacting: boolean;
   isComposing: boolean;
   assistantCharCount: number;
-  activeToolCalls: Record<string, number>;
-  activeToolCallNamesById: Record<string, string>;
   tokenInput: number | null;
   tokenCached: number | null;
   tokenCacheWrite: number | null;
@@ -68,8 +66,6 @@ function createInitialSessionStatus(sessionId: string): SessionStatusState {
     compacting: false,
     isComposing: false,
     assistantCharCount: 0,
-    activeToolCalls: {},
-    activeToolCallNamesById: {},
     tokenInput: null,
     tokenCached: null,
     tokenCacheWrite: null,
@@ -115,6 +111,7 @@ const SKIP_EVENT_TYPES = new Set([
   "operation.finished",
   "notice",
   "model.changed",
+  "session.title.changed",
   "todo.change",
   "cache.hit.rate",
   "usage.snapshot",
@@ -124,28 +121,6 @@ const SKIP_EVENT_TYPES = new Set([
 const WORKED_LINE_DURATION_THRESHOLD_S = 60;
 const WORKED_LINE_TURN_COUNT_THRESHOLD = 4;
 const DEFAULT_MAX_TOKENS = 32000;
-const TOOL_ACTIVE_FORM: Record<string, string> = {
-  Bash: "Running Bash",
-  Read: "Reading",
-  Edit: "Editing",
-  Write: "Writing",
-  TodoWrite: "Updating Todos",
-  MultiEdit: "Editing",
-  NotebookEdit: "Editing Notebook",
-  Grep: "Searching",
-  Glob: "Scanning Files",
-  LS: "Listing Files",
-  WebFetch: "Fetching Web",
-  WebSearch: "Searching Web",
-  Agent: "Spawning Task",
-  update_plan: "Planning",
-  UpdatePlan: "Planning",
-  AskUserQuestion: "Questioning",
-  Rewind: "Rewinding",
-  ReportBack: "Reporting",
-  ApplyPatch: "Applying Patch",
-};
-
 function parseFiniteNumber(raw: unknown): number | null {
   return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
 }
@@ -180,8 +155,6 @@ function clearTaskScopedStatus(status: SessionStatusState): SessionStatusState {
     compacting: false,
     isComposing: false,
     assistantCharCount: 0,
-    activeToolCalls: {},
-    activeToolCallNamesById: {},
     taskStartedAt: null,
   };
 }
@@ -203,76 +176,6 @@ function stopStreamingItems(state: ReducerState): ReducerState {
     items: nextItems,
     activeTextIndex: -1,
     activeThinkingIndex: -1,
-  };
-}
-
-function getAgentActiveForm(argumentsText: string): string {
-  try {
-    const parsed = JSON.parse(argumentsText) as Record<string, unknown>;
-    const type = typeof parsed.type === "string" ? parsed.type.trim() : "";
-    if (type === "explore") return "Exploring";
-    if (type === "web") return "Surfing";
-    return "Tasking";
-  } catch {
-    return "Tasking";
-  }
-}
-
-function getToolActiveForm(toolName: string, argumentsText: string | null = null): string {
-  if (toolName === "Agent" && argumentsText !== null) {
-    return getAgentActiveForm(argumentsText);
-  }
-  return TOOL_ACTIVE_FORM[toolName] ?? `Calling ${toolName}`;
-}
-
-function setActiveToolCall(
-  status: SessionStatusState,
-  toolCallId: string,
-  nextToolName: string,
-): SessionStatusState {
-  const previousToolName = status.activeToolCallNamesById[toolCallId] ?? null;
-  if (previousToolName === nextToolName) return status;
-
-  const nextToolCalls = { ...status.activeToolCalls };
-  if (previousToolName !== null) {
-    const previousCount = (nextToolCalls[previousToolName] ?? 0) - 1;
-    if (previousCount <= 0) {
-      delete nextToolCalls[previousToolName];
-    } else {
-      nextToolCalls[previousToolName] = previousCount;
-    }
-  }
-  nextToolCalls[nextToolName] = (nextToolCalls[nextToolName] ?? 0) + 1;
-
-  return {
-    ...status,
-    activeToolCalls: nextToolCalls,
-    activeToolCallNamesById: {
-      ...status.activeToolCallNamesById,
-      [toolCallId]: nextToolName,
-    },
-  };
-}
-
-function clearActiveToolCall(status: SessionStatusState, toolCallId: string): SessionStatusState {
-  const previousToolName = status.activeToolCallNamesById[toolCallId];
-  if (previousToolName === undefined) return status;
-
-  const nextToolCalls = { ...status.activeToolCalls };
-  const previousCount = (nextToolCalls[previousToolName] ?? 0) - 1;
-  if (previousCount <= 0) {
-    delete nextToolCalls[previousToolName];
-  } else {
-    nextToolCalls[previousToolName] = previousCount;
-  }
-
-  const nextToolCallNamesById = { ...status.activeToolCallNamesById };
-  delete nextToolCallNamesById[toolCallId];
-
-  return {
-    ...status,
-    activeToolCalls: nextToolCalls,
-    activeToolCallNamesById: nextToolCallNamesById,
   };
 }
 
@@ -309,8 +212,6 @@ function reduceStatusEvent(
           compacting: false,
           isComposing: false,
           assistantCharCount: 0,
-          activeToolCalls: {},
-          activeToolCallNamesById: {},
           taskStartedAt: timestamp,
         };
       });
@@ -354,7 +255,6 @@ function reduceStatusEvent(
           !status.thinkingActive &&
           !status.compacting &&
           !status.isComposing &&
-          Object.keys(status.activeToolCalls).length === 0 &&
           status.taskStartedAt === null
         ) {
           nextStatuses[existingSessionId] = status;
@@ -430,8 +330,6 @@ function reduceStatusEvent(
         ...current,
         isComposing: true,
         assistantCharCount: 0,
-        activeToolCalls: {},
-        activeToolCallNamesById: {},
       }));
     }
 
@@ -456,52 +354,18 @@ function reduceStatusEvent(
 
     case "tool.call.start": {
       if (sessionId === null) return state;
-      const toolCallId = typeof event.tool_call_id === "string" ? event.tool_call_id : "";
-      const rawToolName = typeof event.tool_name === "string" ? event.tool_name : "";
-      if (toolCallId.length === 0 || rawToolName.length === 0) return state;
-      return updateSessionStatus(state, sessionId, (current) => {
-        if (!current.isSubAgent && rawToolName === "Agent") {
-          return {
-            ...current,
-            isComposing: false,
-          };
-        }
-        return setActiveToolCall(
-          {
-            ...current,
-            isComposing: false,
-          },
-          toolCallId,
-          getToolActiveForm(rawToolName),
-        );
-      });
+      return updateSessionStatus(state, sessionId, (current) => ({
+        ...current,
+        isComposing: false,
+      }));
     }
 
     case "tool.call": {
       if (sessionId === null) return state;
-      const toolCallId = typeof event.tool_call_id === "string" ? event.tool_call_id : "";
-      const rawToolName = typeof event.tool_name === "string" ? event.tool_name : "";
-      const argumentsText = typeof event.arguments === "string" ? event.arguments : null;
-      if (toolCallId.length === 0 || rawToolName.length === 0) return state;
-      return updateSessionStatus(state, sessionId, (current) => {
-        if (!current.isSubAgent && rawToolName === "Agent") {
-          return current;
-        }
-        return setActiveToolCall(
-          current,
-          toolCallId,
-          getToolActiveForm(rawToolName, argumentsText),
-        );
-      });
-    }
-
-    case "tool.result": {
-      if (sessionId === null) return state;
-      const toolCallId = typeof event.tool_call_id === "string" ? event.tool_call_id : "";
-      if (toolCallId.length === 0) return state;
-      return updateSessionStatus(state, sessionId, (current) =>
-        clearActiveToolCall(current, toolCallId),
-      );
+      return updateSessionStatus(state, sessionId, (current) => ({
+        ...current,
+        isComposing: false,
+      }));
     }
 
     case "usage": {

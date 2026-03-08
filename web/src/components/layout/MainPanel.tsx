@@ -6,7 +6,6 @@ import { MessageList } from "../messages/MessageList";
 
 export function MainPanel(): JSX.Element {
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
-  const draftWorkDir = useSessionStore((state) => state.draftWorkDir);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
@@ -33,14 +32,6 @@ export function MainPanel(): JSX.Element {
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-baseline gap-2 text-[14px] leading-5">
                 <span className="truncate font-semibold text-neutral-800">New session</span>
-                {draftWorkDir.trim() ? (
-                  <span
-                    className="truncate font-mono text-[14px] leading-5 text-neutral-400"
-                    title={draftWorkDir}
-                  >
-                    {draftWorkDir}
-                  </span>
-                ) : null}
               </div>
             </div>
             {!rightSidebarOpen ? (

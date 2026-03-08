@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import uuid
 from collections.abc import Iterable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
@@ -11,6 +12,8 @@ from typing import Any, cast
 from klaude_code.const import ProjectPaths
 from klaude_code.protocol import llm_param, message, model
 from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
+
+_RUNTIME_META_KEYS = ("session_state", "runtime_owner", "runtime_owner_heartbeat_at")
 
 
 class _WriterClosedError(RuntimeError):
@@ -83,9 +86,21 @@ class JsonlSessionWriter:
             f.flush()
 
         meta_path = self._paths.meta_file(batch.session_id)
-        # Use a distinct temp name to avoid racing with update_meta().
-        tmp_path = meta_path.with_suffix(".json.w.tmp")
-        tmp_path.write_text(json.dumps(batch.meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        # Use a per-write temp name to avoid concurrent replace races.
+        tmp_path = meta_path.with_name(f"{meta_path.stem}.{uuid.uuid4().hex}.w.tmp")
+        meta = dict(batch.meta)
+        if meta_path.exists():
+            try:
+                raw = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                raw = None
+            if isinstance(raw, dict):
+                current_meta = cast(dict[str, Any], raw)
+                for key in _RUNTIME_META_KEYS:
+                    if key in current_meta:
+                        meta[key] = current_meta[key]
+
+        tmp_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp_path.replace(meta_path)
 
         if not batch.done.done():
@@ -127,8 +142,8 @@ class JsonlSessionStore:
         data.update(updates)
 
         try:
-            # Use a distinct temp name to avoid racing with _write_batch_sync().
-            tmp_path = meta_path.with_suffix(".json.u.tmp")
+            # Use a per-write temp name to avoid concurrent replace races.
+            tmp_path = meta_path.with_name(f"{meta_path.stem}.{uuid.uuid4().hex}.u.tmp")
             tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
             tmp_path.replace(meta_path)
         except OSError:

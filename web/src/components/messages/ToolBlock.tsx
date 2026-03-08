@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { ChevronRight, Loader } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import type { ToolBlockItem } from "../../types/message";
 import { useSearch } from "./search-context";
@@ -20,6 +20,7 @@ import {
 
 const PLAN_TOOLS = new Set(["TodoWrite", "update_plan"]);
 const FILE_PATH_TOOLS = new Set(["Read", "Edit", "Write", "Glob", "Grep"]);
+const DEFAULT_EXPANDED_TOOLS = new Set(["apply_patch", "Edit", "Write"]);
 
 function extractHeaderDetail(toolName: string, args: string): string {
   try {
@@ -91,6 +92,7 @@ function hasDiffUIExtra(extra: Record<string, unknown>): boolean {
 function shouldExpandResult(item: ToolBlockItem): boolean {
   if (item.resultStatus === "error") return false;
   if (item.uiExtra !== null && hasRichUIExtra(item.uiExtra)) return true;
+  if (DEFAULT_EXPANDED_TOOLS.has(item.toolName)) return true;
   if (item.toolName === "Read") return false;
   return false;
 }
@@ -195,7 +197,7 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
         <div
           className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}
         >
-          <Loader className="h-3 w-3 animate-spin" />
+          <span className="h-3 w-3 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
           <span>Planning…</span>
         </div>
       ) : null}
@@ -217,7 +219,7 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
         <div
           className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}
         >
-          <Loader className="h-3 w-3 animate-spin" />
+          <span className="h-3 w-3 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
           <span>Waiting for answer…</span>
         </div>
       ) : null}
@@ -287,16 +289,13 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
           />
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
-        <span className="relative top-[2px] whitespace-nowrap font-sans font-normal text-neutral-500">
+        <span className="relative top-[0.5px] whitespace-nowrap font-sans font-normal text-neutral-500">
           {item.toolName}
         </span>
-        {item.isStreaming ? (
-          <Loader className="mt-0.5 h-3 w-3 shrink-0 translate-y-[2px] animate-spin text-neutral-400" />
-        ) : null}
       </div>
 
-      {/* right col: detail only */}
-      <div className="min-w-0">
+      {/* right col: detail + spinner */}
+      <div className="flex min-w-0 items-baseline gap-1.5">
         {detail ? (
           FILE_PATH_TOOLS.has(item.toolName) ? (
             <FilePath
@@ -318,6 +317,11 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
               <HighlightText>{detail}</HighlightText>
             </span>
           )
+        ) : null}
+        {item.isStreaming ? (
+          <span className="inline-flex translate-y-[5px]">
+            <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
+          </span>
         ) : null}
       </div>
 
