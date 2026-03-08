@@ -265,7 +265,7 @@ function openSessionWs(sessionId: string, get: () => SessionStoreState, set: Set
       handleWsError(errorFrame, sessionId, set);
     },
     onEvent: (eventEnvelope) => {
-      handleWsEvent(eventEnvelope, get, set);
+      handleWsEvent(sessionId, eventEnvelope, get, set);
     },
   });
 
@@ -295,6 +295,7 @@ function hasReusableConnection(sessionId: string, state: SessionStoreState): boo
 }
 
 function handleWsEvent(
+  rootSessionId: string,
   eventEnvelope: WsEventEnvelope,
   get: () => SessionStoreState,
   set: SetState,
@@ -316,9 +317,11 @@ function handleWsEvent(
   }));
 
   const wsTimestamp = typeof eventEnvelope.timestamp === "number" ? eventEnvelope.timestamp : null;
-  useMessageStore
-    .getState()
-    .handleEvent(targetSessionId, eventEnvelope.event_type, eventEnvelope.event ?? {}, wsTimestamp);
+  const messageStore = useMessageStore.getState();
+  messageStore.handleEvent(rootSessionId, eventEnvelope.event_type, eventEnvelope.event ?? {}, wsTimestamp);
+  if (targetSessionId !== rootSessionId) {
+    messageStore.handleEvent(targetSessionId, eventEnvelope.event_type, eventEnvelope.event ?? {}, wsTimestamp);
+  }
 
   if (eventEnvelope.event_type !== "task.finish") {
     return;

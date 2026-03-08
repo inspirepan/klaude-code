@@ -189,9 +189,21 @@ def _validate_incoming_frame(payload: dict[str, Any], frame_type: str) -> Incomi
 
 async def _forward_events(session_id: str, websocket: WebSocket) -> None:
     state = get_web_state_from_ws(websocket)
-    subscription = state.event_bus.subscribe(session_id)
+    subscription = state.event_bus.subscribe(None)
+    tracked_task_ids: set[str] = set()
+
+    snapshot = state.runtime.session_registry.snapshot(session_id)
+    if snapshot is not None and snapshot.active_root_task is not None:
+        tracked_task_ids.add(snapshot.active_root_task.task_id)
+
     try:
         async for envelope in subscription:
+            if envelope.session_id == session_id:
+                if envelope.task_id is not None:
+                    tracked_task_ids.add(envelope.task_id)
+            elif envelope.task_id not in tracked_task_ids:
+                continue
+
             await websocket.send_json(envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True))
     except (WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError, asyncio.CancelledError, FutureCancelledError):
         return
