@@ -30,19 +30,8 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
   const [expandedImageIndex, setExpandedImageIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    setShowMore(false);
-    setExpandedImageIndex(null);
-  }, [item.id]);
-
-  useEffect(() => {
-    if (!hasText) {
-      setCanExpandText(false);
-      setCollapsedTextMaxHeight(null);
-      return;
-    }
-
     const node = textRef.current;
-    if (!node) return;
+    if (!hasText || !node) return;
 
     const updateMetrics = (): void => {
       const lineHeight = Number.parseFloat(window.getComputedStyle(node).lineHeight);
@@ -57,11 +46,14 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
       setCanExpandText(node.scrollHeight > maxHeight + 1);
     };
 
-    updateMetrics();
+    const frameId = window.requestAnimationFrame(updateMetrics);
 
     const observer = new ResizeObserver(updateMetrics);
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      observer.disconnect();
+    };
   }, [hasText, normalizedContent, compact]);
 
   const expandedImage =

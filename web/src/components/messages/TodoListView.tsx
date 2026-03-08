@@ -1,23 +1,4 @@
-interface TodoItem {
-  content: string;
-  status: "pending" | "in_progress" | "completed";
-}
-
-interface TodoListUIExtra {
-  type: "todo_list";
-  todo_list: {
-    todos: TodoItem[];
-    new_completed: string[];
-  };
-}
-
-export function isTodoListUIExtra(extra: unknown): extra is TodoListUIExtra {
-  return (
-    typeof extra === "object" &&
-    extra !== null &&
-    (extra as { type?: unknown }).type === "todo_list"
-  );
-}
+import type { TodoListUIExtra } from "./message-ui-extra";
 
 const statusConfig = {
   pending: { mark: "\u25A2", markClass: "text-neutral-300", textClass: "text-neutral-500" },
@@ -44,7 +25,7 @@ export function TodoListView({ uiExtra, compact = false }: TodoListViewProps): J
         const isNewCompleted = todo.status === "completed" && newCompletedSet.has(todo.content);
         const config = statusConfig[todo.status];
         const markClass = isNewCompleted ? "text-emerald-600 font-semibold" : config.markClass;
-        const textClass = isNewCompleted ? "text-emerald-700 font-medium" : config.textClass;
+        const textClass = isNewCompleted ? "text-emerald-700 font-semibold" : config.textClass;
 
         return (
           <div key={i} className="flex items-start gap-2 leading-relaxed">

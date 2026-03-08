@@ -1,23 +1,5 @@
 import { Circle } from "lucide-react";
-
-interface QuestionSummaryItem {
-  question: string;
-  summary: string;
-  answered: boolean;
-}
-
-interface AskUserQuestionSummaryUIExtra {
-  type: "ask_user_question_summary";
-  items: QuestionSummaryItem[];
-}
-
-export function isQuestionSummaryUIExtra(extra: unknown): extra is AskUserQuestionSummaryUIExtra {
-  return (
-    typeof extra === "object" &&
-    extra !== null &&
-    (extra as { type?: unknown }).type === "ask_user_question_summary"
-  );
-}
+import type { AskUserQuestionSummaryUIExtra } from "./message-ui-extra";
 
 interface QuestionSummaryViewProps {
   uiExtra: AskUserQuestionSummaryUIExtra;
@@ -29,9 +11,7 @@ export function QuestionSummaryView({
   compact = false,
 }: QuestionSummaryViewProps): JSX.Element {
   const title = (
-    <div
-      className={`${compact ? "text-[11px]" : "text-xs"} font-semibold tracking-[0.06em] text-neutral-600`}
-    >
+    <div className={`${compact ? "text-[11px]" : "text-xs"} font-semibold text-neutral-600`}>
       QUESTION
     </div>
   );

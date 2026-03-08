@@ -164,18 +164,21 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     [visibleItems, searchQuery],
   );
 
-  // Reset active index when matches change
-  useEffect(() => {
-    setSearchActiveIndex(searchMatchItemIds.length > 0 ? 0 : -1);
-  }, [searchMatchItemIds]);
+  const activeItemId = useMemo(() => {
+    if (searchMatchItemIds.length === 0) return null;
+    return searchMatchItemIds[searchActiveIndex] ?? searchMatchItemIds[0] ?? null;
+  }, [searchActiveIndex, searchMatchItemIds]);
+
+  const resolvedSearchActiveIndex =
+    activeItemId === null ? -1 : searchMatchItemIds.indexOf(activeItemId);
 
   const searchState = useMemo<SearchState>(
     () => ({
       query: searchQuery,
       matchItemIds: searchMatchItemIds,
-      activeIndex: searchActiveIndex,
+      activeIndex: resolvedSearchActiveIndex,
     }),
-    [searchQuery, searchMatchItemIds, searchActiveIndex],
+    [searchQuery, searchMatchItemIds, resolvedSearchActiveIndex],
   );
 
   // Cmd+F intercept
@@ -192,12 +195,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   // Scroll to active search match
   useEffect(() => {
-    if (searchActiveIndex < 0 || searchMatchItemIds.length === 0) return;
-    const itemId = searchMatchItemIds[searchActiveIndex];
-    if (!itemId) return;
-    const el = itemRefsMap.current.get(itemId);
+    if (!activeItemId) return;
+    const el = itemRefsMap.current.get(activeItemId);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [searchActiveIndex, searchMatchItemIds, collapsedSubAgentGroups]);
+  }, [activeItemId, collapsedSubAgentGroups]);
 
   const handleSearchQueryChange = useCallback((query: string) => {
     setSearchQuery(query);
@@ -205,15 +206,17 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   const handleSearchNext = useCallback(() => {
     if (searchMatchItemIds.length === 0) return;
-    setSearchActiveIndex((prev) => (prev + 1) % searchMatchItemIds.length);
-  }, [searchMatchItemIds.length]);
+    const currentIndex = activeItemId === null ? -1 : searchMatchItemIds.indexOf(activeItemId);
+    setSearchActiveIndex((currentIndex + 1) % searchMatchItemIds.length);
+  }, [activeItemId, searchMatchItemIds]);
 
   const handleSearchPrev = useCallback(() => {
     if (searchMatchItemIds.length === 0) return;
+    const currentIndex = activeItemId === null ? 0 : searchMatchItemIds.indexOf(activeItemId);
     setSearchActiveIndex(
-      (prev) => (prev - 1 + searchMatchItemIds.length) % searchMatchItemIds.length,
+      (currentIndex - 1 + searchMatchItemIds.length) % searchMatchItemIds.length,
     );
-  }, [searchMatchItemIds.length]);
+  }, [activeItemId, searchMatchItemIds]);
 
   const handleSearchClose = useCallback(() => {
     setSearchOpen(false);
@@ -339,17 +342,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     return map;
   }, [sectionBlocks]);
 
-  const activeItemId = searchActiveIndex >= 0 ? searchMatchItemIds[searchActiveIndex] : null;
-
-  useEffect(() => {
-    if (!activeItemId) return;
-    const groupId = subAgentGroupIdByItemId.get(activeItemId);
-    if (!groupId) return;
-    setCollapsedSubAgentGroups((prev) => {
-      if (!prev[groupId]) return prev;
-      return { ...prev, [groupId]: false };
-    });
-  }, [activeItemId, subAgentGroupIdByItemId]);
+  const activeGroupId =
+    activeItemId === null ? null : (subAgentGroupIdByItemId.get(activeItemId) ?? null);
 
   if (!hasItems) {
     return (
@@ -365,7 +359,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         {searchOpen ? (
           <SearchBar
             totalMatches={searchMatchItemIds.length}
-            activeIndex={searchActiveIndex}
+            activeIndex={resolvedSearchActiveIndex}
             onQueryChange={handleSearchQueryChange}
             onNext={handleSearchNext}
             onPrev={handleSearchPrev}
@@ -383,7 +377,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
               <div key={section[0].id} className="space-y-5">
                 {sectionBlocks[sectionIndex]?.map((block) => {
                   if (block.type === "sub_agent_group") {
-                    const collapsed = collapsedSubAgentGroups[block.groupId] ?? true;
+                    const collapsed =
+                      activeGroupId === block.groupId
+                        ? false
+                        : (collapsedSubAgentGroups[block.groupId] ?? true);
                     const toolItems = block.items.filter(
                       (item): item is Extract<MessageItemType, { type: "tool_block" }> =>
                         item.type === "tool_block",
@@ -419,7 +416,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                             <ChevronRight
                               className={`h-3.5 w-3.5 text-neutral-300 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
                             />
-                            <span className="whitespace-nowrap font-sans text-[14px] font-medium tracking-[0.02em] text-neutral-700">
+                            <span className="whitespace-nowrap font-sans text-[14px] font-semibold text-neutral-700">
                               {block.sourceSessionType
                                 ? `Agent(${block.sourceSessionType})`
                                 : "Agent"}
@@ -466,7 +463,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                             key={toolItem.id}
                                             className="flex min-w-0 items-start gap-1.5 text-[12px]"
                                           >
-                                            <span className="whitespace-nowrap font-sans tracking-[0.02em] text-neutral-500">
+                                            <span className="whitespace-nowrap font-sans text-neutral-500">
                                               {toolItem.toolName}
                                             </span>
                                             {detail ? (

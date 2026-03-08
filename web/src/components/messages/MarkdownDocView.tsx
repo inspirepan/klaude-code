@@ -2,21 +2,9 @@ import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 
 import { mermaid } from "../../lib/mermaid-plugin";
-import { useParsedFrontmatter, FrontmatterTable } from "./FrontmatterTable";
-
-interface MarkdownDocUIExtra {
-  type: "markdown_doc";
-  file_path: string;
-  content: string;
-}
-
-export function isMarkdownDocUIExtra(extra: unknown): extra is MarkdownDocUIExtra {
-  return (
-    typeof extra === "object" &&
-    extra !== null &&
-    (extra as { type?: unknown }).type === "markdown_doc"
-  );
-}
+import { FrontmatterTable } from "./FrontmatterTable";
+import { useParsedFrontmatter } from "./frontmatter";
+import type { MarkdownDocUIExtra } from "./message-ui-extra";
 
 const plugins = { code, mermaid };
 

@@ -74,9 +74,7 @@ function CollapsibleRow({
           />
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
-        <span className="whitespace-nowrap font-sans font-normal tracking-[0.03em] text-neutral-500">
-          {label}
-        </span>
+        <span className="whitespace-nowrap font-sans font-normal text-neutral-500">{label}</span>
       </div>
 
       <div className="min-w-0" />

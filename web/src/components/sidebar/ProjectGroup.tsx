@@ -48,10 +48,10 @@ export function ProjectGroup({
           <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
         )}
         <div className="min-w-0 flex-1 text-left" title={workDir}>
-          <div className="truncate text-[15px] font-medium leading-5 text-neutral-800">
+          <div className="truncate text-[14px] font-semibold leading-5 text-neutral-800">
             {workDirLabel(workDir)}
           </div>
-          <div className="mt-0.5 truncate text-[12px] leading-4 text-neutral-400" title={workDir}>
+          <div className="mt-0.5 truncate text-[11px] leading-4 text-neutral-400" title={workDir}>
             {workDir}
           </div>
         </div>
@@ -87,7 +87,7 @@ export function ProjectGroup({
                 setShowAll(true);
               }}
             >
-              <span className="flex-1 pl-6 text-[13px] font-normal">
+              <span className="flex-1 pl-6 text-[12px] font-normal">
                 Load more ({sessions.length - 10})
               </span>
             </button>
