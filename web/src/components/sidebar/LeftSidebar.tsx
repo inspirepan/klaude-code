@@ -171,6 +171,9 @@ export function LeftSidebar(): JSX.Element {
               onToggle={() => {
                 toggleGroup(group.work_dir);
               }}
+              onSelectDraft={(workDir) => {
+                selectDraft(workDir);
+              }}
               onSelectSession={(sessionId) => {
                 void selectSession(sessionId);
               }}
@@ -201,6 +204,9 @@ export function LeftSidebar(): JSX.Element {
                         ...prev,
                         [group.work_dir]: !(prev[group.work_dir] ?? false),
                       }));
+                    }}
+                    onSelectDraft={(workDir) => {
+                      selectDraft(workDir);
                     }}
                     onSelectSession={(sessionId) => {
                       void selectSession(sessionId);

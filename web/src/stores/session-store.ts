@@ -37,7 +37,7 @@ interface SessionStoreState {
   refreshSessions: () => Promise<void>;
   toggleGroup: (workDir: string) => void;
   setSessionArchived: (sessionId: string, archived: boolean) => Promise<void>;
-  selectDraft: () => void;
+  selectDraft: (workDir?: string) => void;
   setDraftWorkDir: (workDir: string) => void;
   selectSession: (sessionId: string) => Promise<void>;
   refreshSession: (sessionId: string) => Promise<void>;
@@ -553,13 +553,14 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         .filter((group) => group.sessions.length > 0),
     }));
   },
-  selectDraft: () => {
+  selectDraft: (workDir?: string) => {
     const activeSession =
       get().activeSessionId === "draft" ? null : findSession(get().groups, get().activeSessionId);
+    const nextDraftWorkDir = workDir?.trim() ?? "";
     closeActiveConnectionIfNeeded(null);
     set((state) => ({
       activeSessionId: "draft",
-      draftWorkDir: activeSession?.work_dir ?? state.draftWorkDir,
+      draftWorkDir: nextDraftWorkDir || activeSession?.work_dir || state.draftWorkDir,
     }));
     pushSessionUrl("draft");
   },
