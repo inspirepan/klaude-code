@@ -214,7 +214,7 @@ export function SessionCard({
         </div>
 
         {secondaryTitle ? (
-          <div className="min-w-0 truncate pl-6 pr-1 text-[10px] leading-4 text-neutral-400">
+          <div className="min-w-0 truncate pl-6 pr-1 text-xs leading-4 text-neutral-500">
             {secondaryTitle}
           </div>
         ) : null}
