@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import json
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, cast
+
+import pytest
 
 from klaude_code.protocol import message
+from klaude_code.web.routes import ws
 
 from .conftest import AppEnv, collect_events_until, extract_text, usage, wait_for_event
 
@@ -69,3 +76,49 @@ def test_ask_user_question_flow(app_env: AppEnv) -> None:
         events = collect_events_until(websocket, "task.finish")
 
     assert extract_text(events) == "You chose A"
+
+
+def test_websocket_handler_cancels_pending_peer_task(monkeypatch: pytest.MonkeyPatch) -> None:
+    cancelled = asyncio.Event()
+
+    class FakeWebSocket:
+        async def accept(self) -> None:
+            return None
+
+        async def send_json(self, _payload: object) -> None:
+            return None
+
+    async def _forward_events(_session_id: str, _websocket: FakeWebSocket) -> None:
+        return None
+
+    async def _receive_commands(_session_id: str, _websocket: FakeWebSocket) -> None:
+        try:
+            await asyncio.Future()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    def _has_session_actor(_session_id: str) -> bool:
+        return True
+
+    runtime = SimpleNamespace(session_registry=SimpleNamespace(has_session_actor=_has_session_actor))
+    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"))
+
+    def _get_web_state(_websocket: object) -> Any:
+        return state
+
+    def _resolve_session_work_dir(_home_dir: Path, _session_id: str) -> Path:
+        return Path("/tmp")
+
+    def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
+        return {}
+
+    monkeypatch.setattr(ws, "get_web_state_from_ws", _get_web_state)
+    monkeypatch.setattr(ws, "resolve_session_work_dir", _resolve_session_work_dir)
+    monkeypatch.setattr(ws, "_load_usage_snapshot", _load_usage_snapshot)
+    monkeypatch.setattr(ws, "_forward_events", _forward_events)
+    monkeypatch.setattr(ws, "_receive_commands", _receive_commands)
+
+    asyncio.run(asyncio.wait_for(ws.session_websocket(cast(Any, FakeWebSocket()), "session-1"), timeout=0.2))
+
+    assert cancelled.is_set()
