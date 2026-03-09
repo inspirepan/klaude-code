@@ -216,6 +216,15 @@ def wait_for_event(websocket: Any, event_type: str, max_events: int = 200) -> di
     raise AssertionError(f"Did not receive event type: {event_type}")
 
 
+def consume_ws_handshake(websocket: Any) -> dict[str, Any]:
+    """Read the connection_info frame and usage snapshot. Return the usage snapshot."""
+    connection_info = websocket.receive_json()
+    assert connection_info["type"] == "connection_info"
+    usage_snapshot = websocket.receive_json()
+    assert usage_snapshot["event_type"] == "usage.snapshot"
+    return usage_snapshot
+
+
 def extract_text(events: list[dict[str, Any]]) -> str:
     return "".join(
         str(event.get("event", {}).get("content", ""))

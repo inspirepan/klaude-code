@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from .conftest import AppEnv, wait_for_event
+from .conftest import AppEnv, consume_ws_handshake, wait_for_event
 
 
 def test_change_thinking_via_ws(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        assert websocket.receive_json()["event_type"] == "usage.snapshot"
+        consume_ws_handshake(websocket)
         websocket.send_json(
             {
                 "type": "thinking",

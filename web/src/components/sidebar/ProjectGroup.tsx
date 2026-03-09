@@ -51,7 +51,7 @@ export function ProjectGroup({
             <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
           )}
           <div className="min-w-0 flex-1 text-left" title={workDir}>
-            <div className="truncate text-sm font-semibold leading-5 text-neutral-800">
+            <div className="truncate text-sm font-medium leading-5 text-neutral-800">
               {workDirLabel(workDir)}
             </div>
             <div className="mt-0.5 truncate text-2xs leading-4 text-neutral-400" title={workDir}>

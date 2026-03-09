@@ -63,6 +63,18 @@ class RuntimeTaskHandle:
     task: asyncio.Task[None]
 
 
+HOLDER_GRACE_SECONDS = 10.0
+
+
+@dataclass
+class SessionHolder:
+    """Tracks which frontend connection exclusively holds a session."""
+
+    holder_key: str
+    acquired_at: float  # monotonic
+    released_at: float | None = None  # monotonic; set on disconnect, cleared on reacquire
+
+
 @dataclass
 class SessionConfig:
     model_name: str | None = None
@@ -81,6 +93,7 @@ class SessionState:
     agent: Agent | None = None
     llm_clients: LLMClients | None = None
     config: SessionConfig = field(default_factory=SessionConfig)
+    holder: SessionHolder | None = None
     idle_since_monotonic: float | None = None
     control_burst_count: int = 0
 
@@ -93,6 +106,7 @@ class SessionActorSnapshot:
     pending_request_count: int
     is_idle: bool
     config: SessionConfig
+    holder_key: str | None = None
 
 
 class SessionActor:
@@ -256,6 +270,70 @@ class SessionActor:
             self._finalize_pending_request(request_id)
         return cancelled
 
+    # -- Holder management --
+
+    def try_acquire_holder(self, key: str, *, now: float | None = None) -> bool:
+        """Try to acquire exclusive hold. Returns True on success."""
+        current = now if now is not None else time.monotonic()
+        holder = self._state.holder
+        if holder is None:
+            self._state.holder = SessionHolder(holder_key=key, acquired_at=current)
+            return True
+        # Active (not released) holder -- same key is idempotent, different key denied.
+        if holder.released_at is None:
+            return holder.holder_key == key
+        # Released holder -- within grace period only the same key can reacquire.
+        grace_expired = (current - holder.released_at) >= HOLDER_GRACE_SECONDS
+        if not grace_expired and holder.holder_key == key:
+            holder.released_at = None
+            return True
+        # Grace expired -- anyone can take over.
+        if grace_expired:
+            self._state.holder = SessionHolder(holder_key=key, acquired_at=current)
+            return True
+        return False
+
+    def release_holder(self, key: str, *, now: float | None = None) -> bool:
+        """Mark holder as released (starts grace period). Returns True if key matched."""
+        holder = self._state.holder
+        if holder is None or holder.holder_key != key:
+            return False
+        holder.released_at = now if now is not None else time.monotonic()
+        return True
+
+    def force_release_holder(self) -> str | None:
+        """Unconditionally clear the holder. Returns the old holder key."""
+        holder = self._state.holder
+        if holder is None:
+            return None
+        old_key = holder.holder_key
+        self._state.holder = None
+        return old_key
+
+    def is_held_by(self, key: str) -> bool:
+        holder = self._state.holder
+        if holder is None:
+            return False
+        return holder.holder_key == key and holder.released_at is None
+
+    def get_holder_key(self) -> str | None:
+        holder = self._state.holder
+        if holder is None:
+            return None
+        return holder.holder_key
+
+    def holder_is_active(self, *, now: float | None = None) -> bool:
+        """True if a holder exists and has not exceeded the grace period."""
+        holder = self._state.holder
+        if holder is None:
+            return False
+        if holder.released_at is None:
+            return True
+        current = now if now is not None else time.monotonic()
+        return (current - holder.released_at) < HOLDER_GRACE_SECONDS
+
+    # -- Operation lifecycle --
+
     def mark_operation_completed(self, operation_id: str) -> None:
         active = self._state.active_root_task
         if active is None:
@@ -327,6 +405,7 @@ class SessionActor:
             pending_request_count=len(self._state.pending_requests),
             is_idle=self.is_idle(),
             config=self.config_snapshot(),
+            holder_key=self.get_holder_key(),
         )
 
     def has_active_root_task(self) -> bool:

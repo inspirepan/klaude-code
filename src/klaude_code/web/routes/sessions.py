@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Final, Literal, cast
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
 from klaude_code.protocol import events as protocol_events
@@ -259,17 +259,32 @@ async def get_history(session_id: str, state: WebAppState = WEB_STATE_DEP) -> di
     return {"session_id": session_id, "events": payload}
 
 
-@router.post("/{session_id}/message")
-async def post_message(
-    session_id: str,
-    payload: MessageRequest,
-    state: WebAppState = WEB_STATE_DEP,
-) -> dict[str, str]:
+def _check_write_access(state: WebAppState, session_id: str, holder_key: str | None) -> Path:
+    """Validate session exists, is not read-only, and caller holds the session lock (if one exists).
+
+    Returns the session work_dir on success; raises HTTPException otherwise.
+    """
     work_dir = resolve_session_work_dir(state.home_dir, session_id)
     if work_dir is None:
         raise HTTPException(status_code=404, detail="session not found")
     if load_session_read_only(state, session_id=session_id, work_dir=work_dir):
         raise HTTPException(status_code=409, detail="session is owned by another runtime and is read-only")
+    # If a holder is active on this session, the caller must provide the matching key.
+    if state.runtime.holder_is_active(session_id) and (
+        holder_key is None or not state.runtime.is_held_by(session_id, holder_key)
+    ):
+        raise HTTPException(status_code=409, detail="session is held by another connection")
+    return work_dir
+
+
+@router.post("/{session_id}/message")
+async def post_message(
+    session_id: str,
+    payload: MessageRequest,
+    state: WebAppState = WEB_STATE_DEP,
+    x_holder_key: str | None = Header(None),
+) -> dict[str, str]:
+    _check_write_access(state, session_id, x_holder_key)
 
     await state.runtime.emit_event(
         protocol_events.UserMessageEvent(content=payload.text, session_id=session_id, images=payload.images)
@@ -285,12 +300,12 @@ async def post_message(
 
 
 @router.post("/{session_id}/interrupt")
-async def interrupt_session(session_id: str, state: WebAppState = WEB_STATE_DEP) -> dict[str, str]:
-    work_dir = resolve_session_work_dir(state.home_dir, session_id)
-    if work_dir is None:
-        raise HTTPException(status_code=404, detail="session not found")
-    if load_session_read_only(state, session_id=session_id, work_dir=work_dir):
-        raise HTTPException(status_code=409, detail="session is owned by another runtime and is read-only")
+async def interrupt_session(
+    session_id: str,
+    state: WebAppState = WEB_STATE_DEP,
+    x_holder_key: str | None = Header(None),
+) -> dict[str, str]:
+    _check_write_access(state, session_id, x_holder_key)
     operation_id = await state.runtime.submit(op.InterruptOperation(session_id=session_id))
     return {"operation_id": operation_id}
 
@@ -300,12 +315,9 @@ async def respond_interaction(
     session_id: str,
     payload: RespondRequest,
     state: WebAppState = WEB_STATE_DEP,
+    x_holder_key: str | None = Header(None),
 ) -> dict[str, bool]:
-    work_dir = resolve_session_work_dir(state.home_dir, session_id)
-    if work_dir is None:
-        raise HTTPException(status_code=404, detail="session not found")
-    if load_session_read_only(state, session_id=session_id, work_dir=work_dir):
-        raise HTTPException(status_code=409, detail="session is owned by another runtime and is read-only")
+    _check_write_access(state, session_id, x_holder_key)
     await state.runtime.submit(
         op.UserInteractionRespondOperation(
             session_id=session_id,
@@ -321,12 +333,9 @@ async def change_model(
     session_id: str,
     payload: ModelRequest,
     state: WebAppState = WEB_STATE_DEP,
+    x_holder_key: str | None = Header(None),
 ) -> dict[str, str]:
-    work_dir = resolve_session_work_dir(state.home_dir, session_id)
-    if work_dir is None:
-        raise HTTPException(status_code=404, detail="session not found")
-    if load_session_read_only(state, session_id=session_id, work_dir=work_dir):
-        raise HTTPException(status_code=409, detail="session is owned by another runtime and is read-only")
+    _check_write_access(state, session_id, x_holder_key)
     operation_id = await state.runtime.submit(
         op.ChangeModelOperation(
             session_id=session_id,

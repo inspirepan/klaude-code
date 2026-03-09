@@ -381,6 +381,31 @@ class RuntimeFacade:
         operation_id = await self.submit(operation)
         await self.wait_for(operation_id)
 
+    # -- Holder management --
+
+    async def try_acquire_holder(self, session_id: str, holder_key: str) -> bool:
+        acquired = self.session_registry.try_acquire_holder(session_id, holder_key)
+        if acquired:
+            await self._operation_dispatcher.emit_event(events.SessionHolderAcquiredEvent(session_id=session_id))
+        else:
+            await self._operation_dispatcher.emit_event(events.SessionHolderDeniedEvent(session_id=session_id))
+        return acquired
+
+    async def release_holder(self, session_id: str, holder_key: str) -> bool:
+        released = self.session_registry.release_holder(session_id, holder_key)
+        if released:
+            await self._operation_dispatcher.emit_event(events.SessionHolderReleasedEvent(session_id=session_id))
+        return released
+
+    def is_held_by(self, session_id: str, holder_key: str) -> bool:
+        return self.session_registry.is_held_by(session_id, holder_key)
+
+    def get_holder_key(self, session_id: str) -> str | None:
+        return self.session_registry.get_holder_key(session_id)
+
+    def holder_is_active(self, session_id: str) -> bool:
+        return self.session_registry.holder_is_active(session_id)
+
     async def stop(self) -> None:
         self._stopped = True
         sessions_to_idle: list[tuple[str, Agent]] = []

@@ -18,7 +18,7 @@ from klaude_code.web.app import create_app
 from klaude_code.web.interaction import WebInteractionHandler
 from klaude_code.web.state import WebAppState
 
-from .conftest import FakeLLMClient, collect_events_until, usage
+from .conftest import FakeLLMClient, collect_events_until, consume_ws_handshake, usage
 
 
 def _write_foreign_running_session(*, work_dir: Path, session_id: str) -> None:
@@ -119,8 +119,7 @@ def test_websocket_rejects_commands_for_foreign_running_session(
     _write_foreign_running_session(work_dir=work_dir, session_id=session_id)
 
     with client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        snapshot = websocket.receive_json()
-        assert snapshot["event_type"] == "usage.snapshot"
+        consume_ws_handshake(websocket)
 
         websocket.send_json({"type": "message", "text": "hello"})
         error = websocket.receive_json()
@@ -164,8 +163,7 @@ def test_stale_owner_allows_web_takeover(
     )
 
     with client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        snapshot = websocket.receive_json()
-        assert snapshot["event_type"] == "usage.snapshot"
+        consume_ws_handshake(websocket)
         websocket.send_json({"type": "message", "text": "take over"})
         events = collect_events_until(websocket, "task.finish")
         assert not any(event.get("type") == "error" for event in events)

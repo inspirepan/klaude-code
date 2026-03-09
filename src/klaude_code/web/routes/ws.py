@@ -6,6 +6,7 @@ import time
 from concurrent.futures import CancelledError as FutureCancelledError
 from pathlib import Path
 from typing import Any, Literal, cast
+from uuid import uuid4
 
 import anyio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -112,6 +113,8 @@ async def _handle_incoming_frame(
     session_id: str,
     frame: IncomingFrame,
     websocket: WebSocket,
+    *,
+    is_holder: bool,
 ) -> None:
     state = get_web_state_from_ws(websocket)
     runtime = state.runtime
@@ -124,6 +127,14 @@ async def _handle_incoming_frame(
             websocket,
             code="session_read_only",
             message="Session is owned by another runtime and is read-only",
+        )
+        return
+
+    if not is_holder:
+        await _send_error_frame(
+            websocket,
+            code="session_not_held",
+            message="Session is held by another connection",
         )
         return
 
@@ -221,7 +232,12 @@ async def _forward_events(session_id: str, websocket: WebSocket) -> None:
         return
 
 
-async def _receive_commands(session_id: str, websocket: WebSocket) -> None:
+async def _receive_commands(
+    session_id: str,
+    websocket: WebSocket,
+    *,
+    is_holder: bool = False,
+) -> None:
     background_submits: set[asyncio.Task[None]] = set()
     while True:
         try:
@@ -259,18 +275,20 @@ async def _receive_commands(session_id: str, websocket: WebSocket) -> None:
             continue
 
         if isinstance(frame, InterruptFrame):
-            submit_task = asyncio.create_task(_handle_incoming_frame(session_id, frame, websocket))
+            submit_task = asyncio.create_task(_handle_incoming_frame(session_id, frame, websocket, is_holder=is_holder))
             background_submits.add(submit_task)
             submit_task.add_done_callback(background_submits.discard)
             continue
 
-        await _handle_incoming_frame(session_id, frame, websocket)
+        await _handle_incoming_frame(session_id, frame, websocket, is_holder=is_holder)
 
 
 @router.websocket("/api/sessions/{session_id}/ws")
 async def session_websocket(websocket: WebSocket, session_id: str) -> None:
     send_task: asyncio.Task[None] | None = None
     recv_task: asyncio.Task[None] | None = None
+    holder_key: str | None = None
+    is_holder = False
     try:
         await websocket.accept()
         state = get_web_state_from_ws(websocket)
@@ -293,10 +311,26 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                 await websocket.close(code=4005)
                 return
 
+        # Resolve holder key: accept from query param or generate a new one.
+        raw_key = websocket.query_params.get("holder_key")
+        holder_key = raw_key.strip() if raw_key else uuid4().hex
+
+        if not read_only:
+            is_holder = await state.runtime.try_acquire_holder(session_id, holder_key)
+
+        # Send connection info frame with holder status.
+        await websocket.send_json(
+            {
+                "type": "connection_info",
+                "is_holder": is_holder,
+                "session_id": session_id,
+            }
+        )
+
         await websocket.send_json(_load_usage_snapshot(session_id, work_dir, websocket))
 
         send_task = asyncio.create_task(_forward_events(session_id, websocket))
-        recv_task = asyncio.create_task(_receive_commands(session_id, websocket))
+        recv_task = asyncio.create_task(_receive_commands(session_id, websocket, is_holder=is_holder))
         done, pending = await asyncio.wait({send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED)
 
         if pending:
@@ -315,6 +349,12 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
     except (WebSocketDisconnect, asyncio.CancelledError, FutureCancelledError):
         return
     finally:
+        # Release holder on disconnect (starts grace period).
+        if is_holder and holder_key is not None:
+            state = get_web_state_from_ws(websocket)
+            with contextlib.suppress(Exception):
+                await state.runtime.release_holder(session_id, holder_key)
+
         tasks_to_cancel = [task for task in (send_task, recv_task) if task is not None and not task.done()]
         for task in tasks_to_cancel:
             task.cancel()

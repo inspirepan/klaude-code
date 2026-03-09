@@ -220,14 +220,20 @@ async def initialize_session(
     runtime: RuntimeFacade,
     wait_for_display_idle: Callable[[], Awaitable[None]],
     session_id: str | None = None,
+    *,
+    holder_key: str | None = None,
 ) -> str | None:
     """Initialize a session and return the active session id."""
     resolved_session_id = session_id or uuid4().hex
     await runtime.submit_and_wait(op.InitAgentOperation(session_id=resolved_session_id, work_dir=Path.cwd()))
     await wait_for_display_idle()
 
-    active_session_id = runtime.current_session_id()
-    return active_session_id or resolved_session_id
+    active_session_id = runtime.current_session_id() or resolved_session_id
+
+    if holder_key is not None:
+        await runtime.try_acquire_holder(active_session_id, holder_key)
+
+    return active_session_id
 
 
 def backfill_session_model_config(

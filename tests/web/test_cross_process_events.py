@@ -90,6 +90,9 @@ def test_websocket_receives_cross_process_events(tmp_path: Path, monkeypatch: py
         session_id = str(create_response.json()["session_id"])
 
         with client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
+            connection_info = websocket.receive_json()
+            assert connection_info["type"] == "connection_info"
+
             usage_snapshot = websocket.receive_json()
             assert usage_snapshot["event_type"] == "usage.snapshot"
 

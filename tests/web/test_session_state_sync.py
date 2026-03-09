@@ -16,7 +16,7 @@ from klaude_code.protocol import message, op
 from klaude_code.session.session import Session, close_default_store
 from klaude_code.session.store import JsonlSessionWriter
 
-from .conftest import AppEnv, FakeLLMClient, arun, collect_events_until, usage
+from .conftest import AppEnv, FakeLLMClient, arun, collect_events_until, consume_ws_handshake, usage
 
 
 def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
@@ -73,7 +73,7 @@ def test_session_state_becomes_idle_after_task_finish(app_env: AppEnv, slow_sess
     meta_path = _meta_path_for_session(app_env, session_id)
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        _ = websocket.receive_json()
+        consume_ws_handshake(websocket)
         websocket.send_json({"type": "message", "text": "hello"})
         _ = collect_events_until(websocket, "task.finish")
 
@@ -144,7 +144,7 @@ def test_session_state_becomes_idle_after_interrupt(app_env: AppEnv, slow_sessio
     meta_path = _meta_path_for_session(app_env, session_id)
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        _ = websocket.receive_json()
+        consume_ws_handshake(websocket)
         websocket.send_json({"type": "message", "text": "run then interrupt"})
         _ = collect_events_until(websocket, "task.start")
         websocket.send_json({"type": "interrupt"})
@@ -192,7 +192,7 @@ def test_session_state_stays_waiting_during_user_interaction(app_env: AppEnv, sl
     meta_path = _meta_path_for_session(app_env, session_id)
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        _ = websocket.receive_json()
+        consume_ws_handshake(websocket)
         websocket.send_json({"type": "message", "text": "ask me"})
 
         request_event = None
@@ -227,7 +227,6 @@ def test_ws_init_does_not_override_persisted_running_state(app_env: AppEnv) -> N
     meta_path.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        snapshot = websocket.receive_json()
-        assert snapshot["event_type"] == "usage.snapshot"
+        consume_ws_handshake(websocket)
 
     assert _session_state_from_meta(meta_path) == "running"

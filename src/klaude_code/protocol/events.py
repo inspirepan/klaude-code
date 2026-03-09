@@ -37,6 +37,9 @@ __all__ = [
     "ResponseCompleteEvent",
     "ResponseEvent",
     "RewindEvent",
+    "SessionHolderAcquiredEvent",
+    "SessionHolderDeniedEvent",
+    "SessionHolderReleasedEvent",
     "SessionStatsEvent",
     "SessionTitleChangedEvent",
     "SubAgentModelChangedEvent",
@@ -165,6 +168,24 @@ class SessionStatsEvent(Event):
 
 class SessionTitleChangedEvent(Event):
     title: str
+
+
+class SessionHolderAcquiredEvent(Event):
+    """Broadcast when a connection acquires the holder lock."""
+
+    pass
+
+
+class SessionHolderDeniedEvent(Event):
+    """Broadcast when a connection fails to acquire the holder lock."""
+
+    pass
+
+
+class SessionHolderReleasedEvent(Event):
+    """Broadcast when the holder is released (disconnect or explicit release)."""
+
+    pass
 
 
 class OperationAcceptedEvent(Event):
