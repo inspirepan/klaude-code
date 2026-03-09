@@ -5,7 +5,7 @@ import {
   CircleCheck,
   CirclePause,
   Lock,
-  MessagesSquare,
+  MessageSquare,
 } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { cn } from "@/lib/utils";
@@ -222,7 +222,7 @@ export function SessionCard({
 
         <div className="flex min-w-0 items-center gap-1 pl-6 pr-1 text-[10px] leading-4 text-neutral-400">
           <div className="flex min-w-0 items-center gap-1 truncate">
-            <MessagesSquare className="h-3 w-3 shrink-0" />
+            <MessageSquare className="h-2.5 w-2.5 shrink-0" />
             <span>{messageCountLabel}</span>
             <span>·</span>
             <span className="truncate">{modelLabel}</span>
