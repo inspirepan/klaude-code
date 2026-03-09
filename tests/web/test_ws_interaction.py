@@ -138,3 +138,89 @@ def test_websocket_handler_cancels_pending_peer_task(monkeypatch: pytest.MonkeyP
     asyncio.run(asyncio.wait_for(ws.session_websocket(cast(Any, FakeWebSocket()), "session-1"), timeout=0.2))
 
     assert cancelled.is_set()
+
+
+def test_websocket_disconnect_cleans_empty_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    cleaned_paths: list[Path] = []
+
+    class FakeWebSocket:
+        query_params: ClassVar[dict[str, str]] = {}
+
+        async def accept(self) -> None:
+            return None
+
+        async def send_json(self, _payload: object) -> None:
+            return None
+
+    class _FakeAgentSession:
+        def __init__(self) -> None:
+            self.messages_count = 0
+            self.work_dir = Path("/tmp/work")
+
+    class _FakeActor:
+        def __init__(self) -> None:
+            self._agent = SimpleNamespace(session=_FakeAgentSession())
+
+        def get_agent(self) -> Any:
+            return self._agent
+
+    actor = _FakeActor()
+
+    async def _forward_events(_session_id: str, _websocket: FakeWebSocket) -> None:
+        return None
+
+    async def _receive_commands(_session_id: str, _websocket: FakeWebSocket, **_kwargs: Any) -> None:
+        return None
+
+    def _has_session_actor(_session_id: str) -> bool:
+        return True
+
+    def _get_session_actor(_session_id: str) -> Any:
+        return actor
+
+    async def _try_acquire_holder(_session_id: str, _key: str) -> bool:
+        return True
+
+    async def _release_holder(_session_id: str, _key: str) -> bool:
+        return True
+
+    async def _close_session(_session_id: str, force: bool = False) -> bool:
+        del force
+        return True
+
+    runtime = SimpleNamespace(
+        session_registry=SimpleNamespace(has_session_actor=_has_session_actor, get_session_actor=_get_session_actor),
+        try_acquire_holder=_try_acquire_holder,
+        release_holder=_release_holder,
+        close_session=_close_session,
+    )
+    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"))
+
+    def _get_web_state(_websocket: object) -> Any:
+        return state
+
+    def _resolve_session_work_dir(_home_dir: Path, _session_id: str) -> Path:
+        return Path("/tmp/work")
+
+    def _load_session_read_only(_state: Any, *, session_id: str, work_dir: Path) -> bool:
+        del session_id, work_dir
+        return False
+
+    def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
+        return {}
+
+    def _rmtree(path: Path, ignore_errors: bool = False) -> None:
+        del ignore_errors
+        cleaned_paths.append(path)
+
+    monkeypatch.setattr(ws, "get_web_state_from_ws", _get_web_state)
+    monkeypatch.setattr(ws, "resolve_session_work_dir", _resolve_session_work_dir)
+    monkeypatch.setattr(ws, "load_session_read_only", _load_session_read_only)
+    monkeypatch.setattr(ws, "_load_usage_snapshot", _load_usage_snapshot)
+    monkeypatch.setattr(ws, "_forward_events", _forward_events)
+    monkeypatch.setattr(ws, "_receive_commands", _receive_commands)
+    monkeypatch.setattr(ws.shutil, "rmtree", _rmtree)
+
+    asyncio.run(asyncio.wait_for(ws.session_websocket(cast(Any, FakeWebSocket()), "session-1"), timeout=0.2))
+
+    assert len(cleaned_paths) == 1
