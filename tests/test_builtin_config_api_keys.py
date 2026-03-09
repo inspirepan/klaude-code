@@ -9,6 +9,7 @@ def test_supported_api_keys_include_recent_providers() -> None:
     assert "CEREBRAS_API_KEY" in env_vars
     assert "ARK_API_KEY" in env_vars
     assert "BRAVE_API_KEY" in env_vars
+    assert "EXA_API_KEY" in env_vars
 
 
 def test_supported_api_keys_have_unique_env_vars() -> None:

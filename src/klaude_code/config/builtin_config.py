@@ -37,7 +37,8 @@ SUPPORTED_API_KEYS: tuple[ApiKeyInfo, ...] = (
     ApiKeyInfo("OPENCODE_API_KEY", "OpenCode Zen", "OpenCode API key (Zen)"),
     ApiKeyInfo("CEREBRAS_API_KEY", "Cerebras", "Cerebras API key"),
     ApiKeyInfo("ARK_API_KEY", "Volcengine ARK", "Volcengine ARK API key"),
-    ApiKeyInfo("BRAVE_API_KEY", "Brave Search", "Brave Search API key (optional, for WebSearch tool)"),
+    ApiKeyInfo("BRAVE_API_KEY", "Brave Search", "Brave Search API key (for WebSearch tool)"),
+    ApiKeyInfo("EXA_API_KEY", "Exa Search", "Exa Search API key (for WebSearch tool)"),
 )
 
 # For backwards compatibility

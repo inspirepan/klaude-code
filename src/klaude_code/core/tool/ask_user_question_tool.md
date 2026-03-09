@@ -7,3 +7,4 @@ Use this tool when you need to ask the user questions during execution. This all
 Usage notes:
 - Use multiSelect: true to allow multiple answers to be selected for a question
 - If you recommend a specific option, make that the first option in the list and add "(Recommended)" at the end of the label
+- Use the same language as the user

@@ -74,7 +74,8 @@ export OPENAI_API_KEY=sk-xxx             # GPT models
 export OPENROUTER_API_KEY=sk-or-xxx      # OpenRouter (multi-provider)
 export DEEPSEEK_API_KEY=sk-xxx           # DeepSeek models
 export MOONSHOT_API_KEY=sk-xxx           # Moonshot/Kimi models
-export BRAVE_API_KEY=BSA-xxx             # Brave Search (optional, enhances web search)
+export BRAVE_API_KEY=BSA-xxx             # Brave Search (optional, WebSearch provider)
+export EXA_API_KEY=exa-xxx               # Exa Search (optional, WebSearch provider)
 
 # Then just run:
 klaude
