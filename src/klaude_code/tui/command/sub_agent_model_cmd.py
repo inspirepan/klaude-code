@@ -1,4 +1,4 @@
-"""Command for changing sub-agent models and compact model."""
+"""Command for changing sub-agent models, compact model, and fast model."""
 
 from klaude_code.protocol import message, op
 
@@ -7,7 +7,7 @@ from .types import CommandName
 
 
 class SubAgentModelCommand(CommandABC):
-    """Configure models for sub-agents and compact model."""
+    """Configure models for sub-agents, compact model, and fast model."""
 
     @property
     def name(self) -> CommandName:
