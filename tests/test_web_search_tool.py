@@ -24,8 +24,8 @@ def _tool_context() -> ToolContext:
 
 
 @pytest.fixture(autouse=True)
-def _no_brave_api_key() -> Iterator[None]:  # pyright: ignore[reportUnusedFunction]
-    with patch.dict(os.environ, {"BRAVE_API_KEY": ""}):
+def _no_web_search_api_keys() -> Iterator[None]:  # pyright: ignore[reportUnusedFunction]
+    with patch.dict(os.environ, {"BRAVE_API_KEY": "", "EXA_API_KEY": ""}):
         yield
 
 
@@ -37,6 +37,10 @@ def _fake_search(_query: str, _max_results: int) -> list[SearchResult]:
 
 
 def _fake_brave(query: str, max_results: int, _api_key: str) -> list[SearchResult]:
+    return _fake_search(query, max_results)
+
+
+def _fake_exa(query: str, max_results: int, _api_key: str) -> list[SearchResult]:
     return _fake_search(query, max_results)
 
 
@@ -123,7 +127,7 @@ class TestWebSearchCaching:
 
 
 class TestBraveApiKeySelection:
-    def test_returns_error_when_brave_key_missing(self) -> None:
+    def test_returns_error_when_both_brave_and_exa_keys_missing(self) -> None:
         web_cache.clear()
 
         with patch("klaude_code.core.tool.web.web_search_tool.get_auth_env", return_value=""):
@@ -131,7 +135,9 @@ class TestBraveApiKeySelection:
             result = asyncio.run(WebSearchTool.call(args, _tool_context()))
 
         assert result.status == "error"
-        assert result.output_text == "Search failed: missing BRAVE_API_KEY. Please set BRAVE_API_KEY and try again."
+        assert (
+            result.output_text == "Search failed: missing BRAVE_API_KEY or EXA_API_KEY. Please set one and try again."
+        )
 
     def test_uses_auth_env_brave_key_when_process_env_missing(self) -> None:
         web_cache.clear()
@@ -175,3 +181,64 @@ class TestBraveApiKeySelection:
         mock_get_auth_env.assert_not_called()
         mock_search_brave.assert_called_once()
         assert mock_search_brave.call_args.args[2] == "brave-env-key"
+
+    def test_uses_exa_auth_env_key_when_brave_missing(self) -> None:
+        web_cache.clear()
+
+        def _auth_env_side_effect(name: str) -> str:
+            if name == "BRAVE_API_KEY":
+                return ""
+            if name == "EXA_API_KEY":
+                return "exa-auth-key"
+            return ""
+
+        with (
+            patch(
+                "klaude_code.core.tool.web.web_search_tool.get_auth_env",
+                side_effect=_auth_env_side_effect,
+            ) as mock_get_auth_env,
+            patch(
+                "klaude_code.core.tool.web.web_search_tool._search_brave",
+                side_effect=_fake_brave,
+            ) as mock_search_brave,
+            patch(
+                "klaude_code.core.tool.web.web_search_tool._search_exa",
+                side_effect=_fake_exa,
+            ) as mock_search_exa,
+        ):
+            args = WebSearchTool.WebSearchArguments(query="use exa from auth env").model_dump_json()
+            result = asyncio.run(WebSearchTool.call(args, _tool_context()))
+
+        assert result.status == "success"
+        assert mock_get_auth_env.call_args_list[0].args[0] == "BRAVE_API_KEY"
+        assert mock_get_auth_env.call_args_list[1].args[0] == "EXA_API_KEY"
+        mock_search_brave.assert_not_called()
+        mock_search_exa.assert_called_once()
+        assert mock_search_exa.call_args.args[2] == "exa-auth-key"
+
+    def test_uses_exa_env_key_when_brave_missing(self) -> None:
+        web_cache.clear()
+
+        with (
+            patch.dict(os.environ, {"EXA_API_KEY": "exa-env-key"}),
+            patch(
+                "klaude_code.core.tool.web.web_search_tool.get_auth_env",
+                return_value="",
+            ) as mock_get_auth_env,
+            patch(
+                "klaude_code.core.tool.web.web_search_tool._search_brave",
+                side_effect=_fake_brave,
+            ) as mock_search_brave,
+            patch(
+                "klaude_code.core.tool.web.web_search_tool._search_exa",
+                side_effect=_fake_exa,
+            ) as mock_search_exa,
+        ):
+            args = WebSearchTool.WebSearchArguments(query="use exa from env").model_dump_json()
+            result = asyncio.run(WebSearchTool.call(args, _tool_context()))
+
+        assert result.status == "success"
+        mock_get_auth_env.assert_called_once_with("BRAVE_API_KEY")
+        mock_search_brave.assert_not_called()
+        mock_search_exa.assert_called_once()
+        assert mock_search_exa.call_args.args[2] == "exa-env-key"
