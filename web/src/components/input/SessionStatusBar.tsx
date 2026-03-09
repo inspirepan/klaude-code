@@ -57,7 +57,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-neutral-200/80 bg-neutral-50/80 px-3 py-2 text-neutral-500">
+    <div className="inline-flex w-fit max-w-full items-center gap-2.5 rounded-full bg-white px-3 py-1.5 text-neutral-500 shadow-sm ring-1 ring-black/5">
       {statusLabel ? (
         <>
           {hasLiveStatus ? (
@@ -65,13 +65,16 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
           ) : (
             <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-300" />
           )}
-          <span className="truncate font-mono text-[13px] font-medium">{statusLabel}</span>
+          <span className="truncate font-mono text-xs font-medium">{statusLabel}</span>
         </>
       ) : null}
       {summaryParts.length > 0 ? (
-        <div className="ml-auto flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-neutral-400">
-          {summaryParts.map((part) => (
-            <span key={part}>{part}</span>
+        <div className="ml-2 flex flex-wrap items-center gap-y-1 font-mono text-[11px] text-neutral-400">
+          {summaryParts.map((part, i) => (
+            <span key={part} className="flex items-center">
+              {i > 0 ? <span className="mx-1.5 text-neutral-300">·</span> : null}
+              {part}
+            </span>
           ))}
         </div>
       ) : null}
@@ -83,11 +86,11 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
         >
           <button
             type="button"
-            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-200 hover:text-neutral-600"
             aria-label="Show session metadata"
             onClick={() => setMetaOpen((current) => !current)}
           >
-            <CircleHelp className="h-3.5 w-3.5" />
+            <CircleHelp className="h-3 w-3" />
           </button>
           {metaOpen ? (
             <div className="absolute bottom-full right-0 z-20 mb-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">

@@ -50,7 +50,7 @@ export function MainPanel(): JSX.Element {
           </div>
 
           <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-8 sm:px-6">
-            <div className="w-full max-w-2xl rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/60 px-6 py-10 text-center">
+            <div className="mb-44 w-full max-w-2xl rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/60 px-6 py-10 text-center">
               <div className="text-base font-semibold text-neutral-700">Start a new session</div>
               <div className="mt-2 text-sm leading-6 text-neutral-500">
                 Choose a workspace below, then send your first message.
@@ -61,7 +61,9 @@ export function MainPanel(): JSX.Element {
       ) : (
         <MessageList sessionId={activeSessionId} />
       )}
-      <MessageComposer />
+      <div className="absolute bottom-0 left-0 right-0 z-10">
+        <MessageComposer />
+      </div>
     </main>
   );
 }
