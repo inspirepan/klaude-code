@@ -308,6 +308,84 @@ def test_interrupt_clears_stale_sub_agent_status_lines() -> None:
     assert "Exploring" not in _line_plain(update.status_lines[0])
 
 
+def test_sub_agent_non_retry_error_clears_status_lines() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    sub_session = "sub-1"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=model.SubAgentState(
+                sub_agent_type="Explore",
+                sub_agent_desc="searching",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+
+    cmds = machine.transition(
+        events.ErrorEvent(
+            session_id=sub_session,
+            error_message="sub-agent failed",
+            can_retry=False,
+        )
+    )
+    update = _last_spinner_update(cmds)
+
+    assert update.reset_bottom_height is True
+    assert update.leading_blank_line is False
+    assert len(update.status_lines) == 1
+    assert update.status_lines[0].session_id is None
+    assert "Exploring" not in _line_plain(update.status_lines[0])
+
+
+def test_failed_agent_tool_result_clears_sub_agent_status_line() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    sub_session = "sub-1"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=model.SubAgentState(
+                sub_agent_type="Explore",
+                sub_agent_desc="searching",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+    machine.transition(
+        events.ToolCallStartEvent(
+            session_id=main_session,
+            tool_call_id="tc-agent-1",
+            tool_name=tools.AGENT,
+        )
+    )
+
+    cmds = machine.transition(
+        events.ToolResultEvent(
+            session_id=main_session,
+            tool_call_id="tc-agent-1",
+            tool_name=tools.AGENT,
+            result="Failed to run sub-agent",
+            status="error",
+            ui_extra=model.SessionIdUIExtra(session_id=sub_session),
+        )
+    )
+    update = _last_spinner_update(cmds)
+
+    assert update.reset_bottom_height is True
+    assert update.leading_blank_line is False
+    assert len(update.status_lines) == 1
+    assert update.status_lines[0].session_id is None
+    assert "Exploring" not in _line_plain(update.status_lines[0])
+
+
 def test_main_session_tokens_accumulate_across_task_boundaries() -> None:
     machine = DisplayStateMachine()
     session_id = "main"

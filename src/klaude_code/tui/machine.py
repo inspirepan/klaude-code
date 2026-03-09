@@ -1147,6 +1147,11 @@ class DisplayStateMachine:
                     cmds.extend(self._spinner_update_commands())
                 elif not is_replay and is_sub_agent_tool(e.tool_name):
                     self._spinner.finish_sub_agent_tool_call(e.tool_call_id)
+                    if e.is_error and isinstance(e.ui_extra, model.SessionIdUIExtra):
+                        failed_sub_session = self._sessions.get(e.ui_extra.session_id)
+                        if failed_sub_session is not None and failed_sub_session.is_sub_agent:
+                            failed_sub_session.task_active = False
+                            failed_sub_session.clear_status_activity()
                     cmds.extend(self._spinner_update_commands())
 
                 if s.is_sub_agent and not e.is_error:
@@ -1274,6 +1279,9 @@ class DisplayStateMachine:
                 return cmds
 
             case events.ErrorEvent() as e:
+                if not e.can_retry:
+                    s.task_active = False
+                    s.clear_status_activity()
                 if not is_replay:
                     cmds.append(EmitOsc94Error())
                 cmds.append(RenderError(e))

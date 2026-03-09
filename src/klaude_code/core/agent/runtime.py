@@ -315,7 +315,7 @@ class SubAgentExecutor:
             )
             return SubAgentResult(
                 task_result=f"Sub-agent task failed: [{exc.__class__.__name__}] {exc!s}",
-                session_id="",
+                session_id=child_session.id,
                 error=True,
             )
 
