@@ -110,10 +110,9 @@ Klaude tries these entries in order and uses the first available model. `fast_mo
 | bedrock          | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`                   | sonnet                                                                                                   |
 | deepseek         | `DEEPSEEK_API_KEY`                                                           | deepseek                                                                                                 |
 | moonshot         | `MOONSHOT_API_KEY`                                                           | kimi                                                                                                     |
-| opencode-zen     | `OPENCODE_API_KEY`                                                           | minimax, kimi                                                                                            |
 | cerebras         | `CEREBRAS_API_KEY`                                                           | glm                                                                                                      |
-| claude-max       | N/A (OAuth, disabled by default)                                             | sonnet, sonnet-no-thinking, opus, haiku                                                                 |
-| codex            | N/A (OAuth)                                                                  | gpt-5.3-codex, gpt-5.3-codex-xhigh, gpt-5.4-high, gpt-5.4-xhigh (requires ChatGPT Pro subscription)    |
+| claude-max       | N/A (OAuth)                                             | sonnet, sonnet-no-thinking, opus, haiku                                                                 |
+| codex            | N/A (OAuth)                                                                  | gpt-5.3-codex, gpt-5.3-codex-xhigh, gpt-5.4-high, gpt-5.4-xhigh   |
 | github-copilot   | N/A (OAuth)                                                                  | gpt-5.3-codex, gpt-5.3-codex-xhigh, gpt-5.4-high, gpt-5.4-xhigh, sonnet, sonnet-4.5, haiku, opus       |
 | ark-api          | `ARK_API_KEY`                                                                | seed-pro, seed-code                                                                                      |
 | ark-coding-plan  | `ARK_API_KEY`                                                                | seed-code, kimi                                                                                          |

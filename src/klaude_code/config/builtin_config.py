@@ -34,7 +34,6 @@ SUPPORTED_API_KEYS: tuple[ApiKeyInfo, ...] = (
     ApiKeyInfo("GEMINI_API_KEY", "Google Gemini", "Gemini API key (Google AI Studio)"),
     ApiKeyInfo("DEEPSEEK_API_KEY", "DeepSeek", "DeepSeek API key"),
     ApiKeyInfo("MOONSHOT_API_KEY", "Moonshot Kimi", "Moonshot API key (Kimi)"),
-    ApiKeyInfo("OPENCODE_API_KEY", "OpenCode Zen", "OpenCode API key (Zen)"),
     ApiKeyInfo("CEREBRAS_API_KEY", "Cerebras", "Cerebras API key"),
     ApiKeyInfo("ARK_API_KEY", "Volcengine ARK", "Volcengine ARK API key"),
     ApiKeyInfo("BRAVE_API_KEY", "Brave Search", "Brave Search API key (for WebSearch tool)"),
