@@ -273,6 +273,51 @@ class SessionRegistry:
                 active_tasks.append((runtime.session_id, handle))
         return active_tasks
 
+    # -- Holder management --
+
+    def try_acquire_holder(self, session_id: str, holder_key: str) -> bool:
+        runtime = self._ensure_session_actor(session_id)
+        return runtime.try_acquire_holder(holder_key)
+
+    def release_holder(self, session_id: str, holder_key: str) -> bool:
+        runtime = self._session_actors.get(session_id)
+        if runtime is None:
+            return False
+        return runtime.release_holder(holder_key)
+
+    def force_release_holder(self, session_id: str) -> str | None:
+        runtime = self._session_actors.get(session_id)
+        if runtime is None:
+            return None
+        return runtime.force_release_holder()
+
+    def is_held_by(self, session_id: str, holder_key: str) -> bool:
+        runtime = self._session_actors.get(session_id)
+        if runtime is None:
+            return False
+        return runtime.is_held_by(holder_key)
+
+    def get_holder_key(self, session_id: str) -> str | None:
+        runtime = self._session_actors.get(session_id)
+        if runtime is None:
+            return None
+        return runtime.get_holder_key()
+
+    def holder_is_active(self, session_id: str) -> bool:
+        runtime = self._session_actors.get(session_id)
+        if runtime is None:
+            return False
+        return runtime.holder_is_active()
+
+    def cleanup_stale_holders(self) -> list[str]:
+        """Force-release holders whose grace period has expired. Returns released session ids."""
+        released: list[str] = []
+        for session_id, runtime in self._session_actors.items():
+            if not runtime.holder_is_active() and runtime.get_holder_key() is not None:
+                runtime.force_release_holder()
+                released.append(session_id)
+        return released
+
     def _resolve_runtime_id(self, operation: op.Operation) -> str:
         session_id = getattr(operation, "session_id", None)
         if session_id is None:

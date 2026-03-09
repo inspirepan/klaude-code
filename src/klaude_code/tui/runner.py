@@ -516,7 +516,13 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     exit_hint_printed = False
 
     try:
-        await initialize_session(components.runtime, components.wait_for_display_idle, session_id=session_id)
+        tui_holder_key = uuid4().hex
+        await initialize_session(
+            components.runtime,
+            components.wait_for_display_idle,
+            session_id=session_id,
+            holder_key=tui_holder_key,
+        )
         backfill_session_model_config(
             components.runtime.current_agent,
             init_config.model,

@@ -7,7 +7,7 @@ from typing import Any, cast
 
 from klaude_code.protocol import message
 
-from .conftest import AppEnv, collect_events_until, usage
+from .conftest import AppEnv, collect_events_until, consume_ws_handshake, usage
 
 
 def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
@@ -164,8 +164,7 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
 
     session_id = app_env.create_session()
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        snapshot = websocket.receive_json()
-        assert snapshot["event_type"] == "usage.snapshot"
+        consume_ws_handshake(websocket)
 
         websocket.send_json({"type": "message", "text": "run then interrupt"})
         _ = collect_events_until(websocket, "task.start")
@@ -231,9 +230,9 @@ def test_updated_at_changes_only_when_session_content_changes(app_env: AppEnv) -
     assert history_response.status_code == 200
     assert _updated_at_from_meta(meta_path) == initial_updated_at
 
-    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        snapshot = websocket.receive_json()
-        assert snapshot["event_type"] == "usage.snapshot"
+    ws_url = f"/api/sessions/{session_id}/ws?holder_key=test-holder"
+    with app_env.client.websocket_connect(ws_url) as websocket:
+        consume_ws_handshake(websocket)
     assert _updated_at_from_meta(meta_path) == initial_updated_at
 
     app_env.fake_llm.enqueue(
@@ -243,8 +242,8 @@ def test_updated_at_changes_only_when_session_content_changes(app_env: AppEnv) -
             usage=usage(input_tokens=5, output_tokens=1),
         )
     )
-    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        _ = websocket.receive_json()
+    with app_env.client.websocket_connect(ws_url) as websocket:
+        consume_ws_handshake(websocket)
         websocket.send_json({"type": "message", "text": "hello"})
         _ = collect_events_until(websocket, "task.finish")
 
@@ -391,8 +390,7 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
 
     session_id = app_env.create_session()
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        snapshot = websocket.receive_json()
-        assert snapshot["event_type"] == "usage.snapshot"
+        consume_ws_handshake(websocket)
 
         websocket.send_json({"type": "message", "text": "run then interrupt"})
         _ = collect_events_until(websocket, "task.start")
@@ -440,12 +438,11 @@ def test_updated_at_changes_only_when_session_content_changes(app_env: AppEnv) -
 
     assert arun(app_env.runtime.close_session(session_id, force=True)) is True
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        snapshot = websocket.receive_json()
-        assert snapshot["event_type"] == "usage.snapshot"
+        consume_ws_handshake(websocket)
     assert _updated_at_from_meta(meta_path) == initial_updated_at
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        _ = websocket.receive_json()
+        consume_ws_handshake(websocket)
         websocket.send_json({"type": "message", "text": "hello"})
         _ = collect_events_until(websocket, "task.finish")
 
@@ -464,7 +461,7 @@ from typing import Any
 
 from klaude_code.protocol import message
 
-from .conftest import AppEnv, collect_events_until, usage
+from .conftest import AppEnv, collect_events_until, consume_ws_handshake, usage
 
 
 def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
@@ -589,8 +586,7 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
 
     session_id = app_env.create_session()
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        snapshot = websocket.receive_json()
-        assert snapshot["event_type"] == "usage.snapshot"
+        consume_ws_handshake(websocket)
 
         websocket.send_json({"type": "message", "text": "run then interrupt"})
         _ = collect_events_until(websocket, "task.start")
