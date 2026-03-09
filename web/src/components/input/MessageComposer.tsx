@@ -111,8 +111,9 @@ export function MessageComposer(): JSX.Element {
   ]);
 
   return (
-    <div className="shrink-0 border-t border-neutral-200/80 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
-      <div className="mx-auto max-w-4xl space-y-3">
+    <div className="relative shrink-0 px-4 pb-4 pt-10 sm:px-6">
+      <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-t from-white/95 via-white/80 to-transparent [-webkit-mask-image:linear-gradient(to_bottom,transparent,black_3rem)] [mask-image:linear-gradient(to_bottom,transparent,black_3rem)]" />
+      <div className="relative z-10 mx-auto max-w-4xl space-y-3">
         {!isDraft ? <SessionStatusBar status={mainSessionStatus} runtime={runtime} /> : null}
         {isDraft ? (
           <DraftWorkspacePicker

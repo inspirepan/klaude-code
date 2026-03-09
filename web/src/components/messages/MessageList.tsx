@@ -524,6 +524,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
               </div>
             )}
           </div>
+          {/* Add padding space equal to MessageComposer height so content isn't hidden under the absolute positioned bar */}
+          <div className="h-32 shrink-0 sm:h-28" />
         </div>
       </div>
     </SearchProvider>
