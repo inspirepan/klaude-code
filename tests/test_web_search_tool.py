@@ -36,10 +36,17 @@ def _fake_search(_query: str, _max_results: int) -> list[SearchResult]:
     ]
 
 
+def _fake_brave(query: str, max_results: int, _api_key: str) -> list[SearchResult]:
+    return _fake_search(query, max_results)
+
+
 class TestWebSearchSecurity:
     def test_results_wrapped_with_boundary(self) -> None:
         web_cache.clear()
-        with patch("klaude_code.core.tool.web.web_search_tool._search_duckduckgo", side_effect=_fake_search):
+        with (
+            patch("klaude_code.core.tool.web.web_search_tool.get_auth_env", return_value="brave-auth-key"),
+            patch("klaude_code.core.tool.web.web_search_tool._search_brave", side_effect=_fake_brave),
+        ):
             args = WebSearchTool.WebSearchArguments(query="test query").model_dump_json()
             result = asyncio.run(WebSearchTool.call(args, _tool_context()))
             assert result.status == "success"
@@ -50,7 +57,10 @@ class TestWebSearchSecurity:
     def test_no_security_warning(self) -> None:
         """Web search results should NOT include the security warning (only boundary markers)."""
         web_cache.clear()
-        with patch("klaude_code.core.tool.web.web_search_tool._search_duckduckgo", side_effect=_fake_search):
+        with (
+            patch("klaude_code.core.tool.web.web_search_tool.get_auth_env", return_value="brave-auth-key"),
+            patch("klaude_code.core.tool.web.web_search_tool._search_brave", side_effect=_fake_brave),
+        ):
             args = WebSearchTool.WebSearchArguments(query="another query").model_dump_json()
             result = asyncio.run(WebSearchTool.call(args, _tool_context()))
             assert result.status == "success"
@@ -59,7 +69,10 @@ class TestWebSearchSecurity:
 
     def test_search_results_in_output(self) -> None:
         web_cache.clear()
-        with patch("klaude_code.core.tool.web.web_search_tool._search_duckduckgo", side_effect=_fake_search):
+        with (
+            patch("klaude_code.core.tool.web.web_search_tool.get_auth_env", return_value="brave-auth-key"),
+            patch("klaude_code.core.tool.web.web_search_tool._search_brave", side_effect=_fake_brave),
+        ):
             args = WebSearchTool.WebSearchArguments(query="find results").model_dump_json()
             result = asyncio.run(WebSearchTool.call(args, _tool_context()))
             assert result.status == "success"
@@ -73,12 +86,15 @@ class TestWebSearchCaching:
         web_cache.clear()
         call_count = 0
 
-        def counting_search(query: str, max_results: int) -> list[SearchResult]:
+        def counting_search(query: str, max_results: int, _api_key: str) -> list[SearchResult]:
             nonlocal call_count
             call_count += 1
             return _fake_search(query, max_results)
 
-        with patch("klaude_code.core.tool.web.web_search_tool._search_duckduckgo", side_effect=counting_search):
+        with (
+            patch("klaude_code.core.tool.web.web_search_tool.get_auth_env", return_value="brave-auth-key"),
+            patch("klaude_code.core.tool.web.web_search_tool._search_brave", side_effect=counting_search),
+        ):
             args = WebSearchTool.WebSearchArguments(query="cached search").model_dump_json()
             r1 = asyncio.run(WebSearchTool.call(args, _tool_context()))
             r2 = asyncio.run(WebSearchTool.call(args, _tool_context()))
@@ -90,12 +106,15 @@ class TestWebSearchCaching:
         web_cache.clear()
         call_count = 0
 
-        def counting_search(query: str, max_results: int) -> list[SearchResult]:
+        def counting_search(query: str, max_results: int, _api_key: str) -> list[SearchResult]:
             nonlocal call_count
             call_count += 1
             return _fake_search(query, max_results)
 
-        with patch("klaude_code.core.tool.web.web_search_tool._search_duckduckgo", side_effect=counting_search):
+        with (
+            patch("klaude_code.core.tool.web.web_search_tool.get_auth_env", return_value="brave-auth-key"),
+            patch("klaude_code.core.tool.web.web_search_tool._search_brave", side_effect=counting_search),
+        ):
             args1 = WebSearchTool.WebSearchArguments(query="query one").model_dump_json()
             args2 = WebSearchTool.WebSearchArguments(query="query two").model_dump_json()
             asyncio.run(WebSearchTool.call(args1, _tool_context()))
@@ -104,11 +123,18 @@ class TestWebSearchCaching:
 
 
 class TestBraveApiKeySelection:
-    def test_uses_auth_env_brave_key_when_process_env_missing(self) -> None:
+    def test_returns_error_when_brave_key_missing(self) -> None:
         web_cache.clear()
 
-        def _fake_brave(query: str, max_results: int, _api_key: str) -> list[SearchResult]:
-            return _fake_search(query, max_results)
+        with patch("klaude_code.core.tool.web.web_search_tool.get_auth_env", return_value=""):
+            args = WebSearchTool.WebSearchArguments(query="missing key").model_dump_json()
+            result = asyncio.run(WebSearchTool.call(args, _tool_context()))
+
+        assert result.status == "error"
+        assert result.output_text == "Search failed: missing BRAVE_API_KEY. Please set BRAVE_API_KEY and try again."
+
+    def test_uses_auth_env_brave_key_when_process_env_missing(self) -> None:
+        web_cache.clear()
 
         with (
             patch(
@@ -119,10 +145,6 @@ class TestBraveApiKeySelection:
                 "klaude_code.core.tool.web.web_search_tool._search_brave",
                 side_effect=_fake_brave,
             ) as mock_search_brave,
-            patch(
-                "klaude_code.core.tool.web.web_search_tool._search_duckduckgo",
-                side_effect=_fake_search,
-            ) as mock_search_duckduckgo,
         ):
             args = WebSearchTool.WebSearchArguments(query="use brave from auth env").model_dump_json()
             result = asyncio.run(WebSearchTool.call(args, _tool_context()))
@@ -131,13 +153,9 @@ class TestBraveApiKeySelection:
         mock_get_auth_env.assert_called_once_with("BRAVE_API_KEY")
         mock_search_brave.assert_called_once()
         assert mock_search_brave.call_args.args[2] == "brave-auth-key"
-        mock_search_duckduckgo.assert_not_called()
 
     def test_process_env_brave_key_takes_precedence_over_auth_env(self) -> None:
         web_cache.clear()
-
-        def _fake_brave(query: str, max_results: int, _api_key: str) -> list[SearchResult]:
-            return _fake_search(query, max_results)
 
         with (
             patch.dict(os.environ, {"BRAVE_API_KEY": "brave-env-key"}),
@@ -149,10 +167,6 @@ class TestBraveApiKeySelection:
                 "klaude_code.core.tool.web.web_search_tool._search_brave",
                 side_effect=_fake_brave,
             ) as mock_search_brave,
-            patch(
-                "klaude_code.core.tool.web.web_search_tool._search_duckduckgo",
-                side_effect=_fake_search,
-            ) as mock_search_duckduckgo,
         ):
             args = WebSearchTool.WebSearchArguments(query="prefer env brave key").model_dump_json()
             result = asyncio.run(WebSearchTool.call(args, _tool_context()))
@@ -161,4 +175,3 @@ class TestBraveApiKeySelection:
         mock_get_auth_env.assert_not_called()
         mock_search_brave.assert_called_once()
         assert mock_search_brave.call_args.args[2] == "brave-env-key"
-        mock_search_duckduckgo.assert_not_called()

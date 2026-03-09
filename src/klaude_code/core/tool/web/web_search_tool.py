@@ -5,8 +5,6 @@ import json
 import os
 import urllib.parse
 import urllib.request
-from collections.abc import Iterator
-from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -25,28 +23,6 @@ from klaude_code.protocol import llm_param, message, tools
 _BRAVE_LLM_CONTEXT_URL = "https://api.search.brave.com/res/v1/llm/context"
 
 
-@contextmanager
-def _suppress_native_output() -> Iterator[None]:
-    """Suppress stdout/stderr at the OS fd level.
-
-    primp (Rust) prints warnings like "Impersonate 'X' does not exist" directly
-    to stderr, bypassing Python's sys.stderr. This corrupts the TUI and causes hangs.
-    """
-    devnull = os.open(os.devnull, os.O_WRONLY)
-    saved_stdout = os.dup(1)
-    saved_stderr = os.dup(2)
-    try:
-        os.dup2(devnull, 1)
-        os.dup2(devnull, 2)
-        yield
-    finally:
-        os.dup2(saved_stdout, 1)
-        os.dup2(saved_stderr, 2)
-        os.close(saved_stdout)
-        os.close(saved_stderr)
-        os.close(devnull)
-
-
 @dataclass
 class SearchResult:
     """A single search result."""
@@ -55,26 +31,6 @@ class SearchResult:
     url: str
     snippet: str
     position: int
-
-
-def _search_duckduckgo(query: str, max_results: int) -> list[SearchResult]:
-    """Perform a web search using ddgs library."""
-    from ddgs import DDGS  # type: ignore
-
-    results: list[SearchResult] = []
-
-    with _suppress_native_output(), DDGS() as ddgs:
-        for i, r in enumerate(ddgs.text(query, max_results=max_results)):
-            results.append(
-                SearchResult(
-                    title=r.get("title", ""),
-                    url=r.get("href", ""),
-                    snippet=r.get("body", ""),
-                    position=i + 1,
-                )
-            )
-
-    return results
 
 
 def _parse_brave_response(raw: bytes) -> list[SearchResult]:
@@ -192,10 +148,13 @@ class WebSearchTool(ToolABC):
 
         try:
             brave_api_key = os.environ.get("BRAVE_API_KEY") or get_auth_env("BRAVE_API_KEY") or ""
-            if brave_api_key:
-                results = await asyncio.to_thread(_search_brave, query, max_results, brave_api_key)
-            else:
-                results = await asyncio.to_thread(_search_duckduckgo, query, max_results)
+            if not brave_api_key:
+                return message.ToolResultMessage(
+                    status="error",
+                    output_text="Search failed: missing BRAVE_API_KEY. Please set BRAVE_API_KEY and try again.",
+                )
+
+            results = await asyncio.to_thread(_search_brave, query, max_results, brave_api_key)
             formatted = _format_results(results)
             wrapped = wrap_web_content(formatted, source="Web Search", include_warning=False)
 
