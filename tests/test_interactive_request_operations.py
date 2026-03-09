@@ -32,6 +32,12 @@ def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 class _FakeAgentRunner:
     def __init__(self, session: Session) -> None:
         self._agent = SimpleNamespace(session=session)
+        self._llm_clients = SimpleNamespace(
+            main=SimpleNamespace(model_name="main-model"),
+            fast=None,
+            compact=None,
+            sub_clients={},
+        )
 
     async def ensure_agent(self, session_id: str) -> Any:
         assert session_id == self._agent.session.id
@@ -47,6 +53,10 @@ class _FakeAgentRunner:
         del operation_id
         assert session_id == self._agent.session.id
         await runner()
+
+    def get_session_llm_clients(self, session_id: str) -> Any:
+        assert session_id == self._agent.session.id
+        return self._llm_clients
 
 
 def _build_handler(
@@ -143,5 +153,103 @@ def test_request_model_operation_cancelled_emits_no_change(monkeypatch: pytest.M
         assert len(emitted) == 1
         assert isinstance(emitted[0], events.NoticeEvent)
         assert emitted[0].content == "(no change)"
+
+    arun(_test())
+
+
+def test_request_sub_agent_model_operation_selects_fast_model(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    async def _test() -> None:
+        session = Session(work_dir=tmp_path)
+        emitted: list[events.Event] = []
+        runner = _FakeAgentRunner(session)
+        request_payloads: list[user_interaction.UserInteractionRequestPayload] = []
+        selected_option_ids = iter(["__fast__", "fast-model@openai"])
+
+        class _FakeConfig:
+            def __init__(self) -> None:
+                self.main_model = "main-model"
+                self.fast_model: str | list[str] | None = None
+                self.compact_model: str | list[str] | None = None
+                self.sub_agent_models: dict[str, str] = {}
+                self.saved = False
+
+            def iter_model_entries(self, *, only_available: bool, include_disabled: bool) -> list[Any]:
+                assert only_available is True
+                assert include_disabled is False
+                return [
+                    SimpleNamespace(
+                        selector="fast-model@openai",
+                        provider="openai",
+                        model_id="fast-model-id",
+                        model_name="fast-model",
+                    )
+                ]
+
+            def get_model_config(self, model_name: str) -> Any:
+                assert model_name == "fast-model@openai"
+                return SimpleNamespace(model_name=model_name)
+
+            async def save(self) -> None:
+                self.saved = True
+
+        fake_config = _FakeConfig()
+
+        async def _emit_event(event: events.Event) -> None:
+            emitted.append(event)
+
+        async def _request_user_interaction(
+            _session_id: str,
+            _request_id: str,
+            _source: user_interaction.UserInteractionSource,
+            payload: user_interaction.UserInteractionRequestPayload,
+        ) -> user_interaction.UserInteractionResponse:
+            request_payloads.append(payload)
+            return user_interaction.UserInteractionResponse(
+                status="submitted",
+                payload=user_interaction.OperationSelectResponsePayload(
+                    selected_option_id=next(selected_option_ids),
+                ),
+            )
+
+        monkeypatch.setattr(runtime_mod, "load_config", lambda: cast(Any, fake_config))
+
+        def _create_llm_client(_llm_config: Any) -> Any:
+            return SimpleNamespace(model_name="fast-model-id")
+
+        monkeypatch.setattr(
+            runtime_mod,
+            "create_llm_client",
+            _create_llm_client,
+        )
+
+        handler = runtime_mod.ConfigHandler(
+            agent_runner=cast(Any, runner),
+            model_switcher=cast(Any, object()),
+            emit_event=_emit_event,
+            request_user_interaction=_request_user_interaction,
+            current_session_id=lambda: session.id,
+            on_model_change=None,
+        )
+
+        await handler.handle_request_sub_agent_model(
+            op.RequestSubAgentModelOperation(session_id=session.id, save_as_default=True)
+        )
+
+        assert len(request_payloads) == 2
+        top_level_payload = cast(user_interaction.OperationSelectRequestPayload, request_payloads[0])
+        top_level_ids = [item.id for item in top_level_payload.options]
+        assert "__fast__" in top_level_ids
+
+        fast_payload = cast(user_interaction.OperationSelectRequestPayload, request_payloads[1])
+        assert fast_payload.header == "Fast"
+
+        assert runner.get_session_llm_clients(session.id).fast is not None
+        assert runner.get_session_llm_clients(session.id).fast.model_name == "fast-model-id"
+        assert fake_config.fast_model == "fast-model@openai"
+        assert fake_config.saved is True
+
+        assert len(emitted) == 1
+        assert isinstance(emitted[0], events.NoticeEvent)
+        assert emitted[0].content == "Fast model: fast-model-id (saved in ~/.klaude/klaude-config.yaml)"
 
     arun(_test())

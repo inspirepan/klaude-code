@@ -195,7 +195,7 @@ class RequestThinkingOperation(Operation):
 
 
 class RequestSubAgentModelOperation(Operation):
-    """Operation for interactively selecting sub-agent/compact model configuration."""
+    """Operation for interactively selecting sub-agent/compact/fast model configuration."""
 
     type: OperationType = OperationType.REQUEST_SUB_AGENT_MODEL
     session_id: str

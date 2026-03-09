@@ -1543,7 +1543,13 @@ class ConfigHandler:
                     label="Compact",
                     description=format_model_preference(config.compact_model)
                     or f"(inherit from main agent: {main_model_name})",
-                )
+                ),
+                user_interaction.OperationSelectOption(
+                    id="__fast__",
+                    label="Fast",
+                    description=format_model_preference(config.fast_model)
+                    or f"(inherit from main agent: {main_model_name})",
+                ),
             ]
             for sub_agent in helper.get_available_sub_agents():
                 if sub_agent.configured_model:
@@ -1606,6 +1612,58 @@ class ConfigHandler:
                         session_id=operation.session_id,
                         model_name=None if selected_model == "__default__" else selected_model,
                         save_as_default=operation.save_as_default,
+                    )
+                )
+                return
+
+            if target == "__fast__":
+                fast_options = [
+                    user_interaction.OperationSelectOption(
+                        id="__default__",
+                        label="(Use default behavior)",
+                        description=f"inherit from main agent: {main_model_name}",
+                    )
+                ]
+                for entry in config.iter_model_entries(only_available=True, include_disabled=False):
+                    fast_options.append(
+                        user_interaction.OperationSelectOption(
+                            id=entry.selector,
+                            label=entry.selector,
+                            description=f"{entry.provider} / {entry.model_id or entry.model_name}",
+                        )
+                    )
+
+                selected_model = await self._ask_single_choice(
+                    session_id=operation.session_id,
+                    source="operation_sub_agent_model",
+                    header="Fast",
+                    question="Select model for Fast:",
+                    options=fast_options,
+                )
+                if selected_model is None:
+                    await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
+                    return
+
+                if selected_model == "__default__":
+                    session_clients.fast = None
+                    display_model = "(inherit from main agent)"
+                    config_model: str | None = None
+                else:
+                    llm_config = config.get_model_config(selected_model)
+                    new_client = create_llm_client(llm_config)
+                    session_clients.fast = new_client
+                    display_model = new_client.model_name
+                    config_model = selected_model
+
+                if operation.save_as_default:
+                    config.fast_model = config_model
+                    await config.save()
+
+                saved_note = " (saved in ~/.klaude/klaude-config.yaml)" if operation.save_as_default else ""
+                await self._emit_event(
+                    events.NoticeEvent(
+                        session_id=operation.session_id,
+                        content=f"Fast model: {display_model}{saved_note}",
                     )
                 )
                 return
