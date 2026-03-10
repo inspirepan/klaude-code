@@ -620,6 +620,19 @@ class TestBashToolCancellation:
 
 
 class TestBashToolStreaming:
+    def test_bash_tool_sets_python_unbuffered(self) -> None:
+        if os.name != "posix" or shutil.which("bash") is None:
+            pytest.skip("bash tool requires POSIX + bash")
+
+        async def _run() -> None:
+            args = BashTool.BashArguments(
+                command="python -c 'import os; print(os.getenv(\"PYTHONUNBUFFERED\"))'", timeout_ms=5_000
+            )
+            result = await BashTool.call_with_args(args, _tool_context())
+            assert result.output_text == "1"
+
+        arun(_run())
+
     def test_bash_command_emits_output_delta_immediately(self) -> None:
         if os.name != "posix" or shutil.which("bash") is None:
             pytest.skip("bash tool requires POSIX + bash")
