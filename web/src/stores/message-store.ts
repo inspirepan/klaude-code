@@ -4,10 +4,18 @@ import type { MessageItem } from "../types/message";
 import type { ReplayEventEnvelope } from "../types/session";
 import { createInitialState, reduceBatch, reduceEvent, type ReducerState } from "./event-reducer";
 
+export interface MessageStoreEvent {
+  sessionId: string;
+  eventType: string;
+  event: Record<string, unknown>;
+  timestamp?: number | null;
+}
+
 interface MessageStoreState {
   messagesBySessionId: Record<string, MessageItem[]>;
   reducerStateBySessionId: Record<string, ReducerState>;
   loadHistoryFromEvents: (sessionId: string, events: ReplayEventEnvelope[]) => void;
+  handleEvents: (events: MessageStoreEvent[]) => void;
   handleEvent: (
     sessionId: string,
     eventType: string,
@@ -17,7 +25,7 @@ interface MessageStoreState {
   clearSession: (sessionId: string) => void;
 }
 
-export const useMessageStore = create<MessageStoreState>((set) => ({
+export const useMessageStore = create<MessageStoreState>((set, get) => ({
   messagesBySessionId: {},
   reducerStateBySessionId: {},
 
@@ -35,27 +43,61 @@ export const useMessageStore = create<MessageStoreState>((set) => ({
     }));
   },
 
-  handleEvent: (sessionId, eventType, event, timestamp) => {
+  handleEvents: (events) => {
+    if (events.length === 0) {
+      return;
+    }
+
     set((state) => {
-      const currentReducerState = state.reducerStateBySessionId[sessionId] ?? createInitialState();
-      const nextReducerState = reduceEvent(
-        currentReducerState,
-        eventType,
-        event,
-        timestamp ?? null,
-      );
-      if (nextReducerState === currentReducerState) return state;
+      const baseReducerStateBySessionId = new Map<string, ReducerState>();
+      const nextReducerStateBySessionId = new Map<string, ReducerState>();
+
+      for (const { sessionId, eventType, event, timestamp } of events) {
+        let currentReducerState = nextReducerStateBySessionId.get(sessionId);
+        if (currentReducerState === undefined) {
+          currentReducerState = state.reducerStateBySessionId[sessionId] ?? createInitialState();
+          baseReducerStateBySessionId.set(sessionId, currentReducerState);
+        }
+
+        nextReducerStateBySessionId.set(
+          sessionId,
+          reduceEvent(currentReducerState, eventType, event, timestamp ?? null),
+        );
+      }
+
+      let changed = false;
+      let nextMessages = state.messagesBySessionId;
+      let nextReducerState = state.reducerStateBySessionId;
+
+      for (const [sessionId, reducedState] of nextReducerStateBySessionId) {
+        const baseState = baseReducerStateBySessionId.get(sessionId);
+        if (baseState === undefined || reducedState === baseState) {
+          continue;
+        }
+
+        if (!changed) {
+          changed = true;
+          nextMessages = { ...state.messagesBySessionId };
+          nextReducerState = { ...state.reducerStateBySessionId };
+        }
+
+        nextMessages[sessionId] = reducedState.items;
+        nextReducerState[sessionId] = reducedState;
+      }
+
+      if (!changed) {
+        return state;
+      }
+
       return {
-        messagesBySessionId: {
-          ...state.messagesBySessionId,
-          [sessionId]: nextReducerState.items,
-        },
-        reducerStateBySessionId: {
-          ...state.reducerStateBySessionId,
-          [sessionId]: nextReducerState,
-        },
+        messagesBySessionId: nextMessages,
+        reducerStateBySessionId: nextReducerState,
       };
     });
+  },
+
+  handleEvent: (sessionId, eventType, event, timestamp) => {
+    get().handleEvents([{ sessionId, eventType, event, timestamp }]);
   },
 
   clearSession: (sessionId) => {

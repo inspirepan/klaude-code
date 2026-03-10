@@ -12,6 +12,7 @@ interface ToolBlockResultProps {
   hideResultRail: boolean;
   hasResult: boolean;
   hasStreamingContent: boolean;
+  streamingContent: string;
   isEmptyResult: boolean;
   isError: boolean;
   showMore: boolean;
@@ -26,6 +27,7 @@ export function ToolBlockResult({
   hideResultRail,
   hasResult,
   hasStreamingContent,
+  streamingContent,
   isEmptyResult,
   isError,
   showMore,
@@ -59,7 +61,7 @@ export function ToolBlockResult({
             <pre
               className={`mt-0.5 ${subTextClass} whitespace-pre-wrap break-words font-mono leading-relaxed text-neutral-400`}
             >
-              {item.streamingContent}
+              {streamingContent}
             </pre>
           </div>
         ) : hasResult ? (

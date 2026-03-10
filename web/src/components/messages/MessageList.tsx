@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react";
 
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
@@ -121,7 +121,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     (state) => state.reducerStateBySessionId[sessionId]?.statusBySessionId ?? EMPTY_STATUS_MAP,
   );
   const scrollRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
   const shouldStickToBottomRef = useRef(true);
   const previousLastVisibleItemIdRef = useRef<string | null>(null);
@@ -274,25 +273,21 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   // Restore scroll position when items first load for a session
   const hasItems = visibleItems.length > 0;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!hasItems) return;
     const saved = sessionStorage.getItem(`scroll-${sessionId}`);
-    if (saved !== null) {
-      scrollRef.current?.scrollTo({ top: parseInt(saved, 10) });
-    } else {
-      const container = scrollRef.current;
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
-    }
     const container = scrollRef.current;
-    if (container) {
-      shouldStickToBottomRef.current =
-        container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+    if (!container) return;
+    if (saved !== null) {
+      container.scrollTop = parseInt(saved, 10);
+    } else {
+      container.scrollTop = container.scrollHeight;
     }
+    shouldStickToBottomRef.current =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 150;
   }, [sessionId, hasItems]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const lastItem = visibleItems[visibleItems.length - 1];
     const previousLastItemId = previousLastVisibleItemIdRef.current;
     previousLastVisibleItemIdRef.current = lastItem?.id ?? null;
@@ -313,11 +308,11 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   }, [sessionId, visibleItems]);
 
   // Auto-scroll on streamed updates only when user is already near bottom.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = scrollRef.current;
     if (!container) return;
     if (shouldStickToBottomRef.current) {
-      container.scrollTo({ top: container.scrollHeight });
+      container.scrollTop = container.scrollHeight;
     }
   }, [visibleItems]);
 
@@ -509,11 +504,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                     })}
                   </div>
                 ))}
-                <div
-                  ref={bottomRef}
-                  aria-hidden="true"
-                  className={`transition-[height] duration-150 ${hasStreamingAssistantText ? "h-12" : "h-0"}`}
-                />
+                <div aria-hidden="true" className={hasStreamingAssistantText ? "h-12" : "h-0"} />
               </>
             ) : runtime?.wsState === "connecting" ? (
               <div className="flex min-h-[240px] items-center justify-center">

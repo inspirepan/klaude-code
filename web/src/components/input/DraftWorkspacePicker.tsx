@@ -6,7 +6,7 @@ interface DraftWorkspacePickerProps {
   normalizedDraftWorkDir: string;
   workspaceMenuOpen: boolean;
   filteredWorkspaceOptions: string[];
-  workspacePickerRef: RefObject<HTMLDivElement | null>;
+  workspacePickerRef: RefObject<HTMLDivElement>;
   setDraftWorkDir: (workDir: string) => void;
   setWorkspaceMenuOpen: Dispatch<SetStateAction<boolean>>;
 }

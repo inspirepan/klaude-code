@@ -26,8 +26,8 @@ export function MessageComposer(): JSX.Element {
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
-  const workspacePickerRef = useRef<HTMLDivElement | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const workspacePickerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isDraft = activeSessionId === "draft";
   const runtime = isDraft ? null : (runtimeBySessionId[activeSessionId] ?? null);
