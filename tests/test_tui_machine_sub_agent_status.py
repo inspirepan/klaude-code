@@ -2,10 +2,19 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+import pytest
 from rich.text import Text
 
 from klaude_code.protocol import events, model, tools
-from klaude_code.tui.commands import RenderCommand, SpinnerStatusLine, SpinnerUpdate
+from klaude_code.tui import machine as machine_module
+from klaude_code.tui.commands import (
+    AppendBashCommandOutput,
+    RenderBashCommandEnd,
+    RenderCommand,
+    RenderToolResult,
+    SpinnerStatusLine,
+    SpinnerUpdate,
+)
 from klaude_code.tui.machine import DisplayStateMachine
 
 
@@ -107,6 +116,151 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     update = _last_spinner_update(cmds)
     lines = [_line_plain(line) for line in update.status_lines]
     assert lines == ["Exploring searching yyyyy | Bashing × 2"]
+
+
+def test_main_session_bash_tool_streams_append_only_and_suppresses_success_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(machine_module, "BASH_STREAM_DELAY_SEC", 0.0)
+    machine = DisplayStateMachine()
+    session_id = "main"
+
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
+
+    stream_cmds = machine.transition(
+        events.ToolOutputDeltaEvent(
+            session_id=session_id,
+            tool_call_id="bash-1",
+            tool_name=tools.BASH,
+            content="hello\n",
+        )
+    )
+    assert any(isinstance(cmd, AppendBashCommandOutput) for cmd in stream_cmds)
+    assert not any(isinstance(cmd, RenderToolResult) for cmd in stream_cmds)
+
+    result_cmds = machine.transition(
+        events.ToolResultEvent(
+            session_id=session_id,
+            tool_call_id="bash-1",
+            tool_name=tools.BASH,
+            result="hello",
+            status="success",
+        )
+    )
+    assert any(isinstance(cmd, RenderBashCommandEnd) for cmd in result_cmds)
+    assert not any(isinstance(cmd, RenderToolResult) for cmd in result_cmds)
+
+
+def test_main_session_bash_tool_buffers_before_delay_and_falls_back_to_tool_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(machine_module, "BASH_STREAM_DELAY_SEC", 3.0)
+    machine = DisplayStateMachine()
+    session_id = "main"
+
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
+    machine.transition(
+        events.ToolCallEvent(
+            session_id=session_id,
+            tool_call_id="bash-1",
+            tool_name=tools.BASH,
+            arguments="{}",
+            timestamp=100.0,
+        )
+    )
+
+    stream_cmds = machine.transition(
+        events.ToolOutputDeltaEvent(
+            session_id=session_id,
+            tool_call_id="bash-1",
+            tool_name=tools.BASH,
+            content="hello\n",
+            timestamp=101.0,
+        )
+    )
+    assert stream_cmds == []
+
+    result_cmds = machine.transition(
+        events.ToolResultEvent(
+            session_id=session_id,
+            tool_call_id="bash-1",
+            tool_name=tools.BASH,
+            result="hello",
+            status="success",
+            timestamp=102.0,
+        )
+    )
+    assert not any(isinstance(cmd, AppendBashCommandOutput) for cmd in result_cmds)
+    assert not any(isinstance(cmd, RenderBashCommandEnd) for cmd in result_cmds)
+    assert any(isinstance(cmd, RenderToolResult) for cmd in result_cmds)
+
+
+def test_main_session_bash_tool_flushes_buffer_after_delay(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(machine_module, "BASH_STREAM_DELAY_SEC", 3.0)
+    machine = DisplayStateMachine()
+    session_id = "main"
+
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
+    machine.transition(
+        events.ToolCallEvent(
+            session_id=session_id,
+            tool_call_id="bash-1",
+            tool_name=tools.BASH,
+            arguments="{}",
+            timestamp=100.0,
+        )
+    )
+
+    machine.transition(
+        events.ToolOutputDeltaEvent(
+            session_id=session_id,
+            tool_call_id="bash-1",
+            tool_name=tools.BASH,
+            content="hello\n",
+            timestamp=101.0,
+        )
+    )
+    stream_cmds = machine.transition(
+        events.ToolOutputDeltaEvent(
+            session_id=session_id,
+            tool_call_id="bash-1",
+            tool_name=tools.BASH,
+            content="world\n",
+            timestamp=103.5,
+        )
+    )
+    bash_chunks = [cmd.event.content for cmd in stream_cmds if isinstance(cmd, AppendBashCommandOutput)]
+    assert bash_chunks == ["hello\n", "world\n"]
+
+
+def test_sub_agent_bash_tool_output_delta_is_ignored() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    sub_session = "sub-1"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=model.SubAgentState(
+                sub_agent_type="Explore",
+                sub_agent_desc="searching yyyyy",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+
+    cmds = machine.transition(
+        events.ToolOutputDeltaEvent(
+            session_id=sub_session,
+            tool_call_id="bash-sub-1",
+            tool_name=tools.BASH,
+            content="hello\n",
+        )
+    )
+
+    assert cmds == []
 
 
 def test_sub_agent_status_lines_cap_with_more_indicator() -> None:

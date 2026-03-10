@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 from klaude_code.core.tool.tool_runner import (
     ToolCallRequest,
     ToolExecutionCallStarted,
+    ToolExecutionOutputDelta,
     ToolExecutionResult,
     ToolExecutionTodoChange,
     ToolExecutor,
@@ -98,6 +99,16 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
                     status=tool_result.status,
                     task_metadata=tool_result.task_metadata,
                     is_last_in_turn=is_last_in_turn,
+                )
+            )
+        case ToolExecutionOutputDelta(tool_call=tool_call, content=content):
+            ui_events.append(
+                events.ToolOutputDeltaEvent(
+                    session_id=session_id,
+                    response_id=tool_call.response_id,
+                    tool_call_id=tool_call.call_id,
+                    tool_name=tool_call.tool_name,
+                    content=content,
                 )
             )
         case ToolExecutionTodoChange(todos=todos):

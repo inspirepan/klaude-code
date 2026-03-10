@@ -79,6 +79,18 @@ FAST_TOOLS: frozenset[str] = frozenset(
 
 STATUS_LEFT_MIN_WIDTH_CELLS = 10
 SUB_AGENT_STATUS_MAX_LINES = 5
+BASH_STREAM_DELAY_SEC = 3.0
+
+
+def _empty_bash_chunks() -> list[str]:
+    return []
+
+
+@dataclass
+class _PendingBashToolOutput:
+    started_at: float
+    chunks: list[str] = field(default_factory=_empty_bash_chunks)
+    streaming_started: bool = False
 
 
 def _normalize_status_text(text: str | None) -> str:
@@ -595,6 +607,8 @@ class DisplayStateMachine:
         self._session_title: str | None = None
         self._terminal_title_prefix: str | None = None
         self._had_sub_agent_status_lines: bool = False
+        self._live_bash_tool_call_ids: set[str] = set()
+        self._pending_bash_tool_outputs: dict[str, _PendingBashToolOutput] = {}
 
     def set_model_name(self, model_name: str | None) -> None:
         self._model_name = model_name
@@ -616,6 +630,8 @@ class DisplayStateMachine:
         self._spinner.reset()
         self._had_sub_agent_status_lines = False
         self._terminal_title_prefix = None
+        self._live_bash_tool_call_ids = set()
+        self._pending_bash_tool_outputs = {}
 
     def _session(self, session_id: str) -> _SessionState:
         existing = self._sessions.get(session_id)
@@ -1138,10 +1154,44 @@ class DisplayStateMachine:
                     self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
                     cmds.extend(self._spinner_update_commands())
 
+                if not s.is_sub_agent and e.tool_name == tools.BASH:
+                    self._pending_bash_tool_outputs[e.tool_call_id] = _PendingBashToolOutput(started_at=e.timestamp)
+
                 cmds.append(RenderToolCall(e))
                 return cmds
 
+            case events.ToolOutputDeltaEvent() as e:
+                if s.is_sub_agent or e.tool_name != tools.BASH:
+                    return []
+                pending = self._pending_bash_tool_outputs.get(e.tool_call_id)
+                if pending is None:
+                    pending = _PendingBashToolOutput(started_at=e.timestamp)
+                    self._pending_bash_tool_outputs[e.tool_call_id] = pending
+
+                if not pending.streaming_started and e.timestamp - pending.started_at < BASH_STREAM_DELAY_SEC:
+                    pending.chunks.append(e.content)
+                    return []
+
+                if not pending.streaming_started:
+                    pending.streaming_started = True
+                    self._live_bash_tool_call_ids.add(e.tool_call_id)
+                    for chunk in pending.chunks:
+                        cmds.append(
+                            AppendBashCommandOutput(
+                                events.BashCommandOutputDeltaEvent(session_id=e.session_id, content=chunk)
+                            )
+                        )
+                    pending.chunks = []
+
+                cmds.append(
+                    AppendBashCommandOutput(
+                        events.BashCommandOutputDeltaEvent(session_id=e.session_id, content=e.content)
+                    )
+                )
+                return cmds
+
             case events.ToolResultEvent() as e:
+                pending = self._pending_bash_tool_outputs.pop(e.tool_call_id, None)
                 if not is_replay and s.is_sub_agent:
                     s.finish_status_tool_call(e.tool_call_id)
                     cmds.extend(self._spinner_update_commands())
@@ -1153,6 +1203,21 @@ class DisplayStateMachine:
                             failed_sub_session.task_active = False
                             failed_sub_session.clear_status_activity()
                     cmds.extend(self._spinner_update_commands())
+
+                if e.tool_name == tools.BASH and e.tool_call_id in self._live_bash_tool_call_ids:
+                    self._live_bash_tool_call_ids.discard(e.tool_call_id)
+                    cmds.append(
+                        RenderBashCommandEnd(
+                            events.BashCommandEndEvent(
+                                session_id=e.session_id,
+                                cancelled=e.status == "aborted",
+                            )
+                        )
+                    )
+                    if not e.is_error:
+                        return cmds
+                elif pending is not None:
+                    self._live_bash_tool_call_ids.discard(e.tool_call_id)
 
                 if s.is_sub_agent and not e.is_error:
                     return cmds

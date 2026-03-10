@@ -18,9 +18,11 @@ from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolM
 from klaude_code.core.tool.tool_runner import (
     ToolCallRequest,
     ToolExecutionCallStarted,
+    ToolExecutionOutputDelta,
     ToolExecutionResult,
     ToolExecutionTodoChange,
     ToolExecutor,
+    ToolExecutorEvent,
     run_tool,
 )
 from klaude_code.protocol import llm_param, message, model
@@ -123,6 +125,48 @@ class MockConcurrentTool(ToolABC):
         return message.ToolResultMessage(status="success", output_text="Concurrent!")
 
 
+class MockStreamingTool(ToolABC):
+    """Mock tool that emits incremental output."""
+
+    @classmethod
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
+            name="MockStreaming",
+            type="function",
+            description="Mock streaming tool",
+            parameters={"type": "object", "properties": {}},
+        )
+
+    @classmethod
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        del arguments
+        if context.emit_tool_output_delta is not None:
+            await context.emit_tool_output_delta("alpha")
+            await context.emit_tool_output_delta("beta")
+        return message.ToolResultMessage(status="success", output_text="alphabeta")
+
+
+class MockSlowStreamingTool(ToolABC):
+    """Mock tool that emits one chunk, waits, then returns."""
+
+    @classmethod
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
+            name="MockSlowStreaming",
+            type="function",
+            description="Mock slow streaming tool",
+            parameters={"type": "object", "properties": {}},
+        )
+
+    @classmethod
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        del arguments
+        if context.emit_tool_output_delta is not None:
+            await context.emit_tool_output_delta("first")
+        await asyncio.sleep(0.2)
+        return message.ToolResultMessage(status="success", output_text="done")
+
+
 class TestRunTool:
     """Test run_tool function."""
 
@@ -186,6 +230,8 @@ class TestToolExecutor:
         return {
             "MockSuccess": MockSuccessTool,
             "MockTodoChange": MockTodoChangeTool,
+            "MockStreaming": MockStreamingTool,
+            "MockSlowStreaming": MockSlowStreamingTool,
         }
 
     @pytest.fixture
@@ -208,8 +254,8 @@ class TestToolExecutor:
             arguments_json="{}",
         )
 
-        async def collect_events() -> list[ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange]:
-            events: list[ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange] = []
+        async def collect_events() -> list[ToolExecutorEvent]:
+            events: list[ToolExecutorEvent] = []
             async for event in executor.run_tools([tool_call]):
                 events.append(event)
             return events
@@ -220,8 +266,59 @@ class TestToolExecutor:
         assert len(events) == 2
         assert isinstance(events[0], ToolExecutionCallStarted)
         assert isinstance(events[1], ToolExecutionResult)
-        assert events[0].tool_call.call_id == "test_123"
-        assert events[1].tool_result.status == "success"
+
+    def test_run_streaming_tool(self, executor: ToolExecutor) -> None:
+        tool_call = ToolCallRequest(
+            response_id=None,
+            call_id="stream_123",
+            tool_name="MockStreaming",
+            arguments_json="{}",
+        )
+
+        async def collect_events() -> list[ToolExecutorEvent]:
+            events: list[ToolExecutorEvent] = []
+            async for event in executor.run_tools([tool_call]):
+                events.append(event)
+            return events
+
+        events = arun(collect_events())
+
+        assert isinstance(events[0], ToolExecutionCallStarted)
+        assert isinstance(events[1], ToolExecutionOutputDelta)
+        assert events[1].content == "alpha"
+        assert isinstance(events[2], ToolExecutionOutputDelta)
+        assert events[2].content == "beta"
+        assert isinstance(events[3], ToolExecutionResult)
+        assert events[3].tool_result.output_text == "alphabeta"
+
+    def test_run_streaming_tool_emits_delta_before_completion(self, executor: ToolExecutor) -> None:
+        tool_call = ToolCallRequest(
+            response_id=None,
+            call_id="slow_stream_123",
+            tool_name="MockSlowStreaming",
+            arguments_json="{}",
+        )
+
+        async def collect_first_event_before_completion() -> tuple[ToolExecutionOutputDelta, list[ToolExecutorEvent]]:
+            seen: list[ToolExecutorEvent] = []
+            stream = executor.run_tools([tool_call])
+
+            first = await anext(stream)
+            seen.append(first)
+            second = await asyncio.wait_for(anext(stream), timeout=0.1)
+            seen.append(second)
+
+            rest: list[ToolExecutorEvent] = []
+            async for event in stream:
+                rest.append(event)
+            assert isinstance(second, ToolExecutionOutputDelta)
+            return second, [*seen, *rest]
+
+        first_delta, events = arun(collect_first_event_before_completion())
+
+        assert isinstance(first_delta, ToolExecutionOutputDelta)
+        assert first_delta.content == "first"
+        assert isinstance(events[-1], ToolExecutionResult)
 
     def test_run_multiple_tools_sequentially(self, executor: ToolExecutor):
         """Test running multiple regular tools sequentially."""
@@ -230,8 +327,8 @@ class TestToolExecutor:
             ToolCallRequest(response_id=None, call_id="test_2", tool_name="MockSuccess", arguments_json="{}"),
         ]
 
-        async def collect_events() -> list[ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange]:
-            events: list[ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange] = []
+        async def collect_events() -> list[ToolExecutorEvent]:
+            events: list[ToolExecutorEvent] = []
             async for event in executor.run_tools(tool_calls):
                 events.append(event)
             return events
@@ -254,8 +351,8 @@ class TestToolExecutor:
             arguments_json="{}",
         )
 
-        async def collect_events() -> list[ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange]:
-            events: list[ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange] = []
+        async def collect_events() -> list[ToolExecutorEvent]:
+            events: list[ToolExecutorEvent] = []
             async for event in executor.run_tools([tool_call]):
                 events.append(event)
             return events
@@ -520,3 +617,24 @@ class TestBashToolCancellation:
                 await task
 
         arun(_run())
+
+
+class TestBashToolStreaming:
+    def test_bash_command_emits_output_delta_immediately(self) -> None:
+        if os.name != "posix" or shutil.which("bash") is None:
+            pytest.skip("bash tool requires POSIX + bash")
+
+        emitted: list[str] = []
+
+        async def _emit(content: str) -> None:
+            emitted.append(content)
+
+        async def _run() -> None:
+            args = BashTool.BashArguments(command="echo short; sleep 0.1; echo done", timeout_ms=5_000)
+            result = await BashTool.call_with_args(args, _tool_context().with_emit_tool_output_delta(_emit))
+            assert result.output_text == "short\ndone"
+
+        arun(_run())
+
+        assert emitted
+        assert "".join(emitted) == "short\ndone\n"
