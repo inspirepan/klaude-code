@@ -1598,7 +1598,7 @@ class ConfigHandler:
 
                 selected_model = await self._ask_single_choice(
                     session_id=operation.session_id,
-                    source="operation_sub_agent_model",
+                    source="operation_model",
                     header="Compact",
                     question="Select model for Compact:",
                     options=compact_options,
@@ -1635,7 +1635,7 @@ class ConfigHandler:
 
                 selected_model = await self._ask_single_choice(
                     session_id=operation.session_id,
-                    source="operation_sub_agent_model",
+                    source="operation_model",
                     header="Fast",
                     question="Select model for Fast:",
                     options=fast_options,
@@ -1687,7 +1687,7 @@ class ConfigHandler:
 
             selected_model = await self._ask_single_choice(
                 session_id=operation.session_id,
-                source="operation_sub_agent_model",
+                source="operation_model",
                 header=target,
                 question=f"Select model for {target}:",
                 options=sub_model_options,

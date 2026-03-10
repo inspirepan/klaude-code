@@ -22,7 +22,7 @@ export function MessageListHeader({
   setRightSidebarOpen,
 }: MessageListHeaderProps): JSX.Element {
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 py-2 backdrop-blur sm:px-6">
+    <div className="relative z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 py-2 backdrop-blur sm:px-6">
       {!sidebarOpen ? (
         <button
           type="button"
@@ -47,9 +47,13 @@ export function MessageListHeader({
             </span>
           ) : null}
           {sessionReadOnly ? (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-2xs font-medium text-amber-700">
+            <span className="group/readonly relative inline-flex shrink-0 cursor-help items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-2xs font-medium text-amber-700">
               <Lock className="h-3 w-3" />
               <span>Read-only</span>
+              <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden w-max max-w-[30rem] -translate-x-1/2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] leading-4 text-amber-800 shadow-sm group-hover/readonly:block">
+                This session is owned by another live runtime. Web can observe it, but cannot send
+                control actions.
+              </span>
             </span>
           ) : null}
           {workspacePath ? (
@@ -62,12 +66,6 @@ export function MessageListHeader({
           ) : null}
         </div>
       </div>
-      {sessionReadOnly ? (
-        <div className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-1 text-2xs text-amber-800">
-          This session is owned by another live runtime. Web can observe it, but cannot send control
-          actions.
-        </div>
-      ) : null}
       <div className="h-8 w-8 shrink-0" aria-hidden="true" />
       {!rightSidebarOpen ? (
         <button

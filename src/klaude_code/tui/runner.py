@@ -37,6 +37,7 @@ from klaude_code.tui.terminal.selector import (
     DEFAULT_PICKER_STYLE,
     QuestionPrompt,
     SelectItem,
+    build_model_select_items,
     select_one,
     select_questions,
 )
@@ -190,66 +191,38 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             )
         return items
 
-    def _build_model_picker_style_items(
-        payload: user_interaction.OperationSelectRequestPayload,
-    ) -> list[SelectItem[str]]:
+    def _pick_model_with_model_picker_style(payload: user_interaction.OperationSelectRequestPayload) -> str | None:
         if not payload.options:
-            return []
+            return None
 
-        provider_grouped: dict[str, list[user_interaction.OperationSelectOption]] = {}
-        for option in payload.options:
-            provider_hint = option.description.split("/", 1)[0].strip().lower()
-            provider = provider_hint or "other"
-            provider_grouped.setdefault(provider, []).append(option)
+        valid_ids = {opt.id for opt in payload.options}
 
-        groups = list(provider_grouped.items())
-        num_width = len(str(len(payload.options)))
-        max_header_len = max(len(f"{name} ({len(options)})") for name, options in groups)
-        separator_base_len = 80
+        # Fetch model entries and keep only those present in the payload
+        config = load_config()
+        entries = [
+            m for m in config.iter_model_entries(only_available=True, include_disabled=False) if m.selector in valid_ids
+        ]
+        model_selectors = {m.selector for m in entries}
 
-        items: list[SelectItem[str]] = []
-        option_idx = 0
-        for group_name, group_options in groups:
-            count_text = f"({len(group_options)})"
-            header_len = len(group_name) + 1 + len(count_text)
-            separator_len = separator_base_len + max_header_len - header_len
-            separator = "-" * separator_len
-            items.append(
+        # Build items using the shared builder (identical to --model CLI)
+        items = build_model_select_items(entries)
+
+        # Prepend any non-model options (e.g., "__default__" for sub-agent config)
+        special_opts = [opt for opt in payload.options if opt.id not in model_selectors]
+        for opt in reversed(special_opts):
+            title: list[tuple[str, str]] = [("class:msg", opt.label)]
+            if opt.description:
+                title.append(("class:meta", f"  {opt.description}"))
+            title.append(("class:meta", "\n"))
+            items.insert(
+                0,
                 SelectItem(
-                    title=[
-                        ("class:meta ansiyellow", f"{group_name} "),
-                        ("class:meta ansibrightblack", f"{count_text} "),
-                        ("class:meta ansibrightblack dim", separator),
-                        ("class:meta", "\n"),
-                    ],
-                    value=None,
-                    search_text=group_name,
-                    selectable=False,
-                )
+                    title=title,
+                    value=opt.id,
+                    search_text=f"{opt.label} {opt.description}",
+                ),
             )
 
-            for option in group_options:
-                option_idx += 1
-                title: list[tuple[str, str]] = [
-                    ("class:meta", f"{option_idx:>{num_width}}. "),
-                    ("class:msg", option.label),
-                ]
-                if option.description:
-                    title.append(("class:msg dim", " → "))
-                    title.append(("class:msg ansiblue", option.description))
-                title.append(("class:meta", "\n"))
-                items.append(
-                    SelectItem(
-                        title=title,
-                        value=option.id,
-                        search_text=f"{option.label} {option.description}",
-                        summary=option.label,
-                    )
-                )
-        return items
-
-    def _pick_model_with_model_picker_style(payload: user_interaction.OperationSelectRequestPayload) -> str | None:
-        items = _build_model_picker_style_items(payload)
         selected = select_one(
             message=payload.question,
             items=items,
