@@ -61,6 +61,22 @@ class ErrorWithPartialTextStream(LLMStreamABC):
         return None
 
 
+class InterruptWithPartialTextStream(LLMStreamABC):
+    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
+        if False:
+            yield message.StreamErrorItem(error="unreachable")
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        return message.AssistantMessage(
+            parts=[message.TextPart(text="partial answer")],
+            response_id="r1",
+            stop_reason="aborted",
+        )
+
+
 class FakeLLMClient(LLMClientABC):
     def __init__(
         self,
@@ -177,3 +193,22 @@ def test_stream_error_retries_with_user_continuation_prompt_for_all_protocols() 
     assert "transient error" in retry_prompt
     assert "network-related" in retry_prompt
     assert "without repeating" in retry_prompt
+
+
+def test_interrupt_persists_user_continuation_prompt_instead_of_aborted_assistant() -> None:
+    stream = InterruptWithPartialTextStream()
+    executor, history = _build_turn_executor(stream)
+    executor._llm_stream = stream  # pyright: ignore[reportPrivateUsage]
+
+    _ = executor.on_interrupt()
+
+    retry_user_messages = [item for item in history if isinstance(item, message.UserMessage)]
+    assert len(retry_user_messages) == 1
+    retry_prompt = message.join_text_parts(retry_user_messages[0].parts)
+    assert "<assistant>" in retry_prompt
+    assert "</assistant>" in retry_prompt
+    assert "partial answer" in retry_prompt
+    assert "<system-reminder>" in retry_prompt
+    assert "</system-reminder>" in retry_prompt
+
+    assert not any(isinstance(item, message.AssistantMessage) and item.stop_reason == "aborted" for item in history)
