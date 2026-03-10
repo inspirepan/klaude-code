@@ -129,7 +129,7 @@ export function LeftSidebar(): JSX.Element {
       className="relative flex shrink-0 flex-col border-r border-neutral-200 bg-neutral-50"
       style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
     >
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5">
         <div className="flex-1">
           <NewSessionButton
             onClick={() => {
@@ -169,7 +169,7 @@ export function LeftSidebar(): JSX.Element {
       </div>
 
       <ScrollArea className="min-h-0 w-full flex-1" type="auto">
-        <div className="px-3 pb-3">
+        <div className="px-2 pb-2">
           {loadError !== null ? (
             <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3">
               <div className="mb-1 font-semibold">Load failed</div>
@@ -227,7 +227,7 @@ export function LeftSidebar(): JSX.Element {
         </div>
       </ScrollArea>
 
-      <div className="relative shrink-0 border-t border-neutral-200/55 bg-neutral-50 px-3 py-2 shadow-[0_-1px_0_rgba(15,15,15,0.04),0_-6px_12px_-14px_rgba(15,15,15,0.16)]">
+      <div className="relative shrink-0 border-t border-neutral-200/55 bg-neutral-50 px-2.5 py-1.5 shadow-[0_-1px_0_rgba(15,15,15,0.04),0_-6px_12px_-14px_rgba(15,15,15,0.16)]">
         <div className="pointer-events-none absolute inset-x-0 -top-3 h-3 bg-gradient-to-t from-black/[0.035] to-transparent" />
         {archivedExpanded && archivedGroups.length > 0 ? (
           <div className="mb-0 flex items-center justify-center">

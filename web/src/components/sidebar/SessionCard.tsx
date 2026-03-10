@@ -238,7 +238,7 @@ export function SessionCard({
     <div className="group">
       <div
         className={cn(
-          "relative flex w-full flex-col gap-y-0.5 rounded-lg py-1.5 pl-1.5 pr-2 text-left transition-colors",
+          "relative flex w-full flex-col gap-y-0 rounded-lg py-1 pl-1.5 pr-1.5 text-left transition-colors",
           showSuccessState
             ? active
               ? "status-success-card-settle-active"

@@ -44,16 +44,16 @@ export function ProjectGroup({
   const hasMore = sessions.length > 10;
 
   return (
-    <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-3">
-      <div className="flex items-start gap-1.5">
-        <CollapsibleTrigger className="group flex min-w-0 flex-1 items-start gap-2 rounded-md px-2 py-2 text-neutral-700 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900">
+    <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-1.5">
+      <div className="flex items-start gap-1">
+        <CollapsibleTrigger className="group flex min-w-0 flex-1 items-start gap-1.5 rounded-md px-1.5 py-1.5 text-neutral-700 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900">
           {collapsed ? (
             <Folder className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
           ) : (
             <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
           )}
           <div className="min-w-0 flex-1 text-left" title={workDir}>
-            <div className="truncate text-sm font-medium leading-5 text-neutral-800">
+            <div className="truncate text-sm font-normal leading-5 text-neutral-800">
               {workDirLabel(workDir)}
             </div>
             <div className="mt-0.5 truncate text-2xs leading-4 text-neutral-400" title={workDir}>
@@ -74,7 +74,7 @@ export function ProjectGroup({
         </button>
       </div>
 
-      <CollapsibleContent className="ml-4 mt-0.5 border-l border-neutral-200 pl-2.5">
+      <CollapsibleContent className="ml-3.5 border-l border-neutral-200 pl-2">
         <div className="space-y-0.5 pb-0.5">
           {displaySessions.map((session) => (
             <SessionCard
