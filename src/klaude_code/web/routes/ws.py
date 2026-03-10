@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import shutil
 import time
 from concurrent.futures import CancelledError as FutureCancelledError
 from pathlib import Path
@@ -14,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 
 from klaude_code.protocol import events, llm_param, message, model, op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
-from klaude_code.session.session import Session
+from klaude_code.session.session import Session, get_store_for_path
 from klaude_code.web.session_access import load_session_read_only
 from klaude_code.web.session_index import resolve_session_work_dir
 from klaude_code.web.state import get_web_state_from_ws
@@ -354,6 +355,30 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             state = get_web_state_from_ws(websocket)
             with contextlib.suppress(Exception):
                 await state.runtime.release_holder(session_id, holder_key)
+
+            with contextlib.suppress(Exception):
+                registry = cast(Any, state.runtime.session_registry)
+                if not hasattr(registry, "get_session_actor"):
+                    raise RuntimeError
+                runtime = registry.get_session_actor(session_id)
+                agent = runtime.get_agent() if runtime is not None else None
+                if agent is not None:
+                    if agent.session.messages_count != 0:
+                        raise RuntimeError
+                    with contextlib.suppress(Exception):
+                        _ = await state.runtime.close_session(session_id, force=True)
+                    shutil.rmtree(Session.paths(agent.session.work_dir).session_dir(session_id), ignore_errors=True)
+                else:
+                    work_dir = resolve_session_work_dir(state.home_dir, session_id)
+                    if work_dir is None:
+                        raise RuntimeError
+                    raw_meta = get_store_for_path(work_dir).load_meta(session_id)
+                    if raw_meta is None:
+                        raise RuntimeError
+                    messages_count = int(raw_meta.get("messages_count", -1))
+                    if messages_count != 0:
+                        raise RuntimeError
+                    shutil.rmtree(Session.paths(work_dir).session_dir(session_id), ignore_errors=True)
 
         tasks_to_cancel = [task for task in (send_task, recv_task) if task is not None and not task.done()]
         for task in tasks_to_cancel:

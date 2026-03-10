@@ -57,6 +57,28 @@ def test_create_session_invalid_work_dir(app_env: AppEnv, tmp_path: Path) -> Non
     assert response.status_code == 400
 
 
+def test_non_empty_session_kept_when_websocket_disconnects(app_env: AppEnv) -> None:
+    app_env.fake_llm.enqueue(
+        message.AssistantTextDelta(content="done"),
+        message.AssistantMessage(
+            parts=[message.TextPart(text="done")],
+            stop_reason="stop",
+            usage=usage(input_tokens=3, output_tokens=1),
+        ),
+    )
+    session_id = app_env.create_session()
+
+    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
+        consume_ws_handshake(websocket)
+        websocket.send_json({"type": "message", "text": "hello"})
+        _ = collect_events_until(websocket, "task.finish")
+
+    response = app_env.client.get("/api/sessions")
+    assert response.status_code == 200
+    all_ids = [session["id"] for group in response.json()["groups"] for session in group["sessions"]]
+    assert session_id in all_ids
+
+
 def test_sub_agent_sessions_filtered_from_list(app_env: AppEnv) -> None:
     main_session_id = app_env.create_session()
 
@@ -205,8 +227,21 @@ def test_updated_at_changes_only_when_session_content_changes(app_env: AppEnv) -
 
     session_id = "manual-session-for-updated-at"
     meta_path = sessions_dir / session_id / "meta.json"
+    events_path = sessions_dir / session_id / "events.jsonl"
     meta_path.parent.mkdir(parents=True, exist_ok=True)
     initial_updated_at = time.time()
+    seed_message = message.UserMessage(parts=message.text_parts_from_str("seed"))
+    events_path.write_text(
+        json.dumps(
+            {
+                "type": "UserMessage",
+                "data": seed_message.model_dump(mode="json", exclude_none=True),
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     meta_path.write_text(
         json.dumps(
             {
@@ -215,8 +250,8 @@ def test_updated_at_changes_only_when_session_content_changes(app_env: AppEnv) -
                 "sub_agent_state": None,
                 "created_at": initial_updated_at,
                 "updated_at": initial_updated_at,
-                "user_messages": [],
-                "messages_count": 0,
+                "user_messages": ["seed"],
+                "messages_count": 1,
                 "model_name": "fake-model",
                 "session_state": "idle",
             },

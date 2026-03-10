@@ -4,13 +4,15 @@ import asyncio
 import threading
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, ClassVar, TypeVar
 
 import pytest
 
-from klaude_code.protocol import events, op, user_interaction
+from klaude_code.protocol import events, message, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
+from klaude_code.session.session import Session
 from klaude_code.tui.terminal.selector import QuestionSelectResult
 
 T = TypeVar("T")
@@ -511,3 +513,74 @@ def test_operation_thinking_interaction_uses_selector_style(monkeypatch: pytest.
     assert response.payload.kind == "operation_select"
     assert response.payload.selected_option_id == "o2"
     assert state["select_one_called"] == 1
+
+
+def test_exit_cleans_empty_session(monkeypatch: pytest.MonkeyPatch, isolated_home: Path) -> None:
+    del isolated_home
+    runner = _patch_runner_basics(monkeypatch)
+
+    session = Session.create(id="s1", work_dir=Path.cwd())
+    session.ensure_meta_exists()
+    assert Session.exists("s1", work_dir=Path.cwd())
+
+    class _FakeRuntime:
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> None:
+            return None
+
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=_FakeRuntime(),
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="exit")]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert not Session.exists("s1", work_dir=Path.cwd())
+
+
+def test_exit_keeps_non_empty_session(monkeypatch: pytest.MonkeyPatch, isolated_home: Path) -> None:
+    del isolated_home
+    runner = _patch_runner_basics(monkeypatch)
+
+    session = Session.create(id="s1", work_dir=Path.cwd())
+
+    async def _seed_session() -> None:
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
+        await session.wait_for_flush()
+
+    arun(_seed_session())
+    assert Session.exists("s1", work_dir=Path.cwd())
+
+    class _FakeRuntime:
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> None:
+            return None
+
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=_FakeRuntime(),
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="exit")]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert Session.exists("s1", work_dir=Path.cwd())

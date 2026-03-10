@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import shutil
 import threading
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -560,11 +561,17 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         await handle_keyboard_interrupt(components.runtime)
         exit_hint_printed = True
     finally:
+        active_session_id = components.runtime.current_session_id()
+        work_dir = Path.cwd()
         await cleanup_app_components(components)
 
-        if not exit_hint_printed:
-            active_session_id = components.runtime.current_session_id()
-            if active_session_id and Session.exists(active_session_id, work_dir=Path.cwd()):
-                short_id = Session.shortest_unique_prefix(active_session_id, work_dir=Path.cwd())
-                log(f"Session ID: {active_session_id}")
-                log(f"Resume with: klaude -r {short_id}")
+        if active_session_id and Session.exists(active_session_id, work_dir=work_dir):
+            with contextlib.suppress(Exception):
+                session = Session.load(active_session_id, work_dir=work_dir)
+                if session.messages_count == 0:
+                    shutil.rmtree(Session.paths(work_dir).session_dir(active_session_id), ignore_errors=True)
+
+        if not exit_hint_printed and active_session_id and Session.exists(active_session_id, work_dir=work_dir):
+            short_id = Session.shortest_unique_prefix(active_session_id, work_dir=work_dir)
+            log(f"Session ID: {active_session_id}")
+            log(f"Resume with: klaude -r {short_id}")
