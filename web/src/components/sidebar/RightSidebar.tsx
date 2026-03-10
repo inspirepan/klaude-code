@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { PanelRightClose } from "lucide-react";
 
 import { FilePath } from "../messages/FilePath";
@@ -33,6 +34,19 @@ export function RightSidebar(): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const setRightSidebarOpen = useAppStore((state) => state.setRightSidebarOpen);
+  const [sidebarWidth, setSidebarWidth] = useState(360);
+  const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
+
+  const clampSidebarWidth = (width: number): number => {
+    const minWidth = 256;
+    const hardMaxWidth = 512;
+    const leftSidebarWidth =
+      (document.querySelector('[data-sidebar="left"]') as HTMLElement | null)?.offsetWidth ?? 0;
+    const minMainWidth = 320;
+    const availableMaxWidth = window.innerWidth - leftSidebarWidth - minMainWidth;
+    const maxWidth = Math.max(minWidth, Math.min(hardMaxWidth, availableMaxWidth));
+    return Math.min(Math.max(width, minWidth), maxWidth);
+  };
 
   const activeSession = findActiveSession(
     groups.flatMap((group) => group.sessions),
@@ -52,8 +66,21 @@ export function RightSidebar(): JSX.Element {
     ...fileChangeSummary.edited_files.map((p) => ({ path: p, kind: "edited" as const })),
   ];
 
+  useEffect(() => {
+    return () => {
+      if (sidebarResizeCleanupRef.current !== null) {
+        sidebarResizeCleanupRef.current();
+        sidebarResizeCleanupRef.current = null;
+      }
+    };
+  }, []);
+
   return (
-    <aside className="flex w-[360px] min-w-[360px] flex-col border-l border-neutral-200 bg-neutral-50">
+    <aside
+      data-sidebar="right"
+      className="relative flex shrink-0 flex-col border-l border-neutral-200 bg-neutral-50"
+      style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
+    >
       <div className="flex items-center gap-2 px-3 py-2">
         <button
           type="button"
@@ -145,6 +172,39 @@ export function RightSidebar(): JSX.Element {
           </div>
         </div>
       </ScrollArea>
+
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize right sidebar"
+        className="absolute -left-1 top-0 z-30 flex h-full w-2 cursor-col-resize items-center justify-center"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          const startX = event.clientX;
+          const startWidth = clampSidebarWidth(sidebarWidth);
+          const onPointerMove = (moveEvent: PointerEvent): void => {
+            const deltaX = moveEvent.clientX - startX;
+            setSidebarWidth(clampSidebarWidth(startWidth - deltaX));
+          };
+          const onPointerUp = (): void => {
+            cleanup();
+            sidebarResizeCleanupRef.current = null;
+          };
+          const cleanup = (): void => {
+            window.removeEventListener("pointermove", onPointerMove);
+            window.removeEventListener("pointerup", onPointerUp);
+          };
+
+          if (sidebarResizeCleanupRef.current !== null) {
+            sidebarResizeCleanupRef.current();
+          }
+          sidebarResizeCleanupRef.current = cleanup;
+          window.addEventListener("pointermove", onPointerMove);
+          window.addEventListener("pointerup", onPointerUp);
+        }}
+      >
+        <span className="h-full w-px bg-neutral-200/85" />
+      </div>
     </aside>
   );
 }

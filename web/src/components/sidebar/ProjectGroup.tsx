@@ -8,6 +8,7 @@ interface ProjectGroupProps {
   workDir: string;
   sessions: SessionSummary[];
   collapsed: boolean;
+  compactSessions?: boolean;
   activeSessionId: string | "draft";
   runtimeBySessionId: Record<string, SessionRuntimeState>;
   completedUnreadBySessionId: Record<string, boolean>;
@@ -29,6 +30,7 @@ export function ProjectGroup({
   workDir,
   sessions,
   collapsed,
+  compactSessions = false,
   activeSessionId,
   runtimeBySessionId,
   completedUnreadBySessionId,
@@ -91,6 +93,7 @@ export function ProjectGroup({
                 onSelectSession(session.id);
               }}
               onToggleArchive={onToggleArchive}
+              compact={compactSessions}
             />
           ))}
           {hasMore && !showAll && (
