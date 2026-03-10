@@ -119,6 +119,8 @@ class BashTool(ToolABC):
                 "JJ_EDITOR": "true",
                 # Encourage non-interactive output.
                 "TERM": "dumb",
+                # Make Python CLI scripts flush progress output even when stdout is not a TTY.
+                "PYTHONUNBUFFERED": "1",
             }
         )
 

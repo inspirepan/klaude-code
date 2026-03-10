@@ -591,6 +591,7 @@ class TUICommandRenderer:
                 self._refresh_bottom_live()
 
     def display_bash_command_end(self, e: events.BashCommandEndEvent) -> None:
+        del e
         # Stop the bottom Live before finalizing bash output to prevent a refresh
         # from interfering with the final line(s) written to stdout.
         if self._bottom_live is not None:
@@ -607,6 +608,12 @@ class TUICommandRenderer:
 
         self._bash_stream_active = False
         self._bash_last_char_was_newline = True
+
+        # Tool-mode bash streaming keeps the spinner active. Recreate bottom Live so
+        # the status bar remains visible after command output completes.
+        if self._spinner_visible:
+            self._ensure_bottom_live_started()
+            self._refresh_bottom_live()
 
     def display_welcome(self, event: events.WelcomeEvent) -> None:
         self.print(c_welcome.render_welcome(event))
