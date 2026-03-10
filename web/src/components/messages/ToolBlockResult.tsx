@@ -11,6 +11,7 @@ interface ToolBlockResultProps {
   hasRich: boolean;
   hideResultRail: boolean;
   hasResult: boolean;
+  hasStreamingContent: boolean;
   isEmptyResult: boolean;
   isError: boolean;
   showMore: boolean;
@@ -24,6 +25,7 @@ export function ToolBlockResult({
   hasRich,
   hideResultRail,
   hasResult,
+  hasStreamingContent,
   isEmptyResult,
   isError,
   showMore,
@@ -47,6 +49,18 @@ export function ToolBlockResult({
             }}
           >
             <ToolRichResult item={item} compact={compact} />
+          </div>
+        ) : hasStreamingContent ? (
+          <div
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            <pre
+              className={`mt-0.5 ${subTextClass} whitespace-pre-wrap break-words font-mono leading-relaxed text-neutral-400`}
+            >
+              {item.streamingContent}
+            </pre>
           </div>
         ) : hasResult ? (
           <div
