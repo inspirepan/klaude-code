@@ -12,7 +12,7 @@ from klaude_code.protocol import llm_param, op, user_interaction
 
 if TYPE_CHECKING:
     from klaude_code.core.agent.agent import Agent
-    from klaude_code.core.agent.runtime import LLMClients
+    from klaude_code.core.agent.runtime_llm import LLMClients
 
 
 @dataclass(frozen=True)

@@ -8,7 +8,7 @@ from typing import Any, TypeVar, cast
 
 import pytest
 
-from klaude_code.core.agent import runtime as runtime_mod
+from klaude_code.core.agent import runtime_config_ops as runtime_mod
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.session.session import Session
 

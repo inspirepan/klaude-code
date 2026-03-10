@@ -8,8 +8,8 @@ from typing import Any, cast
 
 import pytest
 
-from klaude_code.core.agent import runtime as agent_runtime
-from klaude_code.core.agent.runtime import LLMClients
+from klaude_code.core.agent import runtime_llm as agent_runtime
+from klaude_code.core.agent.runtime_llm import LLMClients
 from klaude_code.core.control.event_bus import EventBus
 from klaude_code.core.control.runtime_facade import RuntimeFacade
 from klaude_code.protocol import message, op
@@ -91,7 +91,7 @@ def test_init_agent_creates_idle_meta_before_first_async_flush(
     def _identity_clone(client: Any) -> Any:
         return client
 
-    monkeypatch.setattr(agent_runtime, "_clone_llm_client", _identity_clone)
+    monkeypatch.setattr(agent_runtime, "clone_llm_client", _identity_clone)
 
     work_dir = tmp_path / "work"
     work_dir.mkdir(parents=True, exist_ok=True)

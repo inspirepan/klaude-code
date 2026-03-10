@@ -12,7 +12,7 @@ import typer
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.config import Config, load_config
 from klaude_code.core.agent.agent import Agent
-from klaude_code.core.agent.runtime import build_llm_clients
+from klaude_code.core.agent.runtime_llm import build_llm_clients
 from klaude_code.core.agent_profile import (
     DefaultModelProfileProvider,
     VanillaModelProfileProvider,

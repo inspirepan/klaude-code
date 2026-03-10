@@ -10,7 +10,8 @@ from typing import Literal
 from uuid import uuid4
 
 from klaude_code.core.agent.agent import Agent
-from klaude_code.core.agent.runtime import LLMClients, OperationDispatcher, OperationDispatcherPorts
+from klaude_code.core.agent.runtime_dispatcher import OperationDispatcher, OperationDispatcherPorts
+from klaude_code.core.agent.runtime_llm import LLMClients
 from klaude_code.core.agent_profile import ModelProfileProvider
 from klaude_code.core.control.event_bus import EventBus, event_publish_context
 from klaude_code.core.control.session_registry import OperationLifecycleHooks, SessionRegistry
