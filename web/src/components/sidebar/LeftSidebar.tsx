@@ -22,6 +22,7 @@ export function LeftSidebar(): JSX.Element {
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [showRefreshSuccessState, setShowRefreshSuccessState] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(312);
   const [archivedMaxHeight, setArchivedMaxHeight] = useState(320);
   const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
     Record<string, boolean>
@@ -30,7 +31,19 @@ export function LeftSidebar(): JSX.Element {
   const previousLoadingRef = useRef(loading);
   const refreshSuccessAnimationFrameRef = useRef<number | null>(null);
   const refreshSuccessTimeoutRef = useRef<number | null>(null);
+  const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
   const archivedResizeCleanupRef = useRef<(() => void) | null>(null);
+
+  const clampSidebarWidth = (width: number): number => {
+    const minWidth = 256;
+    const hardMaxWidth = 512;
+    const rightSidebarWidth =
+      (document.querySelector('[data-sidebar="right"]') as HTMLElement | null)?.offsetWidth ?? 0;
+    const minMainWidth = 320;
+    const availableMaxWidth = window.innerWidth - rightSidebarWidth - minMainWidth;
+    const maxWidth = Math.max(minWidth, Math.min(hardMaxWidth, availableMaxWidth));
+    return Math.min(Math.max(width, minWidth), maxWidth);
+  };
 
   const clampArchivedHeight = (height: number): number => {
     const sidebarHeight = sidebarRef.current?.clientHeight ?? window.innerHeight;
@@ -68,6 +81,10 @@ export function LeftSidebar(): JSX.Element {
       }
       if (refreshSuccessTimeoutRef.current !== null) {
         window.clearTimeout(refreshSuccessTimeoutRef.current);
+      }
+      if (sidebarResizeCleanupRef.current !== null) {
+        sidebarResizeCleanupRef.current();
+        sidebarResizeCleanupRef.current = null;
       }
       if (archivedResizeCleanupRef.current !== null) {
         archivedResizeCleanupRef.current();
@@ -108,7 +125,9 @@ export function LeftSidebar(): JSX.Element {
   return (
     <aside
       ref={sidebarRef}
-      className="flex w-[312px] min-w-[312px] flex-col border-r border-neutral-200 bg-neutral-50"
+      data-sidebar="left"
+      className="relative flex shrink-0 flex-col border-r border-neutral-200 bg-neutral-50"
+      style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
     >
       <div className="flex items-center gap-2 px-3 py-2">
         <div className="flex-1">
@@ -304,6 +323,39 @@ export function LeftSidebar(): JSX.Element {
             <div className="mt-1.5 px-2 py-1 text-2xs text-neutral-400">No archived sessions</div>
           )
         ) : null}
+      </div>
+
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize left sidebar"
+        className="absolute -right-1 top-0 z-30 flex h-full w-2 cursor-col-resize items-center justify-center"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          const startX = event.clientX;
+          const startWidth = sidebarWidth;
+          const onPointerMove = (moveEvent: PointerEvent): void => {
+            const deltaX = moveEvent.clientX - startX;
+            setSidebarWidth(clampSidebarWidth(startWidth + deltaX));
+          };
+          const onPointerUp = (): void => {
+            cleanup();
+            sidebarResizeCleanupRef.current = null;
+          };
+          const cleanup = (): void => {
+            window.removeEventListener("pointermove", onPointerMove);
+            window.removeEventListener("pointerup", onPointerUp);
+          };
+
+          if (sidebarResizeCleanupRef.current !== null) {
+            sidebarResizeCleanupRef.current();
+          }
+          sidebarResizeCleanupRef.current = cleanup;
+          window.addEventListener("pointermove", onPointerMove);
+          window.addEventListener("pointerup", onPointerUp);
+        }}
+      >
+        <span className="h-full w-px bg-neutral-200/85" />
       </div>
     </aside>
   );
