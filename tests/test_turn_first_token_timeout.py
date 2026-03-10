@@ -199,6 +199,8 @@ def test_interrupt_persists_user_continuation_prompt_instead_of_aborted_assistan
     stream = InterruptWithPartialTextStream()
     executor, history = _build_turn_executor(stream)
     executor._llm_stream = stream  # pyright: ignore[reportPrivateUsage]
+    # Simulate text that would have been accumulated from AssistantTextDelta events
+    executor._accumulated_assistant_text = ["partial answer"]  # pyright: ignore[reportPrivateUsage]
 
     _ = executor.on_interrupt()
 
@@ -212,3 +214,16 @@ def test_interrupt_persists_user_continuation_prompt_instead_of_aborted_assistan
     assert "</system-reminder>" in retry_prompt
 
     assert not any(isinstance(item, message.AssistantMessage) and item.stop_reason == "aborted" for item in history)
+
+
+def test_interrupt_with_only_thinking_does_not_persist_continuation_prompt() -> None:
+    """When only thinking content was produced, no continuation prompt should be generated."""
+    stream = InterruptWithPartialTextStream()
+    executor, history = _build_turn_executor(stream)
+    executor._llm_stream = stream  # pyright: ignore[reportPrivateUsage]
+    # No assistant text accumulated - only thinking was produced
+
+    _ = executor.on_interrupt()
+
+    retry_user_messages = [item for item in history if isinstance(item, message.UserMessage)]
+    assert len(retry_user_messages) == 0

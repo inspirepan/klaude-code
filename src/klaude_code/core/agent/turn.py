@@ -134,6 +134,7 @@ class TurnExecutor:
         self._tool_executor: ToolExecutor | None = None
         self._turn_result: TurnResult | None = None
         self._llm_stream: LLMStreamABC | None = None
+        self._accumulated_assistant_text: list[str] = []
 
     @property
     def report_back_result(self) -> str | None:
@@ -311,6 +312,7 @@ class TurnExecutor:
                     case message.AssistantTextDelta() as delta:
                         if delta.content:
                             first_effective_token_received = True
+                            self._accumulated_assistant_text.append(delta.content)
                         if thinking_active:
                             thinking_active = False
                             yield events.ThinkingEndEvent(
@@ -449,13 +451,13 @@ class TurnExecutor:
             self._tool_executor = None
 
     def _persist_continuation_prompt_on_interrupt(self) -> None:
-        """Persist user continuation prompt from accumulated partial output."""
-        if self._llm_stream is None:
-            return
-        partial_message = self._llm_stream.get_partial_message()
-        if partial_message is None:
-            return
-        partial_text = message.join_text_parts(partial_message.parts).strip()
+        """Persist user continuation prompt from accumulated assistant text.
+
+        Uses text accumulated from AssistantTextDelta events, which excludes
+        thinking content. get_partial_message() degrades ThinkingTextPart to
+        TextPart, which would incorrectly include thinking in the prompt.
+        """
+        partial_text = "".join(self._accumulated_assistant_text).strip()
         if not partial_text:
             return
         continuation_prompt = _build_continuation_prompt(partial_text)
