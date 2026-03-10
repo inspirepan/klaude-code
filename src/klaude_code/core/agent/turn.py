@@ -57,6 +57,19 @@ class TurnResult:
     continue_agent: bool = field(default=True)
 
 
+def _build_continuation_prompt(partial_text: str) -> str:
+    return (
+        "<assistant>\n"
+        f"{partial_text}\n"
+        "</assistant>\n\n"
+        "<system-reminder>"
+        "Your previous response was interrupted due to a transient error "
+        "(often network-related). "
+        "Please continue from where it left off without repeating content you've already provided."
+        "</system-reminder>"
+    )
+
+
 def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEvent) -> list[events.Event]:
     """Translate internal tool executor events into public protocol events."""
 
@@ -161,7 +174,7 @@ class TurnExecutor:
         the outer asyncio task.
         """
         ui_events: list[events.Event] = []
-        self._persist_partial_message_on_interrupt()
+        self._persist_continuation_prompt_on_interrupt()
         if self._tool_executor is not None:
             for exec_event in self._tool_executor.on_interrupt():
                 for ui_event in build_events_from_tool_executor_event(self._context.session_ctx.session_id, exec_event):
@@ -199,16 +212,7 @@ class TurnExecutor:
             ):
                 partial_text = message.join_text_parts(self._turn_result.assistant_message.parts).strip()
                 if partial_text:
-                    continuation_prompt = (
-                        "<assistant>\n"
-                        f"{partial_text}\n"
-                        "</assistant>\n\n"
-                        "<system-reminder>"
-                        "Your previous response was interrupted due to a transient error "
-                        "(often network-related). "
-                        "Please continue from where it left off without repeating content you've already provided."
-                        "</system-reminder>"
-                    )
+                    continuation_prompt = _build_continuation_prompt(partial_text)
                     session_ctx.append_history(
                         [message.UserMessage(parts=[message.TextPart(text=continuation_prompt)])]
                     )
@@ -433,15 +437,17 @@ class TurnExecutor:
         finally:
             self._tool_executor = None
 
-    def _persist_partial_message_on_interrupt(self) -> None:
-        """Persist accumulated message when a turn is interrupted.
-
-        Retrieves the partial message from the LLM stream, including both
-        thinking and assistant text accumulated so far.
-        """
+    def _persist_continuation_prompt_on_interrupt(self) -> None:
+        """Persist user continuation prompt from accumulated partial output."""
         if self._llm_stream is None:
             return
         partial_message = self._llm_stream.get_partial_message()
         if partial_message is None:
             return
-        self._context.session_ctx.append_history([partial_message])
+        partial_text = message.join_text_parts(partial_message.parts).strip()
+        if not partial_text:
+            return
+        continuation_prompt = _build_continuation_prompt(partial_text)
+        self._context.session_ctx.append_history(
+            [message.UserMessage(parts=[message.TextPart(text=continuation_prompt)])]
+        )
