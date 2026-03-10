@@ -43,7 +43,7 @@ export function ToolBlockHeader({
         </span>
       </div>
 
-      <div className="flex min-w-0 items-center gap-1.5">
+      <div className="flex min-h-[22px] min-w-0 items-center gap-1.5">
         {detail ? (
           FILE_PATH_TOOLS.has(item.toolName) ? (
             <FilePath
