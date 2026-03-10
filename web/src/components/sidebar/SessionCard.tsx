@@ -15,6 +15,7 @@ interface SessionCardProps {
   active: boolean;
   runtime: SessionRuntimeState;
   hasUnreadCompletion: boolean;
+  compact?: boolean;
   onClick: () => void;
   onToggleArchive: (sessionId: string, archived: boolean) => void;
 }
@@ -125,6 +126,7 @@ export function SessionCard({
   active,
   runtime,
   hasUnreadCompletion,
+  compact = false,
   onClick,
   onToggleArchive,
 }: SessionCardProps): JSX.Element {
@@ -172,6 +174,65 @@ export function SessionCard({
       }
     };
   }, []);
+
+  if (compact) {
+    return (
+      <div className="group">
+        <div
+          className={cn(
+            "relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1 pl-2 pr-1.5 text-left transition-colors",
+            showSuccessState
+              ? active
+                ? "status-success-card-settle-active"
+                : "status-success-card-settle"
+              : active
+                ? "bg-neutral-200/60"
+                : "hover:bg-neutral-100/80",
+          )}
+          role="button"
+          tabIndex={0}
+          onClick={onClick}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            onClick();
+          }}
+          title={title}
+        >
+          <span className="min-w-0 flex-1 truncate text-[13px] leading-5 text-neutral-800">
+            {title}
+          </span>
+          <DiffStats
+            added={diffSummary.diff_lines_added}
+            removed={diffSummary.diff_lines_removed}
+          />
+          <span
+            className="shrink-0 whitespace-nowrap text-[10px] leading-4 text-neutral-400"
+            title={updatedAtDetailed}
+          >
+            {updatedAt}
+          </span>
+          <button
+            type="button"
+            className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 hover:text-neutral-700 focus:outline-none"
+            title={session.archived ? "Unarchive session" : "Archive session"}
+            aria-label={session.archived ? "Unarchive session" : "Archive session"}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleArchive(session.id, !session.archived);
+            }}
+          >
+            {session.archived ? (
+              <ArchiveRestore className="h-3 w-3" />
+            ) : (
+              <Archive className="h-3 w-3" />
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="group">

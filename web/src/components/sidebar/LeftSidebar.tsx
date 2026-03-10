@@ -22,12 +22,22 @@ export function LeftSidebar(): JSX.Element {
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [showRefreshSuccessState, setShowRefreshSuccessState] = useState(false);
+  const [archivedMaxHeight, setArchivedMaxHeight] = useState(320);
   const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
     Record<string, boolean>
   >({});
+  const sidebarRef = useRef<HTMLElement | null>(null);
   const previousLoadingRef = useRef(loading);
   const refreshSuccessAnimationFrameRef = useRef<number | null>(null);
   const refreshSuccessTimeoutRef = useRef<number | null>(null);
+  const archivedResizeCleanupRef = useRef<(() => void) | null>(null);
+
+  const clampArchivedHeight = (height: number): number => {
+    const sidebarHeight = sidebarRef.current?.clientHeight ?? window.innerHeight;
+    const minHeight = 120;
+    const maxHeight = Math.max(minHeight, sidebarHeight - 220);
+    return Math.min(Math.max(height, minHeight), maxHeight);
+  };
 
   useEffect(() => {
     const previousLoading = previousLoadingRef.current;
@@ -58,6 +68,10 @@ export function LeftSidebar(): JSX.Element {
       }
       if (refreshSuccessTimeoutRef.current !== null) {
         window.clearTimeout(refreshSuccessTimeoutRef.current);
+      }
+      if (archivedResizeCleanupRef.current !== null) {
+        archivedResizeCleanupRef.current();
+        archivedResizeCleanupRef.current = null;
       }
     };
   }, []);
@@ -92,7 +106,10 @@ export function LeftSidebar(): JSX.Element {
   );
 
   return (
-    <aside className="flex w-[312px] min-w-[312px] flex-col border-r border-neutral-200 bg-neutral-50">
+    <aside
+      ref={sidebarRef}
+      className="flex w-[312px] min-w-[312px] flex-col border-r border-neutral-200 bg-neutral-50"
+    >
       <div className="flex items-center gap-2 px-3 py-2">
         <div className="flex-1">
           <NewSessionButton onClick={selectDraft} />
@@ -185,10 +202,74 @@ export function LeftSidebar(): JSX.Element {
         </div>
       </ScrollArea>
 
-      <div className="shrink-0 border-t border-neutral-200 px-3 py-2">
+      <div className="relative shrink-0 border-t border-neutral-200/55 bg-neutral-50 px-3 py-2 shadow-[0_-1px_0_rgba(15,15,15,0.04),0_-6px_12px_-14px_rgba(15,15,15,0.16)]">
+        <div className="pointer-events-none absolute inset-x-0 -top-3 h-3 bg-gradient-to-t from-black/[0.035] to-transparent" />
+        {archivedExpanded && archivedGroups.length > 0 ? (
+          <div className="mb-0 flex items-center justify-center">
+            <div
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Resize archived list"
+              className="flex h-1.5 w-full cursor-row-resize items-center justify-center"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                const startY = event.clientY;
+                const startHeight = archivedMaxHeight;
+                const onPointerMove = (moveEvent: PointerEvent): void => {
+                  const deltaY = startY - moveEvent.clientY;
+                  setArchivedMaxHeight(clampArchivedHeight(startHeight + deltaY));
+                };
+                const onPointerUp = (): void => {
+                  cleanup();
+                  archivedResizeCleanupRef.current = null;
+                };
+                const cleanup = (): void => {
+                  window.removeEventListener("pointermove", onPointerMove);
+                  window.removeEventListener("pointerup", onPointerUp);
+                };
+
+                if (archivedResizeCleanupRef.current !== null) {
+                  archivedResizeCleanupRef.current();
+                }
+                archivedResizeCleanupRef.current = cleanup;
+                window.addEventListener("pointermove", onPointerMove);
+                window.addEventListener("pointerup", onPointerUp);
+              }}
+            >
+              <span className="h-1 w-10 rounded-full bg-neutral-300/80" />
+            </div>
+          </div>
+        ) : null}
+        <div>
+          <button
+            type="button"
+            className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900"
+            onClick={() => {
+              setArchivedExpanded((prev) => {
+                const nextExpanded = !prev;
+                if (nextExpanded) {
+                  setArchivedMaxHeight((current) => clampArchivedHeight(current));
+                }
+                return nextExpanded;
+              });
+            }}
+          >
+            {archivedExpanded ? (
+              <ChevronDown className="h-4 w-4 shrink-0" />
+            ) : (
+              <ChevronRight className="h-4 w-4 shrink-0" />
+            )}
+            <span className="flex-1 text-left text-xs">Archived</span>
+            <span className="text-2xs text-neutral-400">{archivedSessionCount}</span>
+          </button>
+        </div>
         {archivedExpanded ? (
           archivedGroups.length > 0 ? (
-            <ScrollArea className="max-h-[40vh] w-full" viewportClassName="!h-auto max-h-[40vh]">
+            <ScrollArea
+              className="mt-1.5 w-full"
+              viewportClassName="!h-auto"
+              style={{ maxHeight: `${archivedMaxHeight}px` }}
+            >
               <div className="pt-1">
                 {archivedGroups.map((group) => (
                   <ProjectGroup
@@ -196,6 +277,7 @@ export function LeftSidebar(): JSX.Element {
                     workDir={group.work_dir}
                     sessions={group.sessions}
                     collapsed={archivedCollapsedByWorkDir[group.work_dir] ?? false}
+                    compactSessions
                     activeSessionId={activeSessionId}
                     runtimeBySessionId={runtimeBySessionId}
                     completedUnreadBySessionId={completedUnreadBySessionId}
@@ -219,27 +301,9 @@ export function LeftSidebar(): JSX.Element {
               </div>
             </ScrollArea>
           ) : (
-            <div className="px-2 py-1 text-2xs text-neutral-400">No archived sessions</div>
+            <div className="mt-1.5 px-2 py-1 text-2xs text-neutral-400">No archived sessions</div>
           )
         ) : null}
-
-        <div className={archivedExpanded ? "mt-1.5" : undefined}>
-          <button
-            type="button"
-            className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900"
-            onClick={() => {
-              setArchivedExpanded((prev) => !prev);
-            }}
-          >
-            {archivedExpanded ? (
-              <ChevronDown className="h-4 w-4 shrink-0" />
-            ) : (
-              <ChevronRight className="h-4 w-4 shrink-0" />
-            )}
-            <span className="flex-1 text-left text-xs">Archived</span>
-            <span className="text-2xs text-neutral-400">{archivedSessionCount}</span>
-          </button>
-        </div>
       </div>
     </aside>
   );
