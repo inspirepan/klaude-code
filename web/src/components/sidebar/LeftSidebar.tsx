@@ -131,7 +131,12 @@ export function LeftSidebar(): JSX.Element {
     >
       <div className="flex items-center gap-2 px-3 py-2">
         <div className="flex-1">
-          <NewSessionButton onClick={selectDraft} />
+          <NewSessionButton
+            onClick={() => {
+              selectDraft();
+              window.dispatchEvent(new Event("klaude:draft-focus-input"));
+            }}
+          />
         </div>
         <button
           type="button"
@@ -209,6 +214,7 @@ export function LeftSidebar(): JSX.Element {
               }}
               onSelectDraft={(workDir) => {
                 selectDraft(workDir);
+                window.dispatchEvent(new Event("klaude:draft-focus-input"));
               }}
               onSelectSession={(sessionId) => {
                 void selectSession(sessionId);
@@ -308,6 +314,7 @@ export function LeftSidebar(): JSX.Element {
                     }}
                     onSelectDraft={(workDir) => {
                       selectDraft(workDir);
+                      window.dispatchEvent(new Event("klaude:draft-focus-input"));
                     }}
                     onSelectSession={(sessionId) => {
                       void selectSession(sessionId);
