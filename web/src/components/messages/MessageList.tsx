@@ -280,7 +280,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     if (saved !== null) {
       scrollRef.current?.scrollTo({ top: parseInt(saved, 10) });
     } else {
-      bottomRef.current?.scrollIntoView();
+      const container = scrollRef.current;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
     }
     const container = scrollRef.current;
     if (container) {
@@ -303,7 +306,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     }
 
     shouldStickToBottomRef.current = true;
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    const container = scrollRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
   }, [sessionId, visibleItems]);
 
   // Auto-scroll on streamed updates only when user is already near bottom.
@@ -436,7 +442,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+          className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
         >
           <div className="mx-auto max-w-4xl space-y-5 px-4 pb-14 pt-8 sm:px-6">
             {hasItems ? (

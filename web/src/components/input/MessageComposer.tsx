@@ -62,20 +62,6 @@ export function MessageComposer(): JSX.Element {
     normalizedText.length === 0 ||
     (isDraft ? normalizedDraftWorkDir.length === 0 : sessionBusy || sessionReadOnly);
 
-  const inlineStatus = isDraft
-    ? normalizedDraftWorkDir.length === 0
-      ? "Pick a workspace before sending"
-      : null
-    : sessionReadOnly
-      ? "This session is running in another process and is read-only"
-      : sessionBusy
-        ? runtime?.sessionState === "running"
-          ? "Current session is still running"
-          : runtime?.wsState === "disconnected"
-            ? "WebSocket is disconnected"
-            : "Session is temporarily unavailable"
-        : null;
-
   const resizeTextarea = useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea) {
@@ -221,9 +207,6 @@ export function MessageComposer(): JSX.Element {
             <SendHorizonal className="h-3.5 w-3.5" />
           </button>
         </div>
-        {inlineStatus !== null ? (
-          <div className="px-1 text-2xs text-neutral-400">{inlineStatus}</div>
-        ) : null}
       </div>
     </div>
   );
