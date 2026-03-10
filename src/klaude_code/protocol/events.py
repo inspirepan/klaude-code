@@ -53,6 +53,7 @@ __all__ = [
     "TodoChangeEvent",
     "ToolCallEvent",
     "ToolCallStartEvent",
+    "ToolOutputDeltaEvent",
     "ToolResultEvent",
     "TurnEndEvent",
     "TurnStartEvent",
@@ -373,6 +374,12 @@ class ToolCallEvent(ResponseEvent):
     tool_call_id: str
     tool_name: str
     arguments: str
+
+
+class ToolOutputDeltaEvent(ResponseEvent):
+    tool_call_id: str
+    tool_name: str
+    content: str
 
 
 class ToolResultEvent(ResponseEvent):

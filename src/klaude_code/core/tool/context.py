@@ -35,6 +35,8 @@ RequestUserInteraction = Callable[
     Awaitable[user_interaction.UserInteractionResponse],
 ]
 
+EmitToolOutputDelta = Callable[[str], Awaitable[None]]
+
 
 @dataclass
 class TodoContext:
@@ -108,6 +110,7 @@ class ToolContext:
     register_sub_agent_progress_getter: Callable[[GetProgressFn], None] | None = None
     rewind_manager: RewindManager | None = None
     request_user_interaction: RequestUserInteraction | None = None
+    emit_tool_output_delta: EmitToolOutputDelta | None = None
 
     def with_record_sub_agent_session_id(self, callback: Callable[[str], None] | None) -> ToolContext:
         return replace(self, record_sub_agent_session_id=callback)
@@ -123,3 +126,6 @@ class ToolContext:
 
     def with_request_user_interaction(self, callback: RequestUserInteraction | None) -> ToolContext:
         return replace(self, request_user_interaction=callback)
+
+    def with_emit_tool_output_delta(self, callback: EmitToolOutputDelta | None) -> ToolContext:
+        return replace(self, emit_tool_output_delta=callback)

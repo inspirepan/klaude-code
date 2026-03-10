@@ -41,6 +41,8 @@ _ANSI_ESCAPE_RE = re.compile(
     re.VERBOSE | re.DOTALL,
 )
 
+_STREAM_POLL_INTERVAL_SEC = 0.05
+
 
 @register(tools.BASH)
 class BashTool(ToolABC):
@@ -121,6 +123,7 @@ class BashTool(ToolABC):
         )
 
         file_tracker = context.file_tracker
+        emit_tool_output_delta = context.emit_tool_output_delta
 
         def _hash_file_content_sha256(file_path: str) -> str | None:
             try:
@@ -287,6 +290,20 @@ class BashTool(ToolABC):
             with contextlib.suppress(Exception):
                 await asyncio.wait_for(proc.wait(), timeout=BASH_TERMINATE_TIMEOUT_SEC)
 
+        async def _emit_output_delta(content: str) -> None:
+            if emit_tool_output_delta is None or not content:
+                return
+            await emit_tool_output_delta(content)
+
+        def _read_available_text(temp_file: Any, *, offset: int) -> tuple[str, int]:
+            temp_file.flush()
+            temp_file.seek(offset)
+            data = temp_file.read()
+            next_offset = temp_file.tell()
+            if not data:
+                return "", next_offset
+            return _ANSI_ESCAPE_RE.sub("", data.decode(errors="replace")), next_offset
+
         try:
             # Create a dedicated process group so we can terminate the whole tree.
             # (macOS/Linux support start_new_session; Windows does not.)
@@ -310,8 +327,39 @@ class BashTool(ToolABC):
                     kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
 
                 proc = await asyncio.create_subprocess_exec(*cmd, **kwargs)
+                deadline = asyncio.get_running_loop().time() + timeout_sec
+                stdout_offset = 0
+                stderr_offset = 0
+                stdout_chunks: list[str] = []
+                stderr_chunks: list[str] = []
                 try:
-                    await asyncio.wait_for(proc.wait(), timeout=timeout_sec)
+                    while True:
+                        remaining = deadline - asyncio.get_running_loop().time()
+                        if remaining <= 0:
+                            raise TimeoutError
+                        try:
+                            await asyncio.wait_for(proc.wait(), timeout=min(_STREAM_POLL_INTERVAL_SEC, remaining))
+                            break
+                        except TimeoutError:
+                            pass
+
+                        stdout_chunk, stdout_offset = _read_available_text(stdout_tmp, offset=stdout_offset)
+                        stderr_chunk, stderr_offset = _read_available_text(stderr_tmp, offset=stderr_offset)
+                        if stdout_chunk:
+                            stdout_chunks.append(stdout_chunk)
+                            await _emit_output_delta(stdout_chunk)
+                        if stderr_chunk:
+                            stderr_chunks.append(stderr_chunk)
+                            await _emit_output_delta(stderr_chunk)
+
+                    stdout_chunk, stdout_offset = _read_available_text(stdout_tmp, offset=stdout_offset)
+                    stderr_chunk, stderr_offset = _read_available_text(stderr_tmp, offset=stderr_offset)
+                    if stdout_chunk:
+                        stdout_chunks.append(stdout_chunk)
+                        await _emit_output_delta(stdout_chunk)
+                    if stderr_chunk:
+                        stderr_chunks.append(stderr_chunk)
+                        await _emit_output_delta(stderr_chunk)
                 except TimeoutError:
                     with contextlib.suppress(Exception):
                         await _terminate_process(proc)
@@ -325,13 +373,8 @@ class BashTool(ToolABC):
                         await asyncio.shield(_terminate_process(proc))
                     raise
 
-                stdout_tmp.seek(0)
-                stderr_tmp.seek(0)
-                stdout_b = stdout_tmp.read()
-                stderr_b = stderr_tmp.read()
-
-            stdout = _ANSI_ESCAPE_RE.sub("", stdout_b.decode(errors="replace"))
-            stderr = _ANSI_ESCAPE_RE.sub("", stderr_b.decode(errors="replace"))
+            stdout = "".join(stdout_chunks)
+            stderr = "".join(stderr_chunks)
             rc = proc.returncode
 
             if rc == 0:
@@ -348,6 +391,7 @@ class BashTool(ToolABC):
                     output_text=output.rstrip("\n"),
                 )
             else:
+                await _emit_output_delta(f"\nCommand exited with code {rc}\n")
                 combined = ""
                 if stdout.strip():
                     combined += f"[stdout]\n{stdout}\n"

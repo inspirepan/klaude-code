@@ -92,7 +92,15 @@ class ToolExecutionTodoChange:
     todos: list[model.TodoItem]
 
 
-ToolExecutorEvent = ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange
+@dataclass
+class ToolExecutionOutputDelta:
+    """Represents incremental output emitted while a tool is still running."""
+
+    tool_call: ToolCallRequest
+    content: str
+
+
+ToolExecutorEvent = ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange | ToolExecutionOutputDelta
 
 
 class ToolExecutor:
@@ -150,16 +158,14 @@ class ToolExecutor:
             yield tool_call_event
 
             try:
-                result_events = await self._run_single_tool_call(tool_call)
+                is_last_in_turn = idx == len(sequential_tool_calls) - 1 and not concurrent_tool_calls
+                async for exec_event in self._run_single_tool_call(tool_call):
+                    if isinstance(exec_event, ToolExecutionResult):
+                        exec_event.is_last_in_turn = is_last_in_turn
+                    yield exec_event
             except asyncio.CancelledError:
                 # Propagate cooperative cancellation so the agent task can be stopped.
                 raise
-
-            is_last_in_turn = idx == len(sequential_tool_calls) - 1 and not concurrent_tool_calls
-            _mark_last_in_turn(result_events, is_last_in_turn=is_last_in_turn)
-
-            for exec_event in result_events:
-                yield exec_event
 
         # Run concurrent tools (sub-agents, web tools) in parallel.
         if concurrent_tool_calls:
@@ -169,7 +175,7 @@ class ToolExecutor:
                 self._call_event_emitted.add(tool_call.call_id)
                 yield tool_call_event
 
-                task = asyncio.create_task(self._run_single_tool_call(tool_call))
+                task = asyncio.create_task(self._collect_tool_call_events(tool_call))
                 self._register_concurrent_task(task)
                 execution_tasks.append(task)
 
@@ -284,7 +290,10 @@ class ToolExecutor:
     def _build_tool_call_started(self, tool_call: ToolCallRequest) -> ToolExecutionCallStarted:
         return ToolExecutionCallStarted(tool_call=tool_call)
 
-    async def _run_single_tool_call(self, tool_call: ToolCallRequest) -> list[ToolExecutorEvent]:
+    async def _collect_tool_call_events(self, tool_call: ToolCallRequest) -> list[ToolExecutorEvent]:
+        return [event async for event in self._run_single_tool_call(tool_call)]
+
+    async def _run_single_tool_call(self, tool_call: ToolCallRequest) -> AsyncGenerator[ToolExecutorEvent]:
         def _record_sub_agent_session_id(session_id: str) -> None:
             if tool_call.call_id not in self._sub_agent_session_ids:
                 self._sub_agent_session_ids[tool_call.call_id] = session_id
@@ -295,10 +304,37 @@ class ToolExecutor:
         def _register_progress_getter(getter: Callable[[], str | None]) -> None:
             self._sub_agent_progress_getters[tool_call.call_id] = getter
 
+        delta_queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+        async def _emit_tool_output_delta(content: str) -> None:
+            if content:
+                await delta_queue.put(content)
+
         call_context = self._context.with_record_sub_agent_session_id(_record_sub_agent_session_id)
         call_context = call_context.with_register_sub_agent_metadata_getter(_register_metadata_getter)
         call_context = call_context.with_register_sub_agent_progress_getter(_register_progress_getter)
-        tool_result: message.ToolResultMessage = await run_tool(tool_call, self._registry, call_context)
+        call_context = call_context.with_emit_tool_output_delta(_emit_tool_output_delta)
+        tool_task = asyncio.create_task(run_tool(tool_call, self._registry, call_context))
+
+        async def _finish_delta_queue(completed: asyncio.Task[message.ToolResultMessage]) -> None:
+            try:
+                await completed
+            finally:
+                await delta_queue.put(None)
+
+        queue_task = asyncio.create_task(_finish_delta_queue(tool_task))
+        try:
+            while True:
+                delta = await delta_queue.get()
+                if delta is None:
+                    break
+                yield ToolExecutionOutputDelta(tool_call=tool_call, content=delta)
+
+            tool_result: message.ToolResultMessage = await tool_task
+        finally:
+            if not tool_task.done():
+                tool_task.cancel()
+            await asyncio.gather(queue_task, return_exceptions=True)
 
         self._append_history([tool_result])
 
@@ -310,7 +346,9 @@ class ToolExecutor:
         self._sub_agent_progress_getters.pop(tool_call.call_id, None)
 
         extra_events = self._build_tool_side_effect_events(tool_result)
-        return [result_event, *extra_events]
+        yield result_event
+        for extra_event in extra_events:
+            yield extra_event
 
     def _build_tool_side_effect_events(self, tool_result: message.ToolResultMessage) -> list[ToolExecutorEvent]:
         side_effects = tool_result.side_effects
