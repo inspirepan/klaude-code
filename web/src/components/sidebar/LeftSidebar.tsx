@@ -5,6 +5,7 @@ import { ProjectGroup } from "./ProjectGroup";
 import { useSessionStore } from "../../stores/session-store";
 import { useAppStore } from "../../stores/app-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function LeftSidebar(): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
@@ -156,34 +157,54 @@ export function LeftSidebar(): JSX.Element {
             }}
           />
         </div>
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-          onClick={() => {
-            void refreshSessions();
-          }}
-          title="Refresh sessions"
-          aria-label="Refresh sessions"
-        >
-          {loading ? (
-            <RefreshCw className="h-4 w-4 animate-spin" />
-          ) : showRefreshSuccessState ? (
-            <Check className="status-success-settle h-4 w-4" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-        </button>
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-          onClick={() => {
-            setSidebarOpen(false);
-          }}
-          title="Collapse sidebar"
-          aria-label="Collapse sidebar"
-        >
-          <PanelLeftClose className="h-4 w-4" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+              onClick={() => {
+                void refreshSessions();
+              }}
+              aria-label="Refresh sessions"
+            >
+              {loading ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : showRefreshSuccessState ? (
+                <Check className="status-success-settle h-4 w-4" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Refresh sessions</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+              onClick={() => {
+                setSidebarOpen(false);
+              }}
+              aria-label="Collapse sidebar"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="flex items-center gap-1.5">
+            <span>Collapse sidebar</span>
+            <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+              <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">⌘</span>
+                </kbd>
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">B</span>
+                </kbd>
+              </span>
+            </span>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       <ScrollArea className="min-h-0 w-full flex-1" type="auto">

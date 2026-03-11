@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { MainPanel } from "./components/layout/MainPanel";
 import { LeftSidebar } from "./components/sidebar/LeftSidebar";
 import { RightSidebar } from "./components/sidebar/RightSidebar";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { useAppStore } from "./stores/app-store";
 import { useSessionStore } from "./stores/session-store";
 
@@ -19,6 +20,8 @@ export default function App(): JSX.Element {
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const setRightSidebarOpen = useAppStore((state) => state.setRightSidebarOpen);
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
+  const toggleSidebar = useAppStore((state) => state.toggleSidebar);
+  const toggleRightSidebar = useAppStore((state) => state.toggleRightSidebar);
 
   useEffect(() => {
     void init();
@@ -55,9 +58,26 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.key.toLowerCase() !== "o") {
+      if (!(event.metaKey || event.ctrlKey)) {
         return;
       }
+
+      const key = event.key.toLowerCase();
+
+      if (key === "b") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          toggleRightSidebar();
+        } else {
+          toggleSidebar();
+        }
+        return;
+      }
+
+      if (!event.shiftKey || key !== "o") {
+        return;
+      }
+
       event.preventDefault();
       const activeSession =
         activeSessionId === "draft"
@@ -74,13 +94,23 @@ export default function App(): JSX.Element {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeSessionId, draftWorkDir, groups, setDraftWorkDir, setNewSessionOverlayOpen]);
+  }, [
+    activeSessionId,
+    draftWorkDir,
+    groups,
+    setDraftWorkDir,
+    setNewSessionOverlayOpen,
+    toggleRightSidebar,
+    toggleSidebar,
+  ]);
 
   return (
-    <div className="app-shell">
-      {sidebarOpen ? <LeftSidebar /> : null}
-      <MainPanel />
-      {rightSidebarOpen ? <RightSidebar /> : null}
-    </div>
+    <TooltipProvider delayDuration={150}>
+      <div className="app-shell">
+        {sidebarOpen ? <LeftSidebar /> : null}
+        <MainPanel />
+        {rightSidebarOpen ? <RightSidebar /> : null}
+      </div>
+    </TooltipProvider>
   );
 }

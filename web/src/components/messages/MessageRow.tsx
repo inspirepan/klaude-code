@@ -1,6 +1,7 @@
 import type { RefCallback } from "react";
 
 import type { MessageItem as MessageItemType } from "../../types/message";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { MessageItem } from "./MessageItem";
 import { isCopyableAssistantText } from "./message-list-ui";
 
@@ -49,14 +50,19 @@ export function MessageRow({
         <MessageItem item={item} compact={compact} workDir={workDir} />
         {canCopy ? (
           <div className="mt-1 flex justify-end sm:hidden">
-            <button
-              type="button"
-              onClick={() => onCopy(item)}
-              className="cursor-pointer text-xs leading-none text-neutral-300 transition-colors duration-150 hover:text-neutral-500"
-              title={copied ? "Copied" : "Copy"}
-            >
-              {copied ? "[Copied]" : "[Copy]"}
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => onCopy(item)}
+                  className="cursor-pointer text-xs leading-none text-neutral-300 transition-colors duration-150 hover:text-neutral-500"
+                  aria-label={copied ? "Copied" : "Copy"}
+                >
+                  {copied ? "[Copied]" : "[Copy]"}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{copied ? "Copied" : "Copy"}</TooltipContent>
+            </Tooltip>
           </div>
         ) : null}
       </div>
@@ -73,14 +79,19 @@ export function MessageRow({
           </span>
         ) : null}
         {canCopy ? (
-          <button
-            type="button"
-            onClick={() => onCopy(item)}
-            className="cursor-pointer text-xs leading-none text-neutral-300 opacity-0 transition-opacity duration-150 hover:text-neutral-500 group-hover/row:opacity-100"
-            title={copied ? "Copied" : "Copy"}
-          >
-            {copied ? "[Copied]" : "[Copy]"}
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onCopy(item)}
+                className="cursor-pointer text-xs leading-none text-neutral-300 opacity-0 transition-opacity duration-150 hover:text-neutral-500 group-hover/row:opacity-100"
+                aria-label={copied ? "Copied" : "Copy"}
+              >
+                {copied ? "[Copied]" : "[Copy]"}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{copied ? "Copied" : "Copy"}</TooltipContent>
+          </Tooltip>
         ) : null}
       </div>
     </div>

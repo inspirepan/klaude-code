@@ -4,6 +4,7 @@ import { useSessionStore } from "../../stores/session-store";
 import { MessageComposer } from "../input/MessageComposer";
 import { NewSessionOverlay } from "../input/NewSessionOverlay";
 import { MessageList } from "../messages/MessageList";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 export function MainPanel(): JSX.Element {
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
@@ -21,17 +22,33 @@ export function MainPanel(): JSX.Element {
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex h-12 shrink-0 items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 backdrop-blur sm:px-6">
             {!sidebarOpen ? (
-              <button
-                type="button"
-                className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-                onClick={() => {
-                  setSidebarOpen(true);
-                }}
-                title="Expand sidebar"
-                aria-label="Expand sidebar"
-              >
-                <PanelLeftOpen className="h-4 w-4" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                    onClick={() => {
+                      setSidebarOpen(true);
+                    }}
+                    aria-label="Expand sidebar"
+                  >
+                    <PanelLeftOpen className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="flex items-center gap-1.5">
+                  <span>Expand sidebar</span>
+                  <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+                    <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                      <kbd className="inline-flex font-sans">
+                        <span className="min-w-[1em] text-center">⌘</span>
+                      </kbd>
+                      <kbd className="inline-flex font-sans">
+                        <span className="min-w-[1em] text-center">B</span>
+                      </kbd>
+                    </span>
+                  </span>
+                </TooltipContent>
+              </Tooltip>
             ) : null}
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-baseline gap-2 text-sm leading-5">
@@ -39,17 +56,36 @@ export function MainPanel(): JSX.Element {
               </div>
             </div>
             {!rightSidebarOpen ? (
-              <button
-                type="button"
-                className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-                onClick={() => {
-                  setRightSidebarOpen(true);
-                }}
-                title="Expand right sidebar"
-                aria-label="Expand right sidebar"
-              >
-                <PanelRightOpen className="h-4 w-4" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                    onClick={() => {
+                      setRightSidebarOpen(true);
+                    }}
+                    aria-label="Expand right sidebar"
+                  >
+                    <PanelRightOpen className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="flex items-center gap-1.5">
+                  <span>Expand right sidebar</span>
+                  <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+                    <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                      <kbd className="inline-flex font-sans">
+                        <span className="min-w-[1em] text-center">⇧</span>
+                      </kbd>
+                      <kbd className="inline-flex font-sans">
+                        <span className="min-w-[1em] text-center">⌘</span>
+                      </kbd>
+                      <kbd className="inline-flex font-sans">
+                        <span className="min-w-[1em] text-center">B</span>
+                      </kbd>
+                    </span>
+                  </span>
+                </TooltipContent>
+              </Tooltip>
             ) : null}
           </div>
 
