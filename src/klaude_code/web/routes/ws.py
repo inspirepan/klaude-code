@@ -62,13 +62,7 @@ class ThinkingFrame(BaseModel):
 
 
 type IncomingFrame = (
-    MessageFrame
-    | InterruptFrame
-    | RespondFrame
-    | ContinueFrame
-    | ModelFrame
-    | RequestModelFrame
-    | ThinkingFrame
+    MessageFrame | InterruptFrame | RespondFrame | ContinueFrame | ModelFrame | RequestModelFrame | ThinkingFrame
 )
 
 

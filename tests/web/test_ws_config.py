@@ -29,11 +29,15 @@ def test_change_thinking_via_ws(app_env: AppEnv) -> None:
 def test_request_model_via_ws(app_env: AppEnv) -> None:
     models_response = app_env.client.get("/api/config/models")
     assert models_response.status_code == 200
-    models = models_response.json().get("models", [])
-    assert isinstance(models, list)
+    response_obj = models_response.json()
+    response_payload = cast(dict[str, object], response_obj) if isinstance(response_obj, dict) else {}
+    models_obj = response_payload.get("models", [])
+    assert isinstance(models_obj, list)
+    models = cast(list[object], models_obj)
     assert models
-    first_model = models[0]
-    assert isinstance(first_model, dict)
+    first_model_obj = models[0]
+    assert isinstance(first_model_obj, dict)
+    first_model = cast(dict[str, object], first_model_obj)
     preferred = str(first_model.get("name", "")).strip()
     assert preferred
 
