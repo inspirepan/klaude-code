@@ -2,18 +2,22 @@ import { PanelLeftOpen, PanelRightOpen } from "lucide-react";
 import { useAppStore } from "../../stores/app-store";
 import { useSessionStore } from "../../stores/session-store";
 import { MessageComposer } from "../input/MessageComposer";
+import { NewSessionOverlay } from "../input/NewSessionOverlay";
 import { MessageList } from "../messages/MessageList";
 
 export function MainPanel(): JSX.Element {
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
+  const isDraft = activeSessionId === "draft";
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen);
+  const newSessionOverlayOpen = useAppStore((state) => state.newSessionOverlayOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const setRightSidebarOpen = useAppStore((state) => state.setRightSidebarOpen);
+  const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
 
   return (
     <main className="main-panel relative">
-      {activeSessionId === "draft" ? (
+      {isDraft ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex h-12 shrink-0 items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 backdrop-blur sm:px-6">
             {!sidebarOpen ? (
@@ -49,21 +53,25 @@ export function MainPanel(): JSX.Element {
             ) : null}
           </div>
 
-          <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-8 sm:px-6">
-            <div className="mb-44 w-full max-w-2xl rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/60 px-6 py-10 text-center">
-              <div className="text-base font-semibold text-neutral-700">Start a new session</div>
-              <div className="mt-2 text-sm leading-6 text-neutral-500">
-                Choose a workspace below, then send your first message.
-              </div>
-            </div>
+          <div className="relative min-h-0 flex-1 bg-neutral-50/45">
+            <NewSessionOverlay />
           </div>
         </div>
       ) : (
-        <MessageList sessionId={activeSessionId} />
+        <>
+          <MessageList sessionId={activeSessionId} />
+          <div className="absolute bottom-0 left-0 right-0 z-10">
+            <MessageComposer />
+          </div>
+          {newSessionOverlayOpen ? (
+            <NewSessionOverlay
+              onClose={() => {
+                setNewSessionOverlayOpen(false);
+              }}
+            />
+          ) : null}
+        </>
       )}
-      <div className="absolute bottom-0 left-0 right-0 z-10">
-        <MessageComposer />
-      </div>
     </main>
   );
 }

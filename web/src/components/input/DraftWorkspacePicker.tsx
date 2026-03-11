@@ -36,10 +36,8 @@ export function DraftWorkspacePicker({
       <div ref={workspacePickerRef} className="relative">
         <div
           className={[
-            "flex items-center rounded-2xl border bg-white/95 shadow-sm transition-all",
-            workspaceMenuOpen
-              ? "border-neutral-300 shadow-[0_10px_30px_rgba(0,0,0,0.08)]"
-              : "border-neutral-200 hover:border-neutral-300 hover:bg-white",
+            "flex items-center rounded-[22px] bg-white shadow-sm ring-1 ring-black/5 transition-colors",
+            workspaceMenuOpen ? "bg-white" : "hover:bg-white",
           ].join(" ")}
         >
           <div className="pl-3 text-neutral-400">
