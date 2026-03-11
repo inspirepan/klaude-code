@@ -103,8 +103,10 @@ interface ArchiveSessionResponse {
   ok: boolean;
 }
 
-interface ConfigModelSummary {
+export interface ConfigModelSummary {
   name: string;
+  provider: string;
+  model_name: string;
   is_default: boolean;
 }
 

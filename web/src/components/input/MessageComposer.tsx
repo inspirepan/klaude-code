@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, SendHorizonal } from "lucide-react";
+import { SendHorizonal } from "lucide-react";
 
-import { fetchConfigModels } from "../../api/client";
+import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
 import { useMessageStore } from "../../stores/message-store";
 import { useSessionStore } from "../../stores/session-store";
+import { ModelSelector } from "./ModelSelector";
 import { SessionStatusBar } from "./SessionStatusBar";
-
-interface ModelOption {
-  name: string;
-  is_default: boolean;
-}
 
 export function MessageComposer(): JSX.Element {
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
@@ -22,7 +18,7 @@ export function MessageComposer(): JSX.Element {
   );
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
+  const [modelOptions, setModelOptions] = useState<ConfigModelSummary[]>([]);
   const [modelLoading, setModelLoading] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
   const [switchingModel, setSwitchingModel] = useState(false);
@@ -162,32 +158,7 @@ export function MessageComposer(): JSX.Element {
         {modelError ? (
           <div className="px-1 text-xs text-red-500">Model switch failed: {modelError}</div>
         ) : null}
-        <div className="flex items-end gap-2 rounded-full bg-white p-3 shadow-sm ring-1 ring-black/5">
-          <div className="relative shrink-0">
-            <select
-              value={currentModelName}
-              disabled={modelBusy || modelOptions.length === 0}
-              onChange={(event) => {
-                void handleModelChange(event.target.value);
-              }}
-              className="h-7 max-w-48 appearance-none rounded-full border border-neutral-200 bg-neutral-50 pl-3 pr-7 text-xs text-neutral-700 outline-none transition-colors focus:border-neutral-300 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
-            >
-              {currentModelName.length === 0 ? (
-                <option value="" disabled>
-                  {modelLoading ? "Loading models..." : "Select model"}
-                </option>
-              ) : null}
-              {currentModelName.length > 0 && !hasCurrentModelOption ? (
-                <option value={currentModelName}>{currentModelName}</option>
-              ) : null}
-              {modelOptions.map((option) => (
-                <option key={option.name} value={option.name}>
-                  {option.is_default ? `${option.name} (default)` : option.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
-          </div>
+        <div className="rounded-[30px] bg-white px-4 py-3 shadow-sm ring-1 ring-black/5">
           <textarea
             ref={textareaRef}
             value={text}
@@ -203,19 +174,44 @@ export function MessageComposer(): JSX.Element {
             }}
             rows={1}
             placeholder="Send a follow-up..."
-            className="min-h-7 flex-1 resize-none overflow-y-hidden border-0 bg-transparent px-1 py-0.5 text-sm leading-6 text-neutral-800 outline-none placeholder:text-neutral-400"
+            className="min-h-12 w-full resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0.5 text-[15px] leading-7 text-neutral-800 outline-none placeholder:text-neutral-400"
           />
-          <button
-            type="button"
-            onClick={() => {
-              void handleSubmit();
-            }}
-            disabled={disableSubmit}
-            aria-label={submitting ? "Sending" : "Send"}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
-          >
-            <SendHorizonal className="h-3.5 w-3.5" />
-          </button>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <ModelSelector
+              options={
+                hasCurrentModelOption || currentModelName.length === 0
+                  ? modelOptions
+                  : [
+                      {
+                        name: currentModelName,
+                        provider: "current",
+                        model_name: currentModelName,
+                        is_default: false,
+                      },
+                      ...modelOptions,
+                    ]
+              }
+              value={currentModelName}
+              loading={modelLoading}
+              disabled={modelBusy}
+              onSelect={(modelName) => {
+                void handleModelChange(modelName);
+              }}
+              triggerClassName="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-neutral-600 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-400"
+              panelClassName="absolute bottom-full left-0 z-30 mb-2 w-[360px] overflow-hidden rounded-xl border border-neutral-200 bg-white/95 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                void handleSubmit();
+              }}
+              disabled={disableSubmit}
+              aria-label={submitting ? "Sending" : "Send"}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
+            >
+              <SendHorizonal className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

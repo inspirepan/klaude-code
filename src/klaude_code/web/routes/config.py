@@ -15,6 +15,8 @@ async def list_models() -> dict[str, list[dict[str, str | bool]]]:
     models = [
         {
             "name": entry.selector,
+            "provider": entry.provider,
+            "model_name": entry.model_name,
             "is_default": entry.selector == default_model or entry.model_name == default_model,
         }
         for entry in entries
