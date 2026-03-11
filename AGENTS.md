@@ -16,6 +16,7 @@ Tests are located in the `tests/` directory.
 - `make lint`: Run ruff + pyright + import-linter
 - `make format`: Auto-fix with ruff check --fix + ruff format
 - `make test`: Run tests (pytest)
+- `git submodule update --init --recursive`: Sync required submodule before build/test/release (`src/klaude_code/skill/assets`)
 - use `tmux-test` skill to test UI interactive features
 
 ## Coding Style & Naming Conventions
