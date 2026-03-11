@@ -612,6 +612,8 @@ async def _call_summarizer(
             except TimeoutError:
                 continue
 
+    raise RuntimeError("Summarizer retry loop exited unexpectedly")
+
 
 async def _call_summarizer_once(
     *,
