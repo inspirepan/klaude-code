@@ -104,7 +104,7 @@ export function RightSidebar(): JSX.Element {
               To-Do list
             </div>
             {todos.length === 0 ? (
-              <div className="text-xs text-neutral-400">No todos yet</div>
+              <div className="text-xs text-neutral-400">No to-dos yet</div>
             ) : (
               <div className="flex flex-col gap-0.5 py-1 text-xs">
                 {todos.map((todo) => {

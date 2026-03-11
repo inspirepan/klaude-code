@@ -925,6 +925,7 @@ export function reduceEvent(
             resultStatus: null,
             uiExtra: null,
             isStreaming: true,
+            streamingContent: "",
           },
         ],
         nextId: currentState.nextId + 1,
@@ -971,11 +972,25 @@ export function reduceEvent(
             resultStatus: null,
             uiExtra: null,
             isStreaming: true,
+            streamingContent: "",
           },
         ],
         nextId: currentState.nextId + 1,
         toolBlockByCallId: newMap,
       };
+    }
+
+    case "tool.output.delta": {
+      const toolCallId = typeof event.tool_call_id === "string" ? event.tool_call_id : "";
+      const content = typeof event.content === "string" ? event.content : "";
+      if (content.length === 0) return currentState;
+      const idx = currentState.toolBlockByCallId.get(toolCallId);
+      if (idx === undefined) return currentState;
+      const item = currentState.items[idx];
+      if (item.type !== "tool_block") return currentState;
+      const nextItems = [...currentState.items];
+      nextItems[idx] = { ...item, streamingContent: item.streamingContent + content };
+      return { ...currentState, items: nextItems };
     }
 
     case "tool.result": {
@@ -1012,6 +1027,7 @@ export function reduceEvent(
         resultStatus: status,
         uiExtra,
         isStreaming: false,
+        streamingContent: "",
       };
       return { ...currentState, items: nextItems };
     }

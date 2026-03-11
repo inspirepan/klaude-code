@@ -25,6 +25,14 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
   const [metaOpen, setMetaOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
+  const isRunning =
+    runtime?.sessionState === "running" ||
+    (status?.taskActive === true &&
+      status.awaitingInput !== true &&
+      status.compacting !== true &&
+      status.thinkingActive !== true &&
+      status.isComposing !== true);
+
   const hasLiveStatus =
     status?.taskActive === true ||
     status?.awaitingInput === true ||
@@ -61,15 +69,25 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
       {statusLabel ? (
         <>
           {hasLiveStatus ? (
-            <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-[1.5px] border-neutral-300 border-t-neutral-500" />
+            <span
+              className={`h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-[1.5px] ${
+                isRunning
+                  ? "border-sky-300 border-t-sky-500"
+                  : "border-neutral-300 border-t-neutral-500"
+              }`}
+            />
           ) : (
             <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-300" />
           )}
-          <span className="truncate font-mono text-xs font-medium">{statusLabel}</span>
+          <span
+            className={`truncate font-sans text-xs font-medium ${isRunning ? "text-sky-600" : ""}`}
+          >
+            {statusLabel}
+          </span>
         </>
       ) : null}
       {summaryParts.length > 0 ? (
-        <div className="ml-2 flex flex-wrap items-center gap-y-1 font-mono text-[11px] text-neutral-400">
+        <div className="ml-2 flex flex-wrap items-center gap-y-1 font-sans text-[11px] text-neutral-400">
           {summaryParts.map((part, i) => (
             <span key={part} className="flex items-center">
               {i > 0 ? <span className="mx-1.5 text-neutral-300">·</span> : null}
@@ -98,7 +116,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
                 {metaRows.map((row) => (
                   <div key={row.label} className="flex items-start justify-between gap-4">
                     <span className="text-neutral-400">{row.label}</span>
-                    <span className="text-right font-mono text-neutral-600">{row.value}</span>
+                    <span className="text-right font-sans text-neutral-600">{row.value}</span>
                   </div>
                 ))}
               </div>

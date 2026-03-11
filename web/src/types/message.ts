@@ -55,6 +55,8 @@ export interface ToolBlockItem {
   resultStatus: "success" | "error" | "aborted" | null;
   uiExtra: Record<string, unknown> | null;
   isStreaming: boolean;
+  /** Incremental output received via tool.output.delta while the tool is still running. */
+  streamingContent: string;
 }
 
 export interface MemoryLoadedUIItem {

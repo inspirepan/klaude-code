@@ -238,7 +238,7 @@ export function SessionCard({
     <div className="group">
       <div
         className={cn(
-          "relative flex w-full flex-col gap-y-0.5 rounded-lg py-1.5 pl-1.5 pr-2 text-left transition-colors",
+          "relative flex w-full flex-col gap-y-0 rounded-lg py-1 pl-1.5 pr-1.5 text-left transition-colors",
           showSuccessState
             ? active
               ? "status-success-card-settle-active"
@@ -287,20 +287,18 @@ export function SessionCard({
             <span>{messageCountLabel}</span>
             <span>·</span>
             <span className="truncate">{modelLabel}</span>
-            {runtime.sessionState === "running" ? (
-              <>
-                <span>·</span>
-                <span className="inline-flex shrink-0 items-center rounded-full bg-blue-50 px-1.5 text-[10px] leading-4 text-blue-500">
-                  Running…
-                </span>
-              </>
-            ) : null}
           </div>
 
           <div className="ml-auto flex items-center">
-            <span className="whitespace-nowrap group-hover:hidden" title={updatedAtDetailed}>
-              {updatedAt}
-            </span>
+            {runtime.sessionState === "running" ? (
+              <span className="inline-flex shrink-0 items-center rounded-full bg-blue-50 px-1.5 text-[10px] leading-4 text-blue-500 group-hover:hidden">
+                Running…
+              </span>
+            ) : (
+              <span className="whitespace-nowrap group-hover:hidden" title={updatedAtDetailed}>
+                {updatedAt}
+              </span>
+            )}
             <button
               type="button"
               className="hidden h-4 w-4 items-center justify-center rounded text-neutral-400 hover:text-neutral-700 focus:outline-none group-hover:inline-flex"

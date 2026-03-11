@@ -29,9 +29,12 @@ export function SubAgentStatusSummary({
       {summaryParts.length > 0 || metaRows.length > 0 ? (
         <div className="mt-1 flex items-center gap-2">
           {summaryParts.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-neutral-400">
-              {summaryParts.map((part) => (
-                <span key={part}>{part}</span>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-sans text-neutral-400">
+              {summaryParts.map((part, i) => (
+                <span key={part} className="flex items-center gap-2">
+                  {i > 0 ? <span className="text-neutral-300">&middot;</span> : null}
+                  {part}
+                </span>
               ))}
             </div>
           ) : null}

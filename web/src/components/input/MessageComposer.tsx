@@ -26,7 +26,8 @@ export function MessageComposer(): JSX.Element {
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
-  const workspacePickerRef = useRef<HTMLDivElement | null>(null);
+  const workspacePickerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isDraft = activeSessionId === "draft";
   const runtime = isDraft ? null : (runtimeBySessionId[activeSessionId] ?? null);
@@ -61,6 +62,29 @@ export function MessageComposer(): JSX.Element {
     normalizedText.length === 0 ||
     (isDraft ? normalizedDraftWorkDir.length === 0 : sessionBusy || sessionReadOnly);
 
+  const resizeTextarea = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    const styles = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(styles.lineHeight);
+    const paddingTop = Number.parseFloat(styles.paddingTop);
+    const paddingBottom = Number.parseFloat(styles.paddingBottom);
+    const borderTopWidth = Number.parseFloat(styles.borderTopWidth);
+    const borderBottomWidth = Number.parseFloat(styles.borderBottomWidth);
+
+    const singleLineHeight =
+      lineHeight + paddingTop + paddingBottom + borderTopWidth + borderBottomWidth;
+    const maxHeight = singleLineHeight * 2;
+
+    textarea.style.height = "auto";
+    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, []);
+
   useEffect(() => {
     setText("");
   }, [activeSessionId]);
@@ -70,6 +94,28 @@ export function MessageComposer(): JSX.Element {
       setWorkspaceMenuOpen(false);
     }
   }, [isDraft]);
+
+  useEffect(() => {
+    if (!isDraft) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [isDraft]);
+
+  useEffect(() => {
+    const handleDraftFocusRequest = () => {
+      textareaRef.current?.focus();
+    };
+    window.addEventListener("klaude:draft-focus-input", handleDraftFocusRequest);
+    return () => {
+      window.removeEventListener("klaude:draft-focus-input", handleDraftFocusRequest);
+    };
+  }, []);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -83,6 +129,10 @@ export function MessageComposer(): JSX.Element {
       document.removeEventListener("pointerdown", handlePointerDown);
     };
   }, []);
+
+  useEffect(() => {
+    resizeTextarea();
+  }, [resizeTextarea, text]);
 
   const handleSubmit = useCallback(async () => {
     if (disableSubmit) {
@@ -127,8 +177,9 @@ export function MessageComposer(): JSX.Element {
           />
         ) : null}
 
-        <div className="rounded-2xl border border-neutral-200 bg-white p-2 shadow-sm">
+        <div className="flex items-end gap-2 rounded-full bg-white p-3 shadow-sm ring-1 ring-black/5">
           <textarea
+            ref={textareaRef}
             value={text}
             onChange={(event) => {
               setText(event.target.value);
@@ -140,39 +191,21 @@ export function MessageComposer(): JSX.Element {
               event.preventDefault();
               void handleSubmit();
             }}
-            rows={3}
+            rows={1}
             placeholder={isDraft ? "Message Klaude about this workspace..." : "Send a follow-up..."}
-            className="max-h-64 min-h-[72px] w-full resize-y border-0 bg-transparent px-2 py-1 text-sm leading-6 text-neutral-800 outline-none placeholder:text-neutral-400"
+            className="min-h-7 flex-1 resize-none overflow-y-hidden border-0 bg-transparent px-1 py-0.5 text-sm leading-6 text-neutral-800 outline-none placeholder:text-neutral-400"
           />
-
-          <div className="mt-2 flex items-center justify-between gap-3 border-t border-neutral-100 px-2 pt-2">
-            <div className="text-2xs text-neutral-400">
-              {isDraft
-                ? normalizedDraftWorkDir.length > 0
-                  ? normalizedDraftWorkDir
-                  : "Pick a workspace before sending"
-                : sessionReadOnly
-                  ? "This session is running in another process and is read-only"
-                  : sessionBusy
-                    ? runtime?.sessionState === "running"
-                      ? "Current session is still running"
-                      : runtime?.wsState === "disconnected"
-                        ? "WebSocket is disconnected"
-                        : "Session is temporarily unavailable"
-                    : "Enter to send, Shift+Enter for newline"}
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                void handleSubmit();
-              }}
-              disabled={disableSubmit}
-              className="inline-flex h-9 items-center gap-2 rounded-xl bg-neutral-900 px-3 text-[13px] font-medium text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
-            >
-              <SendHorizonal className="h-4 w-4" />
-              <span>{submitting ? "Sending..." : "Send"}</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              void handleSubmit();
+            }}
+            disabled={disableSubmit}
+            aria-label={submitting ? "Sending" : "Send"}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
+          >
+            <SendHorizonal className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
     </div>

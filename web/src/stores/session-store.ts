@@ -21,7 +21,7 @@ import type {
   SessionRuntimeState,
   SessionSummary,
 } from "../types/session";
-import { useMessageStore } from "./message-store";
+import { useMessageStore, type MessageStoreEvent } from "./message-store";
 
 interface SessionStoreState {
   groups: SessionGroup[];
@@ -52,6 +52,8 @@ interface ActiveConnection {
 
 let activeConnection: ActiveConnection | null = null;
 let runtimePollTimer: ReturnType<typeof setInterval> | null = null;
+let pendingMessageEvents: MessageStoreEvent[] = [];
+let pendingMessageEventsFrame = 0;
 const RUNTIME_POLL_INTERVAL = 3000;
 
 const defaultRuntimeState: SessionRuntimeState = {
@@ -65,13 +67,42 @@ function updateRuntimeState(
   sessionId: string,
   patch: Partial<SessionRuntimeState>,
 ): Record<string, SessionRuntimeState> {
+  const previous = current[sessionId] ?? defaultRuntimeState;
+  const next = {
+    ...previous,
+    ...patch,
+  };
+  if (
+    previous.sessionState === next.sessionState &&
+    previous.wsState === next.wsState &&
+    previous.lastError === next.lastError
+  ) {
+    return current;
+  }
   return {
     ...current,
-    [sessionId]: {
-      ...(current[sessionId] ?? defaultRuntimeState),
-      ...patch,
-    },
+    [sessionId]: next,
   };
+}
+
+function flushPendingMessageEvents(): void {
+  const queuedEvents = pendingMessageEvents;
+  if (queuedEvents.length === 0) {
+    return;
+  }
+  pendingMessageEvents = [];
+  useMessageStore.getState().handleEvents(queuedEvents);
+}
+
+function queueMessageEvents(events: MessageStoreEvent[]): void {
+  pendingMessageEvents.push(...events);
+  if (pendingMessageEventsFrame !== 0) {
+    return;
+  }
+  pendingMessageEventsFrame = window.requestAnimationFrame(() => {
+    pendingMessageEventsFrame = 0;
+    flushPendingMessageEvents();
+  });
 }
 
 async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): Promise<void> {
@@ -276,12 +307,18 @@ function openSessionWs(sessionId: string, get: () => SessionStoreState, set: Set
 function handleWsError(errorFrame: WsErrorFrame, sessionId: string, set: SetState): void {
   const fatal =
     errorFrame.code === "session_not_found" || errorFrame.code === "session_init_failed";
-  set((state) => ({
-    runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
+  set((state) => {
+    const nextRuntimeBySessionId = updateRuntimeState(state.runtimeBySessionId, sessionId, {
       wsState: fatal ? "disconnected" : (state.runtimeBySessionId[sessionId]?.wsState ?? "idle"),
       lastError: `${errorFrame.code}: ${errorFrame.message}`,
-    }),
-  }));
+    });
+    if (nextRuntimeBySessionId === state.runtimeBySessionId) {
+      return state;
+    }
+    return {
+      runtimeBySessionId: nextRuntimeBySessionId,
+    };
+  });
 }
 
 async function loadSessionHistory(sessionId: string): Promise<void> {
@@ -304,37 +341,50 @@ function handleWsEvent(
   set: SetState,
 ): void {
   const targetSessionId = eventEnvelope.session_id;
-  set((state) => ({
-    runtimeBySessionId: patchRuntimeByEvent(
+  set((state) => {
+    const nextRuntimeBySessionId = patchRuntimeByEvent(
       state.runtimeBySessionId,
       targetSessionId,
       eventEnvelope.event_type,
-    ),
-    completedUnreadBySessionId:
-      eventEnvelope.event_type === "task.finish" && state.activeSessionId !== targetSessionId
+    );
+    const shouldMarkCompletedUnread =
+      eventEnvelope.event_type === "task.finish" &&
+      state.activeSessionId !== targetSessionId &&
+      state.completedUnreadBySessionId[targetSessionId] !== true;
+
+    if (nextRuntimeBySessionId === state.runtimeBySessionId && !shouldMarkCompletedUnread) {
+      return state;
+    }
+
+    return {
+      runtimeBySessionId: nextRuntimeBySessionId,
+      completedUnreadBySessionId: shouldMarkCompletedUnread
         ? {
             ...state.completedUnreadBySessionId,
             [targetSessionId]: true,
           }
         : state.completedUnreadBySessionId,
-  }));
+    };
+  });
 
   const wsTimestamp = typeof eventEnvelope.timestamp === "number" ? eventEnvelope.timestamp : null;
-  const messageStore = useMessageStore.getState();
-  messageStore.handleEvent(
-    rootSessionId,
-    eventEnvelope.event_type,
-    eventEnvelope.event ?? {},
-    wsTimestamp,
-  );
+  const queuedEvents: MessageStoreEvent[] = [
+    {
+      sessionId: rootSessionId,
+      eventType: eventEnvelope.event_type,
+      event: eventEnvelope.event ?? {},
+      timestamp: wsTimestamp,
+    },
+  ];
   if (targetSessionId !== rootSessionId) {
-    messageStore.handleEvent(
-      targetSessionId,
-      eventEnvelope.event_type,
-      eventEnvelope.event ?? {},
-      wsTimestamp,
-    );
+    queuedEvents.push({
+      sessionId: targetSessionId,
+      eventType: eventEnvelope.event_type,
+      event: eventEnvelope.event ?? {},
+      timestamp: wsTimestamp,
+    });
   }
+  queueMessageEvents(queuedEvents);
 
   if (eventEnvelope.event_type !== "task.finish") {
     return;

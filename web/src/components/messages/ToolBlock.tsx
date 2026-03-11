@@ -8,6 +8,7 @@ import { ToolBlockHeader } from "./ToolBlockHeader";
 import { ToolBlockResult } from "./ToolBlockResult";
 import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra";
 import { hasDiffUIExtra, hasRichUIExtra } from "./tool-rich-result-ui";
+import { useStreamThrottle } from "./useStreamThrottle";
 
 const PLAN_TOOLS = new Set(["TodoWrite", "update_plan"]);
 const DEFAULT_EXPANDED_TOOLS = new Set(["apply_patch", "Edit", "Write"]);
@@ -158,6 +159,20 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSearchMatch]);
 
+  // Auto-expand when streaming content starts arriving
+  const hasStreamingContent = item.streamingContent.length > 0;
+  const streamingContent = useStreamThrottle(
+    item.streamingContent,
+    item.isStreaming && hasStreamingContent,
+  );
+  const streamAutoExpanded = useRef(false);
+  useEffect(() => {
+    if (hasStreamingContent && !open) {
+      setOpen(true);
+      streamAutoExpanded.current = true;
+    }
+  }, [hasStreamingContent, open]);
+
   if (PLAN_TOOLS.has(item.toolName)) {
     return <PlanBlock item={item} compact={compact} />;
   }
@@ -171,7 +186,7 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
   const isError = item.resultStatus === "error";
   const hasRich = item.uiExtra !== null && hasRichUIExtra(item.uiExtra);
   const hideResultRail = item.uiExtra !== null && hasDiffUIExtra(item.uiExtra);
-  const expandable = hasResult || isEmptyResult || hasRich;
+  const expandable = hasResult || isEmptyResult || hasRich || hasStreamingContent;
 
   const detailColor = isError
     ? "text-red-700"
@@ -201,6 +216,8 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
         hasRich={hasRich}
         hideResultRail={hideResultRail}
         hasResult={hasResult}
+        hasStreamingContent={hasStreamingContent}
+        streamingContent={streamingContent}
         isEmptyResult={isEmptyResult}
         isError={isError}
         showMore={showMore}
