@@ -437,6 +437,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             rightSidebarOpen={rightSidebarOpen}
             setSidebarOpen={setSidebarOpen}
             setRightSidebarOpen={setRightSidebarOpen}
+            onSearchOpen={() => setSearchOpen(true)}
           />
           <div className="mx-auto max-w-4xl space-y-5 px-4 pb-14 pt-8 sm:px-6">
             {hasItems ? (

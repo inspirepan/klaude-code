@@ -1,4 +1,4 @@
-import { Lock, PanelLeftOpen, PanelRightOpen } from "lucide-react";
+import { Lock, PanelLeftOpen, PanelRightOpen, Search } from "lucide-react";
 
 interface MessageListHeaderProps {
   primaryTitle: string;
@@ -9,6 +9,7 @@ interface MessageListHeaderProps {
   rightSidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   setRightSidebarOpen: (open: boolean) => void;
+  onSearchOpen: () => void;
 }
 
 export function MessageListHeader({
@@ -20,6 +21,7 @@ export function MessageListHeader({
   rightSidebarOpen,
   setSidebarOpen,
   setRightSidebarOpen,
+  onSearchOpen,
 }: MessageListHeaderProps): JSX.Element {
   return (
     <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-white/75 px-4 py-2 backdrop-blur sm:px-6">
@@ -66,7 +68,15 @@ export function MessageListHeader({
           ) : null}
         </div>
       </div>
-      <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+      <button
+        type="button"
+        className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+        onClick={onSearchOpen}
+        title="Search (Cmd+F)"
+        aria-label="Search messages"
+      >
+        <Search className="h-4 w-4" />
+      </button>
       {!rightSidebarOpen ? (
         <button
           type="button"
