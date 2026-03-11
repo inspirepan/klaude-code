@@ -13,7 +13,10 @@ function uniqueWorkspaces(workspaces: string[]): string[] {
   return [...new Set(workspaces.filter((item) => item.trim().length > 0))];
 }
 
-export function NewSessionOverlay({ onClose, showBackdrop = true }: NewSessionOverlayProps): JSX.Element {
+export function NewSessionOverlay({
+  onClose,
+  showBackdrop = true,
+}: NewSessionOverlayProps): JSX.Element {
   const draftWorkDir = useSessionStore((state) => state.draftWorkDir);
   const groups = useSessionStore((state) => state.groups);
   const setDraftWorkDir = useSessionStore((state) => state.setDraftWorkDir);

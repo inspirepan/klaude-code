@@ -44,7 +44,8 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
       const maxHeight = lineHeight * USER_MESSAGE_LINE_LIMIT;
       setCollapsedTextMaxHeight(maxHeight);
       const hasVerticalOverflow = node.scrollHeight > maxHeight + 1;
-      const hasHorizontalOverflow = USER_MESSAGE_LINE_LIMIT === 1 && node.scrollWidth > node.clientWidth + 1;
+      const hasHorizontalOverflow =
+        USER_MESSAGE_LINE_LIMIT === 1 && node.scrollWidth > node.clientWidth + 1;
       setCanExpandText(hasVerticalOverflow || hasHorizontalOverflow);
     };
 
