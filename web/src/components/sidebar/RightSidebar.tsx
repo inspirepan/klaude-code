@@ -129,6 +129,10 @@ export function RightSidebar(): JSX.Element {
               <div className="flex flex-col gap-0.5 py-1 text-xs">
                 {todos.map((todo) => {
                   const config = todoStatusConfig[todo.status];
+                  const textClass =
+                    todo.status === "in_progress"
+                      ? `${config.textClass} todo-in-progress-shimmer`
+                      : config.textClass;
                   return (
                     <div
                       key={`${todo.status}-${todo.content}`}
@@ -137,7 +141,7 @@ export function RightSidebar(): JSX.Element {
                       <span className={`w-4 shrink-0 text-center ${config.markClass}`}>
                         {config.mark}
                       </span>
-                      <span className={config.textClass}>{todo.content}</span>
+                      <span className={textClass}>{todo.content}</span>
                     </div>
                   );
                 })}
