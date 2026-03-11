@@ -91,6 +91,40 @@ class SkillLoader:
 
         return skill_files
 
+    def _find_git_repo_root(self, cwd: Path) -> Path | None:
+        current = cwd.resolve()
+        while True:
+            if (current / ".git").exists():
+                return current
+            if current.parent == current:
+                return None
+            current = current.parent
+
+    def _get_project_skill_dirs(self) -> list[Path]:
+        cwd = Path.cwd().resolve()
+        git_root = self._find_git_repo_root(cwd)
+
+        dirs: list[Path] = []
+        if git_root is not None and git_root != cwd:
+            for project_dir in self.PROJECT_SKILLS_DIRS:
+                resolved = (
+                    (git_root / project_dir).resolve() if not project_dir.is_absolute() else project_dir.resolve()
+                )
+                dirs.append(resolved)
+
+        for project_dir in self.PROJECT_SKILLS_DIRS:
+            resolved = (cwd / project_dir).resolve() if not project_dir.is_absolute() else project_dir.resolve()
+            dirs.append(resolved)
+
+        deduped_dirs: list[Path] = []
+        seen: set[Path] = set()
+        for d in dirs:
+            if d in seen:
+                continue
+            seen.add(d)
+            deduped_dirs.append(d)
+        return deduped_dirs
+
     def load_skill(self, skill_path: Path, location: str) -> Skill | None:
         """Load single skill from SKILL.md file
 
@@ -184,8 +218,16 @@ class SkillLoader:
             if existing is None:
                 self.loaded_skills[skill.name] = skill
                 return
+
+            warning_prefix = f'{skill.skill_path}: duplicate skill "{skill.name}" conflicts with {existing.skill_path}'
             if priority.get(skill.location, -1) >= priority.get(existing.location, -1):
+                warning = f"{warning_prefix}; overriding previous definition"
+                self.skill_warnings_by_location.setdefault(skill.location, []).append(warning)
                 self.loaded_skills[skill.name] = skill
+                return
+
+            warning = f"{warning_prefix}; keeping higher-priority definition"
+            self.skill_warnings_by_location.setdefault(skill.location, []).append(warning)
 
         # Load system-level skills first (lowest priority, can be overridden)
         system_dir = self.SYSTEM_SKILLS_DIR.expanduser()
@@ -210,8 +252,7 @@ class SkillLoader:
                         register(skill)
 
         # Load project-level skills (override user skills if same name)
-        for project_dir in self.PROJECT_SKILLS_DIRS:
-            resolved_dir = project_dir.resolve()
+        for resolved_dir in self._get_project_skill_dirs():
             if resolved_dir.exists():
                 for skill_file in self._iter_skill_files(resolved_dir):
                     skill = self.load_skill(skill_file, location="project")

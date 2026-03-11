@@ -91,3 +91,34 @@ def test_discover_skills_follows_subdirectory_symlink(tmp_path: Path, monkeypatc
     loader.discover_skills()
 
     assert "link-skill" in loader.loaded_skills
+
+
+def test_discover_skills_records_conflict_warning_on_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    system_root = tmp_path / "system-skills"
+    user_root = tmp_path / "user-skills"
+
+    system_skill_dir = system_root / "dup-skill"
+    system_skill_dir.mkdir(parents=True)
+    (system_skill_dir / "SKILL.md").write_text(
+        "---\nname: dup-skill\ndescription: from system\n---\n",
+        encoding="utf-8",
+    )
+
+    user_skill_dir = user_root / "dup-skill"
+    user_skill_dir.mkdir(parents=True)
+    (user_skill_dir / "SKILL.md").write_text(
+        "---\nname: dup-skill\ndescription: from user\n---\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", system_root)
+    monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [user_root])
+    monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
+
+    loader = SkillLoader()
+    loader.discover_skills()
+
+    assert loader.loaded_skills["dup-skill"].location == "user"
+    warnings = loader.skill_warnings_by_location["user"]
+    assert len(warnings) == 1
+    assert 'duplicate skill "dup-skill"' in warnings[0]
