@@ -6,13 +6,14 @@ import { DraftWorkspacePicker } from "./DraftWorkspacePicker";
 
 interface NewSessionOverlayProps {
   onClose?: () => void;
+  showBackdrop?: boolean;
 }
 
 function uniqueWorkspaces(workspaces: string[]): string[] {
   return [...new Set(workspaces.filter((item) => item.trim().length > 0))];
 }
 
-export function NewSessionOverlay({ onClose }: NewSessionOverlayProps): JSX.Element {
+export function NewSessionOverlay({ onClose, showBackdrop = true }: NewSessionOverlayProps): JSX.Element {
   const draftWorkDir = useSessionStore((state) => state.draftWorkDir);
   const groups = useSessionStore((state) => state.groups);
   const setDraftWorkDir = useSessionStore((state) => state.setDraftWorkDir);
@@ -133,13 +134,19 @@ export function NewSessionOverlay({ onClose }: NewSessionOverlayProps): JSX.Elem
 
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center px-4 py-6 sm:px-6">
+      {showBackdrop ? (
+        <div
+          className="bg-white/72 absolute inset-0 backdrop-blur-[3px]"
+          onClick={() => {
+            onClose?.();
+          }}
+        />
+      ) : null}
       <div
-        className="bg-white/72 absolute inset-0 backdrop-blur-[3px]"
-        onClick={() => {
-          onClose?.();
-        }}
-      />
-      <div className="relative w-full max-w-2xl rounded-3xl border border-neutral-200/90 bg-white p-4 shadow-[0_24px_80px_rgba(0,0,0,0.14)] sm:p-6">
+        className={`relative w-full max-w-2xl -translate-y-[25vh] rounded-3xl border border-neutral-200/90 bg-white p-4 ${
+          showBackdrop ? "shadow-[0_24px_80px_rgba(0,0,0,0.14)]" : ""
+        } sm:p-6`}
+      >
         <div className="mb-4 space-y-1">
           <div className="text-base font-semibold text-neutral-800">Start a new session</div>
           <div className="text-sm leading-6 text-neutral-500">

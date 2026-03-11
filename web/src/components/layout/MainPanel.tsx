@@ -54,7 +54,7 @@ export function MainPanel(): JSX.Element {
           </div>
 
           <div className="relative min-h-0 flex-1 bg-neutral-50/45">
-            <NewSessionOverlay />
+            <NewSessionOverlay showBackdrop={false} />
           </div>
         </div>
       ) : (
@@ -65,6 +65,7 @@ export function MainPanel(): JSX.Element {
           </div>
           {newSessionOverlayOpen ? (
             <NewSessionOverlay
+              showBackdrop
               onClose={() => {
                 setNewSessionOverlayOpen(false);
               }}
