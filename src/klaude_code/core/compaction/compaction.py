@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import cast
 
-from klaude_code.const import DEFAULT_MAX_TOKENS
+from klaude_code.const import (
+    DEFAULT_MAX_TOKENS,
+    INITIAL_RETRY_DELAY_S,
+    MAX_FAILED_TURN_RETRIES,
+    MAX_RETRY_DELAY_S,
+)
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import llm_param, message, model
 from klaude_code.session.session import Session
@@ -584,6 +589,40 @@ async def _call_summarizer(
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
 
+    for attempt in range(MAX_FAILED_TURN_RETRIES + 1):
+        try:
+            return await _call_summarizer_once(
+                input=input,
+                llm_client=llm_client,
+                max_tokens=max_tokens,
+                cancel=cancel,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            if attempt >= MAX_FAILED_TURN_RETRIES:
+                raise
+            delay = _retry_delay_seconds(attempt + 1)
+            if cancel is None:
+                await asyncio.sleep(delay)
+                continue
+            try:
+                await asyncio.wait_for(cancel.wait(), timeout=delay)
+                raise asyncio.CancelledError
+            except TimeoutError:
+                continue
+
+
+async def _call_summarizer_once(
+    *,
+    input: list[message.Message],
+    llm_client: LLMClientABC,
+    max_tokens: int,
+    cancel: asyncio.Event | None,
+) -> str:
+    if cancel is not None and cancel.is_set():
+        raise asyncio.CancelledError
+
     call_param = llm_param.LLMCallParameter(
         input=input,
         system=SUMMARIZATION_SYSTEM_PROMPT,
@@ -610,6 +649,12 @@ async def _call_summarizer(
     if not text.strip():
         raise ValueError("Summarizer returned empty output")
     return text.strip()
+
+
+def _retry_delay_seconds(attempt: int) -> float:
+    capped_attempt = max(1, attempt)
+    delay = INITIAL_RETRY_DELAY_S * (2 ** (capped_attempt - 1))
+    return min(delay, MAX_RETRY_DELAY_S)
 
 
 def _serialize_conversation(messages: list[message.Message]) -> str:
