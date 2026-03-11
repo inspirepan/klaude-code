@@ -68,7 +68,6 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_10_l
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
     renderer.console.push_theme(renderer.themes.markdown_theme)
 
-    renderer.display_bash_command_start(events.BashCommandStartEvent(session_id="s", command="echo"))
     renderer.display_bash_command_delta(
         events.BashCommandOutputDeltaEvent(
             session_id="s",
@@ -92,7 +91,6 @@ def test_display_bash_command_end_clears_live_tail() -> None:
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
     renderer.console.push_theme(renderer.themes.markdown_theme)
 
-    renderer.display_bash_command_start(events.BashCommandStartEvent(session_id="s", command="echo"))
     renderer.display_bash_command_delta(events.BashCommandOutputDeltaEvent(session_id="s", content="hello"))
     assert renderer._stream_renderable is not None
 
@@ -100,3 +98,18 @@ def test_display_bash_command_end_clears_live_tail() -> None:
 
     assert renderer._stream_renderable is None
     assert renderer._bash_stream_active is False
+
+
+def test_bash_mode_delta_uses_live_tail_renderable() -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer()
+    output = io.StringIO()
+    renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
+    renderer.console.push_theme(renderer.themes.markdown_theme)
+
+    renderer.display_bash_command_start(events.BashCommandStartEvent(session_id="s", command="echo hi"))
+    renderer.display_bash_command_delta(events.BashCommandOutputDeltaEvent(session_id="s", content="hello\n"))
+
+    assert isinstance(renderer._stream_renderable, Text)
+    assert renderer._stream_renderable.plain == "hello"
