@@ -22,3 +22,4 @@ debug.log
 node_modules/
 *.tsbuildinfo
 .pnpm-store/
+web/.vite
