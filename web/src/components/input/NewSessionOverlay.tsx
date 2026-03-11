@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SendHorizonal } from "lucide-react";
 
 import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
 import { useSessionStore } from "../../stores/session-store";
+import { ComposerCard } from "./ComposerCard";
 import { DraftWorkspacePicker } from "./DraftWorkspacePicker";
-import { ModelSelector } from "./ModelSelector";
 
 interface NewSessionOverlayProps {
   onClose?: () => void;
@@ -49,29 +48,6 @@ export function NewSessionOverlay({
   const normalizedText = text.trim();
   const disableSubmit =
     submitting || normalizedText.length === 0 || normalizedDraftWorkDir.length === 0;
-
-  const resizeTextarea = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return;
-    }
-
-    const styles = window.getComputedStyle(textarea);
-    const lineHeight = Number.parseFloat(styles.lineHeight);
-    const paddingTop = Number.parseFloat(styles.paddingTop);
-    const paddingBottom = Number.parseFloat(styles.paddingBottom);
-    const borderTopWidth = Number.parseFloat(styles.borderTopWidth);
-    const borderBottomWidth = Number.parseFloat(styles.borderBottomWidth);
-
-    const singleLineHeight =
-      lineHeight + paddingTop + paddingBottom + borderTopWidth + borderBottomWidth;
-    const maxHeight = singleLineHeight * 2;
-
-    textarea.style.height = "auto";
-    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
-    textarea.style.height = `${nextHeight}px`;
-    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,10 +130,6 @@ export function NewSessionOverlay({
     };
   }, []);
 
-  useEffect(() => {
-    resizeTextarea();
-  }, [resizeTextarea, text]);
-
   const handleSubmit = useCallback(async () => {
     if (disableSubmit) {
       return;
@@ -217,48 +189,24 @@ export function NewSessionOverlay({
             <div className="px-1 text-xs text-red-500">Load models failed: {modelError}</div>
           ) : null}
 
-          <div className="rounded-[30px] bg-white px-4 py-3 shadow-sm ring-1 ring-black/5">
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(event) => {
-                setText(event.target.value);
-              }}
-              onKeyDown={(event) => {
-                if (event.nativeEvent.isComposing || event.key !== "Enter" || event.shiftKey) {
-                  return;
-                }
-                event.preventDefault();
-                void handleSubmit();
-              }}
-              rows={1}
-              placeholder="What should we do?"
-              className="min-h-12 w-full resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0.5 text-[15px] leading-7 text-neutral-800 outline-none placeholder:text-neutral-400"
-            />
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <ModelSelector
-                options={modelOptions}
-                value={selectedModel}
-                loading={modelLoading}
-                disabled={submitting || modelOptions.length === 0}
-                placeholder="Default model"
-                onSelect={setSelectedModel}
-                triggerClassName="inline-flex h-10 items-center gap-1.5 rounded-xl bg-neutral-100 px-4 text-[13px] text-neutral-700 transition-colors hover:bg-neutral-200 disabled:cursor-not-allowed disabled:text-neutral-400"
-                panelClassName="absolute bottom-full left-0 z-30 mb-2 w-[360px] overflow-hidden rounded-xl border border-neutral-200 bg-white/95 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSubmit();
-                }}
-                disabled={disableSubmit}
-                aria-label={submitting ? "Sending" : "Send"}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
-              >
-                <SendHorizonal className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
+          <ComposerCard
+            text={text}
+            onTextChange={setText}
+            onSubmit={() => {
+              void handleSubmit();
+            }}
+            submitting={submitting}
+            disableSubmit={disableSubmit}
+            placeholder="What should we do?"
+            modelOptions={modelOptions}
+            modelValue={selectedModel}
+            modelLoading={modelLoading}
+            modelDisabled={submitting || modelOptions.length === 0}
+            modelPlaceholder="Default model"
+            onModelSelect={setSelectedModel}
+            modelDropUp={false}
+            textareaRef={textareaRef}
+          />
         </div>
       </div>
     </div>

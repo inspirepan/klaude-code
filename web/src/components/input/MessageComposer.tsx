@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { SendHorizonal } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
 import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
 import { useMessageStore } from "../../stores/message-store";
 import { useSessionStore } from "../../stores/session-store";
-import { ModelSelector } from "./ModelSelector";
+import { ComposerCard } from "./ComposerCard";
 import { SessionStatusBar } from "./SessionStatusBar";
 
 export function MessageComposer(): JSX.Element {
@@ -23,7 +22,6 @@ export function MessageComposer(): JSX.Element {
   const [modelError, setModelError] = useState<string | null>(null);
   const [switchingModel, setSwitchingModel] = useState(false);
   const [pendingModelName, setPendingModelName] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const runtime = runtimeBySessionId[activeSessionId] ?? null;
   const activeSession =
@@ -41,29 +39,6 @@ export function MessageComposer(): JSX.Element {
   const currentModelName = pendingModelName ?? activeSession?.model_name ?? "";
   const modelBusy = sessionBusy || sessionReadOnly || modelLoading || switchingModel;
   const hasCurrentModelOption = modelOptions.some((option) => option.name === currentModelName);
-
-  const resizeTextarea = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return;
-    }
-
-    const styles = window.getComputedStyle(textarea);
-    const lineHeight = Number.parseFloat(styles.lineHeight);
-    const paddingTop = Number.parseFloat(styles.paddingTop);
-    const paddingBottom = Number.parseFloat(styles.paddingBottom);
-    const borderTopWidth = Number.parseFloat(styles.borderTopWidth);
-    const borderBottomWidth = Number.parseFloat(styles.borderBottomWidth);
-
-    const singleLineHeight =
-      lineHeight + paddingTop + paddingBottom + borderTopWidth + borderBottomWidth;
-    const maxHeight = singleLineHeight * 2;
-
-    textarea.style.height = "auto";
-    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
-    textarea.style.height = `${nextHeight}px`;
-    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
-  }, []);
 
   useEffect(() => {
     setText("");
@@ -110,10 +85,6 @@ export function MessageComposer(): JSX.Element {
     }
   }, [activeSession?.model_name, pendingModelName]);
 
-  useEffect(() => {
-    resizeTextarea();
-  }, [resizeTextarea, text]);
-
   const handleSubmit = useCallback(async () => {
     if (disableSubmit) {
       return;
@@ -150,6 +121,21 @@ export function MessageComposer(): JSX.Element {
     [activeSessionId, currentModelName, modelBusy, requestModel],
   );
 
+  const resolvedModelOptions =
+    hasCurrentModelOption || currentModelName.length === 0
+      ? modelOptions
+      : [
+          {
+            name: currentModelName,
+            provider: "current",
+            model_name: currentModelName,
+            model_id: currentModelName,
+            params: [],
+            is_default: false,
+          },
+          ...modelOptions,
+        ];
+
   return (
     <div className="relative shrink-0 px-4 pb-4 pt-10 sm:px-6">
       <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-t from-white/95 via-white/80 to-transparent [-webkit-mask-image:linear-gradient(to_bottom,transparent,black_3rem)] [mask-image:linear-gradient(to_bottom,transparent,black_3rem)]" />
@@ -158,61 +144,23 @@ export function MessageComposer(): JSX.Element {
         {modelError ? (
           <div className="px-1 text-xs text-red-500">Model switch failed: {modelError}</div>
         ) : null}
-        <div className="rounded-[30px] bg-white px-4 py-3 shadow-sm ring-1 ring-black/5">
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(event) => {
-              setText(event.target.value);
-            }}
-            onKeyDown={(event) => {
-              if (event.nativeEvent.isComposing || event.key !== "Enter" || event.shiftKey) {
-                return;
-              }
-              event.preventDefault();
-              void handleSubmit();
-            }}
-            rows={1}
-            placeholder="Send a follow-up..."
-            className="min-h-12 w-full resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0.5 text-[15px] leading-7 text-neutral-800 outline-none placeholder:text-neutral-400"
-          />
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <ModelSelector
-              options={
-                hasCurrentModelOption || currentModelName.length === 0
-                  ? modelOptions
-                  : [
-                      {
-                        name: currentModelName,
-                        provider: "current",
-                        model_name: currentModelName,
-                        is_default: false,
-                      },
-                      ...modelOptions,
-                    ]
-              }
-              value={currentModelName}
-              loading={modelLoading}
-              disabled={modelBusy}
-              onSelect={(modelName) => {
-                void handleModelChange(modelName);
-              }}
-              triggerClassName="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-neutral-600 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-400"
-              panelClassName="absolute bottom-full left-0 z-30 mb-2 w-[360px] overflow-hidden rounded-xl border border-neutral-200 bg-white/95 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                void handleSubmit();
-              }}
-              disabled={disableSubmit}
-              aria-label={submitting ? "Sending" : "Send"}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
-            >
-              <SendHorizonal className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <ComposerCard
+          text={text}
+          onTextChange={setText}
+          onSubmit={() => {
+            void handleSubmit();
+          }}
+          submitting={submitting}
+          disableSubmit={disableSubmit}
+          placeholder="Send a follow-up..."
+          modelOptions={resolvedModelOptions}
+          modelValue={currentModelName}
+          modelLoading={modelLoading}
+          modelDisabled={modelBusy}
+          onModelSelect={(modelName) => {
+            void handleModelChange(modelName);
+          }}
+        />
       </div>
     </div>
   );

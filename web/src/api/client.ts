@@ -107,6 +107,8 @@ export interface ConfigModelSummary {
   name: string;
   provider: string;
   model_name: string;
+  model_id: string;
+  params: string[];
   is_default: boolean;
 }
 
