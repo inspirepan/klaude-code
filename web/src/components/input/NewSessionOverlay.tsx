@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SendHorizonal } from "lucide-react";
+import { ChevronDown, SendHorizonal } from "lucide-react";
 
+import { fetchConfigModels } from "../../api/client";
 import { useSessionStore } from "../../stores/session-store";
 import { DraftWorkspacePicker } from "./DraftWorkspacePicker";
 
 interface NewSessionOverlayProps {
   onClose?: () => void;
   showBackdrop?: boolean;
+}
+
+interface ModelOption {
+  name: string;
+  is_default: boolean;
 }
 
 function uniqueWorkspaces(workspaces: string[]): string[] {
@@ -25,6 +31,10 @@ export function NewSessionOverlay({
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
+  const [modelLoading, setModelLoading] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState("");
   const workspacePickerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -65,6 +75,38 @@ export function NewSessionOverlay({
     const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
     textarea.style.height = `${nextHeight}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setModelLoading(true);
+    setModelError(null);
+    void fetchConfigModels()
+      .then((models) => {
+        if (cancelled) {
+          return;
+        }
+        setModelOptions(models);
+        const defaultModel = models.find((item) => item.is_default)?.name ?? models[0]?.name ?? "";
+        setSelectedModel(defaultModel);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        setModelError(message);
+      })
+      .finally(() => {
+        if (cancelled) {
+          return;
+        }
+        setModelLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -127,13 +169,20 @@ export function NewSessionOverlay({
 
     setSubmitting(true);
     try {
-      await createSessionFromDraft(normalizedText, normalizedDraftWorkDir);
+      await createSessionFromDraft(normalizedText, normalizedDraftWorkDir, selectedModel);
       setText("");
       onClose?.();
     } finally {
       setSubmitting(false);
     }
-  }, [createSessionFromDraft, disableSubmit, normalizedDraftWorkDir, normalizedText, onClose]);
+  }, [
+    createSessionFromDraft,
+    disableSubmit,
+    normalizedDraftWorkDir,
+    normalizedText,
+    onClose,
+    selectedModel,
+  ]);
 
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center px-4 py-6 sm:px-6">
@@ -168,7 +217,33 @@ export function NewSessionOverlay({
             setWorkspaceMenuOpen={setWorkspaceMenuOpen}
           />
 
+          {modelError ? (
+            <div className="px-1 text-xs text-red-500">Load models failed: {modelError}</div>
+          ) : null}
+
           <div className="flex items-end gap-2 rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-black/5">
+            <div className="relative shrink-0">
+              <select
+                value={selectedModel}
+                disabled={modelLoading || modelOptions.length === 0 || submitting}
+                onChange={(event) => {
+                  setSelectedModel(event.target.value);
+                }}
+                className="h-7 max-w-48 appearance-none rounded-full border border-neutral-200 bg-neutral-50 pl-3 pr-7 text-xs text-neutral-700 outline-none transition-colors focus:border-neutral-300 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+              >
+                {selectedModel.length === 0 ? (
+                  <option value="" disabled>
+                    {modelLoading ? "Loading models..." : "Default model"}
+                  </option>
+                ) : null}
+                {modelOptions.map((option) => (
+                  <option key={option.name} value={option.name}>
+                    {option.is_default ? `${option.name} (default)` : option.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+            </div>
             <textarea
               ref={textareaRef}
               value={text}

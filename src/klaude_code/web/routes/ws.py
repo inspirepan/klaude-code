@@ -50,12 +50,26 @@ class ModelFrame(BaseModel):
     save_as_default: bool = False
 
 
+class RequestModelFrame(BaseModel):
+    type: Literal["model_request"]
+    preferred: str | None = None
+    save_as_default: bool = False
+
+
 class ThinkingFrame(BaseModel):
     type: Literal["thinking"]
     thinking: llm_param.Thinking
 
 
-type IncomingFrame = MessageFrame | InterruptFrame | RespondFrame | ContinueFrame | ModelFrame | ThinkingFrame
+type IncomingFrame = (
+    MessageFrame
+    | InterruptFrame
+    | RespondFrame
+    | ContinueFrame
+    | ModelFrame
+    | RequestModelFrame
+    | ThinkingFrame
+)
 
 
 async def _send_error_frame(
@@ -180,6 +194,16 @@ async def _handle_incoming_frame(
             )
             return
 
+        if isinstance(frame, RequestModelFrame):
+            await runtime.submit(
+                op.RequestModelOperation(
+                    session_id=session_id,
+                    preferred=frame.preferred,
+                    save_as_default=frame.save_as_default,
+                )
+            )
+            return
+
         await runtime.submit(
             op.ChangeThinkingOperation(
                 session_id=session_id,
@@ -208,6 +232,8 @@ def _validate_incoming_frame(payload: dict[str, Any], frame_type: str) -> Incomi
         return ContinueFrame.model_validate(payload)
     if frame_type == "model":
         return ModelFrame.model_validate(payload)
+    if frame_type == "model_request":
+        return RequestModelFrame.model_validate(payload)
     return ThinkingFrame.model_validate(payload)
 
 
@@ -260,7 +286,15 @@ async def _receive_commands(
             await _send_error_frame(websocket, code="invalid_message", message="Missing message type")
             continue
         frame_type = frame_type_raw
-        if frame_type not in {"message", "interrupt", "respond", "continue", "model", "thinking"}:
+        if frame_type not in {
+            "message",
+            "interrupt",
+            "respond",
+            "continue",
+            "model",
+            "model_request",
+            "thinking",
+        }:
             await _send_error_frame(websocket, code="unknown_type", message=f"Unknown message type: {frame_type}")
             continue
 

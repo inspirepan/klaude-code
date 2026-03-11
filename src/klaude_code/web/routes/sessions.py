@@ -74,6 +74,11 @@ class ModelRequest(BaseModel):
     save_as_default: bool = False
 
 
+class RequestModelRequest(BaseModel):
+    preferred: str | None = None
+    save_as_default: bool = False
+
+
 @router.get("")
 async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[dict[str, Any]]]:
     groups_by_work_dir: dict[str, list[dict[str, Any]]] = {}
@@ -340,6 +345,24 @@ async def change_model(
         op.ChangeModelOperation(
             session_id=session_id,
             model_name=payload.model_name,
+            save_as_default=payload.save_as_default,
+        )
+    )
+    return {"operation_id": operation_id}
+
+
+@router.post("/{session_id}/model/request")
+async def request_model(
+    session_id: str,
+    payload: RequestModelRequest,
+    state: WebAppState = WEB_STATE_DEP,
+    x_holder_key: str | None = Header(None),
+) -> dict[str, str]:
+    _check_write_access(state, session_id, x_holder_key)
+    operation_id = await state.runtime.submit(
+        op.RequestModelOperation(
+            session_id=session_id,
+            preferred=payload.preferred,
             save_as_default=payload.save_as_default,
         )
     )

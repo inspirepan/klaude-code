@@ -41,7 +41,12 @@ interface SessionStoreState {
   setDraftWorkDir: (workDir: string) => void;
   selectSession: (sessionId: string) => Promise<void>;
   refreshSession: (sessionId: string) => Promise<void>;
-  createSessionFromDraft: (firstMessage: string, workDir?: string) => Promise<string>;
+  createSessionFromDraft: (
+    firstMessage: string,
+    workDir?: string,
+    modelName?: string | null,
+  ) => Promise<string>;
+  requestModel: (sessionId: string, preferred: string, saveAsDefault?: boolean) => Promise<void>;
   sendMessage: (sessionId: string, text: string) => Promise<void>;
 }
 
@@ -708,7 +713,11 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       openSessionWs(sessionId, get, set);
     }
   },
-  createSessionFromDraft: async (firstMessage: string, workDir?: string) => {
+  createSessionFromDraft: async (
+    firstMessage: string,
+    workDir?: string,
+    modelName?: string | null,
+  ) => {
     const normalizedWorkDir = workDir?.trim() || undefined;
     const nowSeconds = Date.now() / 1000;
     const { session_id: sessionId } = await createSession(normalizedWorkDir);
@@ -748,8 +757,30 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     pushSessionUrl(sessionId);
 
     openSessionWs(sessionId, get, set);
+    const selectedModel = modelName?.trim() ?? "";
+    if (selectedModel.length > 0) {
+      activeConnection?.connection.send({
+        type: "model_request",
+        preferred: selectedModel,
+        save_as_default: false,
+      });
+    }
     activeConnection?.connection.send({ type: "message", text: firstMessage });
     return sessionId;
+  },
+  requestModel: async (sessionId: string, preferred: string, saveAsDefault = false) => {
+    const normalizedPreferred = preferred.trim();
+    if (normalizedPreferred.length === 0) {
+      return;
+    }
+    if (activeConnection?.sessionId !== sessionId) {
+      openSessionWs(sessionId, get, set);
+    }
+    activeConnection?.connection.send({
+      type: "model_request",
+      preferred: normalizedPreferred,
+      save_as_default: saveAsDefault,
+    });
   },
   sendMessage: async (sessionId: string, text: string) => {
     const normalizedText = text.trim();
