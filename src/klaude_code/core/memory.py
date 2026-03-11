@@ -13,6 +13,9 @@ from klaude_code.const import ProjectPaths, project_key_from_path
 
 MEMORY_FILE_NAMES = ["AGENTS.md", "CLAUDE.md", "AGENT.md"]
 
+USER_MEMORY_INSTRUCTION = "user's private global instructions for all projects"
+PROJECT_MEMORY_INSTRUCTION = "project instructions, checked into the codebase"
+
 AUTO_MEMORY_FILE = "MEMORY.md"
 AUTO_MEMORY_MAX_LINES = 200
 
@@ -25,18 +28,49 @@ class Memory(BaseModel):
     content: str
 
 
+def find_git_repo_root(*, work_dir: Path) -> Path | None:
+    """Find nearest git repository root by walking parents and checking for .git."""
+    current = work_dir.resolve()
+    while True:
+        if (current / ".git").exists():
+            return current
+        if current.parent == current:
+            return None
+        current = current.parent
+
+
+def get_project_memory_dirs(*, work_dir: Path) -> list[Path]:
+    """Return project memory search directories, including git root when available."""
+    work_dir = work_dir.resolve()
+    dirs = [work_dir, work_dir / ".claude", work_dir / ".agents"]
+
+    git_root = find_git_repo_root(work_dir=work_dir)
+    if git_root is not None:
+        dirs.extend([git_root, git_root / ".claude", git_root / ".agents"])
+
+    deduped_dirs: list[Path] = []
+    seen: set[Path] = set()
+    for d in dirs:
+        resolved = d.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        deduped_dirs.append(resolved)
+    return deduped_dirs
+
+
 def get_memory_paths(*, work_dir: Path) -> list[tuple[Path, str]]:
     """Return all possible memory file paths with their descriptions."""
     user_dirs = [Path.home() / ".claude", Path.home() / ".codex", Path.home() / ".klaude", Path.home() / ".agents"]
-    project_dirs = [work_dir, work_dir / ".claude", work_dir / ".agents"]
+    project_dirs = get_project_memory_dirs(work_dir=work_dir)
 
     paths: list[tuple[Path, str]] = []
     for d in user_dirs:
         for fname in MEMORY_FILE_NAMES:
-            paths.append((d / fname, "user's private global instructions for all projects"))
+            paths.append((d / fname, USER_MEMORY_INSTRUCTION))
     for d in project_dirs:
         for fname in MEMORY_FILE_NAMES:
-            paths.append((d / fname, "project instructions, checked into the codebase"))
+            paths.append((d / fname, PROJECT_MEMORY_INSTRUCTION))
     return paths
 
 
@@ -49,18 +83,16 @@ def get_existing_memory_files(*, work_dir: Path) -> dict[str, list[str]]:
     work_dir = work_dir.resolve()
     seen_dirs: set[Path] = set()
 
-    for memory_path, _instruction in get_memory_paths(work_dir=work_dir):
+    for memory_path, instruction in get_memory_paths(work_dir=work_dir):
         parent = memory_path.parent.resolve()
         if parent in seen_dirs:
             continue
         if memory_path.exists() and memory_path.is_file():
             seen_dirs.add(parent)
             path_str = str(memory_path)
-            resolved = memory_path.resolve()
-            try:
-                resolved.relative_to(work_dir)
+            if instruction == PROJECT_MEMORY_INSTRUCTION:
                 result["project"].append(path_str)
-            except ValueError:
+            else:
                 result["user"].append(path_str)
 
     return result
