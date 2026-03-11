@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+import klaude_code.core.compaction.compaction as compaction_module
 from klaude_code.core.compaction import CompactionReason, run_compaction
 from klaude_code.core.compaction.prompts import (
     COMPACTION_SUMMARY_PREFIX,
@@ -44,6 +45,20 @@ class _StaticTextStream(LLMStreamABC):
         return self._message
 
 
+class _ErrorStream(LLMStreamABC):
+    def __init__(self, error: str) -> None:
+        self._error = error
+
+    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
+        yield message.StreamErrorItem(error=self._error)
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        return None
+
+
 class _CapturingSummarizerClient(LLMClientABC):
     """Deterministic LLM client stub for compaction.
 
@@ -68,6 +83,24 @@ class _CapturingSummarizerClient(LLMClientABC):
         if TASK_PREFIX_SUMMARIZATION_PROMPT in full_prompt:
             return _StaticTextStream("TASK_PREFIX_SUMMARY")
         return _StaticTextStream("HISTORY_SUMMARY")
+
+
+class _FlakySummarizerClient(LLMClientABC):
+    def __init__(self, config: llm_param.LLMConfigParameter, failures_before_success: int) -> None:
+        super().__init__(config)
+        self.failures_before_success = failures_before_success
+        self.calls = 0
+
+    @classmethod
+    def create(cls, config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        return cls(config, failures_before_success=0)
+
+    async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
+        del param
+        self.calls += 1
+        if self.calls <= self.failures_before_success:
+            return _ErrorStream("transient network")
+        return _StaticTextStream("RETRY_OK")
 
 
 def _text_user(text: str) -> message.UserMessage:
@@ -194,3 +227,51 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
         await close_default_store()
 
     arun(_test())
+
+
+def test_call_summarizer_retries_on_stream_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(compaction_module, "MAX_FAILED_TURN_RETRIES", 2)
+    monkeypatch.setattr(compaction_module, "INITIAL_RETRY_DELAY_S", 0.0)
+    monkeypatch.setattr(compaction_module, "MAX_RETRY_DELAY_S", 0.0)
+
+    llm_config = llm_param.LLMConfigParameter(
+        protocol=llm_param.LLMClientProtocol.OPENAI,
+        model_id="dummy",
+    )
+    client = _FlakySummarizerClient(llm_config, failures_before_success=1)
+
+    async def _test() -> None:
+        summary = await compaction_module._call_summarizer(  # pyright: ignore[reportPrivateUsage]
+            input=[message.UserMessage(parts=[message.TextPart(text="test")])],
+            llm_client=client,
+            max_tokens=256,
+            cancel=None,
+        )
+        assert summary == "RETRY_OK"
+
+    arun(_test())
+    assert client.calls == 2
+
+
+def test_call_summarizer_raises_after_retry_exhausted(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(compaction_module, "MAX_FAILED_TURN_RETRIES", 2)
+    monkeypatch.setattr(compaction_module, "INITIAL_RETRY_DELAY_S", 0.0)
+    monkeypatch.setattr(compaction_module, "MAX_RETRY_DELAY_S", 0.0)
+
+    llm_config = llm_param.LLMConfigParameter(
+        protocol=llm_param.LLMClientProtocol.OPENAI,
+        model_id="dummy",
+    )
+    client = _FlakySummarizerClient(llm_config, failures_before_success=10)
+
+    async def _test() -> None:
+        with pytest.raises(RuntimeError, match="transient network"):
+            await compaction_module._call_summarizer(  # pyright: ignore[reportPrivateUsage]
+                input=[message.UserMessage(parts=[message.TextPart(text="test")])],
+                llm_client=client,
+                max_tokens=256,
+                cancel=None,
+            )
+
+    arun(_test())
+    assert client.calls == 3

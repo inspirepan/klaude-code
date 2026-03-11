@@ -91,7 +91,7 @@ from klaude_code.tui.terminal.notifier import (
 from klaude_code.tui.terminal.progress_bar import OSC94States, emit_osc94
 from klaude_code.tui.terminal.title import update_terminal_title
 
-BASH_LIVE_TAIL_MAX_LINES = 10
+BASH_LIVE_TAIL_MAX_LINES = 5
 
 
 @dataclass
