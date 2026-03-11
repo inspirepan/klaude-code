@@ -1,0 +1,4 @@
+[submodule "src/klaude_code/skill/assets"]
+	path = src/klaude_code/skill/assets
+	url = https://github.com/inspirepan/agent-skills
+	branch = main

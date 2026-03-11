@@ -13,6 +13,14 @@ This skill manages the release process for klaude-code, including version manage
 - `pnpm` must be available to build the bundled web frontend before release
 - Working directory must be the klaude-code repository root
 - Git repository must be clean (no uncommitted changes)
+- Git submodules must be initialized and up-to-date (`src/klaude_code/skill/assets`)
+
+Before starting the release workflow, run:
+
+```bash
+git submodule sync --recursive
+git submodule update --init --recursive
+```
 
 ## Release Workflow
 
@@ -80,11 +88,14 @@ jj git push
 
 # Push the tag
 git push origin v<new_version>
+
+# Ensure submodule commit is reachable to other environments
+git submodule update --init --recursive
 ```
 
 ### Step 6: Build and Publish
 
-Build the frontend, verify the wheel bundles the web assets, then publish to PyPI:
+Build the frontend, verify the wheel bundles the web assets and system skill assets, then publish to PyPI:
 
 ```bash
 pnpm --dir web install --frozen-lockfile
@@ -92,7 +103,7 @@ pnpm --dir web build
 
 uv build
 
-python - <<'PY'
+uv run python - <<'PY'
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -102,18 +113,19 @@ with ZipFile(wheel) as archive:
 
 required = {
     "klaude_code/web/dist/index.html",
+    "klaude_code/skill/assets/web-search/SKILL.md",
 }
 missing = sorted(required - names)
 if missing:
-    raise SystemExit(f"Wheel is missing bundled web assets: {', '.join(missing)}")
+    raise SystemExit(f"Wheel is missing bundled assets: {', '.join(missing)}")
 
-print(f"Verified bundled web assets in {wheel.name}")
+print(f"Verified bundled web + skill assets in {wheel.name}")
 PY
 
 uv publish
 ```
 
-Do not publish if the wheel verification fails. That means the package build no longer includes the bundled web frontend, so `pip install klaude-code && klaude web` would be broken for end users.
+Do not publish if the wheel verification fails. That means the package build no longer includes required bundled assets (web or skills).
 
 ## Error Handling
 
