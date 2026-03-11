@@ -34,7 +34,7 @@ export function RightSidebar(): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const setRightSidebarOpen = useAppStore((state) => state.setRightSidebarOpen);
-  const [sidebarWidth, setSidebarWidth] = useState(360);
+  const [sidebarWidth, setSidebarWidth] = useState(256);
   const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
 
   const clampSidebarWidth = (width: number): number => {

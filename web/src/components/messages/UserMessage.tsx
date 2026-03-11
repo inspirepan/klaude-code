@@ -5,7 +5,7 @@ import type { UserMessageItem } from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
 import { HighlightText } from "./HighlightText";
 
-const USER_MESSAGE_LINE_LIMIT = 4;
+const USER_MESSAGE_LINE_LIMIT = 1;
 
 interface UserMessageProps {
   item: UserMessageItem;
@@ -22,7 +22,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
     [item.content],
   );
   const hasText = normalizedContent.length > 0;
-  const miniTextClass = compact ? "text-2xs" : "text-xs";
+  const miniTextClass = compact ? "text-[9px] leading-none" : "text-[10px] leading-none";
   const textRef = useRef<HTMLParagraphElement>(null);
   const [showMore, setShowMore] = useState(false);
   const [canExpandText, setCanExpandText] = useState(false);
@@ -43,7 +43,9 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
 
       const maxHeight = lineHeight * USER_MESSAGE_LINE_LIMIT;
       setCollapsedTextMaxHeight(maxHeight);
-      setCanExpandText(node.scrollHeight > maxHeight + 1);
+      const hasVerticalOverflow = node.scrollHeight > maxHeight + 1;
+      const hasHorizontalOverflow = USER_MESSAGE_LINE_LIMIT === 1 && node.scrollWidth > node.clientWidth + 1;
+      setCanExpandText(hasVerticalOverflow || hasHorizontalOverflow);
     };
 
     const frameId = window.requestAnimationFrame(updateMetrics);
@@ -122,9 +124,11 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
             <p
               ref={textRef}
               style={
-                collapsedTextMaxHeight !== null
-                  ? { maxHeight: `${collapsedTextMaxHeight}px`, overflow: "hidden" }
-                  : undefined
+                USER_MESSAGE_LINE_LIMIT === 1
+                  ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }
+                  : collapsedTextMaxHeight !== null
+                    ? { maxHeight: `${collapsedTextMaxHeight}px`, overflow: "hidden" }
+                    : undefined
               }
               className={`${compact ? "text-[13px]" : "text-sm"} m-0 whitespace-pre-wrap break-words leading-relaxed text-user-bubble-text`}
             >
@@ -134,7 +138,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
               <button
                 type="button"
                 onClick={() => setShowMore(true)}
-                className={`mt-0.5 ${miniTextClass} cursor-pointer font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
+                className={`mt-0 ${miniTextClass} cursor-pointer py-0 font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
               >
                 Show more
               </button>
@@ -167,7 +171,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                   <button
                     type="button"
                     onClick={() => setShowMore(false)}
-                    className={`${miniTextClass} cursor-pointer font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
+                    className={`${miniTextClass} cursor-pointer py-0 font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
                   >
                     Show less
                   </button>

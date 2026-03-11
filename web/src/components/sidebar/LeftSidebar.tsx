@@ -24,7 +24,7 @@ export function LeftSidebar(): JSX.Element {
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [showRefreshSuccessState, setShowRefreshSuccessState] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(312);
+  const [sidebarWidth, setSidebarWidth] = useState(256);
   const [archivedMaxHeight, setArchivedMaxHeight] = useState(320);
   const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
     Record<string, boolean>
