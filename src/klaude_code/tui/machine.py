@@ -609,6 +609,7 @@ class DisplayStateMachine:
         self._had_sub_agent_status_lines: bool = False
         self._live_bash_tool_call_ids: set[str] = set()
         self._pending_bash_tool_outputs: dict[str, _PendingBashToolOutput] = {}
+        self._bash_mode_output_chunks_by_session: dict[str, list[str]] = {}
 
     def set_model_name(self, model_name: str | None) -> None:
         self._model_name = model_name
@@ -632,6 +633,7 @@ class DisplayStateMachine:
         self._terminal_title_prefix = None
         self._live_bash_tool_call_ids = set()
         self._pending_bash_tool_outputs = {}
+        self._bash_mode_output_chunks_by_session = {}
 
     def _session(self, session_id: str) -> _SessionState:
         existing = self._sessions.get(session_id)
@@ -792,6 +794,7 @@ class DisplayStateMachine:
             case events.BashCommandStartEvent() as e:
                 if s.is_sub_agent:
                     return []
+                self._bash_mode_output_chunks_by_session[e.session_id] = []
                 if not is_replay:
                     self._spinner.set_reasoning_status(STATUS_RUNNING_TEXT)
                     cmds.append(TaskClockStart())
@@ -804,6 +807,9 @@ class DisplayStateMachine:
             case events.BashCommandOutputDeltaEvent() as e:
                 if s.is_sub_agent:
                     return []
+                chunks = self._bash_mode_output_chunks_by_session.get(e.session_id)
+                if chunks is not None and e.content:
+                    chunks.append(e.content)
                 cmds.append(AppendBashCommandOutput(e))
                 return cmds
 
@@ -811,6 +817,31 @@ class DisplayStateMachine:
                 if s.is_sub_agent:
                     return []
                 cmds.append(RenderBashCommandEnd(e))
+
+                buffered_chunks = self._bash_mode_output_chunks_by_session.pop(e.session_id, [])
+                final_result = "".join(buffered_chunks).rstrip("\n")
+                if e.cancelled:
+                    final_result = f"{final_result}\nCommand cancelled" if final_result else "Command cancelled"
+                elif e.exit_code not in (None, 0):
+                    final_result = (
+                        f"{final_result}\nCommand exited with code {e.exit_code}"
+                        if final_result
+                        else f"Command exited with code {e.exit_code}"
+                    )
+
+                cmds.append(
+                    RenderToolResult(
+                        event=events.ToolResultEvent(
+                            session_id=e.session_id,
+                            tool_call_id=f"bash-mode:{e.session_id}:{e.timestamp}",
+                            tool_name=tools.BASH,
+                            result=final_result,
+                            status="aborted" if e.cancelled else "success",
+                        ),
+                        is_sub_agent_session=False,
+                    )
+                )
+                cmds.append(PrintBlankLine())
 
                 if not is_replay:
                     self._spinner.set_reasoning_status(None)

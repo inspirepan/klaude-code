@@ -9,6 +9,7 @@ from klaude_code.protocol import events, model, tools
 from klaude_code.tui import machine as machine_module
 from klaude_code.tui.commands import (
     AppendBashCommandOutput,
+    PrintBlankLine,
     RenderBashCommandEnd,
     RenderCommand,
     RenderToolResult,
@@ -231,6 +232,40 @@ def test_main_session_bash_tool_flushes_buffer_after_delay(monkeypatch: pytest.M
     )
     bash_chunks = [cmd.event.content for cmd in stream_cmds if isinstance(cmd, AppendBashCommandOutput)]
     assert bash_chunks == ["hello\n", "world\n"]
+
+
+def test_bash_mode_end_emits_final_tool_result_from_streamed_output() -> None:
+    machine = DisplayStateMachine()
+    session_id = "main"
+
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
+    machine.transition(events.BashCommandStartEvent(session_id=session_id, command="echo hi"))
+    machine.transition(events.BashCommandOutputDeltaEvent(session_id=session_id, content="hello\n"))
+
+    end_cmds = machine.transition(events.BashCommandEndEvent(session_id=session_id, exit_code=0, cancelled=False))
+
+    assert any(isinstance(cmd, RenderBashCommandEnd) for cmd in end_cmds)
+    tool_results = [cmd for cmd in end_cmds if isinstance(cmd, RenderToolResult)]
+    assert len(tool_results) == 1
+    assert tool_results[0].event.tool_name == tools.BASH
+    assert tool_results[0].event.result == "hello"
+    assert tool_results[0].event.status == "success"
+    assert any(isinstance(cmd, PrintBlankLine) for cmd in end_cmds)
+
+
+def test_bash_mode_end_includes_nonzero_exit_message_in_final_tool_result() -> None:
+    machine = DisplayStateMachine()
+    session_id = "main"
+
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
+    machine.transition(events.BashCommandStartEvent(session_id=session_id, command="false"))
+
+    end_cmds = machine.transition(events.BashCommandEndEvent(session_id=session_id, exit_code=2, cancelled=False))
+
+    tool_results = [cmd for cmd in end_cmds if isinstance(cmd, RenderToolResult)]
+    assert len(tool_results) == 1
+    assert tool_results[0].event.result == "Command exited with code 2"
+    assert tool_results[0].event.status == "success"
 
 
 def test_sub_agent_bash_tool_output_delta_is_ignored() -> None:
