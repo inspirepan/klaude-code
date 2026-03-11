@@ -1214,8 +1214,6 @@ class DisplayStateMachine:
                             )
                         )
                     )
-                    if not e.is_error:
-                        return cmds
                 elif pending is not None:
                     self._live_bash_tool_call_ids.discard(e.tool_call_id)
 

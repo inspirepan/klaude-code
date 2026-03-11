@@ -8,6 +8,7 @@ from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code.protocol import events
+from klaude_code.tui.components.rich.theme import ThemeKey
 
 
 def test_bottom_height_shrink_padding_not_applied_with_live_stream() -> None:
@@ -59,9 +60,7 @@ def test_display_image_prints_caption_then_image(monkeypatch: pytest.MonkeyPatch
     assert rendered.index("↓ Demo") < rendered.index("<image>\n")
 
 
-def test_display_bash_command_end_restores_bottom_live_when_spinner_visible(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_10_lines_in_live_tail() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
     renderer = TUICommandRenderer()
@@ -69,24 +68,35 @@ def test_display_bash_command_end_restores_bottom_live_when_spinner_visible(
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
     renderer.console.push_theme(renderer.themes.markdown_theme)
 
-    class _FakeLive:
-        def stop(self) -> None:
-            return None
+    renderer.display_bash_command_start(events.BashCommandStartEvent(session_id="s", command="echo"))
+    renderer.display_bash_command_delta(
+        events.BashCommandOutputDeltaEvent(
+            session_id="s",
+            content="".join(f"line-{i}\n" for i in range(12)),
+        )
+    )
 
-    renderer._bottom_live = _FakeLive()  # type: ignore[assignment]
-    renderer._spinner_visible = True
-    renderer._bash_stream_active = True
-    renderer._bash_last_char_was_newline = True
+    assert renderer._stream_renderable is not None
+    assert isinstance(renderer._stream_renderable, Text)
+    lines = renderer._stream_renderable.plain.splitlines()
+    assert lines[0] == "  … (more 2 lines)"
+    assert lines[1:] == [f"line-{i}" for i in range(2, 12)]
+    assert any(str(span.style) == str(ThemeKey.TOOL_RESULT_TRUNCATED) for span in renderer._stream_renderable.spans)
 
-    restarted = {"called": False}
 
-    def _fake_ensure() -> None:
-        restarted["called"] = True
+def test_display_bash_command_end_clears_live_tail() -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
 
-    monkeypatch.setattr(renderer, "_ensure_bottom_live_started", _fake_ensure)
-    monkeypatch.setattr(renderer, "_refresh_bottom_live", lambda: None)
+    renderer = TUICommandRenderer()
+    output = io.StringIO()
+    renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
+    renderer.console.push_theme(renderer.themes.markdown_theme)
+
+    renderer.display_bash_command_start(events.BashCommandStartEvent(session_id="s", command="echo"))
+    renderer.display_bash_command_delta(events.BashCommandOutputDeltaEvent(session_id="s", content="hello"))
+    assert renderer._stream_renderable is not None
 
     renderer.display_bash_command_end(events.BashCommandEndEvent(session_id="s"))
 
-    assert restarted["called"] is True
+    assert renderer._stream_renderable is None
     assert renderer._bash_stream_active is False

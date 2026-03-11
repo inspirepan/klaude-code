@@ -118,7 +118,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     assert lines == ["Exploring searching yyyyy | Bashing × 2"]
 
 
-def test_main_session_bash_tool_streams_append_only_and_suppresses_success_result(
+def test_main_session_bash_tool_streams_append_only_and_keeps_success_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(machine_module, "BASH_STREAM_DELAY_SEC", 0.0)
@@ -148,7 +148,7 @@ def test_main_session_bash_tool_streams_append_only_and_suppresses_success_resul
         )
     )
     assert any(isinstance(cmd, RenderBashCommandEnd) for cmd in result_cmds)
-    assert not any(isinstance(cmd, RenderToolResult) for cmd in result_cmds)
+    assert any(isinstance(cmd, RenderToolResult) for cmd in result_cmds)
 
 
 def test_main_session_bash_tool_buffers_before_delay_and_falls_back_to_tool_result(
