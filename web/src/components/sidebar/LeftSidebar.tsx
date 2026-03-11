@@ -12,14 +12,16 @@ export function LeftSidebar(): JSX.Element {
   const runtimeBySessionId = useSessionStore((state) => state.runtimeBySessionId);
   const completedUnreadBySessionId = useSessionStore((state) => state.completedUnreadBySessionId);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
+  const draftWorkDir = useSessionStore((state) => state.draftWorkDir);
   const loading = useSessionStore((state) => state.loading);
   const loadError = useSessionStore((state) => state.loadError);
-  const selectDraft = useSessionStore((state) => state.selectDraft);
+  const setDraftWorkDir = useSessionStore((state) => state.setDraftWorkDir);
   const toggleGroup = useSessionStore((state) => state.toggleGroup);
   const setSessionArchived = useSessionStore((state) => state.setSessionArchived);
   const selectSession = useSessionStore((state) => state.selectSession);
   const refreshSessions = useSessionStore((state) => state.refreshSessions);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
+  const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [showRefreshSuccessState, setShowRefreshSuccessState] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(312);
@@ -122,6 +124,23 @@ export function LeftSidebar(): JSX.Element {
     [archivedGroups],
   );
 
+  const activeSession = useMemo(
+    () =>
+      activeSessionId === "draft"
+        ? null
+        : (groups
+            .flatMap((group) => group.sessions)
+            .find((session) => session.id === activeSessionId) ?? null),
+    [activeSessionId, groups],
+  );
+
+  const openNewSessionOverlay = (workDir?: string): void => {
+    const normalizedWorkDir = workDir?.trim() ?? "";
+    setDraftWorkDir(normalizedWorkDir || activeSession?.work_dir || draftWorkDir);
+    setNewSessionOverlayOpen(activeSessionId !== "draft");
+    window.dispatchEvent(new Event("klaude:draft-focus-input"));
+  };
+
   return (
     <aside
       ref={sidebarRef}
@@ -133,8 +152,7 @@ export function LeftSidebar(): JSX.Element {
         <div className="flex-1">
           <NewSessionButton
             onClick={() => {
-              selectDraft();
-              window.dispatchEvent(new Event("klaude:draft-focus-input"));
+              openNewSessionOverlay();
             }}
           />
         </div>
@@ -213,10 +231,10 @@ export function LeftSidebar(): JSX.Element {
                 toggleGroup(group.work_dir);
               }}
               onSelectDraft={(workDir) => {
-                selectDraft(workDir);
-                window.dispatchEvent(new Event("klaude:draft-focus-input"));
+                openNewSessionOverlay(workDir);
               }}
               onSelectSession={(sessionId) => {
+                setNewSessionOverlayOpen(false);
                 void selectSession(sessionId);
               }}
               onToggleArchive={(sessionId, archived) => {
@@ -313,10 +331,10 @@ export function LeftSidebar(): JSX.Element {
                       }));
                     }}
                     onSelectDraft={(workDir) => {
-                      selectDraft(workDir);
-                      window.dispatchEvent(new Event("klaude:draft-focus-input"));
+                      openNewSessionOverlay(workDir);
                     }}
                     onSelectSession={(sessionId) => {
+                      setNewSessionOverlayOpen(false);
                       void selectSession(sessionId);
                     }}
                     onToggleArchive={(sessionId, archived) => {
