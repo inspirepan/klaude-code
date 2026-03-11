@@ -22,7 +22,7 @@ export function MessageListHeader({
   setRightSidebarOpen,
 }: MessageListHeaderProps): JSX.Element {
   return (
-    <div className="relative z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 py-2 backdrop-blur sm:px-6">
+    <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-white/75 px-4 py-2 backdrop-blur sm:px-6">
       {!sidebarOpen ? (
         <button
           type="button"

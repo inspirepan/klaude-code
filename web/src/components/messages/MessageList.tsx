@@ -423,22 +423,21 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           />
         ) : null}
 
-        <MessageListHeader
-          primaryTitle={primaryTitle}
-          secondaryTitle={secondaryTitle}
-          workspacePath={workspacePath}
-          sessionReadOnly={sessionReadOnly}
-          sidebarOpen={sidebarOpen}
-          rightSidebarOpen={rightSidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-          setRightSidebarOpen={setRightSidebarOpen}
-        />
-
         <div
           ref={scrollRef}
           onScroll={handleScroll}
           className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
         >
+          <MessageListHeader
+            primaryTitle={primaryTitle}
+            secondaryTitle={secondaryTitle}
+            workspacePath={workspacePath}
+            sessionReadOnly={sessionReadOnly}
+            sidebarOpen={sidebarOpen}
+            rightSidebarOpen={rightSidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            setRightSidebarOpen={setRightSidebarOpen}
+          />
           <div className="mx-auto max-w-4xl space-y-5 px-4 pb-14 pt-8 sm:px-6">
             {hasItems ? (
               <>
