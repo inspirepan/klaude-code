@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SendHorizonal } from "lucide-react";
 
+import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
 import { useSessionStore } from "../../stores/session-store";
+import { ComposerCard } from "./ComposerCard";
 import { DraftWorkspacePicker } from "./DraftWorkspacePicker";
 
 interface NewSessionOverlayProps {
   onClose?: () => void;
+  showBackdrop?: boolean;
 }
 
 function uniqueWorkspaces(workspaces: string[]): string[] {
   return [...new Set(workspaces.filter((item) => item.trim().length > 0))];
 }
 
-export function NewSessionOverlay({ onClose }: NewSessionOverlayProps): JSX.Element {
+export function NewSessionOverlay({
+  onClose,
+  showBackdrop = true,
+}: NewSessionOverlayProps): JSX.Element {
   const draftWorkDir = useSessionStore((state) => state.draftWorkDir);
   const groups = useSessionStore((state) => state.groups);
   const setDraftWorkDir = useSessionStore((state) => state.setDraftWorkDir);
@@ -21,6 +26,10 @@ export function NewSessionOverlay({ onClose }: NewSessionOverlayProps): JSX.Elem
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [modelOptions, setModelOptions] = useState<ConfigModelSummary[]>([]);
+  const [modelLoading, setModelLoading] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState("");
   const workspacePickerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -40,27 +49,36 @@ export function NewSessionOverlay({ onClose }: NewSessionOverlayProps): JSX.Elem
   const disableSubmit =
     submitting || normalizedText.length === 0 || normalizedDraftWorkDir.length === 0;
 
-  const resizeTextarea = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return;
-    }
+  useEffect(() => {
+    let cancelled = false;
+    setModelLoading(true);
+    setModelError(null);
+    void fetchConfigModels()
+      .then((models) => {
+        if (cancelled) {
+          return;
+        }
+        setModelOptions(models);
+        const defaultModel = models.find((item) => item.is_default)?.name ?? models[0]?.name ?? "";
+        setSelectedModel(defaultModel);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        setModelError(message);
+      })
+      .finally(() => {
+        if (cancelled) {
+          return;
+        }
+        setModelLoading(false);
+      });
 
-    const styles = window.getComputedStyle(textarea);
-    const lineHeight = Number.parseFloat(styles.lineHeight);
-    const paddingTop = Number.parseFloat(styles.paddingTop);
-    const paddingBottom = Number.parseFloat(styles.paddingBottom);
-    const borderTopWidth = Number.parseFloat(styles.borderTopWidth);
-    const borderBottomWidth = Number.parseFloat(styles.borderBottomWidth);
-
-    const singleLineHeight =
-      lineHeight + paddingTop + paddingBottom + borderTopWidth + borderBottomWidth;
-    const maxHeight = singleLineHeight * 2;
-
-    textarea.style.height = "auto";
-    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
-    textarea.style.height = `${nextHeight}px`;
-    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -112,10 +130,6 @@ export function NewSessionOverlay({ onClose }: NewSessionOverlayProps): JSX.Elem
     };
   }, []);
 
-  useEffect(() => {
-    resizeTextarea();
-  }, [resizeTextarea, text]);
-
   const handleSubmit = useCallback(async () => {
     if (disableSubmit) {
       return;
@@ -123,23 +137,36 @@ export function NewSessionOverlay({ onClose }: NewSessionOverlayProps): JSX.Elem
 
     setSubmitting(true);
     try {
-      await createSessionFromDraft(normalizedText, normalizedDraftWorkDir);
+      await createSessionFromDraft(normalizedText, normalizedDraftWorkDir, selectedModel);
       setText("");
       onClose?.();
     } finally {
       setSubmitting(false);
     }
-  }, [createSessionFromDraft, disableSubmit, normalizedDraftWorkDir, normalizedText, onClose]);
+  }, [
+    createSessionFromDraft,
+    disableSubmit,
+    normalizedDraftWorkDir,
+    normalizedText,
+    onClose,
+    selectedModel,
+  ]);
 
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center px-4 py-6 sm:px-6">
+      {showBackdrop ? (
+        <div
+          className="bg-white/72 absolute inset-0 backdrop-blur-[3px]"
+          onClick={() => {
+            onClose?.();
+          }}
+        />
+      ) : null}
       <div
-        className="bg-white/72 absolute inset-0 backdrop-blur-[3px]"
-        onClick={() => {
-          onClose?.();
-        }}
-      />
-      <div className="relative w-full max-w-2xl rounded-3xl border border-neutral-200/90 bg-white p-4 shadow-[0_24px_80px_rgba(0,0,0,0.14)] sm:p-6">
+        className={`relative w-full max-w-2xl -translate-y-[25vh] rounded-3xl border border-neutral-200/90 bg-white p-4 ${
+          showBackdrop ? "shadow-[0_24px_80px_rgba(0,0,0,0.14)]" : ""
+        } sm:p-6`}
+      >
         <div className="mb-4 space-y-1">
           <div className="text-base font-semibold text-neutral-800">Start a new session</div>
           <div className="text-sm leading-6 text-neutral-500">
@@ -158,36 +185,28 @@ export function NewSessionOverlay({ onClose }: NewSessionOverlayProps): JSX.Elem
             setWorkspaceMenuOpen={setWorkspaceMenuOpen}
           />
 
-          <div className="flex items-end gap-2 rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-black/5">
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(event) => {
-                setText(event.target.value);
-              }}
-              onKeyDown={(event) => {
-                if (event.nativeEvent.isComposing || event.key !== "Enter" || event.shiftKey) {
-                  return;
-                }
-                event.preventDefault();
-                void handleSubmit();
-              }}
-              rows={1}
-              placeholder="What should we do?"
-              className="min-h-7 flex-1 resize-none overflow-y-hidden border-0 bg-transparent px-1 py-0.5 text-sm leading-6 text-neutral-800 outline-none placeholder:text-neutral-400"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                void handleSubmit();
-              }}
-              disabled={disableSubmit}
-              aria-label={submitting ? "Sending" : "Send"}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
-            >
-              <SendHorizonal className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          {modelError ? (
+            <div className="px-1 text-xs text-red-500">Load models failed: {modelError}</div>
+          ) : null}
+
+          <ComposerCard
+            text={text}
+            onTextChange={setText}
+            onSubmit={() => {
+              void handleSubmit();
+            }}
+            submitting={submitting}
+            disableSubmit={disableSubmit}
+            placeholder="What should we do?"
+            modelOptions={modelOptions}
+            modelValue={selectedModel}
+            modelLoading={modelLoading}
+            modelDisabled={submitting || modelOptions.length === 0}
+            modelPlaceholder="Default model"
+            onModelSelect={setSelectedModel}
+            modelDropUp={false}
+            textareaRef={textareaRef}
+          />
         </div>
       </div>
     </div>

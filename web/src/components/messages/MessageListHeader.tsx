@@ -1,4 +1,5 @@
-import { Lock, PanelLeftOpen, PanelRightOpen } from "lucide-react";
+import { Lock, PanelLeftOpen, PanelRightOpen, Search } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 interface MessageListHeaderProps {
   primaryTitle: string;
@@ -9,6 +10,7 @@ interface MessageListHeaderProps {
   rightSidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   setRightSidebarOpen: (open: boolean) => void;
+  onSearchOpen: () => void;
 }
 
 export function MessageListHeader({
@@ -20,21 +22,38 @@ export function MessageListHeader({
   rightSidebarOpen,
   setSidebarOpen,
   setRightSidebarOpen,
+  onSearchOpen,
 }: MessageListHeaderProps): JSX.Element {
   return (
-    <div className="relative z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 py-2 backdrop-blur sm:px-6">
+    <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-white/75 px-4 py-2 backdrop-blur sm:px-6">
       {!sidebarOpen ? (
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-          onClick={() => {
-            setSidebarOpen(true);
-          }}
-          title="Expand sidebar"
-          aria-label="Expand sidebar"
-        >
-          <PanelLeftOpen className="h-4 w-4" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+              onClick={() => {
+                setSidebarOpen(true);
+              }}
+              aria-label="Expand sidebar"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="flex items-center gap-1.5">
+            <span>Expand sidebar</span>
+            <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+              <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">⌘</span>
+                </kbd>
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">B</span>
+                </kbd>
+              </span>
+            </span>
+          </TooltipContent>
+        </Tooltip>
       ) : null}
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-baseline gap-2 text-sm leading-5">
@@ -66,19 +85,62 @@ export function MessageListHeader({
           ) : null}
         </div>
       </div>
-      <div className="h-8 w-8 shrink-0" aria-hidden="true" />
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+            onClick={onSearchOpen}
+            aria-label="Search messages"
+          >
+            <Search className="h-4 w-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="flex items-center gap-1.5">
+          <span>Search</span>
+          <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+            <span className="inline-flex whitespace-pre text-[12px] leading-none">
+              <kbd className="inline-flex font-sans">
+                <span className="min-w-[1em] text-center">⌘</span>
+              </kbd>
+              <kbd className="inline-flex font-sans">
+                <span className="min-w-[1em] text-center">F</span>
+              </kbd>
+            </span>
+          </span>
+        </TooltipContent>
+      </Tooltip>
       {!rightSidebarOpen ? (
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-          onClick={() => {
-            setRightSidebarOpen(true);
-          }}
-          title="Expand right sidebar"
-          aria-label="Expand right sidebar"
-        >
-          <PanelRightOpen className="h-4 w-4" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+              onClick={() => {
+                setRightSidebarOpen(true);
+              }}
+              aria-label="Expand right sidebar"
+            >
+              <PanelRightOpen className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="flex items-center gap-1.5">
+            <span>Expand right sidebar</span>
+            <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+              <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">⇧</span>
+                </kbd>
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">⌘</span>
+                </kbd>
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">B</span>
+                </kbd>
+              </span>
+            </span>
+          </TooltipContent>
+        </Tooltip>
       ) : null}
     </div>
   );

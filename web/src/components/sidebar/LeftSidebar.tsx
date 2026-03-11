@@ -5,6 +5,7 @@ import { ProjectGroup } from "./ProjectGroup";
 import { useSessionStore } from "../../stores/session-store";
 import { useAppStore } from "../../stores/app-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function LeftSidebar(): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
@@ -24,8 +25,9 @@ export function LeftSidebar(): JSX.Element {
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [showRefreshSuccessState, setShowRefreshSuccessState] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(312);
+  const [sidebarWidth, setSidebarWidth] = useState(256);
   const [archivedMaxHeight, setArchivedMaxHeight] = useState(320);
+  const [archiveUndoSessionId, setArchiveUndoSessionId] = useState<string | null>(null);
   const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
     Record<string, boolean>
   >({});
@@ -33,6 +35,7 @@ export function LeftSidebar(): JSX.Element {
   const previousLoadingRef = useRef(loading);
   const refreshSuccessAnimationFrameRef = useRef<number | null>(null);
   const refreshSuccessTimeoutRef = useRef<number | null>(null);
+  const archiveUndoTimeoutRef = useRef<number | null>(null);
   const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
   const archivedResizeCleanupRef = useRef<(() => void) | null>(null);
 
@@ -83,6 +86,9 @@ export function LeftSidebar(): JSX.Element {
       }
       if (refreshSuccessTimeoutRef.current !== null) {
         window.clearTimeout(refreshSuccessTimeoutRef.current);
+      }
+      if (archiveUndoTimeoutRef.current !== null) {
+        window.clearTimeout(archiveUndoTimeoutRef.current);
       }
       if (sidebarResizeCleanupRef.current !== null) {
         sidebarResizeCleanupRef.current();
@@ -141,6 +147,36 @@ export function LeftSidebar(): JSX.Element {
     window.dispatchEvent(new Event("klaude:draft-focus-input"));
   };
 
+  const showArchiveUndoToast = (sessionId: string): void => {
+    if (archiveUndoTimeoutRef.current !== null) {
+      window.clearTimeout(archiveUndoTimeoutRef.current);
+    }
+    setArchiveUndoSessionId(sessionId);
+    archiveUndoTimeoutRef.current = window.setTimeout(() => {
+      setArchiveUndoSessionId(null);
+      archiveUndoTimeoutRef.current = null;
+    }, 4500);
+  };
+
+  const dismissArchiveUndoToast = (): void => {
+    if (archiveUndoTimeoutRef.current !== null) {
+      window.clearTimeout(archiveUndoTimeoutRef.current);
+      archiveUndoTimeoutRef.current = null;
+    }
+    setArchiveUndoSessionId(null);
+  };
+
+  const handleToggleArchive = (sessionId: string, archived: boolean): void => {
+    void (async () => {
+      await setSessionArchived(sessionId, archived);
+      if (archived) {
+        showArchiveUndoToast(sessionId);
+      } else if (archiveUndoSessionId === sessionId) {
+        dismissArchiveUndoToast();
+      }
+    })();
+  };
+
   return (
     <aside
       ref={sidebarRef}
@@ -156,34 +192,54 @@ export function LeftSidebar(): JSX.Element {
             }}
           />
         </div>
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-          onClick={() => {
-            void refreshSessions();
-          }}
-          title="Refresh sessions"
-          aria-label="Refresh sessions"
-        >
-          {loading ? (
-            <RefreshCw className="h-4 w-4 animate-spin" />
-          ) : showRefreshSuccessState ? (
-            <Check className="status-success-settle h-4 w-4" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-        </button>
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-          onClick={() => {
-            setSidebarOpen(false);
-          }}
-          title="Collapse sidebar"
-          aria-label="Collapse sidebar"
-        >
-          <PanelLeftClose className="h-4 w-4" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+              onClick={() => {
+                void refreshSessions();
+              }}
+              aria-label="Refresh sessions"
+            >
+              {loading ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : showRefreshSuccessState ? (
+                <Check className="status-success-settle h-4 w-4" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Refresh sessions</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+              onClick={() => {
+                setSidebarOpen(false);
+              }}
+              aria-label="Collapse sidebar"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="flex items-center gap-1.5">
+            <span>Collapse sidebar</span>
+            <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+              <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">⌘</span>
+                </kbd>
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">B</span>
+                </kbd>
+              </span>
+            </span>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       <ScrollArea className="min-h-0 w-full flex-1" type="auto">
@@ -238,15 +294,15 @@ export function LeftSidebar(): JSX.Element {
                 void selectSession(sessionId);
               }}
               onToggleArchive={(sessionId, archived) => {
-                void setSessionArchived(sessionId, archived);
+                handleToggleArchive(sessionId, archived);
               }}
             />
           ))}
         </div>
       </ScrollArea>
 
-      <div className="relative shrink-0 border-t border-neutral-200/55 bg-neutral-50 px-2.5 py-1.5 shadow-[0_-1px_0_rgba(15,15,15,0.04),0_-6px_12px_-14px_rgba(15,15,15,0.16)]">
-        <div className="pointer-events-none absolute inset-x-0 -top-3 h-3 bg-gradient-to-t from-black/[0.035] to-transparent" />
+      <div className="relative shrink-0 border-t border-neutral-200/70 bg-neutral-50 px-2.5 py-1.5 shadow-[0_-1px_0_rgba(255,255,255,0.7)]">
+        <div className="pointer-events-none absolute inset-x-0 -top-2 h-2 bg-gradient-to-t from-black/[0.02] to-transparent" />
         {archivedExpanded && archivedGroups.length > 0 ? (
           <div className="mb-0 flex items-center justify-center">
             <div
@@ -338,7 +394,7 @@ export function LeftSidebar(): JSX.Element {
                       void selectSession(sessionId);
                     }}
                     onToggleArchive={(sessionId, archived) => {
-                      void setSessionArchived(sessionId, archived);
+                      handleToggleArchive(sessionId, archived);
                     }}
                   />
                 ))}
@@ -349,6 +405,32 @@ export function LeftSidebar(): JSX.Element {
           )
         ) : null}
       </div>
+
+      {archiveUndoSessionId !== null ? (
+        <div className="pointer-events-none absolute inset-x-2 bottom-2 z-40">
+          <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white/95 px-2.5 py-2 shadow-[0_8px_24px_-16px_rgba(15,15,15,0.35)] backdrop-blur">
+            <span className="text-xs text-neutral-700">Session archived</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+                  onClick={() => {
+                    const sessionId = archiveUndoSessionId;
+                    dismissArchiveUndoToast();
+                    if (sessionId !== null) {
+                      void setSessionArchived(sessionId, false);
+                    }
+                  }}
+                >
+                  Undo
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Undo archive</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+      ) : null}
 
       <div
         role="separator"

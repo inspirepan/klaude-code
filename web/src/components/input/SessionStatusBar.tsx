@@ -79,9 +79,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
           ) : (
             <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-300" />
           )}
-          <span
-            className={`truncate font-sans text-xs font-medium ${isRunning ? "text-sky-600" : ""}`}
-          >
+          <span className={`truncate font-sans text-xs ${isRunning ? "text-sky-600" : ""}`}>
             {statusLabel}
           </span>
         </>

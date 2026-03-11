@@ -103,6 +103,19 @@ interface ArchiveSessionResponse {
   ok: boolean;
 }
 
+export interface ConfigModelSummary {
+  name: string;
+  provider: string;
+  model_name: string;
+  model_id: string;
+  params: string[];
+  is_default: boolean;
+}
+
+interface ConfigModelsResponse {
+  models: ConfigModelSummary[];
+}
+
 export async function archiveSession(sessionId: string): Promise<boolean> {
   const result = await requestJson<ArchiveSessionResponse>(
     `/api/sessions/${encodeURIComponent(sessionId)}/archive`,
@@ -123,6 +136,11 @@ export async function unarchiveSession(sessionId: string): Promise<boolean> {
     },
   );
   return result.ok;
+}
+
+export async function fetchConfigModels(): Promise<ConfigModelSummary[]> {
+  const result = await requestJson<ConfigModelsResponse>("/api/config/models");
+  return result.models;
 }
 
 export function buildFileApiUrl(path: string): string {

@@ -3,6 +3,7 @@ import { PanelRightClose } from "lucide-react";
 
 import { FilePath } from "../messages/FilePath";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAppStore } from "../../stores/app-store";
 import { useSessionStore } from "../../stores/session-store";
 import type { SessionSummary, TodoItem } from "../../types/session";
@@ -34,7 +35,7 @@ export function RightSidebar(): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const setRightSidebarOpen = useAppStore((state) => state.setRightSidebarOpen);
-  const [sidebarWidth, setSidebarWidth] = useState(360);
+  const [sidebarWidth, setSidebarWidth] = useState(256);
   const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
 
   const clampSidebarWidth = (width: number): number => {
@@ -82,17 +83,36 @@ export function RightSidebar(): JSX.Element {
       style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
     >
       <div className="flex items-center gap-2 px-3 py-2">
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-          onClick={() => {
-            setRightSidebarOpen(false);
-          }}
-          title="Collapse right sidebar"
-          aria-label="Collapse right sidebar"
-        >
-          <PanelRightClose className="h-4 w-4" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+              onClick={() => {
+                setRightSidebarOpen(false);
+              }}
+              aria-label="Collapse right sidebar"
+            >
+              <PanelRightClose className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="flex items-center gap-1.5">
+            <span>Collapse right sidebar</span>
+            <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+              <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">⇧</span>
+                </kbd>
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">⌘</span>
+                </kbd>
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">B</span>
+                </kbd>
+              </span>
+            </span>
+          </TooltipContent>
+        </Tooltip>
         <span className="flex-1 text-xs font-semibold text-neutral-500">Session context</span>
       </div>
 
@@ -109,6 +129,10 @@ export function RightSidebar(): JSX.Element {
               <div className="flex flex-col gap-0.5 py-1 text-xs">
                 {todos.map((todo) => {
                   const config = todoStatusConfig[todo.status];
+                  const textClass =
+                    todo.status === "in_progress"
+                      ? `${config.textClass} todo-in-progress-shimmer`
+                      : config.textClass;
                   return (
                     <div
                       key={`${todo.status}-${todo.content}`}
@@ -117,7 +141,7 @@ export function RightSidebar(): JSX.Element {
                       <span className={`w-4 shrink-0 text-center ${config.markClass}`}>
                         {config.mark}
                       </span>
-                      <span className={config.textClass}>{todo.content}</span>
+                      <span className={textClass}>{todo.content}</span>
                     </div>
                   );
                 })}

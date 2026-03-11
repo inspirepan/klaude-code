@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SessionCardProps {
   session: SessionSummary;
@@ -213,22 +214,28 @@ export function SessionCard({
           >
             {updatedAt}
           </span>
-          <button
-            type="button"
-            className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 hover:text-neutral-700 focus:outline-none"
-            title={session.archived ? "Unarchive session" : "Archive session"}
-            aria-label={session.archived ? "Unarchive session" : "Archive session"}
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggleArchive(session.id, !session.archived);
-            }}
-          >
-            {session.archived ? (
-              <ArchiveRestore className="h-3 w-3" />
-            ) : (
-              <Archive className="h-3 w-3" />
-            )}
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 hover:text-neutral-700 focus:outline-none"
+                aria-label={session.archived ? "Unarchive session" : "Archive session"}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleArchive(session.id, !session.archived);
+                }}
+              >
+                {session.archived ? (
+                  <ArchiveRestore className="h-3 w-3" />
+                ) : (
+                  <Archive className="h-3 w-3" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {session.archived ? "Unarchive session" : "Archive session"}
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
     );
@@ -299,22 +306,28 @@ export function SessionCard({
                 {updatedAt}
               </span>
             )}
-            <button
-              type="button"
-              className="hidden h-4 w-4 items-center justify-center rounded text-neutral-400 hover:text-neutral-700 focus:outline-none group-hover:inline-flex"
-              title={session.archived ? "Unarchive session" : "Archive session"}
-              aria-label={session.archived ? "Unarchive session" : "Archive session"}
-              onClick={(event) => {
-                event.stopPropagation();
-                onToggleArchive(session.id, !session.archived);
-              }}
-            >
-              {session.archived ? (
-                <ArchiveRestore className="h-3 w-3" />
-              ) : (
-                <Archive className="h-3 w-3" />
-              )}
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="hidden h-4 w-4 items-center justify-center rounded text-neutral-400 hover:text-neutral-700 focus:outline-none group-hover:inline-flex"
+                  aria-label={session.archived ? "Unarchive session" : "Archive session"}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleArchive(session.id, !session.archived);
+                  }}
+                >
+                  {session.archived ? (
+                    <ArchiveRestore className="h-3 w-3" />
+                  ) : (
+                    <Archive className="h-3 w-3" />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {session.archived ? "Unarchive session" : "Archive session"}
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </div>

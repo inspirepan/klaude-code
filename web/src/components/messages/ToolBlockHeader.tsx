@@ -31,8 +31,8 @@ export function ToolBlockHeader({
 
   return (
     <>
-      <div className="flex items-center gap-1.5 self-stretch">
-        <div className={`flex flex-col items-center${open ? "self-stretch" : ""}`}>
+      <div className="flex items-start gap-1.5 self-stretch">
+        <div className={`flex flex-col items-center ${open ? "self-stretch" : ""}`}>
           <ChevronRight
             className={`h-4 w-4 shrink-0 text-neutral-300 transition-transform duration-150 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
           />

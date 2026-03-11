@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Folder, FolderOpen, SquarePen } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SessionCard } from "./SessionCard";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 
@@ -61,17 +62,21 @@ export function ProjectGroup({
             </div>
           </div>
         </CollapsibleTrigger>
-        <button
-          type="button"
-          className="mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
-          onClick={() => {
-            onSelectDraft(workDir);
-          }}
-          title={`New session in ${workDir}`}
-          aria-label={`New session in ${workDir}`}
-        >
-          <SquarePen className="h-3.5 w-3.5" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+              onClick={() => {
+                onSelectDraft(workDir);
+              }}
+              aria-label={`New session in ${workDir}`}
+            >
+              <SquarePen className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>New session in {workDir}</TooltipContent>
+        </Tooltip>
       </div>
 
       <CollapsibleContent className="ml-3.5 border-l border-neutral-200 pl-2">
