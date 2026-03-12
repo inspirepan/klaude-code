@@ -44,7 +44,7 @@ export function MessageListHeader({
           <TooltipContent className="flex items-center gap-1.5">
             <span>Expand sidebar</span>
             <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-              <span className="inline-flex whitespace-pre text-[12px] leading-none">
+              <span className="inline-flex whitespace-pre text-xs leading-none">
                 <kbd className="inline-flex font-sans">
                   <span className="min-w-[1em] text-center">⌘</span>
                 </kbd>
@@ -68,7 +68,7 @@ export function MessageListHeader({
             <span className="group/readonly relative inline-flex shrink-0 cursor-help items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-2xs font-medium text-amber-700">
               <Lock className="h-3 w-3" />
               <span>Read-only</span>
-              <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden w-max max-w-[30rem] -translate-x-1/2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] leading-4 text-amber-800 shadow-sm group-hover/readonly:block">
+              <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden w-max max-w-[30rem] -translate-x-1/2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-2xs leading-4 text-amber-800 shadow-sm group-hover/readonly:block">
                 This session is owned by another live runtime. Web can observe it, but cannot send
                 control actions.
               </span>
@@ -98,7 +98,7 @@ export function MessageListHeader({
         <TooltipContent className="flex items-center gap-1.5">
           <span>Search</span>
           <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-            <span className="inline-flex whitespace-pre text-[12px] leading-none">
+            <span className="inline-flex whitespace-pre text-xs leading-none">
               <kbd className="inline-flex font-sans">
                 <span className="min-w-[1em] text-center">⌘</span>
               </kbd>
@@ -126,7 +126,7 @@ export function MessageListHeader({
           <TooltipContent className="flex items-center gap-1.5">
             <span>Expand right sidebar</span>
             <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-              <span className="inline-flex whitespace-pre text-[12px] leading-none">
+              <span className="inline-flex whitespace-pre text-xs leading-none">
                 <kbd className="inline-flex font-sans">
                   <span className="min-w-[1em] text-center">⇧</span>
                 </kbd>

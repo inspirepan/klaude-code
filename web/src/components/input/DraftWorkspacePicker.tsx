@@ -59,7 +59,7 @@ export function DraftWorkspacePicker({
               }
             }}
             placeholder="/path/to/workspace"
-            className="w-full flex-1 border-0 bg-transparent px-2 py-3 text-[13px] text-neutral-700 outline-none placeholder:text-neutral-400"
+            className="w-full flex-1 border-0 bg-transparent px-2 py-3 text-sm text-neutral-700 outline-none placeholder:text-neutral-400"
           />
           <button
             type="button"
@@ -107,7 +107,7 @@ export function DraftWorkspacePicker({
                     >
                       <Folder className="mt-0.5 h-4 w-4 shrink-0 text-neutral-400" />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[13px] font-medium leading-5 text-neutral-800">
+                        <div className="truncate text-sm font-medium leading-5 text-neutral-800">
                           {workDirLabel(workspace)}
                         </div>
                         <div className="truncate text-2xs leading-4 text-neutral-400">

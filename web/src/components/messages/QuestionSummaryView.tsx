@@ -20,17 +20,13 @@ export function QuestionSummaryView({
     return (
       <div className="flex flex-col gap-1.5 py-1">
         {title}
-        <span className={`${compact ? "text-[13px]" : "text-sm"} text-amber-600`}>
-          (No answer provided)
-        </span>
+        <span className="text-sm text-amber-600">(No answer provided)</span>
       </div>
     );
   }
 
   return (
-    <div
-      className={`flex flex-col gap-2.5 ${compact ? "text-[13px]" : "text-sm"} py-1 leading-relaxed`}
-    >
+    <div className="flex flex-col gap-2.5 py-1 text-sm leading-relaxed">
       {title}
       {uiExtra.items.map((item, i) => (
         <div key={i} className="flex flex-col gap-1">

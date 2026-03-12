@@ -23,7 +23,7 @@ export function MarkdownDocView({ uiExtra, compact = false }: MarkdownDocViewPro
       >
         {uiExtra.file_path}
       </div>
-      <div className={`px-4 py-3 ${compact ? "text-[13px]" : "text-sm"} markdown-doc-view`}>
+      <div className="markdown-doc-view px-4 py-3 text-sm">
         {entries ? <FrontmatterTable entries={entries} /> : null}
         <Streamdown isAnimating={false} plugins={plugins}>
           {body}

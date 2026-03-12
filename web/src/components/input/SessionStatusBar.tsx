@@ -84,7 +84,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
         </>
       ) : null}
       {summaryParts.length > 0 ? (
-        <div className="ml-2 flex flex-wrap items-center gap-y-1 font-sans text-[11px] text-neutral-400">
+        <div className="ml-2 flex flex-wrap items-center gap-y-1 font-sans text-2xs text-neutral-400">
           {summaryParts.map((part, i) => (
             <span key={part} className="flex items-center">
               {i > 0 ? <span className="mx-1.5 text-neutral-300">·</span> : null}

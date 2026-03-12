@@ -35,7 +35,7 @@ export function ToolBlockResult({
 }: ToolBlockResultProps): JSX.Element | null {
   if (!open) return null;
 
-  const subTextClass = compact ? "text-[13px]" : "text-sm";
+  const subTextClass = "text-sm";
   const miniTextClass = compact ? "text-2xs" : "text-xs";
 
   return (

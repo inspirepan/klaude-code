@@ -22,7 +22,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
     [item.content],
   );
   const hasText = normalizedContent.length > 0;
-  const miniTextClass = compact ? "text-[9px] leading-none" : "text-[10px] leading-none";
+  const miniTextClass = "text-2xs leading-none";
   const textRef = useRef<HTMLParagraphElement>(null);
   const [showMore, setShowMore] = useState(false);
   const [canExpandText, setCanExpandText] = useState(false);
@@ -127,7 +127,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                   ? { maxHeight: `${collapsedTextMaxHeight}px`, overflow: "hidden" }
                   : undefined
               }
-              className={`${compact ? "text-[13px]" : "text-sm"} m-0 whitespace-pre-wrap break-words leading-relaxed text-user-bubble-text`}
+              className="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed text-user-bubble-text"
             >
               <HighlightText>{normalizedContent}</HighlightText>
             </p>
@@ -158,9 +158,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
               >
                 <div className="max-h-[calc(100vh-8rem)] overflow-y-auto px-4 py-3">
                   {renderImages()}
-                  <p
-                    className={`${compact ? "text-[13px]" : "text-sm"} m-0 whitespace-pre-wrap break-words leading-relaxed text-user-bubble-text`}
-                  >
+                  <p className="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed text-user-bubble-text">
                     <HighlightText>{normalizedContent}</HighlightText>
                   </p>
                 </div>

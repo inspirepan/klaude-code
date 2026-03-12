@@ -113,7 +113,7 @@ function DiffStats({ added, removed }: { added: number; removed: number }): JSX.
     return null;
   }
   return (
-    <span className="inline-flex shrink-0 gap-1 whitespace-nowrap text-[9px] leading-4">
+    <span className="inline-flex shrink-0 gap-1 whitespace-nowrap text-2xs leading-4">
       {added > 0 ? <span className="text-emerald-600">+{added}</span> : null}
       {removed > 0 ? <span className="text-rose-600">-{removed}</span> : null}
     </span>
@@ -201,7 +201,7 @@ export function SessionCard({
           <SessionTitleText
             title={title}
             as="div"
-            className="flex min-w-0 flex-1 items-baseline text-[13px] leading-5"
+            className="flex min-w-0 flex-1 items-baseline text-sm leading-5"
             secondaryClassName="shrink truncate"
           />
           <DiffStats
@@ -209,7 +209,7 @@ export function SessionCard({
             removed={diffSummary.diff_lines_removed}
           />
           <span
-            className="shrink-0 whitespace-nowrap text-[10px] leading-4 text-neutral-400"
+            className="shrink-0 whitespace-nowrap text-2xs leading-4 text-neutral-400"
             title={updatedAtDetailed}
           >
             {updatedAt}
@@ -270,7 +270,7 @@ export function SessionCard({
             {getRuntimeIcon(runtime, showSuccessState, hasUnreadCompletion)}
           </span>
           <div
-            className="min-w-0 flex-1 overflow-hidden text-[13px] leading-5"
+            className="min-w-0 flex-1 overflow-hidden text-sm leading-5"
             style={{
               display: "-webkit-box",
               WebkitBoxOrient: "vertical",
@@ -281,11 +281,11 @@ export function SessionCard({
           </div>
         </div>
 
-        <div className="flex min-w-0 items-center gap-1 pl-6 pr-1 text-[9px] leading-4 text-neutral-400">
+        <div className="flex min-w-0 items-center gap-1 pl-6 pr-1 text-2xs leading-4 text-neutral-400">
           <div className="flex min-w-0 items-center gap-1 truncate">
             {showWorkspace ? (
               <>
-                <span className="truncate text-[11px] text-neutral-500" title={session.work_dir}>
+                <span className="truncate text-2xs text-neutral-500" title={session.work_dir}>
                   {workDirLabel(session.work_dir)}
                 </span>
               </>

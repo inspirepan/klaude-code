@@ -253,7 +253,7 @@ export function LeftSidebar(): JSX.Element {
               {sessionListView === "grouped" ? "Switch to flat view" : "Switch to grouped view"}
             </span>
             <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-              <span className="inline-flex whitespace-pre text-[12px] leading-none">
+              <span className="inline-flex whitespace-pre text-xs leading-none">
                 <kbd className="inline-flex font-sans">
                   <span className="min-w-[1em] text-center">⇧</span>
                 </kbd>
@@ -283,7 +283,7 @@ export function LeftSidebar(): JSX.Element {
           <TooltipContent className="flex items-center gap-1.5">
             <span>Collapse sidebar</span>
             <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-              <span className="inline-flex whitespace-pre text-[12px] leading-none">
+              <span className="inline-flex whitespace-pre text-xs leading-none">
                 <kbd className="inline-flex font-sans">
                   <span className="min-w-[1em] text-center">⌘</span>
                 </kbd>
@@ -357,7 +357,7 @@ export function LeftSidebar(): JSX.Element {
             <div className="space-y-3 pt-1">
               <div>
                 <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
-                  <span className="text-[11px] font-medium uppercase tracking-[0.02em] text-neutral-500">
+                  <span className="text-2xs font-medium uppercase tracking-[0.02em] text-neutral-500">
                     In Progress
                   </span>
                   <span className="text-2xs text-neutral-400">{inProgressSessions.length}</span>
@@ -397,7 +397,7 @@ export function LeftSidebar(): JSX.Element {
 
               <div>
                 <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
-                  <span className="text-[11px] font-medium uppercase tracking-[0.02em] text-neutral-500">
+                  <span className="text-2xs font-medium uppercase tracking-[0.02em] text-neutral-500">
                     Done
                   </span>
                   <span className="text-2xs text-neutral-400">{doneSessions.length}</span>
@@ -458,7 +458,7 @@ export function LeftSidebar(): JSX.Element {
           {archivedMenuOpen ? (
             <div className="absolute bottom-full left-0 z-40 mb-2 w-[320px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-neutral-200/80 bg-white p-1 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
               <div className="flex items-center justify-between border-b border-neutral-100 px-2 py-1.5">
-                <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-neutral-500">
+                <span className="text-2xs font-medium uppercase tracking-[0.08em] text-neutral-500">
                   Archived
                 </span>
                 <span className="text-2xs text-neutral-400">{archivedSessionCount}</span>

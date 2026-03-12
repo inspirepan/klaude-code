@@ -7,11 +7,10 @@ interface InterruptMessageProps {
   compact?: boolean;
 }
 
-export function InterruptMessage({ compact = false }: InterruptMessageProps): JSX.Element {
+export function InterruptMessage(props: InterruptMessageProps): JSX.Element {
+  void props;
   return (
-    <div
-      className={`inline-flex items-center gap-1.5 ${compact ? "text-[13px]" : "text-sm"} text-amber-700`}
-    >
+    <div className="inline-flex items-center gap-1.5 text-sm text-amber-700">
       <OctagonX className="h-3.5 w-3.5" strokeWidth={2.25} />
       <span>Interrupted by user</span>
     </div>

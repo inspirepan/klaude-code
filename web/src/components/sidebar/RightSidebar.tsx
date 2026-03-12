@@ -99,7 +99,7 @@ export function RightSidebar(): JSX.Element {
           <TooltipContent className="flex items-center gap-1.5">
             <span>Collapse right sidebar</span>
             <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-              <span className="inline-flex whitespace-pre text-[12px] leading-none">
+              <span className="inline-flex whitespace-pre text-xs leading-none">
                 <kbd className="inline-flex font-sans">
                   <span className="min-w-[1em] text-center">⇧</span>
                 </kbd>
@@ -155,7 +155,7 @@ export function RightSidebar(): JSX.Element {
           <div className="rounded-lg border border-neutral-200/80 bg-white px-3.5 py-2.5">
             <div className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-[0.04em] text-neutral-600">
               <span>Files</span>
-              <span className="inline-flex items-center gap-1 text-[10px] font-medium normal-case tracking-normal">
+              <span className="inline-flex items-center gap-1 text-2xs font-medium normal-case tracking-normal">
                 <span className="text-emerald-600">+{fileChangeSummary.diff_lines_added}</span>
                 <span className="text-rose-600">-{fileChangeSummary.diff_lines_removed}</span>
               </span>
@@ -172,7 +172,7 @@ export function RightSidebar(): JSX.Element {
                       className="flex items-baseline gap-1.5 leading-relaxed"
                     >
                       <span
-                        className={`shrink-0 text-[9px] font-semibold uppercase leading-none ${kind === "created" ? "text-emerald-500" : "text-blue-500"}`}
+                        className={`shrink-0 text-2xs font-semibold uppercase leading-none ${kind === "created" ? "text-emerald-500" : "text-blue-500"}`}
                       >
                         {kind === "created" ? "N" : "M"}
                       </span>
@@ -185,7 +185,7 @@ export function RightSidebar(): JSX.Element {
                         />
                       </div>
                       {stats ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 text-[10px]">
+                        <span className="inline-flex shrink-0 items-center gap-1 text-2xs">
                           <span className="text-emerald-600">+{stats.added}</span>
                           <span className="text-rose-600">-{stats.removed}</span>
                         </span>

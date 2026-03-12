@@ -38,7 +38,7 @@ export function MainPanel(): JSX.Element {
                 <TooltipContent className="flex items-center gap-1.5">
                   <span>Expand sidebar</span>
                   <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-                    <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                    <span className="inline-flex whitespace-pre text-xs leading-none">
                       <kbd className="inline-flex font-sans">
                         <span className="min-w-[1em] text-center">⌘</span>
                       </kbd>
@@ -72,7 +72,7 @@ export function MainPanel(): JSX.Element {
                 <TooltipContent className="flex items-center gap-1.5">
                   <span>Expand right sidebar</span>
                   <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-                    <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                    <span className="inline-flex whitespace-pre text-xs leading-none">
                       <kbd className="inline-flex font-sans">
                         <span className="min-w-[1em] text-center">⇧</span>
                       </kbd>

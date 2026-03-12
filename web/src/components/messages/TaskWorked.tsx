@@ -22,13 +22,11 @@ function formatElapsedCompact(seconds: number): string {
   return `${hours}h${String(remainMinutes).padStart(2, "0")}m${String(remainSeconds).padStart(2, "0")}s`;
 }
 
-export function TaskWorked({ item, compact = false }: TaskWorkedProps): JSX.Element {
+export function TaskWorked({ item }: TaskWorkedProps): JSX.Element {
   const suffix = item.turnCount === 1 ? "step" : "steps";
 
   return (
-    <div
-      className={`inline-flex items-center gap-1.5 ${compact ? "text-[13px]" : "text-sm"} text-emerald-700`}
-    >
+    <div className="inline-flex items-center gap-1.5 text-sm text-emerald-700">
       <span className="font-mono leading-none">✔</span>
       <span className="font-mono">
         Worked for {formatElapsedCompact(item.durationSeconds)}

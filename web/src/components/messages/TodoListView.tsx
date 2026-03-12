@@ -15,12 +15,12 @@ interface TodoListViewProps {
   compact?: boolean;
 }
 
-export function TodoListView({ uiExtra, compact = false }: TodoListViewProps): JSX.Element {
+export function TodoListView({ uiExtra }: TodoListViewProps): JSX.Element {
   const { todos, new_completed } = uiExtra.todo_list;
   const newCompletedSet = new Set(new_completed);
 
   return (
-    <div className={`flex flex-col gap-0.5 ${compact ? "text-[13px]" : "text-sm"} py-1`}>
+    <div className="flex flex-col gap-0.5 py-1 text-sm">
       {todos.map((todo, i) => {
         const isNewCompleted = todo.status === "completed" && newCompletedSet.has(todo.content);
         const config = statusConfig[todo.status];

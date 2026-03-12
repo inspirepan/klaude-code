@@ -112,14 +112,12 @@ function OptionPill({
       </span>
       <span className="min-w-0">
         <span
-          className={`block text-[13px] font-medium leading-tight ${checked ? "text-blue-700" : "text-neutral-700"}`}
+          className={`block text-sm font-medium leading-tight ${checked ? "text-blue-700" : "text-neutral-700"}`}
         >
           {label}
         </span>
         {description && (
-          <span className="mt-0.5 block text-[11px] leading-snug text-neutral-400">
-            {description}
-          </span>
+          <span className="mt-0.5 block text-2xs leading-snug text-neutral-400">{description}</span>
         )}
       </span>
     </button>
@@ -153,16 +151,16 @@ function QuestionPanel({
     <div>
       {/* Question header chip */}
       <div className="mb-1.5 flex items-center gap-1.5">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+        <span className="text-2xs font-medium uppercase tracking-wider text-neutral-400">
           {question.header || `Question ${questionIndex + 1}`}
         </span>
         {question.multi_select && (
-          <span className="text-[10px] text-neutral-400">(select multiple)</span>
+          <span className="text-2xs text-neutral-400">(select multiple)</span>
         )}
       </div>
 
       {/* Question text */}
-      <p className="mb-3 text-[13px] leading-relaxed text-neutral-700">{question.question}</p>
+      <p className="mb-3 text-sm leading-relaxed text-neutral-700">{question.question}</p>
 
       {/* Option pills */}
       <div className="flex flex-wrap gap-2">
@@ -186,15 +184,13 @@ function QuestionPanel({
           value={note}
           onChange={(e) => onNoteChange(e.target.value)}
           placeholder={`Other: ${question.input_placeholder ?? "Type something."}`}
-          className="h-9 w-full rounded-lg border border-neutral-200 bg-neutral-50/50 px-3 text-[13px] text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-9 w-full rounded-lg border border-neutral-200 bg-neutral-50/50 px-3 text-sm text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
 
       {/* Validation hint — only after attempted submit */}
       {showValidation && !answered && (
-        <p className="mt-2 text-[11px] text-amber-600">
-          Please select an option or type a response.
-        </p>
+        <p className="mt-2 text-2xs text-amber-600">Please select an option or type a response.</p>
       )}
     </div>
   );
@@ -303,14 +299,14 @@ export function UserInteractionCard({
       <div className="flex items-center gap-2.5 px-5 pb-1 pt-4">
         <CircleHelp className="h-4 w-4 shrink-0 text-blue-500" />
         <div className="min-w-0 flex-1">
-          <span className="text-[13px] font-semibold text-neutral-800">
+          <span className="text-sm font-semibold text-neutral-800">
             {askPayload
               ? `Agent has ${askPayload.questions.length} question${askPayload.questions.length === 1 ? "" : "s"} for you`
               : "Agent needs your input"}
           </span>
         </div>
         {pendingCount > 1 && (
-          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-500">
+          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-2xs font-medium text-neutral-500">
             {pendingCount} pending
           </span>
         )}
@@ -331,7 +327,7 @@ export function UserInteractionCard({
                       key={q.id}
                       type="button"
                       onClick={() => setActiveTab(i)}
-                      className={`flex items-center gap-1.5 rounded-[22px] px-3 py-1.5 text-[12px] font-medium transition ${
+                      className={`flex items-center gap-1.5 rounded-[22px] px-3 py-1.5 text-xs font-medium transition ${
                         isActive
                           ? "bg-blue-50/55 text-blue-600"
                           : "bg-neutral-50 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
@@ -391,11 +387,11 @@ export function UserInteractionCard({
         {operationPayload && (
           <div>
             <div className="mb-1.5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+              <span className="text-2xs font-medium uppercase tracking-wider text-neutral-400">
                 {operationPayload.header}
               </span>
             </div>
-            <p className="mb-3 text-[13px] leading-relaxed text-neutral-700">
+            <p className="mb-3 text-sm leading-relaxed text-neutral-700">
               {operationPayload.question}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -425,7 +421,7 @@ export function UserInteractionCard({
               void cancel();
             }}
             disabled={actionDisabled}
-            className="inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[12px] text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-xs text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <X className="h-3 w-3" />
             Cancel
@@ -440,7 +436,7 @@ export function UserInteractionCard({
               void submitOperationResponse();
             }}
             disabled={actionDisabled}
-            className="inline-flex h-7 items-center gap-1 rounded-lg bg-blue-500 px-3 text-[12px] text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-7 items-center gap-1 rounded-lg bg-blue-500 px-3 text-xs text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Check className="h-3 w-3" />
             Submit

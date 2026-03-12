@@ -64,7 +64,7 @@ export function ProjectGroup({
             <div
               className={
                 compactHeader
-                  ? "mt-0.5 truncate text-[11px] leading-4 text-neutral-400"
+                  ? "mt-0.5 truncate text-2xs leading-4 text-neutral-400"
                   : "mt-0.5 truncate text-2xs leading-4 text-neutral-400"
               }
               title={workDir}
@@ -125,7 +125,9 @@ export function ProjectGroup({
             >
               <span
                 className={
-                  compactSessions ? "flex-1 text-xs font-normal" : "flex-1 pl-6 text-xs font-normal"
+                  compactSessions
+                    ? "flex-1 text-2xs font-normal"
+                    : "flex-1 pl-6 text-xs font-normal"
                 }
               >
                 Load more ({sessions.length - 10})

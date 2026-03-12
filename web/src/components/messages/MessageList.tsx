@@ -503,7 +503,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
               <div className="flex min-h-[240px] items-center justify-center">
                 <div className="rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/70 px-6 py-10 text-center">
                   <div className="text-base font-semibold text-neutral-700">No messages yet</div>
-                  <div className="mt-1 text-[13px] text-neutral-500">
+                  <div className="mt-1 text-sm text-neutral-500">
                     Send a message below to start this session.
                   </div>
                 </div>

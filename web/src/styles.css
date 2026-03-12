@@ -62,6 +62,10 @@ samp {
   box-sizing: border-box;
 }
 
+html {
+  font-size: 95%;
+}
+
 html,
 body,
 #root {
@@ -183,12 +187,12 @@ body {
 
 /* ── Assistant markdown (Streamdown handles element styles) ── */
 .assistant-text {
-  font-size: 14px;
+  @apply text-sm;
   line-height: 1.7;
   color: #171717;
 }
 .assistant-text.assistant-text-compact {
-  font-size: 13px;
+  @apply text-sm;
 }
 /* Tailwind preflight resets many element styles; restore them for Streamdown */
 .assistant-text hr {
