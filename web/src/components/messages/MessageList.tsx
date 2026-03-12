@@ -486,14 +486,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     setExpandGen((v) => v + 1);
   }, [allCollapseGroupIds]);
 
-  // Cmd+Shift+[ collapse all, Cmd+Shift+] expand all
+  // Cmd+Shift+, collapse all, Cmd+Shift+. expand all
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
-      if (e.key === "[") {
+      if (e.code === "Comma") {
         e.preventDefault();
         handleCollapseAll();
-      } else if (e.key === "]") {
+      } else if (e.code === "Period") {
         e.preventDefault();
         handleExpandAll();
       }

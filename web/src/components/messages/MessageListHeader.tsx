@@ -106,7 +106,7 @@ export function MessageListHeader({
                 <span className="min-w-[1em] text-center">⇧</span>
               </kbd>
               <kbd className="inline-flex font-sans">
-                <span className="min-w-[1em] text-center">[</span>
+                <span className="min-w-[1em] text-center">,</span>
               </kbd>
             </span>
           </span>
@@ -134,7 +134,7 @@ export function MessageListHeader({
                 <span className="min-w-[1em] text-center">⇧</span>
               </kbd>
               <kbd className="inline-flex font-sans">
-                <span className="min-w-[1em] text-center">]</span>
+                <span className="min-w-[1em] text-center">.</span>
               </kbd>
             </span>
           </span>
