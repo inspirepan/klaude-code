@@ -12,6 +12,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from klaude_code.protocol.model import (
+    AssistantPhase,
     DeveloperUIExtra,
     StopReason,
     TaskMetadata,
@@ -190,6 +191,7 @@ class UserMessage(MessageBase):
 class AssistantMessage(MessageBase):
     role: Literal["assistant"] = "assistant"
     parts: list[Part]
+    phase: AssistantPhase | None = None
     usage: Usage | None = None
     stop_reason: StopReason | None = None
 
