@@ -174,14 +174,9 @@ def build_tool_message_for_chat_completions(
         else:
             image_urls.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(image.url)}})
 
-    # If only images (no text), use placeholder
-    has_text = bool(merged_text.strip())
-    tool_content = merged_text if has_text else ""
-
     tool_message: dict[str, object] = {
         "role": "tool",
-        # list format required by openrouter/input.py _add_cache_control()
-        "content": [{"type": "text", "text": tool_content}],
+        "content": merged_text,
         "tool_call_id": msg.call_id,
     }
 

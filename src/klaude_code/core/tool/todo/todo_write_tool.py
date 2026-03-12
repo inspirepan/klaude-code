@@ -103,7 +103,9 @@ class TodoWriteTool(ToolABC):
 <system-reminder>
 Your todo list has changed. DO NOT mention this explicitly to the user. Here are the latest contents of your todo list:
 
-{model.todo_list_str(args.todos)}. Continue on with the tasks at hand if applicable.
+{model.todo_list_str(args.todos)}
+
+Continue on with the tasks at hand if applicable.
 </system-reminder>"""
 
         return message.ToolResultMessage(

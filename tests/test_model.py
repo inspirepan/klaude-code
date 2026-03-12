@@ -96,12 +96,10 @@ def test_openai_compatible_history_includes_image_url_parts():
     image_url = _ensure_dict(second_part["image_url"])
     assert image_url["url"] == SAMPLE_DATA_URL
 
-    # Tool message content is a list (required by openrouter cache control)
+    # Tool message content stays as a string for generic chat-completions providers.
     tool_message = _ensure_dict(messages[1])
     assert tool_message["role"] == "tool"
-    tool_content = _ensure_list(tool_message["content"])
-    assert len(tool_content) == 1
-    assert _ensure_dict(tool_content[0]) == {"type": "text", "text": "done"}
+    assert tool_message["content"] == "done"
 
     # Images from tool result are sent as a separate user message
     image_user_msg = _ensure_dict(messages[2])
@@ -325,12 +323,10 @@ def test_developer_message_with_prepend_marker_prepends_tool_output_across_provi
     assert _ensure_dict(anth_tool_blocks[0])["text"] == "MEMORY\n\nTOOL"
 
     openai_messages = openai_history(history, system=None, model_name=None)
-    openai_tool_content = _ensure_list(_ensure_dict(openai_messages[0])["content"])
-    assert _ensure_dict(openai_tool_content[0])["text"] == "MEMORY\n\nTOOL"
+    assert _ensure_dict(openai_messages[0])["content"] == "MEMORY\n\nTOOL"
 
     openrouter_messages = openrouter_history(history, system=None, model_name=None)
-    openrouter_tool_content = _ensure_list(_ensure_dict(openrouter_messages[0])["content"])
-    assert _ensure_dict(openrouter_tool_content[0])["text"] == "MEMORY\n\nTOOL"
+    assert _ensure_dict(openrouter_messages[0])["content"] == "MEMORY\n\nTOOL"
 
     responses_items = responses_history(history, model_name=None)
     responses_tool_item = _ensure_dict(responses_items[0])
