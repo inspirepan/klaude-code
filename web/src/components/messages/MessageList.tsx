@@ -11,7 +11,7 @@ import { MessageListHeader } from "./MessageListHeader";
 import { MessageRow } from "./MessageRow";
 import { SearchBar } from "./SearchBar";
 import { SubAgentGroupCard } from "./SubAgentGroupCard";
-import { formatTime, isCopyableAssistantText } from "./message-list-ui";
+import { isCopyableAssistantText } from "./message-list-ui";
 import { SearchProvider, type SearchState } from "./search-context";
 
 const EMPTY_ITEMS: MessageItemType[] = [];
@@ -478,7 +478,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                           variant="main"
                           workDir={workspacePath}
                           isActive={item.id === activeItemId}
-                          displayTime={formatTime(item.timestamp)}
                           copied={copiedItemId === item.id}
                           onCopy={handleCopy}
                           itemRef={(el) => {

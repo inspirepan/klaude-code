@@ -10,7 +10,6 @@ interface MessageRowProps {
   variant: "main" | "subagent";
   workDir: string;
   isActive: boolean;
-  displayTime: string | null;
   copied: boolean;
   onCopy: (item: MessageItemType) => void | Promise<void>;
   itemRef: RefCallback<HTMLDivElement>;
@@ -21,7 +20,6 @@ export function MessageRow({
   variant,
   workDir,
   isActive,
-  displayTime,
   copied,
   onCopy,
   itemRef,
@@ -73,11 +71,6 @@ export function MessageRow({
             : "absolute left-[calc(100%+24px)] top-0 hidden w-[112px] flex-col items-end gap-1 whitespace-nowrap pt-0.5 text-right sm:flex"
         }
       >
-        {displayTime ? (
-          <span className="relative -top-0.5 select-none pb-1 text-xs tabular-nums leading-none text-neutral-300 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100">
-            {displayTime}
-          </span>
-        ) : null}
         {canCopy ? (
           <Tooltip>
             <TooltipTrigger asChild>

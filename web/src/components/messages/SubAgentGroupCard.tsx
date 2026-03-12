@@ -7,7 +7,6 @@ import { SubAgentCollapsedPreview } from "./SubAgentCollapsedPreview";
 import { SubAgentStatusSummary } from "./SubAgentStatusSummary";
 import {
   formatSubAgentTypeLabel,
-  formatTime,
   getSessionActivityText,
   getSessionMetaRows,
   getSessionSummaryParts,
@@ -116,10 +115,7 @@ export function SubAgentGroupCard({
           />
         ) : (
           <div className="space-y-5 px-3.5 pb-3.5 pt-0.5">
-            {items.map((item, index) => {
-              const time = formatTime(item.timestamp);
-              const prevTime = index > 0 ? formatTime(items[index - 1]!.timestamp) : null;
-              const displayTime = time && time !== prevTime ? time : null;
+            {items.map((item) => {
               return (
                 <MessageRow
                   key={item.id}
@@ -127,7 +123,6 @@ export function SubAgentGroupCard({
                   variant="subagent"
                   workDir={workDir}
                   isActive={item.id === activeItemId}
-                  displayTime={displayTime}
                   copied={copiedItemId === item.id}
                   onCopy={onCopy}
                   itemRef={(el) => {
@@ -139,7 +134,6 @@ export function SubAgentGroupCard({
           </div>
         )}
       </div>
-      <div className="hidden w-[112px] shrink-0 sm:block" />
     </div>
   );
 }
