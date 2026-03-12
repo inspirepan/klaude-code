@@ -41,7 +41,7 @@ export function MessageRow({
       <div
         className={
           variant === "main"
-            ? `min-w-0 flex-1 transition-shadow duration-150 ${isUser ? "overflow-hidden rounded-[22px] shadow-sm" : "rounded-xl"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`
+            ? `min-w-0 flex-1 transition-shadow duration-150 ${isUser ? "" : "rounded-xl"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`
             : `min-w-0 flex-1 rounded-xl transition-shadow duration-150 ${usesInlineToolLayout ? "" : "bg-neutral-50/60"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`
         }
       >
