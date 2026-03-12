@@ -127,7 +127,7 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
 export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): JSX.Element {
   const { matchItemIds } = useSearch();
   const bodyTextClass = "text-sm";
-  const headerDetailTextClass = "!text-sm";
+  const headerDetailTextClass = "!text-xs";
   const detailChipClass = "rounded bg-neutral-100 px-1.5 py-0.5 align-middle";
 
   const defaultExpanded = shouldExpandResult(item);

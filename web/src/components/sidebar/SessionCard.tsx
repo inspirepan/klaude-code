@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Archive,
-  ArchiveRestore,
-  CircleCheck,
-  CirclePause,
-  Lock,
-  MessageSquare,
-} from "lucide-react";
+import { Archive, ArchiveRestore, CircleCheck, CirclePause, Lock } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { cn } from "@/lib/utils";
 import { SessionTitleText } from "@/components/SessionTitleText";
@@ -137,7 +130,6 @@ export function SessionCard({
   const title = shortenFileRefs(getSessionTitle(session));
   const updatedAt = formatRelativeTime(session.updated_at);
   const updatedAtDetailed = formatDetailedTime(session.updated_at);
-  const messageCountLabel = session.messages_count >= 0 ? String(session.messages_count) : "N/A";
   const diffSummary = session.file_change_summary;
 
   useEffect(() => {
@@ -178,7 +170,7 @@ export function SessionCard({
       <div className="group">
         <div
           className={cn(
-            "relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1 pl-2 pr-1.5 text-left transition-colors",
+            "relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-2.5 pr-2 text-left transition-colors",
             showSuccessState
               ? active
                 ? "status-success-card-settle-active"
@@ -245,7 +237,7 @@ export function SessionCard({
     <div className="group">
       <div
         className={cn(
-          "relative flex w-full flex-col gap-y-0 rounded-lg py-1 pl-1.5 pr-1.5 text-left transition-colors",
+          "relative flex w-full flex-col gap-y-0.5 rounded-lg py-1.5 pl-2 pr-2 text-left transition-colors",
           showSuccessState
             ? active
               ? "status-success-card-settle-active"
@@ -265,80 +257,68 @@ export function SessionCard({
         }}
         title={title}
       >
-        <div className="flex min-w-0 items-start gap-1.5 pl-1">
+        {/* Row 1: status icon + title */}
+        <div className="flex min-w-0 items-start gap-1.5 pl-0.5">
           <span className="mt-1 flex shrink-0">
             {getRuntimeIcon(runtime, showSuccessState, hasUnreadCompletion)}
           </span>
-          <div
-            className="min-w-0 flex-1 overflow-hidden text-sm leading-5"
-            style={{
-              display: "-webkit-box",
-              WebkitBoxOrient: "vertical",
-              WebkitLineClamp: 2,
-            }}
-          >
+          <div className="min-w-0 flex-1 truncate text-sm leading-5">
             <SessionTitleText title={title} as="span" truncate={false} />
           </div>
         </div>
 
-        <div className="flex min-w-0 items-center gap-1 pl-6 pr-1 text-2xs leading-4 text-neutral-400">
-          <div className="flex min-w-0 items-center gap-1 truncate">
-            {showWorkspace ? (
-              <>
-                <span className="truncate text-2xs text-neutral-500" title={session.work_dir}>
-                  {workDirLabel(session.work_dir)}
-                </span>
-              </>
+        {/* Row 2: workspace (optional) */}
+        {showWorkspace ? (
+          <div className="truncate pl-5 text-2xs leading-4 text-neutral-500" title={session.work_dir}>
+            {workDirLabel(session.work_dir)}
+          </div>
+        ) : null}
+
+        {/* Row 3: time · diff · lock  |  archive button */}
+        <div className="grid items-center gap-x-2 pl-5 pr-0.5 text-2xs leading-4 text-neutral-400" style={{ gridTemplateColumns: "max-content 3rem auto 1fr auto" }}>
+          <span className="whitespace-nowrap" title={updatedAtDetailed}>
+            {updatedAt}
+          </span>
+          <span>
+            <DiffStats
+              added={diffSummary.diff_lines_added}
+              removed={diffSummary.diff_lines_removed}
+            />
+          </span>
+          <span>
+            {session.read_only ? (
+              <span
+                className="inline-flex items-center rounded-full bg-amber-50 p-0.5 text-amber-700"
+                title="Read-only"
+                aria-label="Read-only"
+              >
+                <Lock className="h-3 w-3" />
+              </span>
             ) : null}
-            <MessageSquare className="h-2.5 w-2.5 shrink-0" />
-            <span>{messageCountLabel}</span>
-          </div>
-
-          {session.read_only ? (
-            <span
-              className="inline-flex shrink-0 items-center rounded-full bg-amber-50 p-0.5 text-amber-700"
-              title="Read-only"
-              aria-label="Read-only"
-            >
-              <Lock className="h-3 w-3" />
-            </span>
-          ) : null}
-
-          <DiffStats
-            added={diffSummary.diff_lines_added}
-            removed={diffSummary.diff_lines_removed}
-          />
-
-          <div className="relative ml-auto flex items-center">
-            <span
-              className="whitespace-nowrap transition-opacity group-hover:opacity-0"
-              title={updatedAtDetailed}
-            >
-              {updatedAt}
-            </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="pointer-events-none absolute right-0 top-1/2 inline-flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:outline-none focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
-                  aria-label={session.archived ? "Unarchive session" : "Archive session"}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onToggleArchive(session.id, !session.archived);
-                  }}
-                >
-                  {session.archived ? (
-                    <ArchiveRestore className="h-3 w-3" />
-                  ) : (
-                    <Archive className="h-3 w-3" />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {session.archived ? "Unarchive session" : "Archive session"}
-              </TooltipContent>
-            </Tooltip>
-          </div>
+          </span>
+          <span />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="pointer-events-none inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:outline-none focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
+                aria-label={session.archived ? "Unarchive session" : "Archive session"}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleArchive(session.id, !session.archived);
+                }}
+              >
+                {session.archived ? (
+                  <ArchiveRestore className="h-3 w-3" />
+                ) : (
+                  <Archive className="h-3 w-3" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {session.archived ? "Unarchive session" : "Archive session"}
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </div>

@@ -31,7 +31,7 @@ export function ToolBlockHeader({
 
   return (
     <>
-      <div className="flex items-start gap-1.5 self-stretch">
+      <div className={`flex gap-1.5 ${open ? "items-start self-stretch" : "items-center"}`}>
         <div className={`flex flex-col items-center ${open ? "self-stretch" : ""}`}>
           <ChevronRight
             className={`h-4 w-4 shrink-0 text-neutral-300 transition-transform duration-150 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
@@ -43,7 +43,7 @@ export function ToolBlockHeader({
         </span>
       </div>
 
-      <div className="flex min-h-[22px] min-w-0 items-center gap-1.5">
+      <div className="flex min-w-0 items-center gap-1.5">
         {detail ? (
           FILE_PATH_TOOLS.has(item.toolName) ? (
             <FilePath

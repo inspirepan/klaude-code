@@ -1,4 +1,4 @@
-import { Lock, PanelLeftOpen, PanelRightOpen, Search } from "lucide-react";
+import { Lock, PanelLeftOpen, Search } from "lucide-react";
 import { SessionTitleText } from "@/components/SessionTitleText";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
@@ -8,9 +8,7 @@ interface MessageListHeaderProps {
   workspacePath: string;
   sessionReadOnly: boolean;
   sidebarOpen: boolean;
-  rightSidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
-  setRightSidebarOpen: (open: boolean) => void;
   onSearchOpen: () => void;
 }
 
@@ -20,9 +18,7 @@ export function MessageListHeader({
   workspacePath,
   sessionReadOnly,
   sidebarOpen,
-  rightSidebarOpen,
   setSidebarOpen,
-  setRightSidebarOpen,
   onSearchOpen,
 }: MessageListHeaderProps): JSX.Element {
   return (
@@ -109,38 +105,6 @@ export function MessageListHeader({
           </span>
         </TooltipContent>
       </Tooltip>
-      {!rightSidebarOpen ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-              onClick={() => {
-                setRightSidebarOpen(true);
-              }}
-              aria-label="Expand right sidebar"
-            >
-              <PanelRightOpen className="h-4 w-4" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent className="flex items-center gap-1.5">
-            <span>Expand right sidebar</span>
-            <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-              <span className="inline-flex whitespace-pre text-xs leading-none">
-                <kbd className="inline-flex font-sans">
-                  <span className="min-w-[1em] text-center">⇧</span>
-                </kbd>
-                <kbd className="inline-flex font-sans">
-                  <span className="min-w-[1em] text-center">⌘</span>
-                </kbd>
-                <kbd className="inline-flex font-sans">
-                  <span className="min-w-[1em] text-center">B</span>
-                </kbd>
-              </span>
-            </span>
-          </TooltipContent>
-        </Tooltip>
-      ) : null}
     </div>
   );
 }

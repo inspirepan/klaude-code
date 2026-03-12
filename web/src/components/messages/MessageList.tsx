@@ -90,8 +90,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const runtime = useSessionStore((state) => state.runtimeBySessionId[sessionId] ?? null);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
-  const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen);
-  const setRightSidebarOpen = useAppStore((state) => state.setRightSidebarOpen);
   const items = useMessageStore((state) => state.messagesBySessionId[sessionId] ?? EMPTY_ITEMS);
   const subAgentDescBySessionId = useMessageStore(
     (state) =>
@@ -423,9 +421,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             workspacePath={workspacePath}
             sessionReadOnly={sessionReadOnly}
             sidebarOpen={sidebarOpen}
-            rightSidebarOpen={rightSidebarOpen}
             setSidebarOpen={setSidebarOpen}
-            setRightSidebarOpen={setRightSidebarOpen}
             onSearchOpen={() => setSearchOpen(true)}
           />
           <div className="mx-auto max-w-4xl space-y-5 px-4 pb-14 pt-8 sm:px-6">

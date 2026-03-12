@@ -221,7 +221,7 @@ export function LeftSidebar(): JSX.Element {
       className="relative flex shrink-0 flex-col border-r border-neutral-200 bg-neutral-50"
       style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
     >
-      <div className="flex items-center gap-1.5 px-2.5 py-1.5">
+      <div className="flex items-center gap-1.5 px-3 py-2">
         <div className="flex-1">
           <NewSessionButton
             onClick={() => {
@@ -297,7 +297,7 @@ export function LeftSidebar(): JSX.Element {
       </div>
 
       <ScrollArea className="min-h-0 w-full flex-1" type="auto">
-        <div className="px-2 pb-2">
+        <div className="px-2.5 pb-3">
           {loadError !== null ? (
             <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3">
               <div className="mb-1 font-semibold">Load failed</div>
@@ -354,16 +354,16 @@ export function LeftSidebar(): JSX.Element {
               />
             ))
           ) : (
-            <div className="space-y-3 pt-1">
+            <div className="space-y-4 pt-2">
               <div>
-                <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
+                <div className="mb-2 flex items-center gap-1.5 px-1.5">
                   <span className="text-2xs font-medium uppercase tracking-[0.02em] text-neutral-500">
                     In Progress
                   </span>
                   <span className="text-2xs text-neutral-400">{inProgressSessions.length}</span>
                 </div>
                 {inProgressSessions.length > 0 ? (
-                  <div className="space-y-0.5">
+                  <div className="space-y-1">
                     {inProgressSessions.map((session) => (
                       <SessionCard
                         key={session.id}
@@ -396,14 +396,14 @@ export function LeftSidebar(): JSX.Element {
               </div>
 
               <div>
-                <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
+                <div className="mb-2 flex items-center gap-1.5 px-1.5">
                   <span className="text-2xs font-medium uppercase tracking-[0.02em] text-neutral-500">
                     Done
                   </span>
                   <span className="text-2xs text-neutral-400">{doneSessions.length}</span>
                 </div>
                 {doneSessions.length > 0 ? (
-                  <div className="space-y-0.5">
+                  <div className="space-y-1">
                     {doneSessions.map((session) => (
                       <SessionCard
                         key={session.id}
@@ -437,7 +437,7 @@ export function LeftSidebar(): JSX.Element {
         </div>
       </ScrollArea>
 
-      <div className="relative shrink-0 px-2.5 py-1.5">
+      <div className="relative shrink-0 px-3 py-2">
         <div ref={archivedMenuRef} className="relative">
           <Tooltip>
             <TooltipTrigger asChild>

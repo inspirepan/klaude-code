@@ -2,7 +2,6 @@ import { useEffect } from "react";
 
 import { MainPanel } from "./components/layout/MainPanel";
 import { LeftSidebar } from "./components/sidebar/LeftSidebar";
-import { RightSidebar } from "./components/sidebar/RightSidebar";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { useAppStore } from "./stores/app-store";
 import { useSessionStore } from "./stores/session-store";
@@ -16,23 +15,9 @@ export default function App(): JSX.Element {
   const draftWorkDir = useSessionStore((state) => state.draftWorkDir);
   const setDraftWorkDir = useSessionStore((state) => state.setDraftWorkDir);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
-  const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
-  const setRightSidebarOpen = useAppStore((state) => state.setRightSidebarOpen);
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
-  const toggleRightSidebar = useAppStore((state) => state.toggleRightSidebar);
-  const activeSession =
-    activeSessionId === "draft"
-      ? null
-      : (groups
-          .flatMap((group) => group.sessions)
-          .find((session) => session.id === activeSessionId) ?? null);
-  const hasRightSidebarContent =
-    activeSession !== null &&
-    (activeSession.todos.length > 0 ||
-      activeSession.file_change_summary.created_files.length > 0 ||
-      activeSession.file_change_summary.edited_files.length > 0);
 
   useEffect(() => {
     void init();
@@ -59,13 +44,12 @@ export default function App(): JSX.Element {
     const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
       if (e.matches) {
         setSidebarOpen(false);
-        setRightSidebarOpen(false);
       }
     };
     handleChange(mq);
     mq.addEventListener("change", handleChange);
     return () => mq.removeEventListener("change", handleChange);
-  }, [setRightSidebarOpen, setSidebarOpen]);
+  }, [setSidebarOpen]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -75,13 +59,9 @@ export default function App(): JSX.Element {
 
       const key = event.key.toLowerCase();
 
-      if (key === "b") {
+      if (key === "b" && !event.shiftKey) {
         event.preventDefault();
-        if (event.shiftKey) {
-          toggleRightSidebar();
-        } else {
-          toggleSidebar();
-        }
+        toggleSidebar();
         return;
       }
 
@@ -105,29 +85,13 @@ export default function App(): JSX.Element {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [
-    activeSessionId,
-    draftWorkDir,
-    groups,
-    setDraftWorkDir,
-    setNewSessionOverlayOpen,
-    toggleRightSidebar,
-    toggleSidebar,
-  ]);
-
-  useEffect(() => {
-    if (window.matchMedia(`(max-width: ${NARROW_BREAKPOINT}px)`).matches) {
-      return;
-    }
-    setRightSidebarOpen(hasRightSidebarContent);
-  }, [hasRightSidebarContent, setRightSidebarOpen]);
+  }, [activeSessionId, draftWorkDir, groups, setDraftWorkDir, setNewSessionOverlayOpen, toggleSidebar]);
 
   return (
     <TooltipProvider delayDuration={150}>
       <div className="app-shell">
         {sidebarOpen ? <LeftSidebar /> : null}
         <MainPanel />
-        {rightSidebarOpen ? <RightSidebar /> : null}
       </div>
     </TooltipProvider>
   );
