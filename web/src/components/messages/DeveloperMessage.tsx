@@ -89,13 +89,20 @@ function CollapsibleRow({
 
       <div className="min-w-0" />
 
-      {open ? (
-        <div className="col-span-2 mt-1 grid min-w-0 grid-cols-[16px_1fr] gap-x-1.5">
-          <div className="flex justify-center">
-            <div className="w-px bg-neutral-200" />
-          </div>
-          <div className="min-w-0 pb-1.5" onClick={(e) => e.stopPropagation()}>
-            {children}
+      {expandable ? (
+        <div
+          className="col-span-2 grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
+          style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
+        >
+          <div className="overflow-hidden">
+            <div className="mt-1 grid min-w-0 grid-cols-[16px_1fr] gap-x-1.5">
+              <div className="flex justify-center">
+                <div className="w-px bg-neutral-200" />
+              </div>
+              <div className="min-w-0 pb-1.5" onClick={(e) => e.stopPropagation()}>
+                {children}
+              </div>
+            </div>
           </div>
         </div>
       ) : null}

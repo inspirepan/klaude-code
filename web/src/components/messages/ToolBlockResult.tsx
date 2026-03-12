@@ -33,13 +33,16 @@ export function ToolBlockResult({
   showMore,
   onToggleShowMore,
 }: ToolBlockResultProps): JSX.Element | null {
-  if (!open) return null;
-
   const subTextClass = "text-sm";
   const miniTextClass = compact ? "text-2xs" : "text-xs";
 
   return (
-    <div className="col-span-2 mt-0.5 grid min-w-0 grid-cols-[16px_1fr] gap-x-1.5">
+    <div
+      className="col-span-2 grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
+      style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
+    >
+    <div className="overflow-hidden">
+    <div className="mt-0.5 grid min-w-0 grid-cols-[16px_1fr] gap-x-1.5">
       <div className="flex justify-center">
         {hideResultRail ? null : <div className="w-px bg-neutral-200" />}
       </div>
@@ -102,6 +105,8 @@ export function ToolBlockResult({
           <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-400`}>(no content)</div>
         ) : null}
       </div>
+    </div>
+    </div>
     </div>
   );
 }
