@@ -11,6 +11,7 @@ import pytest
 import klaude_code.core.agent.turn as turn_module
 from klaude_code.core.agent.task import SessionContext
 from klaude_code.core.agent.turn import TurnError, TurnExecutionContext, TurnExecutor
+from klaude_code.core.tool.tool_runner import ToolCallRequest, ToolExecutionResult
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import events, llm_param, message
 
@@ -227,3 +228,54 @@ def test_interrupt_with_only_thinking_does_not_persist_continuation_prompt() -> 
 
     retry_user_messages = [item for item in history if isinstance(item, message.UserMessage)]
     assert len(retry_user_messages) == 0
+
+
+def test_interrupt_writes_tool_result_before_continuation_prompt() -> None:
+    stream = InterruptWithPartialTextStream()
+    executor, history = _build_turn_executor(stream)
+    tool_call_id = "toolu_123"
+    history.append(
+        message.AssistantMessage(
+            parts=[
+                message.TextPart(text="验证编译是否通过："),
+                message.ToolCallPart(
+                    call_id=tool_call_id,
+                    tool_name="Bash",
+                    arguments_json='{"command":"go build ./..."}',
+                ),
+            ],
+            response_id="r1",
+            stop_reason="tool_use",
+        )
+    )
+    executor._accumulated_assistant_text = ["验证编译是否通过："]  # pyright: ignore[reportPrivateUsage]
+
+    class _StubToolExecutor:
+        def on_interrupt(self) -> list[ToolExecutionResult]:
+            tool_call = ToolCallRequest(
+                response_id="r1",
+                call_id=tool_call_id,
+                tool_name="Bash",
+                arguments_json='{"command":"go build ./..."}',
+            )
+            tool_result = message.ToolResultMessage(
+                call_id=tool_call_id,
+                tool_name="Bash",
+                output_text="[Request interrupted by user for tool use]",
+                status="aborted",
+            )
+            history.append(tool_result)
+            return [ToolExecutionResult(tool_call=tool_call, tool_result=tool_result, is_last_in_turn=True)]
+
+    executor._tool_executor = cast(Any, _StubToolExecutor())  # pyright: ignore[reportPrivateUsage]
+
+    _ = executor.on_interrupt()
+
+    assert isinstance(history[0], message.AssistantMessage)
+    assert isinstance(history[1], message.ToolResultMessage)
+    retry_user_message = history[2]
+    assert isinstance(retry_user_message, message.UserMessage)
+
+    retry_prompt = message.join_text_parts(retry_user_message.parts)
+    assert "<assistant>" in retry_prompt
+    assert "</assistant>" in retry_prompt
