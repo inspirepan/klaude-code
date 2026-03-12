@@ -6,6 +6,7 @@ import { useSessionStore } from "../../stores/session-store";
 import type { SessionStatusState } from "../../stores/event-reducer";
 import type { MessageItem as MessageItemType } from "../../types/message";
 import type { SessionSummary } from "../../types/session";
+import { splitSessionTitle } from "@/components/session-title";
 import { MessageListHeader } from "./MessageListHeader";
 import { MessageRow } from "./MessageRow";
 import { SearchBar } from "./SearchBar";
@@ -33,18 +34,6 @@ function getSessionTitle(session: SessionSummary | null): string {
     return firstMessage;
   }
   return "New session";
-}
-
-function splitSessionTitle(title: string): { primary: string; secondary: string | null } {
-  const separator = " — ";
-  const separatorIndex = title.indexOf(separator);
-  if (separatorIndex === -1) {
-    return { primary: title, secondary: null };
-  }
-  return {
-    primary: title.slice(0, separatorIndex),
-    secondary: title.slice(separatorIndex + separator.length),
-  };
 }
 
 interface SectionItemBlock {

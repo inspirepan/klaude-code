@@ -473,6 +473,8 @@ export function LeftSidebar(): JSX.Element {
                         sessions={group.sessions}
                         collapsed={archivedCollapsedByWorkDir[group.work_dir] ?? false}
                         compactSessions
+                        compactHeader
+                        hideNewSessionButton
                         activeSessionId={activeSessionId}
                         runtimeBySessionId={runtimeBySessionId}
                         completedUnreadBySessionId={completedUnreadBySessionId}

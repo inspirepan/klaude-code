@@ -36,7 +36,7 @@ export function MessageRow({
       ref={itemRef}
       className={
         variant === "main"
-          ? `group/row flex min-w-0 gap-4 ${isUser ? "sticky top-12 z-10 -mx-4 -mt-2.5 px-4 pt-2.5 sm:-mx-6 sm:px-6" : ""}`
+          ? `group/row flex min-w-0 gap-4 ${isUser ? "-mx-4 -mt-2.5 px-4 pt-2.5 sm:-mx-6 sm:px-6" : ""}`
           : "group/row relative min-w-0"
       }
     >

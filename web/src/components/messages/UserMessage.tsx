@@ -5,7 +5,7 @@ import type { UserMessageItem } from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
 import { HighlightText } from "./HighlightText";
 
-const USER_MESSAGE_LINE_LIMIT = 1;
+const USER_MESSAGE_LINE_LIMIT = 4;
 
 interface UserMessageProps {
   item: UserMessageItem;
@@ -44,9 +44,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
       const maxHeight = lineHeight * USER_MESSAGE_LINE_LIMIT;
       setCollapsedTextMaxHeight(maxHeight);
       const hasVerticalOverflow = node.scrollHeight > maxHeight + 1;
-      const hasHorizontalOverflow =
-        USER_MESSAGE_LINE_LIMIT === 1 && node.scrollWidth > node.clientWidth + 1;
-      setCanExpandText(hasVerticalOverflow || hasHorizontalOverflow);
+      setCanExpandText(hasVerticalOverflow);
     };
 
     const frameId = window.requestAnimationFrame(updateMetrics);
@@ -125,11 +123,9 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
             <p
               ref={textRef}
               style={
-                USER_MESSAGE_LINE_LIMIT === 1
-                  ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }
-                  : collapsedTextMaxHeight !== null
-                    ? { maxHeight: `${collapsedTextMaxHeight}px`, overflow: "hidden" }
-                    : undefined
+                collapsedTextMaxHeight !== null
+                  ? { maxHeight: `${collapsedTextMaxHeight}px`, overflow: "hidden" }
+                  : undefined
               }
               className={`${compact ? "text-[13px]" : "text-sm"} m-0 whitespace-pre-wrap break-words leading-relaxed text-user-bubble-text`}
             >

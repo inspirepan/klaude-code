@@ -10,6 +10,8 @@ interface ProjectGroupProps {
   sessions: SessionSummary[];
   collapsed: boolean;
   compactSessions?: boolean;
+  compactHeader?: boolean;
+  hideNewSessionButton?: boolean;
   activeSessionId: string | "draft";
   runtimeBySessionId: Record<string, SessionRuntimeState>;
   completedUnreadBySessionId: Record<string, boolean>;
@@ -32,6 +34,8 @@ export function ProjectGroup({
   sessions,
   collapsed,
   compactSessions = false,
+  compactHeader = false,
+  hideNewSessionButton = false,
   activeSessionId,
   runtimeBySessionId,
   completedUnreadBySessionId,
@@ -57,26 +61,35 @@ export function ProjectGroup({
             <div className="truncate text-sm font-normal leading-5 text-neutral-800">
               {workDirLabel(workDir)}
             </div>
-            <div className="mt-0.5 truncate text-2xs leading-4 text-neutral-400" title={workDir}>
+            <div
+              className={
+                compactHeader
+                  ? "mt-0.5 truncate text-[11px] leading-4 text-neutral-400"
+                  : "mt-0.5 truncate text-2xs leading-4 text-neutral-400"
+              }
+              title={workDir}
+            >
               {workDir}
             </div>
           </div>
         </CollapsibleTrigger>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className="mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
-              onClick={() => {
-                onSelectDraft(workDir);
-              }}
-              aria-label={`New session in ${workDir}`}
-            >
-              <SquarePen className="h-3.5 w-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>New session in {workDir}</TooltipContent>
-        </Tooltip>
+        {hideNewSessionButton ? null : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+                onClick={() => {
+                  onSelectDraft(workDir);
+                }}
+                aria-label={`New session in ${workDir}`}
+              >
+                <SquarePen className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>New session in {workDir}</TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       <CollapsibleContent className="ml-3.5 border-l border-neutral-200 pl-2">

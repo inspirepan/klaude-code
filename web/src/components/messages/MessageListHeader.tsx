@@ -1,4 +1,5 @@
 import { Lock, PanelLeftOpen, PanelRightOpen, Search } from "lucide-react";
+import { SessionTitleText } from "@/components/SessionTitleText";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 interface MessageListHeaderProps {
@@ -57,14 +58,12 @@ export function MessageListHeader({
       ) : null}
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-baseline gap-2 text-sm leading-5">
-          <span className="truncate font-semibold text-neutral-800" title={primaryTitle}>
-            {primaryTitle}
-          </span>
-          {secondaryTitle ? (
-            <span className="truncate text-neutral-500" title={secondaryTitle}>
-              {secondaryTitle}
-            </span>
-          ) : null}
+          <SessionTitleText
+            title={secondaryTitle ? `${primaryTitle} — ${secondaryTitle}` : primaryTitle}
+            as="div"
+            className="flex min-w-0 items-baseline"
+            primaryClassName="font-semibold"
+          />
           {sessionReadOnly ? (
             <span className="group/readonly relative inline-flex shrink-0 cursor-help items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-2xs font-medium text-amber-700">
               <Lock className="h-3 w-3" />

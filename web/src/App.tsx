@@ -22,6 +22,17 @@ export default function App(): JSX.Element {
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
   const toggleRightSidebar = useAppStore((state) => state.toggleRightSidebar);
+  const activeSession =
+    activeSessionId === "draft"
+      ? null
+      : (groups
+          .flatMap((group) => group.sessions)
+          .find((session) => session.id === activeSessionId) ?? null);
+  const hasRightSidebarContent =
+    activeSession !== null &&
+    (activeSession.todos.length > 0 ||
+      activeSession.file_change_summary.created_files.length > 0 ||
+      activeSession.file_change_summary.edited_files.length > 0);
 
   useEffect(() => {
     void init();
@@ -103,6 +114,13 @@ export default function App(): JSX.Element {
     toggleRightSidebar,
     toggleSidebar,
   ]);
+
+  useEffect(() => {
+    if (window.matchMedia(`(max-width: ${NARROW_BREAKPOINT}px)`).matches) {
+      return;
+    }
+    setRightSidebarOpen(hasRightSidebarContent);
+  }, [hasRightSidebarContent, setRightSidebarOpen]);
 
   return (
     <TooltipProvider delayDuration={150}>

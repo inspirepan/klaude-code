@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { cn } from "@/lib/utils";
+import { SessionTitleText } from "@/components/SessionTitleText";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SessionCardProps {
@@ -99,18 +100,6 @@ function shortenFileRefs(text: string): string {
   return text.replace(/@[\w./\\-]+\/([^/\s]+)/g, "@$1");
 }
 
-function splitSessionTitle(title: string): { primary: string; secondary: string | null } {
-  const separator = " — ";
-  const separatorIndex = title.indexOf(separator);
-  if (separatorIndex === -1) {
-    return { primary: title, secondary: null };
-  }
-  return {
-    primary: title.slice(0, separatorIndex),
-    secondary: title.slice(separatorIndex + separator.length),
-  };
-}
-
 function workDirLabel(workDir: string): string {
   const parts = workDir.split("/").filter((segment) => segment.length > 0);
   if (parts.length === 0) {
@@ -146,7 +135,6 @@ export function SessionCard({
   const successAnimationFrameRef = useRef<number | null>(null);
   const successTimeoutRef = useRef<number | null>(null);
   const title = shortenFileRefs(getSessionTitle(session));
-  const { primary: primaryTitle, secondary: secondaryTitle } = splitSessionTitle(title);
   const updatedAt = formatRelativeTime(session.updated_at);
   const updatedAtDetailed = formatDetailedTime(session.updated_at);
   const messageCountLabel = session.messages_count >= 0 ? String(session.messages_count) : "N/A";
@@ -210,9 +198,12 @@ export function SessionCard({
           }}
           title={title}
         >
-          <span className="min-w-0 flex-1 truncate text-[13px] leading-5 text-neutral-800">
-            {title}
-          </span>
+          <SessionTitleText
+            title={title}
+            as="div"
+            className="flex min-w-0 flex-1 items-baseline text-[13px] leading-5"
+            secondaryClassName="shrink truncate"
+          />
           <DiffStats
             added={diffSummary.diff_lines_added}
             removed={diffSummary.diff_lines_removed}
@@ -286,13 +277,7 @@ export function SessionCard({
               WebkitLineClamp: 2,
             }}
           >
-            <span className="text-neutral-800">{primaryTitle}</span>
-            {secondaryTitle ? (
-              <>
-                <span className="mx-1 text-neutral-300">|</span>
-                <span className="text-neutral-500">{secondaryTitle}</span>
-              </>
-            ) : null}
+            <SessionTitleText title={title} as="span" truncate={false} />
           </div>
         </div>
 
@@ -300,7 +285,7 @@ export function SessionCard({
           <div className="flex min-w-0 items-center gap-1 truncate">
             {showWorkspace ? (
               <>
-                <span className="truncate" title={session.work_dir}>
+                <span className="truncate text-[11px] text-neutral-500" title={session.work_dir}>
                   {workDirLabel(session.work_dir)}
                 </span>
               </>
