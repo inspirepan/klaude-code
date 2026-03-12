@@ -141,7 +141,9 @@ export function RightSidebar(): JSX.Element {
                       <span className={`w-4 shrink-0 text-center ${config.markClass}`}>
                         {config.mark}
                       </span>
-                      <span className={textClass}>{todo.content}</span>
+                      <span className={`${textClass} min-w-0 flex-1 break-words`}>
+                        {todo.content}
+                      </span>
                     </div>
                   );
                 })}
