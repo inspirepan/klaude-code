@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, FolderTree, List, PanelLeftClose } from "lucide-react";
+import { Archive, FolderTree, List, PanelLeftClose } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
 import { SessionCard } from "./SessionCard";
@@ -24,18 +24,17 @@ export function LeftSidebar(): JSX.Element {
   const refreshSessions = useSessionStore((state) => state.refreshSessions);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
-  const [archivedExpanded, setArchivedExpanded] = useState(false);
+  const [archivedMenuOpen, setArchivedMenuOpen] = useState(false);
   const [sessionListView, setSessionListView] = useState<"grouped" | "flat">("flat");
   const [sidebarWidth, setSidebarWidth] = useState(256);
-  const [archivedMaxHeight, setArchivedMaxHeight] = useState(320);
   const [archiveUndoSessionId, setArchiveUndoSessionId] = useState<string | null>(null);
   const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
     Record<string, boolean>
   >({});
   const sidebarRef = useRef<HTMLElement | null>(null);
+  const archivedMenuRef = useRef<HTMLDivElement | null>(null);
   const archiveUndoTimeoutRef = useRef<number | null>(null);
   const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
-  const archivedResizeCleanupRef = useRef<(() => void) | null>(null);
 
   const clampSidebarWidth = (width: number): number => {
     const minWidth = 256;
@@ -48,13 +47,6 @@ export function LeftSidebar(): JSX.Element {
     return Math.min(Math.max(width, minWidth), maxWidth);
   };
 
-  const clampArchivedHeight = (height: number): number => {
-    const sidebarHeight = sidebarRef.current?.clientHeight ?? window.innerHeight;
-    const minHeight = 120;
-    const maxHeight = Math.max(minHeight, sidebarHeight - 220);
-    return Math.min(Math.max(height, minHeight), maxHeight);
-  };
-
   useEffect(() => {
     return () => {
       if (archiveUndoTimeoutRef.current !== null) {
@@ -64,12 +56,33 @@ export function LeftSidebar(): JSX.Element {
         sidebarResizeCleanupRef.current();
         sidebarResizeCleanupRef.current = null;
       }
-      if (archivedResizeCleanupRef.current !== null) {
-        archivedResizeCleanupRef.current();
-        archivedResizeCleanupRef.current = null;
-      }
     };
   }, []);
+
+  useEffect(() => {
+    if (!archivedMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (!archivedMenuRef.current?.contains(event.target as Node)) {
+        setArchivedMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        setArchivedMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [archivedMenuOpen]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
@@ -424,109 +437,73 @@ export function LeftSidebar(): JSX.Element {
         </div>
       </ScrollArea>
 
-      <div className="relative shrink-0 border-t border-neutral-200/70 bg-neutral-50 px-2.5 py-1.5 shadow-[0_-1px_0_rgba(255,255,255,0.7)]">
-        <div className="pointer-events-none absolute inset-x-0 -top-2 h-2 bg-gradient-to-t from-black/[0.02] to-transparent" />
-        {archivedExpanded && archivedGroups.length > 0 ? (
-          <div className="mb-0 flex items-center justify-center">
-            <div
-              role="separator"
-              aria-orientation="horizontal"
-              aria-label="Resize archived list"
-              className="flex h-1.5 w-full cursor-row-resize items-center justify-center"
-              onPointerDown={(event) => {
-                event.preventDefault();
-                const startY = event.clientY;
-                const startHeight = archivedMaxHeight;
-                const onPointerMove = (moveEvent: PointerEvent): void => {
-                  const deltaY = startY - moveEvent.clientY;
-                  setArchivedMaxHeight(clampArchivedHeight(startHeight + deltaY));
-                };
-                const onPointerUp = (): void => {
-                  cleanup();
-                  archivedResizeCleanupRef.current = null;
-                };
-                const cleanup = (): void => {
-                  window.removeEventListener("pointermove", onPointerMove);
-                  window.removeEventListener("pointerup", onPointerUp);
-                };
+      <div className="relative shrink-0 px-2.5 py-1.5">
+        <div ref={archivedMenuRef} className="relative">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                onClick={() => {
+                  setArchivedMenuOpen((prev) => !prev);
+                }}
+                aria-label="Archived sessions"
+              >
+                <Archive className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Archived sessions</TooltipContent>
+          </Tooltip>
 
-                if (archivedResizeCleanupRef.current !== null) {
-                  archivedResizeCleanupRef.current();
-                }
-                archivedResizeCleanupRef.current = cleanup;
-                window.addEventListener("pointermove", onPointerMove);
-                window.addEventListener("pointerup", onPointerUp);
-              }}
-            >
-              <span className="h-1 w-10 rounded-full bg-neutral-300/80" />
-            </div>
-          </div>
-        ) : null}
-        <div>
-          <button
-            type="button"
-            className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900"
-            onClick={() => {
-              setArchivedExpanded((prev) => {
-                const nextExpanded = !prev;
-                if (nextExpanded) {
-                  setArchivedMaxHeight((current) => clampArchivedHeight(current));
-                }
-                return nextExpanded;
-              });
-            }}
-          >
-            {archivedExpanded ? (
-              <ChevronDown className="h-4 w-4 shrink-0" />
-            ) : (
-              <ChevronRight className="h-4 w-4 shrink-0" />
-            )}
-            <span className="flex-1 text-left text-xs">Archived</span>
-            <span className="text-2xs text-neutral-400">{archivedSessionCount}</span>
-          </button>
-        </div>
-        {archivedExpanded ? (
-          archivedGroups.length > 0 ? (
-            <ScrollArea
-              className="mt-1.5 w-full"
-              viewportClassName="!h-auto"
-              style={{ maxHeight: `${archivedMaxHeight}px` }}
-            >
-              <div className="pt-1">
-                {archivedGroups.map((group) => (
-                  <ProjectGroup
-                    key={`archived-${group.work_dir}`}
-                    workDir={group.work_dir}
-                    sessions={group.sessions}
-                    collapsed={archivedCollapsedByWorkDir[group.work_dir] ?? false}
-                    compactSessions
-                    activeSessionId={activeSessionId}
-                    runtimeBySessionId={runtimeBySessionId}
-                    completedUnreadBySessionId={completedUnreadBySessionId}
-                    onToggle={() => {
-                      setArchivedCollapsedByWorkDir((prev) => ({
-                        ...prev,
-                        [group.work_dir]: !(prev[group.work_dir] ?? false),
-                      }));
-                    }}
-                    onSelectDraft={(workDir) => {
-                      openNewSessionOverlay(workDir);
-                    }}
-                    onSelectSession={(sessionId) => {
-                      setNewSessionOverlayOpen(false);
-                      void selectSession(sessionId);
-                    }}
-                    onToggleArchive={(sessionId, archived) => {
-                      handleToggleArchive(sessionId, archived);
-                    }}
-                  />
-                ))}
+          {archivedMenuOpen ? (
+            <div className="absolute bottom-full left-0 z-40 mb-2 w-[320px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-neutral-200/80 bg-white p-1 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
+              <div className="flex items-center justify-between border-b border-neutral-100 px-2 py-1.5">
+                <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-neutral-500">
+                  Archived
+                </span>
+                <span className="text-2xs text-neutral-400">{archivedSessionCount}</span>
               </div>
-            </ScrollArea>
-          ) : (
-            <div className="mt-1.5 px-2 py-1 text-2xs text-neutral-400">No archived sessions</div>
-          )
-        ) : null}
+              {archivedGroups.length > 0 ? (
+                <ScrollArea className="w-full" viewportClassName="max-h-80" type="auto">
+                  <div className="pt-1">
+                    {archivedGroups.map((group) => (
+                      <ProjectGroup
+                        key={`archived-${group.work_dir}`}
+                        workDir={group.work_dir}
+                        sessions={group.sessions}
+                        collapsed={archivedCollapsedByWorkDir[group.work_dir] ?? false}
+                        compactSessions
+                        activeSessionId={activeSessionId}
+                        runtimeBySessionId={runtimeBySessionId}
+                        completedUnreadBySessionId={completedUnreadBySessionId}
+                        onToggle={() => {
+                          setArchivedCollapsedByWorkDir((prev) => ({
+                            ...prev,
+                            [group.work_dir]: !(prev[group.work_dir] ?? false),
+                          }));
+                        }}
+                        onSelectDraft={(workDir) => {
+                          setArchivedMenuOpen(false);
+                          openNewSessionOverlay(workDir);
+                        }}
+                        onSelectSession={(sessionId) => {
+                          setArchivedMenuOpen(false);
+                          setNewSessionOverlayOpen(false);
+                          void selectSession(sessionId);
+                        }}
+                        onToggleArchive={(sessionId, archived) => {
+                          handleToggleArchive(sessionId, archived);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="px-3 py-3 text-xs text-neutral-400">No archived sessions</div>
+              )}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {archiveUndoSessionId !== null ? (
