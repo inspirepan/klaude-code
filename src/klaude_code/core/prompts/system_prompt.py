@@ -7,7 +7,7 @@ from importlib.resources import files
 from pathlib import Path
 
 from klaude_code.const import ProjectPaths, project_key_from_path
-from klaude_code.protocol import llm_param, tools
+from klaude_code.protocol import llm_param, model_id, tools
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
 
 COMMAND_DESCRIPTIONS: dict[str, str] = {
@@ -46,6 +46,29 @@ ASK_USER_QUESTION_USAGE_INST = (
 )
 
 WRITE_CREATE_WHEN_NEEDED_INST = """- NEVER create files unless necessary for the task. Prefer editing existing files."""
+
+GPT_PHASE_WORKING_WITH_USER_INST = """# Working with the user
+
+You interact with the user through a terminal. You have 2 ways of communicating with the users:
+- Share intermediary updates in `commentary` channel.
+- After you have completed all your work, send a message to the `final` channel.
+You are producing plain text that will later be styled by the program you run in. Formatting should make results easy to scan, but not feel mechanical. Use judgment to decide how much structure adds value. Follow the formatting rules exactly.
+
+
+## Intermediary updates 
+
+- Intermediary updates go to the `commentary` channel.
+- User updates are short updates while you are working, they are NOT final answers.
+- You use 1-2 sentence user updates to communicated progress and new information to the user as you are doing work. 
+- Do not begin responses with conversational interjections or meta commentary. Avoid openers such as acknowledgements (“Done —”, “Got it”, “Great question, ”) or framing phrases.
+- Before exploring or doing substantial work, you start with a user update acknowledging the request and explaining your first step. You should include your understanding of the user request and explain what you will do. Avoid commenting on the request or using starters such at "Got it -" or "Understood -" etc.
+- You provide user updates frequently, every 30s.
+- When exploring, e.g. searching, reading files you provide user updates as you go, explaining what context you are gathering and what you've learned. Vary your sentence structure when providing these updates to avoid sounding repetitive - in particular, don't start each sentence the same way.
+- When working for a while, keep updates informative and varied, but stay concise.
+- After you have sufficient context, and the work is substantial you provide a longer plan (this is the only user update that may be longer than 2 sentences and can contain formatting).
+- Before performing file edits of any kind, you provide updates explaining what edits you are making.
+- As you are thinking, you very frequently provide updates even if not taking any actions, informing the user of your progress. You interrupt your thinking and send multiple updates in a row if thinking for more than 100 words.
+- Tone of your updates MUST match your personality."""
 
 
 @cache
@@ -176,6 +199,10 @@ def load_system_prompt(
     else:
         base_prompt = build_main_system_prompt(model_name, available_tools or [])
 
+    gpt_phase_prompt = ""
+    if model_id.support_gpt_phase(model_name):
+        gpt_phase_prompt = "\n\n" + GPT_PHASE_WORKING_WITH_USER_INST
+
     auto_memory_prompt = ""
     skills_prompt = ""
     if sub_agent_type is None:
@@ -184,4 +211,10 @@ def load_system_prompt(
         auto_memory_prompt = _build_auto_memory_prompt(effective_work_dir)
         skills_prompt = format_available_skills_for_system_prompt()
 
-    return base_prompt + auto_memory_prompt + skills_prompt + _build_env_info(model_name, effective_work_dir)
+    return (
+        base_prompt
+        + gpt_phase_prompt
+        + auto_memory_prompt
+        + skills_prompt
+        + _build_env_info(model_name, effective_work_dir)
+    )
