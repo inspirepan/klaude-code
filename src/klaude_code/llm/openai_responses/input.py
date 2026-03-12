@@ -137,6 +137,7 @@ def convert_history_to_input(
                 assistant_text_parts: list[responses.ResponseOutputTextParam] = []
                 pending_thinking_text: str | None = None
                 pending_signature: str | None = None
+                assistant_phase = msg.phase
                 native_thinking_parts, degraded_for_message = split_thinking_parts(msg, model_name)
                 native_thinking_ids = {id(part) for part in native_thinking_parts}
                 if degraded_for_message:
@@ -148,7 +149,7 @@ def convert_history_to_input(
                         )
                     )
 
-                def flush_text() -> None:
+                def flush_text(bound_phase: message.AssistantPhase | None = assistant_phase) -> None:
                     nonlocal assistant_text_parts
                     if not assistant_text_parts:
                         return
@@ -157,6 +158,8 @@ def convert_history_to_input(
                         "role": "assistant",
                         "content": assistant_text_parts,
                     }
+                    if bound_phase is not None:
+                        assistant_item["phase"] = bound_phase
                     if include_input_status:
                         assistant_item["status"] = "completed"
                     items.append(

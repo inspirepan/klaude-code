@@ -97,6 +97,7 @@ def build_partial_message(
     parts: list[message.Part],
     *,
     response_id: str | None,
+    phase: message.AssistantPhase | None = None,
 ) -> message.AssistantMessage | None:
     partial_parts = build_partial_parts(parts)
     if not partial_parts:
@@ -104,5 +105,6 @@ def build_partial_message(
     return message.AssistantMessage(
         parts=partial_parts,
         response_id=response_id,
+        phase=phase,
         stop_reason="aborted",
     )

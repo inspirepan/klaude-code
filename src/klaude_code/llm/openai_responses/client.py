@@ -35,6 +35,17 @@ if TYPE_CHECKING:
 OPENAI_BETA_RESPONSES_WEBSOCKETS = "responses_websockets=2026-02-06"
 
 
+def _merge_assistant_phase(
+    current: model.AssistantPhase | None,
+    candidate: model.AssistantPhase | None,
+) -> model.AssistantPhase | None:
+    if candidate is None:
+        return current
+    if candidate == "final_answer":
+        return "final_answer"
+    return current or candidate
+
+
 def build_payload(
     param: llm_param.LLMCallParameter,
     *,
@@ -91,9 +102,13 @@ class ResponsesStreamStateManager:
         self.model_id = model_id
         self.response_id: str | None = None
         self.assistant_parts: list[message.Part] = []
+        self.assistant_phase: model.AssistantPhase | None = None
         self.stop_reason: model.StopReason | None = None
         self._new_thinking_part: bool = True  # Start fresh for first thinking part
         self._summary_count: int = 0  # Track number of summary parts seen
+
+    def set_assistant_phase(self, phase: model.AssistantPhase | None) -> None:
+        self.assistant_phase = _merge_assistant_phase(self.assistant_phase, phase)
 
     def start_new_thinking_part(self) -> bool:
         """Mark that the next thinking text should create a new ThinkingTextPart.
@@ -155,7 +170,11 @@ class ResponsesStreamStateManager:
 
         Returns None if no content has been accumulated yet.
         """
-        return build_partial_message(self.assistant_parts, response_id=self.response_id)
+        return build_partial_message(
+            self.assistant_parts,
+            response_id=self.response_id,
+            phase=self.assistant_phase,
+        )
 
 
 class ResponsesWebSocketTransport:
@@ -342,6 +361,8 @@ async def parse_responses_stream(
                         state.append_text(event.delta)
                         yield message.AssistantTextDelta(content=event.delta, response_id=state.response_id)
                 case responses.ResponseOutputItemAddedEvent() as event:
+                    if isinstance(event.item, responses.ResponseOutputMessage):
+                        state.set_assistant_phase(event.item.phase)
                     if isinstance(event.item, responses.ResponseFunctionToolCall):
                         metadata_tracker.record_token()
                         yield message.ToolCallStartDelta(
@@ -355,6 +376,7 @@ async def parse_responses_stream(
                             if item.encrypted_content:
                                 state.append_thinking_signature(item.encrypted_content)
                         case responses.ResponseOutputMessage() as item:
+                            state.set_assistant_phase(item.phase)
                             # Fallback: if no text delta was received, extract from final message
                             has_text = any(isinstance(p, message.TextPart) for p in state.assistant_parts)
                             if not has_text:
@@ -374,6 +396,18 @@ async def parse_responses_stream(
                         case _:
                             pass
                 case responses.ResponseCompletedEvent() as event:
+                    for output_item in event.response.output:
+                        if isinstance(output_item, responses.ResponseOutputMessage):
+                            state.set_assistant_phase(output_item.phase)
+                            has_text = any(isinstance(p, message.TextPart) for p in state.assistant_parts)
+                            if not has_text:
+                                text_content = "\n".join(
+                                    part.text
+                                    for part in output_item.content
+                                    if isinstance(part, responses.ResponseOutputText)
+                                )
+                                if text_content:
+                                    state.append_text(text_content)
                     error_reason = record_response_done(event.response)
                     if event.response.status != "completed":
                         error_message = f"LLM response finished with status '{event.response.status}'"
@@ -412,6 +446,7 @@ async def parse_responses_stream(
     yield message.AssistantMessage(
         parts=parts,
         response_id=state.response_id,
+        phase=state.assistant_phase,
         usage=metadata,
         stop_reason=state.stop_reason,
     )
