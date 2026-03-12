@@ -17,7 +17,7 @@ interface ComposerCardProps {
   modelDisabled?: boolean;
   modelPlaceholder?: string;
   onModelSelect: (modelName: string) => void;
-  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
+  textareaRef?: React.RefObject<HTMLTextAreaElement>;
   /** Open model dropdown above (default) or below the trigger. */
   modelDropUp?: boolean;
 }

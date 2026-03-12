@@ -45,7 +45,15 @@ export function QuestionSummaryView({
           <div className="flex items-start gap-2 pl-[calc(1ch+8px)]">
             <span className="shrink-0 text-neutral-300">&rarr;</span>
             <span className={item.answered ? "text-neutral-500" : "text-amber-600"}>
-              {item.summary}
+              {item.summary.includes("\n") ? (
+                <span className="flex flex-col">
+                  {item.summary.split("\n").map((line, li) => (
+                    <span key={li}>{line}</span>
+                  ))}
+                </span>
+              ) : (
+                item.summary
+              )}
             </span>
           </div>
         </div>
