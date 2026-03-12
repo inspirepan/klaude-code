@@ -324,15 +324,18 @@ export function SessionCard({
             removed={diffSummary.diff_lines_removed}
           />
 
-          <div className="ml-auto flex items-center">
-            <span className="whitespace-nowrap group-hover:hidden" title={updatedAtDetailed}>
+          <div className="relative ml-auto flex items-center">
+            <span
+              className="whitespace-nowrap transition-opacity group-hover:opacity-0"
+              title={updatedAtDetailed}
+            >
               {updatedAt}
             </span>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="hidden h-4 w-4 items-center justify-center rounded text-neutral-400 hover:text-neutral-700 focus:outline-none group-hover:inline-flex"
+                  className="pointer-events-none absolute right-0 top-1/2 inline-flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:outline-none focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
                   aria-label={session.archived ? "Unarchive session" : "Archive session"}
                   onClick={(event) => {
                     event.stopPropagation();
