@@ -399,6 +399,22 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
+  - model_name: hunter-alpha
+    model_id: openrouter/hunter-alpha
+    context_limit: 1048576
+    thinking:
+      type: enabled
+      budget_tokens: 2048
+    cost: { input: 0, output: 0 }
+
+  - model_name: healer-alpha
+    model_id: openrouter/healer-alpha
+    context_limit: 262144
+    thinking:
+      type: enabled
+      budget_tokens: 2048
+    cost: { input: 0, output: 0 }
+
   - model_name: kimi
     model_id: moonshotai/kimi-k2.5
     context_limit: 262144
