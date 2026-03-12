@@ -186,12 +186,12 @@ class TurnExecutor:
         the outer asyncio task.
         """
         ui_events: list[events.Event] = []
-        self._persist_continuation_prompt_on_interrupt()
         if self._tool_executor is not None:
             for exec_event in self._tool_executor.on_interrupt():
                 for ui_event in build_events_from_tool_executor_event(self._context.session_ctx.session_id, exec_event):
                     ui_events.append(ui_event)
             self._tool_executor = None
+        self._persist_continuation_prompt_on_interrupt()
         return ui_events
 
     async def run(self) -> AsyncGenerator[events.Event]:
