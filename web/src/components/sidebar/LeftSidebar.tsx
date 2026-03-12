@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronRight, PanelLeftClose, RefreshCw } from "lucide-react";
+import { Archive, FolderTree, List, PanelLeftClose } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
+import { SessionCard } from "./SessionCard";
 import { useSessionStore } from "../../stores/session-store";
 import { useAppStore } from "../../stores/app-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -23,21 +24,17 @@ export function LeftSidebar(): JSX.Element {
   const refreshSessions = useSessionStore((state) => state.refreshSessions);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
-  const [archivedExpanded, setArchivedExpanded] = useState(false);
-  const [showRefreshSuccessState, setShowRefreshSuccessState] = useState(false);
+  const [archivedMenuOpen, setArchivedMenuOpen] = useState(false);
+  const [sessionListView, setSessionListView] = useState<"grouped" | "flat">("flat");
   const [sidebarWidth, setSidebarWidth] = useState(256);
-  const [archivedMaxHeight, setArchivedMaxHeight] = useState(320);
   const [archiveUndoSessionId, setArchiveUndoSessionId] = useState<string | null>(null);
   const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
     Record<string, boolean>
   >({});
   const sidebarRef = useRef<HTMLElement | null>(null);
-  const previousLoadingRef = useRef(loading);
-  const refreshSuccessAnimationFrameRef = useRef<number | null>(null);
-  const refreshSuccessTimeoutRef = useRef<number | null>(null);
+  const archivedMenuRef = useRef<HTMLDivElement | null>(null);
   const archiveUndoTimeoutRef = useRef<number | null>(null);
   const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
-  const archivedResizeCleanupRef = useRef<(() => void) | null>(null);
 
   const clampSidebarWidth = (width: number): number => {
     const minWidth = 256;
@@ -50,43 +47,8 @@ export function LeftSidebar(): JSX.Element {
     return Math.min(Math.max(width, minWidth), maxWidth);
   };
 
-  const clampArchivedHeight = (height: number): number => {
-    const sidebarHeight = sidebarRef.current?.clientHeight ?? window.innerHeight;
-    const minHeight = 120;
-    const maxHeight = Math.max(minHeight, sidebarHeight - 220);
-    return Math.min(Math.max(height, minHeight), maxHeight);
-  };
-
-  useEffect(() => {
-    const previousLoading = previousLoadingRef.current;
-    previousLoadingRef.current = loading;
-
-    if (previousLoading && !loading) {
-      if (refreshSuccessAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(refreshSuccessAnimationFrameRef.current);
-      }
-      if (refreshSuccessTimeoutRef.current !== null) {
-        window.clearTimeout(refreshSuccessTimeoutRef.current);
-      }
-      refreshSuccessAnimationFrameRef.current = window.requestAnimationFrame(() => {
-        setShowRefreshSuccessState(true);
-        refreshSuccessAnimationFrameRef.current = null;
-        refreshSuccessTimeoutRef.current = window.setTimeout(() => {
-          setShowRefreshSuccessState(false);
-          refreshSuccessTimeoutRef.current = null;
-        }, 1600);
-      });
-    }
-  }, [loading]);
-
   useEffect(() => {
     return () => {
-      if (refreshSuccessAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(refreshSuccessAnimationFrameRef.current);
-      }
-      if (refreshSuccessTimeoutRef.current !== null) {
-        window.clearTimeout(refreshSuccessTimeoutRef.current);
-      }
       if (archiveUndoTimeoutRef.current !== null) {
         window.clearTimeout(archiveUndoTimeoutRef.current);
       }
@@ -94,10 +56,58 @@ export function LeftSidebar(): JSX.Element {
         sidebarResizeCleanupRef.current();
         sidebarResizeCleanupRef.current = null;
       }
-      if (archivedResizeCleanupRef.current !== null) {
-        archivedResizeCleanupRef.current();
-        archivedResizeCleanupRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!archivedMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (!archivedMenuRef.current?.contains(event.target as Node)) {
+        setArchivedMenuOpen(false);
       }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        setArchivedMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [archivedMenuOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.key.toLowerCase() !== "v") {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target !== null &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      setSessionListView((prev) => (prev === "grouped" ? "flat" : "grouped"));
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
@@ -128,6 +138,33 @@ export function LeftSidebar(): JSX.Element {
   const archivedSessionCount = useMemo(
     () => archivedGroups.reduce((count, group) => count + group.sessions.length, 0),
     [archivedGroups],
+  );
+
+  const activeSessions = useMemo(
+    () =>
+      groups
+        .flatMap((group) => group.sessions)
+        .filter((session) => !session.archived)
+        .sort((a, b) => b.updated_at - a.updated_at),
+    [groups],
+  );
+
+  const inProgressSessions = useMemo(
+    () =>
+      activeSessions.filter((session) => {
+        const sessionState = runtimeBySessionId[session.id]?.sessionState ?? session.session_state;
+        return sessionState !== "idle";
+      }),
+    [activeSessions, runtimeBySessionId],
+  );
+
+  const doneSessions = useMemo(
+    () =>
+      activeSessions.filter((session) => {
+        const sessionState = runtimeBySessionId[session.id]?.sessionState ?? session.session_state;
+        return sessionState === "idle";
+      }),
+    [activeSessions, runtimeBySessionId],
   );
 
   const activeSession = useMemo(
@@ -198,20 +235,37 @@ export function LeftSidebar(): JSX.Element {
               type="button"
               className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
               onClick={() => {
-                void refreshSessions();
+                setSessionListView((prev) => (prev === "grouped" ? "flat" : "grouped"));
               }}
-              aria-label="Refresh sessions"
+              aria-label={
+                sessionListView === "grouped" ? "Switch to flat view" : "Switch to grouped view"
+              }
             >
-              {loading ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : showRefreshSuccessState ? (
-                <Check className="status-success-settle h-4 w-4" />
+              {sessionListView === "grouped" ? (
+                <List className="h-4 w-4" />
               ) : (
-                <RefreshCw className="h-4 w-4" />
+                <FolderTree className="h-4 w-4" />
               )}
             </button>
           </TooltipTrigger>
-          <TooltipContent>Refresh sessions</TooltipContent>
+          <TooltipContent className="flex items-center gap-1.5">
+            <span>
+              {sessionListView === "grouped" ? "Switch to flat view" : "Switch to grouped view"}
+            </span>
+            <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+              <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">⇧</span>
+                </kbd>
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">⌘</span>
+                </kbd>
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">V</span>
+                </kbd>
+              </span>
+            </span>
+          </TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -274,136 +328,182 @@ export function LeftSidebar(): JSX.Element {
             </div>
           ) : null}
 
-          {activeGroups.map((group) => (
-            <ProjectGroup
-              key={group.work_dir}
-              workDir={group.work_dir}
-              sessions={group.sessions}
-              collapsed={collapsedByWorkDir[group.work_dir] ?? false}
-              activeSessionId={activeSessionId}
-              runtimeBySessionId={runtimeBySessionId}
-              completedUnreadBySessionId={completedUnreadBySessionId}
-              onToggle={() => {
-                toggleGroup(group.work_dir);
-              }}
-              onSelectDraft={(workDir) => {
-                openNewSessionOverlay(workDir);
-              }}
-              onSelectSession={(sessionId) => {
-                setNewSessionOverlayOpen(false);
-                void selectSession(sessionId);
-              }}
-              onToggleArchive={(sessionId, archived) => {
-                handleToggleArchive(sessionId, archived);
-              }}
-            />
-          ))}
+          {sessionListView === "grouped" ? (
+            activeGroups.map((group) => (
+              <ProjectGroup
+                key={group.work_dir}
+                workDir={group.work_dir}
+                sessions={group.sessions}
+                collapsed={collapsedByWorkDir[group.work_dir] ?? false}
+                activeSessionId={activeSessionId}
+                runtimeBySessionId={runtimeBySessionId}
+                completedUnreadBySessionId={completedUnreadBySessionId}
+                onToggle={() => {
+                  toggleGroup(group.work_dir);
+                }}
+                onSelectDraft={(workDir) => {
+                  openNewSessionOverlay(workDir);
+                }}
+                onSelectSession={(sessionId) => {
+                  setNewSessionOverlayOpen(false);
+                  void selectSession(sessionId);
+                }}
+                onToggleArchive={(sessionId, archived) => {
+                  handleToggleArchive(sessionId, archived);
+                }}
+              />
+            ))
+          ) : (
+            <div className="space-y-3 pt-1">
+              <div>
+                <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
+                  <span className="text-[11px] font-medium uppercase tracking-[0.02em] text-neutral-500">
+                    In Progress
+                  </span>
+                  <span className="text-2xs text-neutral-400">{inProgressSessions.length}</span>
+                </div>
+                {inProgressSessions.length > 0 ? (
+                  <div className="space-y-0.5">
+                    {inProgressSessions.map((session) => (
+                      <SessionCard
+                        key={session.id}
+                        session={session}
+                        active={activeSessionId === session.id}
+                        runtime={
+                          runtimeBySessionId[session.id] ?? {
+                            sessionState: session.session_state,
+                            wsState: "idle",
+                            lastError: null,
+                          }
+                        }
+                        hasUnreadCompletion={completedUnreadBySessionId[session.id] === true}
+                        showWorkspace
+                        onClick={() => {
+                          setNewSessionOverlayOpen(false);
+                          void selectSession(session.id);
+                        }}
+                        onToggleArchive={(sessionId, archived) => {
+                          handleToggleArchive(sessionId, archived);
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-1.5 py-1 text-2xs text-neutral-400">
+                    No in-progress sessions
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
+                  <span className="text-[11px] font-medium uppercase tracking-[0.02em] text-neutral-500">
+                    Done
+                  </span>
+                  <span className="text-2xs text-neutral-400">{doneSessions.length}</span>
+                </div>
+                {doneSessions.length > 0 ? (
+                  <div className="space-y-0.5">
+                    {doneSessions.map((session) => (
+                      <SessionCard
+                        key={session.id}
+                        session={session}
+                        active={activeSessionId === session.id}
+                        runtime={
+                          runtimeBySessionId[session.id] ?? {
+                            sessionState: session.session_state,
+                            wsState: "idle",
+                            lastError: null,
+                          }
+                        }
+                        hasUnreadCompletion={completedUnreadBySessionId[session.id] === true}
+                        showWorkspace
+                        onClick={() => {
+                          setNewSessionOverlayOpen(false);
+                          void selectSession(session.id);
+                        }}
+                        onToggleArchive={(sessionId, archived) => {
+                          handleToggleArchive(sessionId, archived);
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-1.5 py-1 text-2xs text-neutral-400">No done sessions</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
-      <div className="relative shrink-0 border-t border-neutral-200/70 bg-neutral-50 px-2.5 py-1.5 shadow-[0_-1px_0_rgba(255,255,255,0.7)]">
-        <div className="pointer-events-none absolute inset-x-0 -top-2 h-2 bg-gradient-to-t from-black/[0.02] to-transparent" />
-        {archivedExpanded && archivedGroups.length > 0 ? (
-          <div className="mb-0 flex items-center justify-center">
-            <div
-              role="separator"
-              aria-orientation="horizontal"
-              aria-label="Resize archived list"
-              className="flex h-1.5 w-full cursor-row-resize items-center justify-center"
-              onPointerDown={(event) => {
-                event.preventDefault();
-                const startY = event.clientY;
-                const startHeight = archivedMaxHeight;
-                const onPointerMove = (moveEvent: PointerEvent): void => {
-                  const deltaY = startY - moveEvent.clientY;
-                  setArchivedMaxHeight(clampArchivedHeight(startHeight + deltaY));
-                };
-                const onPointerUp = (): void => {
-                  cleanup();
-                  archivedResizeCleanupRef.current = null;
-                };
-                const cleanup = (): void => {
-                  window.removeEventListener("pointermove", onPointerMove);
-                  window.removeEventListener("pointerup", onPointerUp);
-                };
+      <div className="relative shrink-0 px-2.5 py-1.5">
+        <div ref={archivedMenuRef} className="relative">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                onClick={() => {
+                  setArchivedMenuOpen((prev) => !prev);
+                }}
+                aria-label="Archived sessions"
+              >
+                <Archive className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Archived sessions</TooltipContent>
+          </Tooltip>
 
-                if (archivedResizeCleanupRef.current !== null) {
-                  archivedResizeCleanupRef.current();
-                }
-                archivedResizeCleanupRef.current = cleanup;
-                window.addEventListener("pointermove", onPointerMove);
-                window.addEventListener("pointerup", onPointerUp);
-              }}
-            >
-              <span className="h-1 w-10 rounded-full bg-neutral-300/80" />
-            </div>
-          </div>
-        ) : null}
-        <div>
-          <button
-            type="button"
-            className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900"
-            onClick={() => {
-              setArchivedExpanded((prev) => {
-                const nextExpanded = !prev;
-                if (nextExpanded) {
-                  setArchivedMaxHeight((current) => clampArchivedHeight(current));
-                }
-                return nextExpanded;
-              });
-            }}
-          >
-            {archivedExpanded ? (
-              <ChevronDown className="h-4 w-4 shrink-0" />
-            ) : (
-              <ChevronRight className="h-4 w-4 shrink-0" />
-            )}
-            <span className="flex-1 text-left text-xs">Archived</span>
-            <span className="text-2xs text-neutral-400">{archivedSessionCount}</span>
-          </button>
-        </div>
-        {archivedExpanded ? (
-          archivedGroups.length > 0 ? (
-            <ScrollArea
-              className="mt-1.5 w-full"
-              viewportClassName="!h-auto"
-              style={{ maxHeight: `${archivedMaxHeight}px` }}
-            >
-              <div className="pt-1">
-                {archivedGroups.map((group) => (
-                  <ProjectGroup
-                    key={`archived-${group.work_dir}`}
-                    workDir={group.work_dir}
-                    sessions={group.sessions}
-                    collapsed={archivedCollapsedByWorkDir[group.work_dir] ?? false}
-                    compactSessions
-                    activeSessionId={activeSessionId}
-                    runtimeBySessionId={runtimeBySessionId}
-                    completedUnreadBySessionId={completedUnreadBySessionId}
-                    onToggle={() => {
-                      setArchivedCollapsedByWorkDir((prev) => ({
-                        ...prev,
-                        [group.work_dir]: !(prev[group.work_dir] ?? false),
-                      }));
-                    }}
-                    onSelectDraft={(workDir) => {
-                      openNewSessionOverlay(workDir);
-                    }}
-                    onSelectSession={(sessionId) => {
-                      setNewSessionOverlayOpen(false);
-                      void selectSession(sessionId);
-                    }}
-                    onToggleArchive={(sessionId, archived) => {
-                      handleToggleArchive(sessionId, archived);
-                    }}
-                  />
-                ))}
+          {archivedMenuOpen ? (
+            <div className="absolute bottom-full left-0 z-40 mb-2 w-[320px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-neutral-200/80 bg-white p-1 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
+              <div className="flex items-center justify-between border-b border-neutral-100 px-2 py-1.5">
+                <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-neutral-500">
+                  Archived
+                </span>
+                <span className="text-2xs text-neutral-400">{archivedSessionCount}</span>
               </div>
-            </ScrollArea>
-          ) : (
-            <div className="mt-1.5 px-2 py-1 text-2xs text-neutral-400">No archived sessions</div>
-          )
-        ) : null}
+              {archivedGroups.length > 0 ? (
+                <ScrollArea className="w-full" viewportClassName="max-h-80" type="auto">
+                  <div className="pt-1">
+                    {archivedGroups.map((group) => (
+                      <ProjectGroup
+                        key={`archived-${group.work_dir}`}
+                        workDir={group.work_dir}
+                        sessions={group.sessions}
+                        collapsed={archivedCollapsedByWorkDir[group.work_dir] ?? false}
+                        compactSessions
+                        activeSessionId={activeSessionId}
+                        runtimeBySessionId={runtimeBySessionId}
+                        completedUnreadBySessionId={completedUnreadBySessionId}
+                        onToggle={() => {
+                          setArchivedCollapsedByWorkDir((prev) => ({
+                            ...prev,
+                            [group.work_dir]: !(prev[group.work_dir] ?? false),
+                          }));
+                        }}
+                        onSelectDraft={(workDir) => {
+                          setArchivedMenuOpen(false);
+                          openNewSessionOverlay(workDir);
+                        }}
+                        onSelectSession={(sessionId) => {
+                          setArchivedMenuOpen(false);
+                          setNewSessionOverlayOpen(false);
+                          void selectSession(sessionId);
+                        }}
+                        onToggleArchive={(sessionId, archived) => {
+                          handleToggleArchive(sessionId, archived);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="px-3 py-3 text-xs text-neutral-400">No archived sessions</div>
+              )}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {archiveUndoSessionId !== null ? (

@@ -17,7 +17,6 @@ interface SessionStatusBarProps {
 function getRuntimeStatusLabel(runtime: SessionRuntimeState | null): string | null {
   if (runtime === null) return null;
   if (runtime.sessionState === "waiting_user_input") return "Waiting for input …";
-  if (runtime.sessionState === "running") return "Running …";
   return null;
 }
 
@@ -72,14 +71,14 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
             <span
               className={`h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-[1.5px] ${
                 isRunning
-                  ? "border-sky-300 border-t-sky-500"
+                  ? "border-blue-300 border-t-blue-500"
                   : "border-neutral-300 border-t-neutral-500"
               }`}
             />
           ) : (
             <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-300" />
           )}
-          <span className={`truncate font-sans text-xs ${isRunning ? "text-sky-600" : ""}`}>
+          <span className={`truncate font-sans text-xs ${isRunning ? "text-blue-500" : ""}`}>
             {statusLabel}
           </span>
         </>
