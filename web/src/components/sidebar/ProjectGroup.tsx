@@ -110,7 +110,11 @@ export function ProjectGroup({
                 setShowAll(true);
               }}
             >
-              <span className="flex-1 pl-6 text-xs font-normal">
+              <span
+                className={
+                  compactSessions ? "flex-1 text-xs font-normal" : "flex-1 pl-6 text-xs font-normal"
+                }
+              >
                 Load more ({sessions.length - 10})
               </span>
             </button>

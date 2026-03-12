@@ -15,6 +15,11 @@ import {
   type WsErrorFrame,
   type WsEventEnvelope,
 } from "../api/ws";
+import {
+  parsePendingUserInteractionRequest,
+  type PendingUserInteractionRequest,
+  type UserInteractionResponse,
+} from "../types/interaction";
 import type {
   ActiveSessionId,
   SessionGroup,
@@ -32,6 +37,7 @@ interface SessionStoreState {
   collapsedByWorkDir: Record<string, boolean>;
   runtimeBySessionId: Record<string, SessionRuntimeState>;
   completedUnreadBySessionId: Record<string, boolean>;
+  pendingInteractionsBySessionId: Record<string, PendingUserInteractionRequest[]>;
   initialized: boolean;
   init: () => Promise<void>;
   refreshSessions: () => Promise<void>;
@@ -48,6 +54,11 @@ interface SessionStoreState {
   ) => Promise<string>;
   requestModel: (sessionId: string, preferred: string, saveAsDefault?: boolean) => Promise<void>;
   sendMessage: (sessionId: string, text: string) => Promise<void>;
+  respondInteraction: (
+    sessionId: string,
+    requestId: string,
+    response: UserInteractionResponse,
+  ) => Promise<void>;
 }
 
 interface ActiveConnection {
@@ -260,6 +271,76 @@ function patchRuntimeByEvent(
   return current;
 }
 
+function upsertPendingInteraction(
+  current: PendingUserInteractionRequest[],
+  request: PendingUserInteractionRequest,
+): PendingUserInteractionRequest[] {
+  const existingIndex = current.findIndex((item) => item.requestId === request.requestId);
+  if (existingIndex === -1) {
+    return [...current, request];
+  }
+  const previous = current[existingIndex];
+  if (
+    previous.payload === request.payload &&
+    previous.source === request.source &&
+    previous.toolCallId === request.toolCallId
+  ) {
+    return current;
+  }
+  const next = [...current];
+  next[existingIndex] = request;
+  return next;
+}
+
+function removePendingInteraction(
+  current: PendingUserInteractionRequest[],
+  requestId: string,
+): PendingUserInteractionRequest[] {
+  const next = current.filter((item) => item.requestId !== requestId);
+  return next.length === current.length ? current : next;
+}
+
+function patchPendingInteractionsByEvent(
+  current: Record<string, PendingUserInteractionRequest[]>,
+  sessionId: string,
+  eventType: string,
+  event: Record<string, unknown>,
+): Record<string, PendingUserInteractionRequest[]> {
+  const existing = current[sessionId] ?? [];
+
+  if (eventType === "user.interaction.request") {
+    const parsed = parsePendingUserInteractionRequest(event);
+    if (parsed === null) {
+      return current;
+    }
+    const nextSessionItems = upsertPendingInteraction(existing, parsed);
+    if (nextSessionItems === existing) {
+      return current;
+    }
+    return {
+      ...current,
+      [sessionId]: nextSessionItems,
+    };
+  }
+
+  if (eventType === "user.interaction.resolved" || eventType === "user.interaction.cancelled") {
+    const requestId = typeof event.request_id === "string" ? event.request_id : null;
+    if (requestId === null) {
+      return current;
+    }
+    const nextSessionItems = removePendingInteraction(existing, requestId);
+    if (nextSessionItems === existing) {
+      return current;
+    }
+    return {
+      ...current,
+      [sessionId]: nextSessionItems,
+    };
+  }
+
+  return current;
+}
+
 function openSessionWs(sessionId: string, get: () => SessionStoreState, set: SetState): void {
   const runtime = get().runtimeBySessionId[sessionId] ?? defaultRuntimeState;
   if (
@@ -352,17 +433,28 @@ function handleWsEvent(
       targetSessionId,
       eventEnvelope.event_type,
     );
+    const nextPendingInteractionsBySessionId = patchPendingInteractionsByEvent(
+      state.pendingInteractionsBySessionId,
+      targetSessionId,
+      eventEnvelope.event_type,
+      eventEnvelope.event ?? {},
+    );
     const shouldMarkCompletedUnread =
       eventEnvelope.event_type === "task.finish" &&
       state.activeSessionId !== targetSessionId &&
       state.completedUnreadBySessionId[targetSessionId] !== true;
 
-    if (nextRuntimeBySessionId === state.runtimeBySessionId && !shouldMarkCompletedUnread) {
+    if (
+      nextRuntimeBySessionId === state.runtimeBySessionId &&
+      nextPendingInteractionsBySessionId === state.pendingInteractionsBySessionId &&
+      !shouldMarkCompletedUnread
+    ) {
       return state;
     }
 
     return {
       runtimeBySessionId: nextRuntimeBySessionId,
+      pendingInteractionsBySessionId: nextPendingInteractionsBySessionId,
       completedUnreadBySessionId: shouldMarkCompletedUnread
         ? {
             ...state.completedUnreadBySessionId,
@@ -536,6 +628,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   collapsedByWorkDir: {},
   runtimeBySessionId: {},
   completedUnreadBySessionId: {},
+  pendingInteractionsBySessionId: {},
   initialized: false,
   init: async () => {
     if (get().initialized) {
@@ -791,5 +884,20 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       openSessionWs(sessionId, get, set);
     }
     activeConnection?.connection.send({ type: "message", text: normalizedText });
+  },
+  respondInteraction: async (
+    sessionId: string,
+    requestId: string,
+    response: UserInteractionResponse,
+  ) => {
+    if (activeConnection?.sessionId !== sessionId) {
+      openSessionWs(sessionId, get, set);
+    }
+    activeConnection?.connection.send({
+      type: "respond",
+      request_id: requestId,
+      status: response.status,
+      payload: response.payload,
+    });
   },
 }));

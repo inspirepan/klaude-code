@@ -24,8 +24,8 @@ interface SessionCardProps {
 
 function UnreadCompletionDot(): JSX.Element {
   return (
-    <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-      <span className="h-2 w-2 rounded-full bg-green-600" />
+    <span className="flex h-3 w-3 shrink-0 items-center justify-center">
+      <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
     </span>
   );
 }
@@ -80,19 +80,19 @@ function getRuntimeIcon(
 ): JSX.Element {
   if (runtime.sessionState === "running") {
     return (
-      <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-[1.5px] border-neutral-300 border-t-neutral-500" />
+      <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-[1.25px] border-neutral-300 border-t-neutral-500" />
     );
   }
   if (runtime.sessionState === "waiting_user_input") {
-    return <CirclePause className="h-3.5 w-3.5 shrink-0 text-amber-500" />;
+    return <CirclePause className="h-3 w-3 shrink-0 text-amber-500" />;
   }
   if (hasUnreadCompletion) {
     return <UnreadCompletionDot />;
   }
   if (showSuccessState) {
-    return <CircleCheck className="status-success-settle h-3.5 w-3.5 shrink-0" />;
+    return <CircleCheck className="status-success-settle h-3 w-3 shrink-0" />;
   }
-  return <CircleCheck className="h-3.5 w-3.5 shrink-0 text-neutral-400" />;
+  return <CircleCheck className="h-3 w-3 shrink-0 text-neutral-400" />;
 }
 
 function shortenFileRefs(text: string): string {
@@ -275,7 +275,7 @@ export function SessionCard({
         title={title}
       >
         <div className="flex min-w-0 items-start gap-1.5 pl-1">
-          <span className="mt-0.5 flex shrink-0">
+          <span className="mt-1 flex shrink-0">
             {getRuntimeIcon(runtime, showSuccessState, hasUnreadCompletion)}
           </span>
           <div
@@ -324,15 +324,18 @@ export function SessionCard({
             removed={diffSummary.diff_lines_removed}
           />
 
-          <div className="ml-auto flex items-center">
-            <span className="whitespace-nowrap group-hover:hidden" title={updatedAtDetailed}>
+          <div className="relative ml-auto flex items-center">
+            <span
+              className="whitespace-nowrap transition-opacity group-hover:opacity-0"
+              title={updatedAtDetailed}
+            >
               {updatedAt}
             </span>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="hidden h-4 w-4 items-center justify-center rounded text-neutral-400 hover:text-neutral-700 focus:outline-none group-hover:inline-flex"
+                  className="pointer-events-none absolute right-0 top-1/2 inline-flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:outline-none focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
                   aria-label={session.archived ? "Unarchive session" : "Archive session"}
                   onClick={(event) => {
                     event.stopPropagation();

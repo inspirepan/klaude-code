@@ -3,8 +3,15 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
 import { useMessageStore } from "../../stores/message-store";
 import { useSessionStore } from "../../stores/session-store";
+import type {
+  PendingUserInteractionRequest,
+  UserInteractionResponse,
+} from "../../types/interaction";
 import { ComposerCard } from "./ComposerCard";
 import { SessionStatusBar } from "./SessionStatusBar";
+import { UserInteractionCard } from "./UserInteractionCard";
+
+const EMPTY_PENDING_INTERACTIONS: PendingUserInteractionRequest[] = [];
 
 export function MessageComposer(): JSX.Element {
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
@@ -12,6 +19,10 @@ export function MessageComposer(): JSX.Element {
   const runtimeBySessionId = useSessionStore((state) => state.runtimeBySessionId);
   const sendMessage = useSessionStore((state) => state.sendMessage);
   const requestModel = useSessionStore((state) => state.requestModel);
+  const respondInteraction = useSessionStore((state) => state.respondInteraction);
+  const pendingInteractions = useSessionStore(
+    (state) => state.pendingInteractionsBySessionId[activeSessionId] ?? EMPTY_PENDING_INTERACTIONS,
+  );
   const statusBySessionId = useMessageStore(
     (state) => state.reducerStateBySessionId[activeSessionId]?.statusBySessionId ?? null,
   );
@@ -22,6 +33,7 @@ export function MessageComposer(): JSX.Element {
   const [modelError, setModelError] = useState<string | null>(null);
   const [switchingModel, setSwitchingModel] = useState(false);
   const [pendingModelName, setPendingModelName] = useState<string | null>(null);
+  const [respondingInteraction, setRespondingInteraction] = useState(false);
 
   const runtime = runtimeBySessionId[activeSessionId] ?? null;
   const activeSession =
@@ -35,7 +47,13 @@ export function MessageComposer(): JSX.Element {
       runtime.wsState === "disconnected");
   const sessionReadOnly = activeSession?.read_only === true;
   const mainSessionStatus = statusBySessionId?.[activeSessionId] ?? null;
-  const disableSubmit = submitting || normalizedText.length === 0 || sessionBusy || sessionReadOnly;
+  const activeInteraction = pendingInteractions[0] ?? null;
+  const disableSubmit =
+    submitting ||
+    normalizedText.length === 0 ||
+    sessionBusy ||
+    sessionReadOnly ||
+    activeInteraction !== null;
   const currentModelName = pendingModelName ?? activeSession?.model_name ?? "";
   const modelBusy = sessionBusy || sessionReadOnly || modelLoading || switchingModel;
   const hasCurrentModelOption = modelOptions.some((option) => option.name === currentModelName);
@@ -44,7 +62,14 @@ export function MessageComposer(): JSX.Element {
     setText("");
     setPendingModelName(null);
     setModelError(null);
+    setRespondingInteraction(false);
   }, [activeSessionId]);
+
+  useEffect(() => {
+    if (activeInteraction === null) {
+      setRespondingInteraction(false);
+    }
+  }, [activeInteraction]);
 
   useEffect(() => {
     let cancelled = false;
@@ -141,6 +166,21 @@ export function MessageComposer(): JSX.Element {
       <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-t from-white/95 via-white/80 to-transparent [-webkit-mask-image:linear-gradient(to_bottom,transparent,black_3rem)] [mask-image:linear-gradient(to_bottom,transparent,black_3rem)]" />
       <div className="relative z-10 mx-auto max-w-4xl space-y-3">
         <SessionStatusBar status={mainSessionStatus} runtime={runtime} />
+        {activeInteraction ? (
+          <UserInteractionCard
+            request={activeInteraction}
+            pendingCount={pendingInteractions.length}
+            disabled={respondingInteraction}
+            onRespond={async (response: UserInteractionResponse) => {
+              setRespondingInteraction(true);
+              try {
+                await respondInteraction(activeSessionId, activeInteraction.requestId, response);
+              } finally {
+                setRespondingInteraction(false);
+              }
+            }}
+          />
+        ) : null}
         {modelError ? (
           <div className="px-1 text-xs text-red-500">Model switch failed: {modelError}</div>
         ) : null}
