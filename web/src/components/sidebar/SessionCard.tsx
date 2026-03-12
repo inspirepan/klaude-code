@@ -16,6 +16,7 @@ interface SessionCardProps {
   active: boolean;
   runtime: SessionRuntimeState;
   hasUnreadCompletion: boolean;
+  showWorkspace?: boolean;
   compact?: boolean;
   onClick: () => void;
   onToggleArchive: (sessionId: string, archived: boolean) => void;
@@ -110,6 +111,14 @@ function splitSessionTitle(title: string): { primary: string; secondary: string 
   };
 }
 
+function workDirLabel(workDir: string): string {
+  const parts = workDir.split("/").filter((segment) => segment.length > 0);
+  if (parts.length === 0) {
+    return workDir;
+  }
+  return parts[parts.length - 1] ?? workDir;
+}
+
 function DiffStats({ added, removed }: { added: number; removed: number }): JSX.Element | null {
   if (added <= 0 && removed <= 0) {
     return null;
@@ -127,6 +136,7 @@ export function SessionCard({
   active,
   runtime,
   hasUnreadCompletion,
+  showWorkspace = false,
   compact = false,
   onClick,
   onToggleArchive,
@@ -140,7 +150,6 @@ export function SessionCard({
   const updatedAt = formatRelativeTime(session.updated_at);
   const updatedAtDetailed = formatDetailedTime(session.updated_at);
   const messageCountLabel = session.messages_count >= 0 ? String(session.messages_count) : "N/A";
-  const modelLabel = session.model_name ?? "N/A model";
   const diffSummary = session.file_change_summary;
 
   useEffect(() => {
@@ -265,36 +274,53 @@ export function SessionCard({
         }}
         title={title}
       >
-        <div className="flex min-w-0 items-center gap-1.5 pl-1">
-          {getRuntimeIcon(runtime, showSuccessState, hasUnreadCompletion)}
-          <span className="flex-1 truncate text-[13px] leading-5 text-neutral-800">
-            {primaryTitle}
+        <div className="flex min-w-0 items-start gap-1.5 pl-1">
+          <span className="mt-0.5 flex shrink-0">
+            {getRuntimeIcon(runtime, showSuccessState, hasUnreadCompletion)}
           </span>
+          <div
+            className="min-w-0 flex-1 overflow-hidden text-[13px] leading-5"
+            style={{
+              display: "-webkit-box",
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: 2,
+            }}
+          >
+            <span className="text-neutral-800">{primaryTitle}</span>
+            {secondaryTitle ? (
+              <>
+                <span className="mx-1 text-neutral-300">|</span>
+                <span className="text-neutral-500">{secondaryTitle}</span>
+              </>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex min-w-0 items-center gap-1 pl-6 pr-1 text-[10px] leading-4 text-neutral-400">
+          <div className="flex min-w-0 items-center gap-1 truncate">
+            {showWorkspace ? (
+              <>
+                <span className="truncate" title={session.work_dir}>
+                  {workDirLabel(session.work_dir)}
+                </span>
+                <span>·</span>
+              </>
+            ) : null}
+            <MessageSquare className="h-2.5 w-2.5 shrink-0" />
+            <span>{messageCountLabel}</span>
+          </div>
+
           {session.read_only ? (
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] leading-4 text-amber-700">
               <Lock className="h-3 w-3" />
               <span>Read-only</span>
             </span>
           ) : null}
+
           <DiffStats
             added={diffSummary.diff_lines_added}
             removed={diffSummary.diff_lines_removed}
           />
-        </div>
-
-        {secondaryTitle ? (
-          <div className="min-w-0 truncate pl-6 pr-1 text-xs leading-4 text-neutral-500">
-            {secondaryTitle}
-          </div>
-        ) : null}
-
-        <div className="flex min-w-0 items-center gap-1 pl-6 pr-1 text-[10px] leading-4 text-neutral-400">
-          <div className="flex min-w-0 items-center gap-1 truncate">
-            <MessageSquare className="h-2.5 w-2.5 shrink-0" />
-            <span>{messageCountLabel}</span>
-            <span>·</span>
-            <span className="truncate">{modelLabel}</span>
-          </div>
 
           <div className="ml-auto flex items-center">
             {runtime.sessionState === "running" ? (

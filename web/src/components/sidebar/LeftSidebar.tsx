@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronRight, PanelLeftClose, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight, FolderTree, List, PanelLeftClose } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
+import { SessionCard } from "./SessionCard";
 import { useSessionStore } from "../../stores/session-store";
 import { useAppStore } from "../../stores/app-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -24,7 +25,7 @@ export function LeftSidebar(): JSX.Element {
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
-  const [showRefreshSuccessState, setShowRefreshSuccessState] = useState(false);
+  const [sessionListView, setSessionListView] = useState<"grouped" | "flat">("flat");
   const [sidebarWidth, setSidebarWidth] = useState(256);
   const [archivedMaxHeight, setArchivedMaxHeight] = useState(320);
   const [archiveUndoSessionId, setArchiveUndoSessionId] = useState<string | null>(null);
@@ -32,9 +33,6 @@ export function LeftSidebar(): JSX.Element {
     Record<string, boolean>
   >({});
   const sidebarRef = useRef<HTMLElement | null>(null);
-  const previousLoadingRef = useRef(loading);
-  const refreshSuccessAnimationFrameRef = useRef<number | null>(null);
-  const refreshSuccessTimeoutRef = useRef<number | null>(null);
   const archiveUndoTimeoutRef = useRef<number | null>(null);
   const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
   const archivedResizeCleanupRef = useRef<(() => void) | null>(null);
@@ -58,35 +56,7 @@ export function LeftSidebar(): JSX.Element {
   };
 
   useEffect(() => {
-    const previousLoading = previousLoadingRef.current;
-    previousLoadingRef.current = loading;
-
-    if (previousLoading && !loading) {
-      if (refreshSuccessAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(refreshSuccessAnimationFrameRef.current);
-      }
-      if (refreshSuccessTimeoutRef.current !== null) {
-        window.clearTimeout(refreshSuccessTimeoutRef.current);
-      }
-      refreshSuccessAnimationFrameRef.current = window.requestAnimationFrame(() => {
-        setShowRefreshSuccessState(true);
-        refreshSuccessAnimationFrameRef.current = null;
-        refreshSuccessTimeoutRef.current = window.setTimeout(() => {
-          setShowRefreshSuccessState(false);
-          refreshSuccessTimeoutRef.current = null;
-        }, 1600);
-      });
-    }
-  }, [loading]);
-
-  useEffect(() => {
     return () => {
-      if (refreshSuccessAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(refreshSuccessAnimationFrameRef.current);
-      }
-      if (refreshSuccessTimeoutRef.current !== null) {
-        window.clearTimeout(refreshSuccessTimeoutRef.current);
-      }
       if (archiveUndoTimeoutRef.current !== null) {
         window.clearTimeout(archiveUndoTimeoutRef.current);
       }
@@ -98,6 +68,33 @@ export function LeftSidebar(): JSX.Element {
         archivedResizeCleanupRef.current();
         archivedResizeCleanupRef.current = null;
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.key.toLowerCase() !== "v") {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target !== null &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      setSessionListView((prev) => (prev === "grouped" ? "flat" : "grouped"));
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
@@ -128,6 +125,33 @@ export function LeftSidebar(): JSX.Element {
   const archivedSessionCount = useMemo(
     () => archivedGroups.reduce((count, group) => count + group.sessions.length, 0),
     [archivedGroups],
+  );
+
+  const activeSessions = useMemo(
+    () =>
+      groups
+        .flatMap((group) => group.sessions)
+        .filter((session) => !session.archived)
+        .sort((a, b) => b.updated_at - a.updated_at),
+    [groups],
+  );
+
+  const inProgressSessions = useMemo(
+    () =>
+      activeSessions.filter((session) => {
+        const sessionState = runtimeBySessionId[session.id]?.sessionState ?? session.session_state;
+        return sessionState !== "idle";
+      }),
+    [activeSessions, runtimeBySessionId],
+  );
+
+  const doneSessions = useMemo(
+    () =>
+      activeSessions.filter((session) => {
+        const sessionState = runtimeBySessionId[session.id]?.sessionState ?? session.session_state;
+        return sessionState === "idle";
+      }),
+    [activeSessions, runtimeBySessionId],
   );
 
   const activeSession = useMemo(
@@ -198,20 +222,37 @@ export function LeftSidebar(): JSX.Element {
               type="button"
               className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
               onClick={() => {
-                void refreshSessions();
+                setSessionListView((prev) => (prev === "grouped" ? "flat" : "grouped"));
               }}
-              aria-label="Refresh sessions"
+              aria-label={
+                sessionListView === "grouped" ? "Switch to flat view" : "Switch to grouped view"
+              }
             >
-              {loading ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : showRefreshSuccessState ? (
-                <Check className="status-success-settle h-4 w-4" />
+              {sessionListView === "grouped" ? (
+                <List className="h-4 w-4" />
               ) : (
-                <RefreshCw className="h-4 w-4" />
+                <FolderTree className="h-4 w-4" />
               )}
             </button>
           </TooltipTrigger>
-          <TooltipContent>Refresh sessions</TooltipContent>
+          <TooltipContent className="flex items-center gap-1.5">
+            <span>
+              {sessionListView === "grouped" ? "Switch to flat view" : "Switch to grouped view"}
+            </span>
+            <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+              <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">⇧</span>
+                </kbd>
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">⌘</span>
+                </kbd>
+                <kbd className="inline-flex font-sans">
+                  <span className="min-w-[1em] text-center">V</span>
+                </kbd>
+              </span>
+            </span>
+          </TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -274,30 +315,112 @@ export function LeftSidebar(): JSX.Element {
             </div>
           ) : null}
 
-          {activeGroups.map((group) => (
-            <ProjectGroup
-              key={group.work_dir}
-              workDir={group.work_dir}
-              sessions={group.sessions}
-              collapsed={collapsedByWorkDir[group.work_dir] ?? false}
-              activeSessionId={activeSessionId}
-              runtimeBySessionId={runtimeBySessionId}
-              completedUnreadBySessionId={completedUnreadBySessionId}
-              onToggle={() => {
-                toggleGroup(group.work_dir);
-              }}
-              onSelectDraft={(workDir) => {
-                openNewSessionOverlay(workDir);
-              }}
-              onSelectSession={(sessionId) => {
-                setNewSessionOverlayOpen(false);
-                void selectSession(sessionId);
-              }}
-              onToggleArchive={(sessionId, archived) => {
-                handleToggleArchive(sessionId, archived);
-              }}
-            />
-          ))}
+          {sessionListView === "grouped" ? (
+            activeGroups.map((group) => (
+              <ProjectGroup
+                key={group.work_dir}
+                workDir={group.work_dir}
+                sessions={group.sessions}
+                collapsed={collapsedByWorkDir[group.work_dir] ?? false}
+                activeSessionId={activeSessionId}
+                runtimeBySessionId={runtimeBySessionId}
+                completedUnreadBySessionId={completedUnreadBySessionId}
+                onToggle={() => {
+                  toggleGroup(group.work_dir);
+                }}
+                onSelectDraft={(workDir) => {
+                  openNewSessionOverlay(workDir);
+                }}
+                onSelectSession={(sessionId) => {
+                  setNewSessionOverlayOpen(false);
+                  void selectSession(sessionId);
+                }}
+                onToggleArchive={(sessionId, archived) => {
+                  handleToggleArchive(sessionId, archived);
+                }}
+              />
+            ))
+          ) : (
+            <div className="space-y-3 pt-1">
+              <div>
+                <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
+                  <span className="text-[11px] font-medium uppercase tracking-[0.02em] text-neutral-500">
+                    In Progress
+                  </span>
+                  <span className="text-2xs text-neutral-400">{inProgressSessions.length}</span>
+                </div>
+                {inProgressSessions.length > 0 ? (
+                  <div className="space-y-0.5">
+                    {inProgressSessions.map((session) => (
+                      <SessionCard
+                        key={session.id}
+                        session={session}
+                        active={activeSessionId === session.id}
+                        runtime={
+                          runtimeBySessionId[session.id] ?? {
+                            sessionState: session.session_state,
+                            wsState: "idle",
+                            lastError: null,
+                          }
+                        }
+                        hasUnreadCompletion={completedUnreadBySessionId[session.id] === true}
+                        showWorkspace
+                        onClick={() => {
+                          setNewSessionOverlayOpen(false);
+                          void selectSession(session.id);
+                        }}
+                        onToggleArchive={(sessionId, archived) => {
+                          handleToggleArchive(sessionId, archived);
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-1.5 py-1 text-2xs text-neutral-400">
+                    No in-progress sessions
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
+                  <span className="text-[11px] font-medium uppercase tracking-[0.02em] text-neutral-500">
+                    Done
+                  </span>
+                  <span className="text-2xs text-neutral-400">{doneSessions.length}</span>
+                </div>
+                {doneSessions.length > 0 ? (
+                  <div className="space-y-0.5">
+                    {doneSessions.map((session) => (
+                      <SessionCard
+                        key={session.id}
+                        session={session}
+                        active={activeSessionId === session.id}
+                        runtime={
+                          runtimeBySessionId[session.id] ?? {
+                            sessionState: session.session_state,
+                            wsState: "idle",
+                            lastError: null,
+                          }
+                        }
+                        hasUnreadCompletion={completedUnreadBySessionId[session.id] === true}
+                        showWorkspace
+                        onClick={() => {
+                          setNewSessionOverlayOpen(false);
+                          void selectSession(session.id);
+                        }}
+                        onToggleArchive={(sessionId, archived) => {
+                          handleToggleArchive(sessionId, archived);
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-1.5 py-1 text-2xs text-neutral-400">No done sessions</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
