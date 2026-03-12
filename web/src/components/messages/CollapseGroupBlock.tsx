@@ -25,21 +25,31 @@ const SUBCOMMAND_COMMANDS = new Set([
   "gh", "systemctl", "launchctl", "supervisorctl",
 ]);
 
+interface FileStat {
+  name: string;
+  del?: number;
+  add: number;
+}
+
 interface SummaryPart {
   label: string;
   value: string;
+  del?: number;
+  add?: number;
+  fileStats?: FileStat[];
 }
 
 function basename(path: string): string {
   return path.split("/").pop() ?? path;
 }
 
-function extractBashSummary(command: string): string {
-  // Take only the first statement (before &&, ||, ;, |, newline)
-  const first = command.split(/&&|\|\||[;|\n]/)[0]?.trim() ?? command;
-  const tokens = first.split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return command.slice(0, 30);
+const IGNORED_COMMANDS = new Set(["cd"]);
+
+function extractCommandFromStatement(stmt: string): string | null {
+  const tokens = stmt.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return null;
   const cmd = tokens[0]!;
+  if (IGNORED_COMMANDS.has(cmd)) return null;
   if (SUBCOMMAND_COMMANDS.has(cmd)) {
     for (let i = 1; i < tokens.length; i++) {
       if (!tokens[i]!.startsWith("-")) {
@@ -50,8 +60,20 @@ function extractBashSummary(command: string): string {
   return cmd;
 }
 
+function extractBashSummary(command: string): string | null {
+  // Split by statement separators; pipe | is not a separator (it chains, not sequences)
+  const statements = command.split(/&&|\|\||[;\n]/);
+  for (const stmt of statements) {
+    const result = extractCommandFromStatement(stmt);
+    if (result !== null) return result;
+  }
+  return null;
+}
+
 function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
   const grouped = new Map<string, string[]>();
+  // Parallel stats for file-editing tools: [{ del, add }] per invocation
+  const editStats = new Map<string, Array<{ del: number; add: number }>>();
 
   for (const item of items) {
     if (item.type !== "tool_block") continue;
@@ -72,19 +94,41 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
         if (p) bucket.push(p);
         break;
       }
+      case "Edit": {
+        const p = typeof args.file_path === "string" ? basename(args.file_path) : null;
+        if (!p) break;
+        const del = typeof args.old_string === "string" ? args.old_string.split("\n").length : 0;
+        const add = typeof args.new_string === "string" ? args.new_string.split("\n").length : 0;
+        bucket.push(p);
+        if (!editStats.has(name)) editStats.set(name, []);
+        editStats.get(name)!.push({ del, add });
+        break;
+      }
+      case "Write": {
+        const p = typeof args.file_path === "string" ? basename(args.file_path) : null;
+        if (!p) break;
+        const add = typeof args.content === "string" ? args.content.split("\n").length : 0;
+        bucket.push(p);
+        if (!editStats.has(name)) editStats.set(name, []);
+        editStats.get(name)!.push({ del: 0, add });
+        break;
+      }
+      case "apply_patch": {
+        const patch = typeof args.patch === "string" ? args.patch : null;
+        if (!patch) break;
+        const lines = patch.split("\n");
+        const del = lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length;
+        const add = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length;
+        const fileMatch = patch.match(/^\+\+\+ b\/(.+)$/m) ?? patch.match(/^--- a\/(.+)$/m);
+        const fname = fileMatch ? basename(fileMatch[1]!) : "patch";
+        bucket.push(fname);
+        if (!editStats.has(name)) editStats.set(name, []);
+        editStats.get(name)!.push({ del, add });
+        break;
+      }
       case "Bash": {
         const s = typeof args.command === "string" ? extractBashSummary(args.command) : null;
         if (s) bucket.push(s);
-        break;
-      }
-      case "Glob": {
-        const p = typeof args.pattern === "string" ? args.pattern : null;
-        if (p) bucket.push(p);
-        break;
-      }
-      case "Grep": {
-        const p = typeof args.pattern === "string" ? args.pattern : null;
-        if (p) bucket.push(p);
         break;
       }
       case "WebFetch": {
@@ -113,14 +157,50 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
         parts.push({ label: "Read", value });
         break;
       }
+      case "Edit": {
+        const stats = editStats.get(name) ?? [];
+        const merged = new Map<string, { del: number; add: number }>();
+        for (let i = 0; i < values.length; i++) {
+          const fname = values[i]!;
+          const s = stats[i] ?? { del: 0, add: 0 };
+          const existing = merged.get(fname);
+          if (existing) { existing.del += s.del; existing.add += s.add; }
+          else merged.set(fname, { del: s.del, add: s.add });
+        }
+        const fileStats = [...merged.entries()].map(([name, s]) => ({ name, del: s.del, add: s.add }));
+        parts.push({ label: "Edited", value: "", fileStats });
+        break;
+      }
+      case "Write": {
+        const stats = editStats.get(name) ?? [];
+        const merged = new Map<string, { add: number }>();
+        for (let i = 0; i < values.length; i++) {
+          const fname = values[i]!;
+          const s = stats[i] ?? { add: 0 };
+          const existing = merged.get(fname);
+          if (existing) { existing.add += s.add; }
+          else merged.set(fname, { add: s.add });
+        }
+        const fileStats = [...merged.entries()].map(([name, s]) => ({ name, add: s.add }));
+        parts.push({ label: "Wrote", value: "", fileStats });
+        break;
+      }
+      case "apply_patch": {
+        const stats = editStats.get(name) ?? [];
+        const merged = new Map<string, { del: number; add: number }>();
+        for (let i = 0; i < values.length; i++) {
+          const fname = values[i]!;
+          const s = stats[i] ?? { del: 0, add: 0 };
+          const existing = merged.get(fname);
+          if (existing) { existing.del += s.del; existing.add += s.add; }
+          else merged.set(fname, { del: s.del, add: s.add });
+        }
+        const fileStats = [...merged.entries()].map(([name, s]) => ({ name, del: s.del, add: s.add }));
+        parts.push({ label: "Patched", value: "", fileStats });
+        break;
+      }
       case "Bash":
         parts.push({ label: "Ran", value: unique.slice(0, 2).join(", ") });
-        break;
-      case "Glob":
-        parts.push({ label: "Glob", value: unique[0]! });
-        break;
-      case "Grep":
-        parts.push({ label: "Grep", value: unique[0]! });
         break;
       case "WebFetch":
         parts.push({ label: "Fetch", value: unique[0]! });
@@ -158,13 +238,41 @@ export function CollapseGroupBlock({
         className="flex min-w-0 items-center gap-1.5 py-0.5 text-left text-sm text-neutral-400 transition-colors hover:text-neutral-600"
       >
         <span className="shrink-0 font-mono text-xs text-neutral-300">{collapsed ? "[+]" : "[-]"}</span>
-        <span className="shrink-0">{stepLabel}</span>
+        <span className="shrink-0 font-mono">{stepLabel}</span>
+        {summary.length > 0 ? <span className="shrink-0 text-neutral-300">,</span> : null}
         {summary.length > 0 ? (
-          <span className="flex min-w-0 items-center truncate pl-2">
+          <span className="flex min-w-0 items-center truncate pl-1">
             {summary.map((part, i) => (
-              <span key={i} className={`flex shrink-0 items-center gap-1 ${i < summary.length - 1 ? "mr-2" : ""}`}>
-                <span className="text-neutral-500">{part.label}</span>
-                <span className="font-mono text-neutral-400">{part.value}</span>
+              <span key={i} className={`flex shrink-0 items-center gap-2 ${i < summary.length - 1 ? "mr-2" : ""}`}>
+                <span className="font-mono text-neutral-500">{part.label}</span>
+                {part.fileStats ? (
+                  part.fileStats.map((fs, j) => (
+                    <span key={j} className="flex shrink-0 items-center gap-1">
+                      {j > 0 ? <span className="text-neutral-300">,</span> : null}
+                      <span className="font-mono text-neutral-400">{fs.name}</span>
+                      <span className="font-mono text-neutral-300">
+                        {"("}
+                        {fs.del !== undefined ? <span className="text-rose-500">-{fs.del}</span> : null}
+                        {fs.del !== undefined ? <span>{" "}</span> : null}
+                        <span className="text-emerald-600">+{fs.add}</span>
+                        {")"}
+                      </span>
+                    </span>
+                  ))
+                ) : (
+                  <>
+                    <span className="font-mono text-neutral-400">{part.value}</span>
+                    {(part.del !== undefined || part.add !== undefined) ? (
+                      <span className="font-mono text-neutral-300">
+                        {"("}
+                        {part.del !== undefined ? <span className="text-rose-500">-{part.del}</span> : null}
+                        {part.del !== undefined && part.add !== undefined ? <span>{" "}</span> : null}
+                        {part.add !== undefined ? <span className="text-emerald-600">+{part.add}</span> : null}
+                        {")"}
+                      </span>
+                    ) : null}
+                  </>
+                )}
                 {i < summary.length - 1 ? <span className="text-neutral-300">,</span> : null}
               </span>
             ))}

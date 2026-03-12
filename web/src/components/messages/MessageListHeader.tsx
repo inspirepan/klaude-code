@@ -1,4 +1,4 @@
-import { Lock, PanelLeftOpen, Search } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, Lock, PanelLeftOpen, Search } from "lucide-react";
 import { SessionTitleText } from "@/components/SessionTitleText";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
@@ -10,6 +10,8 @@ interface MessageListHeaderProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   onSearchOpen: () => void;
+  onCollapseAll: () => void;
+  onExpandAll: () => void;
 }
 
 export function MessageListHeader({
@@ -20,6 +22,8 @@ export function MessageListHeader({
   sidebarOpen,
   setSidebarOpen,
   onSearchOpen,
+  onCollapseAll,
+  onExpandAll,
 }: MessageListHeaderProps): JSX.Element {
   return (
     <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-white/75 px-4 py-2 backdrop-blur sm:px-6">
@@ -80,6 +84,62 @@ export function MessageListHeader({
           ) : null}
         </div>
       </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+            onClick={onCollapseAll}
+            aria-label="Collapse all"
+          >
+            <ChevronsDownUp className="h-4 w-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="flex items-center gap-1.5">
+          <span>Collapse all</span>
+          <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+            <span className="inline-flex whitespace-pre text-xs leading-none">
+              <kbd className="inline-flex font-sans">
+                <span className="min-w-[1em] text-center">⌘</span>
+              </kbd>
+              <kbd className="inline-flex font-sans">
+                <span className="min-w-[1em] text-center">⇧</span>
+              </kbd>
+              <kbd className="inline-flex font-sans">
+                <span className="min-w-[1em] text-center">[</span>
+              </kbd>
+            </span>
+          </span>
+        </TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+            onClick={onExpandAll}
+            aria-label="Expand all"
+          >
+            <ChevronsUpDown className="h-4 w-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="flex items-center gap-1.5">
+          <span>Expand all</span>
+          <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+            <span className="inline-flex whitespace-pre text-xs leading-none">
+              <kbd className="inline-flex font-sans">
+                <span className="min-w-[1em] text-center">⌘</span>
+              </kbd>
+              <kbd className="inline-flex font-sans">
+                <span className="min-w-[1em] text-center">⇧</span>
+              </kbd>
+              <kbd className="inline-flex font-sans">
+                <span className="min-w-[1em] text-center">]</span>
+              </kbd>
+            </span>
+          </span>
+        </TooltipContent>
+      </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
           <button

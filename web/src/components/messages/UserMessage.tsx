@@ -117,12 +117,12 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
               key={`${image.type}-${idx}`}
               type="button"
               onClick={() => setExpandedImageIndex(idx)}
-              className="block w-fit cursor-zoom-in rounded-md border-0 bg-transparent p-0"
+              className="block w-fit max-w-full cursor-zoom-in rounded-md border-0 bg-transparent p-0"
             >
               <img
                 src={src}
                 alt={alt}
-                className="block h-auto max-h-[180px] w-auto max-w-[260px] rounded-md border border-neutral-200/70 bg-white object-contain"
+                className="block h-auto max-h-[180px] w-auto max-w-[min(260px,100%)] rounded-md border border-neutral-200/70 bg-white object-contain"
                 loading="lazy"
               />
             </button>

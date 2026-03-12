@@ -80,7 +80,7 @@ function CollapsibleRow({
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
         <span
-          className={`whitespace-nowrap font-sans font-normal text-neutral-500 ${labelClassName ?? ""}`}
+          className={`whitespace-nowrap font-mono font-normal text-neutral-500 ${labelClassName ?? ""}`}
         >
           {label}
         </span>

@@ -8,6 +8,7 @@ import type { MessageItem as MessageItemType } from "../../types/message";
 import type { SessionSummary } from "../../types/session";
 import { splitSessionTitle } from "@/components/session-title";
 import { CollapseGroupBlock } from "./CollapseGroupBlock";
+import { CollapseAllContext } from "./collapse-all-context";
 import { MessageListHeader } from "./MessageListHeader";
 import { MessageRow } from "./MessageRow";
 import { SearchBar } from "./SearchBar";
@@ -59,12 +60,8 @@ interface SectionCollapseGroupBlock {
 
 type SectionBlock = SectionItemBlock | SectionSubAgentBlock | SectionCollapseGroupBlock;
 
-const FILE_WRITING_TOOLS = new Set(["Edit", "Write", "apply_patch"]);
-
 function isCollapsibleItem(item: MessageItemType): boolean {
-  if (item.type === "tool_block") {
-    return !FILE_WRITING_TOOLS.has(item.toolName);
-  }
+  if (item.type === "tool_block") return true;
   return item.type === "thinking" || item.type === "developer_message";
 }
 
@@ -138,6 +135,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const [collapsedCollapseGroups, setCollapsedCollapseGroups] = useState<Record<string, boolean>>(
     {},
   );
+  const [collapseGen, setCollapseGen] = useState(0);
+  const [expandGen, setExpandGen] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const copyTimerRef = useRef(0);
 
@@ -463,6 +462,46 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const activeGroupId =
     activeItemId === null ? null : (subAgentGroupIdByItemId.get(activeItemId) ?? null);
 
+  const allCollapseGroupIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const blocks of sectionBlocks) {
+      for (const block of blocks) {
+        if (block.type === "collapse_group") ids.push(block.id);
+      }
+    }
+    return ids;
+  }, [sectionBlocks]);
+
+  const handleCollapseAll = useCallback(() => {
+    const state: Record<string, boolean> = {};
+    for (const id of allCollapseGroupIds) state[id] = true;
+    setCollapsedCollapseGroups(state);
+    setCollapseGen((v) => v + 1);
+  }, [allCollapseGroupIds]);
+
+  const handleExpandAll = useCallback(() => {
+    const state: Record<string, boolean> = {};
+    for (const id of allCollapseGroupIds) state[id] = false;
+    setCollapsedCollapseGroups(state);
+    setExpandGen((v) => v + 1);
+  }, [allCollapseGroupIds]);
+
+  // Cmd+Shift+[ collapse all, Cmd+Shift+] expand all
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
+      if (e.key === "[") {
+        e.preventDefault();
+        handleCollapseAll();
+      } else if (e.key === "]") {
+        e.preventDefault();
+        handleExpandAll();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [handleCollapseAll, handleExpandAll]);
+
   const isCollapseGroupCollapsed = useCallback(
     (groupId: string): boolean => {
       // Force expand if the group contains the active search match
@@ -479,7 +518,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   );
   const nowSeconds = nowMs / 1000;
 
+  const collapseAllValue = useMemo(() => ({ collapseGen, expandGen }), [collapseGen, expandGen]);
+
   return (
+    <CollapseAllContext.Provider value={collapseAllValue}>
     <SearchProvider value={searchState}>
       <div className="relative flex min-h-0 flex-1 flex-col">
         {searchOpen ? (
@@ -506,6 +548,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
             onSearchOpen={() => setSearchOpen(true)}
+            onCollapseAll={handleCollapseAll}
+            onExpandAll={handleExpandAll}
           />
           <div className="mx-auto max-w-4xl space-y-5 px-4 pb-14 pt-8 sm:px-6">
             {hasItems ? (
@@ -615,5 +659,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         </div>
       </div>
     </SearchProvider>
+    </CollapseAllContext.Provider>
   );
 }

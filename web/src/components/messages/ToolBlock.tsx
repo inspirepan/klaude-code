@@ -1,13 +1,14 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 
 import type { ToolBlockItem } from "../../types/message";
+import { useCollapseAll } from "./collapse-all-context";
 import { useSearch } from "./search-context";
 import { TodoListView } from "./TodoListView";
 import { QuestionSummaryView } from "./QuestionSummaryView";
 import { ToolBlockHeader } from "./ToolBlockHeader";
 import { ToolBlockResult } from "./ToolBlockResult";
 import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra";
-import { hasDiffUIExtra, hasRichUIExtra } from "./tool-rich-result-ui";
+import { hasRichUIExtra } from "./tool-rich-result-ui";
 import { useStreamThrottle } from "./useStreamThrottle";
 
 const PLAN_TOOLS = new Set(["TodoWrite", "update_plan"]);
@@ -45,10 +46,6 @@ function extractHeaderDetail(toolName: string, args: string): string {
         return typeof parsed.url === "string" ? parsed.url : "";
       case "WebSearch":
         return typeof parsed.query === "string" ? parsed.query : "";
-      case "Glob":
-        return typeof parsed.pattern === "string" ? parsed.pattern : "";
-      case "Grep":
-        return typeof parsed.pattern === "string" ? parsed.pattern : "";
       default:
         return "";
     }
@@ -126,6 +123,7 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
 
 export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): JSX.Element {
   const { matchItemIds } = useSearch();
+  const { collapseGen, expandGen } = useCollapseAll();
   const bodyTextClass = "text-sm";
   const headerDetailTextClass = "!text-xs";
   const detailChipClass = "rounded bg-neutral-100 px-1.5 py-0.5 align-middle";
@@ -148,6 +146,15 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSearchMatch]);
+
+  // Collapse all / expand all signals
+  useEffect(() => {
+    if (collapseGen > 0) setOpen(false);
+  }, [collapseGen]);
+
+  useEffect(() => {
+    if (expandGen > 0) setOpen(true);
+  }, [expandGen]);
 
   // Auto-expand when streaming content starts arriving
   const hasStreamingContent = item.streamingContent.length > 0;
@@ -175,7 +182,6 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
   const isEmptyResult = item.result !== null && item.result.length === 0;
   const isError = item.resultStatus === "error";
   const hasRich = item.uiExtra !== null && hasRichUIExtra(item.uiExtra);
-  const hideResultRail = item.uiExtra !== null && hasDiffUIExtra(item.uiExtra);
   const expandable = hasResult || isEmptyResult || hasRich || hasStreamingContent;
 
   const detailColor = isError
@@ -186,7 +192,7 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
 
   return (
     <div
-      className={`-my-1 grid grid-cols-[auto_1fr] items-center gap-x-1.5 ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`-my-1 grid grid-cols-[auto_1fr] items-start gap-x-1.5 ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
       <ToolBlockHeader
@@ -204,7 +210,6 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
         compact={compact}
         open={open}
         hasRich={hasRich}
-        hideResultRail={hideResultRail}
         hasResult={hasResult}
         hasStreamingContent={hasStreamingContent}
         streamingContent={streamingContent}
