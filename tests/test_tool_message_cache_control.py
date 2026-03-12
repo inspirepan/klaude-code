@@ -4,10 +4,14 @@ from typing import Any, cast
 
 from openai.types import chat
 
-from klaude_code.llm.input_common import DeveloperAttachment, build_tool_message, build_tool_message_for_chat_completions
-from klaude_code.llm.openrouter.input import (  # pyright: ignore[reportPrivateUsage]
-    _add_cache_control,
-    _rewrite_tool_message_for_claude,
+from klaude_code.llm.input_common import (
+    DeveloperAttachment,
+    build_tool_message,
+    build_tool_message_for_chat_completions,
+)
+from klaude_code.llm.openrouter.input import (
+    _add_cache_control,  # pyright: ignore[reportPrivateUsage]
+    _rewrite_tool_message_for_claude,  # pyright: ignore[reportPrivateUsage]
     convert_history_to_input,
 )
 from klaude_code.protocol import message
