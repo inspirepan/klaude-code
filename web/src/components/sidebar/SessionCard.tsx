@@ -113,7 +113,7 @@ function DiffStats({ added, removed }: { added: number; removed: number }): JSX.
     return null;
   }
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[9px] leading-4">
+    <span className="inline-flex shrink-0 gap-1 whitespace-nowrap text-[9px] leading-4">
       {added > 0 ? <span className="text-emerald-600">+{added}</span> : null}
       {removed > 0 ? <span className="text-rose-600">-{removed}</span> : null}
     </span>

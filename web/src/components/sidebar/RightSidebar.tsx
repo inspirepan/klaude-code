@@ -113,7 +113,7 @@ export function RightSidebar(): JSX.Element {
             </span>
           </TooltipContent>
         </Tooltip>
-        <span className="flex-1 text-xs font-semibold text-neutral-500">Session context</span>
+        <span className="flex-1 text-sm font-semibold text-neutral-800">Session context</span>
       </div>
 
       <ScrollArea className="min-h-0 w-full flex-1" type="auto">

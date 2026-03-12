@@ -127,7 +127,7 @@ export function ModelSelector({
         }}
         className={
           triggerClassName ??
-          "inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[13px] text-neutral-500 transition-colors hover:text-neutral-700 disabled:cursor-not-allowed disabled:text-neutral-300"
+          "inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-xs text-neutral-500 transition-colors hover:text-neutral-700 disabled:cursor-not-allowed disabled:text-neutral-300"
         }
       >
         <span className="max-w-44 truncate">{triggerLabel}</span>
