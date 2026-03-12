@@ -1,5 +1,3 @@
-import { ChevronRight } from "lucide-react";
-
 import type { ToolBlockItem } from "../../types/message";
 import { FilePath } from "./FilePath";
 import { HighlightText } from "./HighlightText";
@@ -31,11 +29,11 @@ export function ToolBlockHeader({
 
   return (
     <>
-      <div className={`flex gap-1.5 ${open ? "items-start self-stretch" : "items-center"}`}>
+      <div className={`flex items-start gap-1.5 ${open ? "self-stretch" : ""}`}>
         <div className={`flex flex-col items-center ${open ? "self-stretch" : ""}`}>
-          <ChevronRight
-            className={`h-4 w-4 shrink-0 text-neutral-300 transition-transform duration-150 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
-          />
+          <span className={`mt-0.5 font-mono text-xs text-neutral-300 ${!expandable ? "opacity-0" : ""}`}>
+            {open ? "[-]" : "[+]"}
+          </span>
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
         <span className="whitespace-nowrap font-sans font-normal text-neutral-500">

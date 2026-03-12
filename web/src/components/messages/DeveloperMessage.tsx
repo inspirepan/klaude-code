@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ChevronRight } from "lucide-react";
 
 import type { DeveloperMessageItem, AtFileOp, DeveloperUIItem } from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
@@ -75,9 +74,9 @@ function CollapsibleRow({
     >
       <div className="flex items-start gap-1.5 self-stretch">
         <div className="flex flex-col items-center self-stretch">
-          <ChevronRight
-            className={`h-4 w-4 shrink-0 text-neutral-300 transition-transform duration-150 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
-          />
+          <span className={`mt-0.5 font-mono text-xs text-neutral-300 ${!expandable ? "opacity-0" : ""}`}>
+            {open ? "[-]" : "[+]"}
+          </span>
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
         <span
