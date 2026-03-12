@@ -124,7 +124,7 @@ function DiffStats({ added, removed }: { added: number; removed: number }): JSX.
     return null;
   }
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[10px] leading-4">
+    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[9px] leading-4">
       {added > 0 ? <span className="text-emerald-600">+{added}</span> : null}
       {removed > 0 ? <span className="text-rose-600">-{removed}</span> : null}
     </span>
@@ -296,14 +296,13 @@ export function SessionCard({
           </div>
         </div>
 
-        <div className="flex min-w-0 items-center gap-1 pl-6 pr-1 text-[10px] leading-4 text-neutral-400">
+        <div className="flex min-w-0 items-center gap-1 pl-6 pr-1 text-[9px] leading-4 text-neutral-400">
           <div className="flex min-w-0 items-center gap-1 truncate">
             {showWorkspace ? (
               <>
                 <span className="truncate" title={session.work_dir}>
                   {workDirLabel(session.work_dir)}
                 </span>
-                <span>·</span>
               </>
             ) : null}
             <MessageSquare className="h-2.5 w-2.5 shrink-0" />
@@ -311,9 +310,12 @@ export function SessionCard({
           </div>
 
           {session.read_only ? (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] leading-4 text-amber-700">
+            <span
+              className="inline-flex shrink-0 items-center rounded-full bg-amber-50 p-0.5 text-amber-700"
+              title="Read-only"
+              aria-label="Read-only"
+            >
               <Lock className="h-3 w-3" />
-              <span>Read-only</span>
             </span>
           ) : null}
 
@@ -323,15 +325,9 @@ export function SessionCard({
           />
 
           <div className="ml-auto flex items-center">
-            {runtime.sessionState === "running" ? (
-              <span className="inline-flex shrink-0 items-center rounded-full bg-blue-50 px-1.5 text-[10px] leading-4 text-blue-500 group-hover:hidden">
-                Running…
-              </span>
-            ) : (
-              <span className="whitespace-nowrap group-hover:hidden" title={updatedAtDetailed}>
-                {updatedAt}
-              </span>
-            )}
+            <span className="whitespace-nowrap group-hover:hidden" title={updatedAtDetailed}>
+              {updatedAt}
+            </span>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
