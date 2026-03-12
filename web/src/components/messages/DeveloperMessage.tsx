@@ -70,13 +70,13 @@ function CollapsibleRow({
 
   return (
     <div
-      className={`grid grid-cols-[auto_1fr] items-start gap-x-1.5 py-0.5 font-mono text-sm leading-6 ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`grid grid-cols-[auto_1fr] items-start gap-x-1.5 font-mono text-sm leading-5 ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
       <div className="flex items-start gap-1.5 self-stretch">
         <div className="flex flex-col items-center self-stretch">
           <ChevronRight
-            className={`mt-1 h-4 w-4 shrink-0 text-neutral-300 transition-transform duration-150 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
+            className={`h-4 w-4 shrink-0 text-neutral-300 transition-transform duration-150 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
           />
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
@@ -119,7 +119,7 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
   const images = collectImages(item.items);
 
   return (
-    <div className="-my-1 flex flex-col gap-1.5 font-sans text-sm text-neutral-500">
+    <div className="flex flex-col font-sans text-sm text-neutral-500">
       {item.items.map((ui, idx) => {
         switch (ui.type) {
           case "memory_loaded":

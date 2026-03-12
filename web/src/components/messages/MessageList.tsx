@@ -7,6 +7,7 @@ import type { SessionStatusState } from "../../stores/event-reducer";
 import type { MessageItem as MessageItemType } from "../../types/message";
 import type { SessionSummary } from "../../types/session";
 import { splitSessionTitle } from "@/components/session-title";
+import { CollapseGroupBlock } from "./CollapseGroupBlock";
 import { MessageListHeader } from "./MessageListHeader";
 import { MessageRow } from "./MessageRow";
 import { SearchBar } from "./SearchBar";
@@ -50,7 +51,17 @@ interface SectionSubAgentBlock {
   items: MessageItemType[];
 }
 
-type SectionBlock = SectionItemBlock | SectionSubAgentBlock;
+interface SectionCollapseGroupBlock {
+  type: "collapse_group";
+  id: string;
+  items: MessageItemType[];
+}
+
+type SectionBlock = SectionItemBlock | SectionSubAgentBlock | SectionCollapseGroupBlock;
+
+function isCollapsibleItem(item: MessageItemType): boolean {
+  return item.type === "thinking" || item.type === "tool_block" || item.type === "developer_message";
+}
 
 function extractSearchableText(item: MessageItemType): string {
   switch (item.type) {
@@ -119,6 +130,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     {},
   );
   const [subAgentMetaOpen, setSubAgentMetaOpen] = useState<Record<string, boolean>>({});
+  const [collapsedCollapseGroups, setCollapsedCollapseGroups] = useState<Record<string, boolean>>(
+    {},
+  );
   const [nowMs, setNowMs] = useState(() => Date.now());
   const copyTimerRef = useRef(0);
 
@@ -340,21 +354,22 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   const sectionBlocks = useMemo(() => {
     return sections.map((section) => {
-      const blocks: SectionBlock[] = [];
+      // First pass: group sub-agent items
+      const rawBlocks: SectionBlock[] = [];
       const subAgentBlockIndexBySessionId = new Map<string, number>();
       let i = 0;
       while (i < section.length) {
         const item = section[i];
         const sourceSessionId = item.sessionId ?? sessionId;
         if (sourceSessionId === sessionId) {
-          blocks.push({ type: "item", item });
+          rawBlocks.push({ type: "item", item });
           i += 1;
           continue;
         }
 
         const existingBlockIndex = subAgentBlockIndexBySessionId.get(sourceSessionId);
         if (existingBlockIndex !== undefined) {
-          const existingBlock = blocks[existingBlockIndex];
+          const existingBlock = rawBlocks[existingBlockIndex];
           if (existingBlock?.type === "sub_agent_group") {
             existingBlock.items.push(item);
           }
@@ -363,8 +378,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         }
 
         const groupItems: MessageItemType[] = [item];
-        const blockIndex = blocks.length;
-        blocks.push({
+        const blockIndex = rawBlocks.length;
+        rawBlocks.push({
           type: "sub_agent_group",
           groupId: `${section[0]?.id ?? sourceSessionId}-${sourceSessionId}`,
           sourceSessionId,
@@ -374,6 +389,24 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         });
         subAgentBlockIndexBySessionId.set(sourceSessionId, blockIndex);
         i += 1;
+      }
+
+      // Second pass: merge consecutive thinking/tool_block items into collapse groups
+      const blocks: SectionBlock[] = [];
+      let pending: MessageItemType[] = [];
+      for (const block of rawBlocks) {
+        if (block.type === "item" && isCollapsibleItem(block.item)) {
+          pending.push(block.item);
+        } else {
+          if (pending.length > 0) {
+            blocks.push({ type: "collapse_group", id: `cg-${pending[0].id}`, items: pending });
+            pending = [];
+          }
+          blocks.push(block);
+        }
+      }
+      if (pending.length > 0) {
+        blocks.push({ type: "collapse_group", id: `cg-${pending[0].id}`, items: pending });
       }
       return blocks;
     });
@@ -392,8 +425,46 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     return map;
   }, [sectionBlocks]);
 
+  const collapseGroupIdByItemId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const blocks of sectionBlocks) {
+      for (const block of blocks) {
+        if (block.type !== "collapse_group") continue;
+        for (const item of block.items) {
+          map.set(item.id, block.id);
+        }
+      }
+    }
+    return map;
+  }, [sectionBlocks]);
+
+  const lastCollapseGroupId = useMemo(() => {
+    let lastId: string | null = null;
+    for (const blocks of sectionBlocks) {
+      for (const block of blocks) {
+        if (block.type === "collapse_group") lastId = block.id;
+      }
+    }
+    return lastId;
+  }, [sectionBlocks]);
+
   const activeGroupId =
     activeItemId === null ? null : (subAgentGroupIdByItemId.get(activeItemId) ?? null);
+
+  const isCollapseGroupCollapsed = useCallback(
+    (groupId: string): boolean => {
+      // Force expand if the group contains the active search match
+      if (activeItemId !== null && collapseGroupIdByItemId.get(activeItemId) === groupId) {
+        return false;
+      }
+      if (groupId in collapsedCollapseGroups) {
+        return collapsedCollapseGroups[groupId];
+      }
+      // Default: last group expanded, others collapsed
+      return groupId !== lastCollapseGroupId;
+    },
+    [activeItemId, collapseGroupIdByItemId, collapsedCollapseGroups, lastCollapseGroupId],
+  );
   const nowSeconds = nowMs / 1000;
 
   return (
@@ -430,6 +501,28 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 {sections.map((section, sectionIndex) => (
                   <div key={section[0].id} className="space-y-5">
                     {sectionBlocks[sectionIndex]?.map((block) => {
+                      if (block.type === "collapse_group") {
+                        const collapsed = isCollapseGroupCollapsed(block.id);
+                        return (
+                          <CollapseGroupBlock
+                            key={block.id}
+                            items={block.items}
+                            collapsed={collapsed}
+                            onToggle={() => {
+                              setCollapsedCollapseGroups((prev) => ({
+                                ...prev,
+                                [block.id]: !collapsed,
+                              }));
+                            }}
+                            activeItemId={activeItemId}
+                            copiedItemId={copiedItemId}
+                            workDir={workspacePath}
+                            onCopy={handleCopy}
+                            setItemRef={setItemRef}
+                          />
+                        );
+                      }
+
                       if (block.type === "sub_agent_group") {
                         const collapsed =
                           activeGroupId === block.groupId
