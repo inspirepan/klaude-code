@@ -59,8 +59,13 @@ interface SectionCollapseGroupBlock {
 
 type SectionBlock = SectionItemBlock | SectionSubAgentBlock | SectionCollapseGroupBlock;
 
+const FILE_WRITING_TOOLS = new Set(["Edit", "Write", "apply_patch"]);
+
 function isCollapsibleItem(item: MessageItemType): boolean {
-  return item.type === "thinking" || item.type === "tool_block" || item.type === "developer_message";
+  if (item.type === "tool_block") {
+    return !FILE_WRITING_TOOLS.has(item.toolName);
+  }
+  return item.type === "thinking" || item.type === "developer_message";
 }
 
 function extractSearchableText(item: MessageItemType): string {
@@ -440,12 +445,19 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   const lastCollapseGroupId = useMemo(() => {
     let lastId: string | null = null;
+    let hasAssistantTextAfterLastGroup = false;
     for (const blocks of sectionBlocks) {
       for (const block of blocks) {
-        if (block.type === "collapse_group") lastId = block.id;
+        if (block.type === "collapse_group") {
+          lastId = block.id;
+          hasAssistantTextAfterLastGroup = false;
+        } else if (block.type === "item" && block.item.type === "assistant_text" && lastId !== null) {
+          hasAssistantTextAfterLastGroup = true;
+        }
       }
     }
-    return lastId;
+    // If assistant text follows the last collapse group, keep it collapsed too
+    return hasAssistantTextAfterLastGroup ? null : lastId;
   }, [sectionBlocks]);
 
   const activeGroupId =

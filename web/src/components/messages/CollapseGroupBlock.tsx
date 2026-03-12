@@ -1,5 +1,3 @@
-import { ChevronRight } from "lucide-react";
-
 import type { MessageItem as MessageItemType } from "../../types/message";
 import { MessageRow } from "./MessageRow";
 
@@ -33,9 +31,7 @@ export function CollapseGroupBlock({
         onClick={onToggle}
         className="flex items-center gap-1.5 py-0.5 text-left text-sm text-neutral-400 transition-colors hover:text-neutral-600"
       >
-        <ChevronRight
-          className={`h-3.5 w-3.5 shrink-0 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
-        />
+        <span className="font-mono text-xs">{collapsed ? "[+]" : "[-]"}</span>
         <span>{label}</span>
       </button>
       {!collapsed ? (
