@@ -26,7 +26,9 @@ export function NewSessionOverlay({
   const [text, setText] = useState("");
   const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(() => draftWorkDir.trim().length === 0);
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(
+    () => draftWorkDir.trim().length === 0,
+  );
   const [modelOptions, setModelOptions] = useState<ConfigModelSummary[]>([]);
   const [modelLoading, setModelLoading] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
@@ -225,7 +227,11 @@ export function NewSessionOverlay({
             submitting={submitting}
             disableSubmit={disableSubmit}
             disableAttachments={submitting}
-            placeholder={normalizedDraftWorkDir.length === 0 ? "Select a workspace first..." : "What should we do?"}
+            placeholder={
+              normalizedDraftWorkDir.length === 0
+                ? "Select a workspace first..."
+                : "What should we do?"
+            }
             modelOptions={modelOptions}
             modelValue={selectedModel}
             modelLoading={modelLoading}

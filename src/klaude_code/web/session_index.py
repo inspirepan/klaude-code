@@ -236,7 +236,9 @@ class SessionIndex:
         with self._lock:
             return self._sessions_by_id.get(session_id)
 
-    def apply_meta(self, data: dict[str, Any], *, fallback_session_id: str) -> tuple[SessionSummary | None, SessionSummary | None]:
+    def apply_meta(
+        self, data: dict[str, Any], *, fallback_session_id: str
+    ) -> tuple[SessionSummary | None, SessionSummary | None]:
         next_summary = load_session_summary_from_meta(data, fallback_session_id=fallback_session_id)
         session_id = str(data.get("id", fallback_session_id))
         with self._lock:

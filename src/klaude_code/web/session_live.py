@@ -104,7 +104,9 @@ class SessionEventStream:
 
 def _derive_session_state_from_snapshot(snapshot: Any) -> Literal["idle", "running", "waiting_user_input"]:
     if snapshot.pending_request_count > 0:
-        return cast(Literal["idle", "running", "waiting_user_input"], model.SessionRuntimeState.WAITING_USER_INPUT.value)
+        return cast(
+            Literal["idle", "running", "waiting_user_input"], model.SessionRuntimeState.WAITING_USER_INPUT.value
+        )
     if snapshot.active_root_task is not None or snapshot.child_task_count > 0:
         return cast(Literal["idle", "running", "waiting_user_input"], model.SessionRuntimeState.RUNNING.value)
     return cast(Literal["idle", "running", "waiting_user_input"], model.SessionRuntimeState.IDLE.value)
@@ -126,10 +128,7 @@ class SessionLiveState:
         for summary in sorted(self.index.list_all(), key=lambda item: item.updated_at, reverse=True):
             session = self.serialize_summary(summary)
             groups_by_work_dir.setdefault(summary.work_dir, []).append(session)
-        return [
-            {"work_dir": work_dir, "sessions": sessions}
-            for work_dir, sessions in groups_by_work_dir.items()
-        ]
+        return [{"work_dir": work_dir, "sessions": sessions} for work_dir, sessions in groups_by_work_dir.items()]
 
     def serialize_summary(self, summary: SessionSummary) -> dict[str, Any]:
         runtime_state = self._runtime_session_state(summary.id, summary.session_state)
@@ -164,9 +163,7 @@ class SessionLiveState:
         current_payload = self.serialize_summary(current)
         if previous_payload == current_payload:
             return
-        self.stream.publish(
-            SessionStreamEvent(type="session.upsert", session_id=current.id, session=current_payload)
-        )
+        self.stream.publish(SessionStreamEvent(type="session.upsert", session_id=current.id, session=current_payload))
 
     def apply_deleted(self, session_id: str) -> None:
         if self._loop is None:
@@ -186,7 +183,9 @@ class SessionLiveState:
     ) -> Literal["idle", "running", "waiting_user_input"]:
         actor = self._runtime.session_registry.get_session_actor(session_id)
         if actor is None:
-            return fallback or cast(Literal["idle", "running", "waiting_user_input"], model.SessionRuntimeState.IDLE.value)
+            return fallback or cast(
+                Literal["idle", "running", "waiting_user_input"], model.SessionRuntimeState.IDLE.value
+            )
         snapshot = actor.snapshot()
         return _derive_session_state_from_snapshot(snapshot)
 

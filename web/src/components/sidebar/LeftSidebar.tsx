@@ -17,7 +17,6 @@ export function LeftSidebar(): JSX.Element {
   );
   const completedUnreadBySessionId = useSessionStore((state) => state.completedUnreadBySessionId);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
-  const draftWorkDir = useSessionStore((state) => state.draftWorkDir);
   const loading = useSessionStore((state) => state.loading);
   const loadError = useSessionStore((state) => state.loadError);
   const setDraftWorkDir = useSessionStore((state) => state.setDraftWorkDir);
@@ -170,16 +169,6 @@ export function LeftSidebar(): JSX.Element {
         return sessionState === "idle";
       }),
     [activeSessions, runtimeBySessionId],
-  );
-
-  const activeSession = useMemo(
-    () =>
-      activeSessionId === "draft"
-        ? null
-        : (groups
-            .flatMap((group) => group.sessions)
-            .find((session) => session.id === activeSessionId) ?? null),
-    [activeSessionId, groups],
   );
 
   const openNewSessionOverlay = (workDir?: string): void => {

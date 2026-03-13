@@ -336,7 +336,6 @@ function upsertSessionIntoGroups(groups: SessionGroup[], session: SessionSummary
   return nextGroups;
 }
 
-
 function patchRuntimeByEvent(
   current: Record<string, SessionRuntimeState>,
   sessionId: string,

@@ -204,4 +204,6 @@ async def start_web_server(
         await cleanup_app_components(components)
         log_debug("[web] cleanup done: app components", debug_type=DebugType.EXECUTION)
     remaining_tasks = [task for task in asyncio.all_tasks() if task is not asyncio.current_task() and not task.done()]
-    log_debug(f"[web] start_web_server returning remaining_tasks={len(remaining_tasks)}", debug_type=DebugType.EXECUTION)
+    log_debug(
+        f"[web] start_web_server returning remaining_tasks={len(remaining_tasks)}", debug_type=DebugType.EXECUTION
+    )

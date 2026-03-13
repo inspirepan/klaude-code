@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react";
 import { ArrowDown, ArrowUp, ChevronDown, CornerDownLeft, Folder } from "lucide-react";
 
 interface DraftWorkspacePickerProps {
@@ -171,14 +178,20 @@ export function DraftWorkspacePicker({
               <div className="flex items-center gap-2 border-t border-neutral-100 px-2.5 py-1.5">
                 <span className="inline-flex items-center gap-1.5 text-neutral-400">
                   <span className="inline-flex items-center gap-0.5">
-                    <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]"><ArrowUp className="h-2.5 w-2.5" /></kbd>
-                    <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]"><ArrowDown className="h-2.5 w-2.5" /></kbd>
+                    <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                      <ArrowUp className="h-2.5 w-2.5" />
+                    </kbd>
+                    <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                      <ArrowDown className="h-2.5 w-2.5" />
+                    </kbd>
                   </span>
                   <span className="text-xs">navigate</span>
                 </span>
                 <span className="text-neutral-300">·</span>
                 <span className="inline-flex items-center gap-1.5 text-neutral-400">
-                  <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]"><CornerDownLeft className="h-2.5 w-2.5" /></kbd>
+                  <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                    <CornerDownLeft className="h-2.5 w-2.5" />
+                  </kbd>
                   <span className="text-xs">select</span>
                 </span>
               </div>

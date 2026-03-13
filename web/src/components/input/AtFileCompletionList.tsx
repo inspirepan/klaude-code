@@ -199,9 +199,7 @@ export function AtFileCompletionList({
               type="button"
               className={[
                 "flex w-full items-center gap-2 px-2.5 py-1 text-left transition-colors",
-                highlighted
-                  ? "bg-muted text-neutral-900"
-                  : "text-neutral-600 hover:bg-surface",
+                highlighted ? "bg-muted text-neutral-900" : "text-neutral-600 hover:bg-surface",
               ].join(" ")}
               onMouseDown={(event) => {
                 event.preventDefault();
