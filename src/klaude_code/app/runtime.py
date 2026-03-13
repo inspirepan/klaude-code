@@ -21,7 +21,7 @@ from klaude_code.core.control.event_bus import EventBus, EventSubscription
 from klaude_code.core.control.event_relay import EventRelayPublisher, event_relay_socket_path
 from klaude_code.core.control.runtime_facade import RuntimeFacade
 from klaude_code.core.control.session_meta_relay import SessionMetaRelayPublisher, session_meta_relay_socket_path
-from klaude_code.log import log, set_debug_logging
+from klaude_code.log import DebugType, log, log_debug, set_debug_logging
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.session.session import Session, close_default_store
 from klaude_code.session.store import register_session_meta_observer
@@ -274,38 +274,57 @@ async def cleanup_app_components(components: AppComponents) -> None:
     """Clean up all runtime components."""
     try:
         if components.unregister_session_meta_relay_observer is not None:
+            log_debug("[app] cleanup: unregister session meta relay observer", debug_type=DebugType.EXECUTION)
             components.unregister_session_meta_relay_observer()
 
+        log_debug("[app] cleanup: cancel idle reclaim task", debug_type=DebugType.EXECUTION)
         components.idle_reclaim_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await components.idle_reclaim_task
 
+        log_debug("[app] cleanup: cancel owner heartbeat task", debug_type=DebugType.EXECUTION)
         components.owner_heartbeat_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await components.owner_heartbeat_task
 
+        log_debug("[app] cleanup: runtime.stop start", debug_type=DebugType.EXECUTION)
         await components.runtime.stop()
+        log_debug("[app] cleanup: runtime.stop done", debug_type=DebugType.EXECUTION)
         with contextlib.suppress(Exception):
+            log_debug("[app] cleanup: close_default_store start", debug_type=DebugType.EXECUTION)
             await close_default_store()
+            log_debug("[app] cleanup: close_default_store done", debug_type=DebugType.EXECUTION)
 
         with contextlib.suppress(Exception):
+            log_debug("[app] cleanup: wait_for_display_idle start", debug_type=DebugType.EXECUTION)
             await components.wait_for_display_idle()
+            log_debug("[app] cleanup: wait_for_display_idle done", debug_type=DebugType.EXECUTION)
 
         with contextlib.suppress(Exception):
+            log_debug("[app] cleanup: publish EndEvent start", debug_type=DebugType.EXECUTION)
             await components.event_bus.publish(events.EndEvent())
+            log_debug("[app] cleanup: publish EndEvent done", debug_type=DebugType.EXECUTION)
 
         if components.event_relay_publisher is not None:
             with contextlib.suppress(Exception):
+                log_debug("[app] cleanup: event relay publisher close start", debug_type=DebugType.EXECUTION)
                 await components.event_relay_publisher.aclose()
+                log_debug("[app] cleanup: event relay publisher close done", debug_type=DebugType.EXECUTION)
 
         if components.session_meta_relay_publisher is not None:
             with contextlib.suppress(Exception):
+                log_debug("[app] cleanup: session meta relay publisher close start", debug_type=DebugType.EXECUTION)
                 components.session_meta_relay_publisher.close()
+                log_debug("[app] cleanup: session meta relay publisher close done", debug_type=DebugType.EXECUTION)
 
         if components.interaction_task is not None:
             with contextlib.suppress(Exception):
+                log_debug("[app] cleanup: interaction task await start", debug_type=DebugType.EXECUTION)
                 await components.interaction_task
+                log_debug("[app] cleanup: interaction task await done", debug_type=DebugType.EXECUTION)
+        log_debug("[app] cleanup: display task await start", debug_type=DebugType.EXECUTION)
         await components.display_task
+        log_debug("[app] cleanup: display task await done", debug_type=DebugType.EXECUTION)
     finally:
         # Ensure the terminal cursor is visible even if Rich's spinner did not stop cleanly.
         with contextlib.suppress(Exception):

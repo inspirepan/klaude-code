@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import socket
 from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any, TypeVar
@@ -39,5 +40,21 @@ def test_session_meta_relay_round_trips_upsert(tmp_path: Path) -> None:
         assert received == [
             SessionMetaRelayMessage(kind="upsert", session_id="s1", meta={"id": "s1", "title": "hello"})
         ]
+
+    arun(_test())
+
+
+def test_session_meta_relay_server_closes_idle_connections_on_shutdown(tmp_path: Path) -> None:
+    async def _test() -> None:
+        socket_path = session_meta_relay_socket_path(home_dir=tmp_path)
+        relay_server = SessionMetaRelayServer(socket_path=socket_path, on_message=lambda _message: None)
+
+        await relay_server.start()
+        conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        conn.connect(str(socket_path))
+        try:
+            await asyncio.wait_for(relay_server.aclose(), timeout=1.0)
+        finally:
+            conn.close()
 
     arun(_test())

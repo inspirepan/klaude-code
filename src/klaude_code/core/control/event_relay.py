@@ -10,6 +10,8 @@ from klaude_code.core.control.event_bus import EnvelopeBus
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
 
+RELAY_STREAM_LIMIT = 1024 * 1024
+
 
 def event_relay_socket_path(*, home_dir: Path | None = None) -> Path:
     resolved_home = (home_dir or Path.home()).resolve()
@@ -110,6 +112,7 @@ class EventRelayServer:
         self._socket_path = socket_path
         self._envelope_bus = envelope_bus
         self._server: asyncio.AbstractServer | None = None
+        self._connections: set[asyncio.StreamWriter] = set()
 
     async def start(self) -> None:
         self._socket_path.parent.mkdir(parents=True, exist_ok=True)
@@ -118,13 +121,27 @@ class EventRelayServer:
                 raise RuntimeError(f"event relay socket already in use: {self._socket_path}")
             self._socket_path.unlink()
 
-        self._server = await asyncio.start_unix_server(self._handle_connection, path=str(self._socket_path))
+        self._server = await asyncio.start_unix_server(
+            self._handle_connection,
+            path=str(self._socket_path),
+            limit=RELAY_STREAM_LIMIT,
+        )
 
     async def aclose(self) -> None:
         if self._server is not None:
+            log_debug(
+                f"[web] event relay close start connections={len(self._connections)}",
+                debug_type=DebugType.EXECUTION,
+            )
             self._server.close()
+            for writer in list(self._connections):
+                writer.close()
+            for writer in list(self._connections):
+                with contextlib.suppress(OSError):
+                    await writer.wait_closed()
             await self._server.wait_closed()
             self._server = None
+            log_debug("[web] event relay close done", debug_type=DebugType.EXECUTION)
         with contextlib.suppress(FileNotFoundError):
             self._socket_path.unlink()
 
@@ -144,9 +161,13 @@ class EventRelayServer:
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
     ) -> None:
+        self._connections.add(writer)
         try:
             while True:
-                raw = await reader.readline()
+                try:
+                    raw = await reader.readline()
+                except ValueError:
+                    return
                 if not raw:
                     return
                 try:
@@ -155,6 +176,7 @@ class EventRelayServer:
                     continue
                 await self._envelope_bus.publish_envelope(envelope)
         finally:
+            self._connections.discard(writer)
             writer.close()
             with contextlib.suppress(OSError):
                 await writer.wait_closed()

@@ -18,6 +18,7 @@ from klaude_code.core.control.session_meta_relay import (
     SessionMetaRelayServer,
     session_meta_relay_socket_path,
 )
+from klaude_code.log import DebugType, log_debug
 from klaude_code.session.store import register_session_meta_observer
 from klaude_code.web.interaction import WebInteractionHandler
 from klaude_code.web.routes import config_router, files_router, sessions_router, ws_router
@@ -72,11 +73,18 @@ def create_app(
         try:
             yield
         finally:
+            log_debug("[web] lifespan shutdown start", debug_type=DebugType.EXECUTION)
+            log_debug("[web] lifespan shutdown: closing session meta relay", debug_type=DebugType.EXECUTION)
             await session_meta_relay_server.aclose()
+            log_debug("[web] lifespan shutdown: session meta relay closed", debug_type=DebugType.EXECUTION)
             if unregister_meta_observer is not None:
+                log_debug("[web] lifespan shutdown: unregister meta observer", debug_type=DebugType.EXECUTION)
                 unregister_meta_observer()
             if state_initializer is not None and state_shutdown is not None:
+                log_debug("[web] lifespan shutdown: state_shutdown start", debug_type=DebugType.EXECUTION)
                 await state_shutdown(state)
+                log_debug("[web] lifespan shutdown: state_shutdown done", debug_type=DebugType.EXECUTION)
+            log_debug("[web] lifespan shutdown done", debug_type=DebugType.EXECUTION)
 
     app = FastAPI(title="klaude-code Web API", lifespan=_lifespan)
     app.add_middleware(

@@ -12,7 +12,7 @@ from pathlib import Path
 import uvicorn
 
 from klaude_code.app.runtime import AppInitConfig, cleanup_app_components, initialize_app_components
-from klaude_code.log import log
+from klaude_code.log import DebugType, log, log_debug
 from klaude_code.update import INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL, get_installation_info
 from klaude_code.web.app import create_app
 from klaude_code.web.display import WebDisplay
@@ -190,8 +190,18 @@ async def start_web_server(
     )
     server = uvicorn.Server(config)
     try:
+        log_debug(f"[web] starting uvicorn host={host} port={port}", debug_type=DebugType.EXECUTION)
         await server.serve()
+        log_debug("[web] uvicorn server.serve() returned", debug_type=DebugType.EXECUTION)
     finally:
+        log_debug("[web] cleanup start: frontend process", debug_type=DebugType.EXECUTION)
         await _terminate_process(frontend_plan.process)
+        log_debug("[web] cleanup done: frontend process", debug_type=DebugType.EXECUTION)
+        log_debug("[web] cleanup start: live events", debug_type=DebugType.EXECUTION)
         await live_events.aclose()
+        log_debug("[web] cleanup done: live events", debug_type=DebugType.EXECUTION)
+        log_debug("[web] cleanup start: app components", debug_type=DebugType.EXECUTION)
         await cleanup_app_components(components)
+        log_debug("[web] cleanup done: app components", debug_type=DebugType.EXECUTION)
+    remaining_tasks = [task for task in asyncio.all_tasks() if task is not asyncio.current_task() and not task.done()]
+    log_debug(f"[web] start_web_server returning remaining_tasks={len(remaining_tasks)}", debug_type=DebugType.EXECUTION)

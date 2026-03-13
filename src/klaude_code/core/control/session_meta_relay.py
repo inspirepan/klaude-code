@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from klaude_code.const import get_system_temp
+from klaude_code.log import DebugType, log_debug
+
+RELAY_STREAM_LIMIT = 1024 * 1024
 
 
 def session_meta_relay_socket_path(*, home_dir: Path | None = None) -> Path:
@@ -149,6 +152,7 @@ class SessionMetaRelayServer:
         self._socket_path = socket_path
         self._on_message = on_message
         self._server: asyncio.AbstractServer | None = None
+        self._connections: set[asyncio.StreamWriter] = set()
 
     async def start(self) -> None:
         self._socket_path.parent.mkdir(parents=True, exist_ok=True)
@@ -156,13 +160,27 @@ class SessionMetaRelayServer:
             if await self._is_socket_live():
                 raise RuntimeError(f"session meta relay socket already in use: {self._socket_path}")
             self._socket_path.unlink()
-        self._server = await asyncio.start_unix_server(self._handle_connection, path=str(self._socket_path))
+        self._server = await asyncio.start_unix_server(
+            self._handle_connection,
+            path=str(self._socket_path),
+            limit=RELAY_STREAM_LIMIT,
+        )
 
     async def aclose(self) -> None:
         if self._server is not None:
+            log_debug(
+                f"[web] session meta relay close start connections={len(self._connections)}",
+                debug_type=DebugType.EXECUTION,
+            )
             self._server.close()
+            for writer in list(self._connections):
+                writer.close()
+            for writer in list(self._connections):
+                with contextlib.suppress(OSError):
+                    await writer.wait_closed()
             await self._server.wait_closed()
             self._server = None
+            log_debug("[web] session meta relay close done", debug_type=DebugType.EXECUTION)
         with contextlib.suppress(FileNotFoundError):
             self._socket_path.unlink()
 
@@ -178,9 +196,13 @@ class SessionMetaRelayServer:
         return True
 
     async def _handle_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        self._connections.add(writer)
         try:
             while True:
-                raw = await reader.readline()
+                try:
+                    raw = await reader.readline()
+                except ValueError:
+                    return
                 if not raw:
                     return
                 try:
@@ -189,6 +211,7 @@ class SessionMetaRelayServer:
                     continue
                 self._on_message(message)
         finally:
+            self._connections.discard(writer)
             writer.close()
             with contextlib.suppress(OSError):
                 await writer.wait_closed()
