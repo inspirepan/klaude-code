@@ -1,4 +1,4 @@
-import { CircleHelp } from "lucide-react";
+import { CircleHelp, Loader } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { SessionStatusState } from "../../stores/event-reducer";
@@ -16,6 +16,7 @@ interface SessionStatusBarProps {
 
 function getRuntimeStatusLabel(runtime: SessionRuntimeState | null): string | null {
   if (runtime === null) return null;
+  if (runtime.sessionState === "running") return "Running …";
   if (runtime.sessionState === "waiting_user_input") return "Waiting for input …";
   return null;
 }
@@ -68,12 +69,8 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
       {statusLabel ? (
         <>
           {hasLiveStatus ? (
-            <span
-              className={`h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-[1.5px] ${
-                isRunning
-                  ? "border-blue-300 border-t-blue-500"
-                  : "border-neutral-300 border-t-neutral-500"
-              }`}
+            <Loader
+              className={`h-3.5 w-3.5 shrink-0 animate-spin ${isRunning ? "text-blue-500" : "text-neutral-500"}`}
             />
           ) : (
             <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-300" />
@@ -84,7 +81,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
         </>
       ) : null}
       {summaryParts.length > 0 ? (
-        <div className="ml-2 flex flex-wrap items-center gap-y-1 font-sans text-[11px] text-neutral-400">
+        <div className="ml-2 flex flex-wrap items-center gap-y-1 font-sans text-2xs text-neutral-400">
           {summaryParts.map((part, i) => (
             <span key={part} className="flex items-center">
               {i > 0 ? <span className="mx-1.5 text-neutral-300">·</span> : null}

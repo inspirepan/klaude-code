@@ -15,6 +15,22 @@ function toDisplayPath(path: string, workDir?: string): string {
   return path;
 }
 
+function splitPath(display: string): { dir: string; name: string } {
+  const idx = display.lastIndexOf("/");
+  if (idx === -1) return { dir: "", name: display };
+  return { dir: display.slice(0, idx + 1), name: display.slice(idx + 1) };
+}
+
+function FilePathContent({ display }: { display: string }): JSX.Element {
+  const { dir, name } = splitPath(display);
+  return (
+    <>
+      {dir ? <span className="text-neutral-400">{dir}</span> : null}
+      <span className="text-neutral-600">{name}</span>
+    </>
+  );
+}
+
 // Shared file path display component.
 // All file path references should use this so click-to-open can be added in one place.
 export function FilePath({
@@ -29,7 +45,7 @@ export function FilePath({
   if (!expanded && truncateFromStart) {
     return (
       <code
-        className={`inline-block max-w-full truncate rounded bg-neutral-100 px-1.5 py-0.5 text-left align-middle font-mono text-sm text-neutral-400 [direction:rtl] ${className ?? ""}`}
+        className={`inline-block max-w-full truncate rounded bg-neutral-100 px-1.5 py-0.5 text-left align-middle font-mono text-sm [direction:rtl] ${className ?? ""}`}
         title={path}
       >
         {display}
@@ -39,10 +55,10 @@ export function FilePath({
 
   return (
     <code
-      className={`inline-block max-w-full rounded bg-neutral-100 px-1.5 py-0.5 align-middle font-mono text-sm text-neutral-400 ${expanded ? "whitespace-pre-wrap break-words" : "truncate"} ${className ?? ""}`}
+      className={`inline-block max-w-full rounded bg-neutral-100 px-1.5 py-0.5 align-middle font-mono text-sm ${expanded ? "whitespace-pre-wrap break-words" : "truncate"} ${className ?? ""}`}
       title={path}
     >
-      {display}
+      <FilePathContent display={display} />
     </code>
   );
 }

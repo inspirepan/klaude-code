@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
 import { useMessageStore } from "../../stores/message-store";
@@ -7,7 +7,7 @@ import type {
   PendingUserInteractionRequest,
   UserInteractionResponse,
 } from "../../types/interaction";
-import { ComposerCard } from "./ComposerCard";
+import { ComposerCard, type ComposerImageAttachment } from "./ComposerCard";
 import { SessionStatusBar } from "./SessionStatusBar";
 import { UserInteractionCard } from "./UserInteractionCard";
 
@@ -18,6 +18,7 @@ export function MessageComposer(): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
   const runtimeBySessionId = useSessionStore((state) => state.runtimeBySessionId);
   const sendMessage = useSessionStore((state) => state.sendMessage);
+  const interruptSession = useSessionStore((state) => state.interruptSession);
   const requestModel = useSessionStore((state) => state.requestModel);
   const respondInteraction = useSessionStore((state) => state.respondInteraction);
   const pendingInteractions = useSessionStore(
@@ -27,6 +28,7 @@ export function MessageComposer(): JSX.Element {
     (state) => state.reducerStateBySessionId[activeSessionId]?.statusBySessionId ?? null,
   );
   const [text, setText] = useState("");
+  const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [modelOptions, setModelOptions] = useState<ConfigModelSummary[]>([]);
   const [modelLoading, setModelLoading] = useState(false);
@@ -34,12 +36,15 @@ export function MessageComposer(): JSX.Element {
   const [switchingModel, setSwitchingModel] = useState(false);
   const [pendingModelName, setPendingModelName] = useState<string | null>(null);
   const [respondingInteraction, setRespondingInteraction] = useState(false);
+  const [interrupting, setInterrupting] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const runtime = runtimeBySessionId[activeSessionId] ?? null;
   const activeSession =
     groups.flatMap((group) => group.sessions).find((session) => session.id === activeSessionId) ??
     null;
   const normalizedText = text.trim();
+  const hasImages = images.length > 0;
   const sessionBusy =
     runtime !== null &&
     (runtime.sessionState !== "idle" ||
@@ -48,9 +53,17 @@ export function MessageComposer(): JSX.Element {
   const sessionReadOnly = activeSession?.read_only === true;
   const mainSessionStatus = statusBySessionId?.[activeSessionId] ?? null;
   const activeInteraction = pendingInteractions[0] ?? null;
+  const sessionInterruptible =
+    runtime?.sessionState === "running" ||
+    (mainSessionStatus !== null &&
+      !mainSessionStatus.awaitingInput &&
+      (mainSessionStatus.taskActive ||
+        mainSessionStatus.thinkingActive ||
+        mainSessionStatus.compacting ||
+        mainSessionStatus.isComposing));
   const disableSubmit =
     submitting ||
-    normalizedText.length === 0 ||
+    (normalizedText.length === 0 && !hasImages) ||
     sessionBusy ||
     sessionReadOnly ||
     activeInteraction !== null;
@@ -60,10 +73,18 @@ export function MessageComposer(): JSX.Element {
 
   useEffect(() => {
     setText("");
+    setImages([]);
     setPendingModelName(null);
     setModelError(null);
     setRespondingInteraction(false);
+    setInterrupting(false);
   }, [activeSessionId]);
+
+  useEffect(() => {
+    if (!sessionInterruptible) {
+      setInterrupting(false);
+    }
+  }, [sessionInterruptible]);
 
   useEffect(() => {
     if (activeInteraction === null) {
@@ -117,12 +138,17 @@ export function MessageComposer(): JSX.Element {
 
     setSubmitting(true);
     try {
-      await sendMessage(activeSessionId, normalizedText);
+      await sendMessage(
+        activeSessionId,
+        normalizedText,
+        images.map((attachment) => attachment.image),
+      );
       setText("");
+      setImages([]);
     } finally {
       setSubmitting(false);
     }
-  }, [activeSessionId, disableSubmit, normalizedText, sendMessage]);
+  }, [activeSessionId, disableSubmit, images, normalizedText, sendMessage]);
 
   const handleModelChange = useCallback(
     async (nextModelName: string) => {
@@ -145,6 +171,57 @@ export function MessageComposer(): JSX.Element {
     },
     [activeSessionId, currentModelName, modelBusy, requestModel],
   );
+
+  const handleInterrupt = useCallback(async () => {
+    if (!sessionInterruptible || interrupting || sessionReadOnly) {
+      return;
+    }
+
+    setInterrupting(true);
+    try {
+      await interruptSession(activeSessionId);
+    } catch {
+      setInterrupting(false);
+    }
+  }, [activeSessionId, interruptSession, interrupting, sessionInterruptible, sessionReadOnly]);
+
+  useEffect(() => {
+    if (!sessionInterruptible) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key !== "Escape" ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target !== null &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable ||
+          (target.tagName === "TEXTAREA" && target !== textareaRef.current))
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      void handleInterrupt();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleInterrupt, sessionInterruptible]);
 
   const resolvedModelOptions =
     hasCurrentModelOption || currentModelName.length === 0
@@ -187,11 +264,21 @@ export function MessageComposer(): JSX.Element {
         <ComposerCard
           text={text}
           onTextChange={setText}
+          images={images}
+          onImagesChange={setImages}
           onSubmit={() => {
             void handleSubmit();
           }}
+          onInterrupt={() => {
+            void handleInterrupt();
+          }}
           submitting={submitting}
           disableSubmit={disableSubmit}
+          interruptible={sessionInterruptible}
+          disableInterrupt={interrupting || sessionReadOnly}
+          disableAttachments={
+            sessionBusy || sessionReadOnly || activeInteraction !== null || submitting
+          }
           placeholder="Send a follow-up..."
           modelOptions={resolvedModelOptions}
           modelValue={currentModelName}
@@ -200,6 +287,7 @@ export function MessageComposer(): JSX.Element {
           onModelSelect={(modelName) => {
             void handleModelChange(modelName);
           }}
+          textareaRef={textareaRef}
         />
       </div>
     </div>

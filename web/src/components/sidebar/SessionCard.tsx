@@ -1,14 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Archive,
-  ArchiveRestore,
-  CircleCheck,
-  CirclePause,
-  Lock,
-  MessageSquare,
-} from "lucide-react";
+import { Archive, ArchiveRestore, CircleCheck, CirclePause, Loader, Lock } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { cn } from "@/lib/utils";
+import { SessionTitleText } from "@/components/SessionTitleText";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SessionCardProps {
@@ -16,6 +10,7 @@ interface SessionCardProps {
   active: boolean;
   runtime: SessionRuntimeState;
   hasUnreadCompletion: boolean;
+  completionAnimationStartedAt?: number;
   showWorkspace?: boolean;
   compact?: boolean;
   onClick: () => void;
@@ -79,9 +74,7 @@ function getRuntimeIcon(
   hasUnreadCompletion: boolean,
 ): JSX.Element {
   if (runtime.sessionState === "running") {
-    return (
-      <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-[1.25px] border-neutral-300 border-t-neutral-500" />
-    );
+    return <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />;
   }
   if (runtime.sessionState === "waiting_user_input") {
     return <CirclePause className="h-3 w-3 shrink-0 text-amber-500" />;
@@ -99,18 +92,6 @@ function shortenFileRefs(text: string): string {
   return text.replace(/@[\w./\\-]+\/([^/\s]+)/g, "@$1");
 }
 
-function splitSessionTitle(title: string): { primary: string; secondary: string | null } {
-  const separator = " — ";
-  const separatorIndex = title.indexOf(separator);
-  if (separatorIndex === -1) {
-    return { primary: title, secondary: null };
-  }
-  return {
-    primary: title.slice(0, separatorIndex),
-    secondary: title.slice(separatorIndex + separator.length),
-  };
-}
-
 function workDirLabel(workDir: string): string {
   const parts = workDir.split("/").filter((segment) => segment.length > 0);
   if (parts.length === 0) {
@@ -124,7 +105,7 @@ function DiffStats({ added, removed }: { added: number; removed: number }): JSX.
     return null;
   }
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[9px] leading-4">
+    <span className="inline-flex shrink-0 gap-1 whitespace-nowrap text-2xs leading-4">
       {added > 0 ? <span className="text-emerald-600">+{added}</span> : null}
       {removed > 0 ? <span className="text-rose-600">-{removed}</span> : null}
     </span>
@@ -136,43 +117,50 @@ export function SessionCard({
   active,
   runtime,
   hasUnreadCompletion,
+  completionAnimationStartedAt,
   showWorkspace = false,
   compact = false,
   onClick,
   onToggleArchive,
 }: SessionCardProps): JSX.Element {
   const [showSuccessState, setShowSuccessState] = useState(false);
-  const previousSessionStateRef = useRef(runtime.sessionState);
   const successAnimationFrameRef = useRef<number | null>(null);
   const successTimeoutRef = useRef<number | null>(null);
   const title = shortenFileRefs(getSessionTitle(session));
-  const { primary: primaryTitle, secondary: secondaryTitle } = splitSessionTitle(title);
   const updatedAt = formatRelativeTime(session.updated_at);
   const updatedAtDetailed = formatDetailedTime(session.updated_at);
-  const messageCountLabel = session.messages_count >= 0 ? String(session.messages_count) : "N/A";
   const diffSummary = session.file_change_summary;
 
   useEffect(() => {
-    const previousSessionState = previousSessionStateRef.current;
-    previousSessionStateRef.current = runtime.sessionState;
+    if (completionAnimationStartedAt === undefined) {
+      return;
+    }
 
-    if (previousSessionState === "running" && runtime.sessionState === "idle") {
-      if (successAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(successAnimationFrameRef.current);
-      }
-      if (successTimeoutRef.current !== null) {
-        window.clearTimeout(successTimeoutRef.current);
-      }
+    const elapsed = Date.now() - completionAnimationStartedAt;
+    const remaining = 1600 - elapsed;
+    if (remaining <= 0) {
+      return;
+    }
+
+    if (successAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(successAnimationFrameRef.current);
+    }
+    if (successTimeoutRef.current !== null) {
+      window.clearTimeout(successTimeoutRef.current);
+    }
+
+    successAnimationFrameRef.current = window.requestAnimationFrame(() => {
+      setShowSuccessState(false);
       successAnimationFrameRef.current = window.requestAnimationFrame(() => {
         setShowSuccessState(true);
         successAnimationFrameRef.current = null;
         successTimeoutRef.current = window.setTimeout(() => {
           setShowSuccessState(false);
           successTimeoutRef.current = null;
-        }, 1600);
+        }, remaining);
       });
-    }
-  }, [runtime.sessionState]);
+    });
+  }, [completionAnimationStartedAt]);
 
   useEffect(() => {
     return () => {
@@ -190,7 +178,7 @@ export function SessionCard({
       <div className="group">
         <div
           className={cn(
-            "relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1 pl-2 pr-1.5 text-left transition-colors",
+            "relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-2.5 pr-2 text-left transition-colors",
             showSuccessState
               ? active
                 ? "status-success-card-settle-active"
@@ -210,15 +198,18 @@ export function SessionCard({
           }}
           title={title}
         >
-          <span className="min-w-0 flex-1 truncate text-[13px] leading-5 text-neutral-800">
-            {title}
-          </span>
+          <SessionTitleText
+            title={title}
+            as="div"
+            className="flex min-w-0 flex-1 items-baseline text-sm leading-5"
+            secondaryClassName="shrink truncate"
+          />
           <DiffStats
             added={diffSummary.diff_lines_added}
             removed={diffSummary.diff_lines_removed}
           />
           <span
-            className="shrink-0 whitespace-nowrap text-[10px] leading-4 text-neutral-400"
+            className="shrink-0 whitespace-nowrap text-2xs leading-4 text-neutral-400"
             title={updatedAtDetailed}
           >
             {updatedAt}
@@ -254,7 +245,7 @@ export function SessionCard({
     <div className="group">
       <div
         className={cn(
-          "relative flex w-full flex-col gap-y-0 rounded-lg py-1 pl-1.5 pr-1.5 text-left transition-colors",
+          "relative flex w-full flex-col gap-y-0.5 rounded-lg py-1.5 pl-2 pr-2 text-left transition-colors",
           showSuccessState
             ? active
               ? "status-success-card-settle-active"
@@ -274,86 +265,74 @@ export function SessionCard({
         }}
         title={title}
       >
-        <div className="flex min-w-0 items-start gap-1.5 pl-1">
+        {/* Row 1: status icon + title */}
+        <div className="flex min-w-0 items-start gap-1.5 pl-0.5">
           <span className="mt-1 flex shrink-0">
             {getRuntimeIcon(runtime, showSuccessState, hasUnreadCompletion)}
           </span>
-          <div
-            className="min-w-0 flex-1 overflow-hidden text-[13px] leading-5"
-            style={{
-              display: "-webkit-box",
-              WebkitBoxOrient: "vertical",
-              WebkitLineClamp: 2,
-            }}
-          >
-            <span className="text-neutral-800">{primaryTitle}</span>
-            {secondaryTitle ? (
-              <>
-                <span className="mx-1 text-neutral-300">|</span>
-                <span className="text-neutral-500">{secondaryTitle}</span>
-              </>
-            ) : null}
+          <div className="min-w-0 flex-1 truncate text-sm leading-5">
+            <SessionTitleText title={title} as="span" truncate={false} />
           </div>
         </div>
 
-        <div className="flex min-w-0 items-center gap-1 pl-6 pr-1 text-[9px] leading-4 text-neutral-400">
-          <div className="flex min-w-0 items-center gap-1 truncate">
-            {showWorkspace ? (
-              <>
-                <span className="truncate" title={session.work_dir}>
-                  {workDirLabel(session.work_dir)}
-                </span>
-              </>
+        {/* Row 2: workspace (optional) */}
+        {showWorkspace ? (
+          <div
+            className="truncate pl-5 text-2xs leading-4 text-neutral-500"
+            title={session.work_dir}
+          >
+            {workDirLabel(session.work_dir)}
+          </div>
+        ) : null}
+
+        {/* Row 3: time · diff · lock  |  archive button */}
+        <div
+          className="grid items-center gap-x-2 pl-5 pr-0.5 text-2xs leading-4 text-neutral-400"
+          style={{ gridTemplateColumns: "max-content 3rem auto 1fr auto" }}
+        >
+          <span className="whitespace-nowrap" title={updatedAtDetailed}>
+            {updatedAt}
+          </span>
+          <span>
+            <DiffStats
+              added={diffSummary.diff_lines_added}
+              removed={diffSummary.diff_lines_removed}
+            />
+          </span>
+          <span>
+            {session.read_only ? (
+              <span
+                className="inline-flex items-center rounded-full bg-amber-50 p-0.5 text-amber-700"
+                title="Read-only"
+                aria-label="Read-only"
+              >
+                <Lock className="h-3 w-3" />
+              </span>
             ) : null}
-            <MessageSquare className="h-2.5 w-2.5 shrink-0" />
-            <span>{messageCountLabel}</span>
-          </div>
-
-          {session.read_only ? (
-            <span
-              className="inline-flex shrink-0 items-center rounded-full bg-amber-50 p-0.5 text-amber-700"
-              title="Read-only"
-              aria-label="Read-only"
-            >
-              <Lock className="h-3 w-3" />
-            </span>
-          ) : null}
-
-          <DiffStats
-            added={diffSummary.diff_lines_added}
-            removed={diffSummary.diff_lines_removed}
-          />
-
-          <div className="relative ml-auto flex items-center">
-            <span
-              className="whitespace-nowrap transition-opacity group-hover:opacity-0"
-              title={updatedAtDetailed}
-            >
-              {updatedAt}
-            </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="pointer-events-none absolute right-0 top-1/2 inline-flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:outline-none focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
-                  aria-label={session.archived ? "Unarchive session" : "Archive session"}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onToggleArchive(session.id, !session.archived);
-                  }}
-                >
-                  {session.archived ? (
-                    <ArchiveRestore className="h-3 w-3" />
-                  ) : (
-                    <Archive className="h-3 w-3" />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {session.archived ? "Unarchive session" : "Archive session"}
-              </TooltipContent>
-            </Tooltip>
-          </div>
+          </span>
+          <span />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="pointer-events-none inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:outline-none focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
+                aria-label={session.archived ? "Unarchive session" : "Archive session"}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleArchive(session.id, !session.archived);
+                }}
+              >
+                {session.archived ? (
+                  <ArchiveRestore className="h-3 w-3" />
+                ) : (
+                  <Archive className="h-3 w-3" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {session.archived ? "Unarchive session" : "Archive session"}
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </div>

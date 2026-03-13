@@ -1,3 +1,4 @@
+import { Loader } from "lucide-react";
 import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react";
 
 import { useMessageStore } from "../../stores/message-store";
@@ -6,11 +7,15 @@ import { useSessionStore } from "../../stores/session-store";
 import type { SessionStatusState } from "../../stores/event-reducer";
 import type { MessageItem as MessageItemType } from "../../types/message";
 import type { SessionSummary } from "../../types/session";
+import { splitSessionTitle } from "@/components/session-title";
+import { CollapseGroupBlock } from "./CollapseGroupBlock";
+import { CollapseAllContext } from "./collapse-all-context";
 import { MessageListHeader } from "./MessageListHeader";
 import { MessageRow } from "./MessageRow";
+import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra";
 import { SearchBar } from "./SearchBar";
 import { SubAgentGroupCard } from "./SubAgentGroupCard";
-import { formatTime, isCopyableAssistantText } from "./message-list-ui";
+import { isCopyableAssistantText } from "./message-list-ui";
 import { SearchProvider, type SearchState } from "./search-context";
 
 const EMPTY_ITEMS: MessageItemType[] = [];
@@ -35,18 +40,6 @@ function getSessionTitle(session: SessionSummary | null): string {
   return "New session";
 }
 
-function splitSessionTitle(title: string): { primary: string; secondary: string | null } {
-  const separator = " — ";
-  const separatorIndex = title.indexOf(separator);
-  if (separatorIndex === -1) {
-    return { primary: title, secondary: null };
-  }
-  return {
-    primary: title.slice(0, separatorIndex),
-    secondary: title.slice(separatorIndex + separator.length),
-  };
-}
-
 interface SectionItemBlock {
   type: "item";
   item: MessageItemType;
@@ -61,7 +54,20 @@ interface SectionSubAgentBlock {
   items: MessageItemType[];
 }
 
-type SectionBlock = SectionItemBlock | SectionSubAgentBlock;
+interface SectionCollapseGroupBlock {
+  type: "collapse_group";
+  id: string;
+  items: MessageItemType[];
+}
+
+type SectionBlock = SectionItemBlock | SectionSubAgentBlock | SectionCollapseGroupBlock;
+
+function isCollapsibleItem(item: MessageItemType): boolean {
+  if (item.type === "tool_block") {
+    return !isTodoListUIExtra(item.uiExtra) && !isQuestionSummaryUIExtra(item.uiExtra);
+  }
+  return item.type === "thinking" || item.type === "developer_message";
+}
 
 function extractSearchableText(item: MessageItemType): string {
   switch (item.type) {
@@ -101,8 +107,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const runtime = useSessionStore((state) => state.runtimeBySessionId[sessionId] ?? null);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
-  const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen);
-  const setRightSidebarOpen = useAppStore((state) => state.setRightSidebarOpen);
   const items = useMessageStore((state) => state.messagesBySessionId[sessionId] ?? EMPTY_ITEMS);
   const subAgentDescBySessionId = useMessageStore(
     (state) =>
@@ -132,6 +136,11 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     {},
   );
   const [subAgentMetaOpen, setSubAgentMetaOpen] = useState<Record<string, boolean>>({});
+  const [collapsedCollapseGroups, setCollapsedCollapseGroups] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [collapseGen, setCollapseGen] = useState(0);
+  const [expandGen, setExpandGen] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const copyTimerRef = useRef(0);
 
@@ -248,6 +257,15 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       runtime?.sessionState === "waiting_user_input",
     [runtime?.sessionState, statusBySessionId],
   );
+  const mainSessionStatus = statusBySessionId[sessionId] ?? null;
+  const isMainSessionRunning =
+    runtime?.sessionState === "running" ||
+    (((mainSessionStatus?.taskActive ?? false) ||
+      (mainSessionStatus?.thinkingActive ?? false) ||
+      (mainSessionStatus?.compacting ?? false) ||
+      (mainSessionStatus?.isComposing ?? false)) &&
+      mainSessionStatus?.awaitingInput !== true);
+
   useEffect(() => {
     if (!hasActiveStatus) return;
     setNowMs(Date.now());
@@ -353,21 +371,22 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   const sectionBlocks = useMemo(() => {
     return sections.map((section) => {
-      const blocks: SectionBlock[] = [];
+      // First pass: group sub-agent items
+      const rawBlocks: SectionBlock[] = [];
       const subAgentBlockIndexBySessionId = new Map<string, number>();
       let i = 0;
       while (i < section.length) {
         const item = section[i];
         const sourceSessionId = item.sessionId ?? sessionId;
         if (sourceSessionId === sessionId) {
-          blocks.push({ type: "item", item });
+          rawBlocks.push({ type: "item", item });
           i += 1;
           continue;
         }
 
         const existingBlockIndex = subAgentBlockIndexBySessionId.get(sourceSessionId);
         if (existingBlockIndex !== undefined) {
-          const existingBlock = blocks[existingBlockIndex];
+          const existingBlock = rawBlocks[existingBlockIndex];
           if (existingBlock?.type === "sub_agent_group") {
             existingBlock.items.push(item);
           }
@@ -376,10 +395,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         }
 
         const groupItems: MessageItemType[] = [item];
-        const blockIndex = blocks.length;
-        blocks.push({
+        const blockIndex = rawBlocks.length;
+        rawBlocks.push({
           type: "sub_agent_group",
-          groupId: `${section[0]?.id ?? sourceSessionId}-${sourceSessionId}`,
+          groupId: `${sessionId}-${section[0]?.id ?? sourceSessionId}-${sourceSessionId}`,
           sourceSessionId,
           sourceSessionType: subAgentTypeBySessionId[sourceSessionId] ?? null,
           sourceSessionDesc: subAgentDescBySessionId[sourceSessionId] ?? null,
@@ -387,6 +406,32 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         });
         subAgentBlockIndexBySessionId.set(sourceSessionId, blockIndex);
         i += 1;
+      }
+
+      // Second pass: merge consecutive thinking/tool_block items into collapse groups
+      const blocks: SectionBlock[] = [];
+      let pending: MessageItemType[] = [];
+      for (const block of rawBlocks) {
+        if (block.type === "item" && isCollapsibleItem(block.item)) {
+          pending.push(block.item);
+        } else {
+          if (pending.length > 0) {
+            blocks.push({
+              type: "collapse_group",
+              id: `cg-${sessionId}-${pending[0].id}`,
+              items: pending,
+            });
+            pending = [];
+          }
+          blocks.push(block);
+        }
+      }
+      if (pending.length > 0) {
+        blocks.push({
+          type: "collapse_group",
+          id: `cg-${sessionId}-${pending[0].id}`,
+          items: pending,
+        });
       }
       return blocks;
     });
@@ -405,126 +450,244 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     return map;
   }, [sectionBlocks]);
 
+  const collapseGroupIdByItemId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const blocks of sectionBlocks) {
+      for (const block of blocks) {
+        if (block.type !== "collapse_group") continue;
+        for (const item of block.items) {
+          map.set(item.id, block.id);
+        }
+      }
+    }
+    return map;
+  }, [sectionBlocks]);
+
+  const lastCollapseGroupId = useMemo(() => {
+    let lastId: string | null = null;
+    let hasMessageAfterLastGroup = false;
+    for (const blocks of sectionBlocks) {
+      for (const block of blocks) {
+        if (block.type === "collapse_group") {
+          lastId = block.id;
+          hasMessageAfterLastGroup = false;
+        } else if (
+          block.type === "item" &&
+          (block.item.type === "user_message" ||
+            (block.item.type === "assistant_text" && block.item.content.trim().length > 0)) &&
+          lastId !== null
+        ) {
+          hasMessageAfterLastGroup = true;
+        }
+      }
+    }
+    return hasMessageAfterLastGroup ? null : lastId;
+  }, [sectionBlocks]);
+
   const activeGroupId =
     activeItemId === null ? null : (subAgentGroupIdByItemId.get(activeItemId) ?? null);
+
+  const allCollapseGroupIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const blocks of sectionBlocks) {
+      for (const block of blocks) {
+        if (block.type === "collapse_group") ids.push(block.id);
+      }
+    }
+    return ids;
+  }, [sectionBlocks]);
+
+  const handleCollapseAll = useCallback(() => {
+    const state: Record<string, boolean> = {};
+    for (const id of allCollapseGroupIds) state[id] = true;
+    setCollapsedCollapseGroups(state);
+    setCollapseGen((v) => v + 1);
+  }, [allCollapseGroupIds]);
+
+  const handleExpandAll = useCallback(() => {
+    const state: Record<string, boolean> = {};
+    for (const id of allCollapseGroupIds) state[id] = false;
+    setCollapsedCollapseGroups(state);
+    setExpandGen((v) => v + 1);
+  }, [allCollapseGroupIds]);
+
+  // Cmd+Shift+, collapse all, Cmd+Shift+. expand all
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
+      if (e.code === "Comma") {
+        e.preventDefault();
+        handleCollapseAll();
+      } else if (e.code === "Period") {
+        e.preventDefault();
+        handleExpandAll();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [handleCollapseAll, handleExpandAll]);
+
+  const isCollapseGroupCollapsed = useCallback(
+    (groupId: string): boolean => {
+      // Force expand if the group contains the active search match
+      if (activeItemId !== null && collapseGroupIdByItemId.get(activeItemId) === groupId) {
+        return false;
+      }
+      if (groupId in collapsedCollapseGroups) {
+        return collapsedCollapseGroups[groupId];
+      }
+      // Default: last group expanded, others collapsed
+      return groupId !== lastCollapseGroupId;
+    },
+    [activeItemId, collapseGroupIdByItemId, collapsedCollapseGroups, lastCollapseGroupId],
+  );
   const nowSeconds = nowMs / 1000;
 
-  return (
-    <SearchProvider value={searchState}>
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        {searchOpen ? (
-          <SearchBar
-            totalMatches={searchMatchItemIds.length}
-            activeIndex={resolvedSearchActiveIndex}
-            onQueryChange={handleSearchQueryChange}
-            onNext={handleSearchNext}
-            onPrev={handleSearchPrev}
-            onClose={handleSearchClose}
-          />
-        ) : null}
+  const collapseAllValue = useMemo(() => ({ collapseGen, expandGen }), [collapseGen, expandGen]);
 
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
-        >
-          <MessageListHeader
-            primaryTitle={primaryTitle}
-            secondaryTitle={secondaryTitle}
-            workspacePath={workspacePath}
-            sessionReadOnly={sessionReadOnly}
-            sidebarOpen={sidebarOpen}
-            rightSidebarOpen={rightSidebarOpen}
-            setSidebarOpen={setSidebarOpen}
-            setRightSidebarOpen={setRightSidebarOpen}
-            onSearchOpen={() => setSearchOpen(true)}
-          />
-          <div className="mx-auto max-w-4xl space-y-5 px-4 pb-14 pt-8 sm:px-6">
-            {hasItems ? (
-              <>
-                {sections.map((section, sectionIndex) => (
-                  <div key={section[0].id} className="space-y-5">
-                    {sectionBlocks[sectionIndex]?.map((block) => {
-                      if (block.type === "sub_agent_group") {
-                        const collapsed =
-                          activeGroupId === block.groupId
-                            ? false
-                            : (collapsedSubAgentGroups[block.groupId] ?? true);
-                        const isFinished =
-                          subAgentFinishedBySessionId[block.sourceSessionId] === true;
+  return (
+    <CollapseAllContext.Provider value={collapseAllValue}>
+      <SearchProvider value={searchState}>
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {searchOpen ? (
+            <SearchBar
+              totalMatches={searchMatchItemIds.length}
+              activeIndex={resolvedSearchActiveIndex}
+              onQueryChange={handleSearchQueryChange}
+              onNext={handleSearchNext}
+              onPrev={handleSearchPrev}
+              onClose={handleSearchClose}
+            />
+          ) : null}
+
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            data-message-scroll-container="true"
+            className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
+          >
+            <MessageListHeader
+              primaryTitle={primaryTitle}
+              secondaryTitle={secondaryTitle}
+              workspacePath={workspacePath}
+              sessionReadOnly={sessionReadOnly}
+              sidebarOpen={sidebarOpen}
+              setSidebarOpen={setSidebarOpen}
+              onSearchOpen={() => setSearchOpen(true)}
+              onCollapseAll={handleCollapseAll}
+              onExpandAll={handleExpandAll}
+            />
+            <div className="mx-auto max-w-4xl space-y-5 px-4 pb-14 pt-8 sm:px-6">
+              {hasItems ? (
+                <>
+                  {sections.map((section, sectionIndex) => (
+                    <div key={section[0].id} className="space-y-5">
+                      {sectionBlocks[sectionIndex]?.map((block) => {
+                        if (block.type === "collapse_group") {
+                          const collapsed = isCollapseGroupCollapsed(block.id);
+                          return (
+                            <CollapseGroupBlock
+                              key={block.id}
+                              items={block.items}
+                              collapsed={collapsed}
+                              showRunningSpinner={
+                                block.id === lastCollapseGroupId && isMainSessionRunning
+                              }
+                              onToggle={() => {
+                                setCollapsedCollapseGroups((prev) => ({
+                                  ...prev,
+                                  [block.id]: !collapsed,
+                                }));
+                              }}
+                              activeItemId={activeItemId}
+                              copiedItemId={copiedItemId}
+                              workDir={workspacePath}
+                              onCopy={handleCopy}
+                              setItemRef={setItemRef}
+                            />
+                          );
+                        }
+
+                        if (block.type === "sub_agent_group") {
+                          const collapsed =
+                            activeGroupId === block.groupId
+                              ? false
+                              : (collapsedSubAgentGroups[block.groupId] ?? true);
+                          const isFinished =
+                            subAgentFinishedBySessionId[block.sourceSessionId] === true;
+                          return (
+                            <SubAgentGroupCard
+                              key={block.groupId}
+                              sourceSessionId={block.sourceSessionId}
+                              sourceSessionType={block.sourceSessionType}
+                              sourceSessionDesc={block.sourceSessionDesc}
+                              items={block.items}
+                              collapsed={collapsed}
+                              status={statusBySessionId[block.sourceSessionId] ?? null}
+                              isFinished={isFinished}
+                              nowSeconds={nowSeconds}
+                              activeItemId={activeItemId}
+                              copiedItemId={copiedItemId}
+                              metaOpen={subAgentMetaOpen[block.groupId] === true}
+                              workDir={workspacePath}
+                              onToggleCollapsed={() => {
+                                setCollapsedSubAgentGroups((prev) => ({
+                                  ...prev,
+                                  [block.groupId]: !collapsed,
+                                }));
+                              }}
+                              onMetaOpenChange={(open) => {
+                                setSubAgentMetaOpen((prev) => ({
+                                  ...prev,
+                                  [block.groupId]: open,
+                                }));
+                              }}
+                              onCopy={handleCopy}
+                              setItemRef={setItemRef}
+                            />
+                          );
+                        }
+
+                        const item = block.item;
                         return (
-                          <SubAgentGroupCard
-                            key={block.groupId}
-                            sourceSessionId={block.sourceSessionId}
-                            sourceSessionType={block.sourceSessionType}
-                            sourceSessionDesc={block.sourceSessionDesc}
-                            items={block.items}
-                            collapsed={collapsed}
-                            status={statusBySessionId[block.sourceSessionId] ?? null}
-                            isFinished={isFinished}
-                            nowSeconds={nowSeconds}
-                            activeItemId={activeItemId}
-                            copiedItemId={copiedItemId}
-                            metaOpen={subAgentMetaOpen[block.groupId] === true}
+                          <MessageRow
+                            key={item.id}
+                            item={item}
+                            variant="main"
                             workDir={workspacePath}
-                            onToggleCollapsed={() => {
-                              setCollapsedSubAgentGroups((prev) => ({
-                                ...prev,
-                                [block.groupId]: !collapsed,
-                              }));
-                            }}
-                            onMetaOpenChange={(open) => {
-                              setSubAgentMetaOpen((prev) => ({
-                                ...prev,
-                                [block.groupId]: open,
-                              }));
-                            }}
+                            isActive={item.id === activeItemId}
+                            copied={copiedItemId === item.id}
                             onCopy={handleCopy}
-                            setItemRef={setItemRef}
+                            itemRef={(el) => {
+                              setItemRef(item.id, el);
+                            }}
                           />
                         );
-                      }
-
-                      const item = block.item;
-                      return (
-                        <MessageRow
-                          key={item.id}
-                          item={item}
-                          variant="main"
-                          workDir={workspacePath}
-                          isActive={item.id === activeItemId}
-                          displayTime={formatTime(item.timestamp)}
-                          copied={copiedItemId === item.id}
-                          onCopy={handleCopy}
-                          itemRef={(el) => {
-                            setItemRef(item.id, el);
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                ))}
-                <div aria-hidden="true" className={hasStreamingAssistantText ? "h-12" : "h-0"} />
-              </>
-            ) : runtime?.wsState === "connecting" ? (
-              <div className="flex min-h-[240px] items-center justify-center">
-                <span className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-500" />
-              </div>
-            ) : (
-              <div className="flex min-h-[240px] items-center justify-center">
-                <div className="rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/70 px-6 py-10 text-center">
-                  <div className="text-base font-semibold text-neutral-700">No messages yet</div>
-                  <div className="mt-1 text-[13px] text-neutral-500">
-                    Send a message below to start this session.
+                      })}
+                    </div>
+                  ))}
+                  <div aria-hidden="true" className={hasStreamingAssistantText ? "h-12" : "h-0"} />
+                </>
+              ) : runtime?.wsState === "connecting" ? (
+                <div className="flex min-h-[240px] items-center justify-center">
+                  <Loader className="h-5 w-5 animate-spin text-neutral-500" />
+                </div>
+              ) : (
+                <div className="flex min-h-[240px] items-center justify-center">
+                  <div className="rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/70 px-6 py-10 text-center">
+                    <div className="text-base font-semibold text-neutral-700">No messages yet</div>
+                    <div className="mt-1 text-sm text-neutral-500">
+                      Send a message below to start this session.
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+            {/* Add padding space equal to MessageComposer height + mask height so content isn't hidden under the absolute positioned bar */}
+            <div className="h-44 shrink-0 sm:h-40" />
           </div>
-          {/* Add padding space equal to MessageComposer height + mask height so content isn't hidden under the absolute positioned bar */}
-          <div className="h-44 shrink-0 sm:h-40" />
         </div>
-      </div>
-    </SearchProvider>
+      </SearchProvider>
+    </CollapseAllContext.Provider>
   );
 }

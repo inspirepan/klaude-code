@@ -1,33 +1,33 @@
 import { Streamdown } from "streamdown";
-import { code } from "@streamdown/code";
 
 import type { ThinkingBlockItem } from "../../types/message";
-import { useStreamThrottle } from "./useStreamThrottle";
 
 interface ThinkingBlockProps {
   item: ThinkingBlockItem;
 }
 
-const plugins = { code };
+const streamAnimation = { animation: "fadeIn" as const, duration: 120, sep: "char" as const };
 
 function Strong(props: React.ComponentPropsWithoutRef<"strong">): JSX.Element {
   return <strong className="font-normal text-neutral-500" {...props} />;
 }
 
-const thinkingComponents = { strong: Strong };
+function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): JSX.Element {
+  return <pre className="my-2 whitespace-pre-wrap font-mono text-xs not-italic">{children}</pre>;
+}
+
+const thinkingComponents = { strong: Strong, pre: Pre };
 
 export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
-  const content = useStreamThrottle(item.content, item.isStreaming);
-
   return (
     <div className="thinking-block text-sm leading-relaxed text-neutral-400">
       <Streamdown
         mode="streaming"
         isAnimating={item.isStreaming}
-        plugins={plugins}
+        animated={streamAnimation}
         components={thinkingComponents}
       >
-        {content}
+        {item.content}
       </Streamdown>
     </div>
   );

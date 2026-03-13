@@ -1,13 +1,15 @@
+import { Loader } from "lucide-react";
 import { useState, useMemo, useRef, useEffect } from "react";
 
 import type { ToolBlockItem } from "../../types/message";
+import { useCollapseAll } from "./collapse-all-context";
 import { useSearch } from "./search-context";
 import { TodoListView } from "./TodoListView";
 import { QuestionSummaryView } from "./QuestionSummaryView";
 import { ToolBlockHeader } from "./ToolBlockHeader";
 import { ToolBlockResult } from "./ToolBlockResult";
 import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra";
-import { hasDiffUIExtra, hasRichUIExtra } from "./tool-rich-result-ui";
+import { hasRichUIExtra } from "./tool-rich-result-ui";
 import { useStreamThrottle } from "./useStreamThrottle";
 
 const PLAN_TOOLS = new Set(["TodoWrite", "update_plan"]);
@@ -45,10 +47,6 @@ function extractHeaderDetail(toolName: string, args: string): string {
         return typeof parsed.url === "string" ? parsed.url : "";
       case "WebSearch":
         return typeof parsed.query === "string" ? parsed.query : "";
-      case "Glob":
-        return typeof parsed.pattern === "string" ? parsed.pattern : "";
-      case "Grep":
-        return typeof parsed.pattern === "string" ? parsed.pattern : "";
       default:
         return "";
     }
@@ -90,21 +88,15 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div
-      className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[13px]" : "text-sm"}`}
-    >
+    <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 text-sm">
       {explanation ? (
-        <p className={`${compact ? "text-[13px]" : "text-sm"} mb-1 font-sans text-neutral-500`}>
-          {explanation}
-        </p>
+        <p className="mb-1 font-sans text-sm text-neutral-500">{explanation}</p>
       ) : null}
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} compact={compact} />
       ) : item.isStreaming ? (
-        <div
-          className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}
-        >
-          <span className="h-3 w-3 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
+        <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-400">
+          <Loader className="h-3 w-3 animate-spin text-neutral-500" />
           <span>Planning…</span>
         </div>
       ) : null}
@@ -117,16 +109,12 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
     item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div
-      className={`rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 ${compact ? "text-[13px]" : "text-sm"}`}
-    >
+    <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 text-sm">
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} compact={compact} />
       ) : item.isStreaming ? (
-        <div
-          className={`flex items-center gap-1.5 text-neutral-400 ${compact ? "text-[13px]" : "text-sm"} font-sans`}
-        >
-          <span className="h-3 w-3 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
+        <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-400">
+          <Loader className="h-3 w-3 animate-spin text-neutral-500" />
           <span>Waiting for answer…</span>
         </div>
       ) : null}
@@ -136,8 +124,9 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
 
 export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): JSX.Element {
   const { matchItemIds } = useSearch();
-  const bodyTextClass = compact ? "text-[13px]" : "text-sm";
-  const headerDetailTextClass = "!text-[13px]";
+  const { collapseGen, expandGen } = useCollapseAll();
+  const bodyTextClass = "text-sm";
+  const headerDetailTextClass = "!text-xs";
   const detailChipClass = "rounded bg-neutral-100 px-1.5 py-0.5 align-middle";
 
   const defaultExpanded = shouldExpandResult(item);
@@ -158,6 +147,15 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSearchMatch]);
+
+  // Collapse all / expand all signals
+  useEffect(() => {
+    if (collapseGen > 0) setOpen(false);
+  }, [collapseGen]);
+
+  useEffect(() => {
+    if (expandGen > 0) setOpen(true);
+  }, [expandGen]);
 
   // Auto-expand when streaming content starts arriving
   const hasStreamingContent = item.streamingContent.length > 0;
@@ -185,7 +183,6 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
   const isEmptyResult = item.result !== null && item.result.length === 0;
   const isError = item.resultStatus === "error";
   const hasRich = item.uiExtra !== null && hasRichUIExtra(item.uiExtra);
-  const hideResultRail = item.uiExtra !== null && hasDiffUIExtra(item.uiExtra);
   const expandable = hasResult || isEmptyResult || hasRich || hasStreamingContent;
 
   const detailColor = isError
@@ -196,7 +193,7 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
 
   return (
     <div
-      className={`-my-1 grid grid-cols-[auto_1fr] items-center gap-x-1.5 ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`-my-1 grid grid-cols-[auto_1fr] items-start gap-x-1.5 ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
       <ToolBlockHeader
@@ -214,7 +211,6 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
         compact={compact}
         open={open}
         hasRich={hasRich}
-        hideResultRail={hideResultRail}
         hasResult={hasResult}
         hasStreamingContent={hasStreamingContent}
         streamingContent={streamingContent}

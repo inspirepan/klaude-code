@@ -28,7 +28,7 @@ function RichUIExtraBlock({
 }): JSX.Element | null {
   if (isDiffUIExtra(extra)) {
     return (
-      <div className="mt-0.5 overflow-hidden rounded-lg border border-neutral-200/80">
+      <div className="my-1.5 overflow-hidden rounded-lg border border-neutral-200/80">
         <DiffView item={item} uiExtra={extra} />
       </div>
     );

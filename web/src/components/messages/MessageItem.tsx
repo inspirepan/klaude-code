@@ -29,7 +29,7 @@ function MessageItemInner({ item, compact = false, workDir }: MessageItemProps):
     case "tool_block":
       return <ToolBlock item={item} compact={compact} workDir={workDir} />;
     case "developer_message":
-      return <DeveloperMessage item={item} />;
+      return <DeveloperMessage items={[item]} />;
     case "task_worked":
       return <TaskWorked item={item} compact={compact} />;
     case "error":

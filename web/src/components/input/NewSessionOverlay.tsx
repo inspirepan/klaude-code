@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
 import { useSessionStore } from "../../stores/session-store";
-import { ComposerCard } from "./ComposerCard";
+import { ComposerCard, type ComposerImageAttachment } from "./ComposerCard";
 import { DraftWorkspacePicker } from "./DraftWorkspacePicker";
 
 interface NewSessionOverlayProps {
@@ -24,6 +24,7 @@ export function NewSessionOverlay({
   const createSessionFromDraft = useSessionStore((state) => state.createSessionFromDraft);
 
   const [text, setText] = useState("");
+  const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [modelOptions, setModelOptions] = useState<ConfigModelSummary[]>([]);
@@ -46,8 +47,11 @@ export function NewSessionOverlay({
     return workspaceOptions.filter((workspace) => workspace.toLowerCase().includes(query));
   }, [normalizedDraftWorkDir, workspaceOptions]);
   const normalizedText = text.trim();
+  const hasImages = images.length > 0;
   const disableSubmit =
-    submitting || normalizedText.length === 0 || normalizedDraftWorkDir.length === 0;
+    submitting ||
+    (normalizedText.length === 0 && !hasImages) ||
+    normalizedDraftWorkDir.length === 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -137,8 +141,14 @@ export function NewSessionOverlay({
 
     setSubmitting(true);
     try {
-      await createSessionFromDraft(normalizedText, normalizedDraftWorkDir, selectedModel);
+      await createSessionFromDraft(
+        normalizedText,
+        normalizedDraftWorkDir,
+        selectedModel,
+        images.map((attachment) => attachment.image),
+      );
       setText("");
+      setImages([]);
       onClose?.();
     } finally {
       setSubmitting(false);
@@ -147,6 +157,7 @@ export function NewSessionOverlay({
     createSessionFromDraft,
     disableSubmit,
     normalizedDraftWorkDir,
+    images,
     normalizedText,
     onClose,
     selectedModel,
@@ -192,11 +203,14 @@ export function NewSessionOverlay({
           <ComposerCard
             text={text}
             onTextChange={setText}
+            images={images}
+            onImagesChange={setImages}
             onSubmit={() => {
               void handleSubmit();
             }}
             submitting={submitting}
             disableSubmit={disableSubmit}
+            disableAttachments={submitting}
             placeholder="What should we do?"
             modelOptions={modelOptions}
             modelValue={selectedModel}

@@ -1,3 +1,5 @@
+import { useLayoutEffect, useRef } from "react";
+
 import type { ToolBlockItem } from "../../types/message";
 import { HighlightText } from "./HighlightText";
 import { ToolRichResult } from "./ToolRichResult";
@@ -9,7 +11,6 @@ interface ToolBlockResultProps {
   compact: boolean;
   open: boolean;
   hasRich: boolean;
-  hideResultRail: boolean;
   hasResult: boolean;
   hasStreamingContent: boolean;
   streamingContent: string;
@@ -24,7 +25,6 @@ export function ToolBlockResult({
   compact,
   open,
   hasRich,
-  hideResultRail,
   hasResult,
   hasStreamingContent,
   streamingContent,
@@ -33,74 +33,110 @@ export function ToolBlockResult({
   showMore,
   onToggleShowMore,
 }: ToolBlockResultProps): JSX.Element | null {
-  if (!open) return null;
-
-  const subTextClass = compact ? "text-[13px]" : "text-sm";
+  const subTextClass = "text-sm";
   const miniTextClass = compact ? "text-2xs" : "text-xs";
+  const resultLineClass = "block max-w-full overflow-hidden text-ellipsis whitespace-pre";
+  const containerRef = useRef<HTMLDivElement>(null);
+  const previousHeightRef = useRef<number | null>(null);
+  const wasStreamingRef = useRef(item.isStreaming);
+
+  useLayoutEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+
+    const currentHeight = element.getBoundingClientRect().height;
+    const previousHeight = previousHeightRef.current;
+    const justCompleted = wasStreamingRef.current && !item.isStreaming;
+
+    if (justCompleted && open && previousHeight !== null && currentHeight > previousHeight) {
+      const scrollContainer = element.closest<HTMLElement>(
+        "[data-message-scroll-container='true']",
+      );
+      if (scrollContainer) {
+        const blockRect = element.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const isVisible =
+          blockRect.bottom > containerRect.top && blockRect.top < containerRect.bottom;
+        if (isVisible) {
+          scrollContainer.scrollTop += currentHeight - previousHeight;
+        }
+      }
+    }
+
+    previousHeightRef.current = currentHeight;
+    wasStreamingRef.current = item.isStreaming;
+  }, [item.isStreaming, item.result, item.resultStatus, item.uiExtra, open]);
 
   return (
-    <div className="col-span-2 mt-0.5 grid min-w-0 grid-cols-[16px_1fr] gap-x-1.5">
-      <div className="flex justify-center">
-        {hideResultRail ? null : <div className="w-px bg-neutral-200" />}
-      </div>
-      <div className="min-w-0">
-        {hasRich ? (
-          <div
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
-          >
-            <ToolRichResult item={item} compact={compact} />
-          </div>
-        ) : hasStreamingContent ? (
-          <div
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
-          >
-            <pre
-              className={`mt-0.5 ${subTextClass} whitespace-pre-wrap break-words font-mono leading-relaxed text-neutral-400`}
+    <div
+      ref={containerRef}
+      className="col-span-2 grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
+      style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
+    >
+      <div className="min-w-0 overflow-hidden">
+        <div className="mt-0.5 min-w-0 pl-6">
+          {hasRich ? (
+            <div
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
             >
-              {streamingContent}
-            </pre>
-          </div>
-        ) : hasResult ? (
-          <div
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
-          >
-            {(() => {
-              const lines = item.result!.split("\n");
-              const truncated = !showMore && lines.length > RESULT_LINE_LIMIT;
-              const displayed = truncated
-                ? lines.slice(0, RESULT_LINE_LIMIT).join("\n")
-                : item.result!;
-              return (
-                <>
-                  <pre
-                    className={`mt-0.5 ${subTextClass} whitespace-pre-wrap break-words font-mono leading-relaxed ${isError ? "text-red-700" : "text-neutral-400"}`}
-                  >
-                    <HighlightText>{displayed}</HighlightText>
-                  </pre>
-                  {lines.length > RESULT_LINE_LIMIT ? (
-                    <button
-                      type="button"
-                      onClick={onToggleShowMore}
-                      className={`mt-0.5 ${miniTextClass} cursor-pointer font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
+              <ToolRichResult item={item} compact={compact} />
+            </div>
+          ) : hasStreamingContent ? (
+            <div
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              <div className={`mt-0.5 ${subTextClass} font-mono leading-relaxed text-neutral-400`}>
+                {streamingContent.split("\n").map((line, index) => (
+                  <div key={index} className={resultLineClass}>
+                    {line || " "}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : hasResult ? (
+            <div
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              {(() => {
+                const lines = item.result!.split("\n");
+                const truncated = !showMore && lines.length > RESULT_LINE_LIMIT;
+                const displayedLines = truncated ? lines.slice(0, RESULT_LINE_LIMIT) : lines;
+                return (
+                  <>
+                    <div
+                      className={`mt-0.5 ${subTextClass} font-mono leading-relaxed ${isError ? "text-red-700" : "text-neutral-400"}`}
                     >
-                      {showMore
-                        ? "Show less"
-                        : `Show more (${lines.length - RESULT_LINE_LIMIT} lines)`}
-                    </button>
-                  ) : null}
-                </>
-              );
-            })()}
-          </div>
-        ) : isEmptyResult ? (
-          <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-400`}>(no content)</div>
-        ) : null}
+                      {displayedLines.map((line, index) => (
+                        <div key={index} className={resultLineClass}>
+                          <HighlightText>{line || " "}</HighlightText>
+                        </div>
+                      ))}
+                    </div>
+                    {lines.length > RESULT_LINE_LIMIT ? (
+                      <button
+                        type="button"
+                        onClick={onToggleShowMore}
+                        className={`mt-0.5 ${miniTextClass} cursor-pointer font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
+                      >
+                        {showMore
+                          ? "Show less"
+                          : `Show more (${lines.length - RESULT_LINE_LIMIT} lines)`}
+                      </button>
+                    ) : null}
+                  </>
+                );
+              })()}
+            </div>
+          ) : isEmptyResult ? (
+            <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-400`}>(no content)</div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

@@ -22,7 +22,7 @@ export function SubAgentStatusSummary({
   }
 
   return (
-    <div className="px-3.5 pb-2 pt-0 text-xs">
+    <div className="px-3.5 pb-2 pt-0 text-2xs">
       {activityText ? (
         <div className="truncate font-mono text-neutral-500">{activityText}</div>
       ) : null}
@@ -60,7 +60,7 @@ export function SubAgentStatusSummary({
               </button>
               {metaOpen ? (
                 <div className="absolute right-0 top-full z-20 mt-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
-                  <div className="space-y-1.5 text-xs leading-5">
+                  <div className="space-y-1.5 text-2xs leading-5">
                     {metaRows.map((row) => (
                       <div key={row.label} className="flex items-start justify-between gap-4">
                         <span className="text-neutral-400">{row.label}</span>

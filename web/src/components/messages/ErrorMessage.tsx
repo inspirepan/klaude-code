@@ -7,11 +7,9 @@ interface ErrorMessageProps {
   compact?: boolean;
 }
 
-export function ErrorMessage({ item, compact = false }: ErrorMessageProps): JSX.Element {
+export function ErrorMessage({ item }: ErrorMessageProps): JSX.Element {
   return (
-    <div
-      className={`rounded-xl border border-red-200/80 bg-red-50/70 px-3 py-2.5 ${compact ? "text-[13px]" : "text-sm"}`}
-    >
+    <div className="rounded-xl border border-red-200/80 bg-red-50/70 px-3 py-2.5 text-sm">
       <div className="flex items-start gap-2 text-red-700">
         <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
         <div className="min-w-0 space-y-0.5">

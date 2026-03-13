@@ -10,8 +10,11 @@ interface ProjectGroupProps {
   sessions: SessionSummary[];
   collapsed: boolean;
   compactSessions?: boolean;
+  compactHeader?: boolean;
+  hideNewSessionButton?: boolean;
   activeSessionId: string | "draft";
   runtimeBySessionId: Record<string, SessionRuntimeState>;
+  recentCompletionStartedAtBySessionId: Record<string, number>;
   completedUnreadBySessionId: Record<string, boolean>;
   onToggle: () => void;
   onSelectDraft: (workDir: string) => void;
@@ -32,8 +35,11 @@ export function ProjectGroup({
   sessions,
   collapsed,
   compactSessions = false,
+  compactHeader = false,
+  hideNewSessionButton = false,
   activeSessionId,
   runtimeBySessionId,
+  recentCompletionStartedAtBySessionId,
   completedUnreadBySessionId,
   onToggle,
   onSelectDraft,
@@ -54,29 +60,39 @@ export function ProjectGroup({
             <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
           )}
           <div className="min-w-0 flex-1 text-left" title={workDir}>
-            <div className="truncate text-sm font-normal leading-5 text-neutral-800">
-              {workDirLabel(workDir)}
+            <div className="flex min-w-0 items-center gap-1 text-sm font-normal leading-5 text-neutral-800">
+              <span className="truncate">{workDirLabel(workDir)}</span>
+              <span className="shrink-0 text-neutral-400">({sessions.length})</span>
             </div>
-            <div className="mt-0.5 truncate text-2xs leading-4 text-neutral-400" title={workDir}>
+            <div
+              className={
+                compactHeader
+                  ? "mt-0.5 truncate text-2xs leading-4 text-neutral-400"
+                  : "mt-0.5 truncate text-2xs leading-4 text-neutral-400"
+              }
+              title={workDir}
+            >
               {workDir}
             </div>
           </div>
         </CollapsibleTrigger>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className="mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
-              onClick={() => {
-                onSelectDraft(workDir);
-              }}
-              aria-label={`New session in ${workDir}`}
-            >
-              <SquarePen className="h-3.5 w-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>New session in {workDir}</TooltipContent>
-        </Tooltip>
+        {hideNewSessionButton ? null : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+                onClick={() => {
+                  onSelectDraft(workDir);
+                }}
+                aria-label={`New session in ${workDir}`}
+              >
+                <SquarePen className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>New session in {workDir}</TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       <CollapsibleContent className="ml-3.5 border-l border-neutral-200 pl-2">
@@ -94,6 +110,7 @@ export function ProjectGroup({
                 }
               }
               hasUnreadCompletion={completedUnreadBySessionId[session.id] === true}
+              completionAnimationStartedAt={recentCompletionStartedAtBySessionId[session.id]}
               onClick={() => {
                 onSelectSession(session.id);
               }}
@@ -112,7 +129,9 @@ export function ProjectGroup({
             >
               <span
                 className={
-                  compactSessions ? "flex-1 text-xs font-normal" : "flex-1 pl-6 text-xs font-normal"
+                  compactSessions
+                    ? "flex-1 text-2xs font-normal"
+                    : "flex-1 pl-6 text-xs font-normal"
                 }
               >
                 Load more ({sessions.length - 10})

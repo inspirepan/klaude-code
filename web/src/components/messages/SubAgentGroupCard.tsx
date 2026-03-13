@@ -7,7 +7,6 @@ import { SubAgentCollapsedPreview } from "./SubAgentCollapsedPreview";
 import { SubAgentStatusSummary } from "./SubAgentStatusSummary";
 import {
   formatSubAgentTypeLabel,
-  formatTime,
   getSessionActivityText,
   getSessionMetaRows,
   getSessionSummaryParts,
@@ -54,8 +53,6 @@ export function SubAgentGroupCard({
   setItemRef,
 }: SubAgentGroupCardProps): JSX.Element {
   const toolItems = items.filter(isToolBlock);
-  const previewTools = toolItems.slice(-3);
-  const moreToolsCount = Math.max(0, toolItems.length - previewTools.length);
   const activityText = getSessionActivityText(status);
   const summaryParts = getSessionSummaryParts(status, nowSeconds);
   const metaRows = getSessionMetaRows(status, nowSeconds);
@@ -109,17 +106,12 @@ export function SubAgentGroupCard({
           <SubAgentCollapsedPreview
             isFinished={isFinished}
             toolItems={toolItems}
-            previewTools={previewTools}
-            moreToolsCount={moreToolsCount}
             resultPreview={resultPreview}
             streamingPreview={streamingPreview}
           />
         ) : (
           <div className="space-y-5 px-3.5 pb-3.5 pt-0.5">
-            {items.map((item, index) => {
-              const time = formatTime(item.timestamp);
-              const prevTime = index > 0 ? formatTime(items[index - 1]!.timestamp) : null;
-              const displayTime = time && time !== prevTime ? time : null;
+            {items.map((item) => {
               return (
                 <MessageRow
                   key={item.id}
@@ -127,7 +119,6 @@ export function SubAgentGroupCard({
                   variant="subagent"
                   workDir={workDir}
                   isActive={item.id === activeItemId}
-                  displayTime={displayTime}
                   copied={copiedItemId === item.id}
                   onCopy={onCopy}
                   itemRef={(el) => {
@@ -139,7 +130,6 @@ export function SubAgentGroupCard({
           </div>
         )}
       </div>
-      <div className="hidden w-[112px] shrink-0 sm:block" />
     </div>
   );
 }

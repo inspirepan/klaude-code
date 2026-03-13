@@ -1,12 +1,16 @@
 import { useState } from "react";
-import { ChevronRight } from "lucide-react";
 
-import type { DeveloperMessageItem, AtFileOp, DeveloperUIItem } from "../../types/message";
+import type {
+  DeveloperMessageItem,
+  AtFileOp,
+  DeveloperUIItem,
+  TodoReminderUIItem,
+} from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
 import { FilePath } from "./FilePath";
 
 interface DeveloperMessageProps {
-  item: DeveloperMessageItem;
+  items: DeveloperMessageItem[];
 }
 
 function PathPill({ path }: { path: string }): JSX.Element {
@@ -54,6 +58,55 @@ function collectImages(items: DeveloperUIItem[]): string[] {
   return paths;
 }
 
+function buildAttachedSummary(devItems: DeveloperMessageItem[]): string {
+  let memoryCount = 0;
+  const skillNames: string[] = [];
+  let fileCount = 0;
+  let folderListCount = 0;
+  let rereadCount = 0;
+  let imageCount = 0;
+
+  for (const devItem of devItems) {
+    for (const ui of devItem.items) {
+      switch (ui.type) {
+        case "memory_loaded":
+          memoryCount += ui.files.length;
+          break;
+        case "skill_activated":
+          skillNames.push(ui.name);
+          break;
+        case "at_file_ops":
+          for (const op of ui.ops) {
+            if (op.operation === "Read") fileCount++;
+            else if (op.operation === "List") folderListCount++;
+          }
+          break;
+        case "external_file_changes":
+          rereadCount += ui.paths.length;
+          break;
+        case "user_images":
+          imageCount += ui.count;
+          break;
+        case "at_file_images":
+          imageCount += ui.paths.length;
+          break;
+        case "todo_reminder":
+          break;
+      }
+    }
+  }
+
+  const parts: string[] = [];
+  if (memoryCount > 0) parts.push(`${memoryCount} ${memoryCount === 1 ? "memory" : "memories"}`);
+  for (const name of skillNames) parts.push(`skill:${name}`);
+  if (fileCount > 0) parts.push(`${fileCount} ${plural(fileCount, "file")}`);
+  if (folderListCount > 0)
+    parts.push(`${folderListCount} folder ${plural(folderListCount, "list")}`);
+  if (rereadCount > 0) parts.push(`${rereadCount} re-read ${plural(rereadCount, "file")}`);
+  if (imageCount > 0) parts.push(`${imageCount} ${plural(imageCount, "image")}`);
+  return parts.join(", ");
+}
+
 function CollapsibleRow({
   label,
   children,
@@ -70,18 +123,20 @@ function CollapsibleRow({
 
   return (
     <div
-      className={`grid grid-cols-[auto_1fr] items-start gap-x-1.5 py-0.5 font-mono text-sm leading-6 ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`grid grid-cols-[auto_1fr] items-start gap-x-1.5 font-mono text-sm leading-5 ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
       <div className="flex items-start gap-1.5 self-stretch">
         <div className="flex flex-col items-center self-stretch">
-          <ChevronRight
-            className={`mt-1 h-4 w-4 shrink-0 text-neutral-300 transition-transform duration-150 ${open ? "rotate-90" : ""} ${!expandable ? "opacity-0" : ""}`}
-          />
+          <span
+            className={`mt-0.5 font-mono text-xs text-neutral-400 ${!expandable ? "opacity-0" : ""}`}
+          >
+            {open ? "[-]" : "[+]"}
+          </span>
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
         </div>
         <span
-          className={`whitespace-nowrap font-sans font-normal text-neutral-500 ${labelClassName ?? ""}`}
+          className={`whitespace-nowrap font-mono font-normal text-neutral-500 ${labelClassName ?? ""}`}
         >
           {label}
         </span>
@@ -89,13 +144,20 @@ function CollapsibleRow({
 
       <div className="min-w-0" />
 
-      {open ? (
-        <div className="col-span-2 mt-1 grid min-w-0 grid-cols-[16px_1fr] gap-x-1.5">
-          <div className="flex justify-center">
-            <div className="w-px bg-neutral-200" />
-          </div>
-          <div className="min-w-0 pb-1.5" onClick={(e) => e.stopPropagation()}>
-            {children}
+      {expandable ? (
+        <div
+          className="col-span-2 grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
+          style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
+        >
+          <div className="overflow-hidden">
+            <div className="mt-1 grid min-w-0 grid-cols-[16px_1fr] gap-x-1.5">
+              <div className="flex justify-center">
+                <div className="w-px bg-neutral-200" />
+              </div>
+              <div className="min-w-0 pb-1.5" onClick={(e) => e.stopPropagation()}>
+                {children}
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
@@ -115,77 +177,43 @@ function PathList({ paths }: { paths: string[] }): JSX.Element {
   );
 }
 
-export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
-  const images = collectImages(item.items);
+function AttachDetail({
+  devItems,
+  images,
+}: {
+  devItems: DeveloperMessageItem[];
+  images: string[];
+}): JSX.Element {
+  const allUIItems = devItems.flatMap((d) => d.items).filter((ui) => ui.type !== "todo_reminder");
 
   return (
-    <div className="-my-1 flex flex-col gap-1.5 font-sans text-sm text-neutral-500">
-      {item.items.map((ui, idx) => {
+    <div className="flex flex-col gap-1">
+      {allUIItems.map((ui, idx) => {
         switch (ui.type) {
           case "memory_loaded":
-            return (
-              <CollapsibleRow key={`memory-${idx}`} label="Load memory">
-                <PathList paths={ui.files.map((f) => f.path)} />
-              </CollapsibleRow>
-            );
+            return <PathList key={`memory-${idx}`} paths={ui.files.map((f) => f.path)} />;
           case "external_file_changes":
-            return (
-              <CollapsibleRow key={`external-${idx}`} label="Read after external changes">
-                <PathList paths={ui.paths} />
-              </CollapsibleRow>
-            );
-          case "todo_reminder": {
-            const text =
-              ui.reason === "empty" ? "Todo list is empty" : "Todo hasn't been updated recently";
-            const tone =
-              ui.reason === "empty"
-                ? { labelClassName: "text-emerald-700" }
-                : { labelClassName: "text-blue-700" };
-            return (
-              <CollapsibleRow key={`todo-${idx}`} label={text} {...tone}>
-                {null}
-              </CollapsibleRow>
-            );
-          }
+            return <PathList key={`external-${idx}`} paths={ui.paths} />;
           case "at_file_ops":
             return groupAtFileOps(ui.ops).map((g) => (
-              <CollapsibleRow
-                key={`${g.operation}-${g.mentionedIn ?? ""}-${g.paths.join(",")}`}
-                label={g.operation}
-              >
-                <div className="flex flex-col gap-1">
-                  <PathList paths={g.paths} />
-                  {g.mentionedIn ? (
-                    <div className="text-sm leading-6">
-                      <span className="mr-1">mentioned in</span>
-                      <PathPill path={g.mentionedIn} />
-                    </div>
-                  ) : null}
-                </div>
-              </CollapsibleRow>
+              <div key={`${g.operation}-${g.mentionedIn ?? ""}-${g.paths.join(",")}`}>
+                <PathList paths={g.paths} />
+                {g.mentionedIn ? (
+                  <div className="mt-0.5 text-sm leading-6">
+                    <span className="mr-1 text-neutral-400">mentioned in</span>
+                    <PathPill path={g.mentionedIn} />
+                  </div>
+                ) : null}
+              </div>
             ));
-          case "user_images":
-            return (
-              <CollapsibleRow
-                key={`images-${idx}`}
-                label={`Attached ${ui.count} ${plural(ui.count, "image")}`}
-              >
-                {null}
-              </CollapsibleRow>
-            );
           case "skill_activated":
-            return (
-              <CollapsibleRow key={`skill-${idx}`} label={`Activated skill`}>
-                <PathPill path={ui.name} />
-              </CollapsibleRow>
-            );
+          case "user_images":
           case "at_file_images":
             return null;
         }
       })}
-
       {images.length > 0 ? (
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {images.map((p) => (
             <img
               key={p}
@@ -197,6 +225,37 @@ export function DeveloperMessage({ item }: DeveloperMessageProps): JSX.Element {
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+export function DeveloperMessage({ items }: DeveloperMessageProps): JSX.Element {
+  const images = items.flatMap((d) => collectImages(d.items));
+  const allUIItems = items.flatMap((d) => d.items);
+  const todoItems = allUIItems.filter(
+    (ui): ui is TodoReminderUIItem => ui.type === "todo_reminder",
+  );
+  const attachItems = allUIItems.filter((ui) => ui.type !== "todo_reminder");
+  const hasAttachments = attachItems.length > 0 || images.length > 0;
+  const summary = hasAttachments ? buildAttachedSummary(items) : "";
+
+  return (
+    <div className="flex flex-col font-sans text-sm text-neutral-500">
+      {hasAttachments ? (
+        <CollapsibleRow label={`Attached ${summary}`}>
+          <AttachDetail devItems={items} images={images} />
+        </CollapsibleRow>
+      ) : null}
+      {todoItems.map((todo, idx) => {
+        const text =
+          todo.reason === "empty" ? "Todo list is empty" : "Todo hasn't been updated recently";
+        const labelClassName = todo.reason === "empty" ? "text-emerald-700" : "text-blue-700";
+        return (
+          <CollapsibleRow key={`todo-${idx}`} label={text} labelClassName={labelClassName}>
+            {null}
+          </CollapsibleRow>
+        );
+      })}
     </div>
   );
 }

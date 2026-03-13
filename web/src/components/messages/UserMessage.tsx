@@ -5,7 +5,25 @@ import type { UserMessageItem } from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
 import { HighlightText } from "./HighlightText";
 
-const USER_MESSAGE_LINE_LIMIT = 1;
+const USER_MESSAGE_LINE_LIMIT = 4;
+const MENTION_PATTERN = /(@[\w./-]+)/;
+
+function ContentWithMentions({ children }: { children: string }): JSX.Element {
+  const parts = children.split(MENTION_PATTERN);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.startsWith("@") && MENTION_PATTERN.test(part) ? (
+          <span key={i} className="text-blue-500">
+            <HighlightText>{part}</HighlightText>
+          </span>
+        ) : (
+          <HighlightText key={i}>{part}</HighlightText>
+        ),
+      )}
+    </>
+  );
+}
 
 interface UserMessageProps {
   item: UserMessageItem;
@@ -22,7 +40,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
     [item.content],
   );
   const hasText = normalizedContent.length > 0;
-  const miniTextClass = compact ? "text-[9px] leading-none" : "text-[10px] leading-none";
+  const miniTextClass = "text-2xs leading-none";
   const textRef = useRef<HTMLParagraphElement>(null);
   const [showMore, setShowMore] = useState(false);
   const [canExpandText, setCanExpandText] = useState(false);
@@ -44,9 +62,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
       const maxHeight = lineHeight * USER_MESSAGE_LINE_LIMIT;
       setCollapsedTextMaxHeight(maxHeight);
       const hasVerticalOverflow = node.scrollHeight > maxHeight + 1;
-      const hasHorizontalOverflow =
-        USER_MESSAGE_LINE_LIMIT === 1 && node.scrollWidth > node.clientWidth + 1;
-      setCanExpandText(hasVerticalOverflow || hasHorizontalOverflow);
+      setCanExpandText(hasVerticalOverflow);
     };
 
     const frameId = window.requestAnimationFrame(updateMetrics);
@@ -101,12 +117,12 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
               key={`${image.type}-${idx}`}
               type="button"
               onClick={() => setExpandedImageIndex(idx)}
-              className="block w-fit cursor-zoom-in rounded-md border-0 bg-transparent p-0"
+              className="block w-fit max-w-full cursor-zoom-in rounded-md border-0 bg-transparent p-0"
             >
               <img
                 src={src}
                 alt={alt}
-                className="block h-auto max-h-[180px] w-auto max-w-[260px] rounded-md border border-neutral-200/70 bg-white object-contain"
+                className="block h-auto max-h-[180px] w-auto max-w-[min(260px,100%)] rounded-md border border-neutral-200/70 bg-white object-contain"
                 loading="lazy"
               />
             </button>
@@ -118,22 +134,20 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
 
   return (
     <>
-      <div className="rounded-[22px] bg-user-bubble px-5 py-2.5 transition-colors hover:bg-user-bubble-hover">
+      <div className="hover:bg-slate-150 dark:hover:bg-slate-750 ml-auto w-fit max-w-[50%] rounded-2xl border border-slate-200 bg-slate-100 px-5 py-2.5 transition-colors dark:border-slate-700 dark:bg-slate-800">
         {renderImages()}
         {hasText ? (
           <div>
             <p
               ref={textRef}
               style={
-                USER_MESSAGE_LINE_LIMIT === 1
-                  ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }
-                  : collapsedTextMaxHeight !== null
-                    ? { maxHeight: `${collapsedTextMaxHeight}px`, overflow: "hidden" }
-                    : undefined
+                collapsedTextMaxHeight !== null
+                  ? { maxHeight: `${collapsedTextMaxHeight}px`, overflow: "hidden" }
+                  : undefined
               }
-              className={`${compact ? "text-[13px]" : "text-sm"} m-0 whitespace-pre-wrap break-words leading-relaxed text-user-bubble-text`}
+              className="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground"
             >
-              <HighlightText>{normalizedContent}</HighlightText>
+              <ContentWithMentions>{normalizedContent}</ContentWithMentions>
             </p>
             {canExpandText ? (
               <button
@@ -147,6 +161,14 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
           </div>
         ) : null}
       </div>
+      {item.timestamp !== null ? (
+        <div className="mr-1 mt-1 text-right text-2xs text-neutral-400">
+          {new Date(item.timestamp * 1000).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </div>
+      ) : null}
 
       {showMore && hasText
         ? createPortal(
@@ -162,10 +184,8 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
               >
                 <div className="max-h-[calc(100vh-8rem)] overflow-y-auto px-4 py-3">
                   {renderImages()}
-                  <p
-                    className={`${compact ? "text-[13px]" : "text-sm"} m-0 whitespace-pre-wrap break-words leading-relaxed text-user-bubble-text`}
-                  >
-                    <HighlightText>{normalizedContent}</HighlightText>
+                  <p className="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                    <ContentWithMentions>{normalizedContent}</ContentWithMentions>
                   </p>
                 </div>
                 <div className="border-t border-neutral-200/70 px-4 py-2.5">

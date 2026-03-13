@@ -1,4 +1,4 @@
-import { PanelLeftOpen, PanelRightOpen } from "lucide-react";
+import { PanelLeftOpen } from "lucide-react";
 import { useAppStore } from "../../stores/app-store";
 import { useSessionStore } from "../../stores/session-store";
 import { MessageComposer } from "../input/MessageComposer";
@@ -10,10 +10,8 @@ export function MainPanel(): JSX.Element {
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const isDraft = activeSessionId === "draft";
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
-  const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen);
   const newSessionOverlayOpen = useAppStore((state) => state.newSessionOverlayOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
-  const setRightSidebarOpen = useAppStore((state) => state.setRightSidebarOpen);
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
 
   return (
@@ -38,7 +36,7 @@ export function MainPanel(): JSX.Element {
                 <TooltipContent className="flex items-center gap-1.5">
                   <span>Expand sidebar</span>
                   <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-                    <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                    <span className="inline-flex whitespace-pre text-xs leading-none">
                       <kbd className="inline-flex font-sans">
                         <span className="min-w-[1em] text-center">⌘</span>
                       </kbd>
@@ -55,38 +53,6 @@ export function MainPanel(): JSX.Element {
                 <span className="truncate font-semibold text-neutral-800">New session</span>
               </div>
             </div>
-            {!rightSidebarOpen ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-                    onClick={() => {
-                      setRightSidebarOpen(true);
-                    }}
-                    aria-label="Expand right sidebar"
-                  >
-                    <PanelRightOpen className="h-4 w-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="flex items-center gap-1.5">
-                  <span>Expand right sidebar</span>
-                  <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-                    <span className="inline-flex whitespace-pre text-[12px] leading-none">
-                      <kbd className="inline-flex font-sans">
-                        <span className="min-w-[1em] text-center">⇧</span>
-                      </kbd>
-                      <kbd className="inline-flex font-sans">
-                        <span className="min-w-[1em] text-center">⌘</span>
-                      </kbd>
-                      <kbd className="inline-flex font-sans">
-                        <span className="min-w-[1em] text-center">B</span>
-                      </kbd>
-                    </span>
-                  </span>
-                </TooltipContent>
-              </Tooltip>
-            ) : null}
           </div>
 
           <div className="relative min-h-0 flex-1 bg-neutral-50/45">
