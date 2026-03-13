@@ -28,6 +28,7 @@ export function LeftSidebar(): JSX.Element {
   const [archivedMenuOpen, setArchivedMenuOpen] = useState(false);
   const [sessionListView, setSessionListView] = useState<"grouped" | "flat">("flat");
   const [sidebarWidth, setSidebarWidth] = useState(256);
+  const [isResizing, setIsResizing] = useState(false);
   const [archiveUndoSessionId, setArchiveUndoSessionId] = useState<string | null>(null);
   const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
     Record<string, boolean>
@@ -216,16 +217,23 @@ export function LeftSidebar(): JSX.Element {
   };
 
   return (
-    <aside
-      ref={sidebarRef}
-      data-sidebar="left"
-      className="relative flex shrink-0 flex-col overflow-hidden border-r border-neutral-200 bg-neutral-50 transition-[width,min-width,opacity] duration-200 ease-in-out"
+    // grid-template-columns trick (same as CollapseGroupBlock's grid-template-rows):
+    // outer div controls the animated visible width; aside stays at fixed sidebarWidth
+    // so internal layout (justify-center etc.) is unaffected during the animation.
+    <div
+      className={`grid duration-200 ease-in-out${!isResizing ? " transition-[grid-template-columns,opacity]" : ""}`}
       style={{
-        width: sidebarOpen ? `${sidebarWidth}px` : "0px",
-        minWidth: sidebarOpen ? `${sidebarWidth}px` : "0px",
+        gridTemplateColumns: sidebarOpen ? `${sidebarWidth}px` : "0px",
         opacity: sidebarOpen ? 1 : 0,
       }}
     >
+      <div className="overflow-hidden">
+        <aside
+          ref={sidebarRef}
+          data-sidebar="left"
+          className="relative flex shrink-0 flex-col border-r border-neutral-200 bg-neutral-50"
+          style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
+        >
       <div className="flex items-center gap-1.5 px-3 py-2">
         <div className="flex-1">
           <NewSessionButton
@@ -546,6 +554,7 @@ export function LeftSidebar(): JSX.Element {
         className="absolute -right-1 top-0 z-30 flex h-full w-2 cursor-col-resize items-center justify-center"
         onPointerDown={(event) => {
           event.preventDefault();
+          setIsResizing(true);
           const startX = event.clientX;
           const startWidth = sidebarWidth;
           const onPointerMove = (moveEvent: PointerEvent): void => {
@@ -553,6 +562,7 @@ export function LeftSidebar(): JSX.Element {
             setSidebarWidth(clampSidebarWidth(startWidth + deltaX));
           };
           const onPointerUp = (): void => {
+            setIsResizing(false);
             cleanup();
             sidebarResizeCleanupRef.current = null;
           };
@@ -571,6 +581,8 @@ export function LeftSidebar(): JSX.Element {
       >
         <span className="h-full w-px bg-neutral-200/85" />
       </div>
-    </aside>
+        </aside>
+      </div>
+    </div>
   );
 }

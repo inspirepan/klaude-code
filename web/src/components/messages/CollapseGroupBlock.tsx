@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 
-import type { MessageItem as MessageItemType } from "../../types/message";
+import type { MessageItem as MessageItemType, DeveloperMessageItem } from "../../types/message";
 import { MessageRow } from "./MessageRow";
+import { DeveloperMessage } from "./DeveloperMessage";
 
 interface CollapseGroupBlockProps {
   items: MessageItemType[];
@@ -230,6 +231,28 @@ export function CollapseGroupBlock({
   const stepLabel = toolCount > 0 ? `${toolCount} tool${toolCount === 1 ? "" : "s"} used` : "Thoughts";
   const summary = useMemo(() => summarizeCollapseItems(items), [items]);
 
+  // Group consecutive developer_message items so they render as one merged row
+  type RenderBlock =
+    | { kind: "dev"; items: DeveloperMessageItem[] }
+    | { kind: "other"; item: MessageItemType };
+
+  const renderBlocks = useMemo((): RenderBlock[] => {
+    const result: RenderBlock[] = [];
+    for (const item of items) {
+      if (item.type === "developer_message") {
+        const last = result[result.length - 1];
+        if (last?.kind === "dev") {
+          last.items.push(item);
+        } else {
+          result.push({ kind: "dev", items: [item] });
+        }
+      } else {
+        result.push({ kind: "other", item });
+      }
+    }
+    return result;
+  }, [items]);
+
   return (
     <div>
       <button
@@ -293,18 +316,23 @@ export function CollapseGroupBlock({
               <div className="w-px bg-neutral-200" />
             </div>
             <div className="min-w-0 space-y-5 pb-1">
-              {items.map((item) => (
-                <MessageRow
-                  key={item.id}
-                  item={item}
-                  variant="main"
-                  workDir={workDir}
-                  isActive={item.id === activeItemId}
-                  copied={copiedItemId === item.id}
-                  onCopy={onCopy}
-                  itemRef={(el: HTMLDivElement | null) => setItemRef(item.id, el)}
-                />
-              ))}
+              {renderBlocks.map((block, idx) => {
+                if (block.kind === "dev") {
+                  return <DeveloperMessage key={`dev-${idx}`} items={block.items} />;
+                }
+                return (
+                  <MessageRow
+                    key={block.item.id}
+                    item={block.item}
+                    variant="main"
+                    workDir={workDir}
+                    isActive={block.item.id === activeItemId}
+                    copied={copiedItemId === block.item.id}
+                    onCopy={onCopy}
+                    itemRef={(el: HTMLDivElement | null) => setItemRef(block.item.id, el)}
+                  />
+                );
+              })}
             </div>
           </div>
         </div>
