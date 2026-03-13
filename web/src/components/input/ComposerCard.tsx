@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -8,13 +9,29 @@ import {
 } from "react";
 import { ArrowUp, ImagePlus, Square, X } from "lucide-react";
 
-import { buildFileApiUrl, uploadImageAttachment, type ConfigModelSummary } from "../../api/client";
+import {
+  buildFileApiUrl,
+  searchFileCompletions,
+  uploadImageAttachment,
+  type ConfigModelSummary,
+} from "../../api/client";
 import type { MessageImageFilePart } from "../../types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { AtFileCompletionList } from "./AtFileCompletionList";
 import { ModelSelector } from "./ModelSelector";
 
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const SUPPORTED_IMAGE_ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
+const AT_COMPLETION_PATTERN = /(^|\s)@(?<frag>"[^"]*"|[^\s]*)$/;
+const AT_COMPLETION_DEBOUNCE_MS = 120;
+
+interface FileCompletionContext {
+  fragment: string;
+  searchQuery: string;
+  tokenStart: number;
+  tokenEnd: number;
+  isQuoted: boolean;
+}
 
 export interface ComposerImageAttachment {
   id: string;
@@ -28,6 +45,8 @@ interface ComposerSubmitPayload {
 }
 
 interface ComposerCardProps {
+  sessionId: string;
+  searchWorkDir?: string;
   text: string;
   onTextChange: (text: string) => void;
   images: ComposerImageAttachment[];
@@ -51,6 +70,42 @@ interface ComposerCardProps {
   modelDropUp?: boolean;
 }
 
+function getFileCompletionContext(
+  text: string,
+  cursorPosition: number,
+): FileCompletionContext | null {
+  const textBeforeCursor = text.slice(0, cursorPosition);
+  const match = AT_COMPLETION_PATTERN.exec(textBeforeCursor);
+  const fragment = match?.groups?.frag;
+  if (fragment === undefined) {
+    return null;
+  }
+
+  let searchQuery = fragment;
+  const isQuoted = fragment.startsWith('"');
+  if (isQuoted) {
+    searchQuery = searchQuery.slice(1);
+    if (searchQuery.endsWith('"')) {
+      searchQuery = searchQuery.slice(0, -1);
+    }
+  }
+
+  return {
+    fragment,
+    searchQuery,
+    tokenStart: textBeforeCursor.length - `@${fragment}`.length,
+    tokenEnd: cursorPosition,
+    isQuoted,
+  };
+}
+
+function formatFileCompletionText(path: string, isQuoted: boolean): string {
+  if (isQuoted || /\s/.test(path)) {
+    return `@"${path}" `;
+  }
+  return `@${path} `;
+}
+
 function getAttachmentName(file: File, image: MessageImageFilePart): string {
   const trimmedName = file.name.trim();
   if (trimmedName.length > 0) {
@@ -64,6 +119,8 @@ function getAttachmentName(file: File, image: MessageImageFilePart): string {
 }
 
 export function ComposerCard({
+  sessionId,
+  searchWorkDir,
   text,
   onTextChange,
   images,
@@ -87,12 +144,70 @@ export function ComposerCard({
 }: ComposerCardProps): JSX.Element {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const ref = externalRef ?? internalRef;
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadingCount, setUploadingCount] = useState(0);
+  const [fileCompletion, setFileCompletion] = useState<FileCompletionContext | null>(null);
+  const [fileCompletionItems, setFileCompletionItems] = useState<string[]>([]);
+  const [fileCompletionLoading, setFileCompletionLoading] = useState(false);
+  const [fileCompletionHighlightIndex, setFileCompletionHighlightIndex] = useState(0);
   const attachmentsDisabled = disableAttachments || interruptible || uploadingCount > 0;
   const buttonDisabled = uploadingCount > 0 || (interruptible ? disableInterrupt : disableSubmit);
   const buttonLabel = interruptible ? "Interrupt" : submitting ? "Sending" : "Send";
+  const fileCompletionOpen = fileCompletionLoading || fileCompletionItems.length > 0;
+
+  const closeFileCompletion = useCallback(() => {
+    setFileCompletion(null);
+    setFileCompletionItems([]);
+    setFileCompletionLoading(false);
+    setFileCompletionHighlightIndex(0);
+  }, []);
+
+  const updateFileCompletion = useCallback((nextText: string, cursorPosition: number | null) => {
+    const resolvedCursor = cursorPosition ?? nextText.length;
+    const nextCompletion = getFileCompletionContext(nextText, resolvedCursor);
+    setFileCompletion((current) => {
+      if (
+        current?.fragment === nextCompletion?.fragment &&
+        current?.tokenStart === nextCompletion?.tokenStart &&
+        current?.tokenEnd === nextCompletion?.tokenEnd
+      ) {
+        return current;
+      }
+      return nextCompletion;
+    });
+    if (nextCompletion === null) {
+      setFileCompletionItems([]);
+      setFileCompletionLoading(false);
+    }
+    setFileCompletionHighlightIndex(0);
+  }, []);
+
+  const applyFileCompletion = useCallback(
+    (path: string) => {
+      if (fileCompletion === null) {
+        return;
+      }
+
+      const insertedText = formatFileCompletionText(path, fileCompletion.isQuoted);
+      const nextText = `${text.slice(0, fileCompletion.tokenStart)}${insertedText}${text.slice(fileCompletion.tokenEnd)}`;
+      const nextCursorPosition = fileCompletion.tokenStart + insertedText.length;
+
+      onTextChange(nextText);
+      closeFileCompletion();
+
+      requestAnimationFrame(() => {
+        const textarea = ref.current;
+        if (!textarea) {
+          return;
+        }
+        textarea.focus();
+        textarea.setSelectionRange(nextCursorPosition, nextCursorPosition);
+      });
+    },
+    [closeFileCompletion, fileCompletion, onTextChange, ref, text],
+  );
 
   useEffect(() => {
     const textarea = ref.current;
@@ -116,6 +231,66 @@ export function ComposerCard({
     textarea.style.height = `${nextHeight}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [ref, text]);
+
+  useEffect(() => {
+    if (fileCompletion === null) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      setFileCompletionLoading(true);
+      void searchFileCompletions({
+        sessionId,
+        workDir: searchWorkDir,
+        query: fileCompletion.searchQuery,
+        signal: controller.signal,
+      })
+        .then((items) => {
+          setFileCompletionItems(items);
+          setFileCompletionHighlightIndex(0);
+        })
+        .catch((error) => {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+          }
+          setFileCompletionItems([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setFileCompletionLoading(false);
+          }
+        });
+    }, AT_COMPLETION_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [fileCompletion, searchWorkDir, sessionId]);
+
+  useEffect(() => {
+    if (!fileCompletionOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        closeFileCompletion();
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [closeFileCompletion, fileCompletionOpen]);
+
+  useEffect(() => {
+    if (text.length === 0) {
+      closeFileCompletion();
+    }
+  }, [closeFileCompletion, text]);
 
   const handleFileBatch = async (files: File[]): Promise<void> => {
     if (files.length === 0) {
@@ -151,7 +326,10 @@ export function ComposerCard({
   };
 
   return (
-    <div className="rounded-2xl bg-white px-4 py-2.5 shadow-sm ring-1 ring-black/[0.06]">
+    <div
+      ref={rootRef}
+      className="rounded-2xl bg-white px-4 py-2.5 shadow-sm ring-1 ring-black/[0.06]"
+    >
       <input
         ref={fileInputRef}
         type="file"
@@ -164,37 +342,83 @@ export function ComposerCard({
           event.target.value = "";
         }}
       />
-      <textarea
-        ref={ref}
-        value={text}
-        onChange={(event) => {
-          onTextChange(event.target.value);
-        }}
-        onPaste={(event) => {
-          const files = Array.from(event.clipboardData.items)
-            .filter((item) => item.kind === "file")
-            .map((item) => item.getAsFile())
-            .filter((file): file is File => file !== null);
-          if (files.length === 0) {
-            return;
-          }
-          event.preventDefault();
-          void handleFileBatch(files);
-        }}
-        onKeyDown={(event) => {
-          if (event.nativeEvent.isComposing || event.key !== "Enter" || event.shiftKey) {
-            return;
-          }
-          event.preventDefault();
-          if (buttonDisabled) {
-            return;
-          }
-          onSubmit({ text, images: images.map((item) => item.image) });
-        }}
-        rows={1}
-        placeholder={placeholder}
-        className="min-h-[2rem] w-full resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0.5 text-sm leading-7 text-neutral-800 outline-none placeholder:text-neutral-400"
-      />
+      <div className="relative">
+        <textarea
+          ref={ref}
+          value={text}
+          onChange={(event) => {
+            onTextChange(event.target.value);
+            updateFileCompletion(event.target.value, event.target.selectionStart);
+          }}
+          onSelect={(event) => {
+            updateFileCompletion(event.currentTarget.value, event.currentTarget.selectionStart);
+          }}
+          onPaste={(event) => {
+            const files = Array.from(event.clipboardData.items)
+              .filter((item) => item.kind === "file")
+              .map((item) => item.getAsFile())
+              .filter((file): file is File => file !== null);
+            if (files.length === 0) {
+              return;
+            }
+            event.preventDefault();
+            void handleFileBatch(files);
+          }}
+          onKeyDown={(event) => {
+            if (fileCompletionOpen) {
+              if (event.key === "ArrowDown" && fileCompletionItems.length > 0) {
+                event.preventDefault();
+                setFileCompletionHighlightIndex((current) =>
+                  Math.min(current + 1, fileCompletionItems.length - 1),
+                );
+                return;
+              }
+              if (event.key === "ArrowUp" && fileCompletionItems.length > 0) {
+                event.preventDefault();
+                setFileCompletionHighlightIndex((current) => Math.max(current - 1, 0));
+                return;
+              }
+              if (
+                (event.key === "Enter" || event.key === "Tab") &&
+                fileCompletionItems.length > 0
+              ) {
+                event.preventDefault();
+                const path = fileCompletionItems[fileCompletionHighlightIndex];
+                if (path) {
+                  applyFileCompletion(path);
+                }
+                return;
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                closeFileCompletion();
+                return;
+              }
+            }
+
+            if (event.nativeEvent.isComposing || event.key !== "Enter" || event.shiftKey) {
+              return;
+            }
+            event.preventDefault();
+            if (buttonDisabled) {
+              return;
+            }
+            onSubmit({ text, images: images.map((item) => item.image) });
+          }}
+          rows={1}
+          placeholder={placeholder}
+          className="min-h-[2rem] w-full resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0.5 text-sm leading-7 text-neutral-800 outline-none placeholder:text-neutral-400"
+        />
+        {fileCompletionOpen ? (
+          <AtFileCompletionList
+            items={fileCompletionItems}
+            loading={fileCompletionLoading}
+            highlightIndex={fileCompletionHighlightIndex}
+            onHighlightIndexChange={setFileCompletionHighlightIndex}
+            onSelect={applyFileCompletion}
+          />
+        ) : null}
+      </div>
       {images.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {images.map((attachment) => (

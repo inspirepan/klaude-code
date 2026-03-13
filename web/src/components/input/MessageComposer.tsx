@@ -262,6 +262,7 @@ export function MessageComposer(): JSX.Element {
           <div className="px-1 text-xs text-red-500">Model switch failed: {modelError}</div>
         ) : null}
         <ComposerCard
+          sessionId={activeSessionId}
           text={text}
           onTextChange={setText}
           images={images}

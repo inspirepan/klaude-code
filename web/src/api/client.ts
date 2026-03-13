@@ -9,6 +9,7 @@ import type { MessageImageFilePart } from "../types/message";
 interface JsonRequestOptions {
   method?: "GET" | "POST" | "DELETE";
   body?: unknown;
+  signal?: AbortSignal;
 }
 
 async function requestJson<T>(path: string, options: JsonRequestOptions = {}): Promise<T> {
@@ -16,6 +17,7 @@ async function requestJson<T>(path: string, options: JsonRequestOptions = {}): P
     method: options.method ?? "GET",
     headers: options.body === undefined ? undefined : { "Content-Type": "application/json" },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    signal: options.signal,
   });
 
   if (!response.ok) {
@@ -117,6 +119,17 @@ interface ConfigModelsResponse {
   models: ConfigModelSummary[];
 }
 
+interface SearchFilesResponse {
+  items: string[];
+}
+
+interface SearchFileCompletionsOptions {
+  sessionId?: string;
+  workDir?: string;
+  query: string;
+  signal?: AbortSignal;
+}
+
 export async function archiveSession(sessionId: string): Promise<boolean> {
   const result = await requestJson<ArchiveSessionResponse>(
     `/api/sessions/${encodeURIComponent(sessionId)}/archive`,
@@ -142,6 +155,25 @@ export async function unarchiveSession(sessionId: string): Promise<boolean> {
 export async function fetchConfigModels(): Promise<ConfigModelSummary[]> {
   const result = await requestJson<ConfigModelsResponse>("/api/config/models");
   return result.models;
+}
+
+export async function searchFileCompletions({
+  sessionId,
+  workDir,
+  query,
+  signal,
+}: SearchFileCompletionsOptions): Promise<string[]> {
+  const params = new URLSearchParams({ query, limit: "10" });
+  if ((sessionId ?? "").trim().length > 0) {
+    params.set("session_id", sessionId);
+  }
+  if ((workDir ?? "").trim().length > 0) {
+    params.set("work_dir", workDir);
+  }
+  const result = await requestJson<SearchFilesResponse>(`/api/files/search?${params.toString()}`, {
+    signal,
+  });
+  return result.items;
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
