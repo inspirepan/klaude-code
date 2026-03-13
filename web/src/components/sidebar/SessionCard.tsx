@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Archive, ArchiveRestore, CircleCheck, CirclePause, Loader, Lock } from "lucide-react";
+import { Archive, ArchiveRestore, CircleCheck, CirclePause, Loader } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { cn } from "@/lib/utils";
 import { SessionTitleText } from "@/components/SessionTitleText";
@@ -278,7 +278,7 @@ export function SessionCard({
         {/* Row 2: workspace (optional) */}
         {showWorkspace ? (
           <div
-            className="truncate pl-5 text-2xs leading-4 text-neutral-500"
+            className="truncate pl-5 text-xs leading-4 text-neutral-500"
             title={session.work_dir}
           >
             {workDirLabel(session.work_dir)}
@@ -299,17 +299,7 @@ export function SessionCard({
               removed={diffSummary.diff_lines_removed}
             />
           </span>
-          <span>
-            {session.read_only ? (
-              <span
-                className="inline-flex items-center rounded-full bg-amber-50 p-0.5 text-amber-700"
-                title="Read-only"
-                aria-label="Read-only"
-              >
-                <Lock className="h-3 w-3" />
-              </span>
-            ) : null}
-          </span>
+          <span />
           <span />
           <Tooltip>
             <TooltipTrigger asChild>
