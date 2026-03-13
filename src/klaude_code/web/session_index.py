@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,132 +49,219 @@ class SessionSummary:
     file_change_summary: FileChangeSummary
 
 
+def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id: str) -> SessionSummary | None:
+    if data.get("sub_agent_state") is not None:
+        return None
+    if data.get("deleted_at") is not None:
+        return None
+
+    sid = str(data.get("id", fallback_session_id))
+    created_at_raw = data.get("created_at")
+    if isinstance(created_at_raw, int | float | str):
+        try:
+            created_at = float(created_at_raw)
+        except ValueError:
+            created_at = time.time()
+    else:
+        created_at = time.time()
+    updated_at_raw = data.get("updated_at", created_at)
+    if isinstance(updated_at_raw, int | float | str):
+        try:
+            updated_at = float(updated_at_raw)
+        except ValueError:
+            updated_at = created_at
+    else:
+        updated_at = created_at
+    title = data.get("title") if isinstance(data.get("title"), str) else None
+
+    user_messages_raw = data.get("user_messages")
+    user_messages: list[str] = []
+    if isinstance(user_messages_raw, list):
+        for user_message in cast(list[Any], user_messages_raw):
+            if isinstance(user_message, str):
+                user_messages.append(user_message)
+
+    try:
+        messages_count = int(data.get("messages_count", -1))
+    except (TypeError, ValueError):
+        messages_count = -1
+
+    model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
+    work_dir = str(data.get("work_dir", ""))
+    session_state_raw = data.get("session_state")
+    session_state: Literal["idle", "running", "waiting_user_input"] | None = None
+    if session_state_raw in {"idle", "running", "waiting_user_input"}:
+        session_state = cast(Literal["idle", "running", "waiting_user_input"], session_state_raw)
+    runtime_owner_raw = data.get("runtime_owner")
+    if isinstance(runtime_owner_raw, dict):
+        try:
+            runtime_owner = model.SessionOwner.model_validate(runtime_owner_raw)
+        except Exception:
+            runtime_owner = None
+    else:
+        runtime_owner = None
+    runtime_owner_heartbeat_raw = data.get("runtime_owner_heartbeat_at")
+    runtime_owner_heartbeat_at = (
+        float(runtime_owner_heartbeat_raw) if isinstance(runtime_owner_heartbeat_raw, int | float) else None
+    )
+    archived_raw = data.get("archived")
+    archived = archived_raw if isinstance(archived_raw, bool) else False
+
+    todos_raw = data.get("todos")
+    todos: list[TodoSummary] = []
+    if isinstance(todos_raw, list):
+        for todo_raw in cast(list[Any], todos_raw):
+            if not isinstance(todo_raw, dict):
+                continue
+            todo_dict = cast(dict[str, Any], todo_raw)
+            content = todo_dict.get("content")
+            status = todo_dict.get("status")
+            if isinstance(content, str) and isinstance(status, str):
+                todos.append({"content": content, "status": status})
+
+    file_change_summary_raw = data.get("file_change_summary")
+    raw_summary = cast(dict[str, Any], file_change_summary_raw) if isinstance(file_change_summary_raw, dict) else {}
+    try:
+        diff_lines_added = int(raw_summary.get("diff_lines_added", 0) or 0)
+    except (TypeError, ValueError):
+        diff_lines_added = 0
+    try:
+        diff_lines_removed = int(raw_summary.get("diff_lines_removed", 0) or 0)
+    except (TypeError, ValueError):
+        diff_lines_removed = 0
+    created_files_raw = raw_summary.get("created_files")
+    edited_files_raw = raw_summary.get("edited_files")
+    created_files = (
+        [item for item in cast(list[Any], created_files_raw) if isinstance(item, str)]
+        if isinstance(created_files_raw, list)
+        else []
+    )
+    edited_files = (
+        [item for item in cast(list[Any], edited_files_raw) if isinstance(item, str)]
+        if isinstance(edited_files_raw, list)
+        else []
+    )
+    file_diffs_raw = raw_summary.get("file_diffs")
+    file_diffs: dict[str, dict[str, int]] = {}
+    if isinstance(file_diffs_raw, dict):
+        for fpath, fstats in cast(dict[str, Any], file_diffs_raw).items():
+            if isinstance(fstats, dict):
+                fstats_dict = cast(dict[str, Any], fstats)
+                with contextlib.suppress(TypeError, ValueError):
+                    file_diffs[fpath] = {
+                        "added": int(fstats_dict.get("added", 0) or 0),
+                        "removed": int(fstats_dict.get("removed", 0) or 0),
+                    }
+    file_change_summary: FileChangeSummary = {
+        "created_files": created_files,
+        "edited_files": edited_files,
+        "diff_lines_added": diff_lines_added,
+        "diff_lines_removed": diff_lines_removed,
+        "file_diffs": file_diffs,
+    }
+
+    return SessionSummary(
+        id=sid,
+        created_at=created_at,
+        updated_at=updated_at,
+        work_dir=work_dir,
+        title=title,
+        user_messages=user_messages,
+        messages_count=messages_count,
+        model_name=model_name,
+        session_state=session_state,
+        runtime_owner=runtime_owner,
+        runtime_owner_heartbeat_at=runtime_owner_heartbeat_at,
+        archived=archived,
+        todos=todos,
+        file_change_summary=file_change_summary,
+    )
+
+
+def group_sessions(summaries: list[SessionSummary]) -> list[dict[str, Any]]:
+    groups_by_work_dir: dict[str, list[SessionSummary]] = {}
+    ordered = sorted(summaries, key=lambda item: item.updated_at, reverse=True)
+    for item in ordered:
+        groups_by_work_dir.setdefault(item.work_dir, []).append(item)
+    return [
+        {
+            "work_dir": work_dir,
+            "sessions": [
+                {
+                    "id": session.id,
+                    "created_at": session.created_at,
+                    "updated_at": session.updated_at,
+                    "work_dir": session.work_dir,
+                    "title": session.title,
+                    "user_messages": session.user_messages,
+                    "messages_count": session.messages_count,
+                    "model_name": session.model_name,
+                    "session_state": session.session_state,
+                    "archived": session.archived,
+                    "todos": session.todos,
+                    "file_change_summary": session.file_change_summary,
+                }
+                for session in sessions
+            ],
+        }
+        for work_dir, sessions in groups_by_work_dir.items()
+    ]
+
+
+class SessionIndex:
+    def __init__(self, *, home: Path) -> None:
+        self._home = home
+        self._lock = threading.RLock()
+        self._sessions_by_id: dict[str, SessionSummary] = {}
+        self.reload()
+
+    def reload(self) -> None:
+        sessions: dict[str, SessionSummary] = {}
+        for meta_path in _iter_meta_files(self._home):
+            data = _read_json_dict(meta_path)
+            if data is None:
+                continue
+            summary = load_session_summary_from_meta(data, fallback_session_id=meta_path.parent.name)
+            if summary is None:
+                continue
+            sessions[summary.id] = summary
+        with self._lock:
+            self._sessions_by_id = sessions
+
+    def list_all(self) -> list[SessionSummary]:
+        with self._lock:
+            return list(self._sessions_by_id.values())
+
+    def get(self, session_id: str) -> SessionSummary | None:
+        with self._lock:
+            return self._sessions_by_id.get(session_id)
+
+    def apply_meta(self, data: dict[str, Any], *, fallback_session_id: str) -> tuple[SessionSummary | None, SessionSummary | None]:
+        next_summary = load_session_summary_from_meta(data, fallback_session_id=fallback_session_id)
+        session_id = str(data.get("id", fallback_session_id))
+        with self._lock:
+            previous = self._sessions_by_id.get(session_id)
+            if next_summary is None:
+                if previous is not None:
+                    del self._sessions_by_id[session_id]
+                return previous, None
+            self._sessions_by_id[session_id] = next_summary
+            return previous, next_summary
+
+    def remove(self, session_id: str) -> SessionSummary | None:
+        with self._lock:
+            return self._sessions_by_id.pop(session_id, None)
+
+
 def list_main_sessions(home: Path) -> list[SessionSummary]:
     summaries: list[SessionSummary] = []
     for meta_path in _iter_meta_files(home):
         data = _read_json_dict(meta_path)
         if data is None:
             continue
-        if data.get("sub_agent_state") is not None:
-            continue
-        if data.get("deleted_at") is not None:
-            continue
-
-        sid = str(data.get("id", meta_path.parent.name))
-        try:
-            created_at = float(data.get("created_at", meta_path.stat().st_mtime))
-        except (OSError, TypeError, ValueError):
-            created_at = time.time()
-        try:
-            updated_at = float(data.get("updated_at", created_at))
-        except (TypeError, ValueError):
-            updated_at = created_at
-        title = data.get("title") if isinstance(data.get("title"), str) else None
-
-        user_messages_raw = data.get("user_messages")
-        user_messages: list[str] = []
-        if isinstance(user_messages_raw, list):
-            for user_message in cast(list[Any], user_messages_raw):
-                if isinstance(user_message, str):
-                    user_messages.append(user_message)
-
-        try:
-            messages_count = int(data.get("messages_count", -1))
-        except (TypeError, ValueError):
-            messages_count = -1
-
-        model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
-        work_dir = str(data.get("work_dir", ""))
-        session_state_raw = data.get("session_state")
-        session_state: Literal["idle", "running", "waiting_user_input"] | None = None
-        if session_state_raw in {"idle", "running", "waiting_user_input"}:
-            session_state = cast(Literal["idle", "running", "waiting_user_input"], session_state_raw)
-        runtime_owner_raw = data.get("runtime_owner")
-        if isinstance(runtime_owner_raw, dict):
-            try:
-                runtime_owner = model.SessionOwner.model_validate(runtime_owner_raw)
-            except Exception:
-                runtime_owner = None
-        else:
-            runtime_owner = None
-        runtime_owner_heartbeat_raw = data.get("runtime_owner_heartbeat_at")
-        runtime_owner_heartbeat_at = (
-            float(runtime_owner_heartbeat_raw) if isinstance(runtime_owner_heartbeat_raw, int | float) else None
-        )
-        archived_raw = data.get("archived")
-        archived = archived_raw if isinstance(archived_raw, bool) else False
-
-        todos_raw = data.get("todos")
-        todos: list[TodoSummary] = []
-        if isinstance(todos_raw, list):
-            for todo_raw in cast(list[Any], todos_raw):
-                if not isinstance(todo_raw, dict):
-                    continue
-                todo_dict = cast(dict[str, Any], todo_raw)
-                content = todo_dict.get("content")
-                status = todo_dict.get("status")
-                if isinstance(content, str) and isinstance(status, str):
-                    todos.append({"content": content, "status": status})
-
-        file_change_summary_raw = data.get("file_change_summary")
-        raw_summary = cast(dict[str, Any], file_change_summary_raw) if isinstance(file_change_summary_raw, dict) else {}
-        try:
-            diff_lines_added = int(raw_summary.get("diff_lines_added", 0) or 0)
-        except (TypeError, ValueError):
-            diff_lines_added = 0
-        try:
-            diff_lines_removed = int(raw_summary.get("diff_lines_removed", 0) or 0)
-        except (TypeError, ValueError):
-            diff_lines_removed = 0
-        created_files_raw = raw_summary.get("created_files")
-        edited_files_raw = raw_summary.get("edited_files")
-        created_files = (
-            [item for item in cast(list[Any], created_files_raw) if isinstance(item, str)]
-            if isinstance(created_files_raw, list)
-            else []
-        )
-        edited_files = (
-            [item for item in cast(list[Any], edited_files_raw) if isinstance(item, str)]
-            if isinstance(edited_files_raw, list)
-            else []
-        )
-        file_diffs_raw = raw_summary.get("file_diffs")
-        file_diffs: dict[str, dict[str, int]] = {}
-        if isinstance(file_diffs_raw, dict):
-            for fpath, fstats in cast(dict[str, Any], file_diffs_raw).items():
-                if isinstance(fstats, dict):
-                    fstats_dict = cast(dict[str, Any], fstats)
-                    with contextlib.suppress(TypeError, ValueError):
-                        file_diffs[fpath] = {
-                            "added": int(fstats_dict.get("added", 0) or 0),
-                            "removed": int(fstats_dict.get("removed", 0) or 0),
-                        }
-        file_change_summary: FileChangeSummary = {
-            "created_files": created_files,
-            "edited_files": edited_files,
-            "diff_lines_added": diff_lines_added,
-            "diff_lines_removed": diff_lines_removed,
-            "file_diffs": file_diffs,
-        }
-
-        summaries.append(
-            SessionSummary(
-                id=sid,
-                created_at=created_at,
-                updated_at=updated_at,
-                work_dir=work_dir,
-                title=title,
-                user_messages=user_messages,
-                messages_count=messages_count,
-                model_name=model_name,
-                session_state=session_state,
-                runtime_owner=runtime_owner,
-                runtime_owner_heartbeat_at=runtime_owner_heartbeat_at,
-                archived=archived,
-                todos=todos,
-                file_change_summary=file_change_summary,
-            )
-        )
+        summary = load_session_summary_from_meta(data, fallback_session_id=meta_path.parent.name)
+        if summary is not None:
+            summaries.append(summary)
 
     summaries.sort(key=lambda item: item.updated_at, reverse=True)
     return summaries

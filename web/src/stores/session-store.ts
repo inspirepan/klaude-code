@@ -70,11 +70,16 @@ interface ActiveConnection {
   connection: SessionWsConnection;
 }
 
+interface SessionStreamEvent {
+  type: "session.upsert" | "session.deleted";
+  session_id: string;
+  session?: SessionSummary | null;
+}
+
 let activeConnection: ActiveConnection | null = null;
-let runtimePollTimer: ReturnType<typeof setInterval> | null = null;
+let sessionStream: EventSource | null = null;
 let pendingMessageEvents: MessageStoreEvent[] = [];
 let pendingMessageEventsFrame = 0;
-const RUNTIME_POLL_INTERVAL = 3000;
 
 const defaultRuntimeState: SessionRuntimeState = {
   sessionState: "idle",
@@ -127,26 +132,16 @@ function queueMessageEvents(events: MessageStoreEvent[]): void {
 
 async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): Promise<void> {
   try {
-    const [states, latestGroups] = await Promise.all([
-      fetchRunningSessions(),
-      fetchSessionGroups(),
-    ]);
+    const states = await fetchRunningSessions();
 
     set((state) => {
-      const previousSessionsById = new Map<string, SessionSummary>();
-      for (const group of state.groups) {
-        for (const session of group.sessions) {
-          previousSessionsById.set(session.id, session);
-        }
-      }
-
       const nextRuntime = { ...state.runtimeBySessionId };
       const nextRecentCompletionStartedAt = { ...state.recentCompletionStartedAtBySessionId };
       const nextCompletedUnread = { ...state.completedUnreadBySessionId };
       let runtimeChanged = false;
       let recentCompletionChanged = false;
       let completedUnreadChanged = false;
-      for (const group of latestGroups) {
+      for (const group of state.groups) {
         for (const session of group.sessions) {
           const running: RunningSessionState | undefined = states[session.id];
           const apiState = (running?.session_state ??
@@ -174,20 +169,7 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
           if (shouldClearStaleRunning) {
             nextRecentCompletionStartedAt[session.id] = Date.now();
             recentCompletionChanged = true;
-          }
-
-          const previousSession = previousSessionsById.get(session.id);
-          const hasBackgroundUpdate =
-            previousSession !== undefined &&
-            previousSession.updated_at < session.updated_at &&
-            state.activeSessionId !== session.id &&
-            apiState === "idle";
-
-          if (
-            (shouldClearStaleRunning || hasBackgroundUpdate) &&
-            state.activeSessionId !== session.id
-          ) {
-            if (nextCompletedUnread[session.id] !== true) {
+            if (state.activeSessionId !== session.id && nextCompletedUnread[session.id] !== true) {
               nextCompletedUnread[session.id] = true;
               completedUnreadChanged = true;
             }
@@ -200,16 +182,118 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
       if (recentCompletionChanged) {
         patch.recentCompletionStartedAtBySessionId = nextRecentCompletionStartedAt;
       }
-      if (!areSessionGroupsEqual(state.groups, latestGroups)) {
-        patch.groups = latestGroups;
-        patch.collapsedByWorkDir = mergeCollapseState(latestGroups, state.collapsedByWorkDir);
-      }
       if (completedUnreadChanged) patch.completedUnreadBySessionId = nextCompletedUnread;
       return patch;
     });
   } catch {
     // Silently ignore polling errors
   }
+}
+
+function deleteSessionFromGroups(groups: SessionGroup[], sessionId: string): SessionGroup[] {
+  return groups
+    .map((group) => ({
+      ...group,
+      sessions: group.sessions.filter((session) => session.id !== sessionId),
+    }))
+    .filter((group) => group.sessions.length > 0);
+}
+
+function applySessionUpsert(
+  state: SessionStoreState,
+  session: SessionSummary,
+): Partial<SessionStoreState> | SessionStoreState {
+  const previousSession = findSession(state.groups, session.id);
+  const nextGroups = upsertSessionIntoGroups(state.groups, session);
+  const previousRuntime = state.runtimeBySessionId[session.id] ?? {
+    ...defaultRuntimeState,
+    sessionState: previousSession?.session_state ?? "idle",
+  };
+  const keepWsState =
+    previousRuntime.wsState === "connected" || previousRuntime.wsState === "connecting";
+  const nextRuntimeBySessionId = {
+    ...state.runtimeBySessionId,
+    [session.id]: {
+      sessionState: keepWsState ? previousRuntime.sessionState : session.session_state,
+      wsState: previousRuntime.wsState,
+      lastError: previousRuntime.lastError,
+    },
+  };
+
+  const patch: Partial<SessionStoreState> = {
+    groups: nextGroups,
+    collapsedByWorkDir: mergeCollapseState(nextGroups, state.collapsedByWorkDir),
+    runtimeBySessionId: nextRuntimeBySessionId,
+  };
+
+  if (
+    previousSession !== null &&
+    previousSession.updated_at < session.updated_at &&
+    state.activeSessionId !== session.id &&
+    session.session_state === "idle"
+  ) {
+    patch.completedUnreadBySessionId = {
+      ...state.completedUnreadBySessionId,
+      [session.id]: true,
+    };
+  }
+
+  if (
+    previousSession !== null &&
+    previousRuntime.sessionState !== "idle" &&
+    session.session_state === "idle"
+  ) {
+    patch.recentCompletionStartedAtBySessionId = {
+      ...state.recentCompletionStartedAtBySessionId,
+      [session.id]: Date.now(),
+    };
+    if (state.activeSessionId !== session.id) {
+      patch.completedUnreadBySessionId = {
+        ...(patch.completedUnreadBySessionId ?? state.completedUnreadBySessionId),
+        [session.id]: true,
+      };
+    }
+  }
+
+  return patch;
+}
+
+function connectSessionStream(set: SetState): void {
+  if (sessionStream !== null) {
+    return;
+  }
+  const source = new EventSource("/api/sessions/stream");
+  source.onmessage = (event) => {
+    let payload: SessionStreamEvent;
+    try {
+      payload = JSON.parse(event.data) as SessionStreamEvent;
+    } catch {
+      return;
+    }
+
+    if (payload.type === "session.deleted") {
+      set((state) => ({
+        groups: deleteSessionFromGroups(state.groups, payload.session_id),
+        runtimeBySessionId: Object.fromEntries(
+          Object.entries(state.runtimeBySessionId).filter(
+            ([sessionId]) => sessionId !== payload.session_id,
+          ),
+        ),
+      }));
+      return;
+    }
+
+    if (
+      payload.type !== "session.upsert" ||
+      payload.session === undefined ||
+      payload.session === null
+    ) {
+      return;
+    }
+
+    set((state) => applySessionUpsert(state, payload.session));
+  };
+  sessionStream = source;
 }
 
 function pushSessionUrl(sessionId: ActiveSessionId): void {
@@ -552,86 +636,6 @@ function mergeCollapseState(
   return next;
 }
 
-function areSessionGroupsEqual(a: SessionGroup[], b: SessionGroup[]): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  for (let i = 0; i < a.length; i += 1) {
-    const leftGroup = a[i];
-    const rightGroup = b[i];
-    if (leftGroup?.work_dir !== rightGroup?.work_dir) {
-      return false;
-    }
-    if (leftGroup.sessions.length !== rightGroup.sessions.length) {
-      return false;
-    }
-
-    for (let j = 0; j < leftGroup.sessions.length; j += 1) {
-      const leftSession = leftGroup.sessions[j];
-      const rightSession = rightGroup.sessions[j];
-      if (
-        leftSession?.id !== rightSession?.id ||
-        leftSession.created_at !== rightSession.created_at ||
-        leftSession.updated_at !== rightSession.updated_at ||
-        leftSession.work_dir !== rightSession.work_dir ||
-        leftSession.title !== rightSession.title ||
-        leftSession.messages_count !== rightSession.messages_count ||
-        leftSession.model_name !== rightSession.model_name ||
-        leftSession.session_state !== rightSession.session_state ||
-        leftSession.archived !== rightSession.archived ||
-        leftSession.user_messages.length !== rightSession.user_messages.length ||
-        leftSession.todos.length !== rightSession.todos.length ||
-        leftSession.file_change_summary.created_files.length !==
-          rightSession.file_change_summary.created_files.length ||
-        leftSession.file_change_summary.edited_files.length !==
-          rightSession.file_change_summary.edited_files.length ||
-        leftSession.file_change_summary.diff_lines_added !==
-          rightSession.file_change_summary.diff_lines_added ||
-        leftSession.file_change_summary.diff_lines_removed !==
-          rightSession.file_change_summary.diff_lines_removed
-      ) {
-        return false;
-      }
-
-      for (let k = 0; k < leftSession.user_messages.length; k += 1) {
-        if (leftSession.user_messages[k] !== rightSession.user_messages[k]) {
-          return false;
-        }
-      }
-
-      for (let k = 0; k < leftSession.todos.length; k += 1) {
-        if (
-          leftSession.todos[k]?.content !== rightSession.todos[k]?.content ||
-          leftSession.todos[k]?.status !== rightSession.todos[k]?.status
-        ) {
-          return false;
-        }
-      }
-
-      for (let k = 0; k < leftSession.file_change_summary.created_files.length; k += 1) {
-        if (
-          leftSession.file_change_summary.created_files[k] !==
-          rightSession.file_change_summary.created_files[k]
-        ) {
-          return false;
-        }
-      }
-
-      for (let k = 0; k < leftSession.file_change_summary.edited_files.length; k += 1) {
-        if (
-          leftSession.file_change_summary.edited_files[k] !==
-          rightSession.file_change_summary.edited_files[k]
-        ) {
-          return false;
-        }
-      }
-    }
-  }
-
-  return true;
-}
-
 function findSession(groups: SessionGroup[], sessionId: string): SessionSummary | null {
   for (const group of groups) {
     const session = group.sessions.find((item) => item.id === sessionId);
@@ -671,12 +675,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     }
 
     set({ initialized: true });
-
-    if (runtimePollTimer === null) {
-      runtimePollTimer = setInterval(() => {
-        void pollRuntimeStates(get, set);
-      }, RUNTIME_POLL_INTERVAL);
-    }
+    connectSessionStream(set);
   },
   refreshSessions: async () => {
     set({ loading: true, loadError: null });
