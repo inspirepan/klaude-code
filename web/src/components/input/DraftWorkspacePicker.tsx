@@ -10,6 +10,7 @@ interface DraftWorkspacePickerProps {
   inputRef?: RefObject<HTMLInputElement>;
   setDraftWorkDir: (workDir: string) => void;
   setWorkspaceMenuOpen: Dispatch<SetStateAction<boolean>>;
+  onSelect?: () => void;
 }
 
 function workDirDisplay(workDir: string): { name: string; parent: string | null } {
@@ -29,6 +30,7 @@ export function DraftWorkspacePicker({
   inputRef,
   setDraftWorkDir,
   setWorkspaceMenuOpen,
+  onSelect,
 }: DraftWorkspacePickerProps): JSX.Element {
   const [highlightIndex, setHighlightIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -63,6 +65,7 @@ export function DraftWorkspacePicker({
       if (workspace) {
         setDraftWorkDir(workspace);
         setWorkspaceMenuOpen(false);
+        onSelect?.();
       }
     } else if (event.key === "Escape") {
       setWorkspaceMenuOpen(false);
@@ -147,6 +150,7 @@ export function DraftWorkspacePicker({
                       onClick={() => {
                         setDraftWorkDir(workspace);
                         setWorkspaceMenuOpen(false);
+                        onSelect?.();
                       }}
                     >
                       <Folder className="h-4 w-4 shrink-0 text-neutral-400" />

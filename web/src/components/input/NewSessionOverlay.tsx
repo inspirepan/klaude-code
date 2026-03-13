@@ -200,6 +200,11 @@ export function NewSessionOverlay({
             inputRef={workspaceInputRef}
             setDraftWorkDir={setDraftWorkDir}
             setWorkspaceMenuOpen={setWorkspaceMenuOpen}
+            onSelect={() => {
+              window.requestAnimationFrame(() => {
+                textareaRef.current?.focus();
+              });
+            }}
           />
 
           {modelError ? (
