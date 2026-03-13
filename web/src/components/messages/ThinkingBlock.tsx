@@ -76,7 +76,7 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
       </div>
 
       <CollapseRailPanel open={open} className="col-span-2">
-        <div className={`mt-0.5 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
+        <div className={`mt-2 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
           <CollapseRailConnector />
           <div
             className="thinking-block min-w-0 text-sm leading-relaxed text-neutral-500"
