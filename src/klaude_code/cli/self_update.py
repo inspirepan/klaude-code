@@ -2,8 +2,7 @@
 
 import shutil
 import subprocess
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as pkg_version
+from pathlib import Path
 
 import typer
 
@@ -14,19 +13,13 @@ from klaude_code.update import (
     INSTALL_KIND_LOCAL,
     PACKAGE_NAME,
     check_for_updates_blocking,
+    get_display_version,
     get_install_source_path,
 )
 
 
 def _print_version() -> None:
-    try:
-        ver = pkg_version(PACKAGE_NAME)
-    except PackageNotFoundError:
-        ver = "unknown"
-    except (ValueError, TypeError):
-        # Catch invalid package name format or type errors
-        ver = "unknown"
-    print(f"{PACKAGE_NAME} {ver}")
+    print(f"{PACKAGE_NAME} {get_display_version()}")
 
 
 def version_option_callback(value: bool) -> None:
@@ -40,6 +33,68 @@ def version_command() -> None:
     """Show version and exit."""
 
     _print_version()
+
+
+def _upgrade_local_git_install(install_kind: str, source_path: str) -> None:
+    repo_path = Path(source_path).expanduser()
+    source_display = str(repo_path)
+
+    if not repo_path.exists() or not repo_path.is_dir():
+        log((f"Error: local source path is unavailable: {source_display}", "red"))
+        raise typer.Exit(1)
+
+    if shutil.which("uv") is None:
+        log(("Error: `uv` not found in PATH.", "red"))
+        log(f"To update, install uv and run `uv tool install {source_display}`.")
+        raise typer.Exit(1)
+
+    try:
+        status_result = subprocess.run(
+            ["git", "-C", source_display, "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as err:
+        log(("Error: `git` not found in PATH.", "red"))
+        raise typer.Exit(1) from err
+
+    if status_result.returncode != 0:
+        log((f"Error: local source is not a git repository: {source_display}", "red"))
+        log("Please update the source manually and reinstall if needed.")
+        raise typer.Exit(1)
+
+    if status_result.stdout.strip():
+        log(("Error: local git checkout has uncommitted changes.", "red"))
+        log(f"Source path: {source_display}")
+        log("Commit or stash your changes, then run `klaude upgrade` again.")
+        raise typer.Exit(1)
+
+    log(f"Updating local source at {source_display}…")
+    log("Switching local checkout to `main`…")
+    checkout_result = subprocess.run(["git", "-C", source_display, "checkout", "main"], check=False)
+    if checkout_result.returncode != 0:
+        log(("Error: failed to switch local checkout to `main`.", "red"))
+        raise typer.Exit(checkout_result.returncode or 1)
+
+    log("Pulling latest changes from the tracked remote…")
+    pull_result = subprocess.run(["git", "-C", source_display, "pull", "--ff-only"], check=False)
+    if pull_result.returncode != 0:
+        log(("Error: `git pull --ff-only` failed.", "red"))
+        raise typer.Exit(pull_result.returncode or 1)
+
+    install_args = ["uv", "tool", "install", "--force"]
+    if install_kind == INSTALL_KIND_EDITABLE:
+        install_args.append("--editable")
+    install_args.append(source_display)
+
+    log("Reinstalling klaude from the updated local source…")
+    install_result = subprocess.run(install_args, check=False)
+    if install_result.returncode != 0:
+        log((f"Error: reinstall failed (exit code {install_result.returncode}).", "red"))
+        raise typer.Exit(install_result.returncode or 1)
+
+    log("Update complete. Please re-run `klaude` to use the new version.")
 
 
 def upgrade_command(
@@ -75,10 +130,8 @@ def upgrade_command(
             log("Install mode: direct URL")
 
         if info.update_available:
-            if info.install_kind == INSTALL_KIND_EDITABLE:
-                log("PyPI has a newer release. Pull the local source and reinstall if needed.")
-            elif info.install_kind == INSTALL_KIND_LOCAL:
-                log("PyPI has a newer release. Update your local source and reinstall if needed.")
+            if info.install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}:
+                log("PyPI has a newer release. Run `klaude upgrade` from a clean local checkout to update.")
             elif info.install_kind == INSTALL_KIND_DIRECT_URL:
                 log("PyPI has a newer release. Reinstall from the source URL if needed.")
             else:
@@ -86,17 +139,21 @@ def upgrade_command(
 
         return
 
-    if info is not None and info.install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL, INSTALL_KIND_DIRECT_URL}:
+    if info is not None and info.install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}:
         source_path = get_install_source_path()
-        if info.install_kind == INSTALL_KIND_EDITABLE:
-            log("Local editable install detected; `klaude upgrade` is only for PyPI index installs.")
-        elif info.install_kind == INSTALL_KIND_LOCAL:
-            log("Local path install detected; `klaude upgrade` is only for PyPI index installs.")
-        else:
-            log("Direct URL install detected; `klaude upgrade` is only for PyPI index installs.")
-        if source_path:
-            log(f"Source path: {source_path}")
-        log("Please reinstall from your source if needed.")
+        if source_path is None:
+            if info.install_kind == INSTALL_KIND_EDITABLE:
+                log(("Error: editable install source path is unavailable.", "red"))
+            else:
+                log(("Error: local path install source path is unavailable.", "red"))
+            raise typer.Exit(1)
+
+        _upgrade_local_git_install(info.install_kind, source_path)
+        return
+
+    if info is not None and info.install_kind == INSTALL_KIND_DIRECT_URL:
+        log("Direct URL install detected; `klaude upgrade` cannot update it automatically.")
+        log("Please reinstall from the source URL if needed.")
         return
 
     if shutil.which("uv") is None:
