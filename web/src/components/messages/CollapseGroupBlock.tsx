@@ -386,7 +386,7 @@ export function CollapseGroupBlock({
             <span className="flex min-w-0 items-center truncate pl-1">
               {summary.map((part, i) => (
                 <span key={i} className="flex shrink-0 items-center">
-                  {i > 0 ? <span className="mr-2 text-neutral-500">,</span> : null}
+                  {i > 0 ? <span className="mr-2 font-mono text-neutral-500">,</span> : null}
                   <span className="font-mono text-neutral-500">{part.label}</span>
                   <span className="w-2 shrink-0" aria-hidden="true" />
                   {part.fileStats ? (
