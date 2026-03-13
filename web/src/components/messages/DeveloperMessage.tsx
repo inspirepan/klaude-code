@@ -122,7 +122,7 @@ function CollapsibleRow({
     >
       <div className="flex items-start gap-1.5 self-stretch">
         <div className="flex flex-col items-center self-stretch">
-          <span className={`mt-0.5 font-mono text-xs text-neutral-300 ${!expandable ? "opacity-0" : ""}`}>
+          <span className={`mt-0.5 font-mono text-xs text-neutral-500 ${!expandable ? "opacity-0" : ""}`}>
             {open ? "[-]" : "[+]"}
           </span>
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}

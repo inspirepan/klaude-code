@@ -260,7 +260,7 @@ export function CollapseGroupBlock({
         onClick={onToggle}
         className="flex min-w-0 items-center gap-1.5 py-0.5 text-left text-sm text-neutral-400 transition-colors hover:text-neutral-600"
       >
-        <span className="shrink-0 font-mono text-xs text-neutral-300">{collapsed ? "[+]" : "[-]"}</span>
+        <span className="shrink-0 font-mono text-xs text-neutral-500">{collapsed ? "[+]" : "[-]"}</span>
         <span className="shrink-0 font-mono">{stepLabel}</span>
         {summary.length > 0 ? <span className="shrink-0 text-neutral-300">,</span> : null}
         {summary.length > 0 ? (

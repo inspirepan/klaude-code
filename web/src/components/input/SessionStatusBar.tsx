@@ -16,6 +16,7 @@ interface SessionStatusBarProps {
 
 function getRuntimeStatusLabel(runtime: SessionRuntimeState | null): string | null {
   if (runtime === null) return null;
+  if (runtime.sessionState === "running") return "Running …";
   if (runtime.sessionState === "waiting_user_input") return "Waiting for input …";
   return null;
 }

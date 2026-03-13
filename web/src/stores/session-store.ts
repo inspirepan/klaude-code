@@ -36,6 +36,7 @@ interface SessionStoreState {
   loadError: string | null;
   collapsedByWorkDir: Record<string, boolean>;
   runtimeBySessionId: Record<string, SessionRuntimeState>;
+  recentCompletionStartedAtBySessionId: Record<string, number>;
   completedUnreadBySessionId: Record<string, boolean>;
   pendingInteractionsBySessionId: Record<string, PendingUserInteractionRequest[]>;
   initialized: boolean;
@@ -137,8 +138,10 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
       }
 
       const nextRuntime = { ...state.runtimeBySessionId };
+      const nextRecentCompletionStartedAt = { ...state.recentCompletionStartedAtBySessionId };
       const nextCompletedUnread = { ...state.completedUnreadBySessionId };
       let runtimeChanged = false;
+      let recentCompletionChanged = false;
       let completedUnreadChanged = false;
       for (const group of latestGroups) {
         for (const session of group.sessions) {
@@ -165,6 +168,10 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
               runtimeChanged = true;
             }
           }
+          if (shouldClearStaleRunning) {
+            nextRecentCompletionStartedAt[session.id] = Date.now();
+            recentCompletionChanged = true;
+          }
 
           const previousSession = previousSessionsById.get(session.id);
           const hasBackgroundUpdate =
@@ -187,6 +194,9 @@ async function pollRuntimeStates(get: () => SessionStoreState, set: SetState): P
 
       const patch: Partial<SessionStoreState> = {};
       if (runtimeChanged) patch.runtimeBySessionId = nextRuntime;
+      if (recentCompletionChanged) {
+        patch.recentCompletionStartedAtBySessionId = nextRecentCompletionStartedAt;
+      }
       if (!areSessionGroupsEqual(state.groups, latestGroups)) {
         patch.groups = latestGroups;
         patch.collapsedByWorkDir = mergeCollapseState(latestGroups, state.collapsedByWorkDir);
@@ -428,6 +438,7 @@ function handleWsEvent(
 ): void {
   const targetSessionId = eventEnvelope.session_id;
   set((state) => {
+    const currentRuntime = state.runtimeBySessionId[targetSessionId] ?? defaultRuntimeState;
     const nextRuntimeBySessionId = patchRuntimeByEvent(
       state.runtimeBySessionId,
       targetSessionId,
@@ -443,10 +454,13 @@ function handleWsEvent(
       eventEnvelope.event_type === "task.finish" &&
       state.activeSessionId !== targetSessionId &&
       state.completedUnreadBySessionId[targetSessionId] !== true;
+    const shouldRecordRecentCompletion =
+      eventEnvelope.event_type === "task.finish" && currentRuntime.sessionState === "running";
 
     if (
       nextRuntimeBySessionId === state.runtimeBySessionId &&
       nextPendingInteractionsBySessionId === state.pendingInteractionsBySessionId &&
+      !shouldRecordRecentCompletion &&
       !shouldMarkCompletedUnread
     ) {
       return state;
@@ -455,6 +469,12 @@ function handleWsEvent(
     return {
       runtimeBySessionId: nextRuntimeBySessionId,
       pendingInteractionsBySessionId: nextPendingInteractionsBySessionId,
+      recentCompletionStartedAtBySessionId: shouldRecordRecentCompletion
+        ? {
+            ...state.recentCompletionStartedAtBySessionId,
+            [targetSessionId]: Date.now(),
+          }
+        : state.recentCompletionStartedAtBySessionId,
       completedUnreadBySessionId: shouldMarkCompletedUnread
         ? {
             ...state.completedUnreadBySessionId,
@@ -627,6 +647,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   loadError: null,
   collapsedByWorkDir: {},
   runtimeBySessionId: {},
+  recentCompletionStartedAtBySessionId: {},
   completedUnreadBySessionId: {},
   pendingInteractionsBySessionId: {},
   initialized: false,

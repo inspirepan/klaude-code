@@ -14,6 +14,7 @@ interface ProjectGroupProps {
   hideNewSessionButton?: boolean;
   activeSessionId: string | "draft";
   runtimeBySessionId: Record<string, SessionRuntimeState>;
+  recentCompletionStartedAtBySessionId: Record<string, number>;
   completedUnreadBySessionId: Record<string, boolean>;
   onToggle: () => void;
   onSelectDraft: (workDir: string) => void;
@@ -38,6 +39,7 @@ export function ProjectGroup({
   hideNewSessionButton = false,
   activeSessionId,
   runtimeBySessionId,
+  recentCompletionStartedAtBySessionId,
   completedUnreadBySessionId,
   onToggle,
   onSelectDraft,
@@ -107,6 +109,7 @@ export function ProjectGroup({
                 }
               }
               hasUnreadCompletion={completedUnreadBySessionId[session.id] === true}
+              completionAnimationStartedAt={recentCompletionStartedAtBySessionId[session.id]}
               onClick={() => {
                 onSelectSession(session.id);
               }}

@@ -10,6 +10,7 @@ interface SessionCardProps {
   active: boolean;
   runtime: SessionRuntimeState;
   hasUnreadCompletion: boolean;
+  completionAnimationStartedAt?: number;
   showWorkspace?: boolean;
   compact?: boolean;
   onClick: () => void;
@@ -118,13 +119,13 @@ export function SessionCard({
   active,
   runtime,
   hasUnreadCompletion,
+  completionAnimationStartedAt,
   showWorkspace = false,
   compact = false,
   onClick,
   onToggleArchive,
 }: SessionCardProps): JSX.Element {
   const [showSuccessState, setShowSuccessState] = useState(false);
-  const previousSessionStateRef = useRef(runtime.sessionState);
   const successAnimationFrameRef = useRef<number | null>(null);
   const successTimeoutRef = useRef<number | null>(null);
   const title = shortenFileRefs(getSessionTitle(session));
@@ -133,26 +134,35 @@ export function SessionCard({
   const diffSummary = session.file_change_summary;
 
   useEffect(() => {
-    const previousSessionState = previousSessionStateRef.current;
-    previousSessionStateRef.current = runtime.sessionState;
+    if (completionAnimationStartedAt === undefined) {
+      return;
+    }
 
-    if (previousSessionState === "running" && runtime.sessionState === "idle") {
-      if (successAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(successAnimationFrameRef.current);
-      }
-      if (successTimeoutRef.current !== null) {
-        window.clearTimeout(successTimeoutRef.current);
-      }
+    const elapsed = Date.now() - completionAnimationStartedAt;
+    const remaining = 1600 - elapsed;
+    if (remaining <= 0) {
+      return;
+    }
+
+    if (successAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(successAnimationFrameRef.current);
+    }
+    if (successTimeoutRef.current !== null) {
+      window.clearTimeout(successTimeoutRef.current);
+    }
+
+    successAnimationFrameRef.current = window.requestAnimationFrame(() => {
+      setShowSuccessState(false);
       successAnimationFrameRef.current = window.requestAnimationFrame(() => {
         setShowSuccessState(true);
         successAnimationFrameRef.current = null;
         successTimeoutRef.current = window.setTimeout(() => {
           setShowSuccessState(false);
           successTimeoutRef.current = null;
-        }, 1600);
+        }, remaining);
       });
-    }
-  }, [runtime.sessionState]);
+    });
+  }, [completionAnimationStartedAt]);
 
   useEffect(() => {
     return () => {
@@ -269,13 +279,19 @@ export function SessionCard({
 
         {/* Row 2: workspace (optional) */}
         {showWorkspace ? (
-          <div className="truncate pl-5 text-2xs leading-4 text-neutral-500" title={session.work_dir}>
+          <div
+            className="truncate pl-5 text-2xs leading-4 text-neutral-500"
+            title={session.work_dir}
+          >
             {workDirLabel(session.work_dir)}
           </div>
         ) : null}
 
         {/* Row 3: time · diff · lock  |  archive button */}
-        <div className="grid items-center gap-x-2 pl-5 pr-0.5 text-2xs leading-4 text-neutral-400" style={{ gridTemplateColumns: "max-content 3rem auto 1fr auto" }}>
+        <div
+          className="grid items-center gap-x-2 pl-5 pr-0.5 text-2xs leading-4 text-neutral-400"
+          style={{ gridTemplateColumns: "max-content 3rem auto 1fr auto" }}
+        >
           <span className="whitespace-nowrap" title={updatedAtDetailed}>
             {updatedAt}
           </span>
