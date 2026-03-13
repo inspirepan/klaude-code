@@ -201,6 +201,8 @@ export function NewSessionOverlay({
           ) : null}
 
           <ComposerCard
+            sessionId=""
+            searchWorkDir={normalizedDraftWorkDir}
             text={text}
             onTextChange={setText}
             images={images}

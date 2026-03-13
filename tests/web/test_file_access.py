@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import os
 import tempfile
+from pathlib import Path
 
 from .conftest import AppEnv
 
@@ -74,3 +75,43 @@ def test_image_upload_stores_tmp_file(app_env: AppEnv) -> None:
         with contextlib.suppress(OSError):
             if uploaded_path:
                 os.unlink(uploaded_path)
+
+
+def test_file_search_lists_current_directory(app_env: AppEnv) -> None:
+    (app_env.work_dir / "src").mkdir()
+    (app_env.work_dir / "notes.md").write_text("hello", encoding="utf-8")
+    (app_env.work_dir / ".git").mkdir()
+
+    response = app_env.client.get("/api/files/search")
+
+    assert response.status_code == 200
+    assert response.json()["items"] == ["src/", "notes.md"]
+
+
+def test_file_search_uses_session_work_dir(app_env: AppEnv, tmp_path: Path) -> None:
+    other_work_dir = tmp_path / "other-work"
+    (other_work_dir / "nested").mkdir(parents=True)
+    (other_work_dir / "nested" / "example.py").write_text("print('ok')\n", encoding="utf-8")
+    session_id = app_env.create_session(other_work_dir)
+
+    response = app_env.client.get(
+        "/api/files/search",
+        params={"session_id": session_id, "query": "exam"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"] == ["nested/example.py"]
+
+
+def test_file_search_uses_requested_work_dir(app_env: AppEnv, tmp_path: Path) -> None:
+    draft_work_dir = tmp_path / "draft-work"
+    (draft_work_dir / "docs").mkdir(parents=True)
+    (draft_work_dir / "docs" / "notes with spaces.md").write_text("hello", encoding="utf-8")
+
+    response = app_env.client.get(
+        "/api/files/search",
+        params={"work_dir": str(draft_work_dir), "query": "notes"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"] == ["docs/notes with spaces.md"]
