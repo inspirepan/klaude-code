@@ -22,6 +22,7 @@ export function LeftSidebar(): JSX.Element {
   const setSessionArchived = useSessionStore((state) => state.setSessionArchived);
   const selectSession = useSessionStore((state) => state.selectSession);
   const refreshSessions = useSessionStore((state) => state.refreshSessions);
+  const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
   const [archivedMenuOpen, setArchivedMenuOpen] = useState(false);
@@ -218,8 +219,12 @@ export function LeftSidebar(): JSX.Element {
     <aside
       ref={sidebarRef}
       data-sidebar="left"
-      className="relative flex shrink-0 flex-col border-r border-neutral-200 bg-neutral-50"
-      style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
+      className="relative flex shrink-0 flex-col overflow-hidden border-r border-neutral-200 bg-neutral-50 transition-[width,min-width,opacity] duration-200 ease-in-out"
+      style={{
+        width: sidebarOpen ? `${sidebarWidth}px` : "0px",
+        minWidth: sidebarOpen ? `${sidebarWidth}px` : "0px",
+        opacity: sidebarOpen ? 1 : 0,
+      }}
     >
       <div className="flex items-center gap-1.5 px-3 py-2">
         <div className="flex-1">

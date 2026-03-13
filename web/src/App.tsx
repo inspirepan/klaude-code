@@ -14,7 +14,6 @@ export default function App(): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
   const draftWorkDir = useSessionStore((state) => state.draftWorkDir);
   const setDraftWorkDir = useSessionStore((state) => state.setDraftWorkDir);
-  const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
@@ -90,7 +89,7 @@ export default function App(): JSX.Element {
   return (
     <TooltipProvider delayDuration={150}>
       <div className="app-shell">
-        {sidebarOpen ? <LeftSidebar /> : null}
+        <LeftSidebar />
         <MainPanel />
       </div>
     </TooltipProvider>
