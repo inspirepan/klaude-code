@@ -29,7 +29,7 @@ export function SubAgentStatusSummary({
       {summaryParts.length > 0 || metaRows.length > 0 ? (
         <div className="mt-1 flex items-center gap-2">
           {summaryParts.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-sans text-neutral-400">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-sans text-neutral-500">
               {summaryParts.map((part, i) => (
                 <span key={part} className="flex items-center gap-2">
                   {i > 0 ? <span className="text-neutral-300">&middot;</span> : null}
@@ -50,7 +50,7 @@ export function SubAgentStatusSummary({
             >
               <button
                 type="button"
-                className="inline-flex h-5 w-5 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                className="inline-flex h-5 w-5 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
                 aria-label="Show sub-agent metadata"
                 onClick={() => {
                   onMetaOpenChange(!metaOpen);
@@ -63,7 +63,7 @@ export function SubAgentStatusSummary({
                   <div className="space-y-1.5 text-2xs leading-5">
                     {metaRows.map((row) => (
                       <div key={row.label} className="flex items-start justify-between gap-4">
-                        <span className="text-neutral-400">{row.label}</span>
+                        <span className="text-neutral-500">{row.label}</span>
                         <span className="text-right font-mono text-neutral-600">{row.value}</span>
                       </div>
                     ))}

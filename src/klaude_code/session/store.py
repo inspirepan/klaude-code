@@ -5,7 +5,7 @@ import json
 import threading
 import uuid
 from _thread import LockType
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +16,29 @@ from klaude_code.protocol import llm_param, message, model
 from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
 
 _RUNTIME_META_KEYS = ("session_state", "runtime_owner", "runtime_owner_heartbeat_at")
+
+type SessionMetaObserver = Callable[[str, dict[str, Any]], None]
+
+_SESSION_META_OBSERVERS: list[SessionMetaObserver] = []
+_SESSION_META_OBSERVERS_LOCK = threading.Lock()
+
+
+def register_session_meta_observer(observer: SessionMetaObserver) -> Callable[[], None]:
+    with _SESSION_META_OBSERVERS_LOCK:
+        _SESSION_META_OBSERVERS.append(observer)
+
+    def _unregister() -> None:
+        with _SESSION_META_OBSERVERS_LOCK, suppress(ValueError):
+            _SESSION_META_OBSERVERS.remove(observer)
+
+    return _unregister
+
+
+def _notify_session_meta_observers(session_id: str, meta: dict[str, Any]) -> None:
+    with _SESSION_META_OBSERVERS_LOCK:
+        observers = list(_SESSION_META_OBSERVERS)
+    for observer in observers:
+        observer(session_id, dict(meta))
 
 
 class _WriterClosedError(RuntimeError):
@@ -107,6 +130,8 @@ class JsonlSessionWriter:
             tmp_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
             tmp_path.replace(meta_path)
 
+        _notify_session_meta_observers(batch.session_id, meta)
+
         if not batch.done.done():
             batch.done.set_result(None)
 
@@ -154,6 +179,7 @@ class JsonlSessionStore:
                 tmp_path.replace(meta_path)
             except OSError:
                 return False
+            _notify_session_meta_observers(session_id, data)
             return True
 
     def create_meta_if_missing(self, session_id: str, meta: dict[str, Any]) -> bool:
@@ -168,6 +194,7 @@ class JsonlSessionStore:
                 tmp_path.replace(meta_path)
             except OSError:
                 return False
+            _notify_session_meta_observers(session_id, meta)
             return True
 
     def load_history(self, session_id: str) -> list[message.HistoryEvent]:

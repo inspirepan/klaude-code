@@ -5,11 +5,12 @@ import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
 import { useSessionStore } from "../../stores/session-store";
 import type { SessionStatusState } from "../../stores/event-reducer";
-import type { MessageItem as MessageItemType } from "../../types/message";
+import type { MessageItem as MessageItemType, DeveloperMessageItem } from "../../types/message";
 import type { SessionSummary } from "../../types/session";
 import { splitSessionTitle } from "@/components/session-title";
 import { CollapseGroupBlock } from "./CollapseGroupBlock";
 import { CollapseAllContext } from "./collapse-all-context";
+import { DeveloperMessage } from "./DeveloperMessage";
 import { MessageListHeader } from "./MessageListHeader";
 import { MessageRow } from "./MessageRow";
 import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra";
@@ -60,7 +61,17 @@ interface SectionCollapseGroupBlock {
   items: MessageItemType[];
 }
 
-type SectionBlock = SectionItemBlock | SectionSubAgentBlock | SectionCollapseGroupBlock;
+interface SectionDevGroupBlock {
+  type: "dev_group";
+  id: string;
+  items: DeveloperMessageItem[];
+}
+
+type SectionBlock =
+  | SectionItemBlock
+  | SectionSubAgentBlock
+  | SectionCollapseGroupBlock
+  | SectionDevGroupBlock;
 
 function isCollapsibleItem(item: MessageItemType): boolean {
   if (item.type === "tool_block") {
@@ -411,28 +422,43 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       // Second pass: merge consecutive thinking/tool_block items into collapse groups
       const blocks: SectionBlock[] = [];
       let pending: MessageItemType[] = [];
+
+      const flushPending = () => {
+        if (pending.length === 0) return;
+        const hasToolBlock = pending.some((item) => item.type === "tool_block");
+        if (hasToolBlock) {
+          blocks.push({
+            type: "collapse_group",
+            id: `cg-${sessionId}-${pending[0].id}`,
+            items: pending,
+          });
+        } else {
+          // Split apart, but merge consecutive developer_message items
+          for (const item of pending) {
+            if (item.type === "developer_message") {
+              const last = blocks[blocks.length - 1];
+              if (last?.type === "dev_group") {
+                last.items.push(item);
+              } else {
+                blocks.push({ type: "dev_group", id: item.id, items: [item] });
+              }
+            } else {
+              blocks.push({ type: "item", item });
+            }
+          }
+        }
+        pending = [];
+      };
+
       for (const block of rawBlocks) {
         if (block.type === "item" && isCollapsibleItem(block.item)) {
           pending.push(block.item);
         } else {
-          if (pending.length > 0) {
-            blocks.push({
-              type: "collapse_group",
-              id: `cg-${sessionId}-${pending[0].id}`,
-              items: pending,
-            });
-            pending = [];
-          }
+          flushPending();
           blocks.push(block);
         }
       }
-      if (pending.length > 0) {
-        blocks.push({
-          type: "collapse_group",
-          id: `cg-${sessionId}-${pending[0].id}`,
-          items: pending,
-        });
-      }
+      flushPending();
       return blocks;
     });
   }, [sections, sessionId, subAgentDescBySessionId, subAgentTypeBySessionId]);
@@ -583,6 +609,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                   {sections.map((section, sectionIndex) => (
                     <div key={section[0].id} className="space-y-5">
                       {sectionBlocks[sectionIndex]?.map((block) => {
+                        if (block.type === "dev_group") {
+                          return <DeveloperMessage key={block.id} items={block.items} />;
+                        }
+
                         if (block.type === "collapse_group") {
                           const collapsed = isCollapseGroupCollapsed(block.id);
                           return (
@@ -674,7 +704,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 </div>
               ) : (
                 <div className="flex min-h-[240px] items-center justify-center">
-                  <div className="rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/70 px-6 py-10 text-center">
+                  <div className="rounded-3xl border border-dashed border-border bg-surface/70 px-6 py-10 text-center">
                     <div className="text-base font-semibold text-neutral-700">No messages yet</div>
                     <div className="mt-1 text-sm text-neutral-500">
                       Send a message below to start this session.

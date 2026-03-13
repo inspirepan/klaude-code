@@ -19,6 +19,18 @@ export interface SessionWsHandlers {
   onErrorFrame?: (errorFrame: WsErrorFrame) => void;
 }
 
+export interface SessionListWsEvent {
+  type: "session.upsert" | "session.deleted";
+  session_id: string;
+  session?: Record<string, unknown> | null;
+}
+
+export interface SessionListWsHandlers {
+  onOpen?: () => void;
+  onClose?: () => void;
+  onEvent?: (event: SessionListWsEvent) => void;
+}
+
 export interface SessionWsConnection {
   send: (payload: unknown) => void;
   close: () => void;
@@ -45,6 +57,17 @@ function isEventEnvelope(payload: unknown): payload is WsEventEnvelope {
   }
   const record = payload as Record<string, unknown>;
   return typeof record.event_type === "string" && typeof record.session_id === "string";
+}
+
+function isSessionListEvent(payload: unknown): payload is SessionListWsEvent {
+  if (typeof payload !== "object" || payload === null) {
+    return false;
+  }
+  const record = payload as Record<string, unknown>;
+  return (
+    (record.type === "session.upsert" || record.type === "session.deleted") &&
+    typeof record.session_id === "string"
+  );
 }
 
 export function connectSessionWs(
@@ -102,6 +125,37 @@ export function connectSessionWs(
     },
     close: () => {
       pendingFrames.length = 0;
+      socket.close();
+    },
+  };
+}
+
+export function connectSessionListWs(handlers: SessionListWsHandlers): SessionWsConnection {
+  const wsUrl = `${resolveWsBaseUrl()}/api/sessions/ws`;
+  const socket = new WebSocket(wsUrl);
+
+  socket.addEventListener("open", () => {
+    handlers.onOpen?.();
+  });
+
+  socket.addEventListener("close", () => {
+    handlers.onClose?.();
+  });
+
+  socket.addEventListener("message", (messageEvent) => {
+    try {
+      const payload = JSON.parse(messageEvent.data as string) as unknown;
+      if (isSessionListEvent(payload)) {
+        handlers.onEvent?.(payload);
+      }
+    } catch {
+      // Ignore malformed frames.
+    }
+  });
+
+  return {
+    send: () => {},
+    close: () => {
       socket.close();
     },
   };

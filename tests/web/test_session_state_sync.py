@@ -1,6 +1,7 @@
 # pyright: reportPrivateUsage=false
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from pathlib import Path
@@ -121,7 +122,7 @@ def test_init_agent_creates_idle_meta_before_first_async_flush(
             )
             await runtime.wait_for(operation_id)
 
-            _wait_until_idle(meta_path)
+            await asyncio.to_thread(_wait_until_idle, meta_path)
         finally:
             await runtime.stop()
             await close_default_store()

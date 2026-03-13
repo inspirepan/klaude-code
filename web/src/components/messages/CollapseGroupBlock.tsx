@@ -2,6 +2,7 @@ import { Loader } from "lucide-react";
 import { useMemo } from "react";
 
 import type { MessageItem as MessageItemType, DeveloperMessageItem } from "../../types/message";
+import { CollapseRailConnector, CollapseRailMarker, CollapseRailPanel } from "./CollapseRail";
 import { MessageRow } from "./MessageRow";
 import { DeveloperMessage } from "./DeveloperMessage";
 
@@ -73,6 +74,7 @@ function basename(path: string): string {
 }
 
 const IGNORED_COMMANDS = new Set(["cd"]);
+const COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME = "grid-cols-[28px_1fr]";
 
 function extractCommandFromStatement(stmt: string): string | null {
   const tokens = stmt.trim().split(/\s+/).filter(Boolean);
@@ -372,29 +374,27 @@ export function CollapseGroupBlock({
       <button
         type="button"
         onClick={onToggle}
-        className="grid w-full min-w-0 grid-cols-[28px_1fr] items-start py-1 text-left text-sm text-neutral-400 transition-colors hover:text-neutral-600"
+        className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-sm text-neutral-500 transition-colors hover:text-neutral-600`}
       >
-        <span className="flex justify-center pt-0.5 font-mono text-xs text-neutral-400">
-          {collapsed ? "[+]" : "[-]"}
-        </span>
+        <CollapseRailMarker open={!collapsed} className="pt-0.5" indicatorClassName="mt-0" />
         <span className="flex min-w-0 items-center gap-1.5 pl-1">
           <span className="shrink-0 font-mono">
             {stepLabel}
-            {summary.length > 0 ? <span className="text-neutral-300">,</span> : null}
+            {summary.length > 0 ? <span className="text-neutral-500">,</span> : null}
           </span>
           {summary.length > 0 ? (
             <span className="flex min-w-0 items-center truncate pl-1">
               {summary.map((part, i) => (
                 <span key={i} className="flex shrink-0 items-center">
-                  {i > 0 ? <span className="mr-2 text-neutral-300">,</span> : null}
+                  {i > 0 ? <span className="mr-2 font-mono text-neutral-500">,</span> : null}
                   <span className="font-mono text-neutral-500">{part.label}</span>
                   <span className="w-2 shrink-0" aria-hidden="true" />
                   {part.fileStats ? (
                     part.fileStats.map((fs, j) => (
                       <span key={j} className="flex shrink-0 items-center">
-                        {j > 0 ? <span className="mr-1 text-neutral-300">,</span> : null}
-                        <span className="font-mono text-neutral-400">{fs.name}</span>
-                        <span className="ml-1 font-mono text-neutral-300">
+                        {j > 0 ? <span className="mr-1 text-neutral-500">,</span> : null}
+                        <span className="font-mono text-neutral-500">{fs.name}</span>
+                        <span className="ml-1 font-mono text-neutral-500">
                           {"("}
                           {fs.del !== undefined ? (
                             <span className="text-rose-500">-{fs.del}</span>
@@ -407,9 +407,9 @@ export function CollapseGroupBlock({
                     ))
                   ) : (
                     <>
-                      <span className="font-mono text-neutral-400">{part.value}</span>
+                      <span className="font-mono text-neutral-500">{part.value}</span>
                       {part.del !== undefined || part.add !== undefined ? (
-                        <span className="ml-1 font-mono text-neutral-300">
+                        <span className="ml-1 font-mono text-neutral-500">
                           {"("}
                           {part.del !== undefined ? (
                             <span className="text-rose-500">-{part.del}</span>
@@ -430,51 +430,41 @@ export function CollapseGroupBlock({
         </span>
       </button>
       {/* grid-template-rows trick: 0fr→1fr gives smooth height transition without JS height measurement */}
-      <div
-        className="grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
-        style={{
-          gridTemplateRows: collapsed ? "0fr" : "1fr",
-          opacity: collapsed ? 0 : 1,
-        }}
-      >
-        <div className="overflow-hidden">
-          <div className="mt-3 grid grid-cols-[28px_1fr]">
-            <div className="flex justify-center">
-              <div className="-mt-3 w-px self-stretch bg-neutral-200" />
-            </div>
-            <div className="min-w-0 space-y-5 pb-1">
-              {renderBlocks.map((block, idx) => {
-                if (block.kind === "dev") {
-                  return <DeveloperMessage key={`dev-${idx}`} items={block.items} />;
-                }
-                return (
-                  <MessageRow
-                    key={block.item.id}
-                    item={block.item}
-                    variant="main"
-                    workDir={workDir}
-                    isActive={block.item.id === activeItemId}
-                    copied={copiedItemId === block.item.id}
-                    onCopy={onCopy}
-                    itemRef={(el: HTMLDivElement | null) => setItemRef(block.item.id, el)}
-                  />
-                );
-              })}
-            </div>
-            {showRunningSpinner ? (
-              <>
-                <div className="flex justify-center">
-                  <div className="flex flex-col items-center gap-1.5">
-                    <div className="h-3 w-px bg-neutral-200" />
-                    <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
-                  </div>
-                </div>
-                <div aria-hidden="true" className="h-5" />
-              </>
-            ) : null}
+      <CollapseRailPanel open={!collapsed}>
+        <div className={`mt-3 grid min-w-0 items-start ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME}`}>
+          <CollapseRailConnector lineClassName="-mt-3" />
+          <div className="min-w-0 space-y-5 pb-1">
+            {renderBlocks.map((block, idx) => {
+              if (block.kind === "dev") {
+                return <DeveloperMessage key={`dev-${idx}`} items={block.items} />;
+              }
+              return (
+                <MessageRow
+                  key={block.item.id}
+                  item={block.item}
+                  variant="main"
+                  workDir={workDir}
+                  isActive={block.item.id === activeItemId}
+                  copied={copiedItemId === block.item.id}
+                  onCopy={onCopy}
+                  itemRef={(el: HTMLDivElement | null) => setItemRef(block.item.id, el)}
+                />
+              );
+            })}
           </div>
         </div>
-      </div>
+        {showRunningSpinner ? (
+          <div className={`grid min-w-0 items-start ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME}`}>
+            <div className="flex justify-center">
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="h-3 w-px bg-neutral-200" />
+                <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
+              </div>
+            </div>
+            <div aria-hidden="true" className="h-5" />
+          </div>
+        ) : null}
+      </CollapseRailPanel>
     </div>
   );
 }

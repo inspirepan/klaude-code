@@ -20,15 +20,15 @@ const SHADOW_ICON_CSS = `
 [data-diffs-header] {
   min-height: 32px !important;
   padding-inline: 12px !important;
-  background-color: rgb(250 250 250) !important;
+  background-color: hsl(var(--surface)) !important;
 }
 
 [data-diffs] {
-  --diffs-bg: rgb(250 250 250) !important;
+  --diffs-bg: hsl(var(--surface)) !important;
 }
 
 [data-code] {
-  background-color: rgb(250 250 250) !important;
+  background-color: hsl(var(--surface)) !important;
   padding-bottom: 0 !important;
 }
 
@@ -84,7 +84,7 @@ interface DiffViewProps {
 }
 
 const COLLAPSED_DIFF_MAX_HEIGHT = 420;
-const DIFF_BACKGROUND = "rgb(250 250 250)";
+const DIFF_BACKGROUND = "hsl(var(--surface))";
 const DIFF_HEADER_SANS =
   '"IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif';
 
@@ -167,12 +167,12 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
   if (!extra || patches === null) return null;
 
   return (
-    <div className="diff-view rounded-lg bg-[rgb(250,250,250)]" ref={containerRef}>
+    <div className="diff-view rounded-lg bg-surface" ref={containerRef}>
       <div className="flex flex-col">
         <div
           className={`relative ${!expanded && isOverflowing ? "max-h-[420px] overflow-hidden" : ""}`}
         >
-          <div ref={contentRef} className="flex flex-col bg-[rgb(250,250,250)]">
+          <div ref={contentRef} className="flex flex-col bg-surface">
             {patches.map((patch, index) => (
               <PatchDiff
                 key={`${item.id}-${index}`}
@@ -190,11 +190,11 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
             ))}
           </div>
           {!expanded && isOverflowing ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-16 bg-gradient-to-t from-[rgb(250_250_250_/_0.8)] via-[rgb(250_250_250_/_0.35)] to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-16 bg-gradient-to-t from-surface/80 via-surface/35 to-transparent" />
           ) : null}
         </div>
         {isOverflowing ? (
-          <div className="bg-[#fafafa] pt-1">
+          <div className="bg-surface pt-1">
             <button
               type="button"
               className="self-start pb-1 pl-2 text-xs text-neutral-400 transition-colors hover:text-neutral-600"

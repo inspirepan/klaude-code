@@ -98,7 +98,7 @@ function OptionPill({
       className={`group/pill inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-left transition-all ${
         checked
           ? "border-blue-200 bg-blue-50/80 ring-1 ring-blue-200/60"
-          : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
+          : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-surface"
       } disabled:cursor-not-allowed disabled:opacity-50`}
     >
       <span
@@ -117,7 +117,7 @@ function OptionPill({
           {label}
         </span>
         {description && (
-          <span className="mt-0.5 block text-2xs leading-snug text-neutral-400">{description}</span>
+          <span className="mt-0.5 block text-2xs leading-snug text-neutral-500">{description}</span>
         )}
       </span>
     </button>
@@ -151,11 +151,11 @@ function QuestionPanel({
     <div>
       {/* Question header chip */}
       <div className="mb-1.5 flex items-center gap-1.5">
-        <span className="text-2xs font-medium uppercase tracking-wider text-neutral-400">
+        <span className="text-2xs font-medium uppercase tracking-wider text-neutral-500">
           {question.header || `Question ${questionIndex + 1}`}
         </span>
         {question.multi_select && (
-          <span className="text-2xs text-neutral-400">(select multiple)</span>
+          <span className="text-2xs text-neutral-500">(select multiple)</span>
         )}
       </div>
 
@@ -184,7 +184,7 @@ function QuestionPanel({
           value={note}
           onChange={(e) => onNoteChange(e.target.value)}
           placeholder={`Other: ${question.input_placeholder ?? "Type something."}`}
-          className="h-9 w-full rounded-lg border border-neutral-200 bg-neutral-50/50 px-3 text-sm text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-9 w-full rounded-lg border border-neutral-200 bg-surface/50 px-3 text-sm text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
 
@@ -306,7 +306,7 @@ export function UserInteractionCard({
           </span>
         </div>
         {pendingCount > 1 && (
-          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-2xs font-medium text-neutral-500">
+          <span className="rounded-full bg-muted px-2 py-0.5 text-2xs font-medium text-neutral-500">
             {pendingCount} pending
           </span>
         )}
@@ -330,7 +330,7 @@ export function UserInteractionCard({
                       className={`flex items-center gap-1.5 rounded-[22px] px-3 py-1.5 text-xs font-medium transition ${
                         isActive
                           ? "bg-blue-50/55 text-blue-600"
-                          : "bg-neutral-50 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
+                          : "bg-surface text-neutral-500 hover:bg-muted hover:text-neutral-700"
                       }`}
                     >
                       {/* Answered dot */}
@@ -387,7 +387,7 @@ export function UserInteractionCard({
         {operationPayload && (
           <div>
             <div className="mb-1.5">
-              <span className="text-2xs font-medium uppercase tracking-wider text-neutral-400">
+              <span className="text-2xs font-medium uppercase tracking-wider text-neutral-500">
                 {operationPayload.header}
               </span>
             </div>
@@ -421,7 +421,7 @@ export function UserInteractionCard({
               void cancel();
             }}
             disabled={actionDisabled}
-            className="inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-xs text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-xs text-neutral-500 transition hover:bg-muted hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <X className="h-3 w-3" />
             Cancel

@@ -69,13 +69,7 @@ export default function App(): JSX.Element {
       }
 
       event.preventDefault();
-      const activeSession =
-        activeSessionId === "draft"
-          ? null
-          : (groups
-              .flatMap((group) => group.sessions)
-              .find((session) => session.id === activeSessionId) ?? null);
-      setDraftWorkDir(activeSession?.work_dir || draftWorkDir);
+      setDraftWorkDir("");
       setNewSessionOverlayOpen(activeSessionId !== "draft");
       window.dispatchEvent(new Event("klaude:draft-focus-input"));
     };

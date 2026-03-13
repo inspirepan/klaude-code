@@ -17,7 +17,6 @@ export function LeftSidebar(): JSX.Element {
   );
   const completedUnreadBySessionId = useSessionStore((state) => state.completedUnreadBySessionId);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
-  const draftWorkDir = useSessionStore((state) => state.draftWorkDir);
   const loading = useSessionStore((state) => state.loading);
   const loadError = useSessionStore((state) => state.loadError);
   const setDraftWorkDir = useSessionStore((state) => state.setDraftWorkDir);
@@ -172,19 +171,9 @@ export function LeftSidebar(): JSX.Element {
     [activeSessions, runtimeBySessionId],
   );
 
-  const activeSession = useMemo(
-    () =>
-      activeSessionId === "draft"
-        ? null
-        : (groups
-            .flatMap((group) => group.sessions)
-            .find((session) => session.id === activeSessionId) ?? null),
-    [activeSessionId, groups],
-  );
-
   const openNewSessionOverlay = (workDir?: string): void => {
     const normalizedWorkDir = workDir?.trim() ?? "";
-    setDraftWorkDir(normalizedWorkDir || activeSession?.work_dir || draftWorkDir);
+    setDraftWorkDir(normalizedWorkDir);
     setNewSessionOverlayOpen(activeSessionId !== "draft");
     window.dispatchEvent(new Event("klaude:draft-focus-input"));
   };
@@ -236,7 +225,7 @@ export function LeftSidebar(): JSX.Element {
         <aside
           ref={sidebarRef}
           data-sidebar="left"
-          className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 ${archivedMenuOpen ? "z-10" : ""}`}
+          className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-neutral-200 bg-sidebar ${archivedMenuOpen ? "z-10" : ""}`}
           style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
         >
           <div className="flex items-center gap-1.5 px-3 py-2">
@@ -251,7 +240,7 @@ export function LeftSidebar(): JSX.Element {
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                  className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
                   onClick={() => {
                     setSessionListView((prev) => (prev === "grouped" ? "flat" : "grouped"));
                   }}
@@ -289,7 +278,7 @@ export function LeftSidebar(): JSX.Element {
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                  className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
                   onClick={() => {
                     setSidebarOpen(false);
                   }}
@@ -379,7 +368,7 @@ export function LeftSidebar(): JSX.Element {
                       <span className="text-2xs font-medium uppercase tracking-[0.02em] text-neutral-500">
                         In Progress
                       </span>
-                      <span className="text-2xs text-neutral-400">{inProgressSessions.length}</span>
+                      <span className="text-2xs text-neutral-500">{inProgressSessions.length}</span>
                     </div>
                     {inProgressSessions.length > 0 ? (
                       <div className="space-y-1">
@@ -411,7 +400,7 @@ export function LeftSidebar(): JSX.Element {
                         ))}
                       </div>
                     ) : (
-                      <div className="px-1.5 py-1 text-2xs text-neutral-400">
+                      <div className="px-1.5 py-1 text-2xs text-neutral-500">
                         No in-progress sessions
                       </div>
                     )}
@@ -422,7 +411,7 @@ export function LeftSidebar(): JSX.Element {
                       <span className="text-2xs font-medium uppercase tracking-[0.02em] text-neutral-500">
                         Done
                       </span>
-                      <span className="text-2xs text-neutral-400">{doneSessions.length}</span>
+                      <span className="text-2xs text-neutral-500">{doneSessions.length}</span>
                     </div>
                     {doneSessions.length > 0 ? (
                       <div className="space-y-1">
@@ -454,7 +443,7 @@ export function LeftSidebar(): JSX.Element {
                         ))}
                       </div>
                     ) : (
-                      <div className="px-1.5 py-1 text-2xs text-neutral-400">No done sessions</div>
+                      <div className="px-1.5 py-1 text-2xs text-neutral-500">No done sessions</div>
                     )}
                   </div>
                 </div>
@@ -468,7 +457,7 @@ export function LeftSidebar(): JSX.Element {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
                     onClick={() => {
                       setArchivedMenuOpen((prev) => !prev);
                     }}
@@ -486,7 +475,7 @@ export function LeftSidebar(): JSX.Element {
                     <span className="text-2xs font-medium uppercase tracking-[0.08em] text-neutral-500">
                       Archived
                     </span>
-                    <span className="text-2xs text-neutral-400">{archivedSessionCount}</span>
+                    <span className="text-2xs text-neutral-500">{archivedSessionCount}</span>
                   </div>
                   {archivedGroups.length > 0 ? (
                     <ScrollArea className="w-full" viewportClassName="max-h-80" type="auto">
@@ -529,7 +518,7 @@ export function LeftSidebar(): JSX.Element {
                       </div>
                     </ScrollArea>
                   ) : (
-                    <div className="px-3 py-3 text-xs text-neutral-400">No archived sessions</div>
+                    <div className="px-3 py-3 text-xs text-neutral-500">No archived sessions</div>
                   )}
                 </div>
               ) : null}
@@ -544,7 +533,7 @@ export function LeftSidebar(): JSX.Element {
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      className="cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+                      className="cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-neutral-600 transition-colors hover:bg-muted hover:text-neutral-900"
                       onClick={() => {
                         const sessionId = archiveUndoSessionId;
                         dismissArchiveUndoToast();

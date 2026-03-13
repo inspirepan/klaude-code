@@ -53,7 +53,7 @@ export function ProjectGroup({
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-1.5">
       <div className="flex items-start gap-1">
-        <CollapsibleTrigger className="group flex min-w-0 flex-1 items-start gap-1.5 rounded-md px-1.5 py-1.5 text-neutral-700 transition-colors hover:bg-neutral-100/50 hover:text-neutral-900">
+        <CollapsibleTrigger className="group flex min-w-0 flex-1 items-start gap-1.5 rounded-md px-1.5 py-1.5 text-neutral-700 transition-colors hover:bg-muted/50 hover:text-neutral-900">
           {collapsed ? (
             <Folder className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
           ) : (
@@ -62,13 +62,13 @@ export function ProjectGroup({
           <div className="min-w-0 flex-1 text-left" title={workDir}>
             <div className="flex min-w-0 items-center gap-1 text-sm font-normal leading-5 text-neutral-800">
               <span className="truncate">{workDirLabel(workDir)}</span>
-              <span className="shrink-0 text-neutral-400">({sessions.length})</span>
+              <span className="shrink-0 text-neutral-500">({sessions.length})</span>
             </div>
             <div
               className={
                 compactHeader
-                  ? "mt-0.5 truncate text-2xs leading-4 text-neutral-400"
-                  : "mt-0.5 truncate text-2xs leading-4 text-neutral-400"
+                  ? "mt-0.5 truncate text-2xs leading-4 text-neutral-500"
+                  : "mt-0.5 truncate text-2xs leading-4 text-neutral-500"
               }
               title={workDir}
             >
@@ -81,7 +81,7 @@ export function ProjectGroup({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+                className="mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-700"
                 onClick={() => {
                   onSelectDraft(workDir);
                 }}
@@ -121,7 +121,7 @@ export function ProjectGroup({
           {hasMore && !showAll && (
             <button
               type="button"
-              className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-neutral-400 transition-colors hover:bg-neutral-100/80 hover:text-neutral-600"
+              className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-neutral-500 transition-colors hover:bg-muted/80 hover:text-neutral-700"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowAll(true);

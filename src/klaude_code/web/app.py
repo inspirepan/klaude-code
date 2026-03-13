@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -11,8 +13,16 @@ from fastapi.staticfiles import StaticFiles
 
 from klaude_code.core.control.event_bus import EnvelopeBus, EventBus
 from klaude_code.core.control.runtime_facade import RuntimeFacade
+from klaude_code.core.control.session_meta_relay import (
+    SessionMetaRelayMessage,
+    SessionMetaRelayServer,
+    session_meta_relay_socket_path,
+)
+from klaude_code.log import DebugType, log_debug
+from klaude_code.session.store import register_session_meta_observer
 from klaude_code.web.interaction import WebInteractionHandler
 from klaude_code.web.routes import config_router, files_router, sessions_router, ws_router
+from klaude_code.web.session_live import SessionLiveState
 from klaude_code.web.state import WebAppState, get_web_state_from_app
 
 
@@ -42,14 +52,39 @@ def create_app(
 ) -> FastAPI:
     @asynccontextmanager
     async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+        unregister_meta_observer: Callable[[], None] | None = None
+        session_meta_relay_server: SessionMetaRelayServer | None = None
         if state_initializer is not None:
             app.state.web_state = await state_initializer()
+        state = get_web_state_from_app(app)
+        if state.session_live is None:
+            state = replace(state, session_live=SessionLiveState(home_dir=state.home_dir, runtime=state.runtime))
+            app.state.web_state = state
+        session_live = state.session_live
+        if session_live is None:
+            raise RuntimeError("session live state is not initialized")
+        session_live.attach_loop(asyncio.get_running_loop())
+        unregister_meta_observer = register_session_meta_observer(session_live.apply_meta_update)
+        session_meta_relay_server = SessionMetaRelayServer(
+            socket_path=session_meta_relay_socket_path(home_dir=state.home_dir),
+            on_message=lambda message: _apply_session_meta_message(session_live, message),
+        )
+        await session_meta_relay_server.start()
         try:
             yield
         finally:
+            log_debug("[web] lifespan shutdown start", debug_type=DebugType.EXECUTION)
+            log_debug("[web] lifespan shutdown: closing session meta relay", debug_type=DebugType.EXECUTION)
+            await session_meta_relay_server.aclose()
+            log_debug("[web] lifespan shutdown: session meta relay closed", debug_type=DebugType.EXECUTION)
+            if unregister_meta_observer is not None:
+                log_debug("[web] lifespan shutdown: unregister meta observer", debug_type=DebugType.EXECUTION)
+                unregister_meta_observer()
             if state_initializer is not None and state_shutdown is not None:
-                state = get_web_state_from_app(app)
+                log_debug("[web] lifespan shutdown: state_shutdown start", debug_type=DebugType.EXECUTION)
                 await state_shutdown(state)
+                log_debug("[web] lifespan shutdown: state_shutdown done", debug_type=DebugType.EXECUTION)
+            log_debug("[web] lifespan shutdown done", debug_type=DebugType.EXECUTION)
 
     app = FastAPI(title="klaude-code Web API", lifespan=_lifespan)
     app.add_middleware(
@@ -67,13 +102,15 @@ def create_app(
         raise ValueError("Web app requires runtime/event_bus/interaction_handler or state_initializer")
 
     if runtime is not None and event_bus is not None and interaction_handler is not None:
+        resolved_home_dir = (home_dir or Path.home()).resolve()
         app.state.web_state = WebAppState(
             runtime=runtime,
             event_bus=event_bus,
             interaction_handler=interaction_handler,
             work_dir=work_dir.resolve(),
-            home_dir=(home_dir or Path.home()).resolve(),
+            home_dir=resolved_home_dir,
             event_stream=event_stream,
+            session_live=SessionLiveState(home_dir=resolved_home_dir, runtime=runtime),
         )
 
     app.include_router(sessions_router)
@@ -97,3 +134,12 @@ def create_app(
             )
 
     return app
+
+
+def _apply_session_meta_message(session_live: SessionLiveState, message: SessionMetaRelayMessage) -> None:
+    if message.kind == "delete":
+        session_live.apply_deleted(message.session_id)
+        return
+    if message.meta is None:
+        return
+    session_live.apply_meta_update(message.session_id, message.meta)

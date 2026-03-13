@@ -2,6 +2,7 @@ import { Loader } from "lucide-react";
 import { useState, useMemo, useRef, useEffect } from "react";
 
 import type { ToolBlockItem } from "../../types/message";
+import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
 import { useCollapseAll } from "./collapse-all-context";
 import { useSearch } from "./search-context";
 import { TodoListView } from "./TodoListView";
@@ -88,14 +89,14 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 text-sm">
+    <div className="w-fit rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2 text-sm">
       {explanation ? (
         <p className="mb-1 font-sans text-sm text-neutral-500">{explanation}</p>
       ) : null}
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} compact={compact} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-400">
+        <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-500">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
           <span>Planning…</span>
         </div>
@@ -109,11 +110,11 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
     item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 text-sm">
+    <div className="rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2 text-sm">
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} compact={compact} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-400">
+        <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-500">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
           <span>Waiting for answer…</span>
         </div>
@@ -127,7 +128,7 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
   const { collapseGen, expandGen } = useCollapseAll();
   const bodyTextClass = "text-sm";
   const headerDetailTextClass = "!text-xs";
-  const detailChipClass = "rounded bg-neutral-100 px-1.5 py-0.5 align-middle";
+  const detailChipClass = "rounded bg-surface px-1.5 py-0.5 align-middle";
 
   const defaultExpanded = shouldExpandResult(item);
   const [open, setOpen] = useState(defaultExpanded);
@@ -188,12 +189,12 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
   const detailColor = isError
     ? "text-red-700"
     : item.resultStatus === "aborted"
-      ? "text-neutral-400"
-      : "text-neutral-400";
+      ? "text-neutral-500"
+      : "text-neutral-500";
 
   return (
     <div
-      className={`-my-1 grid grid-cols-[auto_1fr] items-start gap-x-1.5 ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`-my-1 grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
       <ToolBlockHeader

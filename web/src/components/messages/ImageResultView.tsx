@@ -16,7 +16,7 @@ export function ImageResultView({ uiExtra, compact = false }: ImageResultViewPro
         loading="lazy"
       />
       <div
-        className={`border-t border-neutral-200/80 bg-neutral-50 px-3 py-1.5 ${compact ? "text-2xs" : "text-xs"} truncate font-mono text-neutral-400`}
+        className={`border-t border-neutral-200/80 bg-surface px-3 py-1.5 ${compact ? "text-2xs" : "text-xs"} truncate font-mono text-neutral-500`}
       >
         {uiExtra.file_path}
       </div>

@@ -66,7 +66,7 @@ export function SearchBar({
           className="w-48 bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-300"
         />
         {value ? (
-          <span className="whitespace-nowrap text-xs tabular-nums text-neutral-400">
+          <span className="whitespace-nowrap text-xs tabular-nums text-neutral-500">
             {totalMatches > 0 ? `${activeIndex + 1} / ${totalMatches}` : "0 / 0"}
           </span>
         ) : null}

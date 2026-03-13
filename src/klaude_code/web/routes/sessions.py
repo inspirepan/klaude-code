@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
-import json
 import time
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any, Final, Literal, cast
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from klaude_code.protocol import events as protocol_events
@@ -15,15 +17,15 @@ from klaude_code.protocol import model as protocol_model
 from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
 from klaude_code.session.session import Session, get_store_for_path
-from klaude_code.web.session_access import is_session_read_only, load_session_read_only
+from klaude_code.web.session_access import load_session_read_only
 from klaude_code.web.session_index import (
     list_file_running_states,
-    list_main_sessions,
     read_session_titles,
     read_session_user_messages,
     resolve_session_work_dir,
     soft_delete_session,
 )
+from klaude_code.web.session_live import format_sse_message
 from klaude_code.web.state import WebAppState, get_web_state
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -81,36 +83,58 @@ class RequestModelRequest(BaseModel):
 
 @router.get("")
 async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[dict[str, Any]]]:
-    groups_by_work_dir: dict[str, list[dict[str, Any]]] = {}
-    runtime_states = _runtime_session_states(state)
-    for item in list_main_sessions(state.home_dir):
-        session_state = runtime_states.get(item.id, item.session_state or SESSION_STATE_IDLE)
-        read_only = is_session_read_only(
-            state=state,
-            session_id=item.id,
-            session_state=session_state,
-            runtime_owner=item.runtime_owner,
-            runtime_owner_heartbeat_at=item.runtime_owner_heartbeat_at,
-        )
-        groups_by_work_dir.setdefault(item.work_dir, []).append(
-            {
-                "id": item.id,
-                "created_at": item.created_at,
-                "updated_at": item.updated_at,
-                "work_dir": item.work_dir,
-                "title": item.title,
-                "user_messages": item.user_messages,
-                "messages_count": item.messages_count,
-                "model_name": item.model_name,
-                "session_state": session_state,
-                "read_only": read_only,
-                "archived": item.archived,
-                "todos": item.todos,
-                "file_change_summary": item.file_change_summary,
-            }
-        )
-    groups = [{"work_dir": work_dir, "sessions": sessions} for work_dir, sessions in groups_by_work_dir.items()]
-    return {"groups": groups}
+    if state.session_live is None:
+        raise RuntimeError("session live state is not initialized")
+    state.session_live.index.reload()
+    return {"groups": state.session_live.list_groups()}
+
+
+@router.get("/stream")
+async def stream_sessions(request: Request, state: WebAppState = WEB_STATE_DEP) -> StreamingResponse:
+    if state.session_live is None:
+        raise RuntimeError("session live state is not initialized")
+
+    subscription = state.session_live.stream.subscribe()
+
+    async def _next_event(iterator: AsyncIterator[Any]) -> Any:
+        return await anext(iterator)
+
+    async def _iter() -> AsyncIterator[str]:
+        iterator = subscription.__aiter__()
+        next_event_task: asyncio.Task[Any] | None = None
+        try:
+            while True:
+                if next_event_task is None:
+                    next_event_task = asyncio.create_task(_next_event(iterator))
+                try:
+                    done, _ = await asyncio.wait({next_event_task}, timeout=10.0)
+                    if not done:
+                        if await request.is_disconnected():
+                            break
+                        yield ": keepalive\n\n"
+                        continue
+                    event = next_event_task.result()
+                except StopAsyncIteration:
+                    break
+                if await request.is_disconnected():
+                    break
+                next_event_task = None
+                yield format_sse_message(event)
+        finally:
+            if next_event_task is not None and not next_event_task.done():
+                next_event_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await next_event_task
+
+    return StreamingResponse(
+        _iter(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/running")
@@ -197,8 +221,8 @@ async def create_session(
                 "file_diffs": {},
             },
         }
-        meta_path.parent.mkdir(parents=True, exist_ok=True)
-        meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        if not store.create_meta_if_missing(session_id, meta):
+            raise HTTPException(status_code=500, detail="failed to create session metadata")
     return {"session_id": session_id}
 
 
@@ -236,6 +260,8 @@ async def delete_session(session_id: str, state: WebAppState = WEB_STATE_DEP) ->
     deleted = soft_delete_session(state.home_dir, session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="session not found")
+    if state.session_live is not None:
+        state.session_live.apply_deleted(session_id)
 
     with contextlib.suppress(Exception):
         _ = await state.runtime.close_session(session_id, force=True)
@@ -249,7 +275,9 @@ async def get_history(session_id: str, state: WebAppState = WEB_STATE_DEP) -> di
         raise HTTPException(status_code=404, detail="session not found")
 
     try:
-        session = Session.load(session_id, work_dir=work_dir)
+        runtime = state.runtime.session_registry.get_session_actor(session_id)
+        agent = runtime.get_agent() if runtime is not None else None
+        session = agent.session if agent is not None else Session.load(session_id, work_dir=work_dir)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"failed to load session history: {exc}") from exc
 

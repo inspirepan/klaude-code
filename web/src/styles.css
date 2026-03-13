@@ -72,7 +72,8 @@ body,
 }
 
 body {
-  background: #f5f5f5;
+  -webkit-font-smoothing: antialiased;
+  background: hsl(var(--muted));
   color: #171717;
 }
 
@@ -173,12 +174,18 @@ body {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background: #ffffff;
+  background: hsl(var(--background));
 }
 
 /* Thinking block: italic text */
 .thinking-block {
   font-style: italic;
+}
+.thinking-block code:not(pre code) {
+  background-color: hsl(var(--surface));
+  padding: 0.15em 0.4em;
+  border-radius: 0.25rem;
+  font-size: 0.95em;
 }
 
 /* ── Assistant markdown (Streamdown handles element styles) ── */
@@ -192,24 +199,24 @@ body {
 }
 /* Tailwind preflight resets many element styles; restore them for Streamdown */
 .assistant-text hr {
-  margin-top: 1.5em;
-  margin-bottom: 1.5em;
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
   border-top: 1px solid hsl(var(--border));
 }
 .assistant-text ul {
   list-style-type: disc;
   padding-left: 1.5em;
-  margin-top: 0.35em;
-  margin-bottom: 0.5em;
+  margin-top: 0.15em !important;
+  margin-bottom: 0.25em;
 }
 .assistant-text ol {
   list-style-type: decimal;
   padding-left: 1.5em;
-  margin-top: 0.35em;
-  margin-bottom: 0.5em;
+  margin-top: 0.15em !important;
+  margin-bottom: 0.25em;
 }
 .assistant-text li {
-  margin-bottom: 0.15em;
+  margin-bottom: 0.05em;
 }
 .assistant-text ul ul {
   list-style-type: circle;
@@ -223,37 +230,38 @@ body {
 .assistant-text h4,
 .assistant-text h5,
 .assistant-text h6 {
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
+  margin-top: 0.9em;
+  margin-bottom: 0.25em;
 }
 .assistant-text > :first-child {
   margin-top: 0;
 }
 .assistant-text p {
   margin-top: 0;
-  margin-bottom: 0.75em;
+  margin-bottom: 0.3em;
 }
 .assistant-text p:last-child {
   margin-bottom: 0;
 }
 .assistant-text blockquote {
-  margin-top: 0.75em;
-  margin-bottom: 0.75em;
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
   padding-left: 1em;
 }
 .assistant-text > pre {
-  margin-top: 0.75em;
-  margin-bottom: 0.75em;
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
 }
 /* Streamdown code block: single container look */
 .assistant-text [data-streamdown="code-block"] {
   position: relative;
   gap: 0;
   padding: 0;
-  margin-top: 1.25em;
-  margin-bottom: 1.25em;
-  background: hsl(var(--muted));
-  border-color: hsl(var(--border));
+  margin-top: 0.65em;
+  margin-bottom: 0.65em;
+  background: hsl(var(--surface));
+  border-color: hsl(var(--border) / 0.5);
+  border-radius: 0.375rem;
 }
 .assistant-text [data-streamdown="code-block-header"] {
   height: 2rem;
@@ -284,7 +292,7 @@ body {
 }
 .assistant-text [data-streamdown="code-block-body"] {
   border: none;
-  border-radius: 0 0 0.75rem 0.75rem;
+  border-radius: 0 0 0.375rem 0.375rem;
   padding: 0.5rem 1rem 0.75rem;
   overflow-x: auto;
   overflow-y: hidden;
@@ -293,8 +301,8 @@ body {
   margin: 0;
 }
 .assistant-text table {
-  margin-top: 0.75em;
-  margin-bottom: 0.75em;
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
 }
 /* Streamdown table: strip all wrapper chrome */
 .assistant-text [data-streamdown="table-wrapper"] {
@@ -314,14 +322,17 @@ body {
   background: none;
   padding: 0;
 }
+.assistant-text [data-streamdown="table-header"] {
+  background-color: transparent !important;
+}
 .assistant-text img {
   max-width: 100%;
 }
 .assistant-text code:not(pre code) {
-  background-color: hsl(var(--muted));
+  background-color: hsl(var(--surface));
   padding: 0.15em 0.4em;
   border-radius: 0.25rem;
-  font-size: 0.875em;
+  font-size: 0.95em;
 }
 
 /* ── Compaction summary markdown ── */
@@ -437,28 +448,29 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: 0 0% 98%;
     --foreground: 0 0% 3.9%;
+    --surface: 0 0% 96.1%;
     --card: 0 0% 100%;
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
     --primary: 0 0% 9%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
+    --secondary: 0 0% 89.8%;
     --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
+    --muted: 0 0% 89.8%;
     --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
+    --accent: 0 0% 89.8%;
     --accent-foreground: 0 0% 9%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
+    --border: 0 0% 83.1%;
+    --input: 0 0% 83.1%;
     --ring: 0 0% 3.9%;
-    --sidebar: 0 0% 98%;
+    --sidebar: 0 0% 96.1%;
     --sidebar-foreground: 0 0% 3.9%;
-    --sidebar-border: 0 0% 89.8%;
+    --sidebar-border: 0 0% 83.1%;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -472,6 +484,7 @@ body {
   .dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
+    --surface: 0 0% 7%;
     --card: 0 0% 3.9%;
     --card-foreground: 0 0% 98%;
     --popover: 0 0% 3.9%;

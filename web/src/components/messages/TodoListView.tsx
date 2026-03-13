@@ -2,11 +2,11 @@ import type { TodoListUIExtra } from "./message-ui-extra";
 
 const statusConfig = {
   pending: { mark: "\u25A2", markClass: "text-neutral-300", textClass: "text-neutral-500" },
-  in_progress: { mark: "\u25C9", markClass: "text-blue-500", textClass: "text-neutral-700" },
+  in_progress: { mark: "\u25C9", markClass: "text-blue-500", textClass: "text-blue-500" },
   completed: {
     mark: "\u2714",
     markClass: "text-emerald-500",
-    textClass: "text-neutral-400 line-through",
+    textClass: "text-neutral-500 line-through",
   },
 } as const;
 
@@ -20,7 +20,7 @@ export function TodoListView({ uiExtra }: TodoListViewProps): JSX.Element {
   const newCompletedSet = new Set(new_completed);
 
   return (
-    <div className="flex flex-col gap-0.5 py-1 text-sm">
+    <div className="flex w-fit flex-col gap-0.5 py-1 text-sm">
       {todos.map((todo, i) => {
         const isNewCompleted = todo.status === "completed" && newCompletedSet.has(todo.content);
         const config = statusConfig[todo.status];

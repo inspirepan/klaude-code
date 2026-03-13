@@ -9,19 +9,19 @@ provider_list:
 
   - model_name: sonnet
     model_id: claude-sonnet-4-6
-    context_limit: 200000
+    context_limit: 1000000
     thinking:
       type: adaptive
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: sonnet-no-thinking
     model_id: claude-sonnet-4-6
-    context_limit: 200000
+    context_limit: 1000000
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
     model_id: claude-opus-4-6
-    context_limit: 200000
+    context_limit: 1000000
     verbosity: high
     thinking:
       type: adaptive
@@ -147,7 +147,7 @@ provider_list:
 
   - model_name: sonnet
     model_id: anthropic.claude-sonnet-4-6
-    context_limit: 200000
+    context_limit: 1000000
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
 - provider_name: deepseek
@@ -295,7 +295,7 @@ provider_list:
 
   - model_name: sonnet
     model_id: claude-sonnet-4-6
-    context_limit: 200000
+    context_limit: 1000000
     thinking:
       type: adaptive
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
@@ -318,7 +318,7 @@ provider_list:
 
   - model_name: opus
     model_id: claude-opus-4-6
-    context_limit: 200000
+    context_limit: 1000000
     verbosity: high
     thinking:
       type: adaptive
@@ -432,7 +432,7 @@ provider_list:
 
   - model_name: sonnet
     model_id: anthropic/claude-sonnet-4.6
-    context_limit: 200000
+    context_limit: 1000000
     provider_routing:
       sort: throughput
     thinking:
@@ -441,14 +441,14 @@ provider_list:
 
   - model_name: sonnet-no-thinking
     model_id: anthropic/claude-sonnet-4.6
-    context_limit: 200000
+    context_limit: 1000000
     provider_routing:
       sort: throughput
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
     model_id: anthropic/claude-opus-4.6
-    context_limit: 200000
+    context_limit: 1000000
     verbosity: high
     thinking:
       type: adaptive
@@ -510,19 +510,19 @@ provider_list:
 
   - model_name: sonnet
     model_id: claude-sonnet-4-6
-    context_limit: 200000
+    context_limit: 1000000
     thinking:
       type: adaptive
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: sonnet-no-thinking
     model_id: claude-sonnet-4-6
-    context_limit: 200000
+    context_limit: 1000000
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
     model_id: claude-opus-4-6
-    context_limit: 200000
+    context_limit: 1000000
     verbosity: high
     thinking:
       type: adaptive

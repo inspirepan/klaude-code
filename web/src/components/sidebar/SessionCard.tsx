@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Archive, ArchiveRestore, CircleCheck, CirclePause, Loader, Lock } from "lucide-react";
+import { Archive, ArchiveRestore, CircleCheck, CirclePause, Loader } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { cn } from "@/lib/utils";
 import { SessionTitleText } from "@/components/SessionTitleText";
@@ -85,7 +85,7 @@ function getRuntimeIcon(
   if (showSuccessState) {
     return <CircleCheck className="status-success-settle h-3 w-3 shrink-0" />;
   }
-  return <CircleCheck className="h-3 w-3 shrink-0 text-neutral-400" />;
+  return <CircleCheck className="h-3 w-3 shrink-0 text-neutral-500" />;
 }
 
 function shortenFileRefs(text: string): string {
@@ -185,7 +185,7 @@ export function SessionCard({
                 : "status-success-card-settle"
               : active
                 ? "bg-neutral-200/60"
-                : "hover:bg-neutral-100/80",
+                : "hover:bg-muted/80",
           )}
           role="button"
           tabIndex={0}
@@ -209,7 +209,7 @@ export function SessionCard({
             removed={diffSummary.diff_lines_removed}
           />
           <span
-            className="shrink-0 whitespace-nowrap text-2xs leading-4 text-neutral-400"
+            className="shrink-0 whitespace-nowrap text-2xs leading-4 text-neutral-500"
             title={updatedAtDetailed}
           >
             {updatedAt}
@@ -252,7 +252,7 @@ export function SessionCard({
               : "status-success-card-settle"
             : active
               ? "bg-neutral-200/60"
-              : "hover:bg-neutral-100/80",
+              : "hover:bg-muted/80",
         )}
         role="button"
         tabIndex={0}
@@ -278,7 +278,7 @@ export function SessionCard({
         {/* Row 2: workspace (optional) */}
         {showWorkspace ? (
           <div
-            className="truncate pl-5 text-2xs leading-4 text-neutral-500"
+            className="truncate pl-5 text-xs leading-4 text-neutral-500"
             title={session.work_dir}
           >
             {workDirLabel(session.work_dir)}
@@ -287,7 +287,7 @@ export function SessionCard({
 
         {/* Row 3: time · diff · lock  |  archive button */}
         <div
-          className="grid items-center gap-x-2 pl-5 pr-0.5 text-2xs leading-4 text-neutral-400"
+          className="grid items-center gap-x-2 pl-5 pr-0.5 text-2xs leading-4 text-neutral-500"
           style={{ gridTemplateColumns: "max-content 3rem auto 1fr auto" }}
         >
           <span className="whitespace-nowrap" title={updatedAtDetailed}>
@@ -299,17 +299,7 @@ export function SessionCard({
               removed={diffSummary.diff_lines_removed}
             />
           </span>
-          <span>
-            {session.read_only ? (
-              <span
-                className="inline-flex items-center rounded-full bg-amber-50 p-0.5 text-amber-700"
-                title="Read-only"
-                aria-label="Read-only"
-              >
-                <Lock className="h-3 w-3" />
-              </span>
-            ) : null}
-          </span>
+          <span />
           <span />
           <Tooltip>
             <TooltipTrigger asChild>

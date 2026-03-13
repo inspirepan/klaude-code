@@ -1,6 +1,11 @@
 import { useLayoutEffect, useRef } from "react";
 
 import type { ToolBlockItem } from "../../types/message";
+import {
+  CollapseRailConnector,
+  COLLAPSE_RAIL_GRID_CLASS_NAME,
+  CollapseRailPanel,
+} from "./CollapseRail";
 import { HighlightText } from "./HighlightText";
 import { ToolRichResult } from "./ToolRichResult";
 
@@ -68,13 +73,13 @@ export function ToolBlockResult({
   }, [item.isStreaming, item.result, item.resultStatus, item.uiExtra, open]);
 
   return (
-    <div
-      ref={containerRef}
-      className="col-span-2 grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
-      style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
-    >
-      <div className="min-w-0 overflow-hidden">
-        <div className="mt-0.5 min-w-0 pl-6">
+    <CollapseRailPanel open={open} className="col-span-2">
+      <div
+        className={`mt-0.5 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}
+        ref={containerRef}
+      >
+        <CollapseRailConnector />
+        <div className="min-w-0">
           {hasRich ? (
             <div
               onClick={(event) => {
@@ -89,12 +94,39 @@ export function ToolBlockResult({
                 event.stopPropagation();
               }}
             >
-              <div className={`mt-0.5 ${subTextClass} font-mono leading-relaxed text-neutral-400`}>
-                {streamingContent.split("\n").map((line, index) => (
-                  <div key={index} className={resultLineClass}>
-                    {line || " "}
-                  </div>
-                ))}
+              <div className={`mt-0.5 ${subTextClass} font-mono leading-relaxed text-neutral-500`}>
+                {(() => {
+                  const lines = streamingContent.split("\n");
+                  if (lines.length > RESULT_LINE_LIMIT * 2) {
+                    const headLines = lines.slice(0, RESULT_LINE_LIMIT);
+                    const tailLines = lines.slice(-RESULT_LINE_LIMIT);
+                    const hiddenCount = lines.length - RESULT_LINE_LIMIT * 2;
+                    return (
+                      <>
+                        {headLines.map((line, index) => (
+                          <div key={index} className={resultLineClass}>
+                            {line || " "}
+                          </div>
+                        ))}
+                        <div
+                          className={`my-0.5 ${miniTextClass} cursor-default font-sans text-neutral-400`}
+                        >
+                          {`··· ${hiddenCount} lines hidden ···`}
+                        </div>
+                        {tailLines.map((line, index) => (
+                          <div key={`tail-${index}`} className={resultLineClass}>
+                            {line || " "}
+                          </div>
+                        ))}
+                      </>
+                    );
+                  }
+                  return lines.map((line, index) => (
+                    <div key={index} className={resultLineClass}>
+                      {line || " "}
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
           ) : hasResult ? (
@@ -110,7 +142,7 @@ export function ToolBlockResult({
                 return (
                   <>
                     <div
-                      className={`mt-0.5 ${subTextClass} font-mono leading-relaxed ${isError ? "text-red-700" : "text-neutral-400"}`}
+                      className={`mt-0.5 ${subTextClass} font-mono leading-relaxed ${isError ? "text-red-700" : "text-neutral-500"}`}
                     >
                       {displayedLines.map((line, index) => (
                         <div key={index} className={resultLineClass}>
@@ -122,7 +154,7 @@ export function ToolBlockResult({
                       <button
                         type="button"
                         onClick={onToggleShowMore}
-                        className={`mt-0.5 ${miniTextClass} cursor-pointer font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
+                        className={`mt-0.5 ${miniTextClass} cursor-pointer font-sans text-neutral-500 transition-colors hover:text-neutral-700`}
                       >
                         {showMore
                           ? "Show less"
@@ -134,10 +166,10 @@ export function ToolBlockResult({
               })()}
             </div>
           ) : isEmptyResult ? (
-            <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-400`}>(no content)</div>
+            <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-500`}>(no content)</div>
           ) : null}
         </div>
       </div>
-    </div>
+    </CollapseRailPanel>
   );
 }

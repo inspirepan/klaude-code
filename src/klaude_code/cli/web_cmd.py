@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 
 import typer
 
-from klaude_code.log import log
+from klaude_code.log import DebugType, log, log_debug
 
 
 def register_web_commands(app: typer.Typer) -> None:
@@ -29,6 +30,18 @@ def register_web_commands(app: typer.Typer) -> None:
             raise
 
         try:
+            log_debug(
+                f"[web/cmd] asyncio.run start threads={[thread.name for thread in threading.enumerate()]}",
+                debug_type=DebugType.EXECUTION,
+            )
             asyncio.run(start_web_server(host=host, port=port, no_open=no_open, debug=debug))
+            log_debug(
+                f"[web/cmd] asyncio.run returned threads={[thread.name for thread in threading.enumerate()]}",
+                debug_type=DebugType.EXECUTION,
+            )
         except KeyboardInterrupt:
+            log_debug(
+                f"[web/cmd] KeyboardInterrupt exit threads={[thread.name for thread in threading.enumerate()]}",
+                debug_type=DebugType.EXECUTION,
+            )
             raise typer.Exit(130) from None

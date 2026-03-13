@@ -13,6 +13,7 @@ import anyio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, ValidationError
 
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, llm_param, message, model, op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
 from klaude_code.session.session import Session, get_store_for_path
@@ -253,6 +254,24 @@ async def _forward_events(session_id: str, websocket: WebSocket) -> None:
         return
 
 
+async def _forward_session_list_events(websocket: WebSocket) -> None:
+    state = get_web_state_from_ws(websocket)
+    if state.session_live is None:
+        return
+    subscription = state.session_live.stream.subscribe()
+    try:
+        async for event in subscription:
+            await websocket.send_json(
+                {
+                    "type": event.type,
+                    "session_id": event.session_id,
+                    "session": event.session,
+                }
+            )
+    except (WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError, asyncio.CancelledError, FutureCancelledError):
+        return
+
+
 async def _receive_commands(
     session_id: str,
     websocket: WebSocket,
@@ -361,11 +380,25 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
         send_task = asyncio.create_task(_forward_events(session_id, websocket))
         recv_task = asyncio.create_task(_receive_commands(session_id, websocket, is_holder=is_holder))
         done, pending = await asyncio.wait({send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED)
+        log_debug(
+            f"[web/ws:{session_id[:8]}] first task completed done={len(done)} pending={len(pending)}",
+            debug_type=DebugType.EXECUTION,
+        )
 
         if pending:
             for task in pending:
                 task.cancel()
-            _ = await asyncio.gather(*pending, return_exceptions=True)
+            try:
+                _ = await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=2.0)
+                log_debug(
+                    f"[web/ws:{session_id[:8]}] pending peer task cleanup finished",
+                    debug_type=DebugType.EXECUTION,
+                )
+            except TimeoutError:
+                log_debug(
+                    f"[web/ws:{session_id[:8]}] pending peer task cleanup timed out",
+                    debug_type=DebugType.EXECUTION,
+                )
 
         for task in done:
             with contextlib.suppress(asyncio.CancelledError, FutureCancelledError):
@@ -378,11 +411,19 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
     except (WebSocketDisconnect, asyncio.CancelledError, FutureCancelledError):
         return
     finally:
+        log_debug(f"[web/ws:{session_id[:8]}] finally start", debug_type=DebugType.EXECUTION)
+        with contextlib.suppress(Exception):
+            log_debug(f"[web/ws:{session_id[:8]}] closing websocket", debug_type=DebugType.EXECUTION)
+            await websocket.close()
+            log_debug(f"[web/ws:{session_id[:8]}] websocket closed", debug_type=DebugType.EXECUTION)
+
         # Release holder on disconnect (starts grace period).
         if is_holder and holder_key is not None:
             state = get_web_state_from_ws(websocket)
             with contextlib.suppress(Exception):
+                log_debug(f"[web/ws:{session_id[:8]}] releasing holder", debug_type=DebugType.EXECUTION)
                 await state.runtime.release_holder(session_id, holder_key)
+                log_debug(f"[web/ws:{session_id[:8]}] holder released", debug_type=DebugType.EXECUTION)
 
             with contextlib.suppress(Exception):
                 registry = cast(Any, state.runtime.session_registry)
@@ -412,4 +453,27 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
         for task in tasks_to_cancel:
             task.cancel()
         if tasks_to_cancel:
-            _ = await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+            try:
+                _ = await asyncio.wait_for(asyncio.gather(*tasks_to_cancel, return_exceptions=True), timeout=2.0)
+                log_debug(
+                    f"[web/ws:{session_id[:8]}] final task cleanup finished count={len(tasks_to_cancel)}",
+                    debug_type=DebugType.EXECUTION,
+                )
+            except TimeoutError:
+                log_debug(
+                    f"[web/ws:{session_id[:8]}] final task cleanup timed out count={len(tasks_to_cancel)}",
+                    debug_type=DebugType.EXECUTION,
+                )
+        log_debug(f"[web/ws:{session_id[:8]}] finally done", debug_type=DebugType.EXECUTION)
+
+
+@router.websocket("/api/sessions/ws")
+async def session_list_websocket(websocket: WebSocket) -> None:
+    try:
+        await websocket.accept()
+        await _forward_session_list_events(websocket)
+    except (WebSocketDisconnect, asyncio.CancelledError, FutureCancelledError):
+        return
+    finally:
+        with contextlib.suppress(Exception):
+            await websocket.close()

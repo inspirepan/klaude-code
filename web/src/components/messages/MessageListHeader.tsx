@@ -26,13 +26,13 @@ export function MessageListHeader({
   onExpandAll,
 }: MessageListHeaderProps): JSX.Element {
   return (
-    <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-white/75 px-4 py-2 backdrop-blur sm:px-6">
+    <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-[#f9f9f8]/80 px-4 py-2 backdrop-blur sm:px-6">
       {!sidebarOpen ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
-              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
               onClick={() => {
                 setSidebarOpen(true);
               }}
@@ -65,7 +65,7 @@ export function MessageListHeader({
             primaryClassName="font-semibold"
           />
           {sessionReadOnly ? (
-            <span className="group/readonly relative inline-flex shrink-0 cursor-help items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-2xs font-medium text-amber-700">
+            <span className="group/readonly relative inline-flex shrink-0 cursor-help items-center gap-1 self-center rounded-full bg-amber-50 px-2 py-0.5 text-2xs font-medium text-amber-700">
               <Lock className="h-3 w-3" />
               <span>Read-only</span>
               <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden w-max max-w-[30rem] -translate-x-1/2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-2xs leading-4 text-amber-800 shadow-sm group-hover/readonly:block">
@@ -76,7 +76,7 @@ export function MessageListHeader({
           ) : null}
           {workspacePath ? (
             <span
-              className="truncate font-sans text-sm leading-5 text-neutral-400"
+              className="truncate font-sans text-sm leading-5 text-neutral-500"
               title={workspacePath}
             >
               {workspacePath}
@@ -88,7 +88,7 @@ export function MessageListHeader({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
             onClick={onCollapseAll}
             aria-label="Collapse all"
           >
@@ -116,7 +116,7 @@ export function MessageListHeader({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
             onClick={onExpandAll}
             aria-label="Expand all"
           >
@@ -144,7 +144,7 @@ export function MessageListHeader({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
             onClick={onSearchOpen}
             aria-label="Search messages"
           >

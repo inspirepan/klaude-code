@@ -77,7 +77,7 @@ export function SubAgentGroupCard({
 
   return (
     <div className="group/subagent flex min-w-0 gap-4">
-      <div className="min-w-0 flex-1 rounded-2xl border border-neutral-200/80 bg-white shadow-sm shadow-neutral-200/40">
+      <div className="min-w-0 flex-1 rounded-2xl border border-neutral-200/80 bg-surface/50 shadow-sm shadow-neutral-200/40">
         <button
           type="button"
           onClick={onToggleCollapsed}

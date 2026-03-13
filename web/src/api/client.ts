@@ -164,11 +164,13 @@ export async function searchFileCompletions({
   signal,
 }: SearchFileCompletionsOptions): Promise<string[]> {
   const params = new URLSearchParams({ query, limit: "10" });
-  if ((sessionId ?? "").trim().length > 0) {
-    params.set("session_id", sessionId);
+  const trimmedSessionId = sessionId?.trim();
+  if (trimmedSessionId) {
+    params.set("session_id", trimmedSessionId);
   }
-  if ((workDir ?? "").trim().length > 0) {
-    params.set("work_dir", workDir);
+  const trimmedWorkDir = workDir?.trim();
+  if (trimmedWorkDir) {
+    params.set("work_dir", trimmedWorkDir);
   }
   const result = await requestJson<SearchFilesResponse>(`/api/files/search?${params.toString()}`, {
     signal,
