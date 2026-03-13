@@ -77,6 +77,9 @@ class SessionEventStream:
         self._subscribers[subscriber.subscriber_id] = subscriber
         return SessionStreamSubscription(stream=self, subscriber=subscriber)
 
+    def subscriber_count(self) -> int:
+        return len(self._subscribers)
+
     def detach(self, subscriber_id: str) -> None:
         subscriber = self._subscribers.pop(subscriber_id, None)
         if subscriber is None:
@@ -217,4 +220,4 @@ def format_sse_message(event: SessionStreamEvent) -> str:
         "session_id": event.session_id,
         "session": event.session,
     }
-    return f"data: {json.dumps(payload, ensure_ascii=False)}\\n\\n"
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"

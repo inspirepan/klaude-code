@@ -96,21 +96,35 @@ async def stream_sessions(request: Request, state: WebAppState = WEB_STATE_DEP) 
 
     subscription = state.session_live.stream.subscribe()
 
+    async def _next_event(iterator: AsyncIterator[Any]) -> Any:
+        return await anext(iterator)
+
     async def _iter() -> AsyncIterator[str]:
         iterator = subscription.__aiter__()
-        while True:
-            try:
-                event = await asyncio.wait_for(anext(iterator), timeout=10.0)
-            except StopAsyncIteration:
-                break
-            except TimeoutError:
+        next_event_task: asyncio.Task[Any] | None = None
+        try:
+            while True:
+                if next_event_task is None:
+                    next_event_task = asyncio.create_task(_next_event(iterator))
+                try:
+                    done, _ = await asyncio.wait({next_event_task}, timeout=10.0)
+                    if not done:
+                        if await request.is_disconnected():
+                            break
+                        yield ": keepalive\n\n"
+                        continue
+                    event = next_event_task.result()
+                except StopAsyncIteration:
+                    break
                 if await request.is_disconnected():
                     break
-                yield ": keepalive\n\n"
-                continue
-            if await request.is_disconnected():
-                break
-            yield format_sse_message(event)
+                next_event_task = None
+                yield format_sse_message(event)
+        finally:
+            if next_event_task is not None and not next_event_task.done():
+                next_event_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await next_event_task
 
     return StreamingResponse(
         _iter(),

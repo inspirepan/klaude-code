@@ -13,6 +13,11 @@ from fastapi.staticfiles import StaticFiles
 
 from klaude_code.core.control.event_bus import EnvelopeBus, EventBus
 from klaude_code.core.control.runtime_facade import RuntimeFacade
+from klaude_code.core.control.session_meta_relay import (
+    SessionMetaRelayMessage,
+    SessionMetaRelayServer,
+    session_meta_relay_socket_path,
+)
 from klaude_code.session.store import register_session_meta_observer
 from klaude_code.web.interaction import WebInteractionHandler
 from klaude_code.web.routes import config_router, files_router, sessions_router, ws_router
@@ -47,6 +52,7 @@ def create_app(
     @asynccontextmanager
     async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         unregister_meta_observer: Callable[[], None] | None = None
+        session_meta_relay_server: SessionMetaRelayServer | None = None
         if state_initializer is not None:
             app.state.web_state = await state_initializer()
         state = get_web_state_from_app(app)
@@ -58,9 +64,15 @@ def create_app(
             raise RuntimeError("session live state is not initialized")
         session_live.attach_loop(asyncio.get_running_loop())
         unregister_meta_observer = register_session_meta_observer(session_live.apply_meta_update)
+        session_meta_relay_server = SessionMetaRelayServer(
+            socket_path=session_meta_relay_socket_path(home_dir=state.home_dir),
+            on_message=lambda message: _apply_session_meta_message(session_live, message),
+        )
+        await session_meta_relay_server.start()
         try:
             yield
         finally:
+            await session_meta_relay_server.aclose()
             if unregister_meta_observer is not None:
                 unregister_meta_observer()
             if state_initializer is not None and state_shutdown is not None:
@@ -114,3 +126,12 @@ def create_app(
             )
 
     return app
+
+
+def _apply_session_meta_message(session_live: SessionLiveState, message: SessionMetaRelayMessage) -> None:
+    if message.kind == "delete":
+        session_live.apply_deleted(message.session_id)
+        return
+    if message.meta is None:
+        return
+    session_live.apply_meta_update(message.session_id, message.meta)

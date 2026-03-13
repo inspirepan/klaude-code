@@ -10,8 +10,10 @@ import {
   type RunningSessionState,
 } from "../api/client";
 import {
+  connectSessionListWs,
   connectSessionWs,
   type SessionWsConnection,
+  type SessionListWsEvent,
   type WsErrorFrame,
   type WsEventEnvelope,
 } from "../api/ws";
@@ -70,14 +72,9 @@ interface ActiveConnection {
   connection: SessionWsConnection;
 }
 
-interface SessionStreamEvent {
-  type: "session.upsert" | "session.deleted";
-  session_id: string;
-  session?: SessionSummary | null;
-}
-
 let activeConnection: ActiveConnection | null = null;
-let sessionStream: EventSource | null = null;
+let sessionStream: SessionWsConnection | null = null;
+let sessionStreamReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingMessageEvents: MessageStoreEvent[] = [];
 let pendingMessageEventsFrame = 0;
 
@@ -258,42 +255,45 @@ function applySessionUpsert(
   return patch;
 }
 
+function handleSessionListEvent(payload: SessionListWsEvent, set: SetState): void {
+  if (payload.type === "session.deleted") {
+    set((state) => ({
+      groups: deleteSessionFromGroups(state.groups, payload.session_id),
+      runtimeBySessionId: Object.fromEntries(
+        Object.entries(state.runtimeBySessionId).filter(
+          ([sessionId]) => sessionId !== payload.session_id,
+        ),
+      ),
+    }));
+    return;
+  }
+
+  if (payload.session === undefined || payload.session === null) {
+    return;
+  }
+
+  set((state) => applySessionUpsert(state, payload.session as SessionSummary));
+}
+
 function connectSessionStream(set: SetState): void {
   if (sessionStream !== null) {
     return;
   }
-  const source = new EventSource("/api/sessions/stream");
-  source.onmessage = (event) => {
-    let payload: SessionStreamEvent;
-    try {
-      payload = JSON.parse(event.data) as SessionStreamEvent;
-    } catch {
-      return;
-    }
-
-    if (payload.type === "session.deleted") {
-      set((state) => ({
-        groups: deleteSessionFromGroups(state.groups, payload.session_id),
-        runtimeBySessionId: Object.fromEntries(
-          Object.entries(state.runtimeBySessionId).filter(
-            ([sessionId]) => sessionId !== payload.session_id,
-          ),
-        ),
-      }));
-      return;
-    }
-
-    if (
-      payload.type !== "session.upsert" ||
-      payload.session === undefined ||
-      payload.session === null
-    ) {
-      return;
-    }
-
-    set((state) => applySessionUpsert(state, payload.session));
-  };
-  sessionStream = source;
+  sessionStream = connectSessionListWs({
+    onEvent: (payload) => {
+      handleSessionListEvent(payload, set);
+    },
+    onClose: () => {
+      sessionStream = null;
+      if (sessionStreamReconnectTimer !== null) {
+        return;
+      }
+      sessionStreamReconnectTimer = window.setTimeout(() => {
+        sessionStreamReconnectTimer = null;
+        connectSessionStream(set);
+      }, 1000);
+    },
+  });
 }
 
 function pushSessionUrl(sessionId: ActiveSessionId): void {

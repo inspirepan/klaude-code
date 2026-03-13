@@ -253,6 +253,24 @@ async def _forward_events(session_id: str, websocket: WebSocket) -> None:
         return
 
 
+async def _forward_session_list_events(websocket: WebSocket) -> None:
+    state = get_web_state_from_ws(websocket)
+    if state.session_live is None:
+        return
+    subscription = state.session_live.stream.subscribe()
+    try:
+        async for event in subscription:
+            await websocket.send_json(
+                {
+                    "type": event.type,
+                    "session_id": event.session_id,
+                    "session": event.session,
+                }
+            )
+    except (WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError, asyncio.CancelledError, FutureCancelledError):
+        return
+
+
 async def _receive_commands(
     session_id: str,
     websocket: WebSocket,
@@ -413,3 +431,15 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             task.cancel()
         if tasks_to_cancel:
             _ = await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+
+
+@router.websocket("/api/sessions/ws")
+async def session_list_websocket(websocket: WebSocket) -> None:
+    try:
+        await websocket.accept()
+        await _forward_session_list_events(websocket)
+    except (WebSocketDisconnect, asyncio.CancelledError, FutureCancelledError):
+        return
+    finally:
+        with contextlib.suppress(Exception):
+            await websocket.close()
