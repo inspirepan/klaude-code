@@ -53,8 +53,6 @@ export function SubAgentGroupCard({
   setItemRef,
 }: SubAgentGroupCardProps): JSX.Element {
   const toolItems = items.filter(isToolBlock);
-  const previewTools = toolItems.slice(-3);
-  const moreToolsCount = Math.max(0, toolItems.length - previewTools.length);
   const activityText = getSessionActivityText(status);
   const summaryParts = getSessionSummaryParts(status, nowSeconds);
   const metaRows = getSessionMetaRows(status, nowSeconds);
@@ -108,8 +106,6 @@ export function SubAgentGroupCard({
           <SubAgentCollapsedPreview
             isFinished={isFinished}
             toolItems={toolItems}
-            previewTools={previewTools}
-            moreToolsCount={moreToolsCount}
             resultPreview={resultPreview}
             streamingPreview={streamingPreview}
           />
