@@ -21,7 +21,13 @@ from klaude_code.web.state import WebAppState
 from .conftest import FakeLLMClient, collect_events_until, consume_ws_handshake, usage
 
 
-def _write_foreign_running_session(*, work_dir: Path, session_id: str) -> None:
+def _write_foreign_session(
+    *,
+    work_dir: Path,
+    session_id: str,
+    session_state: str,
+    runtime_kind: str = "tui",
+) -> None:
     store = get_store_for_path(work_dir)
     meta_path = store.paths.meta_file(session_id)
     meta_path.parent.mkdir(parents=True, exist_ok=True)
@@ -37,10 +43,10 @@ def _write_foreign_running_session(*, work_dir: Path, session_id: str) -> None:
                 "user_messages": [],
                 "messages_count": 0,
                 "model_name": None,
-                "session_state": "running",
+                "session_state": session_state,
                 "runtime_owner": {
                     "runtime_id": "foreign-runtime",
-                    "runtime_kind": "tui",
+                    "runtime_kind": runtime_kind,
                     "pid": 99999,
                 },
                 "runtime_owner_heartbeat_at": time.time(),
@@ -116,7 +122,7 @@ def test_websocket_rejects_commands_for_foreign_running_session(
 ) -> None:
     client, runtime, work_dir, _fake_llm = readonly_env
     session_id = "f" * 32
-    _write_foreign_running_session(work_dir=work_dir, session_id=session_id)
+    _write_foreign_session(work_dir=work_dir, session_id=session_id, session_state="running")
 
     with client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
@@ -134,7 +140,7 @@ def test_rest_message_rejects_foreign_running_session(
 ) -> None:
     client, _runtime, work_dir, _fake_llm = readonly_env
     session_id = "e" * 32
-    _write_foreign_running_session(work_dir=work_dir, session_id=session_id)
+    _write_foreign_session(work_dir=work_dir, session_id=session_id, session_state="running")
 
     response = client.post(f"/api/sessions/{session_id}/message", json={"text": "hello"})
     assert response.status_code == 409
@@ -146,7 +152,7 @@ def test_stale_owner_allows_web_takeover(
 ) -> None:
     client, runtime, work_dir, fake_llm = readonly_env
     session_id = "d" * 32
-    _write_foreign_running_session(work_dir=work_dir, session_id=session_id)
+    _write_foreign_session(work_dir=work_dir, session_id=session_id, session_state="running")
 
     meta_path = get_store_for_path(work_dir).paths.meta_file(session_id)
     raw = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -169,3 +175,50 @@ def test_stale_owner_allows_web_takeover(
         assert not any(event.get("type") == "error" for event in events)
 
     assert runtime.session_registry.has_session_actor(session_id) is True
+
+
+def test_foreign_idle_tui_session_stays_read_only(
+    readonly_env: tuple[TestClient, RuntimeFacade, Path, FakeLLMClient],
+) -> None:
+    client, _runtime, work_dir, _fake_llm = readonly_env
+    session_id = "c" * 32
+    _write_foreign_session(work_dir=work_dir, session_id=session_id, session_state="idle", runtime_kind="tui")
+
+    list_response = client.get("/api/sessions")
+    assert list_response.status_code == 200
+    listed_session = next(
+        session
+        for group in list_response.json()["groups"]
+        for session in group["sessions"]
+        if session["id"] == session_id
+    )
+    assert listed_session["read_only"] is True
+
+    response = client.post(f"/api/sessions/{session_id}/message", json={"text": "hello"})
+    assert response.status_code == 409
+    assert "read-only" in response.text
+
+    with client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
+        consume_ws_handshake(websocket)
+        websocket.send_json({"type": "message", "text": "hello"})
+        error = websocket.receive_json()
+        assert error["type"] == "error"
+        assert error["code"] == "session_read_only"
+
+
+def test_foreign_idle_web_session_is_not_read_only(
+    readonly_env: tuple[TestClient, RuntimeFacade, Path, FakeLLMClient],
+) -> None:
+    client, _runtime, work_dir, _fake_llm = readonly_env
+    session_id = "b" * 32
+    _write_foreign_session(work_dir=work_dir, session_id=session_id, session_state="idle", runtime_kind="web")
+
+    list_response = client.get("/api/sessions")
+    assert list_response.status_code == 200
+    listed_session = next(
+        session
+        for group in list_response.json()["groups"]
+        for session in group["sessions"]
+        if session["id"] == session_id
+    )
+    assert listed_session["read_only"] is False

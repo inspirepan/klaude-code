@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
-import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,15 +11,8 @@ from uuid import uuid4
 
 from klaude_code.core.control.runtime_facade import RuntimeFacade
 from klaude_code.protocol import model
+from klaude_code.web.session_access import is_session_read_only_for_runtime
 from klaude_code.web.session_index import SessionIndex, SessionSummary
-
-OWNER_HEARTBEAT_TIMEOUT_SECONDS = 15.0
-
-
-def _is_runtime_owner_stale(heartbeat_at: float | None) -> bool:
-    if heartbeat_at is None:
-        return True
-    return (time.time() - heartbeat_at) > OWNER_HEARTBEAT_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True)
@@ -203,15 +195,13 @@ class SessionLiveState:
         summary: SessionSummary,
         session_state: Literal["idle", "running", "waiting_user_input"],
     ) -> bool:
-        if self._runtime.session_registry.has_session_actor(summary.id):
-            return False
-        if session_state not in ("running", "waiting_user_input"):
-            return False
-        if summary.runtime_owner is None:
-            return False
-        if _is_runtime_owner_stale(summary.runtime_owner_heartbeat_at):
-            return False
-        return summary.runtime_owner.runtime_id != self._runtime.runtime_id
+        return is_session_read_only_for_runtime(
+            current_runtime_id=self._runtime.runtime_id,
+            current_runtime_has_actor=self._runtime.session_registry.has_session_actor(summary.id),
+            session_state=session_state,
+            runtime_owner=summary.runtime_owner,
+            runtime_owner_heartbeat_at=summary.runtime_owner_heartbeat_at,
+        )
 
 
 def format_sse_message(event: SessionStreamEvent) -> str:

@@ -219,7 +219,13 @@ class RuntimeFacade:
         await asyncio.to_thread(Session.persist_runtime_owner, session_id, self._session_owner(), work_dir)
 
     async def _sync_session_state_from_snapshot(self, session_id: str) -> None:
-        await self._persist_session_state(session_id, self._derive_session_state_from_snapshot(session_id))
+        session_state = self._derive_session_state_from_snapshot(session_id)
+        if session_state == model.SessionRuntimeState.IDLE:
+            runtime = self.session_registry.get_session_actor(session_id)
+            agent = runtime.get_agent() if runtime is not None else None
+            if agent is not None:
+                await agent.session.wait_for_flush()
+        await self._persist_session_state(session_id, session_state)
 
     def _respond_user_interaction(
         self,

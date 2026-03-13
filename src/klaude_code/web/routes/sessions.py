@@ -275,7 +275,9 @@ async def get_history(session_id: str, state: WebAppState = WEB_STATE_DEP) -> di
         raise HTTPException(status_code=404, detail="session not found")
 
     try:
-        session = Session.load(session_id, work_dir=work_dir)
+        runtime = state.runtime.session_registry.get_session_actor(session_id)
+        agent = runtime.get_agent() if runtime is not None else None
+        session = agent.session if agent is not None else Session.load(session_id, work_dir=work_dir)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"failed to load session history: {exc}") from exc
 
