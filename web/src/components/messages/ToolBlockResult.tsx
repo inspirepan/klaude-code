@@ -1,6 +1,11 @@
 import { useLayoutEffect, useRef } from "react";
 
 import type { ToolBlockItem } from "../../types/message";
+import {
+  CollapseRailConnector,
+  COLLAPSE_RAIL_GRID_CLASS_NAME,
+  CollapseRailPanel,
+} from "./CollapseRail";
 import { HighlightText } from "./HighlightText";
 import { ToolRichResult } from "./ToolRichResult";
 
@@ -68,13 +73,13 @@ export function ToolBlockResult({
   }, [item.isStreaming, item.result, item.resultStatus, item.uiExtra, open]);
 
   return (
-    <div
-      ref={containerRef}
-      className="col-span-2 grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
-      style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
-    >
-      <div className="min-w-0 overflow-hidden">
-        <div className="mt-0.5 min-w-0 pl-6">
+    <CollapseRailPanel open={open} className="col-span-2">
+      <div
+        className={`mt-0.5 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}
+        ref={containerRef}
+      >
+        <CollapseRailConnector />
+        <div className="min-w-0">
           {hasRich ? (
             <div
               onClick={(event) => {
@@ -165,6 +170,6 @@ export function ToolBlockResult({
           ) : null}
         </div>
       </div>
-    </div>
+    </CollapseRailPanel>
   );
 }

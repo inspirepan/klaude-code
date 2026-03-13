@@ -1,5 +1,6 @@
 import { Loader } from "lucide-react";
 import type { ToolBlockItem } from "../../types/message";
+import { CollapseRailMarker } from "./CollapseRail";
 import { FilePath } from "./FilePath";
 import { HighlightText } from "./HighlightText";
 
@@ -30,12 +31,7 @@ export function ToolBlockHeader({
 
   return (
     <>
-      {/* Col 1: toggle indicator */}
-      <div className="flex flex-col items-center">
-        <span className="mt-0.5 font-mono text-xs text-neutral-500">
-          {expandable ? (open ? "[-]" : "[+]") : "[·]"}
-        </span>
-      </div>
+      <CollapseRailMarker open={open} expandable={expandable} />
 
       {/* Col 2: tool name + detail */}
       <div className="flex min-w-0 items-start gap-1.5">

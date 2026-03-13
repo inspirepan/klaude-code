@@ -7,6 +7,12 @@ import type {
   TodoReminderUIItem,
 } from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
+import {
+  CollapseRailConnector,
+  COLLAPSE_RAIL_GRID_CLASS_NAME,
+  CollapseRailMarker,
+  CollapseRailPanel,
+} from "./CollapseRail";
 import { FilePath } from "./FilePath";
 
 interface DeveloperMessageProps {
@@ -123,43 +129,25 @@ function CollapsibleRow({
 
   return (
     <div
-      className={`grid grid-cols-[auto_1fr] items-start gap-x-1.5 font-mono text-sm leading-5 ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} font-mono text-sm leading-5 ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
-      <div className="flex items-start gap-1.5 self-stretch">
-        <div className="flex flex-col items-center self-stretch">
-          <span
-            className={`mt-0.5 font-mono text-xs text-neutral-500 ${!expandable ? "opacity-0" : ""}`}
-          >
-            {open ? "[-]" : "[+]"}
-          </span>
-          {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
-        </div>
-        <span
-          className={`whitespace-nowrap font-mono font-normal text-neutral-500 ${labelClassName ?? ""}`}
-        >
-          {label}
-        </span>
-      </div>
-
-      <div className="min-w-0" />
+      <CollapseRailMarker open={open} expandable={expandable} inactiveMode="hidden" />
+      <span
+        className={`min-w-0 whitespace-nowrap font-mono font-normal text-neutral-500 ${labelClassName ?? ""}`}
+      >
+        {label}
+      </span>
 
       {expandable ? (
-        <div
-          className="col-span-2 grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
-          style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
-        >
-          <div className="overflow-hidden">
-            <div className="mt-1 grid min-w-0 grid-cols-[16px_1fr] gap-x-1.5">
-              <div className="flex justify-center">
-                <div className="w-px bg-neutral-200" />
-              </div>
-              <div className="min-w-0 pb-1.5" onClick={(e) => e.stopPropagation()}>
-                {children}
-              </div>
+        <CollapseRailPanel open={open} className="col-span-2">
+          <div className={`mt-1 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
+            <CollapseRailConnector />
+            <div className="min-w-0 pb-1.5" onClick={(e) => e.stopPropagation()}>
+              {children}
             </div>
           </div>
-        </div>
+        </CollapseRailPanel>
       ) : null}
     </div>
   );

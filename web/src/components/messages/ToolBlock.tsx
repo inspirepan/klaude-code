@@ -2,6 +2,7 @@ import { Loader } from "lucide-react";
 import { useState, useMemo, useRef, useEffect } from "react";
 
 import type { ToolBlockItem } from "../../types/message";
+import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
 import { useCollapseAll } from "./collapse-all-context";
 import { useSearch } from "./search-context";
 import { TodoListView } from "./TodoListView";
@@ -88,7 +89,7 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2 text-sm">
+    <div className="w-fit rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2 text-sm">
       {explanation ? (
         <p className="mb-1 font-sans text-sm text-neutral-500">{explanation}</p>
       ) : null}
@@ -193,7 +194,7 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
 
   return (
     <div
-      className={`-my-1 grid grid-cols-[auto_1fr] items-start gap-x-1.5 ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`-my-1 grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
       <ToolBlockHeader
