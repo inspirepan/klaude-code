@@ -1,15 +1,19 @@
 import { useEffect, useRef } from "react";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Square } from "lucide-react";
 
 import type { ConfigModelSummary } from "../../api/client";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ModelSelector } from "./ModelSelector";
 
 interface ComposerCardProps {
   text: string;
   onTextChange: (text: string) => void;
   onSubmit: () => void;
+  onInterrupt?: () => void;
   submitting: boolean;
   disableSubmit: boolean;
+  interruptible?: boolean;
+  disableInterrupt?: boolean;
   placeholder?: string;
   modelOptions: ConfigModelSummary[];
   modelValue: string;
@@ -26,8 +30,11 @@ export function ComposerCard({
   text,
   onTextChange,
   onSubmit,
+  onInterrupt,
   submitting,
   disableSubmit,
+  interruptible = false,
+  disableInterrupt = false,
   placeholder = "Send a message...",
   modelOptions,
   modelValue,
@@ -40,6 +47,8 @@ export function ComposerCard({
 }: ComposerCardProps): JSX.Element {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const ref = externalRef ?? internalRef;
+  const buttonDisabled = interruptible ? disableInterrupt : disableSubmit;
+  const buttonLabel = interruptible ? "Interrupt" : submitting ? "Sending" : "Send";
 
   useEffect(() => {
     const textarea = ref.current;
@@ -93,15 +102,39 @@ export function ComposerCard({
           onSelect={onModelSelect}
           dropUp={modelDropUp}
         />
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={disableSubmit}
-          aria-label={submitting ? "Sending" : "Send"}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-800 text-white transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
-        >
-          <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={interruptible ? onInterrupt : onSubmit}
+              disabled={buttonDisabled}
+              aria-label={buttonLabel}
+              className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white transition-colors disabled:cursor-not-allowed ${
+                interruptible
+                  ? "bg-amber-600 hover:bg-amber-500 disabled:bg-amber-200 disabled:text-amber-50"
+                  : "bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-200 disabled:text-neutral-400"
+              }`}
+            >
+              {interruptible ? (
+                <Square className="h-3.5 w-3.5 fill-current" strokeWidth={2.5} />
+              ) : (
+                <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="flex items-center gap-1.5">
+            <span>{buttonLabel}</span>
+            {interruptible ? (
+              <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+                <span className="inline-flex whitespace-pre text-[12px] leading-none">
+                  <kbd className="inline-flex font-sans">
+                    <span className="min-w-[1em] text-center">Esc</span>
+                  </kbd>
+                </span>
+              </span>
+            ) : null}
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );

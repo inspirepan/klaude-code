@@ -55,6 +55,7 @@ interface SessionStoreState {
   ) => Promise<string>;
   requestModel: (sessionId: string, preferred: string, saveAsDefault?: boolean) => Promise<void>;
   sendMessage: (sessionId: string, text: string) => Promise<void>;
+  interruptSession: (sessionId: string) => Promise<void>;
   respondInteraction: (
     sessionId: string,
     requestId: string,
@@ -905,6 +906,12 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       openSessionWs(sessionId, get, set);
     }
     activeConnection?.connection.send({ type: "message", text: normalizedText });
+  },
+  interruptSession: async (sessionId: string) => {
+    if (activeConnection?.sessionId !== sessionId) {
+      openSessionWs(sessionId, get, set);
+    }
+    activeConnection?.connection.send({ type: "interrupt" });
   },
   respondInteraction: async (
     sessionId: string,
