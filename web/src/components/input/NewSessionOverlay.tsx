@@ -174,7 +174,7 @@ export function NewSessionOverlay({
         />
       ) : null}
       <div
-        className={`relative w-full max-w-2xl -translate-y-[25vh] rounded-3xl border border-neutral-200/90 bg-white p-4 ${
+        className={`relative w-full max-w-2xl -translate-y-[25vh] rounded-xl border border-neutral-200/90 bg-white p-4 ${
           showBackdrop ? "shadow-[0_24px_80px_rgba(0,0,0,0.14)]" : ""
         } sm:p-6`}
       >

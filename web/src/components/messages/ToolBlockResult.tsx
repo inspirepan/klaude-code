@@ -89,7 +89,7 @@ export function ToolBlockResult({
                 event.stopPropagation();
               }}
             >
-              <div className={`mt-0.5 ${subTextClass} font-mono leading-relaxed text-neutral-400`}>
+              <div className={`mt-0.5 ${subTextClass} font-mono leading-relaxed text-neutral-500`}>
                 {streamingContent.split("\n").map((line, index) => (
                   <div key={index} className={resultLineClass}>
                     {line || " "}
@@ -110,7 +110,7 @@ export function ToolBlockResult({
                 return (
                   <>
                     <div
-                      className={`mt-0.5 ${subTextClass} font-mono leading-relaxed ${isError ? "text-red-700" : "text-neutral-400"}`}
+                      className={`mt-0.5 ${subTextClass} font-mono leading-relaxed ${isError ? "text-red-700" : "text-neutral-500"}`}
                     >
                       {displayedLines.map((line, index) => (
                         <div key={index} className={resultLineClass}>
@@ -122,7 +122,7 @@ export function ToolBlockResult({
                       <button
                         type="button"
                         onClick={onToggleShowMore}
-                        className={`mt-0.5 ${miniTextClass} cursor-pointer font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
+                        className={`mt-0.5 ${miniTextClass} cursor-pointer font-sans text-neutral-500 transition-colors hover:text-neutral-700`}
                       >
                         {showMore
                           ? "Show less"
@@ -134,7 +134,7 @@ export function ToolBlockResult({
               })()}
             </div>
           ) : isEmptyResult ? (
-            <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-400`}>(no content)</div>
+            <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-500`}>(no content)</div>
           ) : null}
         </div>
       </div>

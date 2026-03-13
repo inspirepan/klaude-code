@@ -153,7 +153,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
               <button
                 type="button"
                 onClick={() => setShowMore(true)}
-                className={`mt-0 ${miniTextClass} cursor-pointer py-0 font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
+                className={`mt-0 ${miniTextClass} cursor-pointer py-0 font-sans text-neutral-500 transition-colors hover:text-neutral-700`}
               >
                 Show more
               </button>
@@ -162,7 +162,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
         ) : null}
       </div>
       {item.timestamp !== null ? (
-        <div className="mr-1 mt-1 text-right text-2xs text-neutral-400">
+        <div className="mr-1 mt-1 text-right text-2xs text-neutral-500">
           {new Date(item.timestamp * 1000).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -192,7 +192,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                   <button
                     type="button"
                     onClick={() => setShowMore(false)}
-                    className={`${miniTextClass} cursor-pointer py-0 font-sans text-neutral-400 transition-colors hover:text-neutral-600`}
+                    className={`${miniTextClass} cursor-pointer py-0 font-sans text-neutral-500 transition-colors hover:text-neutral-700`}
                   >
                     Show less
                   </button>

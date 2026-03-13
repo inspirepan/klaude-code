@@ -34,7 +34,7 @@ export function SubAgentCollapsedPreview({
   return (
     <div className="px-3.5 pb-3.5 pt-0.5">
       <div className="mb-2.5">
-        <div className="mb-1.5 flex items-center gap-2 text-xs text-neutral-400">
+        <div className="mb-1.5 flex items-center gap-2 text-xs text-neutral-500">
           <span>{toolItems.length} tools</span>
           {!isFinished ? (
             <>
@@ -71,7 +71,7 @@ export function SubAgentCollapsedPreview({
               })}
             </div>
           ) : (
-            <div className="text-xs text-neutral-400">No tool calls</div>
+            <div className="text-xs text-neutral-500">No tool calls</div>
           )}
         </div>
       </div>

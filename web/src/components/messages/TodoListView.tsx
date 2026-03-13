@@ -6,7 +6,7 @@ const statusConfig = {
   completed: {
     mark: "\u2714",
     markClass: "text-emerald-500",
-    textClass: "text-neutral-400 line-through",
+    textClass: "text-neutral-500 line-through",
   },
 } as const;
 

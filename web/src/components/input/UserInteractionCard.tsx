@@ -117,7 +117,7 @@ function OptionPill({
           {label}
         </span>
         {description && (
-          <span className="mt-0.5 block text-2xs leading-snug text-neutral-400">{description}</span>
+          <span className="mt-0.5 block text-2xs leading-snug text-neutral-500">{description}</span>
         )}
       </span>
     </button>
@@ -151,11 +151,11 @@ function QuestionPanel({
     <div>
       {/* Question header chip */}
       <div className="mb-1.5 flex items-center gap-1.5">
-        <span className="text-2xs font-medium uppercase tracking-wider text-neutral-400">
+        <span className="text-2xs font-medium uppercase tracking-wider text-neutral-500">
           {question.header || `Question ${questionIndex + 1}`}
         </span>
         {question.multi_select && (
-          <span className="text-2xs text-neutral-400">(select multiple)</span>
+          <span className="text-2xs text-neutral-500">(select multiple)</span>
         )}
       </div>
 
@@ -330,7 +330,7 @@ export function UserInteractionCard({
                       className={`flex items-center gap-1.5 rounded-[22px] px-3 py-1.5 text-xs font-medium transition ${
                         isActive
                           ? "bg-blue-50/55 text-blue-600"
-                          : "bg-neutral-50 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
+                          : "bg-neutral-50 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"
                       }`}
                     >
                       {/* Answered dot */}
@@ -387,7 +387,7 @@ export function UserInteractionCard({
         {operationPayload && (
           <div>
             <div className="mb-1.5">
-              <span className="text-2xs font-medium uppercase tracking-wider text-neutral-400">
+              <span className="text-2xs font-medium uppercase tracking-wider text-neutral-500">
                 {operationPayload.header}
               </span>
             </div>

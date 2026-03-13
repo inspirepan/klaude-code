@@ -379,7 +379,7 @@ export function LeftSidebar(): JSX.Element {
                       <span className="text-2xs font-medium uppercase tracking-[0.02em] text-neutral-500">
                         In Progress
                       </span>
-                      <span className="text-2xs text-neutral-400">{inProgressSessions.length}</span>
+                      <span className="text-2xs text-neutral-500">{inProgressSessions.length}</span>
                     </div>
                     {inProgressSessions.length > 0 ? (
                       <div className="space-y-1">
@@ -411,7 +411,7 @@ export function LeftSidebar(): JSX.Element {
                         ))}
                       </div>
                     ) : (
-                      <div className="px-1.5 py-1 text-2xs text-neutral-400">
+                      <div className="px-1.5 py-1 text-2xs text-neutral-500">
                         No in-progress sessions
                       </div>
                     )}
@@ -422,7 +422,7 @@ export function LeftSidebar(): JSX.Element {
                       <span className="text-2xs font-medium uppercase tracking-[0.02em] text-neutral-500">
                         Done
                       </span>
-                      <span className="text-2xs text-neutral-400">{doneSessions.length}</span>
+                      <span className="text-2xs text-neutral-500">{doneSessions.length}</span>
                     </div>
                     {doneSessions.length > 0 ? (
                       <div className="space-y-1">
@@ -454,7 +454,7 @@ export function LeftSidebar(): JSX.Element {
                         ))}
                       </div>
                     ) : (
-                      <div className="px-1.5 py-1 text-2xs text-neutral-400">No done sessions</div>
+                      <div className="px-1.5 py-1 text-2xs text-neutral-500">No done sessions</div>
                     )}
                   </div>
                 </div>
@@ -486,7 +486,7 @@ export function LeftSidebar(): JSX.Element {
                     <span className="text-2xs font-medium uppercase tracking-[0.08em] text-neutral-500">
                       Archived
                     </span>
-                    <span className="text-2xs text-neutral-400">{archivedSessionCount}</span>
+                    <span className="text-2xs text-neutral-500">{archivedSessionCount}</span>
                   </div>
                   {archivedGroups.length > 0 ? (
                     <ScrollArea className="w-full" viewportClassName="max-h-80" type="auto">
@@ -529,7 +529,7 @@ export function LeftSidebar(): JSX.Element {
                       </div>
                     </ScrollArea>
                   ) : (
-                    <div className="px-3 py-3 text-xs text-neutral-400">No archived sessions</div>
+                    <div className="px-3 py-3 text-xs text-neutral-500">No archived sessions</div>
                   )}
                 </div>
               ) : null}

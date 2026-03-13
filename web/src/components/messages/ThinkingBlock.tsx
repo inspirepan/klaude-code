@@ -9,7 +9,7 @@ interface ThinkingBlockProps {
 const streamAnimation = { animation: "fadeIn" as const, duration: 120, sep: "char" as const };
 
 function Strong(props: React.ComponentPropsWithoutRef<"strong">): JSX.Element {
-  return <strong className="font-normal text-neutral-500" {...props} />;
+  return <strong className="font-normal text-neutral-700" {...props} />;
 }
 
 function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): JSX.Element {
@@ -20,7 +20,7 @@ const thinkingComponents = { strong: Strong, pre: Pre };
 
 export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
   return (
-    <div className="thinking-block text-sm leading-relaxed text-neutral-400">
+    <div className="thinking-block text-sm leading-relaxed text-neutral-500">
       <Streamdown
         mode="streaming"
         isAnimating={item.isStreaming}

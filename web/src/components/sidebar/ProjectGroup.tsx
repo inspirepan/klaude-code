@@ -62,13 +62,13 @@ export function ProjectGroup({
           <div className="min-w-0 flex-1 text-left" title={workDir}>
             <div className="flex min-w-0 items-center gap-1 text-sm font-normal leading-5 text-neutral-800">
               <span className="truncate">{workDirLabel(workDir)}</span>
-              <span className="shrink-0 text-neutral-400">({sessions.length})</span>
+              <span className="shrink-0 text-neutral-500">({sessions.length})</span>
             </div>
             <div
               className={
                 compactHeader
-                  ? "mt-0.5 truncate text-2xs leading-4 text-neutral-400"
-                  : "mt-0.5 truncate text-2xs leading-4 text-neutral-400"
+                  ? "mt-0.5 truncate text-2xs leading-4 text-neutral-500"
+                  : "mt-0.5 truncate text-2xs leading-4 text-neutral-500"
               }
               title={workDir}
             >
@@ -121,7 +121,7 @@ export function ProjectGroup({
           {hasMore && !showAll && (
             <button
               type="button"
-              className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-neutral-400 transition-colors hover:bg-neutral-100/80 hover:text-neutral-600"
+              className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-neutral-500 transition-colors hover:bg-neutral-100/80 hover:text-neutral-700"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowAll(true);

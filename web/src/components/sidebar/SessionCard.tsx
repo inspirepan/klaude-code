@@ -85,7 +85,7 @@ function getRuntimeIcon(
   if (showSuccessState) {
     return <CircleCheck className="status-success-settle h-3 w-3 shrink-0" />;
   }
-  return <CircleCheck className="h-3 w-3 shrink-0 text-neutral-400" />;
+  return <CircleCheck className="h-3 w-3 shrink-0 text-neutral-500" />;
 }
 
 function shortenFileRefs(text: string): string {
@@ -209,7 +209,7 @@ export function SessionCard({
             removed={diffSummary.diff_lines_removed}
           />
           <span
-            className="shrink-0 whitespace-nowrap text-2xs leading-4 text-neutral-400"
+            className="shrink-0 whitespace-nowrap text-2xs leading-4 text-neutral-500"
             title={updatedAtDetailed}
           >
             {updatedAt}
@@ -287,7 +287,7 @@ export function SessionCard({
 
         {/* Row 3: time · diff · lock  |  archive button */}
         <div
-          className="grid items-center gap-x-2 pl-5 pr-0.5 text-2xs leading-4 text-neutral-400"
+          className="grid items-center gap-x-2 pl-5 pr-0.5 text-2xs leading-4 text-neutral-500"
           style={{ gridTemplateColumns: "max-content 3rem auto 1fr auto" }}
         >
           <span className="whitespace-nowrap" title={updatedAtDetailed}>

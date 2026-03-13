@@ -25,7 +25,7 @@ function FilePathContent({ display }: { display: string }): JSX.Element {
   const { dir, name } = splitPath(display);
   return (
     <>
-      {dir ? <span className="text-neutral-400">{dir}</span> : null}
+      {dir ? <span className="text-neutral-500">{dir}</span> : null}
       <span className="text-neutral-600">{name}</span>
     </>
   );

@@ -26,7 +26,7 @@ export function MessageListHeader({
   onExpandAll,
 }: MessageListHeaderProps): JSX.Element {
   return (
-    <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-white/75 px-4 py-2 backdrop-blur sm:px-6">
+    <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-[#f9f9f8]/80 px-4 py-2 backdrop-blur sm:px-6">
       {!sidebarOpen ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -76,7 +76,7 @@ export function MessageListHeader({
           ) : null}
           {workspacePath ? (
             <span
-              className="truncate font-sans text-sm leading-5 text-neutral-400"
+              className="truncate font-sans text-sm leading-5 text-neutral-500"
               title={workspacePath}
             >
               {workspacePath}

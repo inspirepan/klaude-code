@@ -129,7 +129,7 @@ function CollapsibleRow({
       <div className="flex items-start gap-1.5 self-stretch">
         <div className="flex flex-col items-center self-stretch">
           <span
-            className={`mt-0.5 font-mono text-xs text-neutral-400 ${!expandable ? "opacity-0" : ""}`}
+            className={`mt-0.5 font-mono text-xs text-neutral-500 ${!expandable ? "opacity-0" : ""}`}
           >
             {open ? "[-]" : "[+]"}
           </span>
@@ -167,7 +167,7 @@ function CollapsibleRow({
 
 function PathList({ paths }: { paths: string[] }): JSX.Element {
   return (
-    <ul className="list-disc space-y-1 pl-5 text-sm leading-6 marker:text-neutral-400">
+    <ul className="list-disc space-y-1 pl-5 text-sm leading-6 marker:text-neutral-500">
       {paths.map((p) => (
         <li key={p}>
           <PathPill path={p} />
@@ -200,7 +200,7 @@ function AttachDetail({
                 <PathList paths={g.paths} />
                 {g.mentionedIn ? (
                   <div className="mt-0.5 text-sm leading-6">
-                    <span className="mr-1 text-neutral-400">mentioned in</span>
+                    <span className="mr-1 text-neutral-500">mentioned in</span>
                     <PathPill path={g.mentionedIn} />
                   </div>
                 ) : null}

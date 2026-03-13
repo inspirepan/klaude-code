@@ -328,7 +328,7 @@ export function ComposerCard({
   return (
     <div
       ref={rootRef}
-      className="rounded-2xl bg-white px-4 py-2.5 shadow-sm ring-1 ring-black/[0.06]"
+      className="rounded-lg bg-white px-4 py-2.5 shadow-sm ring-1 ring-black/[0.06]"
     >
       <input
         ref={fileInputRef}
@@ -424,7 +424,7 @@ export function ComposerCard({
           {images.map((attachment) => (
             <div
               key={attachment.id}
-              className="group relative overflow-hidden rounded-xl border border-neutral-200/80 bg-neutral-50"
+              className="group relative overflow-hidden rounded-md border border-neutral-200/80 bg-neutral-50"
             >
               <img
                 src={buildFileApiUrl(attachment.image.file_path)}

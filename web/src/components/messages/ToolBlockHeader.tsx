@@ -32,7 +32,7 @@ export function ToolBlockHeader({
     <>
       {/* Col 1: toggle indicator */}
       <div className="flex flex-col items-center">
-        <span className="mt-0.5 font-mono text-xs text-neutral-400">
+        <span className="mt-0.5 font-mono text-xs text-neutral-500">
           {expandable ? (open ? "[-]" : "[+]") : "[·]"}
         </span>
       </div>

@@ -95,7 +95,7 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} compact={compact} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-400">
+        <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-500">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
           <span>Planning…</span>
         </div>
@@ -113,7 +113,7 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} compact={compact} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-400">
+        <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-500">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
           <span>Waiting for answer…</span>
         </div>
@@ -188,8 +188,8 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
   const detailColor = isError
     ? "text-red-700"
     : item.resultStatus === "aborted"
-      ? "text-neutral-400"
-      : "text-neutral-400";
+      ? "text-neutral-500"
+      : "text-neutral-500";
 
   return (
     <div

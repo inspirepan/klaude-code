@@ -245,13 +245,13 @@ export function ModelSelector({
                             <span className="min-w-0 flex-1 truncate text-sm">
                               {model.model_id}
                               {reasoningParam ? (
-                                <span className="text-neutral-400">
+                                <span className="text-neutral-500">
                                   {" · "}
                                   {reasoningParam}
                                 </span>
                               ) : null}
                             </span>
-                            <span className="inline-flex shrink-0 items-center gap-1 text-2xs text-neutral-400">
+                            <span className="inline-flex shrink-0 items-center gap-1 text-2xs text-neutral-500">
                               {model.is_default ? "default" : null}
                               {selected ? <Check className="h-3 w-3" /> : null}
                             </span>

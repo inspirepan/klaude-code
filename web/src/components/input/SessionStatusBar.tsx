@@ -81,7 +81,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
         </>
       ) : null}
       {summaryParts.length > 0 ? (
-        <div className="ml-2 flex flex-wrap items-center gap-y-1 font-sans text-2xs text-neutral-400">
+        <div className="ml-2 flex flex-wrap items-center gap-y-1 font-sans text-2xs text-neutral-500">
           {summaryParts.map((part, i) => (
             <span key={part} className="flex items-center">
               {i > 0 ? <span className="mx-1.5 text-neutral-300">·</span> : null}
@@ -109,7 +109,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
               <div className="space-y-1.5 text-xs leading-5">
                 {metaRows.map((row) => (
                   <div key={row.label} className="flex items-start justify-between gap-4">
-                    <span className="text-neutral-400">{row.label}</span>
+                    <span className="text-neutral-500">{row.label}</span>
                     <span className="text-right font-sans text-neutral-600">{row.value}</span>
                   </div>
                 ))}

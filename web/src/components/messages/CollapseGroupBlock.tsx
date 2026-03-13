@@ -372,29 +372,29 @@ export function CollapseGroupBlock({
       <button
         type="button"
         onClick={onToggle}
-        className="grid w-full min-w-0 grid-cols-[28px_1fr] items-start py-1 text-left text-sm text-neutral-400 transition-colors hover:text-neutral-600"
+        className="grid w-full min-w-0 grid-cols-[28px_1fr] items-start py-1 text-left text-sm text-neutral-500 transition-colors hover:text-neutral-600"
       >
-        <span className="flex justify-center pt-0.5 font-mono text-xs text-neutral-400">
+        <span className="flex justify-center pt-0.5 font-mono text-xs text-neutral-500">
           {collapsed ? "[+]" : "[-]"}
         </span>
         <span className="flex min-w-0 items-center gap-1.5 pl-1">
           <span className="shrink-0 font-mono">
             {stepLabel}
-            {summary.length > 0 ? <span className="text-neutral-300">,</span> : null}
+            {summary.length > 0 ? <span className="text-neutral-500">,</span> : null}
           </span>
           {summary.length > 0 ? (
             <span className="flex min-w-0 items-center truncate pl-1">
               {summary.map((part, i) => (
                 <span key={i} className="flex shrink-0 items-center">
-                  {i > 0 ? <span className="mr-2 text-neutral-300">,</span> : null}
+                  {i > 0 ? <span className="mr-2 text-neutral-500">,</span> : null}
                   <span className="font-mono text-neutral-500">{part.label}</span>
                   <span className="w-2 shrink-0" aria-hidden="true" />
                   {part.fileStats ? (
                     part.fileStats.map((fs, j) => (
                       <span key={j} className="flex shrink-0 items-center">
-                        {j > 0 ? <span className="mr-1 text-neutral-300">,</span> : null}
-                        <span className="font-mono text-neutral-400">{fs.name}</span>
-                        <span className="ml-1 font-mono text-neutral-300">
+                        {j > 0 ? <span className="mr-1 text-neutral-500">,</span> : null}
+                        <span className="font-mono text-neutral-500">{fs.name}</span>
+                        <span className="ml-1 font-mono text-neutral-500">
                           {"("}
                           {fs.del !== undefined ? (
                             <span className="text-rose-500">-{fs.del}</span>
@@ -407,9 +407,9 @@ export function CollapseGroupBlock({
                     ))
                   ) : (
                     <>
-                      <span className="font-mono text-neutral-400">{part.value}</span>
+                      <span className="font-mono text-neutral-500">{part.value}</span>
                       {part.del !== undefined || part.add !== undefined ? (
-                        <span className="ml-1 font-mono text-neutral-300">
+                        <span className="ml-1 font-mono text-neutral-500">
                           {"("}
                           {part.del !== undefined ? (
                             <span className="text-rose-500">-{part.del}</span>

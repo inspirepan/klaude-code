@@ -38,7 +38,7 @@ export function UnknownEvent({ item, compact = false }: UnknownEventProps): JSX.
       </CollapsibleTrigger>
       <CollapsibleContent>
         <pre
-          className={`mt-1 ${compact ? "text-2xs" : "text-xs"} overflow-x-auto rounded bg-neutral-50 p-2 text-neutral-400`}
+          className={`mt-1 ${compact ? "text-2xs" : "text-xs"} overflow-x-auto rounded bg-neutral-50 p-2 text-neutral-500`}
         >
           {JSON.stringify(item.rawEvent, null, 2)}
         </pre>
