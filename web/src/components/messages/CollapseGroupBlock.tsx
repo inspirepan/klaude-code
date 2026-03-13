@@ -17,13 +17,39 @@ interface CollapseGroupBlockProps {
 
 // Commands that take a meaningful subcommand as their second token
 const SUBCOMMAND_COMMANDS = new Set([
-  "git", "jj", "hg", "svn",
-  "docker", "docker-compose", "podman", "kubectl", "helm",
-  "npm", "yarn", "pnpm", "cargo", "uv", "pip", "poetry",
-  "brew", "apt", "apt-get", "dnf", "yum", "pacman",
-  "aws", "gcloud", "az",
-  "go", "rustup", "python", "ruby",
-  "gh", "systemctl", "launchctl", "supervisorctl",
+  "git",
+  "jj",
+  "hg",
+  "svn",
+  "docker",
+  "docker-compose",
+  "podman",
+  "kubectl",
+  "helm",
+  "npm",
+  "yarn",
+  "pnpm",
+  "cargo",
+  "uv",
+  "pip",
+  "poetry",
+  "brew",
+  "apt",
+  "apt-get",
+  "dnf",
+  "yum",
+  "pacman",
+  "aws",
+  "gcloud",
+  "az",
+  "go",
+  "rustup",
+  "python",
+  "ruby",
+  "gh",
+  "systemctl",
+  "launchctl",
+  "supervisorctl",
 ]);
 
 interface FileStat {
@@ -69,6 +95,60 @@ function extractBashSummary(command: string): string | null {
     if (result !== null) return result;
   }
   return null;
+}
+
+function extractApplyPatchFileStats(patch: string): FileStat[] {
+  const fileStats: FileStat[] = [];
+  let current: FileStat | null = null;
+
+  const pushCurrent = () => {
+    if (current !== null) fileStats.push(current);
+  };
+
+  for (const line of patch.split("\n")) {
+    if (line.startsWith("*** Update File: ")) {
+      pushCurrent();
+      current = { name: basename(line.slice(17).trim()), del: 0, add: 0 };
+      continue;
+    }
+    if (line.startsWith("*** Add File: ")) {
+      pushCurrent();
+      current = { name: basename(line.slice(13).trim()), del: 0, add: 0 };
+      continue;
+    }
+    if (line.startsWith("*** Delete File: ")) {
+      pushCurrent();
+      current = { name: basename(line.slice(16).trim()), del: 0, add: 0 };
+      continue;
+    }
+    if (line.startsWith("*** ")) continue;
+    if (current === null) continue;
+    if (line.startsWith("+")) current.add += 1;
+    else if (line.startsWith("-")) current.del = (current.del ?? 0) + 1;
+  }
+
+  pushCurrent();
+  if (fileStats.length > 0) return fileStats;
+
+  let unifiedCurrent: FileStat | null = null;
+  for (const line of patch.split("\n")) {
+    const fileMatch = line.match(/^\+\+\+ b\/(.+)$/) ?? line.match(/^--- a\/(.+)$/);
+    if (fileMatch) {
+      const name = basename(fileMatch[1]!);
+      if (unifiedCurrent?.name !== name) {
+        if (unifiedCurrent !== null) fileStats.push(unifiedCurrent);
+        unifiedCurrent = { name, del: 0, add: 0 };
+      }
+      continue;
+    }
+    if (line.startsWith("+++ ") || line.startsWith("--- ")) continue;
+    if (unifiedCurrent === null) continue;
+    if (line.startsWith("+")) unifiedCurrent.add += 1;
+    else if (line.startsWith("-")) unifiedCurrent.del = (unifiedCurrent.del ?? 0) + 1;
+  }
+
+  if (unifiedCurrent !== null) fileStats.push(unifiedCurrent);
+  return fileStats;
 }
 
 function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
@@ -117,14 +197,21 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
       case "apply_patch": {
         const patch = typeof args.patch === "string" ? args.patch : null;
         if (!patch) break;
-        const lines = patch.split("\n");
-        const del = lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length;
-        const add = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length;
-        const fileMatch = patch.match(/^\+\+\+ b\/(.+)$/m) ?? patch.match(/^--- a\/(.+)$/m);
-        const fname = fileMatch ? basename(fileMatch[1]!) : "patch";
-        bucket.push(fname);
+        const fileStats = extractApplyPatchFileStats(patch);
         if (!editStats.has(name)) editStats.set(name, []);
-        editStats.get(name)!.push({ del, add });
+        if (fileStats.length === 0) {
+          const lines = patch.split("\n");
+          bucket.push("patch");
+          editStats.get(name)!.push({
+            del: lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length,
+            add: lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length,
+          });
+          break;
+        }
+        for (const fileStat of fileStats) {
+          bucket.push(fileStat.name);
+          editStats.get(name)!.push({ del: fileStat.del ?? 0, add: fileStat.add });
+        }
         break;
       }
       case "Bash": {
@@ -136,7 +223,9 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
         try {
           const host = typeof args.url === "string" ? new URL(args.url).hostname : null;
           if (host) bucket.push(host);
-        } catch { /* ignore invalid URLs */ }
+        } catch {
+          /* ignore invalid URLs */
+        }
         break;
       }
       case "WebSearch": {
@@ -165,10 +254,16 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
           const fname = values[i]!;
           const s = stats[i] ?? { del: 0, add: 0 };
           const existing = merged.get(fname);
-          if (existing) { existing.del += s.del; existing.add += s.add; }
-          else merged.set(fname, { del: s.del, add: s.add });
+          if (existing) {
+            existing.del += s.del;
+            existing.add += s.add;
+          } else merged.set(fname, { del: s.del, add: s.add });
         }
-        const fileStats = [...merged.entries()].map(([name, s]) => ({ name, del: s.del, add: s.add }));
+        const fileStats = [...merged.entries()].map(([name, s]) => ({
+          name,
+          del: s.del,
+          add: s.add,
+        }));
         parts.push({ label: "Edited", value: "", fileStats });
         break;
       }
@@ -179,8 +274,9 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
           const fname = values[i]!;
           const s = stats[i] ?? { add: 0 };
           const existing = merged.get(fname);
-          if (existing) { existing.add += s.add; }
-          else merged.set(fname, { add: s.add });
+          if (existing) {
+            existing.add += s.add;
+          } else merged.set(fname, { add: s.add });
         }
         const fileStats = [...merged.entries()].map(([name, s]) => ({ name, add: s.add }));
         parts.push({ label: "Wrote", value: "", fileStats });
@@ -193,10 +289,16 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
           const fname = values[i]!;
           const s = stats[i] ?? { del: 0, add: 0 };
           const existing = merged.get(fname);
-          if (existing) { existing.del += s.del; existing.add += s.add; }
-          else merged.set(fname, { del: s.del, add: s.add });
+          if (existing) {
+            existing.del += s.del;
+            existing.add += s.add;
+          } else merged.set(fname, { del: s.del, add: s.add });
         }
-        const fileStats = [...merged.entries()].map(([name, s]) => ({ name, del: s.del, add: s.add }));
+        const fileStats = [...merged.entries()].map(([name, s]) => ({
+          name,
+          del: s.del,
+          add: s.add,
+        }));
         parts.push({ label: "Patched", value: "", fileStats });
         break;
       }
@@ -228,7 +330,8 @@ export function CollapseGroupBlock({
   setItemRef,
 }: CollapseGroupBlockProps): JSX.Element {
   const toolCount = items.filter((item) => item.type === "tool_block").length;
-  const stepLabel = toolCount > 0 ? `${toolCount} tool${toolCount === 1 ? "" : "s"} used` : "Thoughts";
+  const stepLabel =
+    toolCount > 0 ? `${toolCount} tool${toolCount === 1 ? "" : "s"} used` : "Thoughts";
   const summary = useMemo(() => summarizeCollapseItems(items), [items]);
 
   // Group consecutive developer_message items so they render as one merged row
@@ -258,49 +361,62 @@ export function CollapseGroupBlock({
       <button
         type="button"
         onClick={onToggle}
-        className="flex min-w-0 items-center gap-1.5 py-0.5 text-left text-sm text-neutral-400 transition-colors hover:text-neutral-600"
+        className="grid w-full min-w-0 grid-cols-[28px_1fr] items-start py-0.5 text-left text-sm text-neutral-400 transition-colors hover:text-neutral-600"
       >
-        <span className="shrink-0 font-mono text-xs text-neutral-500">{collapsed ? "[+]" : "[-]"}</span>
-        <span className="shrink-0 font-mono">{stepLabel}</span>
-        {summary.length > 0 ? <span className="shrink-0 text-neutral-300">,</span> : null}
-        {summary.length > 0 ? (
-          <span className="flex min-w-0 items-center truncate pl-1">
-            {summary.map((part, i) => (
-              <span key={i} className={`flex shrink-0 items-center gap-2 ${i < summary.length - 1 ? "mr-2" : ""}`}>
-                <span className="font-mono text-neutral-500">{part.label}</span>
-                {part.fileStats ? (
-                  part.fileStats.map((fs, j) => (
-                    <span key={j} className="flex shrink-0 items-center gap-1">
-                      {j > 0 ? <span className="text-neutral-300">,</span> : null}
-                      <span className="font-mono text-neutral-400">{fs.name}</span>
-                      <span className="font-mono text-neutral-300">
-                        {"("}
-                        {fs.del !== undefined ? <span className="text-rose-500">-{fs.del}</span> : null}
-                        {fs.del !== undefined ? <span>{" "}</span> : null}
-                        <span className="text-emerald-600">+{fs.add}</span>
-                        {")"}
+        <span className="flex justify-center pt-0.5 font-mono text-xs text-neutral-400">
+          {collapsed ? "[+]" : "[-]"}
+        </span>
+        <span className="flex min-w-0 items-center gap-1.5 pl-1">
+          <span className="shrink-0 font-mono">{stepLabel}</span>
+          {summary.length > 0 ? <span className="shrink-0 text-neutral-300">,</span> : null}
+          {summary.length > 0 ? (
+            <span className="flex min-w-0 items-center truncate pl-1">
+              {summary.map((part, i) => (
+                <span
+                  key={i}
+                  className={`flex shrink-0 items-center gap-2 ${i < summary.length - 1 ? "mr-2" : ""}`}
+                >
+                  <span className="font-mono text-neutral-500">{part.label}</span>
+                  {part.fileStats ? (
+                    part.fileStats.map((fs, j) => (
+                      <span key={j} className="flex shrink-0 items-center gap-1">
+                        {j > 0 ? <span className="text-neutral-300">,</span> : null}
+                        <span className="font-mono text-neutral-400">{fs.name}</span>
+                        <span className="font-mono text-neutral-300">
+                          {"("}
+                          {fs.del !== undefined ? (
+                            <span className="text-rose-500">-{fs.del}</span>
+                          ) : null}
+                          {fs.del !== undefined ? <span> </span> : null}
+                          <span className="text-emerald-600">+{fs.add}</span>
+                          {")"}
+                        </span>
                       </span>
-                    </span>
-                  ))
-                ) : (
-                  <>
-                    <span className="font-mono text-neutral-400">{part.value}</span>
-                    {(part.del !== undefined || part.add !== undefined) ? (
-                      <span className="font-mono text-neutral-300">
-                        {"("}
-                        {part.del !== undefined ? <span className="text-rose-500">-{part.del}</span> : null}
-                        {part.del !== undefined && part.add !== undefined ? <span>{" "}</span> : null}
-                        {part.add !== undefined ? <span className="text-emerald-600">+{part.add}</span> : null}
-                        {")"}
-                      </span>
-                    ) : null}
-                  </>
-                )}
-                {i < summary.length - 1 ? <span className="text-neutral-300">,</span> : null}
-              </span>
-            ))}
-          </span>
-        ) : null}
+                    ))
+                  ) : (
+                    <>
+                      <span className="font-mono text-neutral-400">{part.value}</span>
+                      {part.del !== undefined || part.add !== undefined ? (
+                        <span className="font-mono text-neutral-300">
+                          {"("}
+                          {part.del !== undefined ? (
+                            <span className="text-rose-500">-{part.del}</span>
+                          ) : null}
+                          {part.del !== undefined && part.add !== undefined ? <span> </span> : null}
+                          {part.add !== undefined ? (
+                            <span className="text-emerald-600">+{part.add}</span>
+                          ) : null}
+                          {")"}
+                        </span>
+                      ) : null}
+                    </>
+                  )}
+                  {i < summary.length - 1 ? <span className="text-neutral-300">,</span> : null}
+                </span>
+              ))}
+            </span>
+          ) : null}
+        </span>
       </button>
       {/* grid-template-rows trick: 0fr→1fr gives smooth height transition without JS height measurement */}
       <div

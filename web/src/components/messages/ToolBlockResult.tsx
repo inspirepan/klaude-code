@@ -33,13 +33,14 @@ export function ToolBlockResult({
 }: ToolBlockResultProps): JSX.Element | null {
   const subTextClass = "text-sm";
   const miniTextClass = compact ? "text-2xs" : "text-xs";
+  const resultLineClass = "block max-w-full overflow-hidden text-ellipsis whitespace-pre";
 
   return (
     <div
       className="col-span-2 grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
       style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
     >
-      <div className="overflow-hidden min-w-0">
+      <div className="min-w-0 overflow-hidden">
         <div className="mt-0.5 min-w-0 pl-6">
           {hasRich ? (
             <div
@@ -55,11 +56,13 @@ export function ToolBlockResult({
                 event.stopPropagation();
               }}
             >
-              <pre
-                className={`mt-0.5 ${subTextClass} whitespace-pre-wrap break-words font-mono leading-relaxed text-neutral-400`}
-              >
-                {streamingContent}
-              </pre>
+              <div className={`mt-0.5 ${subTextClass} font-mono leading-relaxed text-neutral-400`}>
+                {streamingContent.split("\n").map((line, index) => (
+                  <div key={index} className={resultLineClass}>
+                    {line || " "}
+                  </div>
+                ))}
+              </div>
             </div>
           ) : hasResult ? (
             <div
@@ -70,16 +73,18 @@ export function ToolBlockResult({
               {(() => {
                 const lines = item.result!.split("\n");
                 const truncated = !showMore && lines.length > RESULT_LINE_LIMIT;
-                const displayed = truncated
-                  ? lines.slice(0, RESULT_LINE_LIMIT).join("\n")
-                  : item.result!;
+                const displayedLines = truncated ? lines.slice(0, RESULT_LINE_LIMIT) : lines;
                 return (
                   <>
-                    <pre
-                      className={`mt-0.5 ${subTextClass} whitespace-pre-wrap break-words font-mono leading-relaxed ${isError ? "text-red-700" : "text-neutral-400"}`}
+                    <div
+                      className={`mt-0.5 ${subTextClass} font-mono leading-relaxed ${isError ? "text-red-700" : "text-neutral-400"}`}
                     >
-                      <HighlightText>{displayed}</HighlightText>
-                    </pre>
+                      {displayedLines.map((line, index) => (
+                        <div key={index} className={resultLineClass}>
+                          <HighlightText>{line || " "}</HighlightText>
+                        </div>
+                      ))}
+                    </div>
                     {lines.length > RESULT_LINE_LIMIT ? (
                       <button
                         type="button"

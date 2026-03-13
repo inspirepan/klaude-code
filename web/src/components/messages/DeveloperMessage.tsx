@@ -1,6 +1,11 @@
 import { useState } from "react";
 
-import type { DeveloperMessageItem, AtFileOp, DeveloperUIItem, TodoReminderUIItem } from "../../types/message";
+import type {
+  DeveloperMessageItem,
+  AtFileOp,
+  DeveloperUIItem,
+  TodoReminderUIItem,
+} from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
 import { FilePath } from "./FilePath";
 
@@ -95,7 +100,8 @@ function buildAttachedSummary(devItems: DeveloperMessageItem[]): string {
   if (memoryCount > 0) parts.push(`${memoryCount} ${memoryCount === 1 ? "memory" : "memories"}`);
   for (const name of skillNames) parts.push(`skill:${name}`);
   if (fileCount > 0) parts.push(`${fileCount} ${plural(fileCount, "file")}`);
-  if (folderListCount > 0) parts.push(`${folderListCount} folder ${plural(folderListCount, "list")}`);
+  if (folderListCount > 0)
+    parts.push(`${folderListCount} folder ${plural(folderListCount, "list")}`);
   if (rereadCount > 0) parts.push(`${rereadCount} re-read ${plural(rereadCount, "file")}`);
   if (imageCount > 0) parts.push(`${imageCount} ${plural(imageCount, "image")}`);
   return parts.join(", ");
@@ -122,7 +128,9 @@ function CollapsibleRow({
     >
       <div className="flex items-start gap-1.5 self-stretch">
         <div className="flex flex-col items-center self-stretch">
-          <span className={`mt-0.5 font-mono text-xs text-neutral-500 ${!expandable ? "opacity-0" : ""}`}>
+          <span
+            className={`mt-0.5 font-mono text-xs text-neutral-400 ${!expandable ? "opacity-0" : ""}`}
+          >
             {open ? "[-]" : "[+]"}
           </span>
           {open ? <div className="mt-1 w-px flex-1 bg-neutral-200" /> : null}
@@ -224,7 +232,9 @@ function AttachDetail({
 export function DeveloperMessage({ items }: DeveloperMessageProps): JSX.Element {
   const images = items.flatMap((d) => collectImages(d.items));
   const allUIItems = items.flatMap((d) => d.items);
-  const todoItems = allUIItems.filter((ui): ui is TodoReminderUIItem => ui.type === "todo_reminder");
+  const todoItems = allUIItems.filter(
+    (ui): ui is TodoReminderUIItem => ui.type === "todo_reminder",
+  );
   const attachItems = allUIItems.filter((ui) => ui.type !== "todo_reminder");
   const hasAttachments = attachItems.length > 0 || images.length > 0;
   const summary = hasAttachments ? buildAttachedSummary(items) : "";
@@ -239,8 +249,7 @@ export function DeveloperMessage({ items }: DeveloperMessageProps): JSX.Element 
       {todoItems.map((todo, idx) => {
         const text =
           todo.reason === "empty" ? "Todo list is empty" : "Todo hasn't been updated recently";
-        const labelClassName =
-          todo.reason === "empty" ? "text-emerald-700" : "text-blue-700";
+        const labelClassName = todo.reason === "empty" ? "text-emerald-700" : "text-blue-700";
         return (
           <CollapsibleRow key={`todo-${idx}`} label={text} labelClassName={labelClassName}>
             {null}
