@@ -7,6 +7,7 @@ import { DeveloperMessage } from "./DeveloperMessage";
 interface CollapseGroupBlockProps {
   items: MessageItemType[];
   collapsed: boolean;
+  showRunningSpinner: boolean;
   onToggle: () => void;
   activeItemId: string | null;
   copiedItemId: string | null;
@@ -322,6 +323,7 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
 export function CollapseGroupBlock({
   items,
   collapsed,
+  showRunningSpinner,
   onToggle,
   activeItemId,
   copiedItemId,
@@ -427,9 +429,9 @@ export function CollapseGroupBlock({
         }}
       >
         <div className="overflow-hidden">
-          <div className="mt-3 grid grid-cols-[28px_1fr]">
-            <div className="flex justify-center pt-1">
-              <div className="w-px bg-neutral-200" />
+          <div className="mt-2 grid grid-cols-[28px_1fr]">
+            <div className="flex justify-center">
+              <div className="-mt-2 w-px self-stretch bg-neutral-200" />
             </div>
             <div className="min-w-0 space-y-5 pb-1">
               {renderBlocks.map((block, idx) => {
@@ -450,6 +452,17 @@ export function CollapseGroupBlock({
                 );
               })}
             </div>
+            {showRunningSpinner ? (
+              <>
+                <div className="-mt-0.5 flex justify-center">
+                  <div className="flex flex-col items-center">
+                    <div className="h-2 w-px bg-neutral-200" />
+                    <span className="mt-0.5 h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
+                  </div>
+                </div>
+                <div aria-hidden="true" className="h-5" />
+              </>
+            ) : null}
           </div>
         </div>
       </div>
