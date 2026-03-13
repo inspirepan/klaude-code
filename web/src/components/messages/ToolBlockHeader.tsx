@@ -1,3 +1,4 @@
+import { Loader } from "lucide-react";
 import type { ToolBlockItem } from "../../types/message";
 import { FilePath } from "./FilePath";
 import { HighlightText } from "./HighlightText";
@@ -64,7 +65,7 @@ export function ToolBlockHeader({
           )
         ) : null}
         {item.isStreaming ? (
-          <span className="mt-1 h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
+          <Loader className="mt-1 h-3 w-3 shrink-0 animate-spin text-neutral-500" />
         ) : null}
       </div>
     </>

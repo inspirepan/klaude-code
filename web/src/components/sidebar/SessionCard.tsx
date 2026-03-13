@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Archive, ArchiveRestore, CircleCheck, CirclePause, Lock } from "lucide-react";
+import { Archive, ArchiveRestore, CircleCheck, CirclePause, Loader, Lock } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { cn } from "@/lib/utils";
 import { SessionTitleText } from "@/components/SessionTitleText";
@@ -74,9 +74,7 @@ function getRuntimeIcon(
   hasUnreadCompletion: boolean,
 ): JSX.Element {
   if (runtime.sessionState === "running") {
-    return (
-      <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-[1.25px] border-neutral-300 border-t-neutral-500" />
-    );
+    return <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />;
   }
   if (runtime.sessionState === "waiting_user_input") {
     return <CirclePause className="h-3 w-3 shrink-0 text-amber-500" />;

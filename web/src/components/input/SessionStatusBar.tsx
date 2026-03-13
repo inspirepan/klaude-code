@@ -1,4 +1,4 @@
-import { CircleHelp } from "lucide-react";
+import { CircleHelp, Loader } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { SessionStatusState } from "../../stores/event-reducer";
@@ -69,12 +69,8 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
       {statusLabel ? (
         <>
           {hasLiveStatus ? (
-            <span
-              className={`h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-[1.5px] ${
-                isRunning
-                  ? "border-blue-300 border-t-blue-500"
-                  : "border-neutral-300 border-t-neutral-500"
-              }`}
+            <Loader
+              className={`h-3.5 w-3.5 shrink-0 animate-spin ${isRunning ? "text-blue-500" : "text-neutral-500"}`}
             />
           ) : (
             <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-300" />

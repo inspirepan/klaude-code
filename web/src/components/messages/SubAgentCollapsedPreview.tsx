@@ -1,3 +1,5 @@
+import { Loader } from "lucide-react";
+
 import type { PreviewText } from "./message-list-ui";
 import { extractToolPreviewDetail } from "./message-list-ui";
 import type { ToolBlockItem } from "../../types/message";
@@ -54,7 +56,7 @@ export function SubAgentCollapsedPreview({
                           {toolItem.toolName}
                         </span>
                         {toolItem.isStreaming ? (
-                          <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
+                          <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
                         ) : null}
                       </div>
                       {detail ? (

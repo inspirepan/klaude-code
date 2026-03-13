@@ -1,3 +1,4 @@
+import { Loader } from "lucide-react";
 import { useMemo } from "react";
 
 import type { MessageItem as MessageItemType, DeveloperMessageItem } from "../../types/message";
@@ -88,14 +89,15 @@ function extractCommandFromStatement(stmt: string): string | null {
   return cmd;
 }
 
-function extractBashSummary(command: string): string | null {
+function extractBashSummaries(command: string): string[] {
   // Split by statement separators; pipe | is not a separator (it chains, not sequences)
   const statements = command.split(/&&|\|\||[;\n]/);
+  const summaries: string[] = [];
   for (const stmt of statements) {
     const result = extractCommandFromStatement(stmt);
-    if (result !== null) return result;
+    if (result !== null) summaries.push(result);
   }
-  return null;
+  return summaries;
 }
 
 function extractApplyPatchFileStats(patch: string): FileStat[] {
@@ -136,7 +138,7 @@ function extractApplyPatchFileStats(patch: string): FileStat[] {
     const fileMatch = line.match(/^\+\+\+ b\/(.+)$/) ?? line.match(/^--- a\/(.+)$/);
     if (fileMatch) {
       const name = basename(fileMatch[1]!);
-      if (unifiedCurrent?.name !== name) {
+      if (unifiedCurrent === null || unifiedCurrent.name !== name) {
         if (unifiedCurrent !== null) fileStats.push(unifiedCurrent);
         unifiedCurrent = { name, del: 0, add: 0 };
       }
@@ -216,8 +218,9 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
         break;
       }
       case "Bash": {
-        const s = typeof args.command === "string" ? extractBashSummary(args.command) : null;
-        if (s) bucket.push(s);
+        const summaries =
+          typeof args.command === "string" ? extractBashSummaries(args.command) : [];
+        bucket.push(...summaries);
         break;
       }
       case "WebFetch": {
@@ -304,7 +307,13 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
         break;
       }
       case "Bash":
-        parts.push({ label: "Ran", value: unique.slice(0, 2).join(", ") });
+        parts.push({
+          label: "Ran",
+          value:
+            unique.length > 5
+              ? `${unique.slice(0, 5).join(", ")} +${unique.length - 5}`
+              : unique.slice(0, 5).join(", "),
+        });
         break;
       case "WebFetch":
         parts.push({ label: "Fetch", value: unique[0]! });
@@ -363,7 +372,7 @@ export function CollapseGroupBlock({
       <button
         type="button"
         onClick={onToggle}
-        className="grid w-full min-w-0 grid-cols-[28px_1fr] items-start py-0.5 text-left text-sm text-neutral-400 transition-colors hover:text-neutral-600"
+        className="grid w-full min-w-0 grid-cols-[28px_1fr] items-start py-1 text-left text-sm text-neutral-400 transition-colors hover:text-neutral-600"
       >
         <span className="flex justify-center pt-0.5 font-mono text-xs text-neutral-400">
           {collapsed ? "[+]" : "[-]"}
@@ -429,9 +438,9 @@ export function CollapseGroupBlock({
         }}
       >
         <div className="overflow-hidden">
-          <div className="mt-2 grid grid-cols-[28px_1fr]">
+          <div className="mt-3 grid grid-cols-[28px_1fr]">
             <div className="flex justify-center">
-              <div className="-mt-2 w-px self-stretch bg-neutral-200" />
+              <div className="-mt-3 w-px self-stretch bg-neutral-200" />
             </div>
             <div className="min-w-0 space-y-5 pb-1">
               {renderBlocks.map((block, idx) => {
@@ -457,7 +466,7 @@ export function CollapseGroupBlock({
                 <div className="flex justify-center">
                   <div className="flex flex-col items-center gap-1.5">
                     <div className="h-3 w-px bg-neutral-200" />
-                    <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
+                    <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
                   </div>
                 </div>
                 <div aria-hidden="true" className="h-5" />

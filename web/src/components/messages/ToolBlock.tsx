@@ -1,3 +1,4 @@
+import { Loader } from "lucide-react";
 import { useState, useMemo, useRef, useEffect } from "react";
 
 import type { ToolBlockItem } from "../../types/message";
@@ -95,7 +96,7 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
         <TodoListView uiExtra={todoExtra} compact={compact} />
       ) : item.isStreaming ? (
         <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-400">
-          <span className="h-3 w-3 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
+          <Loader className="h-3 w-3 animate-spin text-neutral-500" />
           <span>Planning…</span>
         </div>
       ) : null}
@@ -113,7 +114,7 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
         <QuestionSummaryView uiExtra={questionExtra} compact={compact} />
       ) : item.isStreaming ? (
         <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-400">
-          <span className="h-3 w-3 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
+          <Loader className="h-3 w-3 animate-spin text-neutral-500" />
           <span>Waiting for answer…</span>
         </div>
       ) : null}

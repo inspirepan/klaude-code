@@ -1,3 +1,5 @@
+import { useLayoutEffect, useRef } from "react";
+
 import type { ToolBlockItem } from "../../types/message";
 import { HighlightText } from "./HighlightText";
 import { ToolRichResult } from "./ToolRichResult";
@@ -34,9 +36,40 @@ export function ToolBlockResult({
   const subTextClass = "text-sm";
   const miniTextClass = compact ? "text-2xs" : "text-xs";
   const resultLineClass = "block max-w-full overflow-hidden text-ellipsis whitespace-pre";
+  const containerRef = useRef<HTMLDivElement>(null);
+  const previousHeightRef = useRef<number | null>(null);
+  const wasStreamingRef = useRef(item.isStreaming);
+
+  useLayoutEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+
+    const currentHeight = element.getBoundingClientRect().height;
+    const previousHeight = previousHeightRef.current;
+    const justCompleted = wasStreamingRef.current && !item.isStreaming;
+
+    if (justCompleted && open && previousHeight !== null && currentHeight > previousHeight) {
+      const scrollContainer = element.closest<HTMLElement>(
+        "[data-message-scroll-container='true']",
+      );
+      if (scrollContainer) {
+        const blockRect = element.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const isVisible =
+          blockRect.bottom > containerRect.top && blockRect.top < containerRect.bottom;
+        if (isVisible) {
+          scrollContainer.scrollTop += currentHeight - previousHeight;
+        }
+      }
+    }
+
+    previousHeightRef.current = currentHeight;
+    wasStreamingRef.current = item.isStreaming;
+  }, [item.isStreaming, item.result, item.resultStatus, item.uiExtra, open]);
 
   return (
     <div
+      ref={containerRef}
       className="col-span-2 grid transition-[grid-template-rows,opacity] duration-200 ease-in-out"
       style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
     >

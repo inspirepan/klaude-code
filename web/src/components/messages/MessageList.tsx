@@ -1,3 +1,4 @@
+import { Loader } from "lucide-react";
 import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react";
 
 import { useMessageStore } from "../../stores/message-store";
@@ -11,6 +12,7 @@ import { CollapseGroupBlock } from "./CollapseGroupBlock";
 import { CollapseAllContext } from "./collapse-all-context";
 import { MessageListHeader } from "./MessageListHeader";
 import { MessageRow } from "./MessageRow";
+import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra";
 import { SearchBar } from "./SearchBar";
 import { SubAgentGroupCard } from "./SubAgentGroupCard";
 import { isCopyableAssistantText } from "./message-list-ui";
@@ -61,7 +63,9 @@ interface SectionCollapseGroupBlock {
 type SectionBlock = SectionItemBlock | SectionSubAgentBlock | SectionCollapseGroupBlock;
 
 function isCollapsibleItem(item: MessageItemType): boolean {
-  if (item.type === "tool_block") return true;
+  if (item.type === "tool_block") {
+    return !isTodoListUIExtra(item.uiExtra) && !isQuestionSummaryUIExtra(item.uiExtra);
+  }
   return item.type === "thinking" || item.type === "developer_message";
 }
 
@@ -394,7 +398,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         const blockIndex = rawBlocks.length;
         rawBlocks.push({
           type: "sub_agent_group",
-          groupId: `${section[0]?.id ?? sourceSessionId}-${sourceSessionId}`,
+          groupId: `${sessionId}-${section[0]?.id ?? sourceSessionId}-${sourceSessionId}`,
           sourceSessionId,
           sourceSessionType: subAgentTypeBySessionId[sourceSessionId] ?? null,
           sourceSessionDesc: subAgentDescBySessionId[sourceSessionId] ?? null,
@@ -412,14 +416,22 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           pending.push(block.item);
         } else {
           if (pending.length > 0) {
-            blocks.push({ type: "collapse_group", id: `cg-${pending[0].id}`, items: pending });
+            blocks.push({
+              type: "collapse_group",
+              id: `cg-${sessionId}-${pending[0].id}`,
+              items: pending,
+            });
             pending = [];
           }
           blocks.push(block);
         }
       }
       if (pending.length > 0) {
-        blocks.push({ type: "collapse_group", id: `cg-${pending[0].id}`, items: pending });
+        blocks.push({
+          type: "collapse_group",
+          id: `cg-${sessionId}-${pending[0].id}`,
+          items: pending,
+        });
       }
       return blocks;
     });
@@ -461,7 +473,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           hasMessageAfterLastGroup = false;
         } else if (
           block.type === "item" &&
-          (block.item.type === "assistant_text" || block.item.type === "user_message") &&
+          (block.item.type === "user_message" ||
+            (block.item.type === "assistant_text" && block.item.content.trim().length > 0)) &&
           lastId !== null
         ) {
           hasMessageAfterLastGroup = true;
@@ -550,6 +563,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           <div
             ref={scrollRef}
             onScroll={handleScroll}
+            data-message-scroll-container="true"
             className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
           >
             <MessageListHeader
@@ -656,7 +670,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 </>
               ) : runtime?.wsState === "connecting" ? (
                 <div className="flex min-h-[240px] items-center justify-center">
-                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-500" />
+                  <Loader className="h-5 w-5 animate-spin text-neutral-500" />
                 </div>
               ) : (
                 <div className="flex min-h-[240px] items-center justify-center">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Archive, FolderTree, List, PanelLeftClose } from "lucide-react";
+import { Archive, FolderTree, List, Loader, PanelLeftClose } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
 import { SessionCard } from "./SessionCard";
@@ -332,7 +332,7 @@ export function LeftSidebar(): JSX.Element {
 
               {loadError === null && loading && groups.length === 0 ? (
                 <div className="flex items-center gap-2 px-2 py-2 text-neutral-500">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-500" />
+                  <Loader className="h-4 w-4 animate-spin text-neutral-500" />
                   <span className="text-xs font-semibold">Loading…</span>
                 </div>
               ) : null}
