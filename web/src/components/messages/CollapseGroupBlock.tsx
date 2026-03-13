@@ -369,22 +369,23 @@ export function CollapseGroupBlock({
           {collapsed ? "[+]" : "[-]"}
         </span>
         <span className="flex min-w-0 items-center gap-1.5 pl-1">
-          <span className="shrink-0 font-mono">{stepLabel}</span>
-          {summary.length > 0 ? <span className="shrink-0 text-neutral-300">,</span> : null}
+          <span className="shrink-0 font-mono">
+            {stepLabel}
+            {summary.length > 0 ? <span className="text-neutral-300">,</span> : null}
+          </span>
           {summary.length > 0 ? (
             <span className="flex min-w-0 items-center truncate pl-1">
               {summary.map((part, i) => (
-                <span
-                  key={i}
-                  className={`flex shrink-0 items-center gap-2 ${i < summary.length - 1 ? "mr-2" : ""}`}
-                >
+                <span key={i} className="flex shrink-0 items-center">
+                  {i > 0 ? <span className="mr-2 text-neutral-300">,</span> : null}
                   <span className="font-mono text-neutral-500">{part.label}</span>
+                  <span className="w-2 shrink-0" aria-hidden="true" />
                   {part.fileStats ? (
                     part.fileStats.map((fs, j) => (
-                      <span key={j} className="flex shrink-0 items-center gap-1">
-                        {j > 0 ? <span className="text-neutral-300">,</span> : null}
+                      <span key={j} className="flex shrink-0 items-center">
+                        {j > 0 ? <span className="mr-1 text-neutral-300">,</span> : null}
                         <span className="font-mono text-neutral-400">{fs.name}</span>
-                        <span className="font-mono text-neutral-300">
+                        <span className="ml-1 font-mono text-neutral-300">
                           {"("}
                           {fs.del !== undefined ? (
                             <span className="text-rose-500">-{fs.del}</span>
@@ -399,7 +400,7 @@ export function CollapseGroupBlock({
                     <>
                       <span className="font-mono text-neutral-400">{part.value}</span>
                       {part.del !== undefined || part.add !== undefined ? (
-                        <span className="font-mono text-neutral-300">
+                        <span className="ml-1 font-mono text-neutral-300">
                           {"("}
                           {part.del !== undefined ? (
                             <span className="text-rose-500">-{part.del}</span>
@@ -413,7 +414,6 @@ export function CollapseGroupBlock({
                       ) : null}
                     </>
                   )}
-                  {i < summary.length - 1 ? <span className="text-neutral-300">,</span> : null}
                 </span>
               ))}
             </span>
@@ -454,10 +454,10 @@ export function CollapseGroupBlock({
             </div>
             {showRunningSpinner ? (
               <>
-                <div className="-mt-0.5 flex justify-center">
-                  <div className="flex flex-col items-center">
-                    <div className="h-2 w-px bg-neutral-200" />
-                    <span className="mt-0.5 h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
+                <div className="flex justify-center">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="h-3 w-px bg-neutral-200" />
+                    <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-neutral-500" />
                   </div>
                 </div>
                 <div aria-hidden="true" className="h-5" />

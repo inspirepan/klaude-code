@@ -134,7 +134,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
 
   return (
     <>
-      <div className="ml-auto w-fit max-w-[50%] rounded-2xl border border-slate-200 bg-slate-100 px-5 py-2.5 transition-colors hover:bg-slate-150 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-750">
+      <div className="hover:bg-slate-150 dark:hover:bg-slate-750 ml-auto w-fit max-w-[50%] rounded-2xl border border-slate-200 bg-slate-100 px-5 py-2.5 transition-colors dark:border-slate-700 dark:bg-slate-800">
         {renderImages()}
         {hasText ? (
           <div>
@@ -163,7 +163,10 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
       </div>
       {item.timestamp !== null ? (
         <div className="mr-1 mt-1 text-right text-2xs text-neutral-400">
-          {new Date(item.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          {new Date(item.timestamp * 1000).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
         </div>
       ) : null}
 

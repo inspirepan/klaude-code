@@ -84,7 +84,14 @@ export default function App(): JSX.Element {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeSessionId, draftWorkDir, groups, setDraftWorkDir, setNewSessionOverlayOpen, toggleSidebar]);
+  }, [
+    activeSessionId,
+    draftWorkDir,
+    groups,
+    setDraftWorkDir,
+    setNewSessionOverlayOpen,
+    toggleSidebar,
+  ]);
 
   return (
     <TooltipProvider delayDuration={150}>
