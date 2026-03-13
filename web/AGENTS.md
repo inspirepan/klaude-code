@@ -22,3 +22,9 @@ Run `pnpm lint` and `pnpm format:check` before committing. Fix all errors; warni
   </span>
 </TooltipContent>
 ```
+
+## Collapse / expand animation rules
+
+- Use `height` transition with imperative DOM (`useLayoutEffect` + snapshot height + force reflow) instead of `grid-template-rows: 1fr / 0fr`. The grid approach causes sub-pixel jitter in nested grids.
+- Wrap animated content in a GPU-composited layer (`backface-visibility: hidden`) to prevent the browser from re-rasterizing content on every frame of the height transition.
+- Never conditionally render (`{open && <El/>}`) elements near animated containers. Use `opacity` transitions instead, so the DOM stays stable and no layout recalc is triggered mid-animation.

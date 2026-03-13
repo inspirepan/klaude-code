@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useLayoutEffect, useRef } from "react";
 
 import { cn } from "../../lib/utils";
 
@@ -34,8 +34,14 @@ export function CollapseRailMarker({
       >
         {indicator}
       </span>
-      {open && expandable ? (
-        <div className={cn("mt-1 w-px flex-1 bg-neutral-200", connectorClassName)} />
+      {expandable ? (
+        <div
+          className={cn(
+            "mt-1 w-px flex-1 bg-neutral-200 transition-opacity duration-200",
+            !open && "opacity-0",
+            connectorClassName,
+          )}
+        />
       ) : null}
     </div>
   );
@@ -63,20 +69,50 @@ interface CollapseRailPanelProps {
   children: ReactNode;
 }
 
+const DURATION_MS = 200;
+
 export function CollapseRailPanel({
   open,
   className,
   children,
 }: CollapseRailPanelProps): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null);
+  const mounted = useRef(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    // First render: set initial state without animation
+    if (!mounted.current) {
+      mounted.current = true;
+      if (!open) el.style.height = "0px";
+      return;
+    }
+
+    if (open) {
+      // Expanding: animate from current height to content height, then release to auto
+      el.style.height = `${el.scrollHeight}px`;
+      const timer = setTimeout(() => {
+        el.style.height = "auto";
+      }, DURATION_MS + 10);
+      return () => clearTimeout(timer);
+    } else {
+      // Collapsing: snapshot current height, force reflow, then animate to 0
+      el.style.transition = "none";
+      el.style.height = `${el.getBoundingClientRect().height}px`;
+      void el.offsetHeight;
+      el.style.transition = "";
+      el.style.height = "0px";
+    }
+  }, [open]);
+
   return (
     <div
-      className={cn(
-        "grid transition-[grid-template-rows,opacity] duration-200 ease-in-out",
-        className,
-      )}
-      style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
+      ref={ref}
+      className={cn("overflow-hidden transition-[height] duration-200 ease-out", className)}
     >
-      <div className="overflow-hidden">{children}</div>
+      <div style={{ backfaceVisibility: "hidden" }}>{children}</div>
     </div>
   );
 }
