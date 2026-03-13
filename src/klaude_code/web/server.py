@@ -13,6 +13,7 @@ import uvicorn
 
 from klaude_code.app.runtime import AppInitConfig, cleanup_app_components, initialize_app_components
 from klaude_code.log import log
+from klaude_code.update import INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL, get_installation_info
 from klaude_code.web.app import create_app
 from klaude_code.web.display import WebDisplay
 from klaude_code.web.interaction import WebInteractionHandler
@@ -40,6 +41,14 @@ def _can_start_frontend_dev_server(project_root: Path) -> bool:
     web_dir = project_root / "web"
     package_json = web_dir / "package.json"
     return package_json.exists() and shutil.which("pnpm") is not None
+
+
+def _should_auto_install_frontend(project_root: Path) -> bool:
+    if not _can_start_frontend_dev_server(project_root):
+        return False
+
+    install_kind = get_installation_info().install_kind
+    return install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}
 
 
 def _http_ready(url: str) -> bool:
@@ -74,6 +83,30 @@ async def _terminate_process(process: asyncio.subprocess.Process | None) -> None
             _ = await asyncio.wait_for(process.wait(), timeout=1.0)
 
 
+async def _install_frontend_dependencies(web_dir: Path) -> bool:
+    install_args = ["pnpm", "install"]
+    if (web_dir / "pnpm-lock.yaml").exists():
+        install_args.append("--frozen-lockfile")
+
+    process = await asyncio.create_subprocess_exec(*install_args, cwd=str(web_dir))
+    return (await process.wait()) == 0
+
+
+async def _start_frontend_dev_process(*, web_dir: Path, host: str, frontend_port: int) -> asyncio.subprocess.Process:
+    return await asyncio.create_subprocess_exec(
+        "pnpm",
+        "dev",
+        "--host",
+        host,
+        "--port",
+        str(frontend_port),
+        "--strictPort",
+        cwd=str(web_dir),
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+
+
 async def prepare_frontend(
     *,
     host: str,
@@ -87,27 +120,24 @@ async def prepare_frontend(
 
     frontend_port = backend_port + 1
     web_dir = project_root / "web"
-    process = await asyncio.create_subprocess_exec(
-        "pnpm",
-        "dev",
-        "--host",
-        host,
-        "--port",
-        str(frontend_port),
-        "--strictPort",
-        cwd=str(web_dir),
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-    )
     frontend_url = f"http://{browser_host}:{frontend_port}/"
 
-    if process.returncode is not None:
-        return FrontendLaunchPlan(url=backend_url, process=None, mode="static")
-    ready = await _wait_until_ready(frontend_url, timeout_s=10.0)
-    if ready:
-        return FrontendLaunchPlan(url=frontend_url, process=process, mode="dev")
+    attempts = 2 if _should_auto_install_frontend(project_root) else 1
+    for attempt in range(attempts):
+        process = await _start_frontend_dev_process(web_dir=web_dir, host=host, frontend_port=frontend_port)
+        if process.returncode is not None:
+            await _terminate_process(process)
+        else:
+            ready = await _wait_until_ready(frontend_url, timeout_s=10.0)
+            if ready:
+                return FrontendLaunchPlan(url=frontend_url, process=process, mode="dev")
+            await _terminate_process(process)
 
-    await _terminate_process(process)
+        if attempt == 0 and attempts > 1:
+            log("Frontend dev server did not start. Running `pnpm install --frozen-lockfile` once...")
+            if not await _install_frontend_dependencies(web_dir):
+                break
+
     return FrontendLaunchPlan(url=backend_url, process=None, mode="static")
 
 
