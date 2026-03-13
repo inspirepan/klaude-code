@@ -46,3 +46,31 @@ def test_file_not_found(app_env: AppEnv) -> None:
     missing = app_env.work_dir / "missing.txt"
     response = app_env.client.get("/api/files", params={"path": str(missing)})
     assert response.status_code == 404
+
+
+def test_image_upload_stores_tmp_file(app_env: AppEnv) -> None:
+    data_url = (
+        "data:image/png;base64,"
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yF9kAAAAASUVORK5CYII="
+    )
+    uploaded_path = ""
+    try:
+        response = app_env.client.post(
+            "/api/files/images",
+            json={"data_url": data_url, "file_name": "pixel.png"},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["type"] == "image_file"
+        assert payload["mime_type"] == "image/png"
+        uploaded_path = payload["file_path"]
+        assert uploaded_path.startswith("/tmp/klaude-web-images/")
+
+        file_response = app_env.client.get("/api/files", params={"path": uploaded_path})
+        assert file_response.status_code == 200
+        assert file_response.headers["content-type"] == "image/png"
+    finally:
+        with contextlib.suppress(OSError):
+            if uploaded_path:
+                os.unlink(uploaded_path)

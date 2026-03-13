@@ -4,6 +4,7 @@ import type {
   SessionHistoryResponse,
   SessionSummary,
 } from "../types/session";
+import type { MessageImageFilePart } from "../types/message";
 
 interface JsonRequestOptions {
   method?: "GET" | "POST" | "DELETE";
@@ -141,6 +142,34 @@ export async function unarchiveSession(sessionId: string): Promise<boolean> {
 export async function fetchConfigModels(): Promise<ConfigModelSummary[]> {
   const result = await requestJson<ConfigModelsResponse>("/api/config/models");
   return result.models;
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      if (typeof reader.result !== "string") {
+        reject(new Error("failed to read image file"));
+        return;
+      }
+      resolve(reader.result);
+    });
+    reader.addEventListener("error", () => {
+      reject(reader.error ?? new Error("failed to read image file"));
+    });
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadImageAttachment(file: File): Promise<MessageImageFilePart> {
+  const dataUrl = await readFileAsDataUrl(file);
+  return await requestJson<MessageImageFilePart>("/api/files/images", {
+    method: "POST",
+    body: {
+      data_url: dataUrl,
+      file_name: file.name || null,
+    },
+  });
 }
 
 export function buildFileApiUrl(path: string): string {

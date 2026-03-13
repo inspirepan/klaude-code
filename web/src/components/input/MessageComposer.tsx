@@ -7,7 +7,7 @@ import type {
   PendingUserInteractionRequest,
   UserInteractionResponse,
 } from "../../types/interaction";
-import { ComposerCard } from "./ComposerCard";
+import { ComposerCard, type ComposerImageAttachment } from "./ComposerCard";
 import { SessionStatusBar } from "./SessionStatusBar";
 import { UserInteractionCard } from "./UserInteractionCard";
 
@@ -28,6 +28,7 @@ export function MessageComposer(): JSX.Element {
     (state) => state.reducerStateBySessionId[activeSessionId]?.statusBySessionId ?? null,
   );
   const [text, setText] = useState("");
+  const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [modelOptions, setModelOptions] = useState<ConfigModelSummary[]>([]);
   const [modelLoading, setModelLoading] = useState(false);
@@ -43,6 +44,7 @@ export function MessageComposer(): JSX.Element {
     groups.flatMap((group) => group.sessions).find((session) => session.id === activeSessionId) ??
     null;
   const normalizedText = text.trim();
+  const hasImages = images.length > 0;
   const sessionBusy =
     runtime !== null &&
     (runtime.sessionState !== "idle" ||
@@ -61,7 +63,7 @@ export function MessageComposer(): JSX.Element {
         mainSessionStatus.isComposing));
   const disableSubmit =
     submitting ||
-    normalizedText.length === 0 ||
+    (normalizedText.length === 0 && !hasImages) ||
     sessionBusy ||
     sessionReadOnly ||
     activeInteraction !== null;
@@ -71,6 +73,7 @@ export function MessageComposer(): JSX.Element {
 
   useEffect(() => {
     setText("");
+    setImages([]);
     setPendingModelName(null);
     setModelError(null);
     setRespondingInteraction(false);
@@ -135,12 +138,17 @@ export function MessageComposer(): JSX.Element {
 
     setSubmitting(true);
     try {
-      await sendMessage(activeSessionId, normalizedText);
+      await sendMessage(
+        activeSessionId,
+        normalizedText,
+        images.map((attachment) => attachment.image),
+      );
       setText("");
+      setImages([]);
     } finally {
       setSubmitting(false);
     }
-  }, [activeSessionId, disableSubmit, normalizedText, sendMessage]);
+  }, [activeSessionId, disableSubmit, images, normalizedText, sendMessage]);
 
   const handleModelChange = useCallback(
     async (nextModelName: string) => {
@@ -256,6 +264,8 @@ export function MessageComposer(): JSX.Element {
         <ComposerCard
           text={text}
           onTextChange={setText}
+          images={images}
+          onImagesChange={setImages}
           onSubmit={() => {
             void handleSubmit();
           }}
@@ -266,6 +276,9 @@ export function MessageComposer(): JSX.Element {
           disableSubmit={disableSubmit}
           interruptible={sessionInterruptible}
           disableInterrupt={interrupting || sessionReadOnly}
+          disableAttachments={
+            sessionBusy || sessionReadOnly || activeInteraction !== null || submitting
+          }
           placeholder="Send a follow-up..."
           modelOptions={resolvedModelOptions}
           modelValue={currentModelName}

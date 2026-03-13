@@ -11,6 +11,9 @@ export interface MessageImageURLPart {
 export interface MessageImageFilePart {
   type: "image_file";
   file_path: string;
+  mime_type?: string | null;
+  byte_size?: number | null;
+  sha256?: string | null;
 }
 
 export type MessageImagePart = MessageImageURLPart | MessageImageFilePart;

@@ -26,6 +26,7 @@ import type {
   SessionRuntimeState,
   SessionSummary,
 } from "../types/session";
+import type { MessageImagePart } from "../types/message";
 import { useMessageStore, type MessageStoreEvent } from "./message-store";
 
 interface SessionStoreState {
@@ -52,9 +53,10 @@ interface SessionStoreState {
     firstMessage: string,
     workDir?: string,
     modelName?: string | null,
+    images?: MessageImagePart[],
   ) => Promise<string>;
   requestModel: (sessionId: string, preferred: string, saveAsDefault?: boolean) => Promise<void>;
-  sendMessage: (sessionId: string, text: string) => Promise<void>;
+  sendMessage: (sessionId: string, text: string, images?: MessageImagePart[]) => Promise<void>;
   interruptSession: (sessionId: string) => Promise<void>;
   respondInteraction: (
     sessionId: string,
@@ -832,7 +834,10 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     firstMessage: string,
     workDir?: string,
     modelName?: string | null,
+    images?: MessageImagePart[],
   ) => {
+    const normalizedMessage = firstMessage.trim();
+    const normalizedImages = images?.length ? images : undefined;
     const normalizedWorkDir = workDir?.trim() || undefined;
     const nowSeconds = Date.now() / 1000;
     const { session_id: sessionId } = await createSession(normalizedWorkDir);
@@ -844,7 +849,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       updated_at: nowSeconds,
       work_dir: fallbackWorkDir,
       title: null,
-      user_messages: firstMessage.trim().length > 0 ? [firstMessage] : [],
+      user_messages: normalizedMessage.length > 0 ? [normalizedMessage] : [],
       messages_count: 0,
       model_name: null,
       session_state: "idle",
@@ -880,7 +885,11 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         save_as_default: false,
       });
     }
-    activeConnection?.connection.send({ type: "message", text: firstMessage });
+    activeConnection?.connection.send({
+      type: "message",
+      text: normalizedMessage,
+      images: normalizedImages,
+    });
     return sessionId;
   },
   requestModel: async (sessionId: string, preferred: string, saveAsDefault = false) => {
@@ -897,15 +906,20 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       save_as_default: saveAsDefault,
     });
   },
-  sendMessage: async (sessionId: string, text: string) => {
+  sendMessage: async (sessionId: string, text: string, images?: MessageImagePart[]) => {
     const normalizedText = text.trim();
-    if (normalizedText.length === 0) {
+    const normalizedImages = images?.length ? images : undefined;
+    if (normalizedText.length === 0 && normalizedImages === undefined) {
       return;
     }
     if (activeConnection?.sessionId !== sessionId) {
       openSessionWs(sessionId, get, set);
     }
-    activeConnection?.connection.send({ type: "message", text: normalizedText });
+    activeConnection?.connection.send({
+      type: "message",
+      text: normalizedText,
+      images: normalizedImages,
+    });
   },
   interruptSession: async (sessionId: string) => {
     if (activeConnection?.sessionId !== sessionId) {
