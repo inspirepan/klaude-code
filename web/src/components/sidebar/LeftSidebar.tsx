@@ -224,17 +224,19 @@ export function LeftSidebar(): JSX.Element {
     // outer div controls the animated visible width; aside stays at fixed sidebarWidth
     // so internal layout (justify-center etc.) is unaffected during the animation.
     <div
-      className={`grid ${isResizing ? "transition-none" : "transition-[grid-template-columns,opacity] duration-200 ease-in-out"}`}
+      className={`grid h-full min-h-0 ${isResizing ? "transition-none" : "transition-[grid-template-columns,opacity] duration-200 ease-in-out"}`}
       style={{
         gridTemplateColumns: sidebarOpen ? `${sidebarWidth}px` : "0px",
         opacity: sidebarOpen ? 1 : 0,
       }}
     >
-      <div className="overflow-hidden">
+      <div
+        className={`h-full min-h-0 ${archivedMenuOpen ? "overflow-visible" : "overflow-hidden"}`}
+      >
         <aside
           ref={sidebarRef}
           data-sidebar="left"
-          className="relative flex shrink-0 flex-col border-r border-neutral-200 bg-neutral-50"
+          className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 ${archivedMenuOpen ? "z-10" : ""}`}
           style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
         >
           <div className="flex items-center gap-1.5 px-3 py-2">
@@ -479,7 +481,7 @@ export function LeftSidebar(): JSX.Element {
               </Tooltip>
 
               {archivedMenuOpen ? (
-                <div className="absolute bottom-full left-0 z-40 mb-2 w-[320px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-neutral-200/80 bg-white p-1 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
+                <div className="absolute bottom-full left-0 z-40 mb-2 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-neutral-200/80 bg-white p-1 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
                   <div className="flex items-center justify-between border-b border-neutral-100 px-2 py-1.5">
                     <span className="text-2xs font-medium uppercase tracking-[0.08em] text-neutral-500">
                       Archived
@@ -494,7 +496,7 @@ export function LeftSidebar(): JSX.Element {
                             key={`archived-${group.work_dir}`}
                             workDir={group.work_dir}
                             sessions={group.sessions}
-                            collapsed={archivedCollapsedByWorkDir[group.work_dir] ?? false}
+                            collapsed={archivedCollapsedByWorkDir[group.work_dir] ?? true}
                             compactSessions
                             compactHeader
                             hideNewSessionButton
@@ -507,7 +509,7 @@ export function LeftSidebar(): JSX.Element {
                             onToggle={() => {
                               setArchivedCollapsedByWorkDir((prev) => ({
                                 ...prev,
-                                [group.work_dir]: !(prev[group.work_dir] ?? false),
+                                [group.work_dir]: !(prev[group.work_dir] ?? true),
                               }));
                             }}
                             onSelectDraft={(workDir) => {
