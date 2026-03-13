@@ -85,4 +85,25 @@ def test_get_update_message_editable_skips_background_upgrade(monkeypatch: Monke
 
     message = update.get_update_message()
     assert started["value"] is False
-    assert message == "PyPI 1.1.0 available. Local editable install detected; pull latest source."
+    assert (
+        message
+        == "PyPI 1.1.0 available. Local editable install detected; run `klaude upgrade` from a clean local checkout."
+    )
+
+
+def test_get_update_message_local_recommends_upgrade_command(monkeypatch: MonkeyPatch) -> None:
+    _reset_auto_upgrade_state(monkeypatch)
+
+    info = update.VersionInfo(
+        installed="1.0.0",
+        latest="1.1.0",
+        update_available=True,
+        install_kind=update.INSTALL_KIND_LOCAL,
+    )
+    monkeypatch.setattr(update, "check_for_updates", lambda: info)
+
+    message = update.get_update_message()
+    assert (
+        message
+        == "PyPI 1.1.0 available. Local path install detected; run `klaude upgrade` from a clean local checkout."
+    )

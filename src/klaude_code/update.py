@@ -352,10 +352,10 @@ def get_update_message() -> str | None:
         return None
 
     if info.install_kind == INSTALL_KIND_EDITABLE:
-        return f"PyPI {info.latest} available. Local editable install detected; pull latest source."
+        return f"PyPI {info.latest} available. Local editable install detected; run `klaude upgrade` from a clean local checkout."
 
     if info.install_kind == INSTALL_KIND_LOCAL:
-        return f"PyPI {info.latest} available. Local path install detected; update your local source."
+        return f"PyPI {info.latest} available. Local path install detected; run `klaude upgrade` from a clean local checkout."
 
     return f"New version available: {info.latest}. Please run `klaude upgrade` to upgrade."
 
