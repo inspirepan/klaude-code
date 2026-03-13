@@ -90,11 +90,38 @@ export function ToolBlockResult({
               }}
             >
               <div className={`mt-0.5 ${subTextClass} font-mono leading-relaxed text-neutral-500`}>
-                {streamingContent.split("\n").map((line, index) => (
-                  <div key={index} className={resultLineClass}>
-                    {line || " "}
-                  </div>
-                ))}
+                {(() => {
+                  const lines = streamingContent.split("\n");
+                  if (lines.length > RESULT_LINE_LIMIT * 2) {
+                    const headLines = lines.slice(0, RESULT_LINE_LIMIT);
+                    const tailLines = lines.slice(-RESULT_LINE_LIMIT);
+                    const hiddenCount = lines.length - RESULT_LINE_LIMIT * 2;
+                    return (
+                      <>
+                        {headLines.map((line, index) => (
+                          <div key={index} className={resultLineClass}>
+                            {line || " "}
+                          </div>
+                        ))}
+                        <div
+                          className={`my-0.5 ${miniTextClass} cursor-default font-sans text-neutral-400`}
+                        >
+                          {`··· ${hiddenCount} lines hidden ···`}
+                        </div>
+                        {tailLines.map((line, index) => (
+                          <div key={`tail-${index}`} className={resultLineClass}>
+                            {line || " "}
+                          </div>
+                        ))}
+                      </>
+                    );
+                  }
+                  return lines.map((line, index) => (
+                    <div key={index} className={resultLineClass}>
+                      {line || " "}
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
           ) : hasResult ? (
