@@ -145,16 +145,13 @@ export function getSessionMetaRows(
     rows.push({ label: "Input", value: formatCompactNumber(status.tokenInput) });
   }
   if ((status.tokenCached ?? 0) > 0) {
-    rows.push({
-      label: "Cached",
-      value:
-        status.cacheHitRate !== null
-          ? `${formatCompactNumber(status.tokenCached ?? 0)} (${Math.round(status.cacheHitRate * 100)}%)`
-          : formatCompactNumber(status.tokenCached ?? 0),
-    });
+    rows.push({ label: "Cached Read", value: formatCompactNumber(status.tokenCached ?? 0) });
+  }
+  if (status.cacheHitRate !== null) {
+    rows.push({ label: "Cache Hit Rate", value: `${Math.round(status.cacheHitRate * 100)}%` });
   }
   if ((status.tokenCacheWrite ?? 0) > 0) {
-    rows.push({ label: "Cache write", value: formatCompactNumber(status.tokenCacheWrite ?? 0) });
+    rows.push({ label: "Cached Write", value: formatCompactNumber(status.tokenCacheWrite ?? 0) });
   }
   if (status.tokenOutput !== null) {
     rows.push({ label: "Output", value: formatCompactNumber(status.tokenOutput) });

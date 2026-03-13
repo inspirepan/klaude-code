@@ -41,7 +41,7 @@ function RichUIExtraBlock({
   }
   if (isQuestionSummaryUIExtra(extra)) {
     return (
-      <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2.5">
+      <div className="rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2.5">
         <QuestionSummaryView uiExtra={extra} compact={compact} />
       </div>
     );

@@ -58,6 +58,7 @@ interface ComposerCardProps {
   interruptible?: boolean;
   disableInterrupt?: boolean;
   disableAttachments?: boolean;
+  disableInput?: boolean;
   placeholder?: string;
   modelOptions: ConfigModelSummary[];
   modelValue: string;
@@ -132,6 +133,7 @@ export function ComposerCard({
   interruptible = false,
   disableInterrupt = false,
   disableAttachments = false,
+  disableInput = false,
   placeholder = "Send a message...",
   modelOptions,
   modelValue,
@@ -406,8 +408,9 @@ export function ComposerCard({
             onSubmit({ text, images: images.map((item) => item.image) });
           }}
           rows={1}
+          disabled={disableInput}
           placeholder={placeholder}
-          className="min-h-[2rem] w-full resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0.5 text-sm leading-7 text-neutral-800 outline-none placeholder:text-neutral-400"
+          className="min-h-[2rem] w-full resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0.5 text-sm leading-7 text-neutral-800 outline-none placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-40"
         />
         {fileCompletionOpen ? (
           <AtFileCompletionList
@@ -424,7 +427,7 @@ export function ComposerCard({
           {images.map((attachment) => (
             <div
               key={attachment.id}
-              className="group relative overflow-hidden rounded-md border border-neutral-200/80 bg-neutral-50"
+              className="group relative overflow-hidden rounded-md border border-neutral-200/80 bg-surface"
             >
               <img
                 src={buildFileApiUrl(attachment.image.file_path)}

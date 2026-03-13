@@ -134,7 +134,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
 
   return (
     <>
-      <div className="hover:bg-slate-150 dark:hover:bg-slate-750 ml-auto w-fit max-w-[50%] rounded-2xl border border-slate-200 bg-slate-100 px-5 py-2.5 transition-colors dark:border-slate-700 dark:bg-slate-800">
+      <div className="hover:bg-slate-150 dark:hover:bg-slate-750 ml-auto w-fit max-w-[50%] rounded-2xl border border-slate-200/50 bg-slate-100 px-2.5 py-1.5 transition-colors dark:border-slate-700/50 dark:bg-slate-800">
         {renderImages()}
         {hasText ? (
           <div>

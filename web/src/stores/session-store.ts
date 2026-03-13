@@ -336,17 +336,6 @@ function upsertSessionIntoGroups(groups: SessionGroup[], session: SessionSummary
   return nextGroups;
 }
 
-function getLatestWorkDir(groups: SessionGroup[]): string {
-  let latestSession: SessionSummary | null = null;
-  for (const group of groups) {
-    for (const session of group.sessions) {
-      if (latestSession === null || session.updated_at > latestSession.updated_at) {
-        latestSession = session;
-      }
-    }
-  }
-  return latestSession?.work_dir ?? "";
-}
 
 function patchRuntimeByEvent(
   current: Record<string, SessionRuntimeState>,
@@ -684,7 +673,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       set((state) => ({
         groups,
         loading: false,
-        draftWorkDir: state.draftWorkDir || getLatestWorkDir(groups),
+        draftWorkDir: state.draftWorkDir,
         collapsedByWorkDir: mergeCollapseState(groups, state.collapsedByWorkDir),
         runtimeBySessionId: groups.reduce<Record<string, SessionRuntimeState>>((acc, group) => {
           for (const session of group.sessions) {

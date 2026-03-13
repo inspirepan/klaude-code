@@ -181,7 +181,7 @@ export function ModelSelector({
                 <div key={group.provider}>
                   <button
                     type="button"
-                    className="flex w-full items-center gap-1 rounded-md px-1.5 pb-0.5 pt-1.5 text-2xs uppercase tracking-wide text-emerald-700 transition-colors hover:bg-neutral-50"
+                    className="flex w-full items-center gap-1 rounded-md px-1.5 pb-0.5 pt-1.5 text-2xs uppercase tracking-wide text-emerald-700 transition-colors hover:bg-surface"
                     onMouseDown={(event) => {
                       event.preventDefault();
                     }}
@@ -224,9 +224,9 @@ export function ModelSelector({
                             className={[
                               "flex w-full items-center justify-between gap-2 rounded-md py-[5px] pl-[22px] pr-2 text-left transition-colors",
                               highlighted
-                                ? "bg-neutral-100 text-neutral-900"
+                                ? "bg-muted text-neutral-900"
                                 : selected
-                                  ? "bg-neutral-50 text-neutral-900"
+                                  ? "bg-surface text-neutral-900"
                                   : "text-neutral-600",
                             ].join(" ")}
                             onMouseDown={(event) => {

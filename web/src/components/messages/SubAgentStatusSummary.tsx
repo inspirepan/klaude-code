@@ -50,7 +50,7 @@ export function SubAgentStatusSummary({
             >
               <button
                 type="button"
-                className="inline-flex h-5 w-5 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                className="inline-flex h-5 w-5 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
                 aria-label="Show sub-agent metadata"
                 onClick={() => {
                   onMetaOpenChange(!metaOpen);

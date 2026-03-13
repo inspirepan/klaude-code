@@ -185,7 +185,7 @@ export function SessionCard({
                 : "status-success-card-settle"
               : active
                 ? "bg-neutral-200/60"
-                : "hover:bg-neutral-100/80",
+                : "hover:bg-muted/80",
           )}
           role="button"
           tabIndex={0}
@@ -252,7 +252,7 @@ export function SessionCard({
               : "status-success-card-settle"
             : active
               ? "bg-neutral-200/60"
-              : "hover:bg-neutral-100/80",
+              : "hover:bg-muted/80",
         )}
         role="button"
         tabIndex={0}

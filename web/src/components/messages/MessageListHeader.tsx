@@ -32,7 +32,7 @@ export function MessageListHeader({
           <TooltipTrigger asChild>
             <button
               type="button"
-              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
               onClick={() => {
                 setSidebarOpen(true);
               }}
@@ -88,7 +88,7 @@ export function MessageListHeader({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
             onClick={onCollapseAll}
             aria-label="Collapse all"
           >
@@ -116,7 +116,7 @@ export function MessageListHeader({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
             onClick={onExpandAll}
             aria-label="Expand all"
           >
@@ -144,7 +144,7 @@ export function MessageListHeader({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
             onClick={onSearchOpen}
             aria-label="Search messages"
           >

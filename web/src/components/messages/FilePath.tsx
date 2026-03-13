@@ -45,7 +45,7 @@ export function FilePath({
   if (!expanded && truncateFromStart) {
     return (
       <code
-        className={`inline-block max-w-full truncate rounded bg-neutral-100 px-1.5 py-0.5 text-left align-middle font-mono text-sm [direction:rtl] ${className ?? ""}`}
+        className={`inline-block max-w-full truncate rounded bg-surface px-1.5 py-0.5 text-left align-middle font-mono text-sm [direction:rtl] ${className ?? ""}`}
         title={path}
       >
         {display}
@@ -55,7 +55,7 @@ export function FilePath({
 
   return (
     <code
-      className={`inline-block max-w-full rounded bg-neutral-100 px-1.5 py-0.5 align-middle font-mono text-sm ${expanded ? "whitespace-pre-wrap break-words" : "truncate"} ${className ?? ""}`}
+      className={`inline-block max-w-full rounded bg-surface px-1.5 py-0.5 align-middle font-mono text-sm ${expanded ? "whitespace-pre-wrap break-words" : "truncate"} ${className ?? ""}`}
       title={path}
     >
       <FilePathContent display={display} />

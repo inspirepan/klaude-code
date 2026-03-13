@@ -2,7 +2,7 @@ import type { TodoListUIExtra } from "./message-ui-extra";
 
 const statusConfig = {
   pending: { mark: "\u25A2", markClass: "text-neutral-300", textClass: "text-neutral-500" },
-  in_progress: { mark: "\u25C9", markClass: "text-blue-500", textClass: "text-neutral-700" },
+  in_progress: { mark: "\u25C9", markClass: "text-blue-500", textClass: "text-blue-500" },
   completed: {
     mark: "\u2714",
     markClass: "text-emerald-500",

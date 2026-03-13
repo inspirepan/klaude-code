@@ -26,12 +26,13 @@ export function NewSessionOverlay({
   const [text, setText] = useState("");
   const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(() => draftWorkDir.trim().length === 0);
   const [modelOptions, setModelOptions] = useState<ConfigModelSummary[]>([]);
   const [modelLoading, setModelLoading] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState("");
   const workspacePickerRef = useRef<HTMLDivElement>(null);
+  const workspaceInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const workspaceOptions = useMemo(
@@ -87,7 +88,11 @@ export function NewSessionOverlay({
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      textareaRef.current?.focus();
+      if (draftWorkDir.trim().length === 0) {
+        workspaceInputRef.current?.focus();
+      } else {
+        textareaRef.current?.focus();
+      }
     });
     return () => {
       window.cancelAnimationFrame(frame);
@@ -174,11 +179,11 @@ export function NewSessionOverlay({
         />
       ) : null}
       <div
-        className={`relative w-full max-w-2xl -translate-y-[25vh] rounded-xl border border-neutral-200/90 bg-white p-4 ${
+        className={`relative w-full max-w-2xl -translate-y-[25vh] rounded-xl border border-neutral-200/90 bg-white p-3 ${
           showBackdrop ? "shadow-[0_24px_80px_rgba(0,0,0,0.14)]" : ""
-        } sm:p-6`}
+        } sm:p-4`}
       >
-        <div className="mb-4 space-y-1">
+        <div className="mb-3 space-y-0.5">
           <div className="text-base font-semibold text-neutral-800">Start a new session</div>
           <div className="text-sm leading-6 text-neutral-500">
             Choose a workspace, then send your first message.
@@ -192,6 +197,7 @@ export function NewSessionOverlay({
             workspaceMenuOpen={workspaceMenuOpen}
             filteredWorkspaceOptions={filteredWorkspaceOptions}
             workspacePickerRef={workspacePickerRef}
+            inputRef={workspaceInputRef}
             setDraftWorkDir={setDraftWorkDir}
             setWorkspaceMenuOpen={setWorkspaceMenuOpen}
           />
@@ -203,6 +209,7 @@ export function NewSessionOverlay({
           <ComposerCard
             sessionId=""
             searchWorkDir={normalizedDraftWorkDir}
+            disableInput={normalizedDraftWorkDir.length === 0}
             text={text}
             onTextChange={setText}
             images={images}
@@ -213,7 +220,7 @@ export function NewSessionOverlay({
             submitting={submitting}
             disableSubmit={disableSubmit}
             disableAttachments={submitting}
-            placeholder="What should we do?"
+            placeholder={normalizedDraftWorkDir.length === 0 ? "Select a workspace first..." : "What should we do?"}
             modelOptions={modelOptions}
             modelValue={selectedModel}
             modelLoading={modelLoading}

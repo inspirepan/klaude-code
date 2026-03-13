@@ -24,7 +24,7 @@ export function MainPanel(): JSX.Element {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
                     onClick={() => {
                       setSidebarOpen(true);
                     }}
@@ -55,7 +55,7 @@ export function MainPanel(): JSX.Element {
             </div>
           </div>
 
-          <div className="relative min-h-0 flex-1 bg-neutral-50/45">
+          <div className="relative min-h-0 flex-1 bg-surface/45">
             <NewSessionOverlay showBackdrop={false} />
           </div>
         </div>

@@ -45,7 +45,7 @@ export function SubAgentCollapsedPreview({
         </div>
         <div
           ref={toolListRef}
-          className="h-28 overflow-y-auto rounded-lg border border-neutral-200/80 bg-neutral-50/70 px-2.5 py-2"
+          className="h-28 overflow-y-auto rounded-lg border border-neutral-200/80 bg-surface/70 px-2.5 py-2"
         >
           {toolItems.length > 0 ? (
             <div className="space-y-1.5 pr-1">
@@ -62,7 +62,7 @@ export function SubAgentCollapsedPreview({
                       ) : null}
                     </div>
                     {detail ? (
-                      <code className="min-w-0 max-w-full truncate rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-neutral-500">
+                      <code className="min-w-0 max-w-full truncate rounded bg-muted px-1.5 py-0.5 font-mono text-neutral-500">
                         {detail}
                       </code>
                     ) : null}
@@ -77,7 +77,7 @@ export function SubAgentCollapsedPreview({
       </div>
       {resultPreview ? (
         <div className="mt-2.5">
-          <div className="relative overflow-hidden rounded-lg border border-neutral-200/80 bg-neutral-50/70 px-2.5 py-2">
+          <div className="relative overflow-hidden rounded-lg border border-neutral-200/80 bg-surface/70 px-2.5 py-2">
             <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-neutral-500">
               {resultPreview.text}
             </pre>
@@ -87,7 +87,7 @@ export function SubAgentCollapsedPreview({
           </div>
         </div>
       ) : streamingPreview ? (
-        <div className="relative overflow-hidden rounded-lg border border-neutral-200/80 bg-neutral-50/70 px-2.5 py-2">
+        <div className="relative overflow-hidden rounded-lg border border-neutral-200/80 bg-surface/70 px-2.5 py-2">
           <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-neutral-500">
             {streamingPreview.text}
           </pre>

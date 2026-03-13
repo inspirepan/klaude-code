@@ -88,7 +88,7 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 text-sm">
+    <div className="rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2 text-sm">
       {explanation ? (
         <p className="mb-1 font-sans text-sm text-neutral-500">{explanation}</p>
       ) : null}
@@ -109,7 +109,7 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
     item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2 text-sm">
+    <div className="rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2 text-sm">
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} compact={compact} />
       ) : item.isStreaming ? (
@@ -127,7 +127,7 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
   const { collapseGen, expandGen } = useCollapseAll();
   const bodyTextClass = "text-sm";
   const headerDetailTextClass = "!text-xs";
-  const detailChipClass = "rounded bg-neutral-100 px-1.5 py-0.5 align-middle";
+  const detailChipClass = "rounded bg-surface px-1.5 py-0.5 align-middle";
 
   const defaultExpanded = shouldExpandResult(item);
   const [open, setOpen] = useState(defaultExpanded);
