@@ -98,6 +98,7 @@ export function ToolBlockResult({
               <div className={`mt-0.5 ${subTextClass} font-mono leading-relaxed text-neutral-500`}>
                 {(() => {
                   const lines = streamingContent.split("\n");
+                  const lineClass = `${resultLineClass} stream-fade-in`;
                   if (lines.length > STREAMING_LINE_LIMIT * 2) {
                     const headLines = lines.slice(0, STREAMING_LINE_LIMIT);
                     const tailLines = lines.slice(-STREAMING_LINE_LIMIT);
@@ -105,7 +106,7 @@ export function ToolBlockResult({
                     return (
                       <>
                         {headLines.map((line, index) => (
-                          <div key={index} className={resultLineClass}>
+                          <div key={index} className={lineClass}>
                             {line || " "}
                           </div>
                         ))}
@@ -115,7 +116,7 @@ export function ToolBlockResult({
                           {`··· ${hiddenCount} lines hidden ···`}
                         </div>
                         {tailLines.map((line, index) => (
-                          <div key={`tail-${index}`} className={resultLineClass}>
+                          <div key={`tail-${index}`} className={lineClass}>
                             {line || " "}
                           </div>
                         ))}
@@ -123,7 +124,7 @@ export function ToolBlockResult({
                     );
                   }
                   return lines.map((line, index) => (
-                    <div key={index} className={resultLineClass}>
+                    <div key={index} className={lineClass}>
                       {line || " "}
                     </div>
                   ));
