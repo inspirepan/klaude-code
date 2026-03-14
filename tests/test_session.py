@@ -124,8 +124,6 @@ class TestSessionDirectories:
         assert sessions_dir.name == "sessions"
 
 
-
-
 class TestSessionNeedTurnStart:
     """Tests for Session.need_turn_start method."""
 
@@ -1077,6 +1075,3 @@ class TestShortestUniquePrefix:
             await close_default_store()
 
         arun(_test())
-
-
-

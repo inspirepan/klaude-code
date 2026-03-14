@@ -970,5 +970,3 @@ class Session(BaseModel):
                 return session_id[:length]
 
         return session_id
-
-
