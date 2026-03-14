@@ -20,7 +20,7 @@ export function TodoListView({ uiExtra }: TodoListViewProps): JSX.Element {
   const newCompletedSet = new Set(new_completed);
 
   return (
-    <div className="flex w-fit flex-col gap-0.5 py-1 text-sm">
+    <div className="flex w-fit flex-col gap-0.5 py-1 text-base">
       {todos.map((todo, i) => {
         const isNewCompleted = todo.status === "completed" && newCompletedSet.has(todo.content);
         const config = statusConfig[todo.status];

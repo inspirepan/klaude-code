@@ -260,7 +260,7 @@ export function LeftSidebar(): JSX.Element {
                   {sessionListView === "grouped" ? "Switch to flat view" : "Switch to grouped view"}
                 </span>
                 <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-                  <span className="inline-flex whitespace-pre text-xs leading-none">
+                  <span className="inline-flex whitespace-pre text-sm leading-none">
                     <kbd className="inline-flex font-sans">
                       <span className="min-w-[1em] text-center">⇧</span>
                     </kbd>
@@ -290,7 +290,7 @@ export function LeftSidebar(): JSX.Element {
               <TooltipContent className="flex items-center gap-1.5">
                 <span>Collapse sidebar</span>
                 <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-                  <span className="inline-flex whitespace-pre text-xs leading-none">
+                  <span className="inline-flex whitespace-pre text-sm leading-none">
                     <kbd className="inline-flex font-sans">
                       <span className="min-w-[1em] text-center">⌘</span>
                     </kbd>
@@ -308,10 +308,10 @@ export function LeftSidebar(): JSX.Element {
               {loadError !== null ? (
                 <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3">
                   <div className="mb-1 font-semibold">Load failed</div>
-                  <div className="break-words text-sm text-neutral-500">{loadError}</div>
+                  <div className="break-words text-base text-neutral-500">{loadError}</div>
                   <button
                     type="button"
-                    className="mt-2 cursor-pointer rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm"
+                    className="mt-2 cursor-pointer rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-base"
                     onClick={() => {
                       void refreshSessions();
                     }}
@@ -324,14 +324,14 @@ export function LeftSidebar(): JSX.Element {
               {loadError === null && loading && groups.length === 0 ? (
                 <div className="flex items-center gap-2 px-2 py-2 text-neutral-500">
                   <Loader className="h-4 w-4 animate-spin text-neutral-500" />
-                  <span className="text-xs font-semibold">Loading…</span>
+                  <span className="text-sm font-semibold">Loading…</span>
                 </div>
               ) : null}
 
               {loadError === null && !loading && groups.length === 0 ? (
                 <div className="px-2 py-2 text-neutral-500">
-                  <div className="text-xs font-semibold">No sessions yet</div>
-                  <div className="mt-0.5 text-2xs">Click "New Agent" above to start</div>
+                  <div className="text-sm font-semibold">No sessions yet</div>
+                  <div className="mt-0.5 text-xs">Click "New Agent" above to start</div>
                 </div>
               ) : null}
 
@@ -365,10 +365,10 @@ export function LeftSidebar(): JSX.Element {
                 <div className="space-y-4 pt-2">
                   <div>
                     <div className="mb-2 flex items-center gap-1.5 px-1.5">
-                      <span className="text-2xs font-medium uppercase tracking-[0.02em] text-neutral-500">
+                      <span className="text-xs font-medium uppercase tracking-[0.02em] text-neutral-500">
                         In Progress
                       </span>
-                      <span className="text-2xs text-neutral-500">{inProgressSessions.length}</span>
+                      <span className="text-xs text-neutral-500">{inProgressSessions.length}</span>
                     </div>
                     {inProgressSessions.length > 0 ? (
                       <div className="space-y-1">
@@ -400,7 +400,7 @@ export function LeftSidebar(): JSX.Element {
                         ))}
                       </div>
                     ) : (
-                      <div className="px-1.5 py-1 text-2xs text-neutral-500">
+                      <div className="px-1.5 py-1 text-xs text-neutral-500">
                         No in-progress sessions
                       </div>
                     )}
@@ -408,10 +408,10 @@ export function LeftSidebar(): JSX.Element {
 
                   <div>
                     <div className="mb-2 flex items-center gap-1.5 px-1.5">
-                      <span className="text-2xs font-medium uppercase tracking-[0.02em] text-neutral-500">
+                      <span className="text-xs font-medium uppercase tracking-[0.02em] text-neutral-500">
                         Done
                       </span>
-                      <span className="text-2xs text-neutral-500">{doneSessions.length}</span>
+                      <span className="text-xs text-neutral-500">{doneSessions.length}</span>
                     </div>
                     {doneSessions.length > 0 ? (
                       <div className="space-y-1">
@@ -443,7 +443,7 @@ export function LeftSidebar(): JSX.Element {
                         ))}
                       </div>
                     ) : (
-                      <div className="px-1.5 py-1 text-2xs text-neutral-500">No done sessions</div>
+                      <div className="px-1.5 py-1 text-xs text-neutral-500">No done sessions</div>
                     )}
                   </div>
                 </div>
@@ -472,10 +472,10 @@ export function LeftSidebar(): JSX.Element {
               {archivedMenuOpen ? (
                 <div className="absolute bottom-full left-0 z-40 mb-2 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-neutral-200/80 bg-white p-1 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
                   <div className="flex items-center justify-between border-b border-neutral-100 px-2 py-1.5">
-                    <span className="text-2xs font-medium uppercase tracking-[0.08em] text-neutral-500">
+                    <span className="text-xs font-medium uppercase tracking-[0.08em] text-neutral-500">
                       Archived
                     </span>
-                    <span className="text-2xs text-neutral-500">{archivedSessionCount}</span>
+                    <span className="text-xs text-neutral-500">{archivedSessionCount}</span>
                   </div>
                   {archivedGroups.length > 0 ? (
                     <ScrollArea className="w-full" viewportClassName="max-h-80" type="auto">
@@ -518,7 +518,7 @@ export function LeftSidebar(): JSX.Element {
                       </div>
                     </ScrollArea>
                   ) : (
-                    <div className="px-3 py-3 text-xs text-neutral-500">No archived sessions</div>
+                    <div className="px-3 py-3 text-sm text-neutral-500">No archived sessions</div>
                   )}
                 </div>
               ) : null}
@@ -528,12 +528,12 @@ export function LeftSidebar(): JSX.Element {
           {archiveUndoSessionId !== null ? (
             <div className="pointer-events-none absolute inset-x-2 bottom-2 z-40">
               <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white/95 px-2.5 py-2 shadow-[0_8px_24px_-16px_rgba(15,15,15,0.35)] backdrop-blur">
-                <span className="text-xs text-neutral-700">Session archived</span>
+                <span className="text-sm text-neutral-700">Session archived</span>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      className="cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-neutral-600 transition-colors hover:bg-muted hover:text-neutral-900"
+                      className="cursor-pointer rounded-md px-2 py-1 text-sm font-medium text-neutral-600 transition-colors hover:bg-muted hover:text-neutral-900"
                       onClick={() => {
                         const sessionId = archiveUndoSessionId;
                         dismissArchiveUndoToast();

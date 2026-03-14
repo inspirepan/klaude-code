@@ -11,7 +11,7 @@ export function QuestionSummaryView({
   compact = false,
 }: QuestionSummaryViewProps): JSX.Element {
   const title = (
-    <div className={`${compact ? "text-2xs" : "text-xs"} font-semibold text-neutral-600`}>
+    <div className={`${compact ? "text-xs" : "text-sm"} font-semibold text-neutral-600`}>
       QUESTION
     </div>
   );
@@ -20,13 +20,13 @@ export function QuestionSummaryView({
     return (
       <div className="flex flex-col gap-1.5 py-1">
         {title}
-        <span className="text-sm text-amber-600">(No answer provided)</span>
+        <span className="text-base text-amber-600">(No answer provided)</span>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2.5 py-1 text-sm leading-relaxed">
+    <div className="flex flex-col gap-2.5 py-1 text-base leading-relaxed">
       {title}
       {uiExtra.items.map((item, i) => (
         <div key={i} className="flex flex-col gap-1">

@@ -127,7 +127,7 @@ export function ModelSelector({
         }}
         className={
           triggerClassName ??
-          "inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-xs text-neutral-500 transition-colors hover:text-neutral-700 disabled:cursor-not-allowed disabled:text-neutral-300"
+          "inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-sm text-neutral-500 transition-colors hover:text-neutral-700 disabled:cursor-not-allowed disabled:text-neutral-300"
         }
       >
         <span className="max-w-44 truncate">{triggerLabel}</span>
@@ -171,7 +171,7 @@ export function ModelSelector({
                 }
               }}
               placeholder="Filter models..."
-              className="h-6 w-full bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-400"
+              className="h-6 w-full bg-transparent text-base text-neutral-700 outline-none placeholder:text-neutral-400"
             />
           </div>
           <ScrollArea ref={listRef} className="w-full" viewportClassName="max-h-96" type="auto">
@@ -181,7 +181,7 @@ export function ModelSelector({
                 <div key={group.provider}>
                   <button
                     type="button"
-                    className="flex w-full items-center gap-1 rounded-md px-1.5 pb-0.5 pt-1.5 text-2xs uppercase tracking-wide text-emerald-700 transition-colors hover:bg-surface"
+                    className="flex w-full items-center gap-1 rounded-md px-1.5 pb-0.5 pt-1.5 text-xs uppercase tracking-wide text-emerald-700 transition-colors hover:bg-surface"
                     onMouseDown={(event) => {
                       event.preventDefault();
                     }}
@@ -242,7 +242,7 @@ export function ModelSelector({
                               setQuery("");
                             }}
                           >
-                            <span className="min-w-0 flex-1 truncate text-sm">
+                            <span className="min-w-0 flex-1 truncate text-base">
                               {model.model_id}
                               {reasoningParam ? (
                                 <span className="text-neutral-500">
@@ -251,7 +251,7 @@ export function ModelSelector({
                                 </span>
                               ) : null}
                             </span>
-                            <span className="inline-flex shrink-0 items-center gap-1 text-2xs text-neutral-500">
+                            <span className="inline-flex shrink-0 items-center gap-1 text-xs text-neutral-500">
                               {model.is_default ? "default" : null}
                               {selected ? <Check className="h-3 w-3" /> : null}
                             </span>

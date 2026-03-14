@@ -259,7 +259,7 @@ export function MessageComposer(): JSX.Element {
           />
         ) : null}
         {modelError ? (
-          <div className="px-1 text-xs text-red-500">Model switch failed: {modelError}</div>
+          <div className="px-1 text-sm text-red-500">Model switch failed: {modelError}</div>
         ) : null}
         <ComposerCard
           sessionId={activeSessionId}

@@ -53,7 +53,7 @@ export function MessageRow({
                 <button
                   type="button"
                   onClick={() => onCopy(item)}
-                  className="cursor-pointer font-mono text-xs leading-none text-neutral-500 opacity-0 transition-opacity duration-150 hover:text-neutral-700 group-hover/row:opacity-100"
+                  className="cursor-pointer font-mono text-sm leading-none text-neutral-500 opacity-0 transition-opacity duration-150 hover:text-neutral-700 group-hover/row:opacity-100"
                   aria-label={copied ? "Copied" : "Copy"}
                 >
                   {copied ? "[Copied]" : "[Copy]"}

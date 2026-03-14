@@ -82,10 +82,10 @@ export function DraftWorkspacePicker({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
-        <label htmlFor="draft-workspace" className="text-xs font-semibold text-neutral-600">
+        <label htmlFor="draft-workspace" className="text-sm font-semibold text-neutral-600">
           Workspace
         </label>
-        <span className="text-2xs text-neutral-500">Choose or type a local path</span>
+        <span className="text-xs text-neutral-500">Choose or type a local path</span>
       </div>
       <div ref={workspacePickerRef} className="relative">
         <div
@@ -110,7 +110,7 @@ export function DraftWorkspacePicker({
             }}
             onKeyDown={handleKeyDown}
             placeholder="/path/to/workspace"
-            className="w-full flex-1 border-0 bg-transparent px-2 py-2 text-sm text-neutral-700 outline-none placeholder:text-neutral-400"
+            className="w-full flex-1 border-0 bg-transparent px-2 py-2 text-base text-neutral-700 outline-none placeholder:text-neutral-400"
           />
           <button
             type="button"
@@ -161,7 +161,7 @@ export function DraftWorkspacePicker({
                       }}
                     >
                       <Folder className="h-4 w-4 shrink-0 text-neutral-400" />
-                      <span className="min-w-0 flex-1 truncate text-sm leading-6">
+                      <span className="min-w-0 flex-1 truncate text-base leading-6">
                         <span className="text-neutral-500">{parent ?? ""}</span>
                         <span className="text-neutral-700">{name}</span>
                       </span>
@@ -170,7 +170,7 @@ export function DraftWorkspacePicker({
                 })}
               </div>
             ) : (
-              <div className="px-2.5 py-1.5 text-sm text-neutral-500">
+              <div className="px-2.5 py-1.5 text-base text-neutral-500">
                 No matching workspace. You can still type any local path.
               </div>
             )}
@@ -185,14 +185,14 @@ export function DraftWorkspacePicker({
                       <ArrowDown className="h-2.5 w-2.5" />
                     </kbd>
                   </span>
-                  <span className="text-xs">navigate</span>
+                  <span className="text-sm">navigate</span>
                 </span>
                 <span className="text-neutral-300">·</span>
                 <span className="inline-flex items-center gap-1.5 text-neutral-400">
                   <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                     <CornerDownLeft className="h-2.5 w-2.5" />
                   </kbd>
-                  <span className="text-xs">select</span>
+                  <span className="text-sm">select</span>
                 </span>
               </div>
             ) : null}

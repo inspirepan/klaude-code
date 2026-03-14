@@ -76,7 +76,7 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
 
   return (
     <div
-      className={`-my-1 grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} cursor-pointer font-mono text-sm`}
+      className={`-my-1 grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} cursor-pointer font-mono text-base`}
       onClick={() => setOpen((value) => !value)}
     >
       <CollapseRailMarker open={open} />
@@ -91,7 +91,7 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
         <div className={`mt-2 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
           <CollapseRailConnector />
           <div
-            className="thinking-block min-w-0 font-sans text-sm leading-relaxed text-neutral-500"
+            className="thinking-block min-w-0 font-sans text-base leading-relaxed text-neutral-500"
             onClick={(event) => {
               event.stopPropagation();
             }}

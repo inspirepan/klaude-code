@@ -27,7 +27,7 @@ export function CollapseRailMarker({
     <div className={cn("flex flex-col items-center self-stretch", className)}>
       <span
         className={cn(
-          "mt-0.5 font-mono text-xs text-neutral-500",
+          "mt-0.5 font-mono text-sm text-neutral-500",
           !expandable && inactiveMode === "hidden" && "opacity-0",
           indicatorClassName,
         )}

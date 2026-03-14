@@ -34,11 +34,11 @@ export function UnknownEvent({ item, compact = false }: UnknownEventProps): JSX.
         <ChevronRight
           className={`h-3 w-3 transition-transform duration-150 ${open ? "rotate-90" : ""}`}
         />
-        <span className={`${compact ? "text-2xs" : "text-xs"} select-none`}>{item.eventType}</span>
+        <span className={`${compact ? "text-xs" : "text-sm"} select-none`}>{item.eventType}</span>
       </CollapsibleTrigger>
       <CollapsibleContent>
         <pre
-          className={`mt-1 ${compact ? "text-2xs" : "text-xs"} overflow-x-auto rounded bg-surface p-2 text-neutral-500`}
+          className={`mt-1 ${compact ? "text-xs" : "text-sm"} overflow-x-auto rounded bg-surface p-2 text-neutral-500`}
         >
           {JSON.stringify(item.rawEvent, null, 2)}
         </pre>

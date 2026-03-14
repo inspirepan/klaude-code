@@ -410,7 +410,7 @@ export function ComposerCard({
           rows={1}
           disabled={disableInput}
           placeholder={placeholder}
-          className="min-h-[2rem] w-full resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0.5 text-sm leading-7 text-neutral-800 outline-none placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-40"
+          className="min-h-[2rem] w-full resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0.5 text-base leading-7 text-neutral-800 outline-none placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-40"
         />
         {fileCompletionOpen ? (
           <AtFileCompletionList
@@ -456,11 +456,11 @@ export function ComposerCard({
         </div>
       ) : null}
       {uploadingCount > 0 ? (
-        <div className="mt-2 text-xs text-neutral-500">
+        <div className="mt-2 text-sm text-neutral-500">
           Uploading {uploadingCount === 1 ? "image" : `${uploadingCount} images`}...
         </div>
       ) : null}
-      {uploadError ? <div className="mt-2 text-xs text-red-500">{uploadError}</div> : null}
+      {uploadError ? <div className="mt-2 text-sm text-red-500">{uploadError}</div> : null}
       <div className="mt-1 flex items-center justify-between gap-3">
         <ModelSelector
           options={modelOptions}

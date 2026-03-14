@@ -26,7 +26,7 @@ export function TaskWorked({ item }: TaskWorkedProps): JSX.Element {
   const suffix = item.turnCount === 1 ? "step" : "steps";
 
   return (
-    <div className="inline-flex items-center gap-1.5 text-sm text-emerald-700">
+    <div className="inline-flex items-center gap-1.5 text-base text-emerald-700">
       <span className="font-mono leading-none">✔</span>
       <span className="font-mono">
         Worked for {formatElapsedCompact(item.durationSeconds)}
