@@ -109,7 +109,7 @@ def test_normalize_image_data_url_resizes_when_base64_payload_exceeds_limit(
 
     normalized = image_module.normalize_image_data_url(original_url)
     assert _payload_from_data_url(normalized) == b"tiny"
-    assert len(normalized.split(",", 1)[1]) <= image_module._MAX_BASE64_IMAGE_SIZE_BYTES
+    assert len(normalized.split(",", 1)[1]) <= 20
 
 
 def test_normalize_image_data_url_keeps_non_image_media_type(monkeypatch: pytest.MonkeyPatch) -> None:
