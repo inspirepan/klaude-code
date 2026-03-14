@@ -447,6 +447,40 @@ function summaryToText(summary: SummaryPart[]): string {
     .join(", ");
 }
 
+function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
+  return (
+    <>
+      {summary.map((part, partIdx) => (
+        <span key={partIdx}>
+          {partIdx > 0 ? ", " : null}
+          {part.fileStats ? (
+            <>
+              {part.label}{" "}
+              {part.fileStats.map((fs, fsIdx) => (
+                <span key={fsIdx}>
+                  {fsIdx > 0 ? ", " : null}
+                  {fs.name}
+                  {" ("}
+                  {fs.del !== undefined && fs.del > 0 ? (
+                    <span className="text-rose-600">-{fs.del}</span>
+                  ) : null}
+                  {fs.del !== undefined && fs.del > 0 && fs.add > 0 ? " " : null}
+                  {fs.add > 0 ? <span className="text-emerald-600">+{fs.add}</span> : null}
+                  {")"}
+                </span>
+              ))}
+            </>
+          ) : (
+            <>
+              {part.label} {part.value}
+            </>
+          )}
+        </span>
+      ))}
+    </>
+  );
+}
+
 export function CollapseGroupBlock({
   items,
   collapsed,
@@ -518,7 +552,7 @@ export function CollapseGroupBlock({
                   ref={summarySpanRef}
                   className="min-w-0 truncate pl-1 font-mono text-neutral-500"
                 >
-                  {summaryText}
+                  <SummaryDisplay summary={summary} />
                 </span>
               ) : null}
             </span>
