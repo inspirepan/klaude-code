@@ -75,13 +75,13 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
           ) : (
             <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-300" />
           )}
-          <span className={`truncate font-sans text-xs ${isRunning ? "text-blue-500" : ""}`}>
+          <span className={`truncate font-sans text-sm ${isRunning ? "text-blue-500" : ""}`}>
             {statusLabel}
           </span>
         </>
       ) : null}
       {summaryParts.length > 0 ? (
-        <div className="ml-2 flex flex-wrap items-center gap-y-1 font-sans text-2xs text-neutral-500">
+        <div className="ml-2 flex flex-wrap items-center gap-y-1 font-sans text-xs text-neutral-500">
           {summaryParts.map((part, i) => (
             <span key={part} className="flex items-center">
               {i > 0 ? <span className="mx-1.5 text-neutral-300">·</span> : null}
@@ -106,7 +106,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
           </button>
           {metaOpen ? (
             <div className="absolute bottom-full right-0 z-20 mb-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
-              <div className="space-y-1.5 text-xs leading-5">
+              <div className="space-y-1.5 text-sm leading-5">
                 {metaRows.map((row) => (
                   <div key={row.label} className="flex items-start justify-between gap-4">
                     <span className="text-neutral-500">{row.label}</span>

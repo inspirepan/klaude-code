@@ -240,10 +240,10 @@ export function SubAgentGroupCard({
             className={`h-3.5 w-3.5 shrink-0 text-neutral-300 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
           />
           <div className="flex min-w-0 items-baseline gap-2">
-            <span className="whitespace-nowrap text-sm font-semibold text-neutral-800">
+            <span className="whitespace-nowrap text-base font-semibold text-neutral-800">
               {formatSubAgentTypeLabel(sourceSessionType)}
             </span>
-            <span className="truncate text-sm text-neutral-600">
+            <span className="truncate text-base text-neutral-600">
               {sourceSessionDesc ?? `Sub Agent ${shortSessionId(sourceSessionId)}`}
             </span>
           </div>

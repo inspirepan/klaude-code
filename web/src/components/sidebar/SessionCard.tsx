@@ -105,7 +105,7 @@ function DiffStats({ added, removed }: { added: number; removed: number }): JSX.
     return null;
   }
   return (
-    <span className="inline-flex shrink-0 gap-1 whitespace-nowrap text-2xs leading-4">
+    <span className="inline-flex shrink-0 gap-1 whitespace-nowrap text-xs leading-4">
       {added > 0 ? <span className="text-emerald-600">+{added}</span> : null}
       {removed > 0 ? <span className="text-rose-600">-{removed}</span> : null}
     </span>
@@ -201,7 +201,7 @@ export function SessionCard({
           <SessionTitleText
             title={title}
             as="div"
-            className="flex min-w-0 flex-1 items-baseline text-sm leading-5"
+            className="flex min-w-0 flex-1 items-baseline text-base leading-5"
             secondaryClassName="shrink truncate"
           />
           <DiffStats
@@ -209,7 +209,7 @@ export function SessionCard({
             removed={diffSummary.diff_lines_removed}
           />
           <span
-            className="shrink-0 whitespace-nowrap text-2xs leading-4 text-neutral-500"
+            className="shrink-0 whitespace-nowrap text-xs leading-4 text-neutral-500"
             title={updatedAtDetailed}
           >
             {updatedAt}
@@ -270,7 +270,7 @@ export function SessionCard({
           <span className="mt-1 flex shrink-0">
             {getRuntimeIcon(runtime, showSuccessState, hasUnreadCompletion)}
           </span>
-          <div className="min-w-0 flex-1 truncate text-sm leading-5">
+          <div className="min-w-0 flex-1 truncate text-base leading-5">
             <SessionTitleText title={title} as="span" truncate={false} />
           </div>
         </div>
@@ -278,7 +278,7 @@ export function SessionCard({
         {/* Row 2: workspace (optional) */}
         {showWorkspace ? (
           <div
-            className="truncate pl-5 text-xs leading-4 text-neutral-500"
+            className="truncate pl-5 text-sm leading-4 text-neutral-500"
             title={session.work_dir}
           >
             {workDirLabel(session.work_dir)}
@@ -287,7 +287,7 @@ export function SessionCard({
 
         {/* Row 3: time · diff · lock  |  archive button */}
         <div
-          className="grid items-center gap-x-2 pl-5 pr-0.5 text-2xs leading-4 text-neutral-500"
+          className="grid items-center gap-x-2 pl-5 pr-0.5 text-xs leading-4 text-neutral-500"
           style={{ gridTemplateColumns: "max-content 3rem auto 1fr auto" }}
         >
           <span className="whitespace-nowrap" title={updatedAtDetailed}>

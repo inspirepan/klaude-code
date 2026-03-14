@@ -8,15 +8,20 @@ PYRIGHT := $(UV) run pyright
 IMPORT_LINT := $(UV) run lint-imports
 PYTEST := $(UV) run pytest
 
-.PHONY: help lint ruff-check format format-check typecheck imports test test-network \
+.PHONY: help install lint ruff-check format format-check typecheck imports test test-network \
         web-lint web-format web-format-check
 
 help:
 	@printf "%s\n" \
 		"Targets:" \
+		"  make install      Init submodules and install via uv tool" \
 		"  make lint         Run ruff + pyright + import-linter + web eslint" \
 		"  make format       Auto-fix with ruff + prettier" \
 		"  make test         Run tests (pytest)"
+
+install:
+	git submodule update --init --recursive
+	$(UV) tool install -e .
 
 lint: ruff-check typecheck imports web-lint
 

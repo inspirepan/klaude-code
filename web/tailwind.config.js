@@ -16,7 +16,9 @@ export default {
         mono: ["Lilex Variable", ...defaultTheme.fontFamily.mono],
       },
       fontSize: {
-        "2xs": ["0.6875rem", { lineHeight: "1rem" }], // 11px
+        xs: ["0.6875rem", { lineHeight: "1rem" }], // 11px (was 2xs)
+        sm: ["0.75rem", { lineHeight: "1rem" }], // 12px (was xs)
+        base: ["0.875rem", { lineHeight: "1.25rem" }], // 14px (was sm)
       },
       borderRadius: {
         lg: "var(--radius)",

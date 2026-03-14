@@ -9,14 +9,14 @@ export function NewSessionButton({ onClick }: NewSessionButtonProps): JSX.Elemen
     <Button
       type="button"
       variant="outline"
-      className="h-8 w-full justify-center gap-1.5 rounded-lg border-neutral-200 text-sm font-normal text-neutral-900 hover:bg-muted"
+      className="h-8 w-full justify-center gap-1.5 rounded-lg border-neutral-200 text-base font-normal text-neutral-900 hover:bg-muted"
       onClick={() => {
         onClick();
       }}
     >
       <span className="ml-1.5">New Agent</span>
       <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-        <span className="inline-flex whitespace-pre text-xs leading-none">
+        <span className="inline-flex whitespace-pre text-sm leading-none">
           <kbd className="inline-flex font-sans">
             <span className="min-w-[1em] text-center">⇧</span>
           </kbd>

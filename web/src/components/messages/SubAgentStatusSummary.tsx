@@ -30,7 +30,7 @@ export function SubAgentStatusSummary({
   }
 
   return (
-    <div className="flex items-center gap-2 px-4 pb-2.5 text-xs">
+    <div className="flex items-center gap-2 px-4 pb-2.5 text-sm">
       {activityText ? (
         <span className="relative flex h-1.5 w-1.5 shrink-0">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
@@ -74,7 +74,7 @@ export function SubAgentStatusSummary({
           </button>
           {metaOpen ? (
             <div className="absolute right-0 top-full z-20 mt-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
-              <div className="space-y-1.5 text-xs leading-5">
+              <div className="space-y-1.5 text-sm leading-5">
                 {metaRows.map((row) => (
                   <div key={row.label} className="flex items-start justify-between gap-4">
                     <span className="text-neutral-500">{row.label}</span>

@@ -187,7 +187,7 @@ export function NewSessionOverlay({
       >
         <div className="mb-3 space-y-0.5">
           <div className="text-base font-semibold text-neutral-800">Start a new session</div>
-          <div className="text-sm leading-6 text-neutral-500">
+          <div className="text-base leading-6 text-neutral-500">
             Choose a workspace, then send your first message.
           </div>
         </div>
@@ -210,7 +210,7 @@ export function NewSessionOverlay({
           />
 
           {modelError ? (
-            <div className="px-1 text-xs text-red-500">Load models failed: {modelError}</div>
+            <div className="px-1 text-sm text-red-500">Load models failed: {modelError}</div>
           ) : null}
 
           <ComposerCard

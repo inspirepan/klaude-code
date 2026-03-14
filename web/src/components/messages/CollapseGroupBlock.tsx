@@ -539,7 +539,7 @@ export function CollapseGroupBlock({
           <button
             type="button"
             onClick={onToggle}
-            className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-sm text-neutral-500 transition-colors hover:text-neutral-600`}
+            className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-base text-neutral-500 transition-colors hover:text-neutral-600`}
           >
             <CollapseRailMarker open={!collapsed} className="pt-0.5" indicatorClassName="mt-0" />
             <span className="flex min-w-0 items-center gap-1.5 pl-1">
