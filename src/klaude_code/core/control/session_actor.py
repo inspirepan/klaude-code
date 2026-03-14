@@ -367,6 +367,9 @@ class SessionActor:
     def pending_request_count(self) -> int:
         return len(self._state.pending_requests)
 
+    def pending_requests_snapshot(self) -> list[PendingUserInteractionRequest]:
+        return [pending.request for pending in self._state.pending_requests.values()]
+
     def apply_operation_effect(self, operation: op.Operation) -> None:
         if isinstance(operation, op.ChangeModelOperation):
             self._state.config.model_name = operation.model_name
