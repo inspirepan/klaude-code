@@ -87,6 +87,31 @@ def test_normalize_image_data_url_resizes_large_inline_image(monkeypatch: pytest
     assert _payload_from_data_url(normalized) == b"tiny"
 
 
+def test_normalize_image_data_url_resizes_when_base64_payload_exceeds_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(image_module, "_MAX_IMAGE_SIZE_BYTES", 100)
+    monkeypatch.setattr(image_module, "_MAX_BASE64_IMAGE_SIZE_BYTES", 20)
+    original_url = f"data:image/png;base64,{b64encode(b'0123456789ABCDEF').decode('ascii')}"
+
+    def _fake_detect(_image_bytes: bytes, _mime_type: str) -> tuple[int, int]:
+        return (80, 40)
+
+    def _fake_resize(_image_bytes: bytes, _mime_type: str, *, width: int, height: int) -> bytes:
+        expected_scale = (15 / 16) ** 0.5
+        expected_scale *= 0.9
+        assert width == int(80 * expected_scale)
+        assert height == int(40 * expected_scale)
+        return b"tiny"
+
+    monkeypatch.setattr(image_module, "_detect_image_dimensions", _fake_detect)
+    monkeypatch.setattr(image_module, "_resize_image_bytes", _fake_resize)
+
+    normalized = image_module.normalize_image_data_url(original_url)
+    assert _payload_from_data_url(normalized) == b"tiny"
+    assert len(normalized.split(",", 1)[1]) <= image_module._MAX_BASE64_IMAGE_SIZE_BYTES
+
+
 def test_normalize_image_data_url_keeps_non_image_media_type(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(image_module, "_MAX_IMAGE_SIZE_BYTES", 10)
     original_url = f"data:text/plain;base64,{b64encode(b'0123456789ABCDEF').decode('ascii')}"
