@@ -73,52 +73,52 @@ def _isolated_registry(monkeypatch: pytest.MonkeyPatch) -> dict[CommandName | st
 def test_dispatch_prefix_prefers_base_command_when_other_is_extension(
     _isolated_registry: dict[CommandName | str, CommandABC],
 ) -> None:
-    _isolated_registry[CommandName.EXPORT] = _DummyCommand(CommandName.EXPORT, "export")
-    _isolated_registry["export-doc"] = _DummyCommand(
-        "export-doc",
-        "export-doc",
+    _isolated_registry[CommandName.COMPACT] = _DummyCommand(CommandName.COMPACT, "compact")
+    _isolated_registry["compact-doc"] = _DummyCommand(
+        "compact-doc",
+        "compact-doc",
     )
 
     result = arun(
         registry.dispatch_command(
-            message.UserInputPayload(text="/exp foo"), cast(Agent, _DummyAgent()), submission_id="s1"
+            message.UserInputPayload(text="/comp foo"), cast(Agent, _DummyAgent()), submission_id="s1"
         )
     )
     assert result.operations is not None
     assert isinstance(result.operations[0], op.RunAgentOperation)
-    assert result.operations[0].input.text == "export:foo"
+    assert result.operations[0].input.text == "compact:foo"
 
 
 def test_dispatch_prefix_can_target_extension_command(
     _isolated_registry: dict[CommandName | str, CommandABC],
 ) -> None:
-    _isolated_registry[CommandName.EXPORT] = _DummyCommand(CommandName.EXPORT, "export")
-    _isolated_registry["export-doc"] = _DummyCommand(
-        "export-doc",
-        "export-doc",
+    _isolated_registry[CommandName.COMPACT] = _DummyCommand(CommandName.COMPACT, "compact")
+    _isolated_registry["compact-doc"] = _DummyCommand(
+        "compact-doc",
+        "compact-doc",
     )
 
     result = arun(
         registry.dispatch_command(
-            message.UserInputPayload(text="/export-d bar"), cast(Agent, _DummyAgent()), submission_id="s1"
+            message.UserInputPayload(text="/compact-d bar"), cast(Agent, _DummyAgent()), submission_id="s1"
         )
     )
     assert result.operations is not None
     assert isinstance(result.operations[0], op.RunAgentOperation)
-    assert result.operations[0].input.text == "export-doc:bar"
+    assert result.operations[0].input.text == "compact-doc:bar"
 
 
 def test_slash_command_name_supports_prefix_match(
     _isolated_registry: dict[CommandName | str, CommandABC],
 ) -> None:
-    _isolated_registry[CommandName.EXPORT] = _DummyCommand(CommandName.EXPORT, "export")
-    _isolated_registry["export-doc"] = _DummyCommand(
-        "export-doc",
-        "export-doc",
+    _isolated_registry[CommandName.COMPACT] = _DummyCommand(CommandName.COMPACT, "compact")
+    _isolated_registry["compact-doc"] = _DummyCommand(
+        "compact-doc",
+        "compact-doc",
     )
 
-    assert registry.is_slash_command_name("exp") is True
-    assert registry.is_slash_command_name("export-d") is True
+    assert registry.is_slash_command_name("comp") is True
+    assert registry.is_slash_command_name("compact-d") is True
 
 
 def test_dispatch_ambiguous_prefix_falls_back_to_agent(

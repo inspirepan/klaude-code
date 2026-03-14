@@ -970,7 +970,3 @@ class Session(BaseModel):
                 return session_id[:length]
 
         return session_id
-
-    @classmethod
-    def exports_dir(cls, work_dir: Path) -> Path:
-        return get_store_for_path(work_dir).paths.exports_dir

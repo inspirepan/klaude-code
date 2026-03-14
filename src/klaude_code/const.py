@@ -236,10 +236,6 @@ class ProjectPaths:
     def sessions_dir(self) -> Path:
         return self.base_dir / "sessions"
 
-    @property
-    def exports_dir(self) -> Path:
-        return self.base_dir / "exports"
-
     def session_dir(self, session_id: str) -> Path:
         return self.sessions_dir / session_id
 
