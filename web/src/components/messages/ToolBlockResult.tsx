@@ -9,7 +9,8 @@ import {
 import { HighlightText } from "./HighlightText";
 import { ToolRichResult } from "./ToolRichResult";
 
-const RESULT_LINE_LIMIT = 15;
+const RESULT_LINE_LIMIT = 5;
+const STREAMING_LINE_LIMIT = 5;
 
 interface ToolBlockResultProps {
   item: ToolBlockItem;
@@ -97,10 +98,10 @@ export function ToolBlockResult({
               <div className={`mt-0.5 ${subTextClass} font-mono leading-relaxed text-neutral-500`}>
                 {(() => {
                   const lines = streamingContent.split("\n");
-                  if (lines.length > RESULT_LINE_LIMIT * 2) {
-                    const headLines = lines.slice(0, RESULT_LINE_LIMIT);
-                    const tailLines = lines.slice(-RESULT_LINE_LIMIT);
-                    const hiddenCount = lines.length - RESULT_LINE_LIMIT * 2;
+                  if (lines.length > STREAMING_LINE_LIMIT * 2) {
+                    const headLines = lines.slice(0, STREAMING_LINE_LIMIT);
+                    const tailLines = lines.slice(-STREAMING_LINE_LIMIT);
+                    const hiddenCount = lines.length - STREAMING_LINE_LIMIT * 2;
                     return (
                       <>
                         {headLines.map((line, index) => (

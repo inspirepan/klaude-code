@@ -26,6 +26,7 @@ dependencies = [
     "trafilatura>=2.0.0",
     "typer>=0.17.3",
     "uvicorn",
+    "readability-lxml>=0.8.4.1",
 ]
 
 [project.scripts]

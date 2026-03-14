@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import subprocess
-import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Literal
 
 from klaude_code.core.agent.agent import Agent
@@ -26,8 +23,6 @@ from klaude_code.core.control.session_actor import SessionActor
 from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.op_handler import OperationHandler
-from klaude_code.session.export import build_export_html, get_default_export_path
-from klaude_code.session.session import Session
 
 
 @dataclass(frozen=True)
@@ -255,72 +250,6 @@ class OperationDispatcher:
 
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
         await self._agent_runner.clear_session(operation.session_id)
-
-    async def handle_export_session(self, operation: op.ExportSessionOperation) -> None:
-        agent = await self._agent_runner.ensure_agent(operation.session_id)
-        try:
-            output_path = self._resolve_export_output_path(operation.output_path, agent.session)
-            html_doc = self._build_export_html(agent)
-            await asyncio.to_thread(output_path.parent.mkdir, parents=True, exist_ok=True)
-            await asyncio.to_thread(output_path.write_text, html_doc, "utf-8")
-            await asyncio.to_thread(self._open_file, output_path)
-            await self.emit_event(
-                events.NoticeEvent(
-                    session_id=agent.session.id,
-                    content=f"Session exported and opened: {output_path}",
-                )
-            )
-        except Exception as exc:  # pragma: no cover
-            import traceback
-
-            await self.emit_event(
-                events.NoticeEvent(
-                    session_id=agent.session.id,
-                    content=f"Failed to export session: {exc}\n{traceback.format_exc()}",
-                    is_error=True,
-                )
-            )
-
-    def _resolve_export_output_path(self, raw: str | None, session: Session) -> Path:
-        trimmed = (raw or "").strip()
-        if trimmed:
-            candidate = Path(trimmed).expanduser()
-            if not candidate.is_absolute():
-                candidate = Path(session.work_dir) / candidate
-            if candidate.suffix.lower() != ".html":
-                candidate = candidate.with_suffix(".html")
-            return candidate
-        return get_default_export_path(session)
-
-    def _build_export_html(self, agent: Agent) -> str:
-        profile = agent.profile
-        system_prompt = (profile.system_prompt if profile else "") or ""
-        tool_schemas = profile.tools if profile else []
-        model_name = profile.llm_client.model_name if profile else "unknown"
-        return build_export_html(agent.session, system_prompt, tool_schemas, model_name)
-
-    def _open_file(self, path: Path) -> None:
-        # Select platform-appropriate command
-        if sys.platform == "darwin":
-            cmd = "open"
-        elif sys.platform == "win32":
-            cmd = "start"
-        else:
-            cmd = "xdg-open"
-
-        try:
-            # Detach stdin to prevent interference with prompt_toolkit's terminal state
-            if sys.platform == "win32":
-                # Windows 'start' requires shell=True
-                subprocess.run(f'start "" "{path}"', shell=True, stdin=subprocess.DEVNULL, check=True)
-            else:
-                subprocess.run([cmd, str(path)], stdin=subprocess.DEVNULL, check=True)
-        except FileNotFoundError as exc:  # pragma: no cover
-            msg = f"`{cmd}` command not found; please open the HTML manually."
-            raise RuntimeError(msg) from exc
-        except subprocess.CalledProcessError as exc:  # pragma: no cover
-            msg = f"Failed to open HTML with `{cmd}`: {exc}"
-            raise RuntimeError(msg) from exc
 
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""

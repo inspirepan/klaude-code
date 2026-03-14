@@ -173,13 +173,16 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
       {showMore && hasText
         ? createPortal(
             <div
-              className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 p-4"
-              onClick={() => setShowMore(false)}
+              className="fixed inset-0 z-40 flex items-center justify-center p-4"
               role="dialog"
               aria-modal="true"
             >
               <div
-                className="w-full max-w-3xl overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-2xl"
+                className="bg-white/72 absolute inset-0 backdrop-blur-[3px]"
+                onClick={() => setShowMore(false)}
+              />
+              <div
+                className="relative w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200/50 bg-slate-100 dark:border-slate-700/50 dark:bg-slate-800"
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="max-h-[calc(100vh-8rem)] overflow-y-auto px-4 py-3">
@@ -188,7 +191,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                     <ContentWithMentions>{normalizedContent}</ContentWithMentions>
                   </p>
                 </div>
-                <div className="border-t border-neutral-200/70 px-4 py-2.5">
+                <div className="border-t border-slate-200/50 px-4 py-2.5 dark:border-slate-700/50">
                   <button
                     type="button"
                     onClick={() => setShowMore(false)}

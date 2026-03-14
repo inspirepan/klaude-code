@@ -22,7 +22,6 @@ class CommandName(str, Enum):
     COMPACT = "compact"
     REFRESH_TERMINAL = "refresh-terminal"
     NEW = "new"
-    EXPORT = "export"
     STATUS = "status"
     THINKING = "thinking"
     FORK_SESSION = "fork-session"

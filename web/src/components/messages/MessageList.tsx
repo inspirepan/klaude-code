@@ -523,19 +523,35 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     return ids;
   }, [sectionBlocks]);
 
+  const allSubAgentGroupIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const blocks of sectionBlocks) {
+      for (const block of blocks) {
+        if (block.type === "sub_agent_group") ids.push(block.groupId);
+      }
+    }
+    return ids;
+  }, [sectionBlocks]);
+
   const handleCollapseAll = useCallback(() => {
     const state: Record<string, boolean> = {};
     for (const id of allCollapseGroupIds) state[id] = true;
     setCollapsedCollapseGroups(state);
+    const subState: Record<string, boolean> = {};
+    for (const id of allSubAgentGroupIds) subState[id] = true;
+    setCollapsedSubAgentGroups(subState);
     setCollapseGen((v) => v + 1);
-  }, [allCollapseGroupIds]);
+  }, [allCollapseGroupIds, allSubAgentGroupIds]);
 
   const handleExpandAll = useCallback(() => {
     const state: Record<string, boolean> = {};
     for (const id of allCollapseGroupIds) state[id] = false;
     setCollapsedCollapseGroups(state);
+    const subState: Record<string, boolean> = {};
+    for (const id of allSubAgentGroupIds) subState[id] = false;
+    setCollapsedSubAgentGroups(subState);
     setExpandGen((v) => v + 1);
-  }, [allCollapseGroupIds]);
+  }, [allCollapseGroupIds, allSubAgentGroupIds]);
 
   // Cmd+Shift+, collapse all, Cmd+Shift+. expand all
   useEffect(() => {

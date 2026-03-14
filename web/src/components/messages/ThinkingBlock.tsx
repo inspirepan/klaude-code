@@ -23,10 +23,22 @@ function Strong(props: React.ComponentPropsWithoutRef<"strong">): JSX.Element {
 }
 
 function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): JSX.Element {
-  return <pre className="my-2 whitespace-pre-wrap font-mono text-xs not-italic">{children}</pre>;
+  return (
+    <span className="block font-mono" style={{ fontSize: "0.95em" }}>
+      {children}
+    </span>
+  );
 }
 
-const thinkingComponents = { strong: Strong, pre: Pre };
+function Code({ children }: React.ComponentPropsWithoutRef<"code">): JSX.Element {
+  return (
+    <span className="font-mono" style={{ fontSize: "0.95em" }}>
+      {children}
+    </span>
+  );
+}
+
+const thinkingComponents = { strong: Strong, pre: Pre, code: Code };
 
 export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
   const { matchItemIds } = useSearch();
@@ -79,7 +91,7 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
         <div className={`mt-2 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
           <CollapseRailConnector />
           <div
-            className="thinking-block min-w-0 text-sm leading-relaxed text-neutral-500"
+            className="thinking-block min-w-0 font-sans text-sm leading-relaxed text-neutral-500"
             onClick={(event) => {
               event.stopPropagation();
             }}

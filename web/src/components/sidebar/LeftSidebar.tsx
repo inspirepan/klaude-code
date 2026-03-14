@@ -225,7 +225,7 @@ export function LeftSidebar(): JSX.Element {
         <aside
           ref={sidebarRef}
           data-sidebar="left"
-          className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-neutral-200 bg-sidebar ${archivedMenuOpen ? "z-10" : ""}`}
+          className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-neutral-200 bg-sidebar ${archivedMenuOpen ? "z-50" : ""}`}
           style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
         >
           <div className="flex items-center gap-1.5 px-3 py-2">
@@ -304,7 +304,7 @@ export function LeftSidebar(): JSX.Element {
           </div>
 
           <ScrollArea className="min-h-0 w-full flex-1" type="auto">
-            <div className="px-2.5 pb-3">
+            <div className="px-2.5 pb-14">
               {loadError !== null ? (
                 <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3">
                   <div className="mb-1 font-semibold">Load failed</div>
@@ -451,7 +451,7 @@ export function LeftSidebar(): JSX.Element {
             </div>
           </ScrollArea>
 
-          <div className="relative shrink-0 px-3 py-2">
+          <div className="absolute bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 bg-[#f9f9f8]/40 px-3 py-2 backdrop-blur">
             <div ref={archivedMenuRef} className="relative">
               <Tooltip>
                 <TooltipTrigger asChild>

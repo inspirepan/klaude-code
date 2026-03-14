@@ -1,11 +1,15 @@
 import asyncio
+import gzip as gzip_module
 import http.cookiejar
 import json
 import re
+import time
 import urllib.error
 import urllib.request
+import zlib
 from http.client import HTTPResponse
 from pathlib import Path
+from typing import cast
 from urllib.parse import quote, urljoin, urlparse, urlunparse
 
 from pydantic import BaseModel
@@ -28,8 +32,12 @@ from klaude_code.protocol import llm_param, message, tools
 
 WEB_FETCH_SAVE_DIR = Path(TOOL_OUTPUT_TRUNCATION_DIR)
 
-# Skip trafilatura for HTML larger than 1MB to avoid excessive memory/CPU usage.
-_READABILITY_MAX_HTML_CHARS = 1_000_000
+# Skip readability+trafilatura for HTML larger than 3MB to avoid excessive memory/CPU usage.
+_READABILITY_MAX_HTML_CHARS = 3_000_000
+
+# HTTP status codes that warrant a retry (transient server errors).
+_RETRY_HTTP_STATUS_CODES = frozenset({500, 502, 503, 504})
+_MAX_FETCH_RETRIES = 2
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -82,6 +90,26 @@ def _extract_content_type_and_charset(response: HTTPResponse) -> tuple[str, str 
     return content_type, charset
 
 
+def _decompress(data: bytes, content_encoding: str) -> bytes:
+    """Decompress response body based on Content-Encoding header."""
+    encoding = content_encoding.strip().lower()
+    if encoding == "gzip":
+        try:
+            return gzip_module.decompress(data)
+        except (OSError, EOFError):
+            return data
+    elif encoding == "deflate":
+        try:
+            return zlib.decompress(data)
+        except zlib.error:
+            try:
+                # Some servers send raw deflate without the zlib wrapper
+                return zlib.decompress(data, -zlib.MAX_WBITS)
+            except zlib.error:
+                return data
+    return data
+
+
 def _detect_encoding(data: bytes, declared_charset: str | None) -> str:
     """Detect the encoding of the data."""
     if declared_charset:
@@ -111,6 +139,13 @@ def _decode_content(data: bytes, declared_charset: str | None) -> str:
         return data.decode("utf-8", errors="replace")
 
 
+def _strip_noise_elements(html: str) -> str:
+    """Remove script and style elements to reduce size and noise before extraction."""
+    html = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    return html
+
+
 def _html_to_markdown_fallback(html: str) -> str:
     """Simple regex-based HTML to text conversion as a fallback."""
     text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
@@ -130,17 +165,39 @@ def _html_to_markdown_fallback(html: str) -> str:
 
 
 def _convert_html_to_markdown(html: str) -> str:
-    """Convert HTML to Markdown using trafilatura, with fallback for large/problematic content."""
-    if len(html) > _READABILITY_MAX_HTML_CHARS:
-        return _html_to_markdown_fallback(html)
+    """Convert HTML to Markdown using readability-lxml + trafilatura, with fallback."""
+    # Strip scripts/styles first — main source of bulk with no content value
+    stripped = _strip_noise_elements(html)
 
+    if len(stripped) > _READABILITY_MAX_HTML_CHARS:
+        return _html_to_markdown_fallback(stripped)
+
+    # Strategy 1: readability-lxml isolates the article, then trafilatura converts to Markdown.
+    # This combination handles sites with heavy navigation/footer noise (e.g. WeChat articles).
+    try:
+        from readability import Document  # type: ignore[import-untyped]
+
+        doc = Document(stripped)
+        article_html = cast(str, doc.summary())
+        if article_html:
+            import trafilatura
+
+            result = trafilatura.extract(
+                article_html, output_format="markdown", include_links=True, include_images=True
+            )
+            if result and len(result.strip()) > 50:
+                return result
+    except Exception:
+        pass
+
+    # Strategy 2: trafilatura directly on the stripped HTML
     import trafilatura
 
-    result = trafilatura.extract(html, output_format="markdown", include_links=True, include_images=True)
+    result = trafilatura.extract(stripped, output_format="markdown", include_links=True, include_images=True)
     if result:
         return result
 
-    return _html_to_markdown_fallback(html)
+    return _html_to_markdown_fallback(stripped)
 
 
 def _format_json(text: str) -> str:
@@ -221,8 +278,14 @@ def _fetch_url(
         check_ssrf(current_url)
 
         headers = {
-            "Accept": "text/markdown, */*",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate",
             "User-Agent": WEB_FETCH_USER_AGENT,
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Upgrade-Insecure-Requests": "1",
         }
         encoded_url = _encode_url(current_url)
         request = urllib.request.Request(encoded_url, headers=headers)
@@ -250,13 +313,44 @@ def _fetch_url(
             continue
 
         content_type, charset = _extract_content_type_and_charset(response)
+        content_encoding = response.getheader("Content-Encoding", "")
         data = response.read(max_bytes + 1)
         response.close()
+        # Decompress before truncating so we get valid content boundaries
+        data = _decompress(data, content_encoding)
         if len(data) > max_bytes:
             data = data[:max_bytes]
         return content_type, data, charset
 
     raise urllib.error.URLError(f"Too many redirects (max {max_redirects})")
+
+
+def _fetch_url_with_retry(
+    url: str,
+    timeout: int = WEB_FETCH_DEFAULT_TIMEOUT_SEC,
+    max_bytes: int = WEB_FETCH_MAX_RESPONSE_BYTES,
+    max_redirects: int = WEB_FETCH_MAX_REDIRECTS,
+) -> tuple[str, bytes, str | None]:
+    """Fetch URL with automatic retry on transient server errors (5xx, timeout)."""
+    last_exc: Exception = RuntimeError("unreachable")
+    for attempt in range(_MAX_FETCH_RETRIES + 1):
+        try:
+            return _fetch_url(url, timeout, max_bytes, max_redirects)
+        except urllib.error.HTTPError as e:
+            if e.code in _RETRY_HTTP_STATUS_CODES and attempt < _MAX_FETCH_RETRIES:
+                last_exc = e
+                time.sleep(2**attempt)
+                continue
+            raise
+        except (TimeoutError, urllib.error.URLError) as e:
+            # e is urllib.error.URLError here after the isinstance check fails
+            is_timeout = True if isinstance(e, TimeoutError) else isinstance(e.reason, TimeoutError)
+            if is_timeout and attempt < _MAX_FETCH_RETRIES:
+                last_exc = e
+                time.sleep(2**attempt)
+                continue
+            raise
+    raise last_exc
 
 
 @register(tools.WEB_FETCH)
@@ -315,7 +409,7 @@ class WebFetchTool(ToolABC):
             return message.ToolResultMessage(status="success", output_text=cached)
 
         try:
-            content_type, data, charset = await asyncio.to_thread(_fetch_url, url)
+            content_type, data, charset = await asyncio.to_thread(_fetch_url_with_retry, url)
 
             # Handle PDF files - must save binary content
             if content_type == "application/pdf" or _is_pdf_url(url):
