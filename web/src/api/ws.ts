@@ -36,6 +36,21 @@ export interface SessionWsConnection {
   close: () => void;
 }
 
+function sessionHolderStorageKey(sessionId: string): string {
+  return `klaude:session-holder:${sessionId}`;
+}
+
+function getOrCreateSessionHolderKey(sessionId: string): string {
+  const storageKey = sessionHolderStorageKey(sessionId);
+  const existing = window.sessionStorage.getItem(storageKey)?.trim();
+  if (existing) {
+    return existing;
+  }
+  const created = window.crypto.randomUUID();
+  window.sessionStorage.setItem(storageKey, created);
+  return created;
+}
+
 function resolveWsBaseUrl(): string {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${window.location.host}`;
@@ -74,7 +89,8 @@ export function connectSessionWs(
   sessionId: string,
   handlers: SessionWsHandlers,
 ): SessionWsConnection {
-  const wsUrl = `${resolveWsBaseUrl()}/api/sessions/${encodeURIComponent(sessionId)}/ws`;
+  const holderKey = getOrCreateSessionHolderKey(sessionId);
+  const wsUrl = `${resolveWsBaseUrl()}/api/sessions/${encodeURIComponent(sessionId)}/ws?holder_key=${encodeURIComponent(holderKey)}`;
   const socket = new WebSocket(wsUrl);
   const pendingFrames: string[] = [];
 

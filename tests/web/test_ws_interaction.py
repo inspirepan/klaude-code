@@ -78,6 +78,62 @@ def test_ask_user_question_flow(app_env: AppEnv) -> None:
     assert extract_text(events) == "You chose A"
 
 
+def test_pending_interaction_is_replayed_after_websocket_reconnect(app_env: AppEnv) -> None:
+    ask_args = {
+        "questions": [
+            {
+                "question": "Which option?",
+                "header": "Pick",
+                "options": [
+                    {"label": "A", "description": "choose A"},
+                    {"label": "B", "description": "choose B"},
+                ],
+                "multiSelect": False,
+            }
+        ]
+    }
+    app_env.fake_llm.enqueue(
+        message.AssistantMessage(
+            parts=[
+                message.ToolCallPart(
+                    call_id="call-1",
+                    tool_name="AskUserQuestion",
+                    arguments_json=json.dumps(ask_args, ensure_ascii=False),
+                )
+            ],
+            stop_reason="tool_use",
+            usage=usage(input_tokens=11, output_tokens=2),
+        )
+    )
+
+    session_id = app_env.create_session()
+    ws_url = f"/api/sessions/{session_id}/ws?holder_key=reconnect-holder"
+
+    with app_env.client.websocket_connect(ws_url) as websocket:
+        consume_ws_handshake(websocket)
+        websocket.send_json({"type": "message", "text": "ask me"})
+        first_request = wait_for_event(websocket, "user.interaction.request")
+
+    with app_env.client.websocket_connect(ws_url) as websocket:
+        consume_ws_handshake(websocket)
+        replayed_request = wait_for_event(websocket, "user.interaction.request")
+        assert replayed_request["event"]["request_id"] == first_request["event"]["request_id"]
+        assert replayed_request["event"]["source"] == first_request["event"]["source"]
+        assert replayed_request["event"]["payload"] == first_request["event"]["payload"]
+        assert replayed_request["event"].get("tool_call_id") == first_request["event"].get("tool_call_id")
+
+        websocket.send_json(
+            {
+                "type": "respond",
+                "request_id": replayed_request["event"]["request_id"],
+                "status": "cancelled",
+            }
+        )
+        events = collect_events_until(websocket, "task.finish")
+
+    assert any(event.get("event_type") == "user.interaction.resolved" for event in events)
+
+
 def test_websocket_handler_cancels_pending_peer_task(monkeypatch: pytest.MonkeyPatch) -> None:
     cancelled = asyncio.Event()
 
