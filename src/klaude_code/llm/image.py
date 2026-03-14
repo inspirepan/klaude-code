@@ -18,6 +18,7 @@ from pathlib import Path
 from klaude_code.protocol import message
 
 _MAX_IMAGE_SIZE_BYTES = 4_500_000
+_MAX_BASE64_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 _JPEG_SOF_MARKERS = {
     0xC0,
     0xC1,
@@ -217,8 +218,21 @@ def _resize_image_bytes(image_bytes: bytes, mime_type: str, *, width: int, heigh
         return output_path.read_bytes()
 
 
+def _base64_size_bytes(decoded_size_bytes: int) -> int:
+    return ((decoded_size_bytes + 2) // 3) * 4
+
+
+def _max_inline_image_size_bytes() -> int:
+    return min(_MAX_IMAGE_SIZE_BYTES, (_MAX_BASE64_IMAGE_SIZE_BYTES // 4) * 3)
+
+
+def _image_bytes_within_limits(image_bytes: bytes) -> bool:
+    size_bytes = len(image_bytes)
+    return size_bytes <= _MAX_IMAGE_SIZE_BYTES and _base64_size_bytes(size_bytes) <= _MAX_BASE64_IMAGE_SIZE_BYTES
+
+
 def _resize_image_bytes_if_needed(image_bytes: bytes, mime_type: str) -> bytes:
-    if len(image_bytes) <= _MAX_IMAGE_SIZE_BYTES:
+    if _image_bytes_within_limits(image_bytes):
         return image_bytes
 
     media_type = mime_type.lower()
@@ -231,7 +245,7 @@ def _resize_image_bytes_if_needed(image_bytes: bytes, mime_type: str) -> bytes:
 
     current = image_bytes
     width, height = dims
-    scale = (_MAX_IMAGE_SIZE_BYTES / len(current)) ** 0.5
+    scale = (_max_inline_image_size_bytes() / len(current)) ** 0.5
     scale *= 0.9
 
     for _ in range(5):
@@ -243,7 +257,7 @@ def _resize_image_bytes_if_needed(image_bytes: bytes, mime_type: str) -> bytes:
             return current
 
         current = resized
-        if len(current) <= _MAX_IMAGE_SIZE_BYTES:
+        if _image_bytes_within_limits(current):
             return current
 
         new_dims = _detect_image_dimensions(current, media_type)
@@ -280,7 +294,7 @@ def parse_data_url(url: str) -> tuple[str, str, bytes]:
 
 
 def normalize_image_data_url(url: str) -> str:
-    """Normalize a data URL image by resizing oversized images to 4.5MB."""
+    """Normalize a data URL image by resizing oversized inline images within provider limits."""
 
     if not url.startswith("data:"):
         return url
