@@ -6,7 +6,7 @@ import json
 import socket
 import urllib.error
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 from unittest.mock import patch
 
 from klaude_code.core.tool import WebFetchTool
@@ -527,7 +527,7 @@ class TestFetchUrlWithRetry:
             call_count += 1
             if call_count == 1:
                 raise urllib.error.HTTPError(
-                    url="https://x.com/", code=500, msg="Internal Server Error", hdrs={}, fp=None  # type: ignore[arg-type]
+                    url="https://x.com/", code=500, msg="Internal Server Error", hdrs=cast(Any, {}), fp=None
                 )
             return ("text/plain", b"ok", "utf-8")
 
