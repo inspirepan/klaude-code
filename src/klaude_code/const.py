@@ -98,7 +98,7 @@ BASH_MODE_SESSION_OUTPUT_MAX_BYTES = 200 * 1024 * 1024  # Max command output cap
 # =============================================================================
 
 WEB_FETCH_DEFAULT_TIMEOUT_SEC = 30  # Default timeout for web fetch requests (seconds)
-WEB_FETCH_USER_AGENT = "Mozilla/5.0 (compatible; KlaudeCode/1.0)"  # User-Agent header for web requests
+WEB_FETCH_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"  # User-Agent header for web requests
 WEB_FETCH_MAX_RESPONSE_BYTES = 5 * 1024 * 1024  # Maximum response body size (5MB)
 WEB_FETCH_MAX_REDIRECTS = 10  # Maximum number of redirects to follow
 URL_FILENAME_MAX_LENGTH = 80  # Maximum length for extracting filename from URL

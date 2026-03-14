@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import gzip as gzip_module
 import json
 import socket
 import urllib.error
@@ -17,15 +18,19 @@ from klaude_code.core.tool.web.external_content import (
 from klaude_code.core.tool.web.web_cache import _cache as web_cache  # pyright: ignore[reportPrivateUsage]
 from klaude_code.core.tool.web.web_fetch_tool import (
     _READABILITY_MAX_HTML_CHARS,  # pyright: ignore[reportPrivateUsage]
+    _RETRY_HTTP_STATUS_CODES,  # pyright: ignore[reportPrivateUsage]
     _convert_html_to_markdown,  # pyright: ignore[reportPrivateUsage]
     _decode_content,  # pyright: ignore[reportPrivateUsage]
+    _decompress,  # pyright: ignore[reportPrivateUsage]
     _encode_url,  # pyright: ignore[reportPrivateUsage]
     _extract_content_type_and_charset,  # pyright: ignore[reportPrivateUsage]
     _fetch_url,  # pyright: ignore[reportPrivateUsage]
+    _fetch_url_with_retry,  # pyright: ignore[reportPrivateUsage]
     _format_json,  # pyright: ignore[reportPrivateUsage]
     _html_to_markdown_fallback,  # pyright: ignore[reportPrivateUsage]
     _is_pdf_url,  # pyright: ignore[reportPrivateUsage]
     _process_content,  # pyright: ignore[reportPrivateUsage]
+    _strip_noise_elements,  # pyright: ignore[reportPrivateUsage]
 )
 
 
@@ -434,3 +439,197 @@ class TestFetchUrlRedirectHandling:
         # Ensure redirect_uri query was not double-encoded while hopping across login endpoints.
         assert "%253A" not in redirects[0]
         assert "%253A" not in mock_opener.requested_urls[1]
+
+
+class TestDecompress:
+    """Test gzip/deflate decompression."""
+
+    def test_decompress_gzip(self) -> None:
+        original = b"Hello, compressed world!"
+        compressed = gzip_module.compress(original)
+        assert _decompress(compressed, "gzip") == original
+
+    def test_decompress_gzip_case_insensitive(self) -> None:
+        original = b"case insensitive"
+        compressed = gzip_module.compress(original)
+        assert _decompress(compressed, "GZIP") == original
+
+    def test_decompress_identity(self) -> None:
+        data = b"plain bytes"
+        assert _decompress(data, "") == data
+        assert _decompress(data, "identity") == data
+
+    def test_decompress_gzip_truncated_returns_raw(self) -> None:
+        # Truncated gzip should return raw data rather than raise
+        truncated = gzip_module.compress(b"full content")[:10]
+        result = _decompress(truncated, "gzip")
+        assert isinstance(result, bytes)
+
+    def test_decompress_unknown_encoding_returns_raw(self) -> None:
+        data = b"some data"
+        assert _decompress(data, "br") == data
+
+
+class TestStripNoiseElements:
+    """Test script/style stripping before extraction."""
+
+    def test_strips_script_tags(self) -> None:
+        html = "<html><body><script>var x = 1;</script><p>content</p></body></html>"
+        result = _strip_noise_elements(html)
+        assert "var x" not in result
+        assert "content" in result
+
+    def test_strips_style_tags(self) -> None:
+        html = "<html><head><style>body { color: red; }</style></head><body><p>text</p></body></html>"
+        result = _strip_noise_elements(html)
+        assert "color: red" not in result
+        assert "text" in result
+
+    def test_preserves_comments(self) -> None:
+        html = "<!-- comment --><p>content</p>"
+        result = _strip_noise_elements(html)
+        assert "<!-- comment -->" in result
+
+    def test_multiline_script(self) -> None:
+        html = "<script>\nfunction foo() {\n  return 1;\n}\n</script><p>article</p>"
+        result = _strip_noise_elements(html)
+        assert "function foo" not in result
+        assert "article" in result
+
+
+class TestFetchUrlWithRetry:
+    """Test retry behaviour on transient errors."""
+
+    def _make_mock_response(self, status: int, content_type: str, data: bytes) -> object:
+        class MockResponse:
+            def __init__(self) -> None:
+                self.status = status
+                self._data = data
+
+            def getheader(self, name: str, default: str = "") -> str:
+                if name == "Content-Type":
+                    return content_type
+                return default
+
+            def read(self, _size: int = -1) -> bytes:
+                return self._data
+
+            def close(self) -> None:
+                pass
+
+        return MockResponse()
+
+    def test_retry_on_500_then_success(self) -> None:
+        call_count = 0
+
+        def fake_fetch(*_args: object, **_kwargs: object) -> tuple[str, bytes, str | None]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise urllib.error.HTTPError(url="https://x.com/", code=500, msg="Internal Server Error", hdrs={}, fp=None)  # type: ignore[arg-type]
+            return ("text/plain", b"ok", "utf-8")
+
+        with (
+            patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch),
+            patch("klaude_code.core.tool.web.web_fetch_tool.time.sleep"),
+        ):
+            content_type, data, charset = _fetch_url_with_retry("https://x.com/")
+
+        assert call_count == 2
+        assert data == b"ok"
+
+    def test_no_retry_on_404(self) -> None:
+        call_count = 0
+
+        def fake_fetch(*_args: object, **_kwargs: object) -> tuple[str, bytes, str | None]:
+            nonlocal call_count
+            call_count += 1
+            raise urllib.error.HTTPError(url="https://x.com/", code=404, msg="Not Found", hdrs={}, fp=None)  # type: ignore[arg-type]
+
+        with patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch):
+            try:
+                _fetch_url_with_retry("https://x.com/")
+                raise AssertionError("Expected HTTPError")
+            except urllib.error.HTTPError as e:
+                assert e.code == 404
+        assert call_count == 1
+
+    def test_retry_on_timeout_then_success(self) -> None:
+        call_count = 0
+
+        def fake_fetch(*_args: object, **_kwargs: object) -> tuple[str, bytes, str | None]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise TimeoutError("timed out")
+            return ("text/plain", b"ok", None)
+
+        with (
+            patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch),
+            patch("klaude_code.core.tool.web.web_fetch_tool.time.sleep"),
+        ):
+            content_type, data, charset = _fetch_url_with_retry("https://x.com/")
+
+        assert call_count == 2
+        assert data == b"ok"
+
+    def test_retry_exhausted_raises_last_exception(self) -> None:
+        def fake_fetch(*_args: object, **_kwargs: object) -> tuple[str, bytes, str | None]:
+            raise urllib.error.HTTPError(url="https://x.com/", code=503, msg="Service Unavailable", hdrs={}, fp=None)  # type: ignore[arg-type]
+
+        with (
+            patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch),
+            patch("klaude_code.core.tool.web.web_fetch_tool.time.sleep"),
+        ):
+            try:
+                _fetch_url_with_retry("https://x.com/")
+                raise AssertionError("Expected HTTPError")
+            except urllib.error.HTTPError as e:
+                assert e.code == 503
+
+    def test_retry_status_codes_include_common_server_errors(self) -> None:
+        assert 500 in _RETRY_HTTP_STATUS_CODES
+        assert 502 in _RETRY_HTTP_STATUS_CODES
+        assert 503 in _RETRY_HTTP_STATUS_CODES
+        assert 504 in _RETRY_HTTP_STATUS_CODES
+        assert 404 not in _RETRY_HTTP_STATUS_CODES
+        assert 429 not in _RETRY_HTTP_STATUS_CODES
+
+
+class TestGzipFetchIntegration:
+    """Test that gzip-compressed responses are correctly decoded end-to-end."""
+
+    def test_fetch_url_decompresses_gzip_response(self) -> None:
+        html_content = b"<html><body><p>gzip content</p></body></html>"
+        compressed = gzip_module.compress(html_content)
+
+        class MockResponse:
+            status = 200
+            _data = compressed
+
+            def getheader(self, name: str, default: str = "") -> str:
+                if name == "Content-Type":
+                    return "text/html; charset=utf-8"
+                if name == "Content-Encoding":
+                    return "gzip"
+                return default
+
+            def read(self, _size: int = -1) -> bytes:
+                return self._data
+
+            def close(self) -> None:
+                pass
+
+        class MockOpener:
+            def open(self, req: object, timeout: int = 30) -> MockResponse:
+                del req, timeout
+                return MockResponse()
+
+        with (
+            patch("klaude_code.core.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=MockOpener()),
+            patch("klaude_code.core.tool.web.web_fetch_tool.check_ssrf", return_value=None),
+        ):
+            content_type, data, charset = _fetch_url("https://example.com/page")
+
+        assert data == html_content
+        assert charset == "utf-8"
