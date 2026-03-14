@@ -76,8 +76,106 @@ function basename(path: string): string {
 const IGNORED_COMMANDS = new Set(["cd"]);
 const COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME = "grid-cols-[28px_1fr]";
 
+type ShellQuote = "none" | "single" | "double";
+
+/** Split a shell command into statement segments, respecting quoting and escapes. */
+function splitShellStatements(command: string): string[] {
+  const statements: string[] = [];
+  let current = "";
+  let quote: ShellQuote = "none";
+
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]!;
+
+    if (quote === "single") {
+      if (ch === "'") quote = "none";
+      else current += ch;
+      continue;
+    }
+
+    if (quote === "double") {
+      if (ch === '"') {
+        quote = "none";
+      } else if (ch === "\\" && i + 1 < command.length) {
+        current += command[++i]!;
+      } else {
+        current += ch;
+      }
+      continue;
+    }
+
+    // Unquoted
+    if (ch === "'") {
+      quote = "single";
+    } else if (ch === '"') {
+      quote = "double";
+    } else if (ch === ";" || ch === "\n") {
+      statements.push(current);
+      current = "";
+    } else if (ch === "&" && command[i + 1] === "&") {
+      statements.push(current);
+      current = "";
+      i++;
+    } else if (ch === "|" && command[i + 1] === "|") {
+      statements.push(current);
+      current = "";
+      i++;
+    } else {
+      current += ch;
+    }
+  }
+
+  if (current.trim()) statements.push(current);
+  return statements;
+}
+
+/** Tokenize a single shell statement, respecting quoting. Returns unquoted token values. */
+function tokenizeShellStatement(stmt: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let quote: ShellQuote = "none";
+
+  for (let i = 0; i < stmt.length; i++) {
+    const ch = stmt[i]!;
+
+    if (quote === "single") {
+      if (ch === "'") quote = "none";
+      else current += ch;
+      continue;
+    }
+
+    if (quote === "double") {
+      if (ch === '"') {
+        quote = "none";
+      } else if (ch === "\\" && i + 1 < stmt.length) {
+        current += stmt[++i]!;
+      } else {
+        current += ch;
+      }
+      continue;
+    }
+
+    // Unquoted
+    if (ch === "'") {
+      quote = "single";
+    } else if (ch === '"') {
+      quote = "double";
+    } else if (ch === " " || ch === "\t") {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+    } else {
+      current += ch;
+    }
+  }
+
+  if (current) tokens.push(current);
+  return tokens;
+}
+
 function extractCommandFromStatement(stmt: string): string | null {
-  const tokens = stmt.trim().split(/\s+/).filter(Boolean);
+  const tokens = tokenizeShellStatement(stmt);
   if (tokens.length === 0) return null;
   const cmd = tokens[0]!;
   if (IGNORED_COMMANDS.has(cmd)) return null;
@@ -92,8 +190,8 @@ function extractCommandFromStatement(stmt: string): string | null {
 }
 
 function extractBashSummaries(command: string): string[] {
-  // Split by statement separators; pipe | is not a separator (it chains, not sequences)
-  const statements = command.split(/&&|\|\||[;\n]/);
+  // Pipe | is not a separator (it chains, not sequences); only || is
+  const statements = splitShellStatements(command);
   const summaries: string[] = [];
   for (const stmt of statements) {
     const result = extractCommandFromStatement(stmt);
@@ -374,27 +472,27 @@ export function CollapseGroupBlock({
       <button
         type="button"
         onClick={onToggle}
-        className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-sm text-neutral-600 transition-colors hover:text-neutral-700`}
+        className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-sm text-neutral-500 transition-colors hover:text-neutral-600`}
       >
         <CollapseRailMarker open={!collapsed} className="pt-0.5" indicatorClassName="mt-0" />
         <span className="flex min-w-0 items-center gap-1.5 pl-1">
           <span className="shrink-0 font-mono">
             {stepLabel}
-            {summary.length > 0 ? <span className="text-neutral-600">,</span> : null}
+            {summary.length > 0 ? <span className="text-neutral-500">,</span> : null}
           </span>
           {summary.length > 0 ? (
             <span className="flex min-w-0 items-center truncate pl-1">
               {summary.map((part, i) => (
                 <span key={i} className="flex shrink-0 items-center">
-                  {i > 0 ? <span className="mr-2 font-mono text-neutral-600">,</span> : null}
-                  <span className="font-mono text-neutral-600">{part.label}</span>
+                  {i > 0 ? <span className="mr-2 font-mono text-neutral-500">,</span> : null}
+                  <span className="font-mono text-neutral-500">{part.label}</span>
                   <span className="w-2 shrink-0" aria-hidden="true" />
                   {part.fileStats ? (
                     part.fileStats.map((fs, j) => (
                       <span key={j} className="flex shrink-0 items-center">
-                        {j > 0 ? <span className="mr-1 text-neutral-600">,</span> : null}
-                        <span className="font-mono text-neutral-600">{fs.name}</span>
-                        <span className="ml-1 font-mono text-neutral-600">
+                        {j > 0 ? <span className="mr-1 text-neutral-500">,</span> : null}
+                        <span className="font-mono text-neutral-500">{fs.name}</span>
+                        <span className="ml-1 font-mono text-neutral-500">
                           {"("}
                           {fs.del !== undefined ? (
                             <span className="text-rose-500">-{fs.del}</span>
@@ -407,9 +505,9 @@ export function CollapseGroupBlock({
                     ))
                   ) : (
                     <>
-                      <span className="font-mono text-neutral-600">{part.value}</span>
+                      <span className="font-mono text-neutral-500">{part.value}</span>
                       {part.del !== undefined || part.add !== undefined ? (
-                        <span className="ml-1 font-mono text-neutral-600">
+                        <span className="ml-1 font-mono text-neutral-500">
                           {"("}
                           {part.del !== undefined ? (
                             <span className="text-rose-500">-{part.del}</span>
