@@ -9,6 +9,7 @@ import urllib.request
 import zlib
 from http.client import HTTPResponse
 from pathlib import Path
+from typing import cast
 from urllib.parse import quote, urljoin, urlparse, urlunparse
 
 from pydantic import BaseModel
@@ -174,10 +175,10 @@ def _convert_html_to_markdown(html: str) -> str:
     # Strategy 1: readability-lxml isolates the article, then trafilatura converts to Markdown.
     # This combination handles sites with heavy navigation/footer noise (e.g. WeChat articles).
     try:
-        from readability import Document
+        from readability import Document  # type: ignore[import-untyped]
 
         doc = Document(stripped)
-        article_html = doc.summary()
+        article_html = cast(str, doc.summary())
         if article_html:
             import trafilatura
 
@@ -342,9 +343,8 @@ def _fetch_url_with_retry(
                 continue
             raise
         except (TimeoutError, urllib.error.URLError) as e:
-            is_timeout = isinstance(e, TimeoutError) or (
-                isinstance(e, urllib.error.URLError) and isinstance(e.reason, TimeoutError)
-            )
+            # e is urllib.error.URLError here after the isinstance check fails
+            is_timeout = True if isinstance(e, TimeoutError) else isinstance(e.reason, TimeoutError)
             if is_timeout and attempt < _MAX_FETCH_RETRIES:
                 last_exc = e
                 time.sleep(2**attempt)
