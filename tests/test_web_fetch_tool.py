@@ -526,7 +526,9 @@ class TestFetchUrlWithRetry:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise urllib.error.HTTPError(url="https://x.com/", code=500, msg="Internal Server Error", hdrs={}, fp=None)  # type: ignore[arg-type]
+                raise urllib.error.HTTPError(
+                    url="https://x.com/", code=500, msg="Internal Server Error", hdrs={}, fp=None
+                )  # type: ignore[arg-type]
             return ("text/plain", b"ok", "utf-8")
 
         with (
