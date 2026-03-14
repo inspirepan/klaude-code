@@ -1,7 +1,8 @@
 import { Loader } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { MessageItem as MessageItemType, DeveloperMessageItem } from "../../types/message";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { CollapseRailConnector, CollapseRailMarker, CollapseRailPanel } from "./CollapseRail";
 import { MessageRow } from "./MessageRow";
 import { DeveloperMessage } from "./DeveloperMessage";
@@ -429,6 +430,23 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
   return parts;
 }
 
+function summaryToText(summary: SummaryPart[]): string {
+  return summary
+    .map((part) => {
+      if (part.fileStats) {
+        const files = part.fileStats
+          .map((fs) => {
+            const stats = fs.del !== undefined ? `(-${fs.del} +${fs.add})` : `(+${fs.add})`;
+            return `${fs.name} ${stats}`;
+          })
+          .join(", ");
+        return `${part.label} ${files}`;
+      }
+      return `${part.label} ${part.value}`;
+    })
+    .join(", ");
+}
+
 export function CollapseGroupBlock({
   items,
   collapsed,
@@ -444,6 +462,19 @@ export function CollapseGroupBlock({
   const stepLabel =
     toolCount > 0 ? `${toolCount} tool${toolCount === 1 ? "" : "s"} used` : "Thoughts";
   const summary = useMemo(() => summarizeCollapseItems(items), [items]);
+  const summaryText = useMemo(() => summaryToText(summary), [summary]);
+  const summarySpanRef = useRef<HTMLSpanElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+
+  useEffect(() => {
+    const el = summarySpanRef.current;
+    if (!el) return;
+    const check = () => setIsTruncated(el.scrollWidth > el.clientWidth);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [summaryText]);
 
   // Group consecutive developer_message items so they render as one merged row
   type RenderBlock =
@@ -469,64 +500,36 @@ export function CollapseGroupBlock({
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={onToggle}
-        className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-sm text-neutral-500 transition-colors hover:text-neutral-600`}
-      >
-        <CollapseRailMarker open={!collapsed} className="pt-0.5" indicatorClassName="mt-0" />
-        <span className="flex min-w-0 items-center gap-1.5 pl-1">
-          <span className="shrink-0 font-mono">
-            {stepLabel}
-            {summary.length > 0 ? <span className="text-neutral-500">,</span> : null}
-          </span>
-          {summary.length > 0 ? (
-            <span className="flex min-w-0 items-center truncate pl-1">
-              {summary.map((part, i) => (
-                <span key={i} className="flex shrink-0 items-center">
-                  {i > 0 ? <span className="mr-2 font-mono text-neutral-500">,</span> : null}
-                  <span className="font-mono text-neutral-500">{part.label}</span>
-                  <span className="w-2 shrink-0" aria-hidden="true" />
-                  {part.fileStats ? (
-                    part.fileStats.map((fs, j) => (
-                      <span key={j} className="flex shrink-0 items-center">
-                        {j > 0 ? <span className="mr-1 text-neutral-500">,</span> : null}
-                        <span className="font-mono text-neutral-500">{fs.name}</span>
-                        <span className="ml-1 font-mono text-neutral-500">
-                          {"("}
-                          {fs.del !== undefined ? (
-                            <span className="text-rose-500">-{fs.del}</span>
-                          ) : null}
-                          {fs.del !== undefined ? <span> </span> : null}
-                          <span className="text-emerald-600">+{fs.add}</span>
-                          {")"}
-                        </span>
-                      </span>
-                    ))
-                  ) : (
-                    <>
-                      <span className="font-mono text-neutral-500">{part.value}</span>
-                      {part.del !== undefined || part.add !== undefined ? (
-                        <span className="ml-1 font-mono text-neutral-500">
-                          {"("}
-                          {part.del !== undefined ? (
-                            <span className="text-rose-500">-{part.del}</span>
-                          ) : null}
-                          {part.del !== undefined && part.add !== undefined ? <span> </span> : null}
-                          {part.add !== undefined ? (
-                            <span className="text-emerald-600">+{part.add}</span>
-                          ) : null}
-                          {")"}
-                        </span>
-                      ) : null}
-                    </>
-                  )}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onToggle}
+            className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-sm text-neutral-500 transition-colors hover:text-neutral-600`}
+          >
+            <CollapseRailMarker open={!collapsed} className="pt-0.5" indicatorClassName="mt-0" />
+            <span className="flex min-w-0 items-center gap-1.5 pl-1">
+              <span className="shrink-0 font-mono">
+                {stepLabel}
+                {summary.length > 0 ? <span className="text-neutral-500">,</span> : null}
+              </span>
+              {summary.length > 0 ? (
+                <span
+                  ref={summarySpanRef}
+                  className="min-w-0 truncate pl-1 font-mono text-neutral-500"
+                >
+                  {summaryText}
                 </span>
-              ))}
+              ) : null}
             </span>
-          ) : null}
-        </span>
-      </button>
+          </button>
+        </TooltipTrigger>
+        {isTruncated ? (
+          <TooltipContent side="bottom" align="start">
+            {summaryText}
+          </TooltipContent>
+        ) : null}
+      </Tooltip>
       {/* grid-template-rows trick: 0fr→1fr gives smooth height transition without JS height measurement */}
       <CollapseRailPanel open={!collapsed}>
         <div className={`mt-3 grid min-w-0 items-start ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME}`}>
