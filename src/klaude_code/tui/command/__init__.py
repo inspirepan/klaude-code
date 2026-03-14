@@ -33,7 +33,6 @@ def ensure_commands_loaded() -> None:
     from .continue_cmd import ContinueCommand
     from .copy_cmd import CopyCommand
     from .debug_cmd import DebugCommand
-    from .export_cmd import ExportCommand
     from .fork_session_cmd import ForkSessionCommand
     from .login_cmd import LoginCommand
     from .logout_cmd import LogoutCommand
@@ -46,7 +45,6 @@ def ensure_commands_loaded() -> None:
 
     # Register in desired display order
     register(CopyCommand())
-    register(ExportCommand())
     register(CompactCommand())
     register(ForkSessionCommand())
     register(RefreshTerminalCommand())
@@ -69,7 +67,6 @@ def __getattr__(name: str) -> object:
         "ContinueCommand": "continue_cmd",
         "CopyCommand": "copy_cmd",
         "DebugCommand": "debug_cmd",
-        "ExportCommand": "export_cmd",
         "ForkSessionCommand": "fork_session_cmd",
         "LoginCommand": "login_cmd",
         "LogoutCommand": "logout_cmd",

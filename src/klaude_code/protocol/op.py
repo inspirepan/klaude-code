@@ -38,7 +38,6 @@ class OperationType(Enum):
     REQUEST_SUB_AGENT_MODEL = "request_sub_agent_model"
     GET_SESSION_STATS = "get_session_stats"
     CLEAR_SESSION = "clear_session"
-    EXPORT_SESSION = "export_session"
     INTERRUPT = "interrupt"
     CLOSE_SESSION = "close_session"
     USER_INTERACTION_RESPOND = "user_interaction_respond"
@@ -223,17 +222,6 @@ class ClearSessionOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_clear_session(self)
-
-
-class ExportSessionOperation(Operation):
-    """Operation for exporting a session transcript to HTML."""
-
-    type: OperationType = OperationType.EXPORT_SESSION
-    session_id: str
-    output_path: str | None = None
-
-    async def execute(self, handler: OperationHandler) -> None:
-        await handler.handle_export_session(self)
 
 
 class InterruptOperation(Operation):

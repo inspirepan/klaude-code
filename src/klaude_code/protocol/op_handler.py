@@ -18,7 +18,6 @@ if TYPE_CHECKING:
         CloseSessionOperation,
         CompactSessionOperation,
         ContinueAgentOperation,
-        ExportSessionOperation,
         GetSessionStatsOperation,
         InitAgentOperation,
         InterruptOperation,
@@ -84,10 +83,6 @@ class OperationHandler(Protocol):
 
     async def handle_clear_session(self, operation: ClearSessionOperation) -> None:
         """Handle a clear session operation."""
-        ...
-
-    async def handle_export_session(self, operation: ExportSessionOperation) -> None:
-        """Handle an export session operation."""
         ...
 
     async def handle_interrupt(self, operation: InterruptOperation) -> None:
