@@ -3,18 +3,12 @@ import type {
   AssistantTextItem,
   ItemTimestamp,
   MessageItem as MessageItemType,
-  ToolBlockItem,
 } from "../../types/message";
 
 const COMPACT_NUMBER_FORMATTER = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
-
-export interface PreviewText {
-  text: string;
-  hasMore: boolean;
-}
 
 export interface SubAgentMetaRow {
   label: string;
@@ -43,36 +37,6 @@ export function formatTime(ts: ItemTimestamp): string | null {
   });
   const day = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${day} ${time}`;
-}
-
-export function extractToolPreviewDetail(toolName: string, args: string): string {
-  try {
-    const parsed = JSON.parse(args) as Record<string, unknown>;
-    switch (toolName) {
-      case "Bash":
-        return typeof parsed.command === "string" ? parsed.command : "";
-      case "Read":
-      case "Edit":
-      case "Write":
-        return typeof parsed.file_path === "string" ? parsed.file_path : "";
-      case "WebFetch":
-        return typeof parsed.url === "string" ? parsed.url : "";
-      case "WebSearch":
-        return typeof parsed.query === "string" ? parsed.query : "";
-      case "Agent":
-        return typeof parsed.description === "string" ? parsed.description : "";
-      default:
-        return "";
-    }
-  } catch {
-    return args.trim().split("\n")[0] ?? "";
-  }
-}
-
-export function previewAssistantResult(content: string): PreviewText {
-  const lines = content.split("\n");
-  if (lines.length <= 10) return { text: content, hasMore: false };
-  return { text: lines.slice(0, 10).join("\n"), hasMore: true };
 }
 
 function formatCompactNumber(value: number): string {

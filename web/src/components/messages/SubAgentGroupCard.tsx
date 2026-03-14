@@ -1,9 +1,12 @@
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+
 import { ChevronRight } from "lucide-react";
 
 import type { SessionStatusState } from "../../stores/event-reducer";
-import type { AssistantTextItem, MessageItem as MessageItemType } from "../../types/message";
+import type { DeveloperMessageItem, MessageItem as MessageItemType } from "../../types/message";
+import { CollapseGroupBlock } from "./CollapseGroupBlock";
+import { DeveloperMessage } from "./DeveloperMessage";
 import { MessageRow } from "./MessageRow";
-import { SubAgentCollapsedPreview } from "./SubAgentCollapsedPreview";
 import { SubAgentStatusSummary } from "./SubAgentStatusSummary";
 import {
   formatSubAgentTypeLabel,
@@ -11,9 +14,67 @@ import {
   getSessionMetaRows,
   getSessionSummaryParts,
   isToolBlock,
-  previewAssistantResult,
   shortSessionId,
 } from "./message-list-ui";
+import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra";
+
+const COLLAPSED_HEIGHT = 144;
+const DURATION_MS = 200;
+
+function isCollapsibleItem(item: MessageItemType): boolean {
+  if (item.type === "tool_block") {
+    return !isTodoListUIExtra(item.uiExtra) && !isQuestionSummaryUIExtra(item.uiExtra);
+  }
+  return item.type === "thinking" || item.type === "developer_message";
+}
+
+type ExpandedBlock =
+  | { type: "item"; item: MessageItemType }
+  | { type: "collapse_group"; id: string; items: MessageItemType[] }
+  | { type: "dev_group"; id: string; items: DeveloperMessageItem[] };
+
+function groupItemsIntoBlocks(items: MessageItemType[]): ExpandedBlock[] {
+  const blocks: ExpandedBlock[] = [];
+  let pending: MessageItemType[] = [];
+
+  const flushPending = () => {
+    if (pending.length === 0) return;
+    const hasToolBlock = pending.some((item) => item.type === "tool_block");
+    if (hasToolBlock) {
+      blocks.push({
+        type: "collapse_group",
+        id: `cg-${pending[0]!.id}`,
+        items: pending,
+      });
+    } else {
+      for (const item of pending) {
+        if (item.type === "developer_message") {
+          const last = blocks[blocks.length - 1];
+          if (last?.type === "dev_group") {
+            last.items.push(item);
+          } else {
+            blocks.push({ type: "dev_group", id: item.id, items: [item] });
+          }
+        } else {
+          blocks.push({ type: "item", item });
+        }
+      }
+    }
+    pending = [];
+  };
+
+  for (const item of items) {
+    if (isCollapsibleItem(item)) {
+      pending.push(item);
+    } else {
+      flushPending();
+      blocks.push({ type: "item", item });
+    }
+  }
+  flushPending();
+
+  return blocks;
+}
 
 interface SubAgentGroupCardProps {
   sourceSessionId: string;
@@ -52,32 +113,124 @@ export function SubAgentGroupCard({
   onCopy,
   setItemRef,
 }: SubAgentGroupCardProps): JSX.Element {
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const contentRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(false);
+
   const toolItems = items.filter(isToolBlock);
   const activityText = getSessionActivityText(status);
   const summaryParts = getSessionSummaryParts(status, nowSeconds);
   const metaRows = getSessionMetaRows(status, nowSeconds);
-  const lastAssistantItem = [...items]
-    .reverse()
-    .find(
-      (item): item is AssistantTextItem =>
-        item.type === "assistant_text" && item.content.trim().length > 0,
+
+  const expandedBlocks = useMemo(() => groupItemsIntoBlocks(items), [items]);
+  const lastCollapseGroupId = useMemo(() => {
+    for (let i = expandedBlocks.length - 1; i >= 0; i--) {
+      if (expandedBlocks[i]!.type === "collapse_group") return expandedBlocks[i]!.id;
+    }
+    return null;
+  }, [expandedBlocks]);
+
+  const isCollapseGroupCollapsed = useCallback(
+    (groupId: string): boolean => {
+      if (activeItemId !== null) {
+        for (const block of expandedBlocks) {
+          if (
+            block.type === "collapse_group" &&
+            block.id === groupId &&
+            block.items.some((item) => item.id === activeItemId)
+          ) {
+            return false;
+          }
+        }
+      }
+      if (groupId in collapsedGroups) {
+        return collapsedGroups[groupId]!;
+      }
+      return true;
+    },
+    [activeItemId, collapsedGroups, expandedBlocks],
+  );
+
+  // Animate height transition between collapsed and expanded
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      if (collapsed && el.scrollHeight > COLLAPSED_HEIGHT) {
+        el.style.height = `${COLLAPSED_HEIGHT}px`;
+      }
+      return;
+    }
+
+    if (!collapsed) {
+      // Expanding: animate from current height to full content height, then release to auto
+      el.style.height = `${el.scrollHeight}px`;
+      const timer = setTimeout(() => {
+        el.style.height = "auto";
+      }, DURATION_MS + 10);
+      return () => clearTimeout(timer);
+    } else {
+      // Collapsing: snapshot current height, force reflow, then animate to collapsed height
+      const targetHeight = Math.min(el.scrollHeight, COLLAPSED_HEIGHT);
+      el.style.transition = "none";
+      el.style.height = `${el.getBoundingClientRect().height}px`;
+      void el.offsetHeight;
+      el.style.transition = "";
+      el.style.height = `${targetHeight}px`;
+    }
+  }, [collapsed]);
+
+  const renderBlock = (block: ExpandedBlock) => {
+    if (block.type === "collapse_group") {
+      const cgCollapsed = collapsed ? true : isCollapseGroupCollapsed(block.id);
+      return (
+        <CollapseGroupBlock
+          key={block.id}
+          items={block.items}
+          collapsed={cgCollapsed}
+          showRunningSpinner={!collapsed && block.id === lastCollapseGroupId && !isFinished}
+          onToggle={
+            collapsed
+              ? onToggleCollapsed
+              : () => {
+                  setCollapsedGroups((prev) => ({
+                    ...prev,
+                    [block.id]: !cgCollapsed,
+                  }));
+                }
+          }
+          activeItemId={activeItemId}
+          copiedItemId={copiedItemId}
+          workDir={workDir}
+          onCopy={onCopy}
+          setItemRef={setItemRef}
+        />
+      );
+    }
+    if (block.type === "dev_group") {
+      return <DeveloperMessage key={block.id} items={block.items} />;
+    }
+    return (
+      <MessageRow
+        key={block.item.id}
+        item={block.item}
+        variant="subagent"
+        workDir={workDir}
+        isActive={block.item.id === activeItemId}
+        copied={copiedItemId === block.item.id}
+        onCopy={onCopy}
+        itemRef={(el) => {
+          setItemRef(block.item.id, el);
+        }}
+      />
     );
-  const lastCompletedAssistantItem = [...items]
-    .reverse()
-    .find(
-      (item): item is AssistantTextItem =>
-        item.type === "assistant_text" && !item.isStreaming && item.content.trim().length > 0,
-    );
-  const resultPreview =
-    isFinished && lastCompletedAssistantItem
-      ? previewAssistantResult(lastCompletedAssistantItem.content)
-      : null;
-  const streamingPreview =
-    !isFinished && lastAssistantItem ? previewAssistantResult(lastAssistantItem.content) : null;
+  };
 
   return (
     <div className="group/subagent flex min-w-0 gap-4">
-      <div className="min-w-0 flex-1 rounded-2xl border border-neutral-200/80 bg-surface/50 shadow-sm shadow-neutral-200/40">
+      <div className="min-w-0 flex-1 rounded-xl border border-neutral-200/80 bg-surface/50 shadow-sm shadow-neutral-200/40">
         <button
           type="button"
           onClick={onToggleCollapsed}
@@ -100,35 +253,23 @@ export function SubAgentGroupCard({
           summaryParts={summaryParts}
           metaRows={metaRows}
           metaOpen={metaOpen}
+          toolCount={toolItems.length}
+          isFinished={isFinished}
           onMetaOpenChange={onMetaOpenChange}
         />
-        {collapsed ? (
-          <SubAgentCollapsedPreview
-            isFinished={isFinished}
-            toolItems={toolItems}
-            resultPreview={resultPreview}
-            streamingPreview={streamingPreview}
-          />
-        ) : (
-          <div className="space-y-5 px-3.5 pb-3.5 pt-0.5">
-            {items.map((item) => {
-              return (
-                <MessageRow
-                  key={item.id}
-                  item={item}
-                  variant="subagent"
-                  workDir={workDir}
-                  isActive={item.id === activeItemId}
-                  copied={copiedItemId === item.id}
-                  onCopy={onCopy}
-                  itemRef={(el) => {
-                    setItemRef(item.id, el);
-                  }}
-                />
-              );
-            })}
+        <div className="px-3.5 pb-3.5 pt-0.5" style={{ zoom: 0.9 }}>
+          <div
+            ref={contentRef}
+            className="relative flex flex-col-reverse overflow-hidden transition-[height] duration-200 ease-out"
+          >
+            <div className="space-y-5" style={{ backfaceVisibility: "hidden" }}>
+              {expandedBlocks.map(renderBlock)}
+            </div>
+            {collapsed ? (
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-10 bg-gradient-to-b from-[hsl(var(--surface))] to-transparent" />
+            ) : null}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
