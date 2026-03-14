@@ -15,7 +15,7 @@ export const mermaid = {
         bg: "#ffffff",
         fg: "#262626",
         transparent: true,
-        font: "TX-02, ui-monospace, monospace",
+        font: "Lilex Variable, ui-monospace, monospace",
         padding: 24,
       }),
     }),

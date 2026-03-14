@@ -12,8 +12,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["IBM Plex Sans", ...defaultTheme.fontFamily.sans],
-        mono: ["TX-02", ...defaultTheme.fontFamily.mono],
+        sans: ["IBM Plex Sans Variable", ...defaultTheme.fontFamily.sans],
+        mono: ["Lilex Variable", ...defaultTheme.fontFamily.mono],
       },
       fontSize: {
         "2xs": ["0.6875rem", { lineHeight: "1rem" }], // 11px
