@@ -290,6 +290,10 @@ body {
   width: 14px;
   height: 14px;
 }
+.assistant-text [data-streamdown="code-block-copy-button"],
+.assistant-text [data-streamdown="code-block-download-button"] {
+  display: none;
+}
 .assistant-text [data-streamdown="code-block-body"] {
   border: none;
   border-radius: 0 0 0.375rem 0.375rem;
