@@ -420,6 +420,20 @@ body {
   word-break: break-word;
 }
 
+/* Streaming line fade-in animation */
+@keyframes stream-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.stream-fade-in {
+  animation: stream-fade-in 0.12s ease-out both;
+}
+
 /* Thin scrollbar for message list */
 .scrollbar-thin {
   scrollbar-width: thin;
