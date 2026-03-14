@@ -533,7 +533,7 @@ class TestFetchUrlWithRetry:
             patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch),
             patch("klaude_code.core.tool.web.web_fetch_tool.time.sleep"),
         ):
-            content_type, data, charset = _fetch_url_with_retry("https://x.com/")
+            _content_type, data, _charset = _fetch_url_with_retry("https://x.com/")
 
         assert call_count == 2
         assert data == b"ok"
@@ -568,7 +568,7 @@ class TestFetchUrlWithRetry:
             patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch),
             patch("klaude_code.core.tool.web.web_fetch_tool.time.sleep"),
         ):
-            content_type, data, charset = _fetch_url_with_retry("https://x.com/")
+            _content_type, data, _charset = _fetch_url_with_retry("https://x.com/")
 
         assert call_count == 2
         assert data == b"ok"
@@ -629,7 +629,7 @@ class TestGzipFetchIntegration:
             patch("klaude_code.core.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=MockOpener()),
             patch("klaude_code.core.tool.web.web_fetch_tool.check_ssrf", return_value=None),
         ):
-            content_type, data, charset = _fetch_url("https://example.com/page")
+            _content_type, data, charset = _fetch_url("https://example.com/page")
 
         assert data == html_content
         assert charset == "utf-8"
