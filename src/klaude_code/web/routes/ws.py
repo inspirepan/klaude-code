@@ -13,6 +13,7 @@ import anyio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, ValidationError
 
+from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, llm_param, message, model, op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
@@ -254,6 +255,41 @@ async def _forward_events(session_id: str, websocket: WebSocket) -> None:
         return
 
 
+async def _send_pending_interaction_snapshots(session_id: str, websocket: WebSocket) -> None:
+    state = get_web_state_from_ws(websocket)
+    get_session_actor = getattr(state.runtime.session_registry, "get_session_actor", None)
+    if not callable(get_session_actor):
+        return
+    runtime = get_session_actor(session_id)
+    if runtime is None:
+        return
+
+    pending_requests_snapshot = getattr(runtime, "pending_requests_snapshot", None)
+    if not callable(pending_requests_snapshot):
+        return
+
+    requests = cast(list[PendingUserInteractionRequest], pending_requests_snapshot())
+    for request in requests:
+        timestamp = time.time()
+        event: dict[str, Any] = {
+            "session_id": session_id,
+            "request_id": request.request_id,
+            "source": request.source,
+            "payload": request.payload.model_dump(mode="json"),
+            "timestamp": timestamp,
+        }
+        if request.tool_call_id is not None:
+            event["tool_call_id"] = request.tool_call_id
+        await websocket.send_json(
+            {
+                "event_type": "user.interaction.request",
+                "session_id": session_id,
+                "event": event,
+                "timestamp": timestamp,
+            }
+        )
+
+
 async def _forward_session_list_events(websocket: WebSocket) -> None:
     state = get_web_state_from_ws(websocket)
     if state.session_live is None:
@@ -377,6 +413,7 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
 
         await websocket.send_json(_load_usage_snapshot(session_id, work_dir, websocket))
 
+        await _send_pending_interaction_snapshots(session_id, websocket)
         send_task = asyncio.create_task(_forward_events(session_id, websocket))
         recv_task = asyncio.create_task(_receive_commands(session_id, websocket, is_holder=is_holder))
         done, pending = await asyncio.wait({send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED)
