@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import shutil
 import urllib.error
 import urllib.request
 import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import uvicorn
 
@@ -49,6 +51,33 @@ def _should_auto_install_frontend(project_root: Path) -> bool:
 
     install_kind = get_installation_info().install_kind
     return install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}
+
+
+def _frontend_dependencies_installed(web_dir: Path) -> bool:
+    package_json = web_dir / "package.json"
+    if not package_json.exists():
+        return True
+
+    try:
+        package_data = json.loads(package_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return True
+    if not isinstance(package_data, dict):
+        return True
+    package_json_data = cast(dict[str, object], package_data)
+
+    dependency_groups: list[object | None] = [
+        package_json_data.get("dependencies"),
+        package_json_data.get("devDependencies"),
+    ]
+    for group_data in dependency_groups:
+        if not isinstance(group_data, dict):
+            continue
+        group = cast(dict[str, object], group_data)
+        for package_name in group:
+            if not (web_dir / "node_modules" / package_name).exists():
+                return False
+    return True
 
 
 def _http_ready(url: str) -> bool:
@@ -121,6 +150,11 @@ async def prepare_frontend(
     frontend_port = backend_port + 1
     web_dir = project_root / "web"
     frontend_url = f"http://{browser_host}:{frontend_port}/"
+
+    if _should_auto_install_frontend(project_root) and not _frontend_dependencies_installed(web_dir):
+        log("Frontend dependencies are incomplete. Running `pnpm install --frozen-lockfile` once...")
+        if not await _install_frontend_dependencies(web_dir):
+            return FrontendLaunchPlan(url=backend_url, process=None, mode="static")
 
     attempts = 2 if _should_auto_install_frontend(project_root) else 1
     for attempt in range(attempts):
