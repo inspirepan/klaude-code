@@ -121,6 +121,60 @@ def test_prepare_frontend_reinstalls_missing_dependencies_once(tmp_path: Path, m
     assert len(terminated) == 1
 
 
+def test_prepare_frontend_installs_when_declared_dependency_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_root = tmp_path / "repo"
+    web_dir = project_root / "web"
+    web_dir.mkdir(parents=True, exist_ok=True)
+    (web_dir / "package.json").write_text(
+        '{"dependencies": {"@fontsource-variable/ibm-plex-sans": "^5.2.8"}}',
+        encoding="utf-8",
+    )
+    (web_dir / "pnpm-lock.yaml").write_text("lockfileVersion: '9.0'\n", encoding="utf-8")
+
+    class _FakeProcess:
+        def __init__(self) -> None:
+            self.returncode: int | None = None
+
+        def terminate(self) -> None:
+            self.returncode = 0
+
+        def kill(self) -> None:
+            self.returncode = 0
+
+        async def wait(self) -> int:
+            return 0
+
+    launches: list[tuple[str, ...]] = []
+
+    async def _create_subprocess_exec(*args: str, **kwargs: str) -> _FakeProcess:
+        launches.append(tuple(args))
+        assert kwargs["cwd"] == str(web_dir)
+        return _FakeProcess()
+
+    async def _wait_until_ready(url: str, timeout_s: float = 10.0) -> bool:
+        _ = (url, timeout_s)
+        return True
+
+    def _should_auto_install_frontend(_project_root: Path) -> bool:
+        return True
+
+    monkeypatch.setattr(server, "_project_root", lambda: project_root)
+    monkeypatch.setattr(server, "_should_auto_install_frontend", _should_auto_install_frontend)
+    monkeypatch.setattr(server.asyncio, "create_subprocess_exec", _create_subprocess_exec)
+    monkeypatch.setattr(server, "_wait_until_ready", _wait_until_ready)
+
+    plan = arun(server.prepare_frontend(host="127.0.0.1", backend_port=8765))
+
+    assert plan.mode == "dev"
+    assert plan.url == "http://127.0.0.1:8766/"
+    assert launches == [
+        ("pnpm", "install", "--frozen-lockfile"),
+        ("pnpm", "dev", "--host", "127.0.0.1", "--port", "8766", "--strictPort"),
+    ]
+
+
 def test_packaged_env_serves_static(tmp_path: Path) -> None:
     static_dir = tmp_path / "dist"
     static_dir.mkdir(parents=True, exist_ok=True)
