@@ -95,15 +95,11 @@ def _add_cache_control(messages: list[chat.ChatCompletionMessageParam], use_cach
             break
 
 
-def _rewrite_tool_message_for_claude(tool_message: dict[str, object], add_cache_control: bool) -> None:
+def _rewrite_tool_message_for_claude(tool_message: dict[str, object]) -> None:
     content = tool_message.get("content")
     if not isinstance(content, str):
         return
-
-    text_part: dict[str, object] = {"type": "text", "text": content}
-    if add_cache_control:
-        text_part["cache_control"] = {"type": "ephemeral"}
-    tool_message["content"] = [text_part]
+    tool_message["content"] = [{"type": "text", "text": content}]
 
 
 def convert_history_to_input(
@@ -165,7 +161,7 @@ def convert_history_to_input(
             case message.ToolResultMessage():
                 tool_msg, user_msg = build_tool_message_for_chat_completions(msg, attachment)
                 if use_cache_control:
-                    _rewrite_tool_message_for_claude(tool_msg, add_cache_control=user_msg is None)
+                    _rewrite_tool_message_for_claude(tool_msg)
                 messages.append(cast(chat.ChatCompletionMessageParam, tool_msg))
                 if user_msg is not None:
                     messages.append(cast(chat.ChatCompletionMessageParam, user_msg))
