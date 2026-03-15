@@ -63,10 +63,10 @@ def test_rewrite_tool_message_for_claude_converts_string_to_list() -> None:
     msg = _make_tool_result("result text")
     tool_msg, _ = build_tool_message_for_chat_completions(msg, _empty_attachment())
 
-    _rewrite_tool_message_for_claude(tool_msg, add_cache_control=True)
+    _rewrite_tool_message_for_claude(tool_msg)
 
     parts = _content_parts(tool_msg)
-    assert parts == [{"type": "text", "text": "result text", "cache_control": {"type": "ephemeral"}}]
+    assert parts == [{"type": "text", "text": "result text"}]
 
 
 def test_add_cache_control_attaches_to_tool_message_list() -> None:
