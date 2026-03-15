@@ -57,6 +57,7 @@ markers = [
 [tool.ruff]
 line-length = 120
 src = ["src"]
+exclude = ["src/klaude_code/skill/assets"]
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I", "UP", "SIM", "RUF"]
@@ -77,7 +78,7 @@ exclude = [
     ".venv/",
     ".pnpm-store/",
     "web/node_modules/",
-    "src/klaude_code/skill/assets/**/scripts/",
+    "src/klaude_code/skill/assets/",
 ]
 
 [[tool.pyright.executionEnvironments]]
