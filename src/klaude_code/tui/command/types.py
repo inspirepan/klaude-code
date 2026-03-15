@@ -27,6 +27,7 @@ class CommandName(str, Enum):
     FORK_SESSION = "fork-session"
     COPY = "copy"
     CONTINUE = "continue"
+    WEB = "web"
 
     def __str__(self) -> str:
         return self.value

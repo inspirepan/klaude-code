@@ -12,7 +12,7 @@ from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.cost_cmd import register_cost_commands
 from klaude_code.cli.debug import prepare_debug_logging
 from klaude_code.cli.self_update import register_self_upgrade_commands, version_option_callback
-from klaude_code.cli.web_cmd import register_web_commands
+from klaude_code.cli.web_cmd import register_web_commands, run_web_server_command
 from klaude_code.session import Session
 from klaude_code.tui.terminal.session_selector import select_session_sync
 from klaude_code.tui.terminal.title import update_terminal_title
@@ -332,9 +332,16 @@ def main_callback(
             viewer_url = start_log_viewer(log_path)
             log(f"Log viewer: {viewer_url}")
 
-        asyncio.run(
+        web_mode_request = asyncio.run(
             run_interactive(
                 init_config=init_config,
                 session_id=session_id,
             )
         )
+        if web_mode_request is not None:
+            run_web_server_command(
+                host=web_mode_request.host,
+                port=web_mode_request.port,
+                no_open=web_mode_request.no_open,
+                debug=web_mode_request.debug if web_mode_request.debug is not None else debug_enabled,
+            )

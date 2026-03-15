@@ -35,6 +35,15 @@ class Agent(Protocol):
     def get_llm_client(self) -> LLMClientABC: ...
 
 
+class WebModeRequest(BaseModel):
+    """Request to leave TUI and start the web server mode."""
+
+    host: str = "127.0.0.1"
+    port: int = 8765
+    no_open: bool = False
+    debug: bool | None = None
+
+
 class CommandResult(BaseModel):
     """Result of a command execution."""
 
@@ -53,6 +62,7 @@ class CommandResult(BaseModel):
         | None
     ) = None  # List of UI events to display immediately
     operations: list[op.Operation] | None = None
+    web_mode_request: WebModeRequest | None = None
 
 
 class CommandABC(ABC):

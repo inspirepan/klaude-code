@@ -175,6 +175,28 @@ def test_prepare_frontend_installs_when_declared_dependency_is_missing(
     ]
 
 
+def test_start_web_server_aborts_before_init_when_already_running(monkeypatch: pytest.MonkeyPatch) -> None:
+    initialize_called = False
+
+    async def _ensure_web_server_not_running(*, home_dir: Path) -> None:
+        raise server.WebServerAlreadyRunningError(
+            f"Web server is already running:\nsession meta relay socket already in use: {home_dir / 'socket'}"
+        )
+
+    async def _initialize_app_components(**_kwargs: object) -> None:
+        nonlocal initialize_called
+        initialize_called = True
+        return None
+
+    monkeypatch.setattr(server, "_ensure_web_server_not_running", _ensure_web_server_not_running)
+    monkeypatch.setattr(server, "initialize_app_components", _initialize_app_components)
+
+    with pytest.raises(server.WebServerAlreadyRunningError):
+        arun(server.start_web_server(no_open=True))
+
+    assert initialize_called is False
+
+
 def test_packaged_env_serves_static(tmp_path: Path) -> None:
     static_dir = tmp_path / "dist"
     static_dir.mkdir(parents=True, exist_ok=True)
