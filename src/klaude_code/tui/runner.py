@@ -5,6 +5,7 @@ import contextlib
 import shutil
 import threading
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
@@ -28,6 +29,7 @@ from klaude_code.tui.command import (
     dispatch_command,
     get_command_info_list,
 )
+from klaude_code.tui.command.command_abc import WebModeRequest
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input import build_repl_status_snapshot
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, REPLStatusSnapshot
@@ -51,13 +53,12 @@ async def submit_user_input_payload(
     wait_for_display_idle: Callable[[], Awaitable[None]],
     user_input: UserInputPayload,
     session_id: str | None,
-) -> str | None:
+) -> SubmitUserInputResult:
     """Parse/dispatch a user input payload (TUI commands) and submit operations.
 
     This function is TUI-only: it supports slash command parsing and interactive prompts.
 
-    Returns a submission id that should be awaited, or None if there is nothing
-    to wait for (e.g. commands that only emit events).
+    Returns the submitted operation id to await, plus any requested mode transition.
     """
 
     sid = session_id or runtime.current_session_id()
@@ -89,12 +90,14 @@ async def submit_user_input_payload(
         command = user_input.text[1:].lstrip(" \t")
         if command == "":
             # Enter should be ignored in the input layer for this case; keep a guard here.
-            return None
+            return SubmitUserInputResult(wait_id=None)
         bash_op = op.RunBashOperation(id=submission_id, session_id=sid, command=command)
-        return await runtime.submit(bash_op)
+        return SubmitUserInputResult(wait_id=await runtime.submit(bash_op))
 
     cmd_result = await dispatch_command(user_input, agent, submission_id=submission_id)
     operations: list[op.Operation] = list(cmd_result.operations or [])
+    if cmd_result.web_mode_request is not None and operations:
+        raise ValueError("Web mode transition cannot be combined with operations")
 
     run_ops = [candidate for candidate in operations if isinstance(candidate, op.RunAgentOperation)]
     if len(run_ops) > 1:
@@ -124,14 +127,20 @@ async def submit_user_input_payload(
     if not submitted_ids:
         # Ensure event-only commands are fully rendered before showing the next prompt.
         await wait_for_display_idle()
-        return None
+        return SubmitUserInputResult(wait_id=None, web_mode_request=cmd_result.web_mode_request)
 
     if run_ops:
-        return run_ops[0].id
-    return submitted_ids[-1]
+        return SubmitUserInputResult(wait_id=run_ops[0].id)
+    return SubmitUserInputResult(wait_id=submitted_ids[-1])
 
 
-async def run_interactive(init_config: AppInitConfig, session_id: str | None = None) -> None:
+@dataclass(frozen=True, slots=True)
+class SubmitUserInputResult:
+    wait_id: str | None
+    web_mode_request: WebModeRequest | None = None
+
+
+async def run_interactive(init_config: AppInitConfig, session_id: str | None = None) -> WebModeRequest | None:
     """Run the interactive REPL (TUI).
 
     If session_id is None, a new session is created.
@@ -488,6 +497,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     await wait_task
 
     exit_hint_printed = False
+    pending_web_mode_request: WebModeRequest | None = None
 
     try:
         tui_holder_key = uuid4().hex
@@ -512,12 +522,17 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 continue
 
             active_session_id = _get_active_session_id()
-            wait_id = await submit_user_input_payload(
+            submission = await submit_user_input_payload(
                 runtime=components.runtime,
                 wait_for_display_idle=components.wait_for_display_idle,
                 user_input=user_input,
                 session_id=active_session_id,
             )
+
+            wait_id = submission.wait_id
+            if submission.web_mode_request is not None:
+                pending_web_mode_request = submission.web_mode_request
+                break
 
             if wait_id is None:
                 continue
@@ -544,7 +559,14 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 if session.messages_count == 0:
                     shutil.rmtree(Session.paths(work_dir).session_dir(active_session_id), ignore_errors=True)
 
-        if not exit_hint_printed and active_session_id and Session.exists(active_session_id, work_dir=work_dir):
+        if (
+            pending_web_mode_request is None
+            and not exit_hint_printed
+            and active_session_id
+            and Session.exists(active_session_id, work_dir=work_dir)
+        ):
             short_id = Session.shortest_unique_prefix(active_session_id, work_dir=work_dir)
             log(f"Session ID: {active_session_id}")
             log(f"Resume with: klaude -r {short_id}")
+
+    return pending_web_mode_request
