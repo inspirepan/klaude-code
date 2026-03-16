@@ -22,6 +22,7 @@ help:
 install:
 	git submodule update --init --recursive
 	$(UV) tool install -e .
+	cd web && $(PNPM) install
 
 lint: ruff-check typecheck imports web-lint
 
