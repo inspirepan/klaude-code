@@ -14,6 +14,8 @@ from typing import cast
 import uvicorn
 
 from klaude_code.app.runtime import AppInitConfig, cleanup_app_components, initialize_app_components
+from klaude_code.core.control.event_relay import event_relay_socket_path
+from klaude_code.core.control.session_meta_relay import session_meta_relay_socket_path
 from klaude_code.log import DebugType, log, log_debug
 from klaude_code.update import INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL, get_installation_info
 from klaude_code.web.app import create_app
@@ -27,6 +29,10 @@ class FrontendLaunchPlan:
     url: str
     process: asyncio.subprocess.Process | None
     mode: str
+
+
+class WebServerAlreadyRunningError(RuntimeError):
+    """Raised when another web server instance is already active for this home directory."""
 
 
 def _browser_host(host: str) -> str:
@@ -181,6 +187,35 @@ def open_browser(url: str, *, no_open: bool) -> None:
     _ = webbrowser.open(url)
 
 
+async def _is_unix_socket_live(socket_path: Path) -> bool:
+    if not socket_path.exists():
+        return False
+    try:
+        reader, writer = await asyncio.open_unix_connection(str(socket_path))
+    except OSError:
+        return False
+    writer.close()
+    with contextlib.suppress(OSError):
+        await writer.wait_closed()
+    del reader
+    return True
+
+
+async def _ensure_web_server_not_running(*, home_dir: Path) -> None:
+    socket_conflicts: list[str] = []
+
+    event_socket = event_relay_socket_path(home_dir=home_dir)
+    if await _is_unix_socket_live(event_socket):
+        socket_conflicts.append(f"event relay socket already in use: {event_socket}")
+
+    session_meta_socket = session_meta_relay_socket_path(home_dir=home_dir)
+    if await _is_unix_socket_live(session_meta_socket):
+        socket_conflicts.append(f"session meta relay socket already in use: {session_meta_socket}")
+
+    if socket_conflicts:
+        raise WebServerAlreadyRunningError("Web server is already running:\n" + "\n".join(socket_conflicts))
+
+
 async def start_web_server(
     *,
     host: str = "127.0.0.1",
@@ -188,6 +223,9 @@ async def start_web_server(
     no_open: bool = False,
     debug: bool = False,
 ) -> None:
+    home_dir = Path.home()
+    await _ensure_web_server_not_running(home_dir=home_dir)
+
     interaction_handler = WebInteractionHandler()
     components = await initialize_app_components(
         init_config=AppInitConfig(
@@ -200,7 +238,7 @@ async def start_web_server(
         display=WebDisplay(),
         interaction_handler=None,
     )
-    live_events = await start_web_live_events(components.event_bus, home_dir=Path.home())
+    live_events = await start_web_live_events(components.event_bus, home_dir=home_dir)
     if live_events.relay_error is not None:
         log((f"Cross-process live events unavailable: {live_events.relay_error}", "yellow"))
 
@@ -210,7 +248,7 @@ async def start_web_server(
         event_stream=live_events.stream,
         interaction_handler=interaction_handler,
         work_dir=Path.cwd(),
-        home_dir=Path.home(),
+        home_dir=home_dir,
     )
 
     frontend_plan = await prepare_frontend(host=host, backend_port=port)

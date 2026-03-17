@@ -42,12 +42,14 @@ def ensure_commands_loaded() -> None:
     from .status_cmd import StatusCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
     from .thinking_cmd import ThinkingCommand
+    from .web_cmd import WebCommand
 
     # Register in desired display order
     register(CopyCommand())
     register(CompactCommand())
     register(ForkSessionCommand())
     register(RefreshTerminalCommand())
+    register(WebCommand())
     register(NewCommand())
     register(ModelCommand())
     register(SubAgentModelCommand())
@@ -75,6 +77,7 @@ def __getattr__(name: str) -> object:
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",
         "ThinkingCommand": "thinking_cmd",
+        "WebCommand": "web_cmd",
     }
     if name in _commands_map:
         import importlib

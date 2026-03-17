@@ -159,8 +159,8 @@ def test_waiting_esc_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatch) 
 
     monkeypatch.setattr(runner, "initialize_app_components", _init_components)
 
-    async def _submit_user_input_payload(**_: Any) -> str:
-        return "wait-1"
+    async def _submit_user_input_payload(**_: Any) -> Any:
+        return runner.SubmitUserInputResult(wait_id="wait-1")
 
     monkeypatch.setattr(
         runner,
@@ -239,8 +239,8 @@ def test_interaction_collection_pauses_esc_monitor(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr(runner, "initialize_app_components", _init_components)
 
-    async def _submit_user_input_payload(**_: Any) -> str:
-        return "wait-1"
+    async def _submit_user_input_payload(**_: Any) -> Any:
+        return runner.SubmitUserInputResult(wait_id="wait-1")
 
     monkeypatch.setattr(
         runner,
@@ -374,8 +374,8 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
 
     monkeypatch.setattr(runner, "initialize_app_components", _init_components)
 
-    async def _submit_user_input_payload(**_: Any) -> str:
-        return "wait-1"
+    async def _submit_user_input_payload(**_: Any) -> Any:
+        return runner.SubmitUserInputResult(wait_id="wait-1")
 
     monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
 
@@ -471,8 +471,8 @@ def test_operation_thinking_interaction_uses_selector_style(monkeypatch: pytest.
 
     monkeypatch.setattr(runner, "initialize_app_components", _init_components)
 
-    async def _submit_user_input_payload(**_: Any) -> str:
-        return "wait-1"
+    async def _submit_user_input_payload(**_: Any) -> Any:
+        return runner.SubmitUserInputResult(wait_id="wait-1")
 
     monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
 
@@ -584,3 +584,68 @@ def test_exit_keeps_non_empty_session(monkeypatch: pytest.MonkeyPatch, isolated_
     arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
 
     assert Session.exists("s1", work_dir=Path.cwd())
+
+
+def test_web_mode_transition_skips_exit_hint(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    requested = runner.WebModeRequest(host="0.0.0.0", port=9000, no_open=True, debug=None)
+
+    class _FakeRuntime:
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> None:
+            return None
+
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=_FakeRuntime(),
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+
+    async def _submit_user_input_payload(**_: Any) -> Any:
+        return runner.SubmitUserInputResult(wait_id=None, web_mode_request=requested)
+
+    monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
+
+    cleanup_calls: list[object] = []
+
+    async def _cleanup(components: object) -> None:
+        cleanup_calls.append(components)
+
+    monkeypatch.setattr(runner, "cleanup_app_components", _cleanup)
+
+    log_messages: list[str] = []
+
+    def _log(*parts: object) -> None:
+        log_messages.append(" ".join(str(part) for part in parts))
+
+    def _session_exists(*_args: object, **_kwargs: object) -> bool:
+        return True
+
+    def _load_session(*_args: object, **_kwargs: object) -> Any:
+        return SimpleNamespace(messages_count=1)
+
+    def _shortest_unique_prefix(*_args: object, **_kwargs: object) -> str:
+        return "s1"
+
+    monkeypatch.setattr(runner, "log", _log)
+    monkeypatch.setattr(Session, "exists", _session_exists)
+    monkeypatch.setattr(Session, "load", _load_session)
+    monkeypatch.setattr(Session, "shortest_unique_prefix", _shortest_unique_prefix)
+
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="/web")]
+
+    result = arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert result == requested
+    assert cleanup_calls == [components]
+    assert not any(message.startswith("Session ID:") for message in log_messages)
+    assert not any(message.startswith("Resume with:") for message in log_messages)
