@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Awaitable, Callable, MutableMapping
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -70,26 +69,6 @@ def build_todo_context(session: Session) -> TodoContext:
     return TodoContext(get_todos=store.get, set_todos=store.set)
 
 
-class SubAgentResumeClaims:
-    """Track sub-agent resume claims for a single turn.
-
-    Multiple concurrent sub-agent tool calls can attempt to resume the same
-    session id in a single model response. This class provides an atomic
-    `claim()` operation to reject duplicates.
-    """
-
-    def __init__(self) -> None:
-        self._claims: set[str] = set()
-        self._lock = asyncio.Lock()
-
-    async def claim(self, session_id: str) -> bool:
-        async with self._lock:
-            if session_id in self._claims:
-                return False
-            self._claims.add(session_id)
-            return True
-
-
 @dataclass(frozen=True)
 class ToolContext:
     """Tool execution context.
@@ -104,7 +83,6 @@ class ToolContext:
     work_dir: Path
     file_change_summary: model.FileChangeSummary | None = None
     run_subtask: RunSubtask | None = None
-    sub_agent_resume_claims: SubAgentResumeClaims | None = None
     record_sub_agent_session_id: Callable[[str], None] | None = None
     register_sub_agent_metadata_getter: Callable[[GetMetadataFn], None] | None = None
     register_sub_agent_progress_getter: Callable[[GetProgressFn], None] | None = None

@@ -476,7 +476,7 @@ class TestSessionPersistence:
 
         arun(_test())
 
-    def test_replay_sub_agent_task_finish_includes_agent_id_footer(
+    def test_replay_sub_agent_task_finish_without_agent_id_footer(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
         project_dir = tmp_path / "test_project"
@@ -497,7 +497,7 @@ class TestSessionPersistence:
             events_list = list(reloaded.get_history_item())
             finish_events = [e for e in events_list if isinstance(e, events.TaskFinishEvent)]
             assert len(finish_events) == 1
-            assert f"agentId: {sub_session.id}" in finish_events[0].task_result
+            assert finish_events[0].task_result == "done"
             await close_default_store()
 
         arun(_test())

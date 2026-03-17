@@ -410,7 +410,6 @@ class SubAgentState(BaseModel):
     sub_agent_type: SubAgentType
     sub_agent_desc: str
     sub_agent_prompt: str
-    resume: str | None = None
     output_schema: dict[str, Any] | None = None
 
 

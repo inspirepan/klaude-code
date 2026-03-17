@@ -11,7 +11,6 @@ from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolM
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
 from klaude_code.protocol.sub_agent import get_sub_agent_profile, iter_sub_agent_profiles
-from klaude_code.session.session import Session
 
 AGENT_TYPE_TO_SUB_AGENT: dict[str, str] = {
     "general-purpose": "Task",
@@ -62,10 +61,6 @@ AGENT_SCHEMA = llm_param.ToolSchema(
                 "type": "object",
                 "description": "Optional JSON Schema for structured output.",
             },
-            "resume": {
-                "type": "string",
-                "description": "Optional agent ID to resume from.",
-            },
         },
         "required": ["description", "prompt"],
         "additionalProperties": False,
@@ -105,65 +100,16 @@ class AgentTool(ToolABC):
 
         description = str(typed_args.get("description") or "")
 
-        resume_raw = typed_args.get("resume")
-        resume_session_id: str | None = None
-        resume_sub_agent_type: str | None = None
-        if isinstance(resume_raw, str) and resume_raw.strip():
-            try:
-                resume_session_id = Session.resolve_sub_agent_session_id(resume_raw, work_dir=context.work_dir)
-            except ValueError as exc:
-                return message.ToolResultMessage(status="error", output_text=str(exc))
-
-            try:
-                resume_session = Session.load(resume_session_id, work_dir=context.work_dir)
-            except (OSError, ValueError, json.JSONDecodeError) as exc:
-                return message.ToolResultMessage(
-                    status="error",
-                    output_text=f"Failed to resume sub-agent session '{resume_session_id}': {exc}",
-                )
-
-            if resume_session.sub_agent_state is None:
-                return message.ToolResultMessage(
-                    status="error",
-                    output_text=f"Invalid resume id '{resume_session_id}': target session is not a sub-agent session",
-                )
-
-            resume_sub_agent_type = resume_session.sub_agent_state.sub_agent_type
-            claims = context.sub_agent_resume_claims
-            if claims is not None:
-                ok = await claims.claim(resume_session_id)
-                if not ok:
-                    return message.ToolResultMessage(
-                        status="error",
-                        output_text=(
-                            "Duplicate sub-agent resume in the same response: "
-                            f"resume='{resume_raw.strip()}' (resolved='{resume_session_id[:7]}…'). "
-                            "Merge into a single call or resume in a later turn."
-                        ),
-                    )
-
         type_raw = typed_args.get("type")
         requested_type = str(type_raw).strip() if isinstance(type_raw, str) else ""
 
-        if resume_session_id and not requested_type:
-            sub_agent_type = resume_sub_agent_type or AGENT_TYPE_TO_SUB_AGENT["general-purpose"]
-        else:
-            if not requested_type:
-                requested_type = "general-purpose"
-            sub_agent_type = AGENT_TYPE_TO_SUB_AGENT.get(requested_type)
-            if sub_agent_type is None:
-                return message.ToolResultMessage(
-                    status="error",
-                    output_text=f"Unknown Agent type '{requested_type}'.",
-                )
-
-        if resume_session_id and resume_sub_agent_type and resume_sub_agent_type != sub_agent_type:
+        if not requested_type:
+            requested_type = "general-purpose"
+        sub_agent_type = AGENT_TYPE_TO_SUB_AGENT.get(requested_type)
+        if sub_agent_type is None:
             return message.ToolResultMessage(
                 status="error",
-                output_text=(
-                    "Invalid resume id: sub-agent type mismatch. "
-                    f"Expected '{sub_agent_type}', got '{resume_sub_agent_type}'."
-                ),
+                output_text=f"Unknown Agent type '{requested_type}'.",
             )
 
         try:
@@ -182,7 +128,6 @@ class AgentTool(ToolABC):
                     sub_agent_type=profile.name,
                     sub_agent_desc=description,
                     sub_agent_prompt=sub_agent_prompt,
-                    resume=resume_session_id,
                     output_schema=output_schema,
                 ),
                 context.record_sub_agent_session_id,

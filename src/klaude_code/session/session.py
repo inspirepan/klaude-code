@@ -722,13 +722,6 @@ class Session(BaseModel):
         has_structured_output = report_back_result is not None
         task_result = report_back_result if has_structured_output else last_assistant_content
 
-        if self.sub_agent_state is not None:
-            trimmed = (task_result or "").rstrip()
-            lines = trimmed.splitlines()
-            if not (lines and lines[-1].startswith("agentId:")):
-                footer = f"agentId: {self.id} (for resuming to continue this agent's work if needed)"
-                task_result = f"{trimmed}\n\n{footer}" if trimmed.strip() else footer
-
         yield events.TaskFinishEvent(
             session_id=self.id,
             task_result=task_result or "",
@@ -862,50 +855,6 @@ class Session(BaseModel):
 
         items.sort(key=lambda d: d.updated_at, reverse=True)
         return items
-
-    @classmethod
-    def resolve_sub_agent_session_id(cls, resume: str, work_dir: Path) -> str:
-        """Resolve a sub-agent session id from an id prefix.
-
-        Args:
-            resume: Full session id or a unique prefix.
-            work_dir: Project working directory.
-
-        Returns:
-            The resolved full session id.
-
-        Raises:
-            ValueError: If resume is empty, not found, or ambiguous.
-        """
-
-        prefix = (resume or "").strip().lower()
-        if not prefix:
-            raise ValueError("resume cannot be empty")
-
-        store = get_store_for_path(work_dir)
-        matches: set[str] = set()
-
-        for meta_path in store.iter_meta_files():
-            data = _read_json_dict(meta_path)
-            if data is None:
-                continue
-            # Only allow resuming sub-agent sessions.
-            if data.get("sub_agent_state") is None:
-                continue
-            sid = str(data.get("id", meta_path.parent.name)).strip()
-            if sid.lower().startswith(prefix):
-                matches.add(sid)
-
-        if not matches:
-            raise ValueError(f"resume id not found for this project: '{resume}'")
-
-        resolved = sorted(matches)
-        if len(resolved) > 1:
-            sample = ", ".join(resolved[:8])
-            suffix = "" if len(resolved) <= 8 else f" (+{len(resolved) - 8} more)"
-            raise ValueError(f"resume id is ambiguous: '{resume}' matches {sample}{suffix}")
-
-        return resolved[0]
 
     @classmethod
     def find_sessions_by_prefix(cls, prefix: str, work_dir: Path) -> list[str]:

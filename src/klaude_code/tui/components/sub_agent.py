@@ -43,14 +43,8 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
         f" {e.sub_agent_desc} ",
         style=Style(color=style.color if style else None, bold=True, reverse=True),
     )
-    resume_note = Text("")
-    if e.resume:
-        resume_note = Text(
-            f" resume:{e.resume[:7]} ",
-            style=Style(color=style.color if style else None, dim=True),
-        )
     elements: list[RenderableType] = [
-        Text.assemble((e.sub_agent_type, ThemeKey.TOOL_NAME), " ", desc, resume_note),
+        Text.assemble((e.sub_agent_type, ThemeKey.TOOL_NAME), " ", desc),
         truncate_head(e.sub_agent_prompt, base_style=style or "", truncated_style=ThemeKey.STATUS_HINT, max_lines=10),
     ]
     if e.output_schema:
@@ -61,20 +55,6 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
     return Group(*elements)
 
 
-def _extract_agent_id_footer(text: str) -> tuple[str, str | None]:
-    """Extract agentId footer from result text if present.
-
-    Returns (main_content, footer_line) where footer_line is None if not found.
-    """
-    lines = text.rstrip().splitlines()
-    if len(lines) >= 2 and lines[-1].startswith("agentId:"):
-        # Check if there's an empty line before the footer
-        if lines[-2] == "":
-            return "\n".join(lines[:-2]), lines[-1]
-        return "\n".join(lines[:-1]), lines[-1]
-    return text, None
-
-
 def render_sub_agent_result(
     result: str,
     *,
@@ -83,8 +63,6 @@ def render_sub_agent_result(
     sub_agent_color: Style | None = None,
 ) -> RenderableType:
     stripped_result = result.strip()
-    main_content, agent_id_footer = _extract_agent_id_footer(stripped_result)
-    stripped_result = main_content.strip()
 
     elements: list[RenderableType] = []
     if description:
@@ -119,8 +97,5 @@ def render_sub_agent_result(
             elements.append(Text("\n".join(lines[-SUB_AGENT_RESULT_MAX_LINES:]), style=ThemeKey.TOOL_RESULT))
         else:
             elements.append(Text(stripped_result, style=ThemeKey.TOOL_RESULT))
-
-    if agent_id_footer:
-        elements.append(Text(agent_id_footer, style=ThemeKey.SUB_AGENT_FOOTER))
 
     return Group(*elements)

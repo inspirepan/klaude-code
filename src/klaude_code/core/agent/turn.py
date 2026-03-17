@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from klaude_code.const import LLM_FIRST_TOKEN_TIMEOUT_S, RETRY_PRESERVE_PARTIAL_MESSAGE
 from klaude_code.core.rewind import RewindManager
 from klaude_code.core.tool import ToolABC
-from klaude_code.core.tool.context import SubAgentResumeClaims, ToolContext
+from klaude_code.core.tool.context import ToolContext
 
 if TYPE_CHECKING:
     from klaude_code.core.agent.task import SessionContext
@@ -426,7 +426,6 @@ class TurnExecutor:
             work_dir=session_ctx.work_dir,
             file_change_summary=session_ctx.file_change_summary,
             run_subtask=session_ctx.run_subtask,
-            sub_agent_resume_claims=SubAgentResumeClaims(),
             rewind_manager=ctx.rewind_manager,
             request_user_interaction=session_ctx.request_user_interaction,
         )
