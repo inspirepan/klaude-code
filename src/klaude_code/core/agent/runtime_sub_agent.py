@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import Awaitable, Callable
 
 from klaude_code.core.agent.agent import Agent
@@ -42,54 +41,11 @@ class SubAgentExecutor:
         register_progress_getter: Callable[[Callable[[], str | None]], None] | None = None,
     ) -> SubAgentResult:
         parent_session = parent_agent.session
-        resume_session_id = state.resume
+        child_session = Session(work_dir=parent_session.work_dir)
+        child_session.sub_agent_state = state
 
-        def _append_agent_id(task_result: str, session_id: str) -> str:
-            trimmed = (task_result or "").rstrip()
-            footer = f"agentId: {session_id} (for resuming to continue this agent's work if needed)"
-            if trimmed.strip():
-                return f"{trimmed}\n\n{footer}"
-            return footer
-
-        if resume_session_id:
-            try:
-                child_session = Session.load(resume_session_id, work_dir=parent_session.work_dir)
-            except (OSError, ValueError, json.JSONDecodeError) as exc:
-                return SubAgentResult(
-                    task_result=f"Failed to resume sub-agent session '{resume_session_id}': {exc}",
-                    session_id="",
-                    error=True,
-                )
-
-            if child_session.sub_agent_state is None:
-                return SubAgentResult(
-                    task_result=(f"Invalid resume id '{resume_session_id}': target session is not a sub-agent session"),
-                    session_id="",
-                    error=True,
-                )
-            if child_session.sub_agent_state.sub_agent_type != state.sub_agent_type:
-                return SubAgentResult(
-                    task_result=(
-                        "Invalid resume id: sub-agent type mismatch. "
-                        f"Expected '{state.sub_agent_type}', got '{child_session.sub_agent_state.sub_agent_type}'."
-                    ),
-                    session_id="",
-                    error=True,
-                )
-
-            if record_session_id is not None:
-                record_session_id(child_session.id)
-
-            child_session.sub_agent_state.sub_agent_desc = state.sub_agent_desc
-            child_session.sub_agent_state.sub_agent_prompt = state.sub_agent_prompt
-            child_session.sub_agent_state.resume = resume_session_id
-            child_session.sub_agent_state.output_schema = state.output_schema
-        else:
-            child_session = Session(work_dir=parent_session.work_dir)
-            child_session.sub_agent_state = state
-
-            if record_session_id is not None:
-                record_session_id(child_session.id)
+        if record_session_id is not None:
+            record_session_id(child_session.id)
 
         clients = llm_clients or self._llm_clients
         child_profile = self._model_profile_provider.build_profile(
@@ -151,7 +107,7 @@ class SubAgentExecutor:
                     completed_calls.add(event.tool_call_id)
 
                 if isinstance(event, events.TaskFinishEvent):
-                    result = _append_agent_id(event.task_result, child_session.id)
+                    result = event.task_result
                     event = events.TaskFinishEvent(
                         session_id=event.session_id,
                         task_result=result,

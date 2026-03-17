@@ -36,6 +36,7 @@ def test_agent_tool_schema() -> None:
     assert "prompt" in schema.parameters["required"]
     assert "type" in schema.parameters["properties"]
     assert "general-purpose" in schema.parameters["properties"]["type"]["enum"]
+    assert "resume" not in schema.parameters["properties"]
 
 
 def test_agent_tool_call_invalid_json() -> None:
