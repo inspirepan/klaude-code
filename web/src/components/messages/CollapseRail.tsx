@@ -69,7 +69,7 @@ interface CollapseRailPanelProps {
   children: ReactNode;
 }
 
-const DURATION_MS = 200;
+export const COLLAPSE_RAIL_DURATION_MS = 200;
 
 export function CollapseRailPanel({
   open,
@@ -95,7 +95,7 @@ export function CollapseRailPanel({
       el.style.height = `${el.scrollHeight}px`;
       const timer = setTimeout(() => {
         el.style.height = "auto";
-      }, DURATION_MS + 10);
+      }, COLLAPSE_RAIL_DURATION_MS + 10);
       return () => clearTimeout(timer);
     } else {
       // Collapsing: snapshot current height, force reflow, then animate to 0

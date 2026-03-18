@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
-} from "react";
+import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, CornerDownLeft, Folder } from "lucide-react";
 
 interface DraftWorkspacePickerProps {
@@ -39,13 +32,16 @@ export function DraftWorkspacePicker({
   setWorkspaceMenuOpen,
   onSelect,
 }: DraftWorkspacePickerProps): JSX.Element {
-  const [highlightIndex, setHighlightIndex] = useState(0);
+  const [highlightedWorkspace, setHighlightedWorkspace] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Reset highlight when options change
-  useEffect(() => {
-    setHighlightIndex(0);
-  }, [filteredWorkspaceOptions]);
+  const highlightIndex = (() => {
+    if (filteredWorkspaceOptions.length === 0 || highlightedWorkspace === null) {
+      return 0;
+    }
+    const index = filteredWorkspaceOptions.indexOf(highlightedWorkspace);
+    return index >= 0 ? index : 0;
+  })();
 
   // Scroll highlighted item into view
   useEffect(() => {
@@ -62,10 +58,12 @@ export function DraftWorkspacePicker({
     }
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setHighlightIndex((i) => Math.min(i + 1, filteredWorkspaceOptions.length - 1));
+      const nextIndex = Math.min(highlightIndex + 1, filteredWorkspaceOptions.length - 1);
+      setHighlightedWorkspace(filteredWorkspaceOptions[nextIndex] ?? null);
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      setHighlightIndex((i) => Math.max(i - 1, 0));
+      const nextIndex = Math.max(highlightIndex - 1, 0);
+      setHighlightedWorkspace(filteredWorkspaceOptions[nextIndex] ?? null);
     } else if (event.key === "Enter") {
       event.preventDefault();
       const workspace = filteredWorkspaceOptions[highlightIndex];
@@ -107,6 +105,7 @@ export function DraftWorkspacePicker({
             onChange={(event) => {
               setDraftWorkDir(event.target.value);
               setWorkspaceMenuOpen(true);
+              setHighlightedWorkspace(null);
             }}
             onKeyDown={handleKeyDown}
             placeholder="/path/to/workspace"
@@ -133,8 +132,8 @@ export function DraftWorkspacePicker({
           <div className="absolute left-0 right-0 z-20 mt-1.5 overflow-hidden rounded-lg border border-neutral-200/80 bg-white py-1 shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
             {filteredWorkspaceOptions.length > 0 ? (
               <div ref={listRef} className="max-h-64 overflow-y-auto">
-                {filteredWorkspaceOptions.map((workspace, index) => {
-                  const isHighlighted = index === highlightIndex;
+                {filteredWorkspaceOptions.map((workspace) => {
+                  const isHighlighted = workspace === filteredWorkspaceOptions[highlightIndex];
                   const isSelected = workspace === normalizedDraftWorkDir;
                   const { name, parent } = workDirDisplay(workspace);
                   return (
@@ -152,7 +151,7 @@ export function DraftWorkspacePicker({
                         event.preventDefault();
                       }}
                       onPointerEnter={() => {
-                        setHighlightIndex(index);
+                        setHighlightedWorkspace(workspace);
                       }}
                       onClick={() => {
                         setDraftWorkDir(workspace);

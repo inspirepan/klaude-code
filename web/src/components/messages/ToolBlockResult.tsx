@@ -1,5 +1,3 @@
-import { useLayoutEffect, useRef } from "react";
-
 import type { ToolBlockItem } from "../../types/message";
 import {
   CollapseRailConnector,
@@ -42,43 +40,10 @@ export function ToolBlockResult({
   const subTextClass = "text-base";
   const miniTextClass = compact ? "text-xs" : "text-sm";
   const resultLineClass = "block max-w-full overflow-hidden text-ellipsis whitespace-pre";
-  const containerRef = useRef<HTMLDivElement>(null);
-  const previousHeightRef = useRef<number | null>(null);
-  const wasStreamingRef = useRef(item.isStreaming);
-
-  useLayoutEffect(() => {
-    const element = containerRef.current;
-    if (!element) return;
-
-    const currentHeight = element.getBoundingClientRect().height;
-    const previousHeight = previousHeightRef.current;
-    const justCompleted = wasStreamingRef.current && !item.isStreaming;
-
-    if (justCompleted && open && previousHeight !== null && currentHeight > previousHeight) {
-      const scrollContainer = element.closest<HTMLElement>(
-        "[data-message-scroll-container='true']",
-      );
-      if (scrollContainer) {
-        const blockRect = element.getBoundingClientRect();
-        const containerRect = scrollContainer.getBoundingClientRect();
-        const isVisible =
-          blockRect.bottom > containerRect.top && blockRect.top < containerRect.bottom;
-        if (isVisible) {
-          scrollContainer.scrollTop += currentHeight - previousHeight;
-        }
-      }
-    }
-
-    previousHeightRef.current = currentHeight;
-    wasStreamingRef.current = item.isStreaming;
-  }, [item.isStreaming, item.result, item.resultStatus, item.uiExtra, open]);
 
   return (
     <CollapseRailPanel open={open} className="col-span-2">
-      <div
-        className={`mt-0.5 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}
-        ref={containerRef}
-      >
+      <div className={`mt-0.5 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
         <CollapseRailConnector />
         <div className="min-w-0">
           {hasRich ? (

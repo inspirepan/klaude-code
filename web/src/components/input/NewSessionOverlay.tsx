@@ -36,6 +36,7 @@ export function NewSessionOverlay({
   const workspacePickerRef = useRef<HTMLDivElement>(null);
   const workspaceInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const initialDraftWorkDirRef = useRef(draftWorkDir);
 
   const workspaceOptions = useMemo(
     () => uniqueWorkspaces(groups.map((group) => group.work_dir)),
@@ -90,7 +91,7 @@ export function NewSessionOverlay({
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      if (draftWorkDir.trim().length === 0) {
+      if (initialDraftWorkDirRef.current.trim().length === 0) {
         workspaceInputRef.current?.focus();
       } else {
         textareaRef.current?.focus();
