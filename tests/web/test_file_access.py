@@ -49,6 +49,24 @@ def test_file_not_found(app_env: AppEnv) -> None:
     assert response.status_code == 404
 
 
+def test_file_access_uses_session_work_dir(app_env: AppEnv, tmp_path: Path) -> None:
+    other_work_dir = tmp_path / "other-work"
+    other_work_dir.mkdir(parents=True)
+    file_path = other_work_dir / "hello.txt"
+    file_path.write_text("hello-session", encoding="utf-8")
+    session_id = app_env.create_session(other_work_dir)
+
+    denied_response = app_env.client.get("/api/files", params={"path": str(file_path)})
+    assert denied_response.status_code == 403
+
+    response = app_env.client.get(
+        "/api/files",
+        params={"path": str(file_path), "session_id": session_id},
+    )
+    assert response.status_code == 200
+    assert response.text == "hello-session"
+
+
 def test_image_upload_stores_tmp_file(app_env: AppEnv) -> None:
     data_url = (
         "data:image/png;base64,"

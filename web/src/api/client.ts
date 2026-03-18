@@ -219,6 +219,10 @@ export async function uploadImageAttachment(file: File): Promise<MessageImageFil
   });
 }
 
-export function buildFileApiUrl(path: string): string {
-  return `/api/files?${new URLSearchParams({ path }).toString()}`;
+export function buildFileApiUrl(path: string, sessionId?: string | null): string {
+  const params = new URLSearchParams({ path });
+  if (sessionId) {
+    params.set("session_id", sessionId);
+  }
+  return `/api/files?${params.toString()}`;
 }

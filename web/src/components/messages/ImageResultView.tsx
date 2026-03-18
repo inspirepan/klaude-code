@@ -4,13 +4,18 @@ import type { ImageUIExtra } from "./message-ui-extra";
 interface ImageResultViewProps {
   uiExtra: ImageUIExtra;
   compact?: boolean;
+  sessionId?: string | null;
 }
 
-export function ImageResultView({ uiExtra, compact = false }: ImageResultViewProps): JSX.Element {
+export function ImageResultView({
+  uiExtra,
+  compact = false,
+  sessionId,
+}: ImageResultViewProps): JSX.Element {
   return (
     <div className="mt-1 overflow-hidden rounded-lg border border-neutral-200/80 bg-white">
       <img
-        src={buildFileApiUrl(uiExtra.file_path)}
+        src={buildFileApiUrl(uiExtra.file_path, sessionId)}
         alt={uiExtra.file_path}
         className="block h-auto max-h-[420px] w-auto max-w-full"
         loading="lazy"
