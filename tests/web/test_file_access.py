@@ -67,6 +67,37 @@ def test_file_access_uses_session_work_dir(app_env: AppEnv, tmp_path: Path) -> N
     assert response.text == "hello-session"
 
 
+def test_file_access_uses_session_relative_path(app_env: AppEnv, tmp_path: Path) -> None:
+    other_work_dir = tmp_path / "other-work"
+    nested_dir = other_work_dir / "output"
+    nested_dir.mkdir(parents=True)
+    file_path = nested_dir / "hello.txt"
+    file_path.write_text("hello-relative", encoding="utf-8")
+    session_id = app_env.create_session(other_work_dir)
+
+    denied_response = app_env.client.get("/api/files", params={"path": "output/hello.txt"})
+    assert denied_response.status_code == 400
+
+    response = app_env.client.get(
+        "/api/files",
+        params={"path": "output/hello.txt", "session_id": session_id},
+    )
+    assert response.status_code == 200
+    assert response.text == "hello-relative"
+
+
+def test_file_access_denies_session_relative_path_traversal(app_env: AppEnv, tmp_path: Path) -> None:
+    other_work_dir = tmp_path / "other-work"
+    other_work_dir.mkdir(parents=True)
+    session_id = app_env.create_session(other_work_dir)
+
+    response = app_env.client.get(
+        "/api/files",
+        params={"path": "../outside.txt", "session_id": session_id},
+    )
+    assert response.status_code == 403
+
+
 def test_image_upload_stores_tmp_file(app_env: AppEnv) -> None:
     data_url = (
         "data:image/png;base64,"

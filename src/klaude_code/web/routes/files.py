@@ -245,7 +245,7 @@ def _resolve_image_suffix(*, mime_type: str, file_name: str | None) -> str | Non
 
 @router.get("")
 async def get_file(
-    path: str = Query(..., description="Absolute local file path"),
+    path: str = Query(..., description="Absolute local file path or session-relative path"),
     session_id: str | None = Query(None, description="Session to resolve workspace from"),
     state: WebAppState = WEB_STATE_DEP,
 ) -> FileResponse:
@@ -255,11 +255,14 @@ async def get_file(
         if resolved_work_dir is None:
             raise HTTPException(status_code=404, detail="session not found")
         work_dir = resolved_work_dir.resolve()
+        requested = Path(path)
+        if not requested.is_absolute():
+            path = str(work_dir / requested)
 
     status_code, resolved = validate_file_access(path, work_dir=work_dir, home_dir=state.home_dir)
     if status_code != 200 or resolved is None:
         if status_code == 400:
-            raise HTTPException(status_code=400, detail="path must be absolute")
+            raise HTTPException(status_code=400, detail="path must be absolute unless session_id is provided")
         if status_code == 403:
             raise HTTPException(status_code=403, detail="file access denied")
         raise HTTPException(status_code=404, detail="file not found")
