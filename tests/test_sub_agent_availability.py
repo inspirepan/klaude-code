@@ -77,3 +77,10 @@ class TestSubAgentModelHelper:
 
         result = helper.build_sub_agent_client_configs()
         assert result == {"Task": "model-task"}
+
+    def test_build_sub_agent_client_configs_ignores_model_preference_lists(self) -> None:
+        config = Config(provider_list=[], sub_agent_models={"general-purpose": ["model-task", "model-fallback"]})
+        helper = SubAgentModelHelper(config)
+
+        result = helper.build_sub_agent_client_configs()
+        assert result == {}

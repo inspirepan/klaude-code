@@ -9,7 +9,7 @@ from klaude_code.cli.oauth_usage import (
     resolve_oauth_usage_protocol,
 )
 from klaude_code.config import Config
-from klaude_code.config.config import ModelConfig, ProviderConfig, parse_env_var_syntax
+from klaude_code.config.config import ModelConfig, ModelPreference, ProviderConfig, parse_env_var_syntax
 from klaude_code.config.formatters import format_model_params
 from klaude_code.protocol.llm_param import LLMClientProtocol
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
@@ -106,8 +106,8 @@ def _build_model_lines(
     provider_disabled = provider.disabled
     provider_available = (not provider_disabled) and (not provider.is_api_key_missing())
 
-    def _resolve_selector(value: str | None) -> str | None:
-        if not value:
+    def _resolve_selector(value: ModelPreference) -> str | None:
+        if not isinstance(value, str) or not value:
             return None
         try:
             resolved = config.resolve_model_location_prefer_available(value) or config.resolve_model_location(value)

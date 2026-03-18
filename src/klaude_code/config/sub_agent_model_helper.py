@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from klaude_code.config.config import ModelPreference, format_model_preference
 from klaude_code.protocol.sub_agent import (
     SubAgentProfile,
     get_sub_agent_profile,
@@ -22,12 +23,12 @@ class SubAgentModelInfo:
 
     profile: SubAgentProfile
     # Explicitly configured model selector (from config), if any.
-    configured_model: str | None
+    configured_model: ModelPreference
 
     # Effective model name used by this sub-agent.
     # - When configured_model is set: equals configured_model.
     # - When inheriting from defaults: resolved model name.
-    effective_model: str | None
+    effective_model: ModelPreference
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,7 +66,7 @@ class SubAgentModelHelper:
 
         role_key = self._role_key_for_sub_agent_type(sub_agent_type)
         role_model = self._config.sub_agent_models.get(role_key) if role_key else None
-        resolved = role_model or main_model_name
+        resolved = format_model_preference(role_model) or main_model_name
         return EmptySubAgentModelBehavior(
             description=f"use default behavior: {resolved}",
             resolved_model_name=resolved,
@@ -100,11 +101,11 @@ class SubAgentModelHelper:
         return all_models
 
     def build_sub_agent_client_configs(self) -> dict[SubAgentType, str]:
-        """Return model names for each sub-agent that needs a dedicated client."""
+        """Return single model names for sub-agents that need dedicated clients."""
         result: dict[SubAgentType, str] = {}
         for profile in iter_sub_agent_profiles():
             role_key = profile.invoker_type
             model_name = self._config.sub_agent_models.get(role_key) if role_key else None
-            if model_name:
+            if isinstance(model_name, str) and model_name:
                 result[profile.name] = model_name
         return result
