@@ -106,8 +106,8 @@ def _build_model_lines(
     provider_disabled = provider.disabled
     provider_available = (not provider_disabled) and (not provider.is_api_key_missing())
 
-    def _resolve_selector(value: ModelPreference) -> str | None:
-        if not isinstance(value, str) or not value:
+    def _resolve_selector(value: str) -> str | None:
+        if not value:
             return None
         try:
             resolved = config.resolve_model_location_prefer_available(value) or config.resolve_model_location(value)
@@ -117,12 +117,23 @@ def _build_model_lines(
             return None
         return f"{resolved[0]}@{resolved[1]}"
 
-    default_selector = _resolve_selector(config.main_model)
+    def _resolve_model_preference(value: ModelPreference) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return _resolve_selector(value)
+        for candidate in value:
+            result = _resolve_selector(candidate)
+            if result is not None:
+                return result
+        return None
+
+    default_selector = _resolve_model_preference(config.main_model)
 
     # Build reverse mapping: model_name -> list of agent roles using it
     model_to_agents: dict[str, list[str]] = {}
     for agent_role, model_name in (config.sub_agent_models or {}).items():
-        selector = _resolve_selector(model_name)
+        selector = _resolve_model_preference(model_name)
         if selector is None:
             continue
         if selector not in model_to_agents:

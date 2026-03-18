@@ -78,9 +78,32 @@ class TestSubAgentModelHelper:
         result = helper.build_sub_agent_client_configs()
         assert result == {"Task": "model-task"}
 
-    def test_build_sub_agent_client_configs_ignores_model_preference_lists(self) -> None:
-        config = Config(provider_list=[], sub_agent_models={"general-purpose": ["model-task", "model-fallback"]})
+    def test_build_sub_agent_client_configs_resolves_model_preference_lists(self) -> None:
+        provider = ProviderConfig(
+            provider_name="test-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[
+                ModelConfig(model_name="model-fallback", model_id="fallback"),
+            ],
+        )
+        config = Config(
+            provider_list=[provider],
+            sub_agent_models={"general-purpose": ["model-task", "model-fallback"]},
+        )
         helper = SubAgentModelHelper(config)
 
         result = helper.build_sub_agent_client_configs()
+        # model-task is not available, so it falls back to model-fallback
+        assert result == {"Task": "model-fallback"}
+
+    def test_build_sub_agent_client_configs_list_all_unavailable(self) -> None:
+        config = Config(
+            provider_list=[],
+            sub_agent_models={"general-purpose": ["model-task", "model-fallback"]},
+        )
+        helper = SubAgentModelHelper(config)
+
+        result = helper.build_sub_agent_client_configs()
+        # All models in list are unavailable, so no client is created
         assert result == {}
