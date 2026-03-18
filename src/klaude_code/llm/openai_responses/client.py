@@ -185,7 +185,6 @@ class ResponsesWebSocketTransport:
         connect_kwargs: dict[str, Any] | None = None,
     ) -> None:
         self._client = client
-        self._connection: AsyncWebsocketConnection | None = None
         self._connect_headers = connect_headers or {}
         self._connect_kwargs = connect_kwargs or {}
 
@@ -196,11 +195,7 @@ class ResponsesWebSocketTransport:
             base_url = self._client.base_url.copy_with(scheme="wss")
         return base_url.copy_with(raw_path=base_url.raw_path.rstrip(b"/") + b"/responses")
 
-    async def _ensure_connection(self) -> AsyncWebsocketConnection:
-        connection = self._connection
-        if connection is not None:
-            return connection
-
+    async def _open_connection(self) -> AsyncWebsocketConnection:
         from websockets.asyncio.client import connect
 
         headers = dict(self._client.auth_headers)
@@ -218,7 +213,7 @@ class ResponsesWebSocketTransport:
             str(self._prepare_url()),
             debug_type=DebugType.LLM_STREAM,
         )
-        self._connection = await connect(
+        connection = await connect(
             str(self._prepare_url()),
             user_agent_header=user_agent,
             additional_headers=headers,
@@ -228,16 +223,18 @@ class ResponsesWebSocketTransport:
             "[responses websocket] connected",
             debug_type=DebugType.LLM_STREAM,
         )
-        return self._connection
+        return connection
 
     async def stream(self, payload: ResponseCreateParamsBase) -> AsyncGenerator[responses.ResponseStreamEvent]:
-        connection = await self._ensure_connection()
+        connection = await self._open_connection()
         request = json.dumps({"type": "response.create", **payload})
+        should_close = True
         try:
             await connection.send(request)
         except ConnectionClosed:
-            self._connection = None
-            connection = await self._ensure_connection()
+            with suppress(ConnectionClosed, WebSocketException):
+                await connection.close()
+            connection = await self._open_connection()
             await connection.send(request)
 
         try:
@@ -252,8 +249,7 @@ class ResponsesWebSocketTransport:
                 if raw_event.get("type") in {"response.completed", "response.failed", "response.incomplete", "error"}:
                     return
         except asyncio.CancelledError:
-            if self._connection is connection:
-                self._connection = None
+            should_close = False
             transport = getattr(connection, "transport", None)
             if transport is not None:
                 transport.abort()
@@ -262,8 +258,11 @@ class ResponsesWebSocketTransport:
                     await connection.close()
             raise
         except ConnectionClosed:
-            self._connection = None
             raise
+        finally:
+            if should_close:
+                with suppress(ConnectionClosed, WebSocketException):
+                    await connection.close()
 
 
 async def parse_responses_stream(
