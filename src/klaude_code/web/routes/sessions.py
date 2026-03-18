@@ -20,6 +20,7 @@ from klaude_code.session.session import Session, get_store_for_path
 from klaude_code.web.session_access import load_session_read_only
 from klaude_code.web.session_index import (
     list_file_running_states,
+    list_main_sessions,
     read_session_titles,
     read_session_user_messages,
     resolve_session_work_dir,
@@ -253,6 +254,33 @@ async def unarchive_session(session_id: str, state: WebAppState = WEB_STATE_DEP)
     if not unarchived:
         raise HTTPException(status_code=500, detail="failed to unarchive session")
     return {"ok": True}
+
+
+@router.post("/archive/cleanup")
+async def cleanup_archived_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, bool | int]:
+    cutoff = time.time() - (3 * 24 * 60 * 60)
+    archived_count = 0
+
+    for summary in list_main_sessions(state.home_dir):
+        if summary.archived:
+            continue
+
+        diff_lines_added = cast(int, summary.file_change_summary.get("diff_lines_added", 0))
+        diff_lines_removed = cast(int, summary.file_change_summary.get("diff_lines_removed", 0))
+        has_no_diff = diff_lines_added == 0 and diff_lines_removed == 0
+        if summary.updated_at >= cutoff and not has_no_diff:
+            continue
+
+        store = get_store_for_path(Path(summary.work_dir))
+        archived = store.update_meta(summary.id, {"archived": True})
+        if not archived:
+            raise HTTPException(status_code=500, detail=f"failed to archive session: {summary.id}")
+
+        archived_count += 1
+        with contextlib.suppress(Exception):
+            _ = await state.runtime.close_session(summary.id, force=True)
+
+    return {"ok": True, "archived_count": archived_count}
 
 
 @router.delete("/{session_id}")

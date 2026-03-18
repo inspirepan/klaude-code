@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import {
+  archiveCleanupSessions as archiveCleanupSessionsRequest,
   archiveSession,
   createSession,
   fetchRunningSessions,
@@ -47,6 +48,7 @@ interface SessionStoreState {
   refreshSessions: () => Promise<void>;
   toggleGroup: (workDir: string) => void;
   setSessionArchived: (sessionId: string, archived: boolean) => Promise<void>;
+  archiveCleanupSessions: () => Promise<number>;
   selectDraft: (workDir?: string) => void;
   setDraftWorkDir: (workDir: string) => void;
   selectSession: (sessionId: string) => Promise<void>;
@@ -724,6 +726,11 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         }))
         .filter((group) => group.sessions.length > 0),
     }));
+  },
+  archiveCleanupSessions: async () => {
+    const archivedCount = await archiveCleanupSessionsRequest();
+    await get().refreshSessions();
+    return archivedCount;
   },
   selectDraft: (workDir?: string) => {
     const activeSession =
