@@ -581,6 +581,10 @@ sub_agent_models:
 
 compact_model:
 - gemini-flash
+- gpt-5.4-mini
+- sonnet-no-thinking
 fast_model:
 - gemini-flash-lite
+- gpt-5.4-mini
+- gemini-flash
 - haiku

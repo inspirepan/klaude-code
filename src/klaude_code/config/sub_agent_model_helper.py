@@ -105,7 +105,17 @@ class SubAgentModelHelper:
         result: dict[SubAgentType, str] = {}
         for profile in iter_sub_agent_profiles():
             role_key = profile.invoker_type
-            model_name = self._config.sub_agent_models.get(role_key) if role_key else None
-            if isinstance(model_name, str) and model_name:
-                result[profile.name] = model_name
+            model_pref = self._config.sub_agent_models.get(role_key) if role_key else None
+            if model_pref is None:
+                continue
+            if isinstance(model_pref, str):
+                result[profile.name] = model_pref
+            else:
+                # list[str]: resolve to first available model
+                try:
+                    resolved = self._config.get_first_available_model(model_pref)
+                except ValueError:
+                    continue
+                if resolved is not None:
+                    result[profile.name] = resolved
         return result
