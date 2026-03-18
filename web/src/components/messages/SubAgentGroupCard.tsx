@@ -80,6 +80,7 @@ interface SubAgentGroupCardProps {
   sourceSessionId: string;
   sourceSessionType: string | null;
   sourceSessionDesc: string | null;
+  sourceSessionFork: boolean;
   items: MessageItemType[];
   collapsed: boolean;
   status: SessionStatusState | null;
@@ -99,6 +100,7 @@ export function SubAgentGroupCard({
   sourceSessionId,
   sourceSessionType,
   sourceSessionDesc,
+  sourceSessionFork,
   items,
   collapsed,
   status,
@@ -260,9 +262,16 @@ export function SubAgentGroupCard({
             <span className="whitespace-nowrap text-base font-semibold text-neutral-800">
               {formatSubAgentTypeLabel(sourceSessionType)}
             </span>
-            <span className="truncate text-base text-neutral-600">
-              {sourceSessionDesc ?? `Sub Agent ${shortSessionId(sourceSessionId)}`}
-            </span>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-base text-neutral-600">
+                {sourceSessionDesc ?? `Sub Agent ${shortSessionId(sourceSessionId)}`}
+              </span>
+              {sourceSessionFork ? (
+                <span className="shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+                  fork
+                </span>
+              ) : null}
+            </div>
           </div>
         </button>
         <SubAgentStatusSummary

@@ -41,19 +41,30 @@ class SubAgentExecutor:
         register_progress_getter: Callable[[Callable[[], str | None]], None] | None = None,
     ) -> SubAgentResult:
         parent_session = parent_agent.session
-        child_session = Session(work_dir=parent_session.work_dir)
+
+        if state.fork_context:
+            # Exclude the trailing AssistantMessage that contains the in-flight Agent tool call;
+            # its tool_result has not been appended yet so including it would violate the
+            # tool_use/tool_result pairing requirement.
+            child_session = parent_session.fork(until_index=len(parent_session.conversation_history) - 1)
+        else:
+            child_session = Session(work_dir=parent_session.work_dir)
         child_session.sub_agent_state = state
 
         if record_session_id is not None:
             record_session_id(child_session.id)
 
-        clients = llm_clients or self._llm_clients
-        child_profile = self._model_profile_provider.build_profile(
-            clients.get_client(state.sub_agent_type),
-            state.sub_agent_type,
-            output_schema=state.output_schema,
-            work_dir=parent_session.work_dir,
-        )
+        if state.fork_context:
+            # Fork mode: reuse the parent agent's profile (same system prompt and tools).
+            child_profile = parent_agent.profile
+        else:
+            clients = llm_clients or self._llm_clients
+            child_profile = self._model_profile_provider.build_profile(
+                clients.get_client(state.sub_agent_type),
+                state.sub_agent_type,
+                output_schema=state.output_schema,
+                work_dir=parent_session.work_dir,
+            )
 
         child_agent = Agent(session=child_session, profile=child_profile)
 
@@ -93,13 +104,28 @@ class SubAgentExecutor:
             result: str = ""
             task_metadata: model.TaskMetadata | None = None
             sub_agent_input = message.UserInputPayload(text=state.sub_agent_prompt, images=None)
-            child_session.append_history(
-                [
+            history_items: list[message.HistoryEvent] = []
+            if state.fork_context:
+                history_items.append(
                     message.UserMessage(
-                        parts=message.parts_from_text_and_images(sub_agent_input.text, sub_agent_input.images)
+                        parts=[
+                            message.TextPart(
+                                text=(
+                                    "<system-reminder>You are the newly spawned agent. "
+                                    "The prior conversation history was forked from your parent agent. "
+                                    "Treat the next user message as your new task, "
+                                    "and use the forked history only as background context.</system-reminder>"
+                                )
+                            )
+                        ]
                     )
-                ]
+                )
+            history_items.append(
+                message.UserMessage(
+                    parts=message.parts_from_text_and_images(sub_agent_input.text, sub_agent_input.images)
+                )
             )
+            child_session.append_history(history_items)
             async for event in child_agent.run_task(sub_agent_input):
                 if isinstance(event, events.ToolCallEvent):
                     tool_call_log[event.tool_call_id] = (event.tool_name, event.arguments)

@@ -43,8 +43,11 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
         f" {e.sub_agent_desc} ",
         style=Style(color=style.color if style else None, bold=True, reverse=True),
     )
+    header = Text.assemble((e.sub_agent_type, ThemeKey.TOOL_NAME), " ", desc)
+    if e.fork_context:
+        header.append(" [fork]", style=ThemeKey.STATUS_HINT)
     elements: list[RenderableType] = [
-        Text.assemble((e.sub_agent_type, ThemeKey.TOOL_NAME), " ", desc),
+        header,
         truncate_head(e.sub_agent_prompt, base_style=style or "", truncated_style=ThemeKey.STATUS_HINT, max_lines=10),
     ]
     if e.output_schema:

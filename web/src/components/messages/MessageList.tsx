@@ -23,6 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 const EMPTY_ITEMS: MessageItemType[] = [];
 const EMPTY_SUB_AGENT_DESC_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_TYPE_MAP: Record<string, string> = {};
+const EMPTY_SUB_AGENT_FORK_MAP: Record<string, boolean> = {};
 const EMPTY_SUB_AGENT_FINISHED_MAP: Record<string, boolean> = {};
 const EMPTY_STATUS_MAP: Record<string, SessionStatusState> = {};
 const BOTTOM_THRESHOLD_PX = 120;
@@ -62,6 +63,7 @@ interface SectionSubAgentBlock {
   sourceSessionId: string;
   sourceSessionType: string | null;
   sourceSessionDesc: string | null;
+  sourceSessionFork: boolean;
   items: MessageItemType[];
 }
 
@@ -136,6 +138,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const subAgentTypeBySessionId = useMessageStore(
     (state) =>
       state.reducerStateBySessionId[sessionId]?.subAgentTypeBySessionId ?? EMPTY_SUB_AGENT_TYPE_MAP,
+  );
+  const subAgentForkBySessionId = useMessageStore(
+    (state) =>
+      state.reducerStateBySessionId[sessionId]?.subAgentForkBySessionId ?? EMPTY_SUB_AGENT_FORK_MAP,
   );
   const subAgentFinishedBySessionId = useMessageStore(
     (state) =>
@@ -447,6 +453,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
           sourceSessionId,
           sourceSessionType: subAgentTypeBySessionId[sourceSessionId] ?? null,
           sourceSessionDesc: subAgentDescBySessionId[sourceSessionId] ?? null,
+          sourceSessionFork: subAgentForkBySessionId[sourceSessionId] === true,
           items: groupItems,
         });
         subAgentBlockIndexBySessionId.set(sourceSessionId, blockIndex);
@@ -495,7 +502,13 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       flushPending();
       return blocks;
     });
-  }, [sections, sessionId, subAgentDescBySessionId, subAgentTypeBySessionId]);
+  }, [
+    sections,
+    sessionId,
+    subAgentDescBySessionId,
+    subAgentForkBySessionId,
+    subAgentTypeBySessionId,
+  ]);
 
   const subAgentGroupIdByItemId = useMemo(() => {
     const map = new Map<string, string>();
@@ -702,6 +715,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                 sourceSessionId={block.sourceSessionId}
                                 sourceSessionType={block.sourceSessionType}
                                 sourceSessionDesc={block.sourceSessionDesc}
+                                sourceSessionFork={block.sourceSessionFork}
                                 items={block.items}
                                 collapsed={collapsed}
                                 status={statusBySessionId[block.sourceSessionId] ?? null}
