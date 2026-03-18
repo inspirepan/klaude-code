@@ -37,24 +37,19 @@ function getSessionTitle(session: SessionSummary): string {
   return "New session";
 }
 
-function formatRelativeTime(timestampSeconds: number): string {
-  const deltaSeconds = Math.max(0, Math.floor(Date.now() / 1000 - timestampSeconds));
-  if (deltaSeconds < 60) {
-    return "Just now";
+function formatShortTime(timestampSeconds: number): string {
+  const date = new Date(timestampSeconds * 1000);
+  const now = new Date();
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  if (isToday) {
+    return `${hours}:${minutes}`;
   }
-  if (deltaSeconds < 3600) {
-    return `${Math.floor(deltaSeconds / 60)} min`;
-  }
-  if (deltaSeconds < 86400) {
-    return `${Math.floor(deltaSeconds / 3600)} hr`;
-  }
-  if (deltaSeconds < 604800) {
-    return `${Math.floor(deltaSeconds / 86400)} day`;
-  }
-  if (deltaSeconds < 2592000) {
-    return `${Math.floor(deltaSeconds / 604800)} wk`;
-  }
-  return `${Math.floor(deltaSeconds / 2592000)} mo`;
+  return `${date.getMonth() + 1}-${String(date.getDate()).padStart(2, "0")} ${hours}:${minutes}`;
 }
 
 function formatDetailedTime(timestampSeconds: number): string {
@@ -127,7 +122,7 @@ export function SessionCard({
   const successAnimationFrameRef = useRef<number | null>(null);
   const successTimeoutRef = useRef<number | null>(null);
   const title = shortenFileRefs(getSessionTitle(session));
-  const updatedAt = formatRelativeTime(session.updated_at);
+  const updatedAt = formatShortTime(session.updated_at);
   const updatedAtDetailed = formatDetailedTime(session.updated_at);
   const diffSummary = session.file_change_summary;
 

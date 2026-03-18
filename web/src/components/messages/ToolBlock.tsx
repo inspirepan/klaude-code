@@ -127,8 +127,8 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
   const { matchItemIds } = useSearch();
   const { collapseGen, expandGen } = useCollapseAll();
   const bodyTextClass = "text-base";
-  const headerDetailTextClass = "!text-sm";
-  const detailChipClass = "rounded bg-surface px-1.5 py-0.5 align-middle";
+  const headerDetailTextClass = "!text-base";
+  const detailChipClass = "rounded bg-surface px-1.5 py-0.5 align-middle leading-5";
 
   const defaultExpanded = shouldExpandResult(item);
   const [open, setOpen] = useState(defaultExpanded);
