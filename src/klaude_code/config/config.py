@@ -253,7 +253,7 @@ class UserConfig(BaseModel):
     main_model: str | None = None
     fast_model: str | list[str] | None = None
     compact_model: str | list[str] | None = None
-    sub_agent_models: dict[str, str] = Field(default_factory=dict)
+    sub_agent_models: dict[str, ModelPreference] = Field(default_factory=dict)
     theme: str | None = None
     provider_list: list[UserProviderConfig] = Field(default_factory=lambda: [])
 
@@ -264,7 +264,7 @@ class UserConfig(BaseModel):
         data["compact_model"] = _normalize_model_preference(data.get("compact_model"))
         raw_val: Any = data.get("sub_agent_models") or {}
         raw_models: dict[str, Any] = cast(dict[str, Any], raw_val) if isinstance(raw_val, dict) else {}
-        normalized: dict[str, str] = {}
+        normalized: dict[str, ModelPreference] = {}
         key_map: dict[str, str] = {}
         for profile in iter_sub_agent_profiles():
             if profile.invoker_type:
@@ -274,7 +274,10 @@ class UserConfig(BaseModel):
             canonical = key_map.get(normalized_key)
             if canonical is None:
                 continue
-            normalized[canonical] = str(value)
+            normalized_value = _normalize_model_preference(value)
+            if normalized_value is None:
+                continue
+            normalized[canonical] = normalized_value
         data["sub_agent_models"] = normalized
         return data
 
@@ -285,7 +288,7 @@ class Config(BaseModel):
     main_model: str | None = None
     fast_model: str | list[str] | None = None
     compact_model: str | list[str] | None = None
-    sub_agent_models: dict[str, str] = Field(default_factory=dict)
+    sub_agent_models: dict[str, ModelPreference] = Field(default_factory=dict)
     theme: str | None = None
     provider_list: list[ProviderConfig] = Field(default_factory=lambda: [])
 
@@ -299,7 +302,7 @@ class Config(BaseModel):
         data["compact_model"] = _normalize_model_preference(data.get("compact_model"))
         raw_val: Any = data.get("sub_agent_models") or {}
         raw_models: dict[str, Any] = cast(dict[str, Any], raw_val) if isinstance(raw_val, dict) else {}
-        normalized: dict[str, str] = {}
+        normalized: dict[str, ModelPreference] = {}
         key_map: dict[str, str] = {}
         for profile in iter_sub_agent_profiles():
             if profile.invoker_type:
@@ -309,7 +312,10 @@ class Config(BaseModel):
             canonical = key_map.get(normalized_key)
             if canonical is None:
                 continue
-            normalized[canonical] = str(value)
+            normalized_value = _normalize_model_preference(value)
+            if normalized_value is None:
+                continue
+            normalized[canonical] = normalized_value
         data["sub_agent_models"] = normalized
         return data
 
@@ -317,7 +323,7 @@ class Config(BaseModel):
         """Set the user config reference for saving."""
         object.__setattr__(self, "_user_config", user_config)
 
-    def get_user_sub_agent_models(self) -> dict[str, str]:
+    def get_user_sub_agent_models(self) -> dict[str, ModelPreference]:
         """Return sub_agent_models from user config only (excludes builtin defaults)."""
         if self._user_config is None:
             return {}

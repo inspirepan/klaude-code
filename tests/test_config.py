@@ -464,6 +464,15 @@ class TestConfig:
         )
         assert config.sub_agent_models == {}
 
+    def test_sub_agent_models_preserve_model_preference_lists(self, sample_provider: ProviderConfig) -> None:
+        config = Config(
+            provider_list=[sample_provider],
+            main_model="test-model",
+            sub_agent_models={"explore": ["model-a", "model-b"]},
+        )
+
+        assert config.sub_agent_models["explore"] == ["model-a", "model-b"]
+
     def test_sub_agent_models_ignore_unknown_key(self, sample_provider: ProviderConfig) -> None:
         config = Config(
             provider_list=[sample_provider],
@@ -539,6 +548,22 @@ class TestConfigSave:
         saved_content = yaml.safe_load(test_config_path.read_text())
         assert saved_content["fast_model"] == ["haiku", "gemini-flash", "gpt-5-nano"]
         assert saved_content["compact_model"] == ["haiku", "gemini-flash"]
+
+    def test_save_config_preserves_sub_agent_model_preference_lists(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        test_config_path = tmp_path / "test-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        config = Config(
+            main_model="test-model",
+            sub_agent_models={"explore": ["haiku", "gemini-flash"]},
+        )
+
+        asyncio.run(config.save())
+
+        saved_content = yaml.safe_load(test_config_path.read_text())
+        assert saved_content["sub_agent_models"]["explore"] == ["haiku", "gemini-flash"]
 
     def test_save_config_with_user_providers(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that save includes user-defined providers."""
