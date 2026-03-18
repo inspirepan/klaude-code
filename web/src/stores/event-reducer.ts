@@ -50,6 +50,7 @@ export interface ReducerState {
   toolBlockByCallId: Map<string, number>;
   subAgentDescBySessionId: Record<string, string>;
   subAgentTypeBySessionId: Record<string, string>;
+  subAgentForkBySessionId: Record<string, boolean>;
   subAgentFinishedBySessionId: Record<string, boolean>;
   statusBySessionId: Record<string, SessionStatusState>;
 }
@@ -90,6 +91,7 @@ export function createInitialState(): ReducerState {
     toolBlockByCallId: new Map(),
     subAgentDescBySessionId: {},
     subAgentTypeBySessionId: {},
+    subAgentForkBySessionId: {},
     subAgentFinishedBySessionId: {},
     statusBySessionId: {},
   };
@@ -625,6 +627,7 @@ export function reduceEvent(
       let changed = false;
       let nextDescBySessionId = currentState.subAgentDescBySessionId;
       let nextTypeBySessionId = currentState.subAgentTypeBySessionId;
+      let nextForkBySessionId = currentState.subAgentForkBySessionId;
       let nextFinishedBySessionId = currentState.subAgentFinishedBySessionId;
 
       if (sessionId !== null && currentState.subAgentFinishedBySessionId[sessionId] !== false) {
@@ -662,6 +665,18 @@ export function reduceEvent(
           };
           changed = true;
         }
+
+        const forkContext = (subAgentState as Record<string, unknown>).fork_context;
+        if (
+          typeof forkContext === "boolean" &&
+          currentState.subAgentForkBySessionId[sessionId] !== forkContext
+        ) {
+          nextForkBySessionId = {
+            ...currentState.subAgentForkBySessionId,
+            [sessionId]: forkContext,
+          };
+          changed = true;
+        }
       }
 
       if (!changed) return currentState;
@@ -669,6 +684,7 @@ export function reduceEvent(
         ...currentState,
         subAgentDescBySessionId: nextDescBySessionId,
         subAgentTypeBySessionId: nextTypeBySessionId,
+        subAgentForkBySessionId: nextForkBySessionId,
         subAgentFinishedBySessionId: nextFinishedBySessionId,
       };
     }

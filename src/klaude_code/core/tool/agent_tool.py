@@ -61,6 +61,10 @@ AGENT_SCHEMA = llm_param.ToolSchema(
                 "type": "object",
                 "description": "Optional JSON Schema for structured output.",
             },
+            "fork_context": {
+                "type": "boolean",
+                "description": "When true, fork the current thread history into the new agent before sending the initial prompt. This must be used when you want the new agent to have exactly the same context as you.",
+            },
         },
         "required": ["description", "prompt"],
         "additionalProperties": False,
@@ -122,6 +126,8 @@ class AgentTool(ToolABC):
         output_schema_raw = typed_args.get("output_schema")
         output_schema = cast(dict[str, Any], output_schema_raw) if isinstance(output_schema_raw, dict) else None
 
+        fork_context = bool(typed_args.get("fork_context", False))
+
         try:
             result = await runner(
                 model.SubAgentState(
@@ -129,6 +135,7 @@ class AgentTool(ToolABC):
                     sub_agent_desc=description,
                     sub_agent_prompt=sub_agent_prompt,
                     output_schema=output_schema,
+                    fork_context=fork_context,
                 ),
                 context.record_sub_agent_session_id,
                 context.register_sub_agent_metadata_getter,

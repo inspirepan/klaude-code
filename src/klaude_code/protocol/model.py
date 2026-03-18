@@ -411,6 +411,7 @@ class SubAgentState(BaseModel):
     sub_agent_desc: str
     sub_agent_prompt: str
     output_schema: dict[str, Any] | None = None
+    fork_context: bool = False
 
 
 def todo_list_str(todos: list[TodoItem]) -> str:
