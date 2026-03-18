@@ -408,7 +408,7 @@ class ConfigHandler:
             ]
             for sub_agent in helper.get_available_sub_agents():
                 if sub_agent.configured_model:
-                    model_display = sub_agent.configured_model
+                    model_display = format_model_preference(sub_agent.configured_model) or ""
                 else:
                     behavior = helper.describe_empty_model_config_behavior(
                         sub_agent.profile.name,
