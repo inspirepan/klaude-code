@@ -1,4 +1,4 @@
-import { Loader } from "lucide-react";
+import { ArrowDown, Loader } from "lucide-react";
 import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react";
 
 import { useMessageStore } from "../../stores/message-store";
@@ -18,12 +18,22 @@ import { SearchBar } from "./SearchBar";
 import { SubAgentGroupCard } from "./SubAgentGroupCard";
 import { isCopyableAssistantText } from "./message-list-ui";
 import { SearchProvider, type SearchState } from "./search-context";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 const EMPTY_ITEMS: MessageItemType[] = [];
 const EMPTY_SUB_AGENT_DESC_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_TYPE_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_FINISHED_MAP: Record<string, boolean> = {};
 const EMPTY_STATUS_MAP: Record<string, SessionStatusState> = {};
+const BOTTOM_THRESHOLD_PX = 120;
+
+function getDistanceFromBottom(container: HTMLDivElement): number {
+  return container.scrollHeight - container.scrollTop - container.clientHeight;
+}
+
+function isNearBottom(container: HTMLDivElement): boolean {
+  return getDistanceFromBottom(container) < BOTTOM_THRESHOLD_PX;
+}
 
 interface MessageListProps {
   sessionId: string;
@@ -136,13 +146,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     (state) => state.reducerStateBySessionId[sessionId]?.statusBySessionId ?? EMPTY_STATUS_MAP,
   );
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
-  const shouldStickToBottomRef = useRef(true);
   const previousLastVisibleItemIdRef = useRef<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [collapsedSubAgentGroups, setCollapsedSubAgentGroups] = useState<Record<string, boolean>>(
     {},
   );
@@ -300,10 +311,36 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     }
   }, []);
 
+  const updateScrollButtonVisibility = useCallback(() => {
+    const container = scrollRef.current;
+    if (!container) {
+      setShowScrollToBottom(false);
+      return;
+    }
+    setShowScrollToBottom(!isNearBottom(container));
+  }, []);
+
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "smooth") => {
+      const container = scrollRef.current;
+      if (!container) return;
+      container.scrollTo({ top: container.scrollHeight, behavior });
+      setShowScrollToBottom(false);
+      sessionStorage.setItem(
+        `scroll-${sessionId}`,
+        String(Math.max(0, container.scrollHeight - container.clientHeight)),
+      );
+    },
+    [sessionId],
+  );
+
   // Restore scroll position when items first load for a session
   const hasItems = visibleItems.length > 0;
   useLayoutEffect(() => {
-    if (!hasItems) return;
+    if (!hasItems) {
+      setShowScrollToBottom(false);
+      return;
+    }
     const saved = sessionStorage.getItem(`scroll-${sessionId}`);
     const container = scrollRef.current;
     if (!container) return;
@@ -312,9 +349,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     } else {
       container.scrollTop = container.scrollHeight;
     }
-    shouldStickToBottomRef.current =
-      container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-  }, [sessionId, hasItems]);
+    updateScrollButtonVisibility();
+  }, [hasItems, sessionId, updateScrollButtonVisibility]);
 
   useLayoutEffect(() => {
     const lastItem = visibleItems[visibleItems.length - 1];
@@ -329,27 +365,25 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       return;
     }
 
-    shouldStickToBottomRef.current = true;
-    const container = scrollRef.current;
-    if (container) {
-      container.scrollTop = container.scrollHeight;
-    }
-  }, [sessionId, visibleItems]);
+    scrollToBottom("auto");
+  }, [scrollToBottom, sessionId, visibleItems]);
 
-  // Auto-scroll on streamed updates only when user is already near bottom.
-  useLayoutEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-    if (shouldStickToBottomRef.current) {
-      container.scrollTop = container.scrollHeight;
-    }
-  }, [visibleItems]);
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+    const observer = new ResizeObserver(() => {
+      updateScrollButtonVisibility();
+    });
+    observer.observe(content);
+    return () => {
+      observer.disconnect();
+    };
+  }, [sessionId, updateScrollButtonVisibility]);
 
   const handleScroll = useCallback(() => {
     const container = scrollRef.current;
     if (!container) return;
-    shouldStickToBottomRef.current =
-      container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+    setShowScrollToBottom(!isNearBottom(container));
     sessionStorage.setItem(`scroll-${sessionId}`, String(container.scrollTop));
   }, [sessionId]);
 
@@ -608,130 +642,143 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             data-message-scroll-container="true"
             className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
           >
-            <MessageListHeader
-              primaryTitle={primaryTitle}
-              secondaryTitle={secondaryTitle}
-              workspacePath={workspacePath}
-              sessionReadOnly={sessionReadOnly}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              onSearchOpen={() => setSearchOpen(true)}
-              onCollapseAll={handleCollapseAll}
-              onExpandAll={handleExpandAll}
-            />
-            <div className="mx-auto max-w-4xl space-y-5 px-4 pb-14 pt-8 sm:px-6">
-              {hasItems ? (
-                <>
-                  {sections.map((section, sectionIndex) => (
-                    <div key={section[0].id} className="space-y-5">
-                      {sectionBlocks[sectionIndex]?.map((block) => {
-                        if (block.type === "dev_group") {
-                          return <DeveloperMessage key={block.id} items={block.items} />;
-                        }
+            <div ref={contentRef}>
+              <MessageListHeader
+                primaryTitle={primaryTitle}
+                secondaryTitle={secondaryTitle}
+                workspacePath={workspacePath}
+                sessionReadOnly={sessionReadOnly}
+                sidebarOpen={sidebarOpen}
+                setSidebarOpen={setSidebarOpen}
+                onSearchOpen={() => setSearchOpen(true)}
+                onCollapseAll={handleCollapseAll}
+                onExpandAll={handleExpandAll}
+              />
+              <div className="mx-auto max-w-4xl space-y-5 px-4 pb-14 pt-8 sm:px-6">
+                {hasItems ? (
+                  <>
+                    {sections.map((section, sectionIndex) => (
+                      <div key={section[0].id} className="space-y-5">
+                        {sectionBlocks[sectionIndex]?.map((block) => {
+                          if (block.type === "dev_group") {
+                            return <DeveloperMessage key={block.id} items={block.items} />;
+                          }
 
-                        if (block.type === "collapse_group") {
-                          const collapsed = isCollapseGroupCollapsed(block.id);
+                          if (block.type === "collapse_group") {
+                            const collapsed = isCollapseGroupCollapsed(block.id);
+                            return (
+                              <CollapseGroupBlock
+                                key={block.id}
+                                items={block.items}
+                                collapsed={collapsed}
+                                showRunningSpinner={
+                                  block.id === lastCollapseGroupId && isMainSessionRunning
+                                }
+                                onToggle={() => {
+                                  setCollapsedCollapseGroups((prev) => ({
+                                    ...prev,
+                                    [block.id]: !collapsed,
+                                  }));
+                                }}
+                                activeItemId={activeItemId}
+                                copiedItemId={copiedItemId}
+                                workDir={workspacePath}
+                                onCopy={handleCopy}
+                                setItemRef={setItemRef}
+                              />
+                            );
+                          }
+
+                          if (block.type === "sub_agent_group") {
+                            const collapsed =
+                              activeGroupId === block.groupId
+                                ? false
+                                : (collapsedSubAgentGroups[block.groupId] ?? true);
+                            const isFinished =
+                              subAgentFinishedBySessionId[block.sourceSessionId] === true;
+                            return (
+                              <SubAgentGroupCard
+                                key={block.groupId}
+                                sourceSessionId={block.sourceSessionId}
+                                sourceSessionType={block.sourceSessionType}
+                                sourceSessionDesc={block.sourceSessionDesc}
+                                items={block.items}
+                                collapsed={collapsed}
+                                status={statusBySessionId[block.sourceSessionId] ?? null}
+                                isFinished={isFinished}
+                                nowSeconds={nowSeconds}
+                                activeItemId={activeItemId}
+                                copiedItemId={copiedItemId}
+                                metaOpen={subAgentMetaOpen[block.groupId] === true}
+                                workDir={workspacePath}
+                                onToggleCollapsed={() => {
+                                  setCollapsedSubAgentGroups((prev) => ({
+                                    ...prev,
+                                    [block.groupId]: !collapsed,
+                                  }));
+                                }}
+                                onMetaOpenChange={(open) => {
+                                  setSubAgentMetaOpen((prev) => ({
+                                    ...prev,
+                                    [block.groupId]: open,
+                                  }));
+                                }}
+                                onCopy={handleCopy}
+                                setItemRef={setItemRef}
+                              />
+                            );
+                          }
+
+                          const item = block.item;
                           return (
-                            <CollapseGroupBlock
-                              key={block.id}
-                              items={block.items}
-                              collapsed={collapsed}
-                              showRunningSpinner={
-                                block.id === lastCollapseGroupId && isMainSessionRunning
-                              }
-                              onToggle={() => {
-                                setCollapsedCollapseGroups((prev) => ({
-                                  ...prev,
-                                  [block.id]: !collapsed,
-                                }));
-                              }}
-                              activeItemId={activeItemId}
-                              copiedItemId={copiedItemId}
+                            <MessageRow
+                              key={item.id}
+                              item={item}
+                              variant="main"
                               workDir={workspacePath}
+                              isActive={item.id === activeItemId}
+                              copied={copiedItemId === item.id}
                               onCopy={handleCopy}
-                              setItemRef={setItemRef}
+                              itemRef={(el) => {
+                                setItemRef(item.id, el);
+                              }}
                             />
                           );
-                        }
-
-                        if (block.type === "sub_agent_group") {
-                          const collapsed =
-                            activeGroupId === block.groupId
-                              ? false
-                              : (collapsedSubAgentGroups[block.groupId] ?? true);
-                          const isFinished =
-                            subAgentFinishedBySessionId[block.sourceSessionId] === true;
-                          return (
-                            <SubAgentGroupCard
-                              key={block.groupId}
-                              sourceSessionId={block.sourceSessionId}
-                              sourceSessionType={block.sourceSessionType}
-                              sourceSessionDesc={block.sourceSessionDesc}
-                              items={block.items}
-                              collapsed={collapsed}
-                              status={statusBySessionId[block.sourceSessionId] ?? null}
-                              isFinished={isFinished}
-                              nowSeconds={nowSeconds}
-                              activeItemId={activeItemId}
-                              copiedItemId={copiedItemId}
-                              metaOpen={subAgentMetaOpen[block.groupId] === true}
-                              workDir={workspacePath}
-                              onToggleCollapsed={() => {
-                                setCollapsedSubAgentGroups((prev) => ({
-                                  ...prev,
-                                  [block.groupId]: !collapsed,
-                                }));
-                              }}
-                              onMetaOpenChange={(open) => {
-                                setSubAgentMetaOpen((prev) => ({
-                                  ...prev,
-                                  [block.groupId]: open,
-                                }));
-                              }}
-                              onCopy={handleCopy}
-                              setItemRef={setItemRef}
-                            />
-                          );
-                        }
-
-                        const item = block.item;
-                        return (
-                          <MessageRow
-                            key={item.id}
-                            item={item}
-                            variant="main"
-                            workDir={workspacePath}
-                            isActive={item.id === activeItemId}
-                            copied={copiedItemId === item.id}
-                            onCopy={handleCopy}
-                            itemRef={(el) => {
-                              setItemRef(item.id, el);
-                            }}
-                          />
-                        );
-                      })}
-                    </div>
-                  ))}
-                  <div aria-hidden="true" className={hasStreamingAssistantText ? "h-12" : "h-0"} />
-                </>
-              ) : runtime?.wsState === "connecting" ? (
-                <div className="flex min-h-[240px] items-center justify-center">
-                  <Loader className="h-5 w-5 animate-spin text-neutral-500" />
-                </div>
-              ) : (
-                <div className="flex min-h-[240px] items-center justify-center">
-                  <div className="rounded-3xl border border-dashed border-border bg-surface/70 px-6 py-10 text-center">
-                    <div className="text-base font-semibold text-neutral-700">No messages yet</div>
-                    <div className="mt-1 text-base text-neutral-500">
-                      Send a message below to start this session.
-                    </div>
+                        })}
+                      </div>
+                    ))}
+                    <div
+                      aria-hidden="true"
+                      className={hasStreamingAssistantText ? "h-12" : "h-0"}
+                    />
+                  </>
+                ) : runtime?.wsState === "connecting" ? (
+                  <div className="flex min-h-[240px] items-center justify-center">
+                    <Loader className="h-5 w-5 animate-spin text-neutral-500" />
                   </div>
-                </div>
-              )}
+                ) : null}
+              </div>
+              {/* Add padding space equal to MessageComposer height + mask height so content isn't hidden under the absolute positioned bar */}
+              <div className="h-44 shrink-0 sm:h-40" />
             </div>
-            {/* Add padding space equal to MessageComposer height + mask height so content isn't hidden under the absolute positioned bar */}
-            <div className="h-44 shrink-0 sm:h-40" />
           </div>
+          {showScrollToBottom ? (
+            <div className="pointer-events-none absolute bottom-28 left-1/2 z-20 -translate-x-1/2 sm:bottom-32">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => scrollToBottom()}
+                    className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 bg-white/95 text-neutral-700 shadow-sm ring-1 ring-black/[0.06] backdrop-blur transition-colors hover:bg-white hover:text-neutral-900"
+                    aria-label="Scroll to bottom"
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Scroll to bottom</TooltipContent>
+              </Tooltip>
+            </div>
+          ) : null}
         </div>
       </SearchProvider>
     </CollapseAllContext.Provider>

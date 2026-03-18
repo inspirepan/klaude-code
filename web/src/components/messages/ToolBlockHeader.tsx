@@ -10,6 +10,7 @@ interface ToolBlockHeaderProps {
   item: ToolBlockItem;
   expandable: boolean;
   open: boolean;
+  detailExpanded: boolean;
   detail: string;
   detailColor: string;
   workDir?: string;
@@ -21,6 +22,7 @@ export function ToolBlockHeader({
   item,
   expandable,
   open,
+  detailExpanded,
   detail,
   detailColor,
   workDir,
@@ -42,19 +44,19 @@ export function ToolBlockHeader({
           FILE_PATH_TOOLS.has(item.toolName) ? (
             <FilePath
               path={detail}
-              expanded={open}
+              expanded={detailExpanded}
               workDir={workDir}
               className={headerDetailTextClass}
             />
           ) : isBash ? (
             <code
-              className={`inline-block max-w-full ${headerDetailTextClass} ${detailChipClass} ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}
+              className={`inline-block max-w-full ${headerDetailTextClass} ${detailChipClass} ${detailExpanded ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}
             >
               <HighlightText>{detail}</HighlightText>
             </code>
           ) : (
             <span
-              className={`inline-block max-w-full ${headerDetailTextClass} ${detailChipClass} ${open ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}
+              className={`inline-block max-w-full ${headerDetailTextClass} ${detailChipClass} ${detailExpanded ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}
             >
               <HighlightText>{detail}</HighlightText>
             </span>
