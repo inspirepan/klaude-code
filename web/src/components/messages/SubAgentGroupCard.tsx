@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { ChevronRight } from "lucide-react";
 
@@ -18,7 +18,7 @@ import {
 } from "./message-list-ui";
 import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra";
 
-const COLLAPSED_HEIGHT = 144;
+const COLLAPSED_HEIGHT = 180;
 const DURATION_MS = 200;
 
 function isCollapsibleItem(item: MessageItemType): boolean {
@@ -114,7 +114,9 @@ export function SubAgentGroupCard({
   setItemRef,
 }: SubAgentGroupCardProps): JSX.Element {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [hasCollapsedOverflow, setHasCollapsedOverflow] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const contentInnerRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
 
   const toolItems = items.filter(isToolBlock);
@@ -150,6 +152,21 @@ export function SubAgentGroupCard({
     },
     [activeItemId, collapsedGroups, expandedBlocks],
   );
+
+  useEffect(() => {
+    const el = contentRef.current;
+    const innerEl = contentInnerRef.current;
+    if (!el || !innerEl) return;
+
+    const updateOverflow = (): void => {
+      setHasCollapsedOverflow(el.scrollHeight > COLLAPSED_HEIGHT + 1);
+    };
+
+    updateOverflow();
+    const observer = new ResizeObserver(updateOverflow);
+    observer.observe(innerEl);
+    return () => observer.disconnect();
+  }, [expandedBlocks]);
 
   // Animate height transition between collapsed and expanded
   useLayoutEffect(() => {
@@ -262,10 +279,14 @@ export function SubAgentGroupCard({
             ref={contentRef}
             className="relative flex flex-col-reverse overflow-hidden transition-[height] duration-200 ease-out"
           >
-            <div className="space-y-5" style={{ backfaceVisibility: "hidden" }}>
+            <div
+              ref={contentInnerRef}
+              className="space-y-5"
+              style={{ backfaceVisibility: "hidden" }}
+            >
               {expandedBlocks.map(renderBlock)}
             </div>
-            {collapsed ? (
+            {collapsed && hasCollapsedOverflow ? (
               <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-10 bg-gradient-to-b from-[hsl(var(--surface))] to-transparent" />
             ) : null}
           </div>
