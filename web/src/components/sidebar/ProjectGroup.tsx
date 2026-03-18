@@ -10,7 +10,6 @@ interface ProjectGroupProps {
   sessions: SessionSummary[];
   collapsed: boolean;
   compactSessions?: boolean;
-  compactHeader?: boolean;
   hideNewSessionButton?: boolean;
   activeSessionId: string | "draft";
   runtimeBySessionId: Record<string, SessionRuntimeState>;
@@ -35,7 +34,6 @@ export function ProjectGroup({
   sessions,
   collapsed,
   compactSessions = false,
-  compactHeader = false,
   hideNewSessionButton = false,
   activeSessionId,
   runtimeBySessionId,
@@ -52,36 +50,33 @@ export function ProjectGroup({
 
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-1.5">
-      <div className="flex items-start gap-1">
-        <CollapsibleTrigger className="group flex min-w-0 flex-1 items-start gap-1.5 rounded-md px-1.5 py-1.5 text-neutral-700 transition-colors hover:bg-muted/50 hover:text-neutral-900">
-          {collapsed ? (
-            <Folder className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
-          ) : (
-            <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500 group-hover:text-neutral-700" />
-          )}
-          <div className="min-w-0 flex-1 text-left" title={workDir}>
-            <div className="flex min-w-0 items-center gap-1 text-base font-normal leading-5 text-neutral-800">
-              <span className="truncate">{workDirLabel(workDir)}</span>
-              <span className="shrink-0 text-neutral-500">({sessions.length})</span>
-            </div>
-            <div
-              className={
-                compactHeader
-                  ? "mt-0.5 truncate text-xs leading-4 text-neutral-500"
-                  : "mt-0.5 truncate text-xs leading-4 text-neutral-500"
-              }
-              title={workDir}
-            >
-              {workDir}
-            </div>
-          </div>
-        </CollapsibleTrigger>
+      <div className="flex items-center gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1.5 text-neutral-700 transition-colors hover:bg-muted/50 hover:text-neutral-900">
+              {collapsed ? (
+                <Folder className="h-4 w-4 shrink-0 text-neutral-700" />
+              ) : (
+                <FolderOpen className="h-4 w-4 shrink-0 text-neutral-700" />
+              )}
+              <div className="min-w-0 flex-1 text-left">
+                <div className="flex min-w-0 items-center gap-1 text-base font-normal leading-5 text-neutral-800">
+                  <span className="truncate font-semibold text-neutral-700">
+                    {workDirLabel(workDir)}
+                  </span>
+                  <span className="shrink-0 text-neutral-500">({sessions.length})</span>
+                </div>
+              </div>
+            </CollapsibleTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{workDir}</TooltipContent>
+        </Tooltip>
         {hideNewSessionButton ? null : (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-700"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-700"
                 onClick={() => {
                   onSelectDraft(workDir);
                 }}

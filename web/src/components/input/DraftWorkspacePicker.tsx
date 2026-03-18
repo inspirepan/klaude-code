@@ -1,4 +1,11 @@
-import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react";
 import { ArrowDown, ArrowUp, ChevronDown, CornerDownLeft, Folder } from "lucide-react";
 
 interface DraftWorkspacePickerProps {
