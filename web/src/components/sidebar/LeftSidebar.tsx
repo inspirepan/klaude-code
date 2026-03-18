@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Archive, FolderTree, List, Loader, PanelLeftClose } from "lucide-react";
+import { Archive, BrushCleaning, FolderTree, List, Loader, PanelLeftClose } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
 import { SessionCard } from "./SessionCard";
@@ -7,6 +7,8 @@ import { useSessionStore } from "../../stores/session-store";
 import { useAppStore } from "../../stores/app-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+const ARCHIVE_CLEANUP_AGE_SECONDS = 3 * 24 * 60 * 60;
 
 export function LeftSidebar(): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
@@ -22,6 +24,7 @@ export function LeftSidebar(): JSX.Element {
   const setDraftWorkDir = useSessionStore((state) => state.setDraftWorkDir);
   const toggleGroup = useSessionStore((state) => state.toggleGroup);
   const setSessionArchived = useSessionStore((state) => state.setSessionArchived);
+  const archiveCleanupSessions = useSessionStore((state) => state.archiveCleanupSessions);
   const selectSession = useSessionStore((state) => state.selectSession);
   const refreshSessions = useSessionStore((state) => state.refreshSessions);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
@@ -32,10 +35,14 @@ export function LeftSidebar(): JSX.Element {
   const [sidebarWidth, setSidebarWidth] = useState(256);
   const [isResizing, setIsResizing] = useState(false);
   const [archiveUndoSessionId, setArchiveUndoSessionId] = useState<string | null>(null);
+  const [archiveCleanupConfirmOpen, setArchiveCleanupConfirmOpen] = useState(false);
+  const [archiveCleanupPending, setArchiveCleanupPending] = useState(false);
   const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
     Record<string, boolean>
   >({});
   const sidebarRef = useRef<HTMLElement | null>(null);
+  const archiveCleanupButtonRef = useRef<HTMLButtonElement | null>(null);
+  const archiveCleanupContentRef = useRef<HTMLDivElement | null>(null);
   const archivedMenuRef = useRef<HTMLDivElement | null>(null);
   const archiveUndoTimeoutRef = useRef<number | null>(null);
   const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
@@ -87,6 +94,36 @@ export function LeftSidebar(): JSX.Element {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [archivedMenuOpen]);
+
+  useEffect(() => {
+    if (!archiveCleanupConfirmOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent): void => {
+      const target = event.target as Node;
+      if (
+        archiveCleanupButtonRef.current?.contains(target) ||
+        archiveCleanupContentRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setArchiveCleanupConfirmOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        setArchiveCleanupConfirmOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [archiveCleanupConfirmOpen]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
@@ -171,6 +208,25 @@ export function LeftSidebar(): JSX.Element {
     [activeSessions, runtimeBySessionId],
   );
 
+  const archiveCleanupEligibleCount = useMemo(() => {
+    const cutoff = Date.now() / 1000 - ARCHIVE_CLEANUP_AGE_SECONDS;
+    return activeSessions.filter((session) => {
+      const diffSummary = session.file_change_summary;
+      const hasNoDiff = diffSummary.diff_lines_added === 0 && diffSummary.diff_lines_removed === 0;
+      return session.updated_at < cutoff || hasNoDiff;
+    }).length;
+  }, [activeSessions]);
+
+  const archiveCleanupTooltip = useMemo(() => {
+    if (archiveCleanupPending) {
+      return "Archiving sessions older than 3 days or with no diff";
+    }
+    if (archiveCleanupEligibleCount === 0) {
+      return "No sessions older than 3 days or with no diff";
+    }
+    return `Archive ${archiveCleanupEligibleCount} sessions older than 3 days or with no diff`;
+  }, [archiveCleanupEligibleCount, archiveCleanupPending]);
+
   const openNewSessionOverlay = (workDir?: string): void => {
     const normalizedWorkDir = workDir?.trim() ?? "";
     setDraftWorkDir(normalizedWorkDir);
@@ -208,6 +264,28 @@ export function LeftSidebar(): JSX.Element {
     })();
   };
 
+  const handleArchiveCleanup = (): void => {
+    if (archiveCleanupPending || archiveCleanupEligibleCount === 0) {
+      return;
+    }
+
+    setArchiveCleanupConfirmOpen(true);
+  };
+
+  const handleConfirmArchiveCleanup = (): void => {
+    void (async () => {
+      setArchiveCleanupConfirmOpen(false);
+      setArchiveCleanupPending(true);
+      try {
+        await archiveCleanupSessions();
+      } finally {
+        setArchiveCleanupPending(false);
+      }
+    })();
+  };
+
+  const archiveCleanupButtonClassName = `inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors ${archiveCleanupEligibleCount === 0 || archiveCleanupPending ? "cursor-default opacity-50" : "cursor-pointer hover:bg-muted hover:text-neutral-600"}`;
+
   return (
     // grid-template-columns trick (same as CollapseGroupBlock's grid-template-rows):
     // outer div controls the animated visible width; aside stays at fixed sidebarWidth
@@ -228,8 +306,8 @@ export function LeftSidebar(): JSX.Element {
           className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-neutral-200 bg-sidebar ${archivedMenuOpen ? "z-50" : ""}`}
           style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
         >
-          <div className="flex items-center gap-1.5 px-3 py-2">
-            <div className="flex-1">
+          <div className="relative flex items-center gap-1.5 px-3 py-2">
+            <div className="min-w-0 flex-1">
               <NewSessionButton
                 onClick={() => {
                   openNewSessionOverlay();
@@ -274,6 +352,42 @@ export function LeftSidebar(): JSX.Element {
                 </span>
               </TooltipContent>
             </Tooltip>
+            {archiveCleanupConfirmOpen ? (
+              <button
+                ref={archiveCleanupButtonRef}
+                type="button"
+                className={archiveCleanupButtonClassName}
+                onClick={handleArchiveCleanup}
+                aria-label="Archive stale sessions"
+                aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
+              >
+                {archiveCleanupPending ? (
+                  <Loader className="h-4 w-4 animate-spin" />
+                ) : (
+                  <BrushCleaning className="h-4 w-4" />
+                )}
+              </button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    ref={archiveCleanupButtonRef}
+                    type="button"
+                    className={archiveCleanupButtonClassName}
+                    onClick={handleArchiveCleanup}
+                    aria-label="Archive stale sessions"
+                    aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
+                  >
+                    {archiveCleanupPending ? (
+                      <Loader className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <BrushCleaning className="h-4 w-4" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{archiveCleanupTooltip}</TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -301,6 +415,39 @@ export function LeftSidebar(): JSX.Element {
                 </span>
               </TooltipContent>
             </Tooltip>
+            {archiveCleanupConfirmOpen ? (
+              <div
+                ref={archiveCleanupContentRef}
+                className="absolute right-3 top-full z-40 mt-2 w-56 rounded-md border border-neutral-200 bg-white px-6 py-2 text-xs leading-4 text-neutral-700 shadow-sm"
+              >
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-neutral-800">
+                    Archive {archiveCleanupEligibleCount} sessions?
+                  </div>
+                  <div className="text-xs text-neutral-500">
+                    Archive sessions older than 3 days or with no diff.
+                  </div>
+                  <div className="flex justify-end gap-1.5">
+                    <button
+                      type="button"
+                      className="rounded-md px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
+                      onClick={() => {
+                        setArchiveCleanupConfirmOpen(false);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-muted hover:text-neutral-900"
+                      onClick={handleConfirmArchiveCleanup}
+                    >
+                      Archive
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <ScrollArea className="min-h-0 w-full flex-1" type="auto">

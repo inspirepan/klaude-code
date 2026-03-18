@@ -106,6 +106,11 @@ interface ArchiveSessionResponse {
   ok: boolean;
 }
 
+interface ArchiveCleanupResponse {
+  ok: boolean;
+  archived_count: number;
+}
+
 export interface ConfigModelSummary {
   name: string;
   provider: string;
@@ -150,6 +155,14 @@ export async function unarchiveSession(sessionId: string): Promise<boolean> {
     },
   );
   return result.ok;
+}
+
+export async function archiveCleanupSessions(): Promise<number> {
+  const result = await requestJson<ArchiveCleanupResponse>("/api/sessions/archive/cleanup", {
+    method: "POST",
+    body: {},
+  });
+  return result.archived_count;
 }
 
 export async function fetchConfigModels(): Promise<ConfigModelSummary[]> {
