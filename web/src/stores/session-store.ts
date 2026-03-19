@@ -81,11 +81,50 @@ let sessionStreamReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingMessageEvents: MessageStoreEvent[] = [];
 let pendingMessageEventsFrame = 0;
 
+const SESSION_GROUP_COLLAPSE_STORAGE_KEY = "klaude:left-sidebar:collapsed-groups";
+
 const defaultRuntimeState: SessionRuntimeState = {
   sessionState: "idle",
   wsState: "idle",
   lastError: null,
 };
+
+function loadCollapsedByWorkDir(): Record<string, boolean> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const raw = window.localStorage.getItem(SESSION_GROUP_COLLAPSE_STORAGE_KEY);
+  if (raw === null) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function persistCollapsedByWorkDir(collapsedByWorkDir: Record<string, boolean>): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    SESSION_GROUP_COLLAPSE_STORAGE_KEY,
+    JSON.stringify(collapsedByWorkDir),
+  );
+}
 
 function updateRuntimeState(
   current: Record<string, SessionRuntimeState>,
@@ -644,7 +683,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   draftWorkDir: "",
   loading: false,
   loadError: null,
-  collapsedByWorkDir: {},
+  collapsedByWorkDir: loadCollapsedByWorkDir(),
   runtimeBySessionId: {},
   recentCompletionStartedAtBySessionId: {},
   completedUnreadBySessionId: {},
@@ -700,12 +739,14 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     }
   },
   toggleGroup: (workDir: string) => {
-    set((state) => ({
-      collapsedByWorkDir: {
+    set((state) => {
+      const collapsedByWorkDir = {
         ...state.collapsedByWorkDir,
         [workDir]: !(state.collapsedByWorkDir[workDir] ?? false),
-      },
-    }));
+      };
+      persistCollapsedByWorkDir(collapsedByWorkDir);
+      return { collapsedByWorkDir };
+    });
   },
   setSessionArchived: async (sessionId: string, archived: boolean) => {
     if (archived) {
