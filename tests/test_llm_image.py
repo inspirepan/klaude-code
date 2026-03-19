@@ -123,3 +123,65 @@ def test_normalize_image_data_url_keeps_non_image_media_type(monkeypatch: pytest
 def test_normalize_image_data_url_keeps_non_data_url() -> None:
     url = "https://example.com/demo.png"
     assert image_module.normalize_image_data_url(url) == url
+
+
+# --- detect_mime_type_from_bytes ---
+
+
+def test_detect_mime_type_from_bytes_png() -> None:
+    assert image_module.detect_mime_type_from_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 16) == "image/png"
+
+
+def test_detect_mime_type_from_bytes_jpeg() -> None:
+    assert image_module.detect_mime_type_from_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 10) == "image/jpeg"
+
+
+def test_detect_mime_type_from_bytes_gif87a() -> None:
+    assert image_module.detect_mime_type_from_bytes(b"GIF87a" + b"\x00" * 10) == "image/gif"
+
+
+def test_detect_mime_type_from_bytes_gif89a() -> None:
+    assert image_module.detect_mime_type_from_bytes(b"GIF89a" + b"\x00" * 10) == "image/gif"
+
+
+def test_detect_mime_type_from_bytes_webp() -> None:
+    assert image_module.detect_mime_type_from_bytes(b"RIFF\x00\x00\x00\x00WEBP" + b"\x00" * 20) == "image/webp"
+
+
+def test_detect_mime_type_from_bytes_unknown() -> None:
+    assert image_module.detect_mime_type_from_bytes(b"not an image") is None
+
+
+def test_detect_mime_type_from_bytes_empty() -> None:
+    assert image_module.detect_mime_type_from_bytes(b"") is None
+
+
+# --- MIME type correction ---
+
+
+def test_normalize_image_data_url_corrects_wrong_mime(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A PNG image declared as image/jpeg should be corrected to image/png."""
+    monkeypatch.setattr(image_module, "_MAX_IMAGE_SIZE_BYTES", 10_000_000)
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+    wrong_url = f"data:image/jpeg;base64,{b64encode(png_bytes).decode('ascii')}"
+
+    corrected = image_module.normalize_image_data_url(wrong_url)
+    assert corrected.startswith("data:image/png;base64,")
+    assert _payload_from_data_url(corrected) == png_bytes
+
+
+def test_image_file_to_data_url_corrects_wrong_extension(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A PNG file with .jpg extension should produce a data URL with image/png."""
+    monkeypatch.setattr(image_module, "_MAX_IMAGE_SIZE_BYTES", 10_000_000)
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+    path = tmp_path / "photo.jpg"
+    path.write_bytes(png_bytes)
+
+    result = image_module.image_file_to_data_url(
+        message.ImageFilePart(file_path=str(path), mime_type="image/jpeg"),
+    )
+    assert result.startswith("data:image/png;base64,")
+    assert _payload_from_data_url(result) == png_bytes

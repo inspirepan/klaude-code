@@ -130,6 +130,19 @@ def _parse_jpeg_dimensions(data: bytes) -> tuple[int, int] | None:
     return None
 
 
+def detect_mime_type_from_bytes(data: bytes) -> str | None:
+    """Detect image MIME type from magic bytes, returning None for unrecognized formats."""
+    if len(data) >= 8 and data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if len(data) >= 3 and data[0] == 0xFF and data[1] == 0xD8 and data[2] == 0xFF:
+        return "image/jpeg"
+    if len(data) >= 6 and (data[:6] == b"GIF87a" or data[:6] == b"GIF89a"):
+        return "image/gif"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
 def _detect_image_dimensions(image_bytes: bytes, mime_type: str) -> tuple[int, int] | None:
     media = mime_type.lower()
     if media == "image/png":
@@ -294,14 +307,20 @@ def parse_data_url(url: str) -> tuple[str, str, bytes]:
 
 
 def normalize_image_data_url(url: str) -> str:
-    """Normalize a data URL image by resizing oversized inline images within provider limits."""
+    """Normalize a data URL image by resizing oversized inline images and correcting MIME types."""
 
     if not url.startswith("data:"):
         return url
 
     mime_type, _, decoded = parse_data_url(url)
+
+    # Correct MIME type if magic bytes disagree with declared type
+    detected = detect_mime_type_from_bytes(decoded)
+    if detected:
+        mime_type = detected
+
     resized = _resize_image_bytes_if_needed(decoded, mime_type)
-    if resized == decoded:
+    if resized is decoded and detected is None:
         return url
     encoded = b64encode(resized).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
@@ -317,6 +336,11 @@ def image_file_to_data_url(image: message.ImageFilePart) -> str:
     if not mime_type:
         guessed, _ = mimetypes.guess_type(str(file_path))
         mime_type = guessed or "application/octet-stream"
+
+    # Correct MIME type if magic bytes disagree with extension/metadata
+    detected = detect_mime_type_from_bytes(decoded)
+    if detected:
+        mime_type = detected
 
     decoded = _resize_image_bytes_if_needed(decoded, mime_type)
 
