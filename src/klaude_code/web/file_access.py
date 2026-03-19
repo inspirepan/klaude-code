@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+TMP_DIR = Path("/tmp").resolve()
+
 
 def _is_relative_to(path: Path, base: Path) -> bool:
     try:
@@ -36,11 +38,10 @@ def validate_file_access(raw_path: str, *, work_dir: Path, home_dir: Path) -> tu
 
     resolved = requested.resolve(strict=False)
     work_dir_resolved = work_dir.resolve()
-    tmp_dir = Path("/tmp").resolve()
 
     allowed = (
         _is_relative_to(resolved, work_dir_resolved)
-        or _is_relative_to(resolved, tmp_dir)
+        or _is_relative_to(resolved, TMP_DIR)
         or _is_session_images_path(resolved, home_dir)
     )
     if not allowed:

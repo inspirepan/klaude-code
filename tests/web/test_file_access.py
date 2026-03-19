@@ -5,6 +5,10 @@ import os
 import tempfile
 from pathlib import Path
 
+import pytest
+
+from klaude_code.web import file_access
+
 from .conftest import AppEnv
 
 
@@ -49,8 +53,11 @@ def test_file_not_found(app_env: AppEnv) -> None:
     assert response.status_code == 404
 
 
-def test_file_access_uses_session_work_dir(app_env: AppEnv) -> None:
-    # Place other_work_dir under home_dir so it is NOT inside work_dir or /tmp allowlist.
+def test_file_access_uses_session_work_dir(
+    app_env: AppEnv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Disable the /tmp allowlist so the deny assertion works even when tmp_path is under /tmp.
+    monkeypatch.setattr(file_access, "TMP_DIR", Path("/nonexistent-tmp-sentinel"))
     other_work_dir = app_env.home_dir / "other-work"
     other_work_dir.mkdir(parents=True)
     file_path = other_work_dir / "hello.txt"
