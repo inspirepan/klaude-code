@@ -105,7 +105,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
             <CircleHelp className="h-3 w-3" />
           </button>
           {metaOpen ? (
-            <div className="absolute bottom-full right-0 z-20 mb-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
+            <div className="absolute bottom-full left-0 z-20 mb-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
               <div className="space-y-1.5 text-sm leading-5">
                 {metaRows.map((row) => (
                   <div key={row.label} className="flex items-start justify-between gap-4">

@@ -18,6 +18,7 @@ import { SearchBar } from "./SearchBar";
 import { SubAgentGroupCard } from "./SubAgentGroupCard";
 import { isCopyableAssistantText } from "./message-list-ui";
 import { SearchProvider, type SearchState } from "./search-context";
+import { SessionStatusBar } from "../input/SessionStatusBar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 const EMPTY_ITEMS: MessageItemType[] = [];
@@ -667,7 +668,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 onCollapseAll={handleCollapseAll}
                 onExpandAll={handleExpandAll}
               />
-              <div className="mx-auto max-w-4xl space-y-5 px-4 pb-14 pt-8 sm:px-6">
+              <div className="mx-auto max-w-4xl space-y-5 px-4 pb-8 pt-8 sm:px-6">
                 {hasItems ? (
                   <>
                     {sections.map((section, sectionIndex) => (
@@ -772,18 +773,27 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                   </div>
                 ) : null}
               </div>
-              {/* Add padding space equal to MessageComposer height + mask height so content isn't hidden under the absolute positioned bar */}
-              <div className="h-44 shrink-0 sm:h-40" />
+              <div
+                className="sticky z-10 mx-auto max-w-4xl px-4 sm:px-6"
+                style={{ bottom: "calc(var(--composer-h, 10rem) - 1.5rem)" }}
+              >
+                <SessionStatusBar status={mainSessionStatus} runtime={runtime} />
+              </div>
+              {/* Padding so content isn't hidden under the absolute positioned composer */}
+              <div className="shrink-0" style={{ height: "var(--composer-h, 10rem)" }} />
             </div>
           </div>
           {showScrollToBottom ? (
-            <div className="pointer-events-none absolute bottom-28 left-1/2 z-20 -translate-x-1/2 sm:bottom-32">
+            <div
+              className="pointer-events-none absolute left-1/2 z-20 -translate-x-1/2"
+              style={{ bottom: "calc(var(--composer-h, 10rem) - 1.5rem)" }}
+            >
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
                     onClick={() => scrollToBottom()}
-                    className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 bg-white/95 text-neutral-700 shadow-sm ring-1 ring-black/[0.06] backdrop-blur transition-colors hover:bg-white hover:text-neutral-900"
+                    className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white/95 text-neutral-700 shadow-sm ring-1 ring-black/[0.06] backdrop-blur transition-colors hover:bg-white hover:text-neutral-900"
                     aria-label="Scroll to bottom"
                   >
                     <ArrowDown className="h-4 w-4" />
