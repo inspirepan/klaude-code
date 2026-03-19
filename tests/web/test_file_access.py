@@ -53,9 +53,7 @@ def test_file_not_found(app_env: AppEnv) -> None:
     assert response.status_code == 404
 
 
-def test_file_access_uses_session_work_dir(
-    app_env: AppEnv, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_file_access_uses_session_work_dir(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
     # Disable the /tmp allowlist so the deny assertion works even when tmp_path is under /tmp.
     monkeypatch.setattr(file_access, "TMP_DIR", Path("/nonexistent-tmp-sentinel"))
     other_work_dir = app_env.home_dir / "other-work"
