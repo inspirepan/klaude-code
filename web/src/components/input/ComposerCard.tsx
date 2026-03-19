@@ -226,7 +226,7 @@ export function ComposerCard({
 
     const singleLineHeight =
       lineHeight + paddingTop + paddingBottom + borderTopWidth + borderBottomWidth;
-    const maxHeight = singleLineHeight * 2;
+    const maxHeight = singleLineHeight * 10;
 
     textarea.style.height = "auto";
     const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
