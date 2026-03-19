@@ -46,7 +46,7 @@ function normalizeFileChangeSummary(
   };
 }
 
-function normalizeSessionSummary(session: SessionSummary): SessionSummary {
+export function normalizeSessionSummary(session: SessionSummary): SessionSummary {
   return {
     ...session,
     read_only: session.read_only === true,

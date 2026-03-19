@@ -7,6 +7,7 @@ import {
   fetchRunningSessions,
   fetchSessionGroups,
   fetchSessionHistory,
+  normalizeSessionSummary,
   unarchiveSession,
   type RunningSessionState,
 } from "../api/client";
@@ -274,7 +275,8 @@ function handleSessionListEvent(payload: SessionListWsEvent, set: SetState): voi
     return;
   }
 
-  set((state) => applySessionUpsert(state, payload.session as SessionSummary));
+  const session = normalizeSessionSummary(payload.session);
+  set((state) => applySessionUpsert(state, session));
 }
 
 function connectSessionStream(set: SetState): void {
