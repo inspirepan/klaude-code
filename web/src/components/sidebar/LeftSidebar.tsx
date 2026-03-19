@@ -423,11 +423,13 @@ export function LeftSidebar(): JSX.Element {
               <div className="space-y-4 pt-2">
                 {inProgressSessions.length > 0 ? (
                   <div>
-                    <div className="mb-2 flex items-center gap-1.5 px-1.5">
-                      <span className="text-xs font-medium uppercase tracking-[0.02em] text-neutral-500">
-                        In Progress
+                    <div className="mb-2 px-1.5">
+                      <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-blue-700">
+                        <span>In Progress</span>
+                        <span className="ml-2 border-l border-blue-200/80 pl-2 text-blue-600">
+                          {inProgressSessions.length}
+                        </span>
                       </span>
-                      <span className="text-xs text-neutral-500">{inProgressSessions.length}</span>
                     </div>
                     <div className="space-y-1">
                       {inProgressSessions.map((session) => (
@@ -462,11 +464,13 @@ export function LeftSidebar(): JSX.Element {
 
                 {doneGroups.length > 0 ? (
                   <div>
-                    <div className="mb-2 flex items-center gap-1.5 px-1.5">
-                      <span className="text-xs font-medium uppercase tracking-[0.02em] text-neutral-500">
-                        Done
+                    <div className="mb-2 px-1.5">
+                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-emerald-700">
+                        <span>DONE</span>
+                        <span className="ml-2 border-l border-emerald-200/80 pl-2 text-emerald-600">
+                          {doneSessions.length}
+                        </span>
                       </span>
-                      <span className="text-xs text-neutral-500">{doneSessions.length}</span>
                     </div>
                     {doneGroups.map((group) => (
                       <ProjectGroup
