@@ -21,6 +21,7 @@ from klaude_code.core.tool.context import FileTracker, ToolContext
 from klaude_code.core.tool.file._utils import file_exists, is_directory
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
+from klaude_code.llm.image import detect_mime_type_from_bytes
 from klaude_code.protocol import llm_param, message, model, tools
 from klaude_code.protocol.model import ImageUIExtra, ReadPreviewLine, ReadPreviewUIExtra
 
@@ -352,6 +353,10 @@ class ReadTool(ToolABC):
                 mime_type = _image_mime_type(file_path)
                 with open(file_path, "rb") as image_file:
                     image_bytes = image_file.read()
+                # Correct MIME type if magic bytes disagree with extension
+                detected = detect_mime_type_from_bytes(image_bytes)
+                if detected:
+                    mime_type = detected
                 data_url = f"data:{mime_type};base64,{b64encode(image_bytes).decode('ascii')}"
             except Exception as exc:
                 return message.ToolResultMessage(
