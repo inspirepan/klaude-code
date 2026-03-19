@@ -102,6 +102,7 @@ export function LeftSidebar(): JSX.Element {
   const archivedMenuRef = useRef<HTMLDivElement | null>(null);
   const archiveUndoTimeoutRef = useRef<number | null>(null);
   const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
+  const prevCompletionTimestampsRef = useRef(recentCompletionStartedAtBySessionId);
 
   useEffect(() => {
     return () => {
@@ -254,6 +255,24 @@ export function LeftSidebar(): JSX.Element {
       .map(([work_dir, sessions]) => ({ work_dir, sessions }))
       .sort((a, b) => a.work_dir.localeCompare(b.work_dir));
   }, [doneSessions]);
+
+  // Auto-expand collapsed "Done" groups when a session inside them completes
+  useEffect(() => {
+    const prev = prevCompletionTimestampsRef.current;
+    prevCompletionTimestampsRef.current = recentCompletionStartedAtBySessionId;
+
+    for (const group of doneGroups) {
+      if (!(collapsedByWorkDir[group.work_dir] ?? false)) continue;
+
+      for (const session of group.sessions) {
+        const ts = recentCompletionStartedAtBySessionId[session.id];
+        if (ts !== undefined && prev[session.id] !== ts) {
+          toggleGroup(group.work_dir);
+          break;
+        }
+      }
+    }
+  }, [recentCompletionStartedAtBySessionId, doneGroups, collapsedByWorkDir, toggleGroup]);
 
   const archiveCleanupEligibleCount = useMemo(() => {
     const cutoff = Date.now() / 1000 - ARCHIVE_CLEANUP_AGE_SECONDS;
