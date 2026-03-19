@@ -120,6 +120,10 @@ export function SubAgentGroupCard({
   const contentRef = useRef<HTMLDivElement>(null);
   const contentInnerRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
+  const collapsedRef = useRef(collapsed);
+  useEffect(() => {
+    collapsedRef.current = collapsed;
+  }, [collapsed]);
 
   const toolItems = items.filter(isToolBlock);
   const activityText = getSessionActivityText(status);
@@ -163,6 +167,14 @@ export function SubAgentGroupCard({
 
     const updateOverflow = (): void => {
       setHasCollapsedOverflow(el.scrollHeight > COLLAPSED_HEIGHT + 1);
+      // Keep height in sync while collapsed: as items stream in, the content
+      // area should grow up to COLLAPSED_HEIGHT, then stay capped there.
+      if (collapsedRef.current && el.style.height !== "auto") {
+        const target = `${Math.min(el.scrollHeight, COLLAPSED_HEIGHT)}px`;
+        if (el.style.height !== target) {
+          el.style.height = target;
+        }
+      }
     };
 
     updateOverflow();
@@ -178,8 +190,8 @@ export function SubAgentGroupCard({
 
     if (!mountedRef.current) {
       mountedRef.current = true;
-      if (collapsed && el.scrollHeight > COLLAPSED_HEIGHT) {
-        el.style.height = `${COLLAPSED_HEIGHT}px`;
+      if (collapsed) {
+        el.style.height = `${Math.min(el.scrollHeight, COLLAPSED_HEIGHT)}px`;
       }
       return;
     }
