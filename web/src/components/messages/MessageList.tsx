@@ -780,7 +780,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 <SessionStatusBar status={mainSessionStatus} runtime={runtime} />
               </div>
               {/* Padding so content isn't hidden under the absolute positioned composer */}
-              <div className="shrink-0" style={{ height: "var(--composer-h, 10rem)" }} />
+              <div className="shrink-0" style={{ height: "calc(var(--composer-h, 10rem) - 1.5rem)" }} />
             </div>
           </div>
           {showScrollToBottom ? (
