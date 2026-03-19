@@ -49,8 +49,9 @@ def test_file_not_found(app_env: AppEnv) -> None:
     assert response.status_code == 404
 
 
-def test_file_access_uses_session_work_dir(app_env: AppEnv, tmp_path: Path) -> None:
-    other_work_dir = tmp_path / "other-work"
+def test_file_access_uses_session_work_dir(app_env: AppEnv) -> None:
+    # Place other_work_dir under home_dir so it is NOT inside work_dir or /tmp allowlist.
+    other_work_dir = app_env.home_dir / "other-work"
     other_work_dir.mkdir(parents=True)
     file_path = other_work_dir / "hello.txt"
     file_path.write_text("hello-session", encoding="utf-8")
@@ -67,8 +68,8 @@ def test_file_access_uses_session_work_dir(app_env: AppEnv, tmp_path: Path) -> N
     assert response.text == "hello-session"
 
 
-def test_file_access_uses_session_relative_path(app_env: AppEnv, tmp_path: Path) -> None:
-    other_work_dir = tmp_path / "other-work"
+def test_file_access_uses_session_relative_path(app_env: AppEnv) -> None:
+    other_work_dir = app_env.home_dir / "other-work-rel"
     nested_dir = other_work_dir / "output"
     nested_dir.mkdir(parents=True)
     file_path = nested_dir / "hello.txt"
@@ -86,8 +87,8 @@ def test_file_access_uses_session_relative_path(app_env: AppEnv, tmp_path: Path)
     assert response.text == "hello-relative"
 
 
-def test_file_access_denies_session_relative_path_traversal(app_env: AppEnv, tmp_path: Path) -> None:
-    other_work_dir = tmp_path / "other-work"
+def test_file_access_denies_session_relative_path_traversal(app_env: AppEnv) -> None:
+    other_work_dir = app_env.home_dir / "other-work-traversal"
     other_work_dir.mkdir(parents=True)
     session_id = app_env.create_session(other_work_dir)
 
