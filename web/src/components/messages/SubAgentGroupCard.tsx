@@ -131,13 +131,21 @@ export function SubAgentGroupCard({
   const metaRows = getSessionMetaRows(status, nowSeconds);
 
   const expandedBlocks = useMemo(() => groupItemsIntoBlocks(items), [items]);
+
   const lastCollapseGroupId = useMemo(() => {
     for (let i = expandedBlocks.length - 1; i >= 0; i--) {
-      const block = expandedBlocks[i];
-      if (block?.type === "collapse_group") return block.id;
+      if (expandedBlocks[i]?.type === "collapse_group") return expandedBlocks[i]!.id;
     }
     return null;
   }, [expandedBlocks]);
+
+  const prevFinishedRef = useRef(isFinished);
+  useEffect(() => {
+    if (!prevFinishedRef.current && isFinished) {
+      setCollapsedGroups({});
+    }
+    prevFinishedRef.current = isFinished;
+  }, [isFinished]);
 
   const isCollapseGroupCollapsed = useCallback(
     (groupId: string): boolean => {
@@ -155,9 +163,13 @@ export function SubAgentGroupCard({
       if (groupId in collapsedGroups) {
         return collapsedGroups[groupId]!;
       }
+      // While running, keep the last (newest) group expanded; otherwise all collapsed
+      if (!isFinished) {
+        return groupId !== lastCollapseGroupId;
+      }
       return true;
     },
-    [activeItemId, collapsedGroups, expandedBlocks],
+    [activeItemId, collapsedGroups, expandedBlocks, isFinished, lastCollapseGroupId],
   );
 
   useEffect(() => {
@@ -222,7 +234,6 @@ export function SubAgentGroupCard({
           key={block.id}
           items={block.items}
           collapsed={cgCollapsed}
-          showRunningSpinner={!collapsed && block.id === lastCollapseGroupId && !isFinished}
           onToggle={
             collapsed
               ? onToggleCollapsed

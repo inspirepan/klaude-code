@@ -63,7 +63,7 @@ export function ToolBlockHeader({
           )
         ) : null}
         {item.isStreaming ? (
-          <Loader className="mt-1 h-3 w-3 shrink-0 animate-spin text-neutral-500" />
+          <Loader className="h-3 w-3 shrink-0 translate-y-[2.5px] animate-spin text-neutral-500" />
         ) : null}
       </div>
     </>
