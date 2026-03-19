@@ -3,6 +3,7 @@ import type {
   AssistantTextItem,
   ItemTimestamp,
   MessageItem as MessageItemType,
+  ToolBlockItem,
 } from "../../types/message";
 
 const COMPACT_NUMBER_FORMATTER = new Intl.NumberFormat("en-US", {

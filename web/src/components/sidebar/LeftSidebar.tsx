@@ -10,6 +10,60 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ARCHIVE_CLEANUP_AGE_SECONDS = 3 * 24 * 60 * 60;
+const DEFAULT_SIDEBAR_WIDTH = 304;
+const SIDEBAR_WIDTH_STORAGE_KEY = "klaude:left-sidebar:width";
+const ARCHIVED_GROUP_COLLAPSE_STORAGE_KEY = "klaude:left-sidebar:archived-collapsed-groups";
+
+function clampSidebarWidth(width: number): number {
+  const minWidth = 256;
+  const hardMaxWidth = 512;
+  const rightSidebarWidth =
+    (document.querySelector('[data-sidebar="right"]') as HTMLElement | null)?.offsetWidth ?? 0;
+  const minMainWidth = 320;
+  const availableMaxWidth = window.innerWidth - rightSidebarWidth - minMainWidth;
+  const maxWidth = Math.max(minWidth, Math.min(hardMaxWidth, availableMaxWidth));
+  return Math.min(Math.max(width, minWidth), maxWidth);
+}
+
+function readStoredSidebarWidth(): number | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+  if (raw === null) {
+    return null;
+  }
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readStoredCollapsedByWorkDir(storageKey: string): Record<string, boolean> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const raw = window.localStorage.getItem(storageKey);
+  if (raw === null) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
 
 export function LeftSidebar(): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
@@ -32,31 +86,22 @@ export function LeftSidebar(): JSX.Element {
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
   const [archivedMenuOpen, setArchivedMenuOpen] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(304);
+  const [sidebarWidth, setSidebarWidth] = useState(
+    () => readStoredSidebarWidth() ?? DEFAULT_SIDEBAR_WIDTH,
+  );
   const [isResizing, setIsResizing] = useState(false);
   const [archiveUndoSessionId, setArchiveUndoSessionId] = useState<string | null>(null);
   const [archiveCleanupConfirmOpen, setArchiveCleanupConfirmOpen] = useState(false);
   const [archiveCleanupPending, setArchiveCleanupPending] = useState(false);
   const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
     Record<string, boolean>
-  >({});
+  >(() => readStoredCollapsedByWorkDir(ARCHIVED_GROUP_COLLAPSE_STORAGE_KEY));
   const sidebarRef = useRef<HTMLElement | null>(null);
   const archiveCleanupButtonRef = useRef<HTMLButtonElement | null>(null);
   const archiveCleanupContentRef = useRef<HTMLDivElement | null>(null);
   const archivedMenuRef = useRef<HTMLDivElement | null>(null);
   const archiveUndoTimeoutRef = useRef<number | null>(null);
   const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
-
-  const clampSidebarWidth = (width: number): number => {
-    const minWidth = 256;
-    const hardMaxWidth = 512;
-    const rightSidebarWidth =
-      (document.querySelector('[data-sidebar="right"]') as HTMLElement | null)?.offsetWidth ?? 0;
-    const minMainWidth = 320;
-    const availableMaxWidth = window.innerWidth - rightSidebarWidth - minMainWidth;
-    const maxWidth = Math.max(minWidth, Math.min(hardMaxWidth, availableMaxWidth));
-    return Math.min(Math.max(width, minWidth), maxWidth);
-  };
 
   useEffect(() => {
     return () => {
@@ -69,6 +114,32 @@ export function LeftSidebar(): JSX.Element {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const syncSidebarWidth = (): void => {
+      setSidebarWidth((current) => {
+        const next = clampSidebarWidth(current);
+        return next === current ? current : next;
+      });
+    };
+
+    syncSidebarWidth();
+    window.addEventListener("resize", syncSidebarWidth);
+    return () => {
+      window.removeEventListener("resize", syncSidebarWidth);
+    };
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth));
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      ARCHIVED_GROUP_COLLAPSE_STORAGE_KEY,
+      JSON.stringify(archivedCollapsedByWorkDir),
+    );
+  }, [archivedCollapsedByWorkDir]);
 
   useEffect(() => {
     if (!archivedMenuOpen) {
@@ -282,114 +353,123 @@ export function LeftSidebar(): JSX.Element {
           className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-neutral-200 bg-sidebar ${archivedMenuOpen ? "z-50" : ""}`}
           style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
         >
-          <div className="relative flex items-center gap-1.5 px-3 py-2">
-            <div className="min-w-0 flex-1">
-              <NewSessionButton
-                onClick={() => {
-                  openNewSessionOverlay();
-                }}
-              />
-            </div>
-            {archiveCleanupConfirmOpen ? (
-              <button
-                ref={archiveCleanupButtonRef}
-                type="button"
-                className={archiveCleanupButtonClassName}
-                onClick={handleArchiveCleanup}
-                aria-label="Archive stale sessions"
-                aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
-              >
-                {archiveCleanupPending ? (
-                  <Loader className="h-4 w-4 animate-spin" />
-                ) : (
-                  <BrushCleaning className="h-4 w-4" />
-                )}
-              </button>
-            ) : (
+          {/* header floats above scroll area */}
+          <div className="absolute left-0 right-0 top-0 z-40">
+            {/* blur + fade: opaque over button row, fades to transparent 2rem below */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 h-[5rem] bg-[hsl(var(--sidebar))]/80 backdrop-blur-sm [-webkit-mask-image:linear-gradient(to_bottom,black_0,black_3rem,transparent_5rem)] [mask-image:linear-gradient(to_bottom,black_0,black_3rem,transparent_5rem)]"
+            />
+            <div className="relative flex items-center gap-1.5 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <NewSessionButton
+                  onClick={() => {
+                    openNewSessionOverlay();
+                  }}
+                />
+              </div>
+              {archiveCleanupConfirmOpen ? (
+                <button
+                  ref={archiveCleanupButtonRef}
+                  type="button"
+                  className={archiveCleanupButtonClassName}
+                  onClick={handleArchiveCleanup}
+                  aria-label="Archive stale sessions"
+                  aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
+                >
+                  {archiveCleanupPending ? (
+                    <Loader className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <BrushCleaning className="h-4 w-4" />
+                  )}
+                </button>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      ref={archiveCleanupButtonRef}
+                      type="button"
+                      className={archiveCleanupButtonClassName}
+                      onClick={handleArchiveCleanup}
+                      aria-label="Archive stale sessions"
+                      aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
+                    >
+                      {archiveCleanupPending ? (
+                        <Loader className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <BrushCleaning className="h-4 w-4" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>{archiveCleanupTooltip}</TooltipContent>
+                </Tooltip>
+              )}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    ref={archiveCleanupButtonRef}
                     type="button"
-                    className={archiveCleanupButtonClassName}
-                    onClick={handleArchiveCleanup}
-                    aria-label="Archive stale sessions"
-                    aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
+                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                    onClick={() => {
+                      setSidebarOpen(false);
+                    }}
+                    aria-label="Collapse sidebar"
                   >
-                    {archiveCleanupPending ? (
-                      <Loader className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <BrushCleaning className="h-4 w-4" />
-                    )}
+                    <PanelLeftClose className="h-4 w-4" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>{archiveCleanupTooltip}</TooltipContent>
-              </Tooltip>
-            )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
-                  onClick={() => {
-                    setSidebarOpen(false);
-                  }}
-                  aria-label="Collapse sidebar"
-                >
-                  <PanelLeftClose className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent className="flex items-center gap-1.5">
-                <span>Collapse sidebar</span>
-                <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-                  <span className="inline-flex whitespace-pre text-sm leading-none">
-                    <kbd className="inline-flex font-sans">
-                      <span className="min-w-[1em] text-center">⌘</span>
-                    </kbd>
-                    <kbd className="inline-flex font-sans">
-                      <span className="min-w-[1em] text-center">B</span>
-                    </kbd>
+                <TooltipContent className="flex items-center gap-1.5">
+                  <span>Collapse sidebar</span>
+                  <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+                    <span className="inline-flex whitespace-pre text-sm leading-none">
+                      <kbd className="inline-flex font-sans">
+                        <span className="min-w-[1em] text-center">⌘</span>
+                      </kbd>
+                      <kbd className="inline-flex font-sans">
+                        <span className="min-w-[1em] text-center">B</span>
+                      </kbd>
+                    </span>
                   </span>
-                </span>
-              </TooltipContent>
-            </Tooltip>
-            {archiveCleanupConfirmOpen ? (
-              <div
-                ref={archiveCleanupContentRef}
-                className="absolute right-3 top-full z-40 mt-2 w-56 rounded-md border border-neutral-200 bg-white px-6 py-2 text-xs leading-4 text-neutral-700 shadow-sm"
-              >
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-neutral-800">
-                    Archive {archiveCleanupEligibleCount} sessions?
-                  </div>
-                  <div className="text-xs text-neutral-500">
-                    Archive sessions older than 3 days or with no diff.
-                  </div>
-                  <div className="flex justify-end gap-1.5">
-                    <button
-                      type="button"
-                      className="rounded-md px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
-                      onClick={() => {
-                        setArchiveCleanupConfirmOpen(false);
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-muted hover:text-neutral-900"
-                      onClick={handleConfirmArchiveCleanup}
-                    >
-                      Archive
-                    </button>
+                </TooltipContent>
+              </Tooltip>
+              {archiveCleanupConfirmOpen ? (
+                <div
+                  ref={archiveCleanupContentRef}
+                  className="absolute right-3 top-full z-40 mt-2 w-56 rounded-md border border-neutral-200 bg-white px-6 py-2 text-xs leading-4 text-neutral-700 shadow-sm"
+                >
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-neutral-800">
+                      Archive {archiveCleanupEligibleCount} sessions?
+                    </div>
+                    <div className="text-xs text-neutral-500">
+                      Archive sessions older than 3 days or with no diff.
+                    </div>
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        type="button"
+                        className="rounded-md px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
+                        onClick={() => {
+                          setArchiveCleanupConfirmOpen(false);
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-muted hover:text-neutral-900"
+                        onClick={handleConfirmArchiveCleanup}
+                      >
+                        Archive
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
 
           <ScrollArea className="min-h-0 w-full flex-1" type="auto">
-            <div className="px-2.5 pb-14">
+            {/* pt-14 reserves space so top content isn't hidden behind the floating header */}
+            <div className="px-2.5 pb-14 pt-14">
               {loadError !== null ? (
                 <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3">
                   <div className="mb-1 font-semibold">Load failed</div>
@@ -423,11 +503,13 @@ export function LeftSidebar(): JSX.Element {
               <div className="space-y-4 pt-2">
                 {inProgressSessions.length > 0 ? (
                   <div>
-                    <div className="mb-2 flex items-center gap-1.5 px-1.5">
-                      <span className="text-xs font-medium uppercase tracking-[0.02em] text-neutral-500">
-                        In Progress
+                    <div className="mb-2 px-1.5">
+                      <span className="inline-flex items-center rounded-full border border-blue-200/70 bg-blue-50 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-blue-700">
+                        <span>In Progress</span>
+                        <span className="ml-2 border-l border-blue-200/80 pl-2 text-blue-600">
+                          {inProgressSessions.length}
+                        </span>
                       </span>
-                      <span className="text-xs text-neutral-500">{inProgressSessions.length}</span>
                     </div>
                     <div className="space-y-1">
                       {inProgressSessions.map((session) => (
@@ -462,11 +544,13 @@ export function LeftSidebar(): JSX.Element {
 
                 {doneGroups.length > 0 ? (
                   <div>
-                    <div className="mb-2 flex items-center gap-1.5 px-1.5">
-                      <span className="text-xs font-medium uppercase tracking-[0.02em] text-neutral-500">
-                        Done
+                    <div className="mb-2 px-1.5">
+                      <span className="inline-flex items-center rounded-full border border-emerald-200/70 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-emerald-700">
+                        <span>DONE</span>
+                        <span className="ml-2 border-l border-emerald-200/80 pl-2 text-emerald-600">
+                          {doneSessions.length}
+                        </span>
                       </span>
-                      <span className="text-xs text-neutral-500">{doneSessions.length}</span>
                     </div>
                     {doneGroups.map((group) => (
                       <ProjectGroup
@@ -499,8 +583,13 @@ export function LeftSidebar(): JSX.Element {
             </div>
           </ScrollArea>
 
-          <div className="absolute bottom-0 left-0 right-0 z-40 border-t border-neutral-200/80 bg-[#f9f9f8]/40 px-3 py-2 backdrop-blur">
-            <div ref={archivedMenuRef} className="relative">
+          <div className="absolute bottom-0 left-0 right-0 z-40">
+            {/* blur + fade: opaque over button row, fades to transparent 2rem above */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-[5rem] bg-[hsl(var(--sidebar))]/80 backdrop-blur-sm [-webkit-mask-image:linear-gradient(to_top,black_0,black_3rem,transparent_5rem)] [mask-image:linear-gradient(to_top,black_0,black_3rem,transparent_5rem)]"
+            />
+            <div ref={archivedMenuRef} className="relative px-3 py-2">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button

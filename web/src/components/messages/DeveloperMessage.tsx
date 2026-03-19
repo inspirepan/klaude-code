@@ -173,6 +173,7 @@ function AttachDetail({
   images: string[];
 }): JSX.Element {
   const allUIItems = devItems.flatMap((d) => d.items).filter((ui) => ui.type !== "todo_reminder");
+  const sessionId = devItems[0]?.sessionId ?? null;
 
   return (
     <div className="flex flex-col gap-1">
@@ -205,7 +206,7 @@ function AttachDetail({
           {images.map((p) => (
             <img
               key={p}
-              src={buildFileApiUrl(p)}
+              src={buildFileApiUrl(p, sessionId)}
               alt={p}
               className="block h-auto max-h-[220px] w-full rounded-md border border-neutral-200/70 bg-white object-contain"
               loading="lazy"

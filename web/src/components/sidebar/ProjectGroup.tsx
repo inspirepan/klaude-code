@@ -61,7 +61,7 @@ export function ProjectGroup({
               )}
               <div className="min-w-0 flex-1 text-left">
                 <div className="flex min-w-0 items-center gap-1 text-base font-normal leading-5 text-neutral-800">
-                  <span className="truncate font-semibold text-neutral-700">
+                  <span className="truncate font-semibold text-neutral-700 [direction:rtl]">
                     {workDirLabel(workDir)}
                   </span>
                   <span className="shrink-0 text-neutral-500">({sessions.length})</span>

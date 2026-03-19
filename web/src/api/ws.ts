@@ -1,3 +1,5 @@
+import type { SessionSummary } from "../types/session";
+
 export interface WsEventEnvelope {
   event_type: string;
   session_id: string;
@@ -22,7 +24,7 @@ export interface SessionWsHandlers {
 export interface SessionListWsEvent {
   type: "session.upsert" | "session.deleted";
   session_id: string;
-  session?: Record<string, unknown> | null;
+  session?: SessionSummary | null;
 }
 
 export interface SessionListWsHandlers {
@@ -79,9 +81,37 @@ function isSessionListEvent(payload: unknown): payload is SessionListWsEvent {
     return false;
   }
   const record = payload as Record<string, unknown>;
+  const isUpsert = record.type === "session.upsert";
+  const session = record.session;
   return (
-    (record.type === "session.upsert" || record.type === "session.deleted") &&
-    typeof record.session_id === "string"
+    (isUpsert || record.type === "session.deleted") &&
+    typeof record.session_id === "string" &&
+    (!isUpsert || isSessionSummary(session))
+  );
+}
+
+function isSessionSummary(payload: unknown): payload is SessionSummary {
+  if (typeof payload !== "object" || payload === null) {
+    return false;
+  }
+  const record = payload as Record<string, unknown>;
+  return (
+    typeof record.id === "string" &&
+    typeof record.created_at === "number" &&
+    typeof record.updated_at === "number" &&
+    typeof record.work_dir === "string" &&
+    (record.title === null || typeof record.title === "string") &&
+    Array.isArray(record.user_messages) &&
+    typeof record.messages_count === "number" &&
+    (record.model_name === null || typeof record.model_name === "string") &&
+    (record.session_state === "idle" ||
+      record.session_state === "running" ||
+      record.session_state === "waiting_user_input") &&
+    typeof record.read_only === "boolean" &&
+    typeof record.archived === "boolean" &&
+    Array.isArray(record.todos) &&
+    typeof record.file_change_summary === "object" &&
+    record.file_change_summary !== null
   );
 }
 

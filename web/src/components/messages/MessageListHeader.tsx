@@ -57,7 +57,7 @@ export function MessageListHeader({
         </Tooltip>
       ) : null}
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-baseline gap-2 text-base leading-5">
+        <div className="flex min-w-0 items-center gap-2 text-base leading-5">
           <SessionTitleText
             title={secondaryTitle ? `${primaryTitle} — ${secondaryTitle}` : primaryTitle}
             as="div"
@@ -65,18 +65,20 @@ export function MessageListHeader({
             primaryClassName="font-semibold"
           />
           {sessionReadOnly ? (
-            <span className="group/readonly relative inline-flex shrink-0 cursor-help items-center gap-1 self-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-              <Lock className="h-3 w-3" />
-              <span>Read-only</span>
-              <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden w-max max-w-[30rem] -translate-x-1/2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs leading-4 text-amber-800 shadow-sm group-hover/readonly:block">
-                This session is owned by another live runtime. Web can observe it, but cannot send
-                control actions.
-              </span>
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex shrink-0 cursor-help items-center self-center rounded-full border border-amber-200/70 bg-amber-50 p-1 text-amber-700">
+                  <Lock className="h-3 w-3" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                Read-only — this session is owned by another live runtime
+              </TooltipContent>
+            </Tooltip>
           ) : null}
           {workspacePath ? (
             <span
-              className="truncate font-sans text-base leading-5 text-neutral-500"
+              className="hidden truncate font-sans text-base leading-5 text-neutral-500 sm:inline"
               title={workspacePath}
             >
               {workspacePath}

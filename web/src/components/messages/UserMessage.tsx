@@ -79,7 +79,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
     expandedImageIndex === null ? null : (item.images[expandedImageIndex] ?? null);
   const expandedImageSrc = expandedImage
     ? expandedImage.type === "image_file"
-      ? buildFileApiUrl(expandedImage.file_path)
+      ? buildFileApiUrl(expandedImage.file_path, item.sessionId)
       : expandedImage.url
     : null;
   const expandedImageAlt = expandedImage
@@ -110,7 +110,10 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
     return (
       <div className="mb-2 space-y-2">
         {item.images.map((image, idx) => {
-          const src = image.type === "image_file" ? buildFileApiUrl(image.file_path) : image.url;
+          const src =
+            image.type === "image_file"
+              ? buildFileApiUrl(image.file_path, item.sessionId)
+              : image.url;
           const alt = image.type === "image_file" ? image.file_path : `image-${idx + 1}`;
           return (
             <button

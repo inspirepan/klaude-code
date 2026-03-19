@@ -47,7 +47,7 @@ function RichUIExtraBlock({
     );
   }
   if (isImageUIExtra(extra)) {
-    return <ImageResultView uiExtra={extra} compact={compact} />;
+    return <ImageResultView uiExtra={extra} compact={compact} sessionId={item.sessionId} />;
   }
   return null;
 }
