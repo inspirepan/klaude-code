@@ -71,17 +71,22 @@ def get_at_patterns_with_source(session: Session) -> list[AtPatternSource]:
     return patterns
 
 
-def get_skill_from_user_input(session: Session) -> str | None:
-    """Get explicit skill reference from last user input (first match wins)."""
+def get_skills_from_user_input(session: Session) -> list[str]:
+    """Get explicit skill references from last user input."""
     for item in reversed(session.conversation_history):
         if isinstance(item, message.ToolResultMessage):
-            return None
+            return []
         if isinstance(item, message.UserMessage):
             content = message.join_text_parts(item.parts)
+            seen: set[str] = set()
+            result: list[str] = []
             for m in SLASH_SKILL_PATTERN.finditer(content):
-                return m.group("skill")
-            return None
-    return None
+                name = m.group("skill")
+                if name not in seen:
+                    seen.add(name)
+                    result.append(name)
+            return result
+    return []
 
 
 def _is_tracked_file_unchanged(session: Session, path: str) -> bool:
@@ -329,45 +334,50 @@ async def image_reminder(session: Session) -> message.DeveloperMessage | None:
 
 
 async def skill_reminder(session: Session) -> message.DeveloperMessage | None:
-    """Load skill content when user references a skill with explicit skill syntax."""
-    skill_name = get_skill_from_user_input(session)
-    if not skill_name:
+    """Load skill content when user references skills with explicit skill syntax."""
+    skill_names = get_skills_from_user_input(session)
+    if not skill_names:
         return None
 
-    # Get the skill from skill module
-    skill = get_skill(skill_name)
-    if not skill:
-        return None
+    skill_blocks: list[str] = []
+    ui_items: list[model.DeveloperUIItem] = []
 
-    if not skill.skill_path.exists() or not skill.skill_path.is_file():
-        return None
+    for skill_name in skill_names:
+        skill = get_skill(skill_name)
+        if not skill:
+            continue
+        if not skill.skill_path.exists() or not skill.skill_path.is_file():
+            continue
+        skill_content = skill.skill_path.read_text(encoding="utf-8", errors="replace")
+        if not skill_content:
+            continue
 
-    skill_content = skill.skill_path.read_text(encoding="utf-8", errors="replace")
+        skill_path = str(skill.skill_path)
+        existing = session.file_tracker.get(skill_path)
+        session.file_tracker[skill_path] = model.FileStatus(
+            mtime=skill.skill_path.stat().st_mtime,
+            content_sha256=hash_text_sha256(skill_content),
+            is_memory=existing.is_memory if existing else False,
+        )
 
-    if not skill_content:
-        return None
-
-    skill_path = str(skill.skill_path)
-    existing = session.file_tracker.get(skill_path)
-    session.file_tracker[skill_path] = model.FileStatus(
-        mtime=skill.skill_path.stat().st_mtime,
-        content_sha256=hash_text_sha256(skill_content),
-        is_memory=existing.is_memory if existing else False,
-    )
-
-    content = f"""<system-reminder>The user activated the "{skill.name}" skill, prioritize this skill
+        skill_blocks.append(f"""The user activated the "{skill.name}" skill, prioritize this skill
 <skill>
 <name>{skill.name}</name>
 <location>{skill.skill_path}</location>
 <base_dir>{skill.base_dir}</base_dir>
 
 {skill_content}
-</skill>
-</system-reminder>"""
+</skill>""")
+        ui_items.append(model.SkillActivatedUIItem(name=skill.name))
+
+    if not skill_blocks:
+        return None
+
+    content = f"<system-reminder>{chr(10).join(skill_blocks)}\n</system-reminder>"
 
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(content),
-        ui_extra=model.DeveloperUIExtra(items=[model.SkillActivatedUIItem(name=skill.name)]),
+        ui_extra=model.DeveloperUIExtra(items=ui_items),
     )
 
 
