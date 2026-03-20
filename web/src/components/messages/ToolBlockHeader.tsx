@@ -36,7 +36,7 @@ export function ToolBlockHeader({
       <CollapseRailMarker open={open} expandable={expandable} indicatorClassName="mt-1" />
 
       {/* Col 2: tool name + detail */}
-      <div className="flex min-w-0 items-baseline gap-1.5">
+      <div className="flex min-h-6 min-w-0 items-center gap-1.5">
         <span className="whitespace-nowrap font-mono font-semibold text-neutral-600">
           {item.toolName}
         </span>
@@ -63,7 +63,7 @@ export function ToolBlockHeader({
           )
         ) : null}
         {item.isStreaming ? (
-          <Loader className="h-3 w-3 shrink-0 translate-y-[2.5px] animate-spin text-neutral-500" />
+          <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
         ) : null}
       </div>
     </>

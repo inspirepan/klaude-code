@@ -295,13 +295,13 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       (mainSessionStatus?.isComposing ?? false)) &&
       mainSessionStatus?.awaitingInput !== true);
 
-  const prevRunningRef = useRef(isMainSessionRunning);
-  useEffect(() => {
-    if (prevRunningRef.current && !isMainSessionRunning) {
+  const [prevRunning, setPrevRunning] = useState(isMainSessionRunning);
+  if (prevRunning !== isMainSessionRunning) {
+    setPrevRunning(isMainSessionRunning);
+    if (prevRunning && !isMainSessionRunning) {
       setCollapsedCollapseGroups({});
     }
-    prevRunningRef.current = isMainSessionRunning;
-  }, [isMainSessionRunning]);
+  }
 
   useEffect(() => {
     if (!hasActiveStatus) return;

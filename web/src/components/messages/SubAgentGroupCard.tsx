@@ -139,13 +139,13 @@ export function SubAgentGroupCard({
     return null;
   }, [expandedBlocks]);
 
-  const prevFinishedRef = useRef(isFinished);
-  useEffect(() => {
-    if (!prevFinishedRef.current && isFinished) {
+  const [prevFinished, setPrevFinished] = useState(isFinished);
+  if (prevFinished !== isFinished) {
+    setPrevFinished(isFinished);
+    if (!prevFinished && isFinished) {
       setCollapsedGroups({});
     }
-    prevFinishedRef.current = isFinished;
-  }, [isFinished]);
+  }
 
   const isCollapseGroupCollapsed = useCallback(
     (groupId: string): boolean => {
