@@ -43,10 +43,17 @@ class SubAgentExecutor:
         parent_session = parent_agent.session
 
         if state.fork_context:
-            # Exclude the trailing AssistantMessage that contains the in-flight Agent tool call;
-            # its tool_result has not been appended yet so including it would violate the
-            # tool_use/tool_result pairing requirement.
-            child_session = parent_session.fork(until_index=len(parent_session.conversation_history) - 1)
+            # Exclude the trailing AssistantMessage that contains the in-flight Agent tool call
+            # and any ToolResultMessages from concurrent tools that already completed.
+            # We cannot simply use len(history) - 1 because concurrent tool results may have
+            # been appended after the AssistantMessage, shifting the index.
+            history = parent_session.conversation_history
+            fork_index = len(history)
+            for i in range(len(history) - 1, -1, -1):
+                if isinstance(history[i], message.AssistantMessage):
+                    fork_index = i
+                    break
+            child_session = parent_session.fork(until_index=fork_index)
         else:
             child_session = Session(work_dir=parent_session.work_dir)
         child_session.sub_agent_state = state
