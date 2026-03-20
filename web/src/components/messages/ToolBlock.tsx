@@ -2,7 +2,7 @@ import { Loader } from "lucide-react";
 import { useState, useMemo, useRef, useEffect } from "react";
 
 import type { ToolBlockItem } from "../../types/message";
-import { COLLAPSE_RAIL_DURATION_MS, COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
+import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
 import { useCollapseAll } from "./collapse-all-context";
 import { useSearch } from "./search-context";
 import { TodoListView } from "./TodoListView";
@@ -132,7 +132,6 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
 
   const defaultExpanded = shouldExpandResult(item);
   const [open, setOpen] = useState(defaultExpanded);
-  const [headerDetailExpanded, setHeaderDetailExpanded] = useState(defaultExpanded);
   const [showMore, setShowMore] = useState(false);
   const isSearchMatch = matchItemIds.includes(item.id);
   const wasAutoExpanded = useRef(false);
@@ -158,19 +157,6 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
   useEffect(() => {
     if (expandGen > 0) setOpen(true);
   }, [expandGen]);
-
-  useEffect(() => {
-    if (open) {
-      setHeaderDetailExpanded(true);
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setHeaderDetailExpanded(false);
-    }, COLLAPSE_RAIL_DURATION_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [open]);
 
   // Auto-expand when streaming content starts arriving
   const hasStreamingContent = item.streamingContent.length > 0;
@@ -215,7 +201,6 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
         item={item}
         expandable={expandable}
         open={open}
-        detailExpanded={headerDetailExpanded}
         detail={detail}
         detailColor={detailColor}
         workDir={workDir}

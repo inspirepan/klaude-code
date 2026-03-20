@@ -1,6 +1,5 @@
 interface FilePathProps {
   path: string;
-  expanded?: boolean;
   workDir?: string;
   className?: string;
   truncateFromStart?: boolean;
@@ -35,14 +34,13 @@ function FilePathContent({ display }: { display: string }): JSX.Element {
 // All file path references should use this so click-to-open can be added in one place.
 export function FilePath({
   path,
-  expanded = false,
   workDir,
   className,
   truncateFromStart = false,
 }: FilePathProps): JSX.Element {
   const display = toDisplayPath(path, workDir);
 
-  if (!expanded && truncateFromStart) {
+  if (truncateFromStart) {
     return (
       <code
         className={`inline-block max-w-full truncate rounded bg-surface px-1.5 py-0.5 text-left align-middle font-mono text-base leading-5 [direction:rtl] ${className ?? ""}`}
@@ -55,7 +53,7 @@ export function FilePath({
 
   return (
     <code
-      className={`inline-block max-w-full rounded bg-surface px-1.5 py-0.5 align-middle font-mono text-base leading-5 ${expanded ? "whitespace-pre-wrap break-words" : "truncate"} ${className ?? ""}`}
+      className={`inline-block max-w-full truncate rounded bg-surface px-1.5 py-0.5 align-middle font-mono text-base leading-5 ${className ?? ""}`}
       title={path}
     >
       <FilePathContent display={display} />

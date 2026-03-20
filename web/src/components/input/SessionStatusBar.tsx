@@ -25,14 +25,6 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
   const [metaOpen, setMetaOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const isRunning =
-    runtime?.sessionState === "running" ||
-    (status?.taskActive === true &&
-      status.awaitingInput !== true &&
-      status.compacting !== true &&
-      status.thinkingActive !== true &&
-      status.isComposing !== true);
-
   const hasLiveStatus =
     status?.taskActive === true ||
     status?.awaitingInput === true ||
@@ -69,15 +61,11 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
       {statusLabel ? (
         <>
           {hasLiveStatus ? (
-            <Loader
-              className={`h-3.5 w-3.5 shrink-0 animate-spin ${isRunning ? "text-blue-500" : "text-neutral-500"}`}
-            />
+            <Loader className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-500" />
           ) : (
             <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-300" />
           )}
-          <span className={`truncate font-sans text-sm ${isRunning ? "text-blue-500" : ""}`}>
-            {statusLabel}
-          </span>
+          <span className="truncate font-sans text-sm">{statusLabel}</span>
         </>
       ) : null}
       {summaryParts.length > 0 ? (
@@ -105,14 +93,16 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
             <CircleHelp className="h-3 w-3" />
           </button>
           {metaOpen ? (
-            <div className="absolute bottom-full left-0 z-20 mb-2 min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
-              <div className="space-y-1.5 text-sm leading-5">
-                {metaRows.map((row) => (
-                  <div key={row.label} className="flex items-start justify-between gap-4">
-                    <span className="text-neutral-500">{row.label}</span>
-                    <span className="text-right font-sans text-neutral-600">{row.value}</span>
-                  </div>
-                ))}
+            <div className="absolute bottom-full left-0 z-20 pb-2">
+              <div className="min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
+                <div className="space-y-1.5 text-sm leading-5">
+                  {metaRows.map((row) => (
+                    <div key={row.label} className="flex items-start justify-between gap-4">
+                      <span className="text-neutral-500">{row.label}</span>
+                      <span className="text-right font-sans text-neutral-600">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           ) : null}

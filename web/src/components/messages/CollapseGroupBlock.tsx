@@ -1,4 +1,3 @@
-import { Loader } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { MessageItem as MessageItemType, DeveloperMessageItem } from "../../types/message";
@@ -10,7 +9,6 @@ import { DeveloperMessage } from "./DeveloperMessage";
 interface CollapseGroupBlockProps {
   items: MessageItemType[];
   collapsed: boolean;
-  showRunningSpinner: boolean;
   onToggle: () => void;
   activeItemId: string | null;
   copiedItemId: string | null;
@@ -484,7 +482,6 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
 export function CollapseGroupBlock({
   items,
   collapsed,
-  showRunningSpinner,
   onToggle,
   activeItemId,
   copiedItemId,
@@ -588,17 +585,6 @@ export function CollapseGroupBlock({
             })}
           </div>
         </div>
-        {showRunningSpinner ? (
-          <div className={`grid min-w-0 items-start ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME}`}>
-            <div className="flex justify-center">
-              <div className="flex flex-col items-center gap-1.5">
-                <div className="h-3 w-px bg-neutral-200" />
-                <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
-              </div>
-            </div>
-            <div aria-hidden="true" className="h-5" />
-          </div>
-        ) : null}
       </CollapseRailPanel>
     </div>
   );

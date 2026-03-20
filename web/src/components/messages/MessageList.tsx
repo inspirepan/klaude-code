@@ -295,6 +295,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       (mainSessionStatus?.isComposing ?? false)) &&
       mainSessionStatus?.awaitingInput !== true);
 
+  const [prevRunning, setPrevRunning] = useState(isMainSessionRunning);
+  if (prevRunning !== isMainSessionRunning) {
+    setPrevRunning(isMainSessionRunning);
+    if (prevRunning && !isMainSessionRunning) {
+      setCollapsedCollapseGroups({});
+    }
+  }
+
   useEffect(() => {
     if (!hasActiveStatus) return;
     setNowMs(Date.now());
@@ -537,25 +545,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     return map;
   }, [sectionBlocks]);
 
-  const lastCollapseGroupId = useMemo(() => {
-    let lastId: string | null = null;
-    let hasMessageAfterLastGroup = false;
-    for (const blocks of sectionBlocks) {
-      for (const block of blocks) {
-        if (block.type === "collapse_group") {
-          lastId = block.id;
-          hasMessageAfterLastGroup = false;
-        } else if (
-          block.type === "item" &&
-          (block.item.type === "user_message" ||
-            (block.item.type === "assistant_text" && block.item.content.trim().length > 0)) &&
-          lastId !== null
-        ) {
-          hasMessageAfterLastGroup = true;
-        }
-      }
+  const lastSectionCollapseGroupIds = useMemo(() => {
+    const lastSection = sectionBlocks[sectionBlocks.length - 1];
+    if (!lastSection) return new Set<string>();
+    const ids = new Set<string>();
+    for (const block of lastSection) {
+      if (block.type === "collapse_group") ids.add(block.id);
     }
-    return hasMessageAfterLastGroup ? null : lastId;
+    return ids;
   }, [sectionBlocks]);
 
   const activeGroupId =
@@ -626,10 +623,19 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       if (groupId in collapsedCollapseGroups) {
         return collapsedCollapseGroups[groupId];
       }
-      // Default: last group expanded, others collapsed
-      return groupId !== lastCollapseGroupId;
+      // While running, expand all groups in the current turn (last section)
+      if (isMainSessionRunning) {
+        return !lastSectionCollapseGroupIds.has(groupId);
+      }
+      return true;
     },
-    [activeItemId, collapseGroupIdByItemId, collapsedCollapseGroups, lastCollapseGroupId],
+    [
+      activeItemId,
+      collapseGroupIdByItemId,
+      collapsedCollapseGroups,
+      isMainSessionRunning,
+      lastSectionCollapseGroupIds,
+    ],
   );
   const nowSeconds = nowMs / 1000;
 
@@ -685,9 +691,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                 key={block.id}
                                 items={block.items}
                                 collapsed={collapsed}
-                                showRunningSpinner={
-                                  block.id === lastCollapseGroupId && isMainSessionRunning
-                                }
                                 onToggle={() => {
                                   setCollapsedCollapseGroups((prev) => ({
                                     ...prev,
@@ -764,7 +767,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                     ))}
                     <div
                       aria-hidden="true"
-                      className={hasStreamingAssistantText ? "h-12" : "h-0"}
+                      className={`transition-[height] duration-300 ease-out ${hasStreamingAssistantText ? "h-12" : "h-0"}`}
                     />
                   </>
                 ) : runtime?.wsState === "connecting" ? (
@@ -774,13 +777,16 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 ) : null}
               </div>
               <div
-                className="sticky z-10 mx-auto max-w-4xl px-4 sm:px-6"
+                className="sticky z-20 mx-auto max-w-4xl px-4 sm:px-6"
                 style={{ bottom: "calc(var(--composer-h, 10rem) - 1.5rem)" }}
               >
                 <SessionStatusBar status={mainSessionStatus} runtime={runtime} />
               </div>
               {/* Padding so content isn't hidden under the absolute positioned composer */}
-              <div className="shrink-0" style={{ height: "var(--composer-h, 10rem)" }} />
+              <div
+                className="shrink-0"
+                style={{ height: "calc(var(--composer-h, 10rem) - 1.5rem)" }}
+              />
             </div>
           </div>
           {showScrollToBottom ? (

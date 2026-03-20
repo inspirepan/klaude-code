@@ -1,5 +1,6 @@
 import { Loader } from "lucide-react";
 import type { ToolBlockItem } from "../../types/message";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { CollapseRailMarker } from "./CollapseRail";
 import { FilePath } from "./FilePath";
 import { HighlightText } from "./HighlightText";
@@ -10,7 +11,6 @@ interface ToolBlockHeaderProps {
   item: ToolBlockItem;
   expandable: boolean;
   open: boolean;
-  detailExpanded: boolean;
   detail: string;
   detailColor: string;
   workDir?: string;
@@ -22,7 +22,6 @@ export function ToolBlockHeader({
   item,
   expandable,
   open,
-  detailExpanded,
   detail,
   detailColor,
   workDir,
@@ -31,39 +30,43 @@ export function ToolBlockHeader({
 }: ToolBlockHeaderProps): JSX.Element {
   const isBash = item.toolName === "Bash";
 
+  const detailChip = detail ? (
+    FILE_PATH_TOOLS.has(item.toolName) ? (
+      <FilePath path={detail} workDir={workDir} className={headerDetailTextClass} />
+    ) : isBash ? (
+      <code
+        className={`inline-block max-w-full truncate ${headerDetailTextClass} ${detailChipClass} ${detailColor}`}
+      >
+        <HighlightText>{detail}</HighlightText>
+      </code>
+    ) : (
+      <span
+        className={`inline-block max-w-full truncate ${headerDetailTextClass} ${detailChipClass} ${detailColor}`}
+      >
+        <HighlightText>{detail}</HighlightText>
+      </span>
+    )
+  ) : null;
+
   return (
     <>
       <CollapseRailMarker open={open} expandable={expandable} indicatorClassName="mt-1" />
 
       {/* Col 2: tool name + detail */}
-      <div className="flex min-w-0 items-baseline gap-1.5">
+      <div className="flex min-h-6 min-w-0 items-center gap-1.5">
         <span className="whitespace-nowrap font-mono font-semibold text-neutral-600">
           {item.toolName}
         </span>
-        {detail ? (
-          FILE_PATH_TOOLS.has(item.toolName) ? (
-            <FilePath
-              path={detail}
-              expanded={detailExpanded}
-              workDir={workDir}
-              className={headerDetailTextClass}
-            />
-          ) : isBash ? (
-            <code
-              className={`inline-block max-w-full ${headerDetailTextClass} ${detailChipClass} ${detailExpanded ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}
-            >
-              <HighlightText>{detail}</HighlightText>
-            </code>
-          ) : (
-            <span
-              className={`inline-block max-w-full ${headerDetailTextClass} ${detailChipClass} ${detailExpanded ? "whitespace-pre-wrap break-words" : "truncate"} ${detailColor}`}
-            >
-              <HighlightText>{detail}</HighlightText>
-            </span>
-          )
+        {detailChip ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="min-w-0">{detailChip}</span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-md break-all font-mono">{detail}</TooltipContent>
+          </Tooltip>
         ) : null}
         {item.isStreaming ? (
-          <Loader className="mt-1 h-3 w-3 shrink-0 animate-spin text-neutral-500" />
+          <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
         ) : null}
       </div>
     </>

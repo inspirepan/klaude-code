@@ -102,6 +102,7 @@ export function LeftSidebar(): JSX.Element {
   const archivedMenuRef = useRef<HTMLDivElement | null>(null);
   const archiveUndoTimeoutRef = useRef<number | null>(null);
   const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
+  const prevCompletionTimestampsRef = useRef(recentCompletionStartedAtBySessionId);
 
   useEffect(() => {
     return () => {
@@ -254,6 +255,24 @@ export function LeftSidebar(): JSX.Element {
       .map(([work_dir, sessions]) => ({ work_dir, sessions }))
       .sort((a, b) => a.work_dir.localeCompare(b.work_dir));
   }, [doneSessions]);
+
+  // Auto-expand collapsed "Done" groups when a session inside them completes
+  useEffect(() => {
+    const prev = prevCompletionTimestampsRef.current;
+    prevCompletionTimestampsRef.current = recentCompletionStartedAtBySessionId;
+
+    for (const group of doneGroups) {
+      if (!(collapsedByWorkDir[group.work_dir] ?? false)) continue;
+
+      for (const session of group.sessions) {
+        const ts = recentCompletionStartedAtBySessionId[session.id];
+        if (ts !== undefined && prev[session.id] !== ts) {
+          toggleGroup(group.work_dir);
+          break;
+        }
+      }
+    }
+  }, [recentCompletionStartedAtBySessionId, doneGroups, collapsedByWorkDir, toggleGroup]);
 
   const archiveCleanupEligibleCount = useMemo(() => {
     const cutoff = Date.now() / 1000 - ARCHIVE_CLEANUP_AGE_SECONDS;
@@ -434,19 +453,19 @@ export function LeftSidebar(): JSX.Element {
               {archiveCleanupConfirmOpen ? (
                 <div
                   ref={archiveCleanupContentRef}
-                  className="absolute right-3 top-full z-40 mt-2 w-56 rounded-md border border-neutral-200 bg-white px-6 py-2 text-xs leading-4 text-neutral-700 shadow-sm"
+                  className="absolute right-3 top-full z-40 mt-2 w-56 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 shadow-sm"
                 >
                   <div className="space-y-2">
-                    <div className="text-xs font-medium text-neutral-800">
+                    <div className="text-sm font-medium text-neutral-800">
                       Archive {archiveCleanupEligibleCount} sessions?
                     </div>
-                    <div className="text-xs text-neutral-500">
+                    <div className="text-sm text-neutral-500">
                       Archive sessions older than 3 days or with no diff.
                     </div>
                     <div className="flex justify-end gap-1.5">
                       <button
                         type="button"
-                        className="rounded-md px-2 py-1 text-xs text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
+                        className="rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                         onClick={() => {
                           setArchiveCleanupConfirmOpen(false);
                         }}
@@ -455,7 +474,7 @@ export function LeftSidebar(): JSX.Element {
                       </button>
                       <button
                         type="button"
-                        className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-muted hover:text-neutral-900"
+                        className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm font-medium text-neutral-700 transition-colors hover:bg-muted hover:text-neutral-900"
                         onClick={handleConfirmArchiveCleanup}
                       >
                         Archive

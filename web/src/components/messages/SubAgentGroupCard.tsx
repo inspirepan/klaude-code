@@ -120,6 +120,10 @@ export function SubAgentGroupCard({
   const contentRef = useRef<HTMLDivElement>(null);
   const contentInnerRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
+  const collapsedRef = useRef(collapsed);
+  useEffect(() => {
+    collapsedRef.current = collapsed;
+  }, [collapsed]);
 
   const toolItems = items.filter(isToolBlock);
   const activityText = getSessionActivityText(status);
@@ -127,13 +131,21 @@ export function SubAgentGroupCard({
   const metaRows = getSessionMetaRows(status, nowSeconds);
 
   const expandedBlocks = useMemo(() => groupItemsIntoBlocks(items), [items]);
+
   const lastCollapseGroupId = useMemo(() => {
     for (let i = expandedBlocks.length - 1; i >= 0; i--) {
-      const block = expandedBlocks[i];
-      if (block?.type === "collapse_group") return block.id;
+      if (expandedBlocks[i]?.type === "collapse_group") return expandedBlocks[i]!.id;
     }
     return null;
   }, [expandedBlocks]);
+
+  const [prevFinished, setPrevFinished] = useState(isFinished);
+  if (prevFinished !== isFinished) {
+    setPrevFinished(isFinished);
+    if (!prevFinished && isFinished) {
+      setCollapsedGroups({});
+    }
+  }
 
   const isCollapseGroupCollapsed = useCallback(
     (groupId: string): boolean => {
@@ -151,9 +163,13 @@ export function SubAgentGroupCard({
       if (groupId in collapsedGroups) {
         return collapsedGroups[groupId]!;
       }
+      // While running, keep the last (newest) group expanded; otherwise all collapsed
+      if (!isFinished) {
+        return groupId !== lastCollapseGroupId;
+      }
       return true;
     },
-    [activeItemId, collapsedGroups, expandedBlocks],
+    [activeItemId, collapsedGroups, expandedBlocks, isFinished, lastCollapseGroupId],
   );
 
   useEffect(() => {
@@ -163,6 +179,14 @@ export function SubAgentGroupCard({
 
     const updateOverflow = (): void => {
       setHasCollapsedOverflow(el.scrollHeight > COLLAPSED_HEIGHT + 1);
+      // Keep height in sync while collapsed: as items stream in, the content
+      // area should grow up to COLLAPSED_HEIGHT, then stay capped there.
+      if (collapsedRef.current && el.style.height !== "auto") {
+        const target = `${Math.min(el.scrollHeight, COLLAPSED_HEIGHT)}px`;
+        if (el.style.height !== target) {
+          el.style.height = target;
+        }
+      }
     };
 
     updateOverflow();
@@ -178,8 +202,8 @@ export function SubAgentGroupCard({
 
     if (!mountedRef.current) {
       mountedRef.current = true;
-      if (collapsed && el.scrollHeight > COLLAPSED_HEIGHT) {
-        el.style.height = `${COLLAPSED_HEIGHT}px`;
+      if (collapsed) {
+        el.style.height = `${Math.min(el.scrollHeight, COLLAPSED_HEIGHT)}px`;
       }
       return;
     }
@@ -210,7 +234,6 @@ export function SubAgentGroupCard({
           key={block.id}
           items={block.items}
           collapsed={cgCollapsed}
-          showRunningSpinner={!collapsed && block.id === lastCollapseGroupId && !isFinished}
           onToggle={
             collapsed
               ? onToggleCollapsed
