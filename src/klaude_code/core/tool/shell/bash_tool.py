@@ -322,6 +322,7 @@ class BashTool(ToolABC):
                     "stdout": stdout_tmp,
                     "stderr": stderr_tmp,
                     "env": env,
+                    "cwd": str(context.work_dir),
                 }
                 if os.name == "posix":
                     kwargs["start_new_session"] = True
