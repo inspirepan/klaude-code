@@ -16,7 +16,9 @@ def _resolve_web_server_entrypoint() -> tuple[Callable[..., Awaitable[None]], ty
         if exc.name in {"fastapi", "uvicorn"}:
             log(
                 (
-                    "Web dependencies are missing. Install with: uv sync",
+                    f"Web dependency '{exc.name}' is missing.\n"
+                    "  If installed from PyPI : uv tool upgrade klaude-code\n"
+                    "  If installed from source: uv sync && make build-web",
                     "red",
                 )
             )

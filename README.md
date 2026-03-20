@@ -35,6 +35,25 @@ Or use the built-in command:
 klaude upgrade
 ```
 
+### Development Install
+
+```bash
+git clone https://github.com/inspirepan/klaude-code.git
+cd klaude-code
+make install    # init submodules, build web frontend, install as editable
+```
+
+Or step by step:
+
+```bash
+git submodule update --init --recursive
+uv sync                              # install Python deps
+uv run python scripts/build_web.py   # build web frontend
+uv tool install -e .                 # install CLI globally (editable)
+```
+
+Requires `pnpm` for the web frontend build.
+
 ## Usage
 
 ```bash
