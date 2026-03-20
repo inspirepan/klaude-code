@@ -796,6 +796,163 @@ class TestForkSessionCommand:
         arun(_test())
 
 
+class TestStripDanglingToolCalls:
+    """Tests for Session._strip_dangling_tool_calls."""
+
+    def test_no_dangling_calls_unchanged(self):
+        items: list[message.HistoryEvent] = [
+            message.UserMessage(parts=message.text_parts_from_str("hi")),
+            message.AssistantMessage(
+                parts=[
+                    message.TextPart(text="calling tool"),
+                    message.ToolCallPart(call_id="c1", tool_name="Bash", arguments_json="{}"),
+                ]
+            ),
+            message.ToolResultMessage(call_id="c1", tool_name="Bash", status="success", output_text="ok"),
+        ]
+        result = Session._strip_dangling_tool_calls(items)
+        assert len(result) == 3
+        assert isinstance(result[1], message.AssistantMessage)
+        tool_calls = [p for p in result[1].parts if isinstance(p, message.ToolCallPart)]
+        assert len(tool_calls) == 1
+
+    def test_trailing_assistant_with_only_dangling_calls_dropped(self):
+        items: list[message.HistoryEvent] = [
+            message.UserMessage(parts=message.text_parts_from_str("hi")),
+            message.AssistantMessage(
+                parts=[
+                    message.ToolCallPart(call_id="c1", tool_name="Agent", arguments_json="{}"),
+                ]
+            ),
+        ]
+        result = Session._strip_dangling_tool_calls(items)
+        # AssistantMessage with only a dangling tool_call should be dropped entirely
+        assert len(result) == 1
+        assert isinstance(result[0], message.UserMessage)
+
+    def test_trailing_assistant_keeps_text_strips_dangling_calls(self):
+        items: list[message.HistoryEvent] = [
+            message.UserMessage(parts=message.text_parts_from_str("hi")),
+            message.AssistantMessage(
+                parts=[
+                    message.TextPart(text="Let me explore"),
+                    message.ToolCallPart(call_id="c1", tool_name="Agent", arguments_json="{}"),
+                    message.ToolCallPart(call_id="c2", tool_name="Bash", arguments_json="{}"),
+                ]
+            ),
+            message.ToolResultMessage(call_id="c2", tool_name="Bash", status="success", output_text="ok"),
+        ]
+        result = Session._strip_dangling_tool_calls(items)
+        assert len(result) == 3
+        assistant = result[1]
+        assert isinstance(assistant, message.AssistantMessage)
+        # Text part + matched tool call kept; dangling c1 stripped
+        assert len(assistant.parts) == 2
+        assert isinstance(assistant.parts[0], message.TextPart)
+        tc = assistant.parts[1]
+        assert isinstance(tc, message.ToolCallPart)
+        assert tc.call_id == "c2"
+
+    def test_concurrent_tools_partial_completion(self):
+        """Simulate fork_context scenario: AssistantMessage with 4 tool calls,
+        only some have results (concurrent tools where some finished first)."""
+        items: list[message.HistoryEvent] = [
+            message.UserMessage(parts=message.text_parts_from_str("analyze repo")),
+            message.AssistantMessage(
+                parts=[
+                    message.TextPart(text="I'll analyze the repo"),
+                    message.ToolCallPart(call_id="agent1", tool_name="Agent", arguments_json='{"fork_context":true}'),
+                    message.ToolCallPart(call_id="agent2", tool_name="Agent", arguments_json='{"fork_context":true}'),
+                    message.ToolCallPart(call_id="bash1", tool_name="Bash", arguments_json='{"command":"ls"}'),
+                ]
+            ),
+            message.ToolResultMessage(call_id="bash1", tool_name="Bash", status="success", output_text="file1\nfile2"),
+        ]
+        result = Session._strip_dangling_tool_calls(items)
+        assert len(result) == 3
+        assistant = result[1]
+        assert isinstance(assistant, message.AssistantMessage)
+        # text + bash1 kept; agent1 and agent2 stripped
+        tool_calls = [p for p in assistant.parts if isinstance(p, message.ToolCallPart)]
+        assert len(tool_calls) == 1
+        assert tool_calls[0].call_id == "bash1"
+        text_parts = [p for p in assistant.parts if isinstance(p, message.TextPart)]
+        assert len(text_parts) == 1
+
+    def test_empty_history(self):
+        result = Session._strip_dangling_tool_calls([])
+        assert result == []
+
+    def test_non_assistant_messages_pass_through(self):
+        items: list[message.HistoryEvent] = [
+            message.UserMessage(parts=message.text_parts_from_str("hi")),
+            message.DeveloperMessage(parts=[message.TextPart(text="system info")]),
+        ]
+        result = Session._strip_dangling_tool_calls(items)
+        assert len(result) == 2
+
+    def test_thinking_parts_preserved_when_tool_calls_stripped(self):
+        items: list[message.HistoryEvent] = [
+            message.UserMessage(parts=message.text_parts_from_str("think")),
+            message.AssistantMessage(
+                parts=[
+                    message.ThinkingTextPart(text="Let me think about this..."),
+                    message.TextPart(text="Here's my plan"),
+                    message.ToolCallPart(call_id="c1", tool_name="Agent", arguments_json="{}"),
+                ]
+            ),
+        ]
+        result = Session._strip_dangling_tool_calls(items)
+        assert len(result) == 2
+        assistant = result[1]
+        assert isinstance(assistant, message.AssistantMessage)
+        assert len(assistant.parts) == 2
+        assert isinstance(assistant.parts[0], message.ThinkingTextPart)
+        assert isinstance(assistant.parts[1], message.TextPart)
+
+
+class TestGetLlmHistoryDanglingToolCalls:
+    """Integration tests: get_llm_history strips dangling tool calls."""
+
+    def test_get_llm_history_strips_trailing_dangling_calls(self, tmp_path: Path):
+        session = Session(work_dir=tmp_path)
+        session.conversation_history = [
+            message.UserMessage(parts=message.text_parts_from_str("hello")),
+            message.AssistantMessage(
+                parts=[
+                    message.TextPart(text="I'll run some tools"),
+                    message.ToolCallPart(call_id="c1", tool_name="Agent", arguments_json="{}"),
+                    message.ToolCallPart(call_id="c2", tool_name="Bash", arguments_json="{}"),
+                ]
+            ),
+            message.ToolResultMessage(call_id="c2", tool_name="Bash", status="success", output_text="ok"),
+        ]
+        result = session.get_llm_history()
+        assert len(result) == 3
+        assistant = result[1]
+        assert isinstance(assistant, message.AssistantMessage)
+        tool_calls = [p for p in assistant.parts if isinstance(p, message.ToolCallPart)]
+        assert len(tool_calls) == 1
+        assert tool_calls[0].call_id == "c2"
+
+    def test_get_llm_history_no_dangling_no_change(self, tmp_path: Path):
+        session = Session(work_dir=tmp_path)
+        session.conversation_history = [
+            message.UserMessage(parts=message.text_parts_from_str("hello")),
+            message.AssistantMessage(
+                parts=[
+                    message.ToolCallPart(call_id="c1", tool_name="Bash", arguments_json="{}"),
+                ]
+            ),
+            message.ToolResultMessage(call_id="c1", tool_name="Bash", status="success", output_text="ok"),
+        ]
+        result = session.get_llm_history()
+        assert len(result) == 3
+        assistant = result[1]
+        assert isinstance(assistant, message.AssistantMessage)
+        assert len([p for p in assistant.parts if isinstance(p, message.ToolCallPart)]) == 1
+
+
 class TestSessionMetaBrief:
     """Tests for Session.SessionMetaBrief model."""
 

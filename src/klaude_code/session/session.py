@@ -415,6 +415,39 @@ class Session(BaseModel):
         self._user_messages_cache = None
         return entry
 
+    @staticmethod
+    def _strip_dangling_tool_calls(items: list[message.HistoryEvent]) -> list[message.HistoryEvent]:
+        """Remove tool_call parts from AssistantMessages that have no matching ToolResultMessage.
+
+        This guards against forked/interrupted histories where an AssistantMessage
+        contains tool_use blocks whose tool_result was never appended.  All major LLM
+        APIs require every tool_use to have a paired tool_result.
+        """
+        answered_call_ids: set[str] = {it.call_id for it in items if isinstance(it, message.ToolResultMessage)}
+
+        result: list[message.HistoryEvent] = []
+        for item in items:
+            if not isinstance(item, message.AssistantMessage):
+                result.append(item)
+                continue
+
+            has_dangling = any(
+                isinstance(p, message.ToolCallPart) and p.call_id not in answered_call_ids for p in item.parts
+            )
+            if not has_dangling:
+                result.append(item)
+                continue
+
+            kept_parts = [
+                p for p in item.parts if not isinstance(p, message.ToolCallPart) or p.call_id in answered_call_ids
+            ]
+            # Drop the message entirely if nothing meaningful remains.
+            if not kept_parts:
+                continue
+            result.append(item.model_copy(update={"parts": kept_parts}))
+
+        return result
+
     def get_llm_history(self) -> list[message.HistoryEvent]:
         """Return the LLM-facing history view with compaction summary injected."""
         history = self.conversation_history
@@ -436,7 +469,8 @@ class Session(BaseModel):
                 last_compaction = item
                 break
         if last_compaction is None:
-            return [_convert(it) for it in history if not isinstance(it, message.CompactionEntry)]
+            result = [_convert(it) for it in history if not isinstance(it, message.CompactionEntry)]
+            return self._strip_dangling_tool_calls(result)
 
         summary_message = message.UserMessage(parts=[message.TextPart(text=last_compaction.summary)])
         kept = [it for it in history[last_compaction.first_kept_index :] if not isinstance(it, message.CompactionEntry)]
@@ -449,7 +483,8 @@ class Session(BaseModel):
                 first_non_tool += 1
             kept = kept[first_non_tool:]
 
-        return [summary_message, *[_convert(it) for it in kept]]
+        result = [summary_message, *[_convert(it) for it in kept]]
+        return self._strip_dangling_tool_calls(result)
 
     def fork(self, *, new_id: str | None = None, until_index: int | None = None) -> Session:
         """Create a new session as a fork of the current session.
