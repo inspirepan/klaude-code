@@ -35,6 +35,9 @@ klaude-code = "klaude_code.cli.main:app"
 
 [tool.uv.build-backend]
 module-name = "klaude_code"
+# web/dist is gitignored by the generic `dist/` pattern; force-include so
+# sdist (and wheels built from sdist) still contain the pre-built frontend.
+source-include = ["src/klaude_code/web/dist/**"]
 
 [dependency-groups]
 dev = [
