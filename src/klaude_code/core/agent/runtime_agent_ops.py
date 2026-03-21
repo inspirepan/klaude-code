@@ -565,6 +565,60 @@ class AgentOperationHandler:
             )
         )
 
+    async def fork_and_switch_session(
+        self, session_id: str, new_session_id: str, original_session_short_id: str
+    ) -> None:
+        """Switch the active session to an already-forked session and replay its history."""
+        agent = await self.ensure_agent(session_id)
+        old_session_id = agent.session.id
+        old_runtime = self._get_session_actor(old_session_id)
+        if old_runtime is None:
+            raise RuntimeError(f"Missing runtime for session {old_session_id}")
+        session_clients = self.get_session_llm_clients(old_session_id)
+
+        new_session = Session.load(new_session_id, work_dir=agent.session.work_dir)
+
+        new_agent = Agent(
+            session=new_session,
+            profile=self._model_profile_provider.build_profile(session_clients.main, work_dir=new_session.work_dir),
+            compact_llm_client=session_clients.compact,
+            request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
+        )
+
+        old_holder_key = old_runtime.get_holder_key()
+
+        old_runtime.clear_execution_state()
+        new_runtime = self._ensure_session_actor(new_session.id)
+        new_runtime.set_llm_clients(session_clients)
+        new_runtime.set_agent(new_agent)
+        if self._primary_session_id == old_session_id:
+            self._primary_session_id = new_session.id
+
+        if old_holder_key is not None:
+            new_runtime.try_acquire_holder(old_holder_key)
+
+        await self._emit_event(
+            events.WelcomeEvent(
+                session_id=new_agent.session.id,
+                work_dir=str(new_agent.session.work_dir),
+                llm_config=session_clients.main.get_llm_config(),
+                title=new_agent.session.title,
+                loaded_skills=get_loaded_skill_names_by_location(),
+                loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
+                loaded_memories=get_existing_memory_paths_by_location(work_dir=new_agent.session.work_dir),
+            )
+        )
+
+        async for evt in new_agent.replay_history():
+            await self._emit_event(evt)
+
+        await self._emit_event(
+            events.NoticeEvent(
+                session_id=new_agent.session.id,
+                content=f"Forked session active. To switch back: `klaude -r {original_session_short_id}`",
+            )
+        )
+
     async def interrupt(self, session_id: str) -> None:
         runtime = self._get_session_actor(session_id)
         if runtime is None:
@@ -779,6 +833,11 @@ class AgentRunner:
 
     async def clear_session(self, session_id: str) -> None:
         await self._operation_handler.clear_session(session_id)
+
+    async def fork_and_switch_session(
+        self, session_id: str, new_session_id: str, original_session_short_id: str
+    ) -> None:
+        await self._operation_handler.fork_and_switch_session(session_id, new_session_id, original_session_short_id)
 
     async def interrupt(self, session_id: str) -> None:
         await self._operation_handler.interrupt(session_id)

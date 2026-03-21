@@ -11,7 +11,7 @@ from typing import Any, NoReturn
 import pytest
 from typer.testing import CliRunner
 
-from klaude_code.protocol import events, llm_param, message, model
+from klaude_code.protocol import events, llm_param, message, model, op
 from klaude_code.session.session import Session, close_default_store
 from klaude_code.session.store import JsonlSessionWriter, build_meta_snapshot
 
@@ -706,15 +706,15 @@ class TestForkSessionCommand:
             agent = _ForkSessionDummyAgent(session)
             result = await cmd.run(agent, message.UserInputPayload(text=""))
 
-            assert result.events is not None
-            assert len(result.events) == 1
-            assert isinstance(result.events[0], events.NoticeEvent)
-            assert "Session forked" in result.events[0].content
-
-            assert isinstance(result.events[0].ui_extra, model.SessionIdUIExtra)
-            new_id = result.events[0].ui_extra.session_id
+            assert result.operations is not None
+            assert len(result.operations) == 1
+            fork_op = result.operations[0]
+            assert isinstance(fork_op, op.ForkAndSwitchSessionOperation)
+            assert fork_op.session_id == session.id
+            new_id = fork_op.new_session_id
             assert new_id
             assert new_id != session.id
+            assert fork_op.original_session_short_id
 
             assert Session.exists(new_id, work_dir=project_dir)
             forked = Session.load(new_id, work_dir=project_dir)

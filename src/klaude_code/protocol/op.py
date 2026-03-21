@@ -38,6 +38,7 @@ class OperationType(Enum):
     REQUEST_SUB_AGENT_MODEL = "request_sub_agent_model"
     GET_SESSION_STATS = "get_session_stats"
     CLEAR_SESSION = "clear_session"
+    FORK_AND_SWITCH_SESSION = "fork_and_switch_session"
     INTERRUPT = "interrupt"
     CLOSE_SESSION = "close_session"
     USER_INTERACTION_RESPOND = "user_interaction_respond"
@@ -222,6 +223,18 @@ class ClearSessionOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_clear_session(self)
+
+
+class ForkAndSwitchSessionOperation(Operation):
+    """Operation for switching to an already-forked session."""
+
+    type: OperationType = OperationType.FORK_AND_SWITCH_SESSION
+    session_id: str
+    new_session_id: str
+    original_session_short_id: str
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_fork_and_switch_session(self)
 
 
 class InterruptOperation(Operation):
