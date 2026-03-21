@@ -1,4 +1,10 @@
-import type { DeveloperUIItem, MessageImagePart, MessageItem } from "../types/message";
+import type {
+  DeveloperUIItem,
+  MessageImagePart,
+  MessageItem,
+  TaskMetadataAgent,
+  TaskMetadataUsage,
+} from "../types/message";
 
 export interface SessionStatusState {
   sessionId: string;
@@ -126,6 +132,51 @@ const WORKED_LINE_TURN_COUNT_THRESHOLD = 4;
 const DEFAULT_MAX_TOKENS = 32000;
 function parseFiniteNumber(raw: unknown): number | null {
   return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+}
+
+function parseTaskMetadataUsage(raw: unknown): TaskMetadataUsage | null {
+  if (raw === null || typeof raw !== "object") return null;
+  const u = raw as Record<string, unknown>;
+  const inputTokens = parseFiniteNumber(u.input_tokens) ?? 0;
+  const cachedTokens = parseFiniteNumber(u.cached_tokens) ?? 0;
+  const cacheWriteTokens = parseFiniteNumber(u.cache_write_tokens) ?? 0;
+  const outputTokens = parseFiniteNumber(u.output_tokens) ?? 0;
+  const reasoningTokens = parseFiniteNumber(u.reasoning_tokens) ?? 0;
+  const inputCost = parseFiniteNumber(u.input_cost);
+  const outputCost = parseFiniteNumber(u.output_cost);
+  const cacheReadCost = parseFiniteNumber(u.cache_read_cost);
+  const costs = [inputCost, outputCost, cacheReadCost].filter((c) => c !== null) as number[];
+  const totalCost = costs.length > 0 ? costs.reduce((a, b) => a + b, 0) : null;
+  return {
+    inputTokens,
+    cachedTokens,
+    cacheWriteTokens,
+    outputTokens,
+    reasoningTokens,
+    totalCost,
+    currency: typeof u.currency === "string" ? u.currency : "USD",
+    contextPercent: parseFiniteNumber(u.context_usage_percent),
+    throughputTps: parseFiniteNumber(u.throughput_tps),
+    cacheHitRate: parseFiniteNumber(u.cache_hit_rate),
+  };
+}
+
+function parseTaskMetadataAgent(raw: Record<string, unknown>): TaskMetadataAgent {
+  return {
+    modelName: typeof raw.model_name === "string" ? raw.model_name : "",
+    provider: typeof raw.provider === "string" ? raw.provider : null,
+    subAgentName: typeof raw.sub_agent_name === "string" ? raw.sub_agent_name : null,
+    usage: parseTaskMetadataUsage(raw.usage),
+    durationSeconds: parseFiniteNumber(raw.task_duration_s),
+    turnCount: Math.max(0, Math.floor(parseFiniteNumber(raw.turn_count) ?? 0)),
+  };
+}
+
+function parseSubAgents(raw: unknown): TaskMetadataAgent[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item) => item !== null && typeof item === "object")
+    .map((item) => parseTaskMetadataAgent(item as Record<string, unknown>));
 }
 
 function getSessionStatus(state: ReducerState, sessionId: string): SessionStatusState {
@@ -734,34 +785,44 @@ export function reduceEvent(
       const mainAgent = (metadata as Record<string, unknown>).main_agent;
       if (mainAgent === null || typeof mainAgent !== "object") return currentState;
 
-      const durationSeconds = parseFiniteNumber(
-        (mainAgent as Record<string, unknown>).task_duration_s,
-      );
-      if (durationSeconds === null) return currentState;
-
-      const turnCountRaw = parseFiniteNumber((mainAgent as Record<string, unknown>).turn_count);
+      const mainAgentRec = mainAgent as Record<string, unknown>;
+      const durationSeconds = parseFiniteNumber(mainAgentRec.task_duration_s);
+      const turnCountRaw = parseFiniteNumber(mainAgentRec.turn_count);
       const turnCount = Math.max(0, Math.floor(turnCountRaw ?? 0));
-      const shouldShowWorkedLine =
-        durationSeconds > WORKED_LINE_DURATION_THRESHOLD_S ||
-        turnCount > WORKED_LINE_TURN_COUNT_THRESHOLD;
-      if (!shouldShowWorkedLine) return currentState;
 
-      const id = makeId(currentState);
-      return {
-        ...currentState,
-        items: [
-          ...currentState.items,
-          {
-            id,
+      const newItems: MessageItem[] = [...currentState.items];
+      let nextId = currentState.nextId;
+
+      // "Worked for ..." line for long tasks
+      if (durationSeconds !== null) {
+        const shouldShowWorkedLine =
+          durationSeconds > WORKED_LINE_DURATION_THRESHOLD_S ||
+          turnCount > WORKED_LINE_TURN_COUNT_THRESHOLD;
+        if (shouldShowWorkedLine) {
+          newItems.push({
+            id: `msg-${nextId}`,
             type: "task_worked",
             timestamp: ts,
             sessionId: sourceSessionId,
             durationSeconds: Math.max(0, durationSeconds),
             turnCount,
-          },
-        ],
-        nextId: currentState.nextId + 1,
-      };
+          });
+          nextId += 1;
+        }
+      }
+
+      // Always emit task_metadata
+      newItems.push({
+        id: `msg-${nextId}`,
+        type: "task_metadata",
+        timestamp: ts,
+        sessionId: sourceSessionId,
+        mainAgent: parseTaskMetadataAgent(mainAgentRec),
+        subAgents: parseSubAgents((metadata as Record<string, unknown>).sub_agent_task_metadata),
+      });
+      nextId += 1;
+
+      return { ...currentState, items: newItems, nextId };
     }
 
     case "user.message": {

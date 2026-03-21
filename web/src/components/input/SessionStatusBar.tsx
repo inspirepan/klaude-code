@@ -1,13 +1,9 @@
-import { CircleHelp, Loader } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Loader } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import type { SessionStatusState } from "../../stores/event-reducer";
 import type { SessionRuntimeState } from "../../types/session";
-import {
-  getSessionActivityText,
-  getSessionMetaRows,
-  getSessionSummaryParts,
-} from "../messages/message-list-ui";
+import { getSessionActivityText, formatElapsed } from "../messages/message-list-ui";
 
 interface SessionStatusBarProps {
   status: SessionStatusState | null;
@@ -22,7 +18,6 @@ function getRuntimeStatusLabel(runtime: SessionRuntimeState | null): string | nu
 }
 
 export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JSX.Element | null {
-  const [metaOpen, setMetaOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const hasLiveStatus =
@@ -46,67 +41,34 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
 
   const nowSeconds = nowMs / 1000;
   const statusLabel = getSessionActivityText(status) ?? getRuntimeStatusLabel(runtime);
-  const summaryParts = useMemo(
-    () => getSessionSummaryParts(status, nowSeconds),
-    [nowSeconds, status],
-  );
-  const metaRows = useMemo(() => getSessionMetaRows(status, nowSeconds), [nowSeconds, status]);
+  const elapsed =
+    status?.taskStartedAt !== null &&
+    status?.taskStartedAt !== undefined &&
+    (status?.taskActive || status?.awaitingInput || status?.compacting)
+      ? formatElapsed(nowSeconds - status.taskStartedAt)
+      : null;
 
-  if (statusLabel === null && summaryParts.length === 0 && metaRows.length === 0) {
+  if (statusLabel === null && elapsed === null) {
     return null;
   }
 
   return (
-    <div className="pointer-events-auto inline-flex w-fit max-w-full items-center gap-2.5 rounded-full bg-white px-3 py-1.5 text-neutral-500 shadow-sm ring-1 ring-black/5">
+    <div className="flex items-center gap-2 pt-0.5 text-neutral-400">
       {statusLabel ? (
         <>
           {hasLiveStatus ? (
-            <Loader className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-500" />
+            <Loader className="h-4 w-4 shrink-0 animate-spin" />
           ) : (
-            <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-300" />
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-300" />
           )}
-          <span className="truncate font-sans text-sm">{statusLabel}</span>
+          <span className="truncate font-sans text-base">{statusLabel}</span>
         </>
       ) : null}
-      {summaryParts.length > 0 ? (
-        <div className="ml-2 flex flex-wrap items-center gap-y-1 font-sans text-xs text-neutral-500">
-          {summaryParts.map((part, i) => (
-            <span key={part} className="flex items-center">
-              {i > 0 ? <span className="mx-1.5 text-neutral-300">·</span> : null}
-              {part}
-            </span>
-          ))}
-        </div>
-      ) : null}
-      {metaRows.length > 0 ? (
-        <div
-          className="relative ml-1"
-          onMouseEnter={() => setMetaOpen(true)}
-          onMouseLeave={() => setMetaOpen(false)}
-        >
-          <button
-            type="button"
-            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-200 hover:text-neutral-600"
-            aria-label="Show session metadata"
-            onClick={() => setMetaOpen((current) => !current)}
-          >
-            <CircleHelp className="h-3 w-3" />
-          </button>
-          {metaOpen ? (
-            <div className="absolute bottom-full left-0 z-20 pb-2">
-              <div className="min-w-[180px] rounded-xl border border-neutral-200/80 bg-white p-3 shadow-lg shadow-neutral-200/60">
-                <div className="space-y-1.5 text-sm leading-5">
-                  {metaRows.map((row) => (
-                    <div key={row.label} className="flex items-start justify-between gap-4">
-                      <span className="text-neutral-500">{row.label}</span>
-                      <span className="text-right font-sans text-neutral-600">{row.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </div>
+      {elapsed ? (
+        <span className="font-sans text-base">
+          {statusLabel ? <span className="mr-2 text-neutral-300">&middot;</span> : null}
+          {elapsed}
+        </span>
       ) : null}
     </div>
   );

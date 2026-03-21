@@ -133,6 +133,37 @@ export interface TaskWorkedItem {
   turnCount: number;
 }
 
+export interface TaskMetadataUsage {
+  inputTokens: number;
+  cachedTokens: number;
+  cacheWriteTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  totalCost: number | null;
+  currency: string;
+  contextPercent: number | null;
+  throughputTps: number | null;
+  cacheHitRate: number | null;
+}
+
+export interface TaskMetadataAgent {
+  modelName: string;
+  provider: string | null;
+  subAgentName: string | null;
+  usage: TaskMetadataUsage | null;
+  durationSeconds: number | null;
+  turnCount: number;
+}
+
+export interface TaskMetadataItem {
+  id: MessageItemId;
+  type: "task_metadata";
+  timestamp: ItemTimestamp;
+  sessionId: string | null;
+  mainAgent: TaskMetadataAgent;
+  subAgents: TaskMetadataAgent[];
+}
+
 export interface InterruptItem {
   id: MessageItemId;
   type: "interrupt";
@@ -176,4 +207,5 @@ export type MessageItem =
   | InterruptItem
   | CompactionSummaryItem
   | TaskWorkedItem
+  | TaskMetadataItem
   | UnknownEventItem;

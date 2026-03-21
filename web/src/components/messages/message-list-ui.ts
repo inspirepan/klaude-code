@@ -40,13 +40,13 @@ export function formatTime(ts: ItemTimestamp): string | null {
   return `${day} ${time}`;
 }
 
-function formatCompactNumber(value: number): string {
+export function formatCompactNumber(value: number): string {
   if (!Number.isFinite(value)) return "0";
   if (Math.abs(value) < 1000) return Math.round(value).toString();
   return COMPACT_NUMBER_FORMATTER.format(value);
 }
 
-function formatElapsed(totalSeconds: number): string {
+export function formatElapsed(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);

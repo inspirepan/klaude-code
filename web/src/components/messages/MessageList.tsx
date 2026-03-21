@@ -112,6 +112,8 @@ function extractSearchableText(item: MessageItemType): string {
       return "";
     case "task_worked":
       return "";
+    case "task_metadata":
+      return "";
     case "error":
       return item.message;
     case "interrupt":
@@ -661,25 +663,25 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             />
           ) : null}
 
+          <MessageListHeader
+            primaryTitle={primaryTitle}
+            secondaryTitle={secondaryTitle}
+            workspacePath={workspacePath}
+            sessionReadOnly={sessionReadOnly}
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            onSearchOpen={() => setSearchOpen(true)}
+            onCollapseAll={handleCollapseAll}
+            onExpandAll={handleExpandAll}
+          />
           <div
             ref={scrollRef}
             onScroll={handleScroll}
             data-message-scroll-container="true"
-            className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
+            className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-none"
           >
             <div ref={contentRef}>
-              <MessageListHeader
-                primaryTitle={primaryTitle}
-                secondaryTitle={secondaryTitle}
-                workspacePath={workspacePath}
-                sessionReadOnly={sessionReadOnly}
-                sidebarOpen={sidebarOpen}
-                setSidebarOpen={setSidebarOpen}
-                onSearchOpen={() => setSearchOpen(true)}
-                onCollapseAll={handleCollapseAll}
-                onExpandAll={handleExpandAll}
-              />
-              <div className="mx-auto max-w-4xl space-y-5 px-4 pb-8 pt-8 sm:px-6">
+              <div className="mx-auto max-w-4xl space-y-5 px-4 pb-2 pt-8 sm:px-6">
                 {hasItems ? (
                   <>
                     {sections.map((section, sectionIndex) => (
@@ -781,10 +783,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                   </div>
                 ) : null}
               </div>
-              <div
-                className="pointer-events-none sticky z-20 mx-auto max-w-4xl px-4 sm:px-6"
-                style={{ bottom: `calc(var(--composer-h, 10rem) - ${COMPOSER_BOTTOM_INSET})` }}
-              >
+              <div className="mx-auto max-w-4xl px-4 sm:px-6">
                 <SessionStatusBar status={mainSessionStatus} runtime={runtime} />
               </div>
               {/* Padding so content isn't hidden under the absolute positioned composer */}
