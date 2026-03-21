@@ -5,7 +5,9 @@ Usage:
     python scripts/build_web.py --check  # verify dist exists without building
 
 The Vite config already outputs to src/klaude_code/web/dist/, so no copy step
-is required. This script automates: pnpm install -> pnpm build -> verify.
+is required. This script automates: install -> build -> verify.
+
+Prefers pnpm when available, falls back to npm.
 """
 
 from __future__ import annotations
@@ -20,8 +22,15 @@ WEB_DIR = ROOT / "web"
 DIST_DIR = ROOT / "src" / "klaude_code" / "web" / "dist"
 
 
-def find_pnpm() -> str | None:
-    return shutil.which("pnpm")
+def find_pkg_manager() -> tuple[str, str]:
+    """Return (command, name) for the best available package manager."""
+    pnpm = shutil.which("pnpm")
+    if pnpm:
+        return pnpm, "pnpm"
+    npm = shutil.which("npm")
+    if npm:
+        return npm, "npm"
+    return "", ""
 
 
 def run(args: list[str], *, cwd: str | None = None) -> int:
@@ -30,17 +39,17 @@ def run(args: list[str], *, cwd: str | None = None) -> int:
     return result.returncode
 
 
-def ensure_node_modules(pnpm: str) -> bool:
+def ensure_node_modules(cmd: str, name: str) -> bool:
     if (WEB_DIR / "node_modules").exists():
         return True
-    install_args = [pnpm, "install"]
-    if (WEB_DIR / "pnpm-lock.yaml").exists():
+    install_args = [cmd, "install"]
+    if name == "pnpm" and (WEB_DIR / "pnpm-lock.yaml").exists():
         install_args.append("--frozen-lockfile")
     return run(install_args, cwd=str(WEB_DIR)) == 0
 
 
-def build_frontend(pnpm: str) -> bool:
-    return run([pnpm, "build"], cwd=str(WEB_DIR)) == 0
+def build_frontend(cmd: str) -> bool:
+    return run([cmd, "run", "build"], cwd=str(WEB_DIR)) == 0
 
 
 def verify_dist() -> bool:
@@ -62,15 +71,17 @@ def main() -> int:
         print("Web assets not found. Run: python scripts/build_web.py", file=sys.stderr)
         return 1
 
-    pnpm = find_pnpm()
-    if pnpm is None:
-        print("pnpm not found. Install pnpm to build the web UI.", file=sys.stderr)
+    cmd, name = find_pkg_manager()
+    if not cmd:
+        print("Neither pnpm nor npm found. Install one to build the web UI.", file=sys.stderr)
         return 1
 
-    if not ensure_node_modules(pnpm):
+    print(f"Using {name} ({cmd})", flush=True)
+
+    if not ensure_node_modules(cmd, name):
         return 1
 
-    if not build_frontend(pnpm):
+    if not build_frontend(cmd):
         return 1
 
     if not verify_dist():

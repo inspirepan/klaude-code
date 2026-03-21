@@ -20,6 +20,7 @@ debug.log
 .jj/
 .claude-trace/
 node_modules/
+package-lock.json
 *.tsbuildinfo
 .pnpm-store/
 web/.vite

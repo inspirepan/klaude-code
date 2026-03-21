@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
 UV ?= uv
-PNPM := pnpm
+NPM := $(if $(shell command -v pnpm 2>/dev/null),pnpm,npm)
 
 RUFF := $(UV) run ruff
 PYRIGHT := $(UV) run pyright
@@ -40,11 +40,11 @@ ruff-check:
 format:
 	$(RUFF) check --fix .
 	$(RUFF) format .
-	cd web && $(PNPM) format
+	cd web && $(NPM) run format
 
 format-check:
 	$(RUFF) format --check .
-	cd web && $(PNPM) format:check
+	cd web && $(NPM) run format:check
 
 typecheck:
 	$(PYRIGHT)
@@ -53,13 +53,13 @@ imports:
 	$(IMPORT_LINT)
 
 web-lint:
-	cd web && $(PNPM) lint
+	cd web && $(NPM) run lint
 
 web-format:
-	cd web && $(PNPM) format
+	cd web && $(NPM) run format
 
 web-format-check:
-	cd web && $(PNPM) format:check
+	cd web && $(NPM) run format:check
 
 test:
 	$(PYTEST) -m "not network"
