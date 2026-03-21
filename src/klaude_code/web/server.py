@@ -45,10 +45,18 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+def _find_pkg_manager() -> str | None:
+    """Return the best available JS package manager command, or None."""
+    for cmd in ("pnpm", "npm"):
+        if shutil.which(cmd) is not None:
+            return cmd
+    return None
+
+
 def _can_start_frontend_dev_server(project_root: Path) -> bool:
     web_dir = project_root / "web"
     package_json = web_dir / "package.json"
-    return package_json.exists() and shutil.which("pnpm") is not None
+    return package_json.exists() and _find_pkg_manager() is not None
 
 
 def _should_auto_install_frontend(project_root: Path) -> bool:
@@ -118,19 +126,23 @@ async def _terminate_process(process: asyncio.subprocess.Process | None) -> None
             _ = await asyncio.wait_for(process.wait(), timeout=1.0)
 
 
-async def _install_frontend_dependencies(web_dir: Path) -> bool:
-    install_args = ["pnpm", "install"]
-    if (web_dir / "pnpm-lock.yaml").exists():
+async def _install_frontend_dependencies(web_dir: Path, pkg_manager: str) -> bool:
+    install_args = [pkg_manager, "install"]
+    if pkg_manager == "pnpm" and (web_dir / "pnpm-lock.yaml").exists():
         install_args.append("--frozen-lockfile")
 
     process = await asyncio.create_subprocess_exec(*install_args, cwd=str(web_dir))
     return (await process.wait()) == 0
 
 
-async def _start_frontend_dev_process(*, web_dir: Path, host: str, frontend_port: int) -> asyncio.subprocess.Process:
+async def _start_frontend_dev_process(
+    *, web_dir: Path, host: str, frontend_port: int, pkg_manager: str
+) -> asyncio.subprocess.Process:
     return await asyncio.create_subprocess_exec(
-        "pnpm",
+        pkg_manager,
+        "run",
         "dev",
+        "--",
         "--host",
         host,
         "--port",
@@ -153,18 +165,23 @@ async def prepare_frontend(
     if not _can_start_frontend_dev_server(project_root):
         return FrontendLaunchPlan(url=backend_url, process=None, mode="static")
 
+    pkg_manager = _find_pkg_manager()
+    assert pkg_manager is not None  # guaranteed by _can_start_frontend_dev_server
+
     frontend_port = backend_port + 1
     web_dir = project_root / "web"
     frontend_url = f"http://{browser_host}:{frontend_port}/"
 
     if _should_auto_install_frontend(project_root) and not _frontend_dependencies_installed(web_dir):
-        log("Frontend dependencies are incomplete. Running `pnpm install --frozen-lockfile` once...")
-        if not await _install_frontend_dependencies(web_dir):
+        log(f"Frontend dependencies are incomplete. Running `{pkg_manager} install` once...")
+        if not await _install_frontend_dependencies(web_dir, pkg_manager):
             return FrontendLaunchPlan(url=backend_url, process=None, mode="static")
 
     attempts = 2 if _should_auto_install_frontend(project_root) else 1
     for attempt in range(attempts):
-        process = await _start_frontend_dev_process(web_dir=web_dir, host=host, frontend_port=frontend_port)
+        process = await _start_frontend_dev_process(
+            web_dir=web_dir, host=host, frontend_port=frontend_port, pkg_manager=pkg_manager
+        )
         if process.returncode is not None:
             await _terminate_process(process)
         else:
@@ -174,8 +191,8 @@ async def prepare_frontend(
             await _terminate_process(process)
 
         if attempt == 0 and attempts > 1:
-            log("Frontend dev server did not start. Running `pnpm install --frozen-lockfile` once...")
-            if not await _install_frontend_dependencies(web_dir):
+            log(f"Frontend dev server did not start. Running `{pkg_manager} install` once...")
+            if not await _install_frontend_dependencies(web_dir, pkg_manager):
                 break
 
     return FrontendLaunchPlan(url=backend_url, process=None, mode="static")

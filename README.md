@@ -52,7 +52,7 @@ uv run python scripts/build_web.py   # build web frontend
 uv tool install -e .                 # install CLI globally (editable)
 ```
 
-Requires `pnpm` for the web frontend build.
+Requires `pnpm` or `npm` for the web frontend build (`pnpm` preferred).
 
 ## Usage
 
