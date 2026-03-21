@@ -220,12 +220,7 @@ export function SessionCard({
             className="flex min-w-0 flex-1 items-baseline text-sm leading-5"
             secondaryClassName="shrink truncate"
           />
-          <span className="w-8 shrink-0 text-right text-xs tabular-nums leading-4 text-emerald-600">
-            {added > 0 ? `+${added}` : ""}
-          </span>
-          <span className="w-8 shrink-0 text-right text-xs tabular-nums leading-4 text-rose-600">
-            {removed > 0 ? `-${removed}` : ""}
-          </span>
+          <DiffStats added={added} removed={removed} />
           <span
             className="w-7 shrink-0 text-right text-xs leading-4 text-neutral-400"
             title={updatedAtDetailed}

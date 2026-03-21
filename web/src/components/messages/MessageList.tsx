@@ -778,22 +778,22 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 ) : null}
               </div>
               <div
-                className="sticky z-20 mx-auto max-w-4xl px-4 sm:px-6"
-                style={{ bottom: "calc(var(--composer-h, 10rem) - 1.5rem)" }}
+                className="pointer-events-none sticky z-20 mx-auto max-w-4xl px-4 sm:px-6"
+                style={{ bottom: "var(--composer-h, 10rem)" }}
               >
                 <SessionStatusBar status={mainSessionStatus} runtime={runtime} />
               </div>
               {/* Padding so content isn't hidden under the absolute positioned composer */}
               <div
                 className="shrink-0"
-                style={{ height: "calc(var(--composer-h, 10rem) - 1.5rem)" }}
+                style={{ height: "var(--composer-h, 10rem)" }}
               />
             </div>
           </div>
           {showScrollToBottom ? (
             <div
               className="pointer-events-none absolute left-1/2 z-20 -translate-x-1/2"
-              style={{ bottom: "calc(var(--composer-h, 10rem) - 1.5rem)" }}
+              style={{ bottom: "var(--composer-h, 10rem)" }}
             >
               <Tooltip>
                 <TooltipTrigger asChild>

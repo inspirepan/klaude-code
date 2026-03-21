@@ -116,7 +116,7 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
       ) : item.isStreaming ? (
         <div className="flex items-center gap-1.5 font-sans text-base text-neutral-500">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
-          <span>Waiting for answer…</span>
+          <span>Asking user question…</span>
         </div>
       ) : null}
     </div>

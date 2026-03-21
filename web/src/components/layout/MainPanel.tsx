@@ -79,7 +79,7 @@ export function MainPanel(): JSX.Element {
       ) : (
         <>
           <MessageList sessionId={activeSessionId} />
-          <div ref={composerRef} className="absolute bottom-0 left-0 right-0 z-10">
+          <div ref={composerRef} className="absolute bottom-0 left-0 right-0 z-30">
             <MessageComposer key={activeSessionId} />
           </div>
           {newSessionOverlayOpen ? (

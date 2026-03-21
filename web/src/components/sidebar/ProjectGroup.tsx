@@ -47,6 +47,8 @@ export function ProjectGroup({
   const [showAll, setShowAll] = useState(false);
   const displaySessions = showAll ? sessions : sessions.slice(0, 10);
   const hasMore = sessions.length > 10;
+  const hasAnyUnread =
+    collapsed && sessions.some((s) => completedUnreadBySessionId[s.id] === true);
 
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-0.5">
@@ -61,10 +63,15 @@ export function ProjectGroup({
               )}
               <div className="min-w-0 flex-1 text-left">
                 <div className="flex min-w-0 items-center gap-1 text-sm font-normal leading-5 text-neutral-800">
-                  <span className="truncate font-semibold text-neutral-700 [direction:rtl]">
+                  <span className="truncate text-neutral-700 [direction:rtl]">
                     {workDirLabel(workDir)}
                   </span>
                   <span className="shrink-0 text-xs text-neutral-400">({sessions.length})</span>
+                  {hasAnyUnread ? (
+                    <span className="flex h-3 w-3 shrink-0 items-center justify-center">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </CollapsibleTrigger>
