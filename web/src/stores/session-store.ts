@@ -62,6 +62,7 @@ interface SessionStoreState {
   ) => Promise<string>;
   requestModel: (sessionId: string, preferred: string, saveAsDefault?: boolean) => Promise<void>;
   sendMessage: (sessionId: string, text: string, images?: MessageImagePart[]) => Promise<void>;
+  compactSession: (sessionId: string, focus: string | null) => Promise<void>;
   interruptSession: (sessionId: string) => Promise<void>;
   respondInteraction: (
     sessionId: string,
@@ -956,6 +957,15 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       type: "message",
       text: normalizedText,
       images: normalizedImages,
+    });
+  },
+  compactSession: async (sessionId: string, focus: string | null) => {
+    if (activeConnection?.sessionId !== sessionId) {
+      openSessionWs(sessionId, get, set);
+    }
+    activeConnection?.connection.send({
+      type: "compact",
+      focus: focus ?? undefined,
     });
   },
   interruptSession: async (sessionId: string) => {
