@@ -149,3 +149,29 @@ def test_cleanup_archives_sessions_older_than_three_days_or_without_diff(app_env
     assert old_meta["archived"] is True
     assert no_diff_meta["archived"] is True
     assert recent_diff_meta["archived"] is False
+
+
+def test_cleanup_skips_running_sessions(app_env: AppEnv) -> None:
+    """Running/waiting sessions should not be archived by cleanup even if eligible."""
+    running_session_id = app_env.create_session()
+    waiting_session_id = app_env.create_session()
+    idle_session_id = app_env.create_session()
+
+    # All three have no diff (eligible by diff criteria), but two are non-idle.
+    _update_meta(app_env, running_session_id, {"session_state": "running"})
+    _update_meta(app_env, waiting_session_id, {"session_state": "waiting_user_input"})
+    _update_meta(app_env, idle_session_id, {"session_state": "idle"})
+
+    response = app_env.client.post("/api/sessions/archive/cleanup")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "archived_count": 1}
+
+    listed = app_env.client.get("/api/sessions")
+    assert listed.status_code == 200
+    groups = listed.json()["groups"]
+    running_session = _find_listed_session(groups, running_session_id)
+    waiting_session = _find_listed_session(groups, waiting_session_id)
+    idle_session = _find_listed_session(groups, idle_session_id)
+    assert running_session["archived"] is False
+    assert waiting_session["archived"] is False
+    assert idle_session["archived"] is True

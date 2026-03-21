@@ -277,12 +277,12 @@ export function LeftSidebar(): JSX.Element {
 
   const archiveCleanupEligibleSessions = useMemo(() => {
     const cutoff = Date.now() / 1000 - ARCHIVE_CLEANUP_AGE_SECONDS;
-    return activeSessions.filter((session) => {
+    return doneSessions.filter((session) => {
       const diffSummary = session.file_change_summary;
       const hasNoDiff = diffSummary.diff_lines_added === 0 && diffSummary.diff_lines_removed === 0;
       return session.updated_at < cutoff || hasNoDiff;
     });
-  }, [activeSessions]);
+  }, [doneSessions]);
 
   const archiveCleanupEligibleCount = archiveCleanupEligibleSessions.length;
 
