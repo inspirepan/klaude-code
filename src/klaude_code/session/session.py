@@ -712,7 +712,9 @@ class Session(BaseModel):
                         timestamp=msg_ts,
                     )
                 case model.TaskMetadataItem() as mt:
-                    yield events.TaskMetadataEvent(session_id=self.id, metadata=mt, timestamp=msg_ts)
+                    yield events.TaskMetadataEvent(
+                        session_id=self.id, metadata=mt, is_partial=mt.is_partial, timestamp=msg_ts
+                    )
                 case message.DeveloperMessage() as dm:
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm, timestamp=msg_ts)
                 case message.StreamErrorItem() as se:
