@@ -442,16 +442,6 @@ class _SessionState:
     status_composing: bool = False
     status_tool_calls: dict[str, int] = field(default_factory=_empty_status_tool_counts)
     status_tool_calls_by_id: dict[str, str] = field(default_factory=_empty_status_tool_ids)
-    status_token_input: int | None = None
-    status_token_cached: int | None = None
-    status_token_cache_write: int | None = None
-    status_token_output: int | None = None
-    status_token_thought: int | None = None
-    status_context_size: int | None = None
-    status_context_effective_limit: int | None = None
-    status_context_percent: float | None = None
-    status_total_cost: float | None = None
-    status_currency: str = "USD"
 
     @property
     def is_sub_agent(self) -> bool:
@@ -473,39 +463,6 @@ class _SessionState:
         self.status_composing = False
         self.status_tool_calls = {}
         self.status_tool_calls_by_id = {}
-
-    def set_status_usage(self, usage: model.Usage) -> None:
-        has_token_usage = any(
-            (
-                usage.input_tokens,
-                usage.cached_tokens,
-                usage.cache_write_tokens,
-                usage.output_tokens,
-                usage.reasoning_tokens,
-            )
-        )
-        if has_token_usage:
-            self.status_token_input = (self.status_token_input or 0) + max(
-                usage.input_tokens - usage.cached_tokens - usage.cache_write_tokens, 0
-            )
-            self.status_token_cached = (self.status_token_cached or 0) + usage.cached_tokens
-            self.status_token_cache_write = (self.status_token_cache_write or 0) + usage.cache_write_tokens
-            self.status_token_output = (self.status_token_output or 0) + max(
-                usage.output_tokens - usage.reasoning_tokens, 0
-            )
-            self.status_token_thought = (self.status_token_thought or 0) + usage.reasoning_tokens
-
-        context_percent = usage.context_usage_percent
-        if context_percent is not None:
-            effective_limit = (usage.context_limit or 0) - (usage.max_tokens or DEFAULT_MAX_TOKENS)
-            self.status_context_size = usage.context_size
-            self.status_context_effective_limit = effective_limit if effective_limit > 0 else None
-            self.status_context_percent = context_percent
-
-        total_cost = usage.total_cost
-        if total_cost is not None:
-            self.status_total_cost = (self.status_total_cost or 0.0) + total_cost
-            self.status_currency = usage.currency
 
     def add_status_tool_call(self, tool_call_id: str, tool_name: str) -> None:
         if tool_call_id in self.status_tool_calls_by_id:
@@ -555,41 +512,6 @@ class _SessionState:
         if self.task_active:
             return STATUS_RUNNING_TEXT
         return None
-
-    def status_metadata_text(self) -> str | None:
-        parts: list[str] = []
-        if self.status_token_input is not None and self.status_token_output is not None:
-            token_parts: list[str] = [f"↑{format_number(self.status_token_input)}"]
-            if self.status_token_cached and self.status_token_cached > 0:
-                token_parts.append(f"◎{format_number(self.status_token_cached)}")
-            if self.status_token_cache_write and self.status_token_cache_write > 0:
-                token_parts.append(f"⊕{format_number(self.status_token_cache_write)}")
-            token_parts.append(f"↓{format_number(self.status_token_output)}")
-            if self.status_token_thought and self.status_token_thought > 0:
-                token_parts.append(f"∿{format_number(self.status_token_thought)}")
-            parts.append(" ".join(token_parts))
-
-        if (
-            self.status_context_size is not None
-            and self.status_context_effective_limit is not None
-            and self.status_context_percent is not None
-        ):
-            if parts:
-                parts.append(" · ")
-            parts.append(
-                f"{format_number(self.status_context_size)}/{format_number(self.status_context_effective_limit)} "
-                f"({self.status_context_percent:.1f}%)"
-            )
-
-        if self.status_total_cost is not None:
-            if parts:
-                parts.append(" · ")
-            currency_symbol = "¥" if self.status_currency == "CNY" else "$"
-            parts.append(f"{currency_symbol}{self.status_total_cost:.4f}")
-
-        if not parts:
-            return None
-        return "".join(parts)
 
 
 class DisplayStateMachine:
@@ -673,11 +595,6 @@ class DisplayStateMachine:
                 description_start = len(line)
                 line.append(description, style=ThemeKey.STATUS_TEXT)
                 line.stylize("italic", description_start, len(line))
-
-            metadata = session.status_metadata_text()
-            if metadata:
-                line.append(" · ")
-                line.append(metadata, style=ThemeKey.METADATA_DIM)
 
             activity = session.status_activity_text()
             if activity:
@@ -1275,10 +1192,7 @@ class DisplayStateMachine:
             case events.UsageEvent() as e:
                 # UsageEvent is not rendered, but it drives context % display.
                 if s.is_sub_agent:
-                    s.set_status_usage(e.usage)
-                    if not is_replay:
-                        cmds.extend(self._spinner_update_commands())
-                    return cmds
+                    return []
                 if not self._is_primary(e.session_id):
                     return []
                 self._spinner.set_context_usage(e.usage)
