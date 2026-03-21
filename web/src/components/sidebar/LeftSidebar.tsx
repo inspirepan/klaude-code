@@ -6,6 +6,7 @@ import { SessionCard } from "./SessionCard";
 import { useSessionStore } from "../../stores/session-store";
 import type { SessionSummary } from "../../types/session";
 import { useAppStore } from "../../stores/app-store";
+import { useMountEffect } from "@/hooks/useMountEffect";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -104,7 +105,7 @@ export function LeftSidebar(): JSX.Element {
   const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
   const prevCompletionTimestampsRef = useRef(recentCompletionStartedAtBySessionId);
 
-  useEffect(() => {
+  useMountEffect(() => {
     return () => {
       if (archiveUndoTimeoutRef.current !== null) {
         window.clearTimeout(archiveUndoTimeoutRef.current);
@@ -114,9 +115,9 @@ export function LeftSidebar(): JSX.Element {
         sidebarResizeCleanupRef.current = null;
       }
     };
-  }, []);
+  });
 
-  useEffect(() => {
+  useMountEffect(() => {
     const syncSidebarWidth = (): void => {
       setSidebarWidth((current) => {
         const next = clampSidebarWidth(current);
@@ -129,7 +130,7 @@ export function LeftSidebar(): JSX.Element {
     return () => {
       window.removeEventListener("resize", syncSidebarWidth);
     };
-  }, []);
+  });
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth));

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Archive, ArchiveRestore, CircleCheck, CirclePause, Loader } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { cn } from "@/lib/utils";
+import { useMountEffect } from "@/hooks/useMountEffect";
 import { SessionTitleText } from "@/components/SessionTitleText";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -157,7 +158,7 @@ export function SessionCard({
     });
   }, [completionAnimationStartedAt]);
 
-  useEffect(() => {
+  useMountEffect(() => {
     return () => {
       if (successAnimationFrameRef.current !== null) {
         window.cancelAnimationFrame(successAnimationFrameRef.current);
@@ -166,7 +167,7 @@ export function SessionCard({
         window.clearTimeout(successTimeoutRef.current);
       }
     };
-  }, []);
+  });
 
   if (compact) {
     return (

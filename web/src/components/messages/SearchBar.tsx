@@ -1,4 +1,6 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef } from "react";
+
+import { useMountEffect } from "@/hooks/useMountEffect";
 import { Search, X, ChevronUp, ChevronDown } from "lucide-react";
 
 interface SearchBarProps {
@@ -21,10 +23,10 @@ export function SearchBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
 
-  useEffect(() => {
+  useMountEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
-  }, []);
+  });
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

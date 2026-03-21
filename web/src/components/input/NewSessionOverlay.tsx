@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useMountEffect } from "@/hooks/useMountEffect";
 import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
 import { useSessionStore } from "../../stores/session-store";
 import { ComposerCard, type ComposerImageAttachment } from "./ComposerCard";
@@ -57,7 +58,7 @@ export function NewSessionOverlay({
     (normalizedText.length === 0 && !hasImages) ||
     normalizedDraftWorkDir.length === 0;
 
-  useEffect(() => {
+  useMountEffect(() => {
     let cancelled = false;
     setModelLoading(true);
     setModelError(null);
@@ -87,9 +88,9 @@ export function NewSessionOverlay({
     return () => {
       cancelled = true;
     };
-  }, []);
+  });
 
-  useEffect(() => {
+  useMountEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       if (initialDraftWorkDirRef.current.trim().length === 0) {
         workspaceInputRef.current?.focus();
@@ -100,9 +101,9 @@ export function NewSessionOverlay({
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, []);
+  });
 
-  useEffect(() => {
+  useMountEffect(() => {
     const handleDraftFocusRequest = () => {
       textareaRef.current?.focus();
     };
@@ -110,7 +111,7 @@ export function NewSessionOverlay({
     return () => {
       window.removeEventListener("klaude:draft-focus-input", handleDraftFocusRequest);
     };
-  }, []);
+  });
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -129,7 +130,7 @@ export function NewSessionOverlay({
     };
   }, [onClose, workspaceMenuOpen]);
 
-  useEffect(() => {
+  useMountEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
       if (!workspacePickerRef.current?.contains(event.target as Node)) {
         setWorkspaceMenuOpen(false);
@@ -140,7 +141,7 @@ export function NewSessionOverlay({
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
     };
-  }, []);
+  });
 
   const handleSubmit = useCallback(async () => {
     if (disableSubmit) {

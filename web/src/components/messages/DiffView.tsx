@@ -148,7 +148,7 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
       style.textContent = SHADOW_ICON_CSS;
       sr.appendChild(style);
     }
-  });
+  }, [patches]);
 
   useEffect(() => {
     const el = contentRef.current;
