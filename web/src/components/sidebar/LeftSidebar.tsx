@@ -275,14 +275,16 @@ export function LeftSidebar(): JSX.Element {
     }
   }, [recentCompletionStartedAtBySessionId, doneGroups, collapsedByWorkDir, toggleGroup]);
 
-  const archiveCleanupEligibleCount = useMemo(() => {
+  const archiveCleanupEligibleSessions = useMemo(() => {
     const cutoff = Date.now() / 1000 - ARCHIVE_CLEANUP_AGE_SECONDS;
     return activeSessions.filter((session) => {
       const diffSummary = session.file_change_summary;
       const hasNoDiff = diffSummary.diff_lines_added === 0 && diffSummary.diff_lines_removed === 0;
       return session.updated_at < cutoff || hasNoDiff;
-    }).length;
+    });
   }, [activeSessions]);
+
+  const archiveCleanupEligibleCount = archiveCleanupEligibleSessions.length;
 
   const archiveCleanupTooltip = useMemo(() => {
     if (archiveCleanupPending) {
@@ -454,7 +456,7 @@ export function LeftSidebar(): JSX.Element {
               {archiveCleanupConfirmOpen ? (
                 <div
                   ref={archiveCleanupContentRef}
-                  className="absolute right-3 top-full z-40 mt-2 w-56 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 shadow-sm"
+                  className="absolute right-3 top-full z-40 mt-2 w-72 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 shadow-sm"
                 >
                   <div className="space-y-2">
                     <div className="text-sm font-medium text-neutral-800">
@@ -463,6 +465,15 @@ export function LeftSidebar(): JSX.Element {
                     <div className="text-sm text-neutral-500">
                       Archive sessions older than 3 days or with no diff.
                     </div>
+                    <ul className="max-h-40 overflow-y-auto text-xs text-neutral-500">
+                      {archiveCleanupEligibleSessions.map((session) => (
+                        <li key={session.id} className="truncate py-0.5">
+                          {session.title?.trim() ||
+                            session.user_messages[0]?.trim() ||
+                            "New session"}
+                        </li>
+                      ))}
+                    </ul>
                     <div className="flex justify-end gap-1.5">
                       <button
                         type="button"

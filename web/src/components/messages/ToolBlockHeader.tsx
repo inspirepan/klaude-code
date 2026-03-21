@@ -62,7 +62,9 @@ export function ToolBlockHeader({
             <TooltipTrigger asChild>
               <span className="min-w-0">{detailChip}</span>
             </TooltipTrigger>
-            <TooltipContent className="max-w-md break-all font-mono">{detail}</TooltipContent>
+            <TooltipContent className="max-h-[60vh] max-w-lg overflow-y-auto whitespace-pre-wrap break-all font-mono">
+              {detail}
+            </TooltipContent>
           </Tooltip>
         ) : null}
         {item.isStreaming ? (
