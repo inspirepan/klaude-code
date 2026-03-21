@@ -15,12 +15,19 @@ Public API:
 """
 
 from klaude_code.skill.loader import Skill, SkillLoader
-from klaude_code.skill.manager import get_available_skills, get_skill, get_skill_loader, list_skill_names
+from klaude_code.skill.manager import (
+    get_available_skills,
+    get_available_skills_for_work_dir,
+    get_skill,
+    get_skill_loader,
+    list_skill_names,
+)
 
 __all__ = [
     "Skill",
     "SkillLoader",
     "get_available_skills",
+    "get_available_skills_for_work_dir",
     "get_skill",
     "get_skill_loader",
     "list_skill_names",

@@ -191,6 +191,27 @@ export async function searchFileCompletions({
   return result.items;
 }
 
+export interface SkillItem {
+  name: string;
+  description: string;
+  location: string;
+}
+
+interface SkillsResponse {
+  items: SkillItem[];
+}
+
+export async function fetchSkills(workDir?: string): Promise<SkillItem[]> {
+  const params = new URLSearchParams();
+  const trimmedWorkDir = workDir?.trim();
+  if (trimmedWorkDir) {
+    params.set("work_dir", trimmedWorkDir);
+  }
+  const query = params.toString();
+  const result = await requestJson<SkillsResponse>(`/api/skills${query ? `?${query}` : ""}`);
+  return result.items;
+}
+
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

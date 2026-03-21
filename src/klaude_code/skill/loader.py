@@ -100,8 +100,8 @@ class SkillLoader:
                 return None
             current = current.parent
 
-    def _get_project_skill_dirs(self) -> list[Path]:
-        cwd = Path.cwd().resolve()
+    def _get_project_skill_dirs(self, work_dir: Path | None = None) -> list[Path]:
+        cwd = (work_dir or Path.cwd()).resolve()
         git_root = self._find_git_repo_root(cwd)
 
         dirs: list[Path] = []
@@ -198,13 +198,17 @@ class SkillLoader:
             log_debug(f"Failed to load skill from {skill_path}: {e}")
             return None
 
-    def discover_skills(self) -> list[Skill]:
+    def discover_skills(self, work_dir: Path | None = None) -> list[Skill]:
         """Recursively find all SKILL.md files and load them from system, user and project directories.
 
         Loading order (lower priority first, higher priority overrides):
         1. System skills (~/.klaude/skills/.system/) - built-in, lowest priority
         2. User skills (~/.claude/skills/, ~/.klaude/skills/, ~/.agents/skills/, ~/.config/agents/skills/) - user-level
         3. Project skills (./.claude/skills/, ./.agents/skills/) - project-level, highest priority
+
+        Args:
+            work_dir: Project root directory for project skill discovery.
+                Falls back to Path.cwd() when None.
 
         Returns:
             List of successfully loaded Skill objects
@@ -252,7 +256,7 @@ class SkillLoader:
                         register(skill)
 
         # Load project-level skills (override user skills if same name)
-        for resolved_dir in self._get_project_skill_dirs():
+        for resolved_dir in self._get_project_skill_dirs(work_dir):
             if resolved_dir.exists():
                 for skill_file in self._iter_skill_files(resolved_dir):
                     skill = self.load_skill(skill_file, location="project")

@@ -21,7 +21,7 @@ from klaude_code.core.control.session_meta_relay import (
 from klaude_code.log import DebugType, log_debug
 from klaude_code.session.store import register_session_meta_observer
 from klaude_code.web.interaction import WebInteractionHandler
-from klaude_code.web.routes import config_router, files_router, sessions_router, ws_router
+from klaude_code.web.routes import config_router, files_router, sessions_router, skills_router, ws_router
 from klaude_code.web.session_live import SessionLiveState
 from klaude_code.web.state import WebAppState, get_web_state_from_app
 
@@ -116,6 +116,7 @@ def create_app(
     app.include_router(sessions_router)
     app.include_router(config_router)
     app.include_router(files_router)
+    app.include_router(skills_router)
     app.include_router(ws_router)
 
     static_root = static_dir or resolve_static_dir()
