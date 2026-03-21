@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Archive, BrushCleaning, Loader, PanelLeftClose } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
-import { SessionCard } from "./SessionCard";
 import { useSessionStore } from "../../stores/session-store";
 import type { SessionSummary } from "../../types/session";
 import { useAppStore } from "../../stores/app-store";
@@ -224,27 +223,9 @@ export function LeftSidebar(): JSX.Element {
     [groups],
   );
 
-  const inProgressSessions = useMemo(
-    () =>
-      activeSessions.filter((session) => {
-        const sessionState = runtimeBySessionId[session.id]?.sessionState ?? session.session_state;
-        return sessionState !== "idle";
-      }),
-    [activeSessions, runtimeBySessionId],
-  );
-
-  const doneSessions = useMemo(
-    () =>
-      activeSessions.filter((session) => {
-        const sessionState = runtimeBySessionId[session.id]?.sessionState ?? session.session_state;
-        return sessionState === "idle";
-      }),
-    [activeSessions, runtimeBySessionId],
-  );
-
-  const doneGroups = useMemo(() => {
+  const activeGroups = useMemo(() => {
     const byWorkDir = new Map<string, SessionSummary[]>();
-    for (const session of doneSessions) {
+    for (const session of activeSessions) {
       const existing = byWorkDir.get(session.work_dir);
       if (existing !== undefined) {
         existing.push(session);
@@ -255,14 +236,14 @@ export function LeftSidebar(): JSX.Element {
     return Array.from(byWorkDir.entries())
       .map(([work_dir, sessions]) => ({ work_dir, sessions }))
       .sort((a, b) => a.work_dir.localeCompare(b.work_dir));
-  }, [doneSessions]);
+  }, [activeSessions]);
 
-  // Auto-expand collapsed "Done" groups when a session inside them completes
+  // Auto-expand collapsed groups when a session inside them completes
   useEffect(() => {
     const prev = prevCompletionTimestampsRef.current;
     prevCompletionTimestampsRef.current = recentCompletionStartedAtBySessionId;
 
-    for (const group of doneGroups) {
+    for (const group of activeGroups) {
       if (!(collapsedByWorkDir[group.work_dir] ?? false)) continue;
 
       for (const session of group.sessions) {
@@ -273,16 +254,16 @@ export function LeftSidebar(): JSX.Element {
         }
       }
     }
-  }, [recentCompletionStartedAtBySessionId, doneGroups, collapsedByWorkDir, toggleGroup]);
+  }, [recentCompletionStartedAtBySessionId, activeGroups, collapsedByWorkDir, toggleGroup]);
 
   const archiveCleanupEligibleSessions = useMemo(() => {
     const cutoff = Date.now() / 1000 - ARCHIVE_CLEANUP_AGE_SECONDS;
-    return doneSessions.filter((session) => {
+    return activeSessions.filter((session) => {
       const diffSummary = session.file_change_summary;
       const hasNoDiff = diffSummary.diff_lines_added === 0 && diffSummary.diff_lines_removed === 0;
       return session.updated_at < cutoff || hasNoDiff;
     });
-  }, [doneSessions]);
+  }, [activeSessions]);
 
   const archiveCleanupEligibleCount = archiveCleanupEligibleSessions.length;
 
@@ -377,10 +358,10 @@ export function LeftSidebar(): JSX.Element {
         >
           {/* header floats above scroll area */}
           <div className="absolute left-0 right-0 top-0 z-40">
-            {/* blur + fade: opaque over button row, fades to transparent 2rem below */}
+            {/* blur + fade: opaque over button row, short fade below */}
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 top-0 h-[5rem] bg-[hsl(var(--sidebar))]/80 backdrop-blur-sm [-webkit-mask-image:linear-gradient(to_bottom,black_0,black_3rem,transparent_5rem)] [mask-image:linear-gradient(to_bottom,black_0,black_3rem,transparent_5rem)]"
+              className="pointer-events-none absolute inset-x-0 top-0 h-[3.75rem] bg-[hsl(var(--sidebar))]/80 backdrop-blur-sm [-webkit-mask-image:linear-gradient(to_bottom,black_0,black_3rem,transparent_3.75rem)] [mask-image:linear-gradient(to_bottom,black_0,black_3rem,transparent_3.75rem)]"
             />
             <div className="relative flex items-center gap-1.5 px-3 py-2">
               <div className="min-w-0 flex-1">
@@ -534,94 +515,40 @@ export function LeftSidebar(): JSX.Element {
               ) : null}
 
               <div className="space-y-2 pt-1">
-                {inProgressSessions.length > 0 ? (
-                  <div>
-                    <div className="mb-1 px-1.5">
-                      <span className="inline-flex items-center rounded-full border border-blue-200/70 bg-blue-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-blue-700">
-                        <span>In Progress</span>
-                        <span className="ml-1.5 border-l border-blue-200/80 pl-1.5 text-blue-600">
-                          {inProgressSessions.length}
-                        </span>
-                      </span>
-                    </div>
-                    <div className="space-y-0.5">
-                      {inProgressSessions.map((session) => (
-                        <SessionCard
-                          key={session.id}
-                          session={session}
-                          active={activeSessionId === session.id}
-                          runtime={
-                            runtimeBySessionId[session.id] ?? {
-                              sessionState: session.session_state,
-                              wsState: "idle",
-                              lastError: null,
-                            }
-                          }
-                          hasUnreadCompletion={completedUnreadBySessionId[session.id] === true}
-                          completionAnimationStartedAt={
-                            recentCompletionStartedAtBySessionId[session.id]
-                          }
-                          showWorkspace
-                          onClick={() => {
-                            setNewSessionOverlayOpen(false);
-                            void selectSession(session.id);
-                          }}
-                          onToggleArchive={(sessionId, archived) => {
-                            handleToggleArchive(sessionId, archived);
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {doneGroups.length > 0 ? (
-                  <div>
-                    <div className="mb-1 px-1.5">
-                      <span className="inline-flex items-center rounded-full border border-emerald-200/70 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-emerald-700">
-                        <span>DONE</span>
-                        <span className="ml-1.5 border-l border-emerald-200/80 pl-1.5 text-emerald-600">
-                          {doneSessions.length}
-                        </span>
-                      </span>
-                    </div>
-                    {doneGroups.map((group) => (
-                      <ProjectGroup
-                        key={group.work_dir}
-                        workDir={group.work_dir}
-                        sessions={group.sessions}
-                        collapsed={collapsedByWorkDir[group.work_dir] ?? false}
-                        compactSessions
-                        activeSessionId={activeSessionId}
-                        runtimeBySessionId={runtimeBySessionId}
-                        recentCompletionStartedAtBySessionId={recentCompletionStartedAtBySessionId}
-                        completedUnreadBySessionId={completedUnreadBySessionId}
-                        onToggle={() => {
-                          toggleGroup(group.work_dir);
-                        }}
-                        onSelectDraft={(workDir) => {
-                          openNewSessionOverlay(workDir);
-                        }}
-                        onSelectSession={(sessionId) => {
-                          setNewSessionOverlayOpen(false);
-                          void selectSession(sessionId);
-                        }}
-                        onToggleArchive={(sessionId, archived) => {
-                          handleToggleArchive(sessionId, archived);
-                        }}
-                      />
-                    ))}
-                  </div>
-                ) : null}
+                {activeGroups.map((group) => (
+                  <ProjectGroup
+                    key={group.work_dir}
+                    workDir={group.work_dir}
+                    sessions={group.sessions}
+                    collapsed={collapsedByWorkDir[group.work_dir] ?? false}
+                    activeSessionId={activeSessionId}
+                    runtimeBySessionId={runtimeBySessionId}
+                    recentCompletionStartedAtBySessionId={recentCompletionStartedAtBySessionId}
+                    completedUnreadBySessionId={completedUnreadBySessionId}
+                    onToggle={() => {
+                      toggleGroup(group.work_dir);
+                    }}
+                    onSelectDraft={(workDir) => {
+                      openNewSessionOverlay(workDir);
+                    }}
+                    onSelectSession={(sessionId) => {
+                      setNewSessionOverlayOpen(false);
+                      void selectSession(sessionId);
+                    }}
+                    onToggleArchive={(sessionId, archived) => {
+                      handleToggleArchive(sessionId, archived);
+                    }}
+                  />
+                ))}
               </div>
             </div>
           </ScrollArea>
 
           <div className="absolute bottom-0 left-0 right-0 z-40">
-            {/* blur + fade: opaque over button row, fades to transparent 2rem above */}
+            {/* blur + fade: opaque over button row, short fade above */}
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-[5rem] bg-[hsl(var(--sidebar))]/80 backdrop-blur-sm [-webkit-mask-image:linear-gradient(to_top,black_0,black_3rem,transparent_5rem)] [mask-image:linear-gradient(to_top,black_0,black_3rem,transparent_5rem)]"
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-[3.75rem] bg-[hsl(var(--sidebar))]/80 backdrop-blur-sm [-webkit-mask-image:linear-gradient(to_top,black_0,black_3rem,transparent_3.75rem)] [mask-image:linear-gradient(to_top,black_0,black_3rem,transparent_3.75rem)]"
             />
             <div ref={archivedMenuRef} className="relative px-3 py-2">
               <Tooltip>
@@ -657,7 +584,6 @@ export function LeftSidebar(): JSX.Element {
                             workDir={group.work_dir}
                             sessions={group.sessions}
                             collapsed={archivedCollapsedByWorkDir[group.work_dir] ?? true}
-                            compactSessions
                             hideNewSessionButton
                             activeSessionId={activeSessionId}
                             runtimeBySessionId={runtimeBySessionId}

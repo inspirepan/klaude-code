@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Folder, FolderOpen, SquarePen } from "lucide-react";
+import { Folder, FolderOpen, Loader, SquarePen } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SessionCard } from "./SessionCard";
@@ -9,7 +9,6 @@ interface ProjectGroupProps {
   workDir: string;
   sessions: SessionSummary[];
   collapsed: boolean;
-  compactSessions?: boolean;
   hideNewSessionButton?: boolean;
   activeSessionId: string | "draft";
   runtimeBySessionId: Record<string, SessionRuntimeState>;
@@ -33,7 +32,6 @@ export function ProjectGroup({
   workDir,
   sessions,
   collapsed,
-  compactSessions = false,
   hideNewSessionButton = false,
   activeSessionId,
   runtimeBySessionId,
@@ -45,10 +43,18 @@ export function ProjectGroup({
   onToggleArchive,
 }: ProjectGroupProps): JSX.Element {
   const [showAll, setShowAll] = useState(false);
-  const displaySessions = showAll ? sessions : sessions.slice(0, 10);
-  const hasMore = sessions.length > 10;
+  const displaySessions = showAll ? sessions : sessions.slice(0, 5);
+  const hasMore = sessions.length > 5;
+  const hasAnyRunning =
+    collapsed &&
+    sessions.some((s) => {
+      const state = runtimeBySessionId[s.id]?.sessionState ?? s.session_state;
+      return state !== "idle";
+    });
   const hasAnyUnread =
-    collapsed && sessions.some((s) => completedUnreadBySessionId[s.id] === true);
+    !hasAnyRunning &&
+    collapsed &&
+    sessions.some((s) => completedUnreadBySessionId[s.id] === true);
 
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-0.5">
@@ -63,11 +69,13 @@ export function ProjectGroup({
               )}
               <div className="min-w-0 flex-1 text-left">
                 <div className="flex min-w-0 items-center gap-1 text-sm font-normal leading-5 text-neutral-800">
-                  <span className="truncate text-neutral-700 [direction:rtl]">
+                  <span className="truncate font-medium text-neutral-500 [direction:rtl]">
                     {workDirLabel(workDir)}
                   </span>
                   <span className="shrink-0 text-xs text-neutral-400">({sessions.length})</span>
-                  {hasAnyUnread ? (
+                  {hasAnyRunning ? (
+                    <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
+                  ) : hasAnyUnread ? (
                     <span className="flex h-3 w-3 shrink-0 items-center justify-center">
                       <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
                     </span>
@@ -117,7 +125,6 @@ export function ProjectGroup({
                 onSelectSession(session.id);
               }}
               onToggleArchive={onToggleArchive}
-              compact={compactSessions}
             />
           ))}
           {hasMore && !showAll && (
@@ -129,12 +136,8 @@ export function ProjectGroup({
                 setShowAll(true);
               }}
             >
-              <span
-                className={
-                  compactSessions ? "flex-1 text-xs font-normal" : "flex-1 pl-6 text-sm font-normal"
-                }
-              >
-                Load more ({sessions.length - 10})
+              <span className="flex-1 text-xs font-normal">
+                Load more ({sessions.length - 5})
               </span>
             </button>
           )}
