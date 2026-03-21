@@ -98,6 +98,20 @@ class CacheHitRateEntry(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class SpawnSubAgentEntry(BaseModel):
+    """Recorded in the parent session when a sub-agent is spawned.
+
+    Allows history replay to discover and inline the sub-agent's events even
+    before the Agent tool call completes (i.e. while the sub-agent is still running).
+    """
+
+    session_id: str
+    sub_agent_type: str
+    sub_agent_desc: str
+    fork_context: bool = False
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 # Part types
 
 
@@ -221,7 +235,14 @@ class ToolResultMessage(MessageBase):
 Message = SystemMessage | DeveloperMessage | UserMessage | AssistantMessage | ToolResultMessage
 
 HistoryEvent = (
-    Message | StreamErrorItem | InterruptEntry | TaskMetadataItem | CompactionEntry | RewindEntry | CacheHitRateEntry
+    Message
+    | StreamErrorItem
+    | InterruptEntry
+    | TaskMetadataItem
+    | CompactionEntry
+    | RewindEntry
+    | CacheHitRateEntry
+    | SpawnSubAgentEntry
 )
 
 StreamItem = AssistantTextDelta | ThinkingTextDelta | ToolCallStartDelta

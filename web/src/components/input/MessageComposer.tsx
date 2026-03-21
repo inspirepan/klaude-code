@@ -18,6 +18,7 @@ export function MessageComposer(): JSX.Element {
   const groups = useSessionStore((state) => state.groups);
   const runtimeBySessionId = useSessionStore((state) => state.runtimeBySessionId);
   const sendMessage = useSessionStore((state) => state.sendMessage);
+  const compactSession = useSessionStore((state) => state.compactSession);
   const interruptSession = useSessionStore((state) => state.interruptSession);
   const requestModel = useSessionStore((state) => state.requestModel);
   const respondInteraction = useSessionStore((state) => state.respondInteraction);
@@ -134,6 +135,14 @@ export function MessageComposer(): JSX.Element {
     }
   }, [activeSessionId, disableSubmit, images, normalizedText, sendMessage]);
 
+  const handleCompact = useCallback(
+    async (focus: string | null) => {
+      await compactSession(activeSessionId, focus);
+      setText("");
+    },
+    [activeSessionId, compactSession],
+  );
+
   const handleModelChange = useCallback(
     async (nextModelName: string) => {
       if (nextModelName.length === 0 || nextModelName === currentModelName || modelBusy) {
@@ -247,12 +256,16 @@ export function MessageComposer(): JSX.Element {
         ) : null}
         <ComposerCard
           sessionId={activeSessionId}
+          skillWorkDir={activeSession?.work_dir}
           text={text}
           onTextChange={setText}
           images={images}
           onImagesChange={setImages}
           onSubmit={() => {
             void handleSubmit();
+          }}
+          onCompact={(focus) => {
+            void handleCompact(focus);
           }}
           onInterrupt={() => {
             void handleInterrupt();

@@ -124,13 +124,36 @@ export interface DeveloperMessageItem {
   items: DeveloperUIItem[];
 }
 
-export interface TaskWorkedItem {
+export interface TaskMetadataUsage {
+  inputTokens: number;
+  cachedTokens: number;
+  cacheWriteTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  totalCost: number | null;
+  currency: string;
+  contextPercent: number | null;
+  throughputTps: number | null;
+  cacheHitRate: number | null;
+}
+
+export interface TaskMetadataAgent {
+  modelName: string;
+  provider: string | null;
+  subAgentName: string | null;
+  usage: TaskMetadataUsage | null;
+  durationSeconds: number | null;
+  turnCount: number;
+}
+
+export interface TaskMetadataItem {
   id: MessageItemId;
-  type: "task_worked";
+  type: "task_metadata";
   timestamp: ItemTimestamp;
   sessionId: string | null;
-  durationSeconds: number;
-  turnCount: number;
+  mainAgent: TaskMetadataAgent;
+  subAgents: TaskMetadataAgent[];
+  isPartial: boolean;
 }
 
 export interface InterruptItem {
@@ -175,5 +198,5 @@ export type MessageItem =
   | ErrorItem
   | InterruptItem
   | CompactionSummaryItem
-  | TaskWorkedItem
+  | TaskMetadataItem
   | UnknownEventItem;

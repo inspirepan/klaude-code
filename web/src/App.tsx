@@ -24,7 +24,9 @@ export default function App(): JSX.Element {
   // Sync session state on browser back/forward
   useMountEffect(() => {
     const handlePopState = () => {
-      const match = window.location.pathname.match(/^\/session\/([a-f0-9]+)$/);
+      const match = window.location.pathname.match(
+        /^\/session\/([a-f0-9]+)(?:\/agent\/[a-f0-9]+)?$/,
+      );
       if (match) {
         void useSessionStore.getState().selectSession(match[1]);
       } else {

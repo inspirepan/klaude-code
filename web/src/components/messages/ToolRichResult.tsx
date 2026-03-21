@@ -14,17 +14,14 @@ import {
 
 interface ToolRichResultProps {
   item: ToolBlockItem;
-  compact: boolean;
 }
 
 function RichUIExtraBlock({
   extra,
   item,
-  compact,
 }: {
   extra: Record<string, unknown>;
   item: ToolBlockItem;
-  compact: boolean;
 }): JSX.Element | null {
   if (isDiffUIExtra(extra)) {
     return (
@@ -34,25 +31,25 @@ function RichUIExtraBlock({
     );
   }
   if (isTodoListUIExtra(extra)) {
-    return <TodoListView uiExtra={extra} compact={compact} />;
+    return <TodoListView uiExtra={extra} />;
   }
   if (isMarkdownDocUIExtra(extra)) {
-    return <MarkdownDocView uiExtra={extra} compact={compact} />;
+    return <MarkdownDocView uiExtra={extra} />;
   }
   if (isQuestionSummaryUIExtra(extra)) {
     return (
       <div className="rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2.5">
-        <QuestionSummaryView uiExtra={extra} compact={compact} />
+        <QuestionSummaryView uiExtra={extra} />
       </div>
     );
   }
   if (isImageUIExtra(extra)) {
-    return <ImageResultView uiExtra={extra} compact={compact} sessionId={item.sessionId} />;
+    return <ImageResultView uiExtra={extra} sessionId={item.sessionId} />;
   }
   return null;
 }
 
-export function ToolRichResult({ item, compact }: ToolRichResultProps): JSX.Element | null {
+export function ToolRichResult({ item }: ToolRichResultProps): JSX.Element | null {
   const extra = item.uiExtra;
   if (!extra) return null;
 
@@ -61,11 +58,11 @@ export function ToolRichResult({ item, compact }: ToolRichResultProps): JSX.Elem
     return (
       <div className="flex flex-col gap-1">
         {items.map((sub, index) => (
-          <RichUIExtraBlock key={index} extra={sub} item={item} compact={compact} />
+          <RichUIExtraBlock key={index} extra={sub} item={item} />
         ))}
       </div>
     );
   }
 
-  return <RichUIExtraBlock extra={extra} item={item} compact={compact} />;
+  return <RichUIExtraBlock extra={extra} item={item} />;
 }

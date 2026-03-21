@@ -12,7 +12,6 @@ const statusConfig = {
 
 interface TodoListViewProps {
   uiExtra: TodoListUIExtra;
-  compact?: boolean;
 }
 
 export function TodoListView({ uiExtra }: TodoListViewProps): JSX.Element {

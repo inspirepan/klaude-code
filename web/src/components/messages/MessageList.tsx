@@ -17,7 +17,12 @@ import { MessageRow } from "./MessageRow";
 import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra";
 import { SearchBar } from "./SearchBar";
 import { SubAgentGroupCard } from "./SubAgentGroupCard";
-import { isCopyableAssistantText } from "./message-list-ui";
+import {
+  isCopyableAssistantText,
+  isToolBlock,
+  formatSubAgentTypeLabel,
+  shortSessionId,
+} from "./message-list-ui";
 import { SearchProvider, type SearchState } from "./search-context";
 import { SessionStatusBar } from "../input/SessionStatusBar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -30,6 +35,13 @@ const EMPTY_SUB_AGENT_FINISHED_MAP: Record<string, boolean> = {};
 const EMPTY_STATUS_MAP: Record<string, SessionStatusState> = {};
 const BOTTOM_THRESHOLD_PX = 120;
 
+const AGENT_URL_RE = /^\/session\/[a-f0-9]+\/agent\/([a-f0-9]+)$/;
+
+function getSubAgentIdFromUrl(): string | null {
+  const match = window.location.pathname.match(AGENT_URL_RE);
+  return match ? match[1] : null;
+}
+
 function getDistanceFromBottom(container: HTMLDivElement): number {
   return container.scrollHeight - container.scrollTop - container.clientHeight;
 }
@@ -37,6 +49,10 @@ function getDistanceFromBottom(container: HTMLDivElement): number {
 function isNearBottom(container: HTMLDivElement): boolean {
   return getDistanceFromBottom(container) < BOTTOM_THRESHOLD_PX;
 }
+
+/** Inset applied to bottom-anchored elements (status bar, scroll-to-bottom, tail padding)
+ *  so they sit slightly inside the composer area rather than flush at its top edge. */
+const COMPOSER_BOTTOM_INSET = "2rem";
 
 interface MessageListProps {
   sessionId: string;
@@ -66,7 +82,7 @@ interface SectionSubAgentBlock {
   sourceSessionType: string | null;
   sourceSessionDesc: string | null;
   sourceSessionFork: boolean;
-  items: MessageItemType[];
+  toolCount: number;
 }
 
 interface SectionCollapseGroupBlock {
@@ -106,7 +122,7 @@ function extractSearchableText(item: MessageItemType): string {
       return `${item.toolName}\n${item.arguments}\n${item.result ?? ""}`;
     case "developer_message":
       return "";
-    case "task_worked":
+    case "task_metadata":
       return "";
     case "error":
       return item.message;
@@ -157,22 +173,31 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const contentRef = useRef<HTMLDivElement>(null);
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
   const previousLastVisibleItemIdRef = useRef<string | null>(null);
+  const mainScrollTopRef = useRef<number | null>(null);
+  const [viewingSubAgentSessionId, setViewingSubAgentSessionId] = useState<string | null>(
+    getSubAgentIdFromUrl,
+  );
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const [collapsedSubAgentGroups, setCollapsedSubAgentGroups] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [subAgentMetaOpen, setSubAgentMetaOpen] = useState<Record<string, boolean>>({});
   const [collapsedCollapseGroups, setCollapsedCollapseGroups] = useState<Record<string, boolean>>(
     {},
   );
   const [collapseGen, setCollapseGen] = useState(0);
   const [expandGen, setExpandGen] = useState(0);
-  const [nowMs, setNowMs] = useState(() => Date.now());
+
   const copyTimerRef = useRef(0);
+
+  // Reset sub-agent view when the parent session changes (e.g. switching sessions)
+  const [prevSessionId, setPrevSessionId] = useState(sessionId);
+  if (prevSessionId !== sessionId) {
+    setPrevSessionId(sessionId);
+    setViewingSubAgentSessionId(getSubAgentIdFromUrl());
+  }
+
+  const effectiveSessionId = viewingSubAgentSessionId ?? sessionId;
 
   const session = useMemo(
     () => groups.flatMap((group) => group.sessions).find((item) => item.id === sessionId) ?? null,
@@ -191,6 +216,11 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       items.filter((item) => {
         if (item.type === "tool_block" && item.toolName === "Agent") return false;
         const sourceSessionId = item.sessionId ?? sessionId;
+        if (viewingSubAgentSessionId) {
+          // Sub-agent view: show only items from the viewed sub-agent session
+          return sourceSessionId === viewingSubAgentSessionId;
+        }
+        // Main view: existing filter
         if (
           sourceSessionId !== sessionId &&
           (item.type === "developer_message" || item.type === "thinking")
@@ -199,17 +229,17 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         }
         return true;
       }),
-    [items, sessionId],
+    [items, sessionId, viewingSubAgentSessionId],
   );
   const hasStreamingAssistantText = useMemo(
     () =>
       visibleItems.some(
         (item) =>
           item.type === "assistant_text" &&
-          (item.sessionId ?? sessionId) === sessionId &&
+          (item.sessionId ?? sessionId) === effectiveSessionId &&
           item.isStreaming,
       ),
-    [sessionId, visibleItems],
+    [effectiveSessionId, sessionId, visibleItems],
   );
 
   const searchMatchItemIds = useMemo(
@@ -250,7 +280,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     if (!activeItemId) return;
     const el = itemRefsMap.current.get(activeItemId);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [activeItemId, collapsedSubAgentGroups]);
+  }, [activeItemId]);
 
   const handleSearchQueryChange = useCallback((query: string) => {
     setSearchQuery(query);
@@ -278,6 +308,39 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   useMountEffect(() => () => window.clearTimeout(copyTimerRef.current));
 
+  const mainSessionStatus = statusBySessionId[sessionId] ?? null;
+  const effectiveStatus = statusBySessionId[effectiveSessionId] ?? null;
+  const isMainSessionRunning =
+    runtime?.sessionState === "running" ||
+    (((mainSessionStatus?.taskActive ?? false) ||
+      (mainSessionStatus?.thinkingActive ?? false) ||
+      (mainSessionStatus?.compacting ?? false) ||
+      (mainSessionStatus?.isComposing ?? false)) &&
+      mainSessionStatus?.awaitingInput !== true);
+
+  const isEffectiveRunning = viewingSubAgentSessionId
+    ? ((effectiveStatus?.taskActive ?? false) ||
+        (effectiveStatus?.thinkingActive ?? false) ||
+        (effectiveStatus?.compacting ?? false) ||
+        (effectiveStatus?.isComposing ?? false)) &&
+      effectiveStatus?.awaitingInput !== true
+    : isMainSessionRunning;
+
+  const [prevRunning, setPrevRunning] = useState(isEffectiveRunning);
+  if (prevRunning !== isEffectiveRunning) {
+    setPrevRunning(isEffectiveRunning);
+    if (prevRunning && !isEffectiveRunning) {
+      setCollapsedCollapseGroups({});
+    }
+  }
+
+  // Reset collapse state when switching between main and sub-agent views
+  const [prevEffectiveSessionId, setPrevEffectiveSessionId] = useState(effectiveSessionId);
+  if (prevEffectiveSessionId !== effectiveSessionId) {
+    setPrevEffectiveSessionId(effectiveSessionId);
+    setCollapsedCollapseGroups({});
+  }
+
   const hasActiveStatus = useMemo(
     () =>
       Object.values(statusBySessionId).some(
@@ -287,23 +350,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       runtime?.sessionState === "waiting_user_input",
     [runtime?.sessionState, statusBySessionId],
   );
-  const mainSessionStatus = statusBySessionId[sessionId] ?? null;
-  const isMainSessionRunning =
-    runtime?.sessionState === "running" ||
-    (((mainSessionStatus?.taskActive ?? false) ||
-      (mainSessionStatus?.thinkingActive ?? false) ||
-      (mainSessionStatus?.compacting ?? false) ||
-      (mainSessionStatus?.isComposing ?? false)) &&
-      mainSessionStatus?.awaitingInput !== true);
 
-  const [prevRunning, setPrevRunning] = useState(isMainSessionRunning);
-  if (prevRunning !== isMainSessionRunning) {
-    setPrevRunning(isMainSessionRunning);
-    if (prevRunning && !isMainSessionRunning) {
-      setCollapsedCollapseGroups({});
-    }
-  }
-
+  const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     if (!hasActiveStatus) return;
     setNowMs(Date.now());
@@ -314,6 +362,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       window.clearInterval(timer);
     };
   }, [hasActiveStatus]);
+
+  const nowSeconds = nowMs / 1000;
 
   const handleCopy = useCallback(async (item: MessageItemType) => {
     if (!isCopyableAssistantText(item)) return;
@@ -411,16 +461,49 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     }
   }, []);
 
-  // Group items into sections starting at each main-session user message so that
+  // Sub-agent navigation
+  const handleEnterSubAgent = useCallback(
+    (subAgentId: string) => {
+      mainScrollTopRef.current = scrollRef.current?.scrollTop ?? null;
+      setViewingSubAgentSessionId(subAgentId);
+      history.pushState(null, "", `/session/${sessionId}/agent/${subAgentId}`);
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollTo({ top: 0 });
+      });
+    },
+    [sessionId],
+  );
+
+  const handleExitSubAgent = useCallback(() => {
+    setViewingSubAgentSessionId(null);
+    history.pushState(null, "", `/session/${sessionId}`);
+    const savedTop = mainScrollTopRef.current;
+    requestAnimationFrame(() => {
+      if (savedTop !== null && scrollRef.current) {
+        scrollRef.current.scrollTop = savedTop;
+      }
+    });
+  }, [sessionId]);
+
+  // Sync sub-agent view with browser back/forward
+  useEffect(() => {
+    const handlePopState = () => {
+      setViewingSubAgentSessionId(getSubAgentIdFromUrl());
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Group items into sections starting at each effective-session user message so that
   // CSS sticky is scoped to each section's containing block.
   const sections = useMemo(() => {
     const result: MessageItemType[][] = [];
     let current: MessageItemType[] = [];
     for (const item of visibleItems) {
       const sourceSessionId = item.sessionId ?? sessionId;
-      const isMainSessionUserMessage =
-        item.type === "user_message" && sourceSessionId === sessionId;
-      if (isMainSessionUserMessage && current.length > 0) {
+      const isEffectiveUserMessage =
+        item.type === "user_message" && sourceSessionId === effectiveSessionId;
+      if (isEffectiveUserMessage && current.length > 0) {
         result.push(current);
         current = [];
       }
@@ -428,7 +511,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     }
     if (current.length > 0) result.push(current);
     return result;
-  }, [visibleItems, sessionId]);
+  }, [visibleItems, sessionId, effectiveSessionId]);
 
   const sectionBlocks = useMemo(() => {
     return sections.map((section) => {
@@ -439,7 +522,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       while (i < section.length) {
         const item = section[i];
         const sourceSessionId = item.sessionId ?? sessionId;
-        if (sourceSessionId === sessionId) {
+        if (sourceSessionId === effectiveSessionId) {
           rawBlocks.push({ type: "item", item });
           i += 1;
           continue;
@@ -448,23 +531,22 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         const existingBlockIndex = subAgentBlockIndexBySessionId.get(sourceSessionId);
         if (existingBlockIndex !== undefined) {
           const existingBlock = rawBlocks[existingBlockIndex];
-          if (existingBlock?.type === "sub_agent_group") {
-            existingBlock.items.push(item);
+          if (existingBlock?.type === "sub_agent_group" && item.type === "tool_block") {
+            existingBlock.toolCount += 1;
           }
           i += 1;
           continue;
         }
 
-        const groupItems: MessageItemType[] = [item];
         const blockIndex = rawBlocks.length;
         rawBlocks.push({
           type: "sub_agent_group",
-          groupId: `${sessionId}-${section[0]?.id ?? sourceSessionId}-${sourceSessionId}`,
+          groupId: `${effectiveSessionId}-${section[0]?.id ?? sourceSessionId}-${sourceSessionId}`,
           sourceSessionId,
           sourceSessionType: subAgentTypeBySessionId[sourceSessionId] ?? null,
           sourceSessionDesc: subAgentDescBySessionId[sourceSessionId] ?? null,
           sourceSessionFork: subAgentForkBySessionId[sourceSessionId] === true,
-          items: groupItems,
+          toolCount: isToolBlock(item) ? 1 : 0,
         });
         subAgentBlockIndexBySessionId.set(sourceSessionId, blockIndex);
         i += 1;
@@ -480,7 +562,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         if (hasToolBlock) {
           blocks.push({
             type: "collapse_group",
-            id: `cg-${sessionId}-${pending[0].id}`,
+            id: `cg-${effectiveSessionId}-${pending[0].id}`,
             items: pending,
           });
         } else {
@@ -515,23 +597,11 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   }, [
     sections,
     sessionId,
+    effectiveSessionId,
     subAgentDescBySessionId,
     subAgentForkBySessionId,
     subAgentTypeBySessionId,
   ]);
-
-  const subAgentGroupIdByItemId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const blocks of sectionBlocks) {
-      for (const block of blocks) {
-        if (block.type !== "sub_agent_group") continue;
-        for (const item of block.items) {
-          map.set(item.id, block.groupId);
-        }
-      }
-    }
-    return map;
-  }, [sectionBlocks]);
 
   const collapseGroupIdByItemId = useMemo(() => {
     const map = new Map<string, string>();
@@ -556,9 +626,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     return ids;
   }, [sectionBlocks]);
 
-  const activeGroupId =
-    activeItemId === null ? null : (subAgentGroupIdByItemId.get(activeItemId) ?? null);
-
   const allCollapseGroupIds = useMemo(() => {
     const ids: string[] = [];
     for (const blocks of sectionBlocks) {
@@ -569,35 +636,19 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     return ids;
   }, [sectionBlocks]);
 
-  const allSubAgentGroupIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const blocks of sectionBlocks) {
-      for (const block of blocks) {
-        if (block.type === "sub_agent_group") ids.push(block.groupId);
-      }
-    }
-    return ids;
-  }, [sectionBlocks]);
-
   const handleCollapseAll = useCallback(() => {
     const state: Record<string, boolean> = {};
     for (const id of allCollapseGroupIds) state[id] = true;
     setCollapsedCollapseGroups(state);
-    const subState: Record<string, boolean> = {};
-    for (const id of allSubAgentGroupIds) subState[id] = true;
-    setCollapsedSubAgentGroups(subState);
     setCollapseGen((v) => v + 1);
-  }, [allCollapseGroupIds, allSubAgentGroupIds]);
+  }, [allCollapseGroupIds]);
 
   const handleExpandAll = useCallback(() => {
     const state: Record<string, boolean> = {};
     for (const id of allCollapseGroupIds) state[id] = false;
     setCollapsedCollapseGroups(state);
-    const subState: Record<string, boolean> = {};
-    for (const id of allSubAgentGroupIds) subState[id] = false;
-    setCollapsedSubAgentGroups(subState);
     setExpandGen((v) => v + 1);
-  }, [allCollapseGroupIds, allSubAgentGroupIds]);
+  }, [allCollapseGroupIds]);
 
   // Cmd+Shift+, collapse all, Cmd+Shift+. expand all
   useEffect(() => {
@@ -625,7 +676,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
         return collapsedCollapseGroups[groupId];
       }
       // While running, expand all groups in the current turn (last section)
-      if (isMainSessionRunning) {
+      if (isEffectiveRunning) {
         return !lastSectionCollapseGroupIds.has(groupId);
       }
       return true;
@@ -634,13 +685,23 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       activeItemId,
       collapseGroupIdByItemId,
       collapsedCollapseGroups,
-      isMainSessionRunning,
+      isEffectiveRunning,
       lastSectionCollapseGroupIds,
     ],
   );
-  const nowSeconds = nowMs / 1000;
 
   const collapseAllValue = useMemo(() => ({ collapseGen, expandGen }), [collapseGen, expandGen]);
+
+  // Sub-agent view header label
+  const subAgentLabel = useMemo(() => {
+    if (!viewingSubAgentSessionId) return null;
+    const typeLabel = formatSubAgentTypeLabel(
+      subAgentTypeBySessionId[viewingSubAgentSessionId] ?? null,
+    );
+    const desc =
+      subAgentDescBySessionId[viewingSubAgentSessionId] ?? shortSessionId(viewingSubAgentSessionId);
+    return `${typeLabel} — ${desc}`;
+  }, [viewingSubAgentSessionId, subAgentTypeBySessionId, subAgentDescBySessionId]);
 
   return (
     <CollapseAllContext.Provider value={collapseAllValue}>
@@ -657,25 +718,27 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             />
           ) : null}
 
+          <MessageListHeader
+            primaryTitle={primaryTitle}
+            secondaryTitle={secondaryTitle}
+            workspacePath={workspacePath}
+            sessionReadOnly={sessionReadOnly}
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            onSearchOpen={() => setSearchOpen(true)}
+            onCollapseAll={handleCollapseAll}
+            onExpandAll={handleExpandAll}
+            onBack={viewingSubAgentSessionId ? handleExitSubAgent : undefined}
+            subAgentLabel={subAgentLabel}
+          />
           <div
             ref={scrollRef}
             onScroll={handleScroll}
             data-message-scroll-container="true"
-            className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
+            className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-none"
           >
             <div ref={contentRef}>
-              <MessageListHeader
-                primaryTitle={primaryTitle}
-                secondaryTitle={secondaryTitle}
-                workspacePath={workspacePath}
-                sessionReadOnly={sessionReadOnly}
-                sidebarOpen={sidebarOpen}
-                setSidebarOpen={setSidebarOpen}
-                onSearchOpen={() => setSearchOpen(true)}
-                onCollapseAll={handleCollapseAll}
-                onExpandAll={handleExpandAll}
-              />
-              <div className="mx-auto max-w-4xl space-y-5 px-4 pb-8 pt-8 sm:px-6">
+              <div className="mx-auto max-w-4xl space-y-5 px-4 pb-2 pt-8 sm:px-6">
                 {hasItems ? (
                   <>
                     {sections.map((section, sectionIndex) => (
@@ -708,10 +771,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                           }
 
                           if (block.type === "sub_agent_group") {
-                            const collapsed =
-                              activeGroupId === block.groupId
-                                ? false
-                                : (collapsedSubAgentGroups[block.groupId] ?? true);
                             const isFinished =
                               subAgentFinishedBySessionId[block.sourceSessionId] === true;
                             return (
@@ -721,29 +780,11 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                 sourceSessionType={block.sourceSessionType}
                                 sourceSessionDesc={block.sourceSessionDesc}
                                 sourceSessionFork={block.sourceSessionFork}
-                                items={block.items}
-                                collapsed={collapsed}
+                                toolCount={block.toolCount}
                                 status={statusBySessionId[block.sourceSessionId] ?? null}
                                 isFinished={isFinished}
                                 nowSeconds={nowSeconds}
-                                activeItemId={activeItemId}
-                                copiedItemId={copiedItemId}
-                                metaOpen={subAgentMetaOpen[block.groupId] === true}
-                                workDir={workspacePath}
-                                onToggleCollapsed={() => {
-                                  setCollapsedSubAgentGroups((prev) => ({
-                                    ...prev,
-                                    [block.groupId]: !collapsed,
-                                  }));
-                                }}
-                                onMetaOpenChange={(open) => {
-                                  setSubAgentMetaOpen((prev) => ({
-                                    ...prev,
-                                    [block.groupId]: open,
-                                  }));
-                                }}
-                                onCopy={handleCopy}
-                                setItemRef={setItemRef}
+                                onClick={() => handleEnterSubAgent(block.sourceSessionId)}
                               />
                             );
                           }
@@ -753,7 +794,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                             <MessageRow
                               key={item.id}
                               item={item}
-                              variant="main"
                               workDir={workspacePath}
                               isActive={item.id === activeItemId}
                               copied={copiedItemId === item.id}
@@ -777,23 +817,23 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                   </div>
                 ) : null}
               </div>
-              <div
-                className="sticky z-20 mx-auto max-w-4xl px-4 sm:px-6"
-                style={{ bottom: "calc(var(--composer-h, 10rem) - 1.5rem)" }}
-              >
-                <SessionStatusBar status={mainSessionStatus} runtime={runtime} />
+              <div className="mx-auto max-w-4xl px-4 sm:px-6">
+                <SessionStatusBar
+                  status={viewingSubAgentSessionId ? effectiveStatus : mainSessionStatus}
+                  runtime={viewingSubAgentSessionId ? null : runtime}
+                />
               </div>
               {/* Padding so content isn't hidden under the absolute positioned composer */}
               <div
                 className="shrink-0"
-                style={{ height: "calc(var(--composer-h, 10rem) - 1.5rem)" }}
+                style={{ height: `calc(var(--composer-h, 10rem) - ${COMPOSER_BOTTOM_INSET})` }}
               />
             </div>
           </div>
           {showScrollToBottom ? (
             <div
               className="pointer-events-none absolute left-1/2 z-20 -translate-x-1/2"
-              style={{ bottom: "calc(var(--composer-h, 10rem) - 1.5rem)" }}
+              style={{ bottom: `calc(var(--composer-h, 10rem) - ${COMPOSER_BOTTOM_INSET})` }}
             >
               <Tooltip>
                 <TooltipTrigger asChild>

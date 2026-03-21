@@ -63,8 +63,20 @@ class ThinkingFrame(BaseModel):
     thinking: llm_param.Thinking
 
 
+class CompactFrame(BaseModel):
+    type: Literal["compact"]
+    focus: str | None = None
+
+
 type IncomingFrame = (
-    MessageFrame | InterruptFrame | RespondFrame | ContinueFrame | ModelFrame | RequestModelFrame | ThinkingFrame
+    MessageFrame
+    | InterruptFrame
+    | RespondFrame
+    | ContinueFrame
+    | ModelFrame
+    | RequestModelFrame
+    | ThinkingFrame
+    | CompactFrame
 )
 
 
@@ -200,10 +212,20 @@ async def _handle_incoming_frame(
             )
             return
 
+        if isinstance(frame, ThinkingFrame):
+            await runtime.submit(
+                op.ChangeThinkingOperation(
+                    session_id=session_id,
+                    thinking=frame.thinking,
+                )
+            )
+            return
+
         await runtime.submit(
-            op.ChangeThinkingOperation(
+            op.CompactSessionOperation(
                 session_id=session_id,
-                thinking=frame.thinking,
+                reason="manual",
+                focus=frame.focus,
             )
         )
         return
@@ -230,7 +252,9 @@ def _validate_incoming_frame(payload: dict[str, Any], frame_type: str) -> Incomi
         return ModelFrame.model_validate(payload)
     if frame_type == "model_request":
         return RequestModelFrame.model_validate(payload)
-    return ThinkingFrame.model_validate(payload)
+    if frame_type == "thinking":
+        return ThinkingFrame.model_validate(payload)
+    return CompactFrame.model_validate(payload)
 
 
 async def _forward_events(session_id: str, websocket: WebSocket) -> None:
@@ -343,6 +367,7 @@ async def _receive_commands(
             "model",
             "model_request",
             "thinking",
+            "compact",
         }:
             await _send_error_frame(websocket, code="unknown_type", message=f"Unknown message type: {frame_type}")
             continue

@@ -264,6 +264,8 @@ async def cleanup_archived_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[
     for summary in list_main_sessions(state.home_dir):
         if summary.archived:
             continue
+        if summary.session_state is not None and summary.session_state != "idle":
+            continue
 
         diff_lines_added = cast(int, summary.file_change_summary.get("diff_lines_added", 0))
         diff_lines_removed = cast(int, summary.file_change_summary.get("diff_lines_removed", 0))

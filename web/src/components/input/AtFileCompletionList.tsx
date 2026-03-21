@@ -150,6 +150,7 @@ interface AtFileCompletionListProps {
   highlightIndex: number;
   onHighlightIndexChange: (index: number) => void;
   onSelect: (path: string) => void;
+  dropUp?: boolean;
 }
 
 function getFileCompletionDisplay(path: string): {
@@ -171,6 +172,7 @@ export function AtFileCompletionList({
   highlightIndex,
   onHighlightIndexChange,
   onSelect,
+  dropUp = true,
 }: AtFileCompletionListProps): JSX.Element {
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -184,8 +186,15 @@ export function AtFileCompletionList({
   }, [highlightIndex, items]);
 
   return (
-    <div className="absolute left-0 right-0 top-full z-20 mt-1.5 overflow-hidden rounded-lg border border-neutral-200/80 bg-white shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
-      <ScrollArea ref={listRef} className="w-full py-1" viewportClassName="max-h-72" type="auto">
+    <div
+      className={`absolute left-0 right-0 z-20 overflow-hidden rounded-lg border border-neutral-200/80 bg-white shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${dropUp ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}
+    >
+      <ScrollArea
+        ref={listRef}
+        className="w-full pb-1.5 pt-2"
+        viewportClassName="max-h-72"
+        type="hover"
+      >
         {items.map((path, index) => {
           const highlighted = index === highlightIndex;
           const display = getFileCompletionDisplay(path);
@@ -198,7 +207,7 @@ export function AtFileCompletionList({
               data-file-completion={path}
               type="button"
               className={[
-                "flex w-full items-center gap-2 px-2.5 py-1 text-left transition-colors",
+                "ml-2 mr-2.5 flex w-[calc(100%-1.125rem)] items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors",
                 highlighted ? "bg-muted text-neutral-900" : "text-neutral-600 hover:bg-surface",
               ].join(" ")}
               onMouseDown={(event) => {

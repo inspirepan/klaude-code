@@ -39,3 +39,18 @@ Icons (Lucide SVGs) and text use different positioning systems (box model vs tex
 - **`items-baseline` is fine** when the flex row contains only text elements (different sizes/fonts).
 - Lucide icons: use `h-* w-* shrink-0`. Do not use `translate-y-*` pixel hacks to fix alignment; fix the flex container alignment instead.
 - Do not use `inline` + `vertical-align` to align icons with text; use flex.
+
+## Scroll area rules
+
+- Never use native `overflow-y-auto` for scrollable containers. Use the shared `ScrollArea` component from `src/components/ui/scroll-area.tsx` (wraps `@radix-ui/react-scroll-area`).
+- Control the scrollable height via the `viewportClassName` prop, not on the `ScrollArea` root:
+
+```tsx
+<ScrollArea className="w-full" viewportClassName="max-h-40" type="auto">
+  <ul>
+    {items.map((item) => (
+      <li key={item.id}>{item.label}</li>
+    ))}
+  </ul>
+</ScrollArea>
+```

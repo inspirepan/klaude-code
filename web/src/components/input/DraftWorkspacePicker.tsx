@@ -8,6 +8,8 @@ import {
 } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, CornerDownLeft, Folder } from "lucide-react";
 
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 interface DraftWorkspacePickerProps {
   draftWorkDir: string;
   normalizedDraftWorkDir: string;
@@ -136,9 +138,14 @@ export function DraftWorkspacePicker({
         </div>
 
         {workspaceMenuOpen ? (
-          <div className="absolute left-0 right-0 z-20 mt-1.5 overflow-hidden rounded-lg border border-neutral-200/80 bg-white py-1 shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
+          <div className="absolute left-0 right-0 z-20 mt-1.5 overflow-hidden rounded-lg border border-neutral-200/80 bg-white pb-1.5 pt-2 shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
             {filteredWorkspaceOptions.length > 0 ? (
-              <div ref={listRef} className="max-h-64 overflow-y-auto">
+              <ScrollArea
+                ref={listRef}
+                className="w-full"
+                viewportClassName="max-h-64"
+                type="hover"
+              >
                 {filteredWorkspaceOptions.map((workspace) => {
                   const isHighlighted = workspace === filteredWorkspaceOptions[highlightIndex];
                   const isSelected = workspace === normalizedDraftWorkDir;
@@ -149,7 +156,7 @@ export function DraftWorkspacePicker({
                       data-workspace={workspace}
                       type="button"
                       className={[
-                        "flex w-full items-center gap-2 px-2.5 py-1 text-left transition-colors",
+                        "ml-2 mr-2.5 flex w-[calc(100%-1.125rem)] items-center gap-2 rounded-md px-2 py-1 text-left transition-colors",
                         isHighlighted || isSelected
                           ? "bg-muted text-neutral-900"
                           : "text-neutral-600 hover:bg-surface",
@@ -174,7 +181,7 @@ export function DraftWorkspacePicker({
                     </button>
                   );
                 })}
-              </div>
+              </ScrollArea>
             ) : (
               <div className="px-2.5 py-1.5 text-base text-neutral-500">
                 No matching workspace. You can still type any local path.

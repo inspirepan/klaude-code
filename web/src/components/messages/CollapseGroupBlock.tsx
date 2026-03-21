@@ -574,7 +574,6 @@ export function CollapseGroupBlock({
                 <MessageRow
                   key={block.item.id}
                   item={block.item}
-                  variant="main"
                   workDir={workDir}
                   isActive={block.item.id === activeItemId}
                   copied={copiedItemId === block.item.id}

@@ -140,7 +140,7 @@ export function ModelSelector({
         <div
           className={
             panelClassName ??
-            `absolute left-0 z-30 w-[360px] overflow-hidden rounded-lg border border-neutral-200/80 bg-white p-1 shadow-[0_8px_30px_rgba(0,0,0,0.08)] ${dropUp ? "bottom-full mb-2" : "top-full mt-2"}`
+            `absolute left-0 z-30 w-[360px] overflow-hidden rounded-lg border border-neutral-200/80 bg-white pb-1.5 pt-1 shadow-[0_8px_30px_rgba(0,0,0,0.08)] ${dropUp ? "bottom-full mb-2" : "top-full mt-2"}`
           }
         >
           <div className="flex items-center gap-1.5 border-b border-neutral-100 px-2 pb-1.5 pt-1">
@@ -174,14 +174,14 @@ export function ModelSelector({
               className="h-6 w-full bg-transparent text-base text-neutral-700 outline-none placeholder:text-neutral-400"
             />
           </div>
-          <ScrollArea ref={listRef} className="w-full" viewportClassName="max-h-96" type="auto">
+          <ScrollArea ref={listRef} className="w-full" viewportClassName="max-h-96" type="hover">
             {groups.map((group) => {
               const collapsed = collapsedProviders[group.provider] === true;
               return (
                 <div key={group.provider}>
                   <button
                     type="button"
-                    className="flex w-full items-center gap-1 rounded-md px-1.5 pb-0.5 pt-1.5 text-xs uppercase tracking-wide text-emerald-700 transition-colors hover:bg-surface"
+                    className="ml-2 mr-2.5 flex w-[calc(100%-1.125rem)] items-center gap-1 rounded-md px-1.5 pb-0.5 pt-1.5 text-xs uppercase tracking-wide text-emerald-700 transition-colors hover:bg-surface"
                     onMouseDown={(event) => {
                       event.preventDefault();
                     }}
@@ -222,7 +222,7 @@ export function ModelSelector({
                             data-model-name={model.name}
                             type="button"
                             className={[
-                              "flex w-full items-center justify-between gap-2 rounded-md py-[5px] pl-[22px] pr-2 text-left transition-colors",
+                              "ml-2 mr-2.5 flex w-[calc(100%-1.125rem)] items-center justify-between gap-2 rounded-md py-[5px] pl-[22px] pr-2 text-left transition-colors",
                               highlighted
                                 ? "bg-muted text-neutral-900"
                                 : selected

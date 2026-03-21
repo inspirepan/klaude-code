@@ -12,7 +12,6 @@ const STREAMING_LINE_LIMIT = 5;
 
 interface ToolBlockResultProps {
   item: ToolBlockItem;
-  compact: boolean;
   open: boolean;
   hasRich: boolean;
   hasResult: boolean;
@@ -26,7 +25,6 @@ interface ToolBlockResultProps {
 
 export function ToolBlockResult({
   item,
-  compact,
   open,
   hasRich,
   hasResult,
@@ -38,7 +36,7 @@ export function ToolBlockResult({
   onToggleShowMore,
 }: ToolBlockResultProps): JSX.Element | null {
   const subTextClass = "text-base";
-  const miniTextClass = compact ? "text-xs" : "text-sm";
+  const miniTextClass = "text-sm";
   const resultLineClass = "block max-w-full overflow-hidden text-ellipsis whitespace-pre";
 
   return (
@@ -52,7 +50,7 @@ export function ToolBlockResult({
                 event.stopPropagation();
               }}
             >
-              <ToolRichResult item={item} compact={compact} />
+              <ToolRichResult item={item} />
             </div>
           ) : hasStreamingContent ? (
             <div

@@ -7,23 +7,28 @@ import {
   type RefObject,
   type SetStateAction,
 } from "react";
-import { ArrowUp, ImagePlus, Square, X } from "lucide-react";
+import { ArrowUp, Plus, Square, X } from "lucide-react";
 
 import {
   buildFileApiUrl,
+  fetchSkills,
   searchFileCompletions,
   uploadImageAttachment,
   type ConfigModelSummary,
+  type SkillItem,
 } from "../../api/client";
 import type { MessageImageFilePart } from "../../types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { AtFileCompletionList } from "./AtFileCompletionList";
 import { ModelSelector } from "./ModelSelector";
+import { SlashCompletionList, type SlashCompletionItem } from "./SlashCompletionList";
 
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const SUPPORTED_IMAGE_ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
 const AT_COMPLETION_PATTERN = /(^|\s)@(?<frag>"[^"]*"|[^\s]*)$/;
 const AT_COMPLETION_DEBOUNCE_MS = 120;
+const SLASH_COMPLETION_PATTERN = /^(?<prefix>\/\/|\/)(?<frag>[^\s/]*)$/;
+const COMPACT_COMMAND_PATTERN = /^\/compact(?:\s+(?<focus>.+))?$/;
 
 interface FileCompletionContext {
   fragment: string;
@@ -47,11 +52,15 @@ interface ComposerSubmitPayload {
 interface ComposerCardProps {
   sessionId: string;
   searchWorkDir?: string;
+  /** Working directory used for skill discovery. When provided, skills are
+   *  re-fetched whenever this value changes (e.g. workspace switch). */
+  skillWorkDir?: string;
   text: string;
   onTextChange: (text: string) => void;
   images: ComposerImageAttachment[];
   onImagesChange: Dispatch<SetStateAction<ComposerImageAttachment[]>>;
   onSubmit: (payload: ComposerSubmitPayload) => void;
+  onCompact?: (focus: string | null) => void;
   onInterrupt?: () => void;
   submitting: boolean;
   disableSubmit: boolean;
@@ -69,6 +78,8 @@ interface ComposerCardProps {
   textareaRef?: RefObject<HTMLTextAreaElement>;
   /** Open model dropdown above (default) or below the trigger. */
   modelDropUp?: boolean;
+  /** Open completion lists above (default) or below the textarea. */
+  completionDropUp?: boolean;
 }
 
 function getFileCompletionContext(
@@ -107,6 +118,111 @@ function formatFileCompletionText(path: string, isQuoted: boolean): string {
   return `@${path} `;
 }
 
+const COMPACT_COMPLETION_ITEM: SlashCompletionItem = {
+  kind: "command",
+  name: "compact",
+  description: "Clear context, keep summary",
+  insertText: "/compact ",
+};
+
+/** Rank a skill match. Lower values = better match. Returns null when no match. */
+function skillMatchRank(
+  name: string,
+  description: string,
+  frag: string,
+): [number, number, number, number, number, number, number] | null {
+  const nameLower = name.toLowerCase();
+  const descLower = description.toLowerCase();
+  const tokenLower = `skill:${nameLower}`;
+
+  const namePrefix = nameLower.startsWith(frag);
+  const segmentPrefix = nameLower.split(/[-_:]/).some((seg) => seg.startsWith(frag));
+  const tokenPrefix = tokenLower.startsWith(frag);
+  const nameContains = nameLower.includes(frag);
+  const tokenContains = tokenLower.includes(frag);
+  const descContains = descLower.includes(frag);
+
+  if (!nameContains && !tokenContains && !descContains) return null;
+
+  return [
+    namePrefix ? 0 : 1,
+    segmentPrefix ? 0 : 1,
+    tokenPrefix ? 0 : 1,
+    nameContains ? 0 : 1,
+    tokenContains ? 0 : 1,
+    descContains ? 0 : 1,
+    nameLower.length,
+  ];
+}
+
+function compareRanks(
+  a: [number, number, number, number, number, number, number],
+  b: [number, number, number, number, number, number, number],
+): number {
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return a[i] - b[i];
+  }
+  return 0;
+}
+
+function buildSlashCompletionItems(
+  prefix: string,
+  fragment: string,
+  skills: SkillItem[],
+  showCommands: boolean,
+): SlashCompletionItem[] {
+  const items: SlashCompletionItem[] = [];
+  const frag = fragment.toLowerCase();
+
+  if (showCommands && prefix === "/") {
+    if (frag === "" || "compact".includes(frag)) {
+      items.push(COMPACT_COMPLETION_ITEM);
+    }
+  }
+
+  if (frag === "") {
+    for (const skill of skills) {
+      items.push({
+        kind: "skill",
+        name: skill.name,
+        description: skill.description,
+        location: skill.location,
+        insertText: `${prefix}skill:${skill.name} `,
+      });
+    }
+    return items;
+  }
+
+  const ranked: { item: SlashCompletionItem; rank: ReturnType<typeof skillMatchRank> & object }[] =
+    [];
+  for (const skill of skills) {
+    const rank = skillMatchRank(skill.name, skill.description, frag);
+    if (rank === null) continue;
+    ranked.push({
+      item: {
+        kind: "skill",
+        name: skill.name,
+        description: skill.description,
+        location: skill.location,
+        insertText: `${prefix}skill:${skill.name} `,
+      },
+      rank,
+    });
+  }
+  ranked.sort((a, b) => compareRanks(a.rank, b.rank));
+  for (const entry of ranked) {
+    items.push(entry.item);
+  }
+
+  return items;
+}
+
+function parseCompactCommand(text: string): { focus: string | null } | null {
+  const match = COMPACT_COMMAND_PATTERN.exec(text.trim());
+  if (!match) return null;
+  return { focus: match.groups?.focus?.trim() || null };
+}
+
 function getAttachmentName(file: File, image: MessageImageFilePart): string {
   const trimmedName = file.name.trim();
   if (trimmedName.length > 0) {
@@ -122,11 +238,13 @@ function getAttachmentName(file: File, image: MessageImageFilePart): string {
 export function ComposerCard({
   sessionId,
   searchWorkDir,
+  skillWorkDir,
   text,
   onTextChange,
   images,
   onImagesChange,
   onSubmit,
+  onCompact,
   onInterrupt,
   submitting,
   disableSubmit,
@@ -143,6 +261,7 @@ export function ComposerCard({
   onModelSelect,
   textareaRef: externalRef,
   modelDropUp = true,
+  completionDropUp = true,
 }: ComposerCardProps): JSX.Element {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -154,10 +273,15 @@ export function ComposerCard({
   const [fileCompletionItems, setFileCompletionItems] = useState<string[]>([]);
   const [fileCompletionLoading, setFileCompletionLoading] = useState(false);
   const [fileCompletionHighlightIndex, setFileCompletionHighlightIndex] = useState(0);
+  const [skills, setSkills] = useState<SkillItem[]>([]);
+  const [slashCompletionItems, setSlashCompletionItems] = useState<SlashCompletionItem[]>([]);
+  const [slashCompletionHighlightIndex, setSlashCompletionHighlightIndex] = useState(0);
   const attachmentsDisabled = disableAttachments || interruptible || uploadingCount > 0;
   const buttonDisabled = uploadingCount > 0 || (interruptible ? disableInterrupt : disableSubmit);
   const buttonLabel = interruptible ? "Interrupt" : submitting ? "Sending" : "Send";
   const fileCompletionOpen = fileCompletionLoading || fileCompletionItems.length > 0;
+  const slashCompletionOpen = slashCompletionItems.length > 0;
+  const anyCompletionOpen = fileCompletionOpen || slashCompletionOpen;
 
   const closeFileCompletion = useCallback(() => {
     setFileCompletion(null);
@@ -211,6 +335,60 @@ export function ComposerCard({
     [closeFileCompletion, fileCompletion, onTextChange, ref, text],
   );
 
+  const closeSlashCompletion = useCallback(() => {
+    setSlashCompletionItems([]);
+    setSlashCompletionHighlightIndex(0);
+  }, []);
+
+  const updateSlashCompletion = useCallback(
+    (nextText: string, cursorPosition: number | null) => {
+      const resolvedCursor = cursorPosition ?? nextText.length;
+      const textBeforeCursor = nextText.slice(0, resolvedCursor);
+      const match = SLASH_COMPLETION_PATTERN.exec(textBeforeCursor);
+      if (!match?.groups) {
+        setSlashCompletionItems([]);
+        setSlashCompletionHighlightIndex(0);
+        return;
+      }
+      const items = buildSlashCompletionItems(
+        match.groups.prefix,
+        match.groups.frag,
+        skills,
+        !!onCompact,
+      );
+      setSlashCompletionItems(items);
+      setSlashCompletionHighlightIndex(0);
+    },
+    [skills, onCompact],
+  );
+
+  const applySlashCompletion = useCallback(
+    (item: SlashCompletionItem) => {
+      onTextChange(item.insertText);
+      closeSlashCompletion();
+
+      requestAnimationFrame(() => {
+        const textarea = ref.current;
+        if (!textarea) {
+          return;
+        }
+        textarea.focus();
+        const pos = item.insertText.length;
+        textarea.setSelectionRange(pos, pos);
+      });
+    },
+    [closeSlashCompletion, onTextChange, ref],
+  );
+
+  const handleSubmitOrCompact = useCallback(() => {
+    const compact = parseCompactCommand(text);
+    if (compact && onCompact) {
+      onCompact(compact.focus);
+      return;
+    }
+    onSubmit({ text, images: images.map((item) => item.image) });
+  }, [images, onCompact, onSubmit, text]);
+
   useEffect(() => {
     const textarea = ref.current;
     if (!textarea) {
@@ -233,6 +411,20 @@ export function ComposerCard({
     textarea.style.height = `${nextHeight}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [ref, text]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSkills(skillWorkDir)
+      .then((items) => {
+        if (!cancelled) {
+          setSkills(items);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [skillWorkDir]);
 
   useEffect(() => {
     if (fileCompletion === null) {
@@ -272,13 +464,14 @@ export function ComposerCard({
   }, [fileCompletion, searchWorkDir, sessionId]);
 
   useEffect(() => {
-    if (!fileCompletionOpen) {
+    if (!anyCompletionOpen) {
       return;
     }
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) {
         closeFileCompletion();
+        closeSlashCompletion();
       }
     };
 
@@ -286,13 +479,14 @@ export function ComposerCard({
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
     };
-  }, [closeFileCompletion, fileCompletionOpen]);
+  }, [anyCompletionOpen, closeFileCompletion, closeSlashCompletion]);
 
   useEffect(() => {
     if (text.length === 0) {
       closeFileCompletion();
+      closeSlashCompletion();
     }
-  }, [closeFileCompletion, text]);
+  }, [closeFileCompletion, closeSlashCompletion, text]);
 
   const handleFileBatch = async (files: File[]): Promise<void> => {
     if (files.length === 0) {
@@ -351,9 +545,11 @@ export function ComposerCard({
           onChange={(event) => {
             onTextChange(event.target.value);
             updateFileCompletion(event.target.value, event.target.selectionStart);
+            updateSlashCompletion(event.target.value, event.target.selectionStart);
           }}
           onSelect={(event) => {
             updateFileCompletion(event.currentTarget.value, event.currentTarget.selectionStart);
+            updateSlashCompletion(event.currentTarget.value, event.currentTarget.selectionStart);
           }}
           onPaste={(event) => {
             const files = Array.from(event.clipboardData.items)
@@ -398,6 +594,37 @@ export function ComposerCard({
               }
             }
 
+            if (slashCompletionOpen) {
+              if (event.key === "ArrowDown" && slashCompletionItems.length > 0) {
+                event.preventDefault();
+                setSlashCompletionHighlightIndex((current) =>
+                  Math.min(current + 1, slashCompletionItems.length - 1),
+                );
+                return;
+              }
+              if (event.key === "ArrowUp" && slashCompletionItems.length > 0) {
+                event.preventDefault();
+                setSlashCompletionHighlightIndex((current) => Math.max(current - 1, 0));
+                return;
+              }
+              if (
+                (event.key === "Enter" || event.key === "Tab") &&
+                slashCompletionItems.length > 0
+              ) {
+                event.preventDefault();
+                const item = slashCompletionItems[slashCompletionHighlightIndex];
+                if (item) {
+                  applySlashCompletion(item);
+                }
+                return;
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                closeSlashCompletion();
+                return;
+              }
+            }
+
             if (event.nativeEvent.isComposing || event.key !== "Enter" || event.shiftKey) {
               return;
             }
@@ -405,7 +632,7 @@ export function ComposerCard({
             if (buttonDisabled) {
               return;
             }
-            onSubmit({ text, images: images.map((item) => item.image) });
+            handleSubmitOrCompact();
           }}
           rows={1}
           disabled={disableInput}
@@ -419,6 +646,16 @@ export function ComposerCard({
             highlightIndex={fileCompletionHighlightIndex}
             onHighlightIndexChange={setFileCompletionHighlightIndex}
             onSelect={applyFileCompletion}
+            dropUp={completionDropUp}
+          />
+        ) : null}
+        {slashCompletionOpen ? (
+          <SlashCompletionList
+            items={slashCompletionItems}
+            highlightIndex={slashCompletionHighlightIndex}
+            onHighlightIndexChange={setSlashCompletionHighlightIndex}
+            onSelect={applySlashCompletion}
+            dropUp={completionDropUp}
           />
         ) : null}
       </div>
@@ -483,7 +720,7 @@ export function ComposerCard({
                 aria-label="Add image"
                 className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-500 transition-colors hover:border-neutral-300 hover:text-neutral-700 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-300"
               >
-                <ImagePlus className="h-4 w-4" strokeWidth={2.2} />
+                <Plus className="h-4 w-4" strokeWidth={2.2} />
               </button>
             </TooltipTrigger>
             <TooltipContent>Add image or paste from clipboard</TooltipContent>
@@ -492,17 +729,13 @@ export function ComposerCard({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                onClick={
-                  interruptible
-                    ? onInterrupt
-                    : () => onSubmit({ text, images: images.map((item) => item.image) })
-                }
+                onClick={interruptible ? onInterrupt : handleSubmitOrCompact}
                 disabled={buttonDisabled}
                 aria-label={buttonLabel}
                 className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white transition-colors disabled:cursor-not-allowed ${
                   interruptible
                     ? "bg-amber-600 hover:bg-amber-500 disabled:bg-amber-200 disabled:text-amber-50"
-                    : "bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-200 disabled:text-neutral-400"
+                    : "bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-100 disabled:text-neutral-300"
                 }`}
               >
                 {interruptible ? (
