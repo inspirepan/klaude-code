@@ -4,14 +4,18 @@ import asyncio
 import contextlib
 import json
 import shutil
+import signal
+import threading
 import urllib.error
 import urllib.request
 import webbrowser
+from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
 import uvicorn
+import uvicorn.server
 
 from klaude_code.app.runtime import AppInitConfig, cleanup_app_components, initialize_app_components
 from klaude_code.core.control.event_relay import event_relay_socket_path
@@ -138,11 +142,14 @@ async def _install_frontend_dependencies(web_dir: Path, pkg_manager: str) -> boo
 async def _start_frontend_dev_process(
     *, web_dir: Path, host: str, frontend_port: int, pkg_manager: str
 ) -> asyncio.subprocess.Process:
+    # npm needs "--" to separate its own flags from script args; pnpm v10+ does
+    # not strip "--" and passes it verbatim to the script, which breaks vite.
+    separator: list[str] = ["--"] if pkg_manager == "npm" else []
     return await asyncio.create_subprocess_exec(
         pkg_manager,
         "run",
         "dev",
-        "--",
+        *separator,
         "--host",
         host,
         "--port",
@@ -233,6 +240,30 @@ async def _ensure_web_server_not_running(*, home_dir: Path) -> None:
         raise WebServerAlreadyRunningError("Web server is already running:\n" + "\n".join(socket_conflicts))
 
 
+class _QuietServer(uvicorn.Server):
+    """uvicorn.Server that does not re-raise captured signals on exit.
+
+    Upstream ``capture_signals`` restores the original signal handlers and then
+    calls ``signal.raise_signal()`` for every signal it captured during the
+    run.  When the server was interrupted with Ctrl-C twice, this re-raise
+    triggers asyncio's ``_on_sigint`` which raises ``KeyboardInterrupt`` and
+    produces a noisy traceback.  This subclass keeps the graceful-shutdown
+    behaviour (via ``handle_exit``) but skips the post-shutdown re-raise.
+    """
+
+    @contextlib.contextmanager
+    def capture_signals(self) -> Generator[None]:
+        if threading.current_thread() is not threading.main_thread():
+            yield
+            return
+        original_handlers = {sig: signal.signal(sig, self.handle_exit) for sig in uvicorn.server.HANDLED_SIGNALS}
+        try:
+            yield
+        finally:
+            for sig, handler in original_handlers.items():
+                signal.signal(sig, handler)
+
+
 async def start_web_server(
     *,
     host: str = "127.0.0.1",
@@ -277,7 +308,7 @@ async def start_web_server(
         port=port,
         log_level="debug" if debug else "info",
     )
-    server = uvicorn.Server(config)
+    server = _QuietServer(config)
     try:
         log_debug(f"[web] starting uvicorn host={host} port={port}", debug_type=DebugType.EXECUTION)
         await server.serve()

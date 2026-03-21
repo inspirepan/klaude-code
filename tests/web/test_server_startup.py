@@ -115,9 +115,9 @@ def test_prepare_frontend_reinstalls_missing_dependencies_once(tmp_path: Path, m
     assert plan.mode == "dev"
     assert plan.url == "http://127.0.0.1:8766/"
     assert launches == [
-        ("pnpm", "run", "dev", "--", "--host", "127.0.0.1", "--port", "8766", "--strictPort"),
+        ("pnpm", "run", "dev", "--host", "127.0.0.1", "--port", "8766", "--strictPort"),
         ("pnpm", "install", "--frozen-lockfile"),
-        ("pnpm", "run", "dev", "--", "--host", "127.0.0.1", "--port", "8766", "--strictPort"),
+        ("pnpm", "run", "dev", "--host", "127.0.0.1", "--port", "8766", "--strictPort"),
     ]
     assert len(terminated) == 1
 
@@ -173,7 +173,7 @@ def test_prepare_frontend_installs_when_declared_dependency_is_missing(
     assert plan.url == "http://127.0.0.1:8766/"
     assert launches == [
         ("pnpm", "install", "--frozen-lockfile"),
-        ("pnpm", "run", "dev", "--", "--host", "127.0.0.1", "--port", "8766", "--strictPort"),
+        ("pnpm", "run", "dev", "--host", "127.0.0.1", "--port", "8766", "--strictPort"),
     ]
 
 
