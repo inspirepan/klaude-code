@@ -4,7 +4,6 @@ import type { InterruptItem } from "../../types/message";
 
 interface InterruptMessageProps {
   item: InterruptItem;
-  compact?: boolean;
 }
 
 export function InterruptMessage(props: InterruptMessageProps): JSX.Element {

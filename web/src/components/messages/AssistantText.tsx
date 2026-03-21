@@ -11,7 +11,6 @@ import { useParsedFrontmatter } from "./frontmatter";
 
 interface AssistantTextProps {
   item: AssistantTextItem;
-  compact?: boolean;
 }
 
 const plugins = { code, mermaid };
@@ -60,7 +59,7 @@ function transformImageUrl(url: string, sessionId: string | null): string {
   return buildFileApiUrl(url, sessionId);
 }
 
-export function AssistantText({ item, compact = false }: AssistantTextProps): JSX.Element {
+export function AssistantText({ item }: AssistantTextProps): JSX.Element {
   const { entries, body } = useParsedFrontmatter(item.content);
   const urlTransform: UrlTransform = (url, key, node) => {
     if (key !== "src" || node.tagName !== "img") {
@@ -70,7 +69,7 @@ export function AssistantText({ item, compact = false }: AssistantTextProps): JS
   };
 
   return (
-    <div className={`assistant-text relative ${compact ? "assistant-text-compact" : ""}`}>
+    <div className="assistant-text relative">
       {entries ? <FrontmatterTable entries={entries} /> : null}
       <Streamdown
         mode="streaming"

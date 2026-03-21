@@ -66,7 +66,6 @@ function shouldExpandResult(item: ToolBlockItem): boolean {
 
 interface ToolBlockProps {
   item: ToolBlockItem;
-  compact?: boolean;
   workDir?: string;
 }
 
@@ -80,7 +79,7 @@ function extractPlanExplanation(args: string): string {
   return "";
 }
 
-function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
+function PlanBlock({ item }: ToolBlockProps): JSX.Element {
   const explanation = useMemo(() => {
     if (item.toolName === "update_plan") return extractPlanExplanation(item.arguments);
     return "";
@@ -94,7 +93,7 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
         <p className="mb-1 font-sans text-base text-neutral-500">{explanation}</p>
       ) : null}
       {todoExtra ? (
-        <TodoListView uiExtra={todoExtra} compact={compact} />
+        <TodoListView uiExtra={todoExtra} />
       ) : item.isStreaming ? (
         <div className="flex items-center gap-1.5 font-sans text-base text-neutral-500">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
@@ -105,14 +104,14 @@ function PlanBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
   );
 }
 
-function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
+function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
   const questionExtra =
     item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
     <div className="rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2 text-base">
       {questionExtra ? (
-        <QuestionSummaryView uiExtra={questionExtra} compact={compact} />
+        <QuestionSummaryView uiExtra={questionExtra} />
       ) : item.isStreaming ? (
         <div className="flex items-center gap-1.5 font-sans text-base text-neutral-500">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
@@ -123,7 +122,7 @@ function QuestionBlock({ item, compact = false }: ToolBlockProps): JSX.Element {
   );
 }
 
-export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): JSX.Element {
+export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
   const { matchItemIds } = useSearch();
   const { collapseGen, expandGen } = useCollapseAll();
   const bodyTextClass = "text-base";
@@ -173,10 +172,10 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
   }, [hasStreamingContent, open]);
 
   if (PLAN_TOOLS.has(item.toolName)) {
-    return <PlanBlock item={item} compact={compact} />;
+    return <PlanBlock item={item} />;
   }
   if (item.toolName === "AskUserQuestion") {
-    return <QuestionBlock item={item} compact={compact} />;
+    return <QuestionBlock item={item} />;
   }
 
   const detail = extractHeaderDetail(item.toolName, item.arguments);
@@ -209,7 +208,6 @@ export function ToolBlock({ item, compact = false, workDir }: ToolBlockProps): J
       />
       <ToolBlockResult
         item={item}
-        compact={compact}
         open={open}
         hasRich={hasRich}
         hasResult={hasResult}

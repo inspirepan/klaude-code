@@ -502,6 +502,216 @@ class TestSessionPersistence:
 
         arun(_test())
 
+    def test_spawn_sub_agent_entry_replays_sub_agent_history(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """SpawnSubAgentEntry triggers sub-agent history replay (even without ToolResultMessage)."""
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            # Create a sub-agent session with a completed task (has TaskMetadataItem)
+            sub_session = Session.create(id="spawn-sub", work_dir=project_dir)
+            sub_session.sub_agent_state = model.SubAgentState(
+                sub_agent_type="Explore", sub_agent_desc="search files", sub_agent_prompt="find foo"
+            )
+            sub_session.append_history(
+                [
+                    message.UserMessage(parts=message.text_parts_from_str("find foo")),
+                    message.AssistantMessage(parts=message.text_parts_from_str("found it")),
+                    model.TaskMetadataItem(
+                        main_agent=model.TaskMetadata(
+                            model_id="test", model_name="test", turn_count=1, task_duration_s=2.0
+                        )
+                    ),
+                ]
+            )
+            await sub_session.wait_for_flush()
+
+            # Main session has only SpawnSubAgentEntry (no ToolResultMessage yet)
+            main_session = Session.create(id="spawn-main", work_dir=project_dir)
+            main_session.append_history(
+                [
+                    message.UserMessage(parts=message.text_parts_from_str("hello")),
+                    message.SpawnSubAgentEntry(
+                        session_id=sub_session.id,
+                        sub_agent_type="Explore",
+                        sub_agent_desc="search files",
+                    ),
+                ]
+            )
+            await main_session.wait_for_flush()
+
+            reloaded = Session.load(main_session.id, work_dir=project_dir)
+            events_list = list(reloaded.get_history_item())
+
+            sub_events = [e for e in events_list if getattr(e, "session_id", None) == sub_session.id]
+            assert sub_events, "Expected sub-agent events from SpawnSubAgentEntry"
+
+            sub_starts = [e for e in sub_events if isinstance(e, events.TaskStartEvent)]
+            assert len(sub_starts) == 1
+            assert sub_starts[0].sub_agent_state is not None
+            assert sub_starts[0].sub_agent_state.sub_agent_type == "Explore"
+
+            # Completed sub-agent should have TaskFinishEvent
+            sub_finishes = [e for e in sub_events if isinstance(e, events.TaskFinishEvent)]
+            assert len(sub_finishes) == 1
+
+            await close_default_store()
+
+        arun(_test())
+
+    def test_spawn_sub_agent_entry_no_task_finish_when_still_running(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A sub-agent without TaskMetadataItem is still running; no TaskFinishEvent should be emitted."""
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            # Sub-agent session is still running (no TaskMetadataItem)
+            sub_session = Session.create(id="running-sub", work_dir=project_dir)
+            sub_session.sub_agent_state = model.SubAgentState(
+                sub_agent_type="Task", sub_agent_desc="do stuff", sub_agent_prompt="work"
+            )
+            sub_session.append_history(
+                [
+                    message.UserMessage(parts=message.text_parts_from_str("work")),
+                    message.AssistantMessage(parts=message.text_parts_from_str("working...")),
+                ]
+            )
+            await sub_session.wait_for_flush()
+
+            main_session = Session.create(id="running-main", work_dir=project_dir)
+            main_session.append_history(
+                [
+                    message.SpawnSubAgentEntry(
+                        session_id=sub_session.id,
+                        sub_agent_type="Task",
+                        sub_agent_desc="do stuff",
+                    ),
+                ]
+            )
+            await main_session.wait_for_flush()
+
+            reloaded = Session.load(main_session.id, work_dir=project_dir)
+            events_list = list(reloaded.get_history_item())
+
+            sub_events = [e for e in events_list if getattr(e, "session_id", None) == sub_session.id]
+            assert sub_events, "Expected sub-agent events"
+
+            # Should have TaskStartEvent but NOT TaskFinishEvent
+            sub_starts = [e for e in sub_events if isinstance(e, events.TaskStartEvent)]
+            assert len(sub_starts) == 1
+
+            sub_finishes = [e for e in sub_events if isinstance(e, events.TaskFinishEvent)]
+            assert len(sub_finishes) == 0, "Running sub-agent should not emit TaskFinishEvent"
+
+            await close_default_store()
+
+        arun(_test())
+
+    def test_spawn_sub_agent_entry_deduplicates_with_tool_result(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """When both SpawnSubAgentEntry and ToolResultMessage exist, sub-agent events appear only once."""
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            sub_session = Session.create(id="dedup-sub", work_dir=project_dir)
+            sub_session.sub_agent_state = model.SubAgentState(
+                sub_agent_type="Task", sub_agent_desc="test", sub_agent_prompt="test"
+            )
+            sub_session.append_history(
+                [
+                    message.AssistantMessage(parts=message.text_parts_from_str("done")),
+                    model.TaskMetadataItem(
+                        main_agent=model.TaskMetadata(
+                            model_id="test", model_name="test", turn_count=1, task_duration_s=1.0
+                        )
+                    ),
+                ]
+            )
+            await sub_session.wait_for_flush()
+
+            # Main session has BOTH SpawnSubAgentEntry AND ToolResultMessage
+            main_session = Session.create(id="dedup-main", work_dir=project_dir)
+            main_session.append_history(
+                [
+                    message.SpawnSubAgentEntry(
+                        session_id=sub_session.id,
+                        sub_agent_type="Task",
+                        sub_agent_desc="test",
+                    ),
+                    message.AssistantMessage(
+                        parts=[
+                            message.ToolCallPart(
+                                call_id="agent-call",
+                                tool_name="Agent",
+                                arguments_json="{}",
+                            )
+                        ]
+                    ),
+                    message.ToolResultMessage(
+                        call_id="agent-call",
+                        tool_name="Agent",
+                        output_text="done",
+                        status="success",
+                        ui_extra=model.SessionIdUIExtra(session_id=sub_session.id),
+                    ),
+                ]
+            )
+            await main_session.wait_for_flush()
+
+            reloaded = Session.load(main_session.id, work_dir=project_dir)
+            events_list = list(reloaded.get_history_item())
+
+            # Sub-agent TaskStartEvent should appear exactly once (dedup via seen_sub_agent_sessions)
+            sub_starts = [
+                e
+                for e in events_list
+                if isinstance(e, events.TaskStartEvent) and e.session_id == sub_session.id
+            ]
+            assert len(sub_starts) == 1
+
+            await close_default_store()
+
+        arun(_test())
+
+    def test_spawn_sub_agent_entry_codec_roundtrip(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """SpawnSubAgentEntry survives encode/decode via the codec."""
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session.create(id="codec-test", work_dir=project_dir)
+            entry = message.SpawnSubAgentEntry(
+                session_id="child-abc",
+                sub_agent_type="Explore",
+                sub_agent_desc="search stuff",
+                fork_context=True,
+            )
+            session.append_history([entry])
+            await session.wait_for_flush()
+
+            loaded = Session.load(session.id, work_dir=project_dir)
+            assert len(loaded.conversation_history) == 1
+            item = loaded.conversation_history[0]
+            assert isinstance(item, message.SpawnSubAgentEntry)
+            assert item.session_id == "child-abc"
+            assert item.sub_agent_type == "Explore"
+            assert item.sub_agent_desc == "search stuff"
+            assert item.fork_context is True
+
+            await close_default_store()
+
+        arun(_test())
+
     def test_replay_interrupt_entry_emits_interrupt_event(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()

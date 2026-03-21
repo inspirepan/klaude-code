@@ -194,9 +194,6 @@ body {
   line-height: 1.7;
   color: #171717;
 }
-.assistant-text.assistant-text-compact {
-  @apply text-base;
-}
 /* Tailwind preflight resets many element styles; restore them for Streamdown */
 .assistant-text hr {
   margin-top: 0.75em;

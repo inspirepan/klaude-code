@@ -4,7 +4,6 @@ import type { ErrorItem } from "../../types/message";
 
 interface ErrorMessageProps {
   item: ErrorItem;
-  compact?: boolean;
 }
 
 export function ErrorMessage({ item }: ErrorMessageProps): JSX.Element {

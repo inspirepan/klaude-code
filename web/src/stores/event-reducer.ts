@@ -127,8 +127,6 @@ const SKIP_EVENT_TYPES = new Set([
   "end",
 ]);
 
-const WORKED_LINE_DURATION_THRESHOLD_S = 60;
-const WORKED_LINE_TURN_COUNT_THRESHOLD = 4;
 const DEFAULT_MAX_TOKENS = 32000;
 function parseFiniteNumber(raw: unknown): number | null {
   return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
@@ -786,43 +784,27 @@ export function reduceEvent(
       if (mainAgent === null || typeof mainAgent !== "object") return currentState;
 
       const mainAgentRec = mainAgent as Record<string, unknown>;
-      const durationSeconds = parseFiniteNumber(mainAgentRec.task_duration_s);
-      const turnCountRaw = parseFiniteNumber(mainAgentRec.turn_count);
-      const turnCount = Math.max(0, Math.floor(turnCountRaw ?? 0));
+      const isPartial = (event as Record<string, unknown>).is_partial === true;
 
-      const newItems: MessageItem[] = [...currentState.items];
-      let nextId = currentState.nextId;
-
-      // "Worked for ..." line for long tasks
-      if (durationSeconds !== null) {
-        const shouldShowWorkedLine =
-          durationSeconds > WORKED_LINE_DURATION_THRESHOLD_S ||
-          turnCount > WORKED_LINE_TURN_COUNT_THRESHOLD;
-        if (shouldShowWorkedLine) {
-          newItems.push({
-            id: `msg-${nextId}`,
-            type: "task_worked",
+      const id = makeId(currentState);
+      return {
+        ...currentState,
+        items: [
+          ...currentState.items,
+          {
+            id,
+            type: "task_metadata",
             timestamp: ts,
             sessionId: sourceSessionId,
-            durationSeconds: Math.max(0, durationSeconds),
-            turnCount,
-          });
-          nextId += 1;
-        }
-      }
-
-      // Always emit task_metadata
-      newItems.push({
-        id: `msg-${nextId}`,
-        type: "task_metadata",
-        timestamp: ts,
-        sessionId: sourceSessionId,
-        mainAgent: parseTaskMetadataAgent(mainAgentRec),
-        subAgents: parseSubAgents((metadata as Record<string, unknown>).sub_agent_task_metadata),
-      });
-      nextId += 1;
-
-      return { ...currentState, items: newItems, nextId };
+            mainAgent: parseTaskMetadataAgent(mainAgentRec),
+            subAgents: parseSubAgents(
+              (metadata as Record<string, unknown>).sub_agent_task_metadata,
+            ),
+            isPartial,
+          },
+        ],
+        nextId: currentState.nextId + 1,
+      };
     }
 
     case "user.message": {

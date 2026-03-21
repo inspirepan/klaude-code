@@ -3,18 +3,10 @@ import type { AskUserQuestionSummaryUIExtra } from "./message-ui-extra";
 
 interface QuestionSummaryViewProps {
   uiExtra: AskUserQuestionSummaryUIExtra;
-  compact?: boolean;
 }
 
-export function QuestionSummaryView({
-  uiExtra,
-  compact = false,
-}: QuestionSummaryViewProps): JSX.Element {
-  const title = (
-    <div className={`${compact ? "text-xs" : "text-sm"} font-semibold text-neutral-600`}>
-      QUESTION
-    </div>
-  );
+export function QuestionSummaryView({ uiExtra }: QuestionSummaryViewProps): JSX.Element {
+  const title = <div className="text-sm font-semibold text-neutral-600">QUESTION</div>;
 
   if (!uiExtra.items.length) {
     return (

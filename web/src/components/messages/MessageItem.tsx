@@ -6,7 +6,6 @@ import { ThinkingBlock } from "./ThinkingBlock";
 import { AssistantText } from "./AssistantText";
 import { ToolBlock } from "./ToolBlock";
 import { DeveloperMessage } from "./DeveloperMessage";
-import { TaskWorked } from "./TaskWorked";
 import { TaskMetadata } from "./TaskMetadata";
 import { ErrorMessage } from "./ErrorMessage";
 import { InterruptMessage } from "./InterruptMessage";
@@ -15,39 +14,35 @@ import { UnknownEvent } from "./UnknownEvent";
 
 interface MessageItemProps {
   item: MessageItemType;
-  compact?: boolean;
   workDir?: string;
 }
 
-function MessageItemInner({ item, compact = false, workDir }: MessageItemProps): JSX.Element {
+function MessageItemInner({ item, workDir }: MessageItemProps): JSX.Element {
   switch (item.type) {
     case "user_message":
-      return <UserMessage key={item.id} item={item} compact={compact} />;
+      return <UserMessage key={item.id} item={item} />;
     case "thinking":
       return <ThinkingBlock item={item} />;
     case "assistant_text":
-      return <AssistantText item={item} compact={compact} />;
+      return <AssistantText item={item} />;
     case "tool_block":
-      return <ToolBlock item={item} compact={compact} workDir={workDir} />;
+      return <ToolBlock item={item} workDir={workDir} />;
     case "developer_message":
       return <DeveloperMessage items={[item]} />;
-    case "task_worked":
-      return <TaskWorked item={item} compact={compact} />;
     case "task_metadata":
       return <TaskMetadata item={item} />;
     case "error":
-      return <ErrorMessage item={item} compact={compact} />;
+      return <ErrorMessage item={item} />;
     case "interrupt":
-      return <InterruptMessage item={item} compact={compact} />;
+      return <InterruptMessage item={item} />;
     case "compaction_summary":
       return <CompactionSummary item={item} />;
     case "unknown_event":
-      return <UnknownEvent item={item} compact={compact} />;
+      return <UnknownEvent item={item} />;
   }
 }
 
 export const MessageItem = memo(
   MessageItemInner,
-  (prev, next) =>
-    prev.item === next.item && prev.compact === next.compact && prev.workDir === next.workDir,
+  (prev, next) => prev.item === next.item && prev.workDir === next.workDir,
 );

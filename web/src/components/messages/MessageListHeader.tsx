@@ -1,4 +1,11 @@
-import { ChevronsDownUp, ChevronsUpDown, Lock, PanelLeftOpen, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Lock,
+  PanelLeftOpen,
+  Search,
+} from "lucide-react";
 import { SessionTitleText } from "@/components/SessionTitleText";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
@@ -12,6 +19,8 @@ interface MessageListHeaderProps {
   onSearchOpen: () => void;
   onCollapseAll: () => void;
   onExpandAll: () => void;
+  onBack?: () => void;
+  subAgentLabel?: string | null;
 }
 
 export function MessageListHeader({
@@ -24,7 +33,11 @@ export function MessageListHeader({
   onSearchOpen,
   onCollapseAll,
   onExpandAll,
+  onBack,
+  subAgentLabel,
 }: MessageListHeaderProps): JSX.Element {
+  const isSubAgentView = onBack !== undefined;
+
   return (
     <div className="relative z-20 shrink-0">
       <div
@@ -33,7 +46,21 @@ export function MessageListHeader({
       />
       <div className="bg-[#f9f9f8] backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-1.5 px-3 pb-1 pt-2.5 sm:px-4">
-          {!sidebarOpen ? (
+          {isSubAgentView ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                  onClick={onBack}
+                  aria-label="Back to main session"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Back to main session</TooltipContent>
+            </Tooltip>
+          ) : !sidebarOpen ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -63,33 +90,39 @@ export function MessageListHeader({
             </Tooltip>
           ) : null}
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-1.5 text-sm leading-5">
-              <SessionTitleText
-                title={secondaryTitle ? `${primaryTitle} — ${secondaryTitle}` : primaryTitle}
-                as="div"
-                className="flex min-w-0 items-baseline"
-                primaryClassName="font-semibold"
-              />
-              {sessionReadOnly ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex shrink-0 cursor-help items-center self-center rounded-full border border-amber-200/70 bg-amber-50 p-1 text-amber-700">
-                      <Lock className="h-3 w-3" />
+            <div className="flex min-w-0 items-center gap-1.5 text-base leading-5">
+              {isSubAgentView ? (
+                <span className="truncate font-semibold">{subAgentLabel ?? "Sub Agent"}</span>
+              ) : (
+                <>
+                  <SessionTitleText
+                    title={secondaryTitle ? `${primaryTitle} — ${secondaryTitle}` : primaryTitle}
+                    as="div"
+                    className="flex min-w-0 items-baseline"
+                    primaryClassName="font-semibold"
+                  />
+                  {sessionReadOnly ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex shrink-0 cursor-help items-center self-center rounded-full border border-amber-200/70 bg-amber-50 p-1 text-amber-700">
+                          <Lock className="h-3 w-3" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Read-only — this session is owned by another live runtime
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                  {workspacePath ? (
+                    <span
+                      className="hidden truncate font-sans text-sm leading-5 text-neutral-500 sm:inline"
+                      title={workspacePath}
+                    >
+                      {workspacePath}
                     </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Read-only — this session is owned by another live runtime
-                  </TooltipContent>
-                </Tooltip>
-              ) : null}
-              {workspacePath ? (
-                <span
-                  className="hidden truncate font-sans text-sm leading-5 text-neutral-500 sm:inline"
-                  title={workspacePath}
-                >
-                  {workspacePath}
-                </span>
-              ) : null}
+                  ) : null}
+                </>
+              )}
             </div>
           </div>
           <Tooltip>

@@ -564,7 +564,11 @@ class Session(BaseModel):
             ),
         )
 
-    def get_history_item(self) -> Iterable[events.ReplayEventUnion]:
+    def _has_task_completed(self) -> bool:
+        """Check whether this session's task has completed (normally or via interruption)."""
+        return any(isinstance(it, model.TaskMetadataItem) for it in self.conversation_history)
+
+    def get_history_item(self, *, emit_finish: bool = True) -> Iterable[events.ReplayEventUnion]:
         seen_sub_agent_sessions: set[str] = set()
         prev_item: message.HistoryEvent | None = None
         last_assistant_content: str = ""
@@ -572,7 +576,11 @@ class Session(BaseModel):
         pending_tool_calls: dict[str, events.ToolCallEvent] = {}
         history = self.conversation_history
         history_len = len(history)
-        yield events.TaskStartEvent(session_id=self.id, sub_agent_state=self.sub_agent_state)
+        yield events.TaskStartEvent(
+            session_id=self.id,
+            sub_agent_state=self.sub_agent_state,
+            timestamp=self.created_at if self.created_at > 0 else None,
+        )
         msg_ts: float = 0.0
         for idx, it in enumerate(history):
             # Track the original message creation time
@@ -704,8 +712,7 @@ class Session(BaseModel):
                         timestamp=msg_ts,
                     )
                 case model.TaskMetadataItem() as mt:
-                    if self.sub_agent_state is None:
-                        yield events.TaskMetadataEvent(session_id=self.id, metadata=mt, timestamp=msg_ts)
+                    yield events.TaskMetadataEvent(session_id=self.id, metadata=mt, timestamp=msg_ts)
                 case message.DeveloperMessage() as dm:
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm, timestamp=msg_ts)
                 case message.StreamErrorItem() as se:
@@ -745,6 +752,10 @@ class Session(BaseModel):
                         prev_turn_input_tokens=cr.prev_turn_input_tokens,
                         timestamp=msg_ts,
                     )
+                case message.SpawnSubAgentEntry() as sa:
+                    yield from self._iter_sub_agent_history_by_id(
+                        sa.session_id, seen_sub_agent_sessions
+                    )
                 case message.SystemMessage():
                     pass
             prev_item = it
@@ -754,23 +765,20 @@ class Session(BaseModel):
             yield from pending_tool_calls.values()
             pending_tool_calls.clear()
 
-        has_structured_output = report_back_result is not None
-        task_result = report_back_result if has_structured_output else last_assistant_content
+        if emit_finish:
+            has_structured_output = report_back_result is not None
+            task_result = report_back_result if has_structured_output else last_assistant_content
 
-        yield events.TaskFinishEvent(
-            session_id=self.id,
-            task_result=task_result or "",
-            has_structured_output=has_structured_output,
-            timestamp=msg_ts,
-        )
+            yield events.TaskFinishEvent(
+                session_id=self.id,
+                task_result=task_result or "",
+                has_structured_output=has_structured_output,
+                timestamp=msg_ts,
+            )
 
-    def _iter_sub_agent_history(
-        self, tool_result: message.ToolResultMessage, seen_sub_agent_sessions: set[str]
+    def _iter_sub_agent_history_by_id(
+        self, session_id: str, seen_sub_agent_sessions: set[str]
     ) -> Iterable[events.ReplayEventUnion]:
-        ui_extra = tool_result.ui_extra
-        if not isinstance(ui_extra, model.SessionIdUIExtra):
-            return
-        session_id = ui_extra.session_id
         if not session_id or session_id == self.id:
             return
         if session_id in seen_sub_agent_sessions:
@@ -780,7 +788,17 @@ class Session(BaseModel):
             sub_session = Session.load(session_id, work_dir=self.work_dir)
         except (OSError, json.JSONDecodeError, ValueError):
             return
-        yield from sub_session.get_history_item()
+        yield from sub_session.get_history_item(emit_finish=sub_session._has_task_completed())
+
+    def _iter_sub_agent_history(
+        self, tool_result: message.ToolResultMessage, seen_sub_agent_sessions: set[str]
+    ) -> Iterable[events.ReplayEventUnion]:
+        ui_extra = tool_result.ui_extra
+        if not isinstance(ui_extra, model.SessionIdUIExtra):
+            return
+        yield from self._iter_sub_agent_history_by_id(
+            ui_extra.session_id, seen_sub_agent_sessions
+        )
 
     class SessionMetaBrief(BaseModel):
         id: str

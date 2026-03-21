@@ -341,9 +341,16 @@ function connectSessionStream(set: SetState): void {
 }
 
 function pushSessionUrl(sessionId: ActiveSessionId): void {
-  const target = sessionId === "draft" ? "/" : `/session/${sessionId}`;
-  if (window.location.pathname !== target) {
-    history.pushState(null, "", target);
+  if (sessionId === "draft") {
+    if (window.location.pathname !== "/") {
+      history.pushState(null, "", "/");
+    }
+    return;
+  }
+  const prefix = `/session/${sessionId}`;
+  // Don't push if already on this session (including sub-agent paths like /session/{id}/agent/{subId})
+  if (!window.location.pathname.startsWith(prefix)) {
+    history.pushState(null, "", prefix);
   }
 }
 
@@ -696,7 +703,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     }
     await get().refreshSessions();
 
-    const match = window.location.pathname.match(/^\/session\/([a-f0-9]+)$/);
+    const match = window.location.pathname.match(/^\/session\/([a-f0-9]+)(?:\/agent\/[a-f0-9]+)?$/);
     if (match) {
       const urlSessionId = match[1];
       if (findSession(get().groups, urlSessionId)) {

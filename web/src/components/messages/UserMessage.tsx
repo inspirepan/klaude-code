@@ -28,10 +28,9 @@ function ContentWithMentions({ children }: { children: string }): JSX.Element {
 
 interface UserMessageProps {
   item: UserMessageItem;
-  compact?: boolean;
 }
 
-export function UserMessage({ item, compact = false }: UserMessageProps): JSX.Element {
+export function UserMessage({ item }: UserMessageProps): JSX.Element {
   const normalizedContent = useMemo(
     () =>
       item.content
@@ -74,7 +73,7 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
       window.cancelAnimationFrame(frameId);
       observer.disconnect();
     };
-  }, [hasText, normalizedContent, compact]);
+  }, [hasText, normalizedContent]);
 
   const expandedImage =
     expandedImageIndex === null ? null : (item.images[expandedImageIndex] ?? null);
@@ -189,7 +188,11 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                 className="relative w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200/50 bg-slate-100 dark:border-slate-700/50 dark:bg-slate-800"
                 onClick={(event) => event.stopPropagation()}
               >
-                <ScrollArea className="w-full" viewportClassName="max-h-[calc(100vh-8rem)]" type="auto">
+                <ScrollArea
+                  className="w-full"
+                  viewportClassName="max-h-[calc(100vh-8rem)]"
+                  type="auto"
+                >
                   <div className="px-4 py-3">
                     {renderImages()}
                     <p className="m-0 whitespace-pre-wrap break-words text-base leading-relaxed text-foreground">
