@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useMountEffect } from "@/hooks/useMountEffect";
 import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
 import { useMessageStore } from "../../stores/message-store";
 import { useSessionStore } from "../../stores/session-store";
@@ -66,32 +67,25 @@ export function MessageComposer(): JSX.Element {
     sessionBusy ||
     sessionReadOnly ||
     activeInteraction !== null;
-  const currentModelName = pendingModelName ?? activeSession?.model_name ?? "";
+  const effectivePendingModelName =
+    pendingModelName !== null && pendingModelName !== activeSession?.model_name
+      ? pendingModelName
+      : null;
+  const currentModelName = effectivePendingModelName ?? activeSession?.model_name ?? "";
+  const effectiveRespondingInteraction = respondingInteraction && activeInteraction !== null;
   const modelBusy = sessionBusy || sessionReadOnly || modelLoading || switchingModel;
   const hasCurrentModelOption = modelOptions.some((option) => option.name === currentModelName);
 
-  useEffect(() => {
-    setText("");
-    setImages([]);
-    setPendingModelName(null);
-    setModelError(null);
-    setRespondingInteraction(false);
-    setInterrupting(false);
-  }, [activeSessionId]);
-
+  // Reset interrupting when session is no longer interruptible (e.g. finished).
+  // Cannot be derived: the underlying `interrupting` state must be cleared so it
+  // does not re-activate when the next run makes `sessionInterruptible` true again.
   useEffect(() => {
     if (!sessionInterruptible) {
       setInterrupting(false);
     }
   }, [sessionInterruptible]);
 
-  useEffect(() => {
-    if (activeInteraction === null) {
-      setRespondingInteraction(false);
-    }
-  }, [activeInteraction]);
-
-  useEffect(() => {
+  useMountEffect(() => {
     let cancelled = false;
     setModelLoading(true);
     setModelError(null);
@@ -119,16 +113,7 @@ export function MessageComposer(): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  useEffect(() => {
-    if (pendingModelName === null) {
-      return;
-    }
-    if (activeSession?.model_name === pendingModelName) {
-      setPendingModelName(null);
-    }
-  }, [activeSession?.model_name, pendingModelName]);
+  });
 
   const handleSubmit = useCallback(async () => {
     if (disableSubmit) {
@@ -182,7 +167,7 @@ export function MessageComposer(): JSX.Element {
     } catch {
       setInterrupting(false);
     }
-  }, [activeSessionId, interruptSession, interrupting, sessionInterruptible, sessionReadOnly]);
+  }, [activeSessionId, interrupting, interruptSession, sessionInterruptible, sessionReadOnly]);
 
   useEffect(() => {
     if (!sessionInterruptible) {
@@ -243,9 +228,10 @@ export function MessageComposer(): JSX.Element {
       <div className="relative z-10 mx-auto max-w-4xl space-y-3">
         {activeInteraction ? (
           <UserInteractionCard
+            key={activeInteraction.requestId}
             request={activeInteraction}
             pendingCount={pendingInteractions.length}
-            disabled={respondingInteraction}
+            disabled={effectiveRespondingInteraction}
             onRespond={async (response: UserInteractionResponse) => {
               setRespondingInteraction(true);
               try {

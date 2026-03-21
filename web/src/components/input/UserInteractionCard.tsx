@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, CircleHelp, X } from "lucide-react";
 
 import type {
@@ -209,14 +209,6 @@ export function UserInteractionCard({
   const [submitting, setSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
-
-  useEffect(() => {
-    setSelectedByQuestion({});
-    setNoteByQuestion({});
-    setSubmitting(false);
-    setShowValidation(false);
-    setActiveTab(0);
-  }, [request.requestId]);
 
   const askPayload = request.payload.kind === "ask_user_question" ? request.payload : null;
   const operationPayload = request.payload.kind === "operation_select" ? request.payload : null;

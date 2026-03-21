@@ -1,6 +1,7 @@
 import { ArrowDown, Loader } from "lucide-react";
 import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react";
 
+import { useMountEffect } from "@/hooks/useMountEffect";
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
 import { useSessionStore } from "../../stores/session-store";
@@ -233,7 +234,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   );
 
   // Cmd+F intercept
-  useEffect(() => {
+  useMountEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "f") {
         e.preventDefault();
@@ -242,7 +243,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, []);
+  });
 
   // Scroll to active search match
   useEffect(() => {
@@ -275,7 +276,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     setSearchActiveIndex(-1);
   }, []);
 
-  useEffect(() => () => window.clearTimeout(copyTimerRef.current), []);
+  useMountEffect(() => () => window.clearTimeout(copyTimerRef.current));
 
   const hasActiveStatus = useMemo(
     () =>
