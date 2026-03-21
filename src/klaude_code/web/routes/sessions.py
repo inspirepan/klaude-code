@@ -305,9 +305,19 @@ async def get_history(session_id: str, state: WebAppState = WEB_STATE_DEP) -> di
         raise HTTPException(status_code=404, detail="session not found")
 
     try:
+        # Use the in-memory session only when it is ahead of disk (items
+        # appended but not yet flushed by the background writer).  Otherwise
+        # always prefer disk: when a TUI heartbeat expires the web server
+        # may initialise its own stale agent copy via InitAgentOperation and
+        # that copy never receives further updates while the TUI keeps
+        # appending to the real events file.
+        disk_session = Session.load(session_id, work_dir=work_dir)
         runtime = state.runtime.session_registry.get_session_actor(session_id)
         agent = runtime.get_agent() if runtime is not None else None
-        session = agent.session if agent is not None else Session.load(session_id, work_dir=work_dir)
+        if agent is not None and len(agent.session.conversation_history) > len(disk_session.conversation_history):
+            session = agent.session
+        else:
+            session = disk_session
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"failed to load session history: {exc}") from exc
 
