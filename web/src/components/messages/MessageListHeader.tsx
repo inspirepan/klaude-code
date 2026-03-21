@@ -26,13 +26,18 @@ export function MessageListHeader({
   onExpandAll,
 }: MessageListHeaderProps): JSX.Element {
   return (
-    <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-3 border-b border-neutral-200/80 bg-[#f9f9f8]/80 px-4 py-2 backdrop-blur sm:px-6">
+    <div className="sticky top-0 z-20 shrink-0">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-[3rem] bg-[#f9f9f8]/80 backdrop-blur-sm [-webkit-mask-image:linear-gradient(to_bottom,black_0,black_2.25rem,transparent_3rem)] [mask-image:linear-gradient(to_bottom,black_0,black_2.25rem,transparent_3rem)]"
+      />
+      <div className="relative flex flex-wrap items-center gap-1.5 px-3 pb-1 pt-2.5 sm:px-4">
       {!sidebarOpen ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
-              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+              className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
               onClick={() => {
                 setSidebarOpen(true);
               }}
@@ -57,7 +62,7 @@ export function MessageListHeader({
         </Tooltip>
       ) : null}
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2 text-base leading-5">
+        <div className="flex min-w-0 items-center gap-1.5 text-sm leading-5">
           <SessionTitleText
             title={secondaryTitle ? `${primaryTitle} — ${secondaryTitle}` : primaryTitle}
             as="div"
@@ -78,7 +83,7 @@ export function MessageListHeader({
           ) : null}
           {workspacePath ? (
             <span
-              className="hidden truncate font-sans text-base leading-5 text-neutral-500 sm:inline"
+              className="hidden truncate font-sans text-sm leading-5 text-neutral-500 sm:inline"
               title={workspacePath}
             >
               {workspacePath}
@@ -90,7 +95,7 @@ export function MessageListHeader({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+            className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
             onClick={onCollapseAll}
             aria-label="Collapse all"
           >
@@ -118,7 +123,7 @@ export function MessageListHeader({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+            className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
             onClick={onExpandAll}
             aria-label="Expand all"
           >
@@ -146,7 +151,7 @@ export function MessageListHeader({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+            className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
             onClick={onSearchOpen}
             aria-label="Search messages"
           >
@@ -167,6 +172,7 @@ export function MessageListHeader({
           </span>
         </TooltipContent>
       </Tooltip>
+      </div>
     </div>
   );
 }

@@ -211,38 +211,39 @@ export function NewSessionOverlay({
             }}
           />
 
-          {modelError ? (
-            <div className="px-1 text-sm text-red-500">Load models failed: {modelError}</div>
-          ) : null}
+          {normalizedDraftWorkDir.length > 0 ? (
+            <>
+              {modelError ? (
+                <div className="px-1 text-sm text-red-500">Load models failed: {modelError}</div>
+              ) : null}
 
-          <ComposerCard
-            sessionId=""
-            searchWorkDir={normalizedDraftWorkDir}
-            disableInput={normalizedDraftWorkDir.length === 0}
-            text={text}
-            onTextChange={setText}
-            images={images}
-            onImagesChange={setImages}
-            onSubmit={() => {
-              void handleSubmit();
-            }}
-            submitting={submitting}
-            disableSubmit={disableSubmit}
-            disableAttachments={submitting}
-            placeholder={
-              normalizedDraftWorkDir.length === 0
-                ? "Select a workspace first..."
-                : "What should we do?"
-            }
-            modelOptions={modelOptions}
-            modelValue={selectedModel}
-            modelLoading={modelLoading}
-            modelDisabled={submitting || modelOptions.length === 0}
-            modelPlaceholder="Default model"
-            onModelSelect={setSelectedModel}
-            modelDropUp={false}
-            textareaRef={textareaRef}
-          />
+              <ComposerCard
+                sessionId=""
+                searchWorkDir={normalizedDraftWorkDir}
+                skillWorkDir={normalizedDraftWorkDir}
+                text={text}
+                onTextChange={setText}
+                images={images}
+                onImagesChange={setImages}
+                onSubmit={() => {
+                  void handleSubmit();
+                }}
+                submitting={submitting}
+                disableSubmit={disableSubmit}
+                disableAttachments={submitting}
+                placeholder="What should we do?"
+                modelOptions={modelOptions}
+                modelValue={selectedModel}
+                modelLoading={modelLoading}
+                modelDisabled={submitting || modelOptions.length === 0}
+                modelPlaceholder="Default model"
+                onModelSelect={setSelectedModel}
+                modelDropUp={false}
+                completionDropUp={false}
+                textareaRef={textareaRef}
+              />
+            </>
+          ) : null}
         </div>
       </div>
     </div>

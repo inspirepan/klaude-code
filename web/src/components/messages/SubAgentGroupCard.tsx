@@ -134,7 +134,8 @@ export function SubAgentGroupCard({
 
   const lastCollapseGroupId = useMemo(() => {
     for (let i = expandedBlocks.length - 1; i >= 0; i--) {
-      if (expandedBlocks[i]?.type === "collapse_group") return expandedBlocks[i]!.id;
+      const block = expandedBlocks[i];
+      if (block?.type === "collapse_group") return block.id;
     }
     return null;
   }, [expandedBlocks]);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { UserMessageItem } from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
 import { HighlightText } from "./HighlightText";
@@ -188,12 +189,14 @@ export function UserMessage({ item, compact = false }: UserMessageProps): JSX.El
                 className="relative w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200/50 bg-slate-100 dark:border-slate-700/50 dark:bg-slate-800"
                 onClick={(event) => event.stopPropagation()}
               >
-                <div className="max-h-[calc(100vh-8rem)] overflow-y-auto px-4 py-3">
-                  {renderImages()}
-                  <p className="m-0 whitespace-pre-wrap break-words text-base leading-relaxed text-foreground">
-                    <ContentWithMentions>{normalizedContent}</ContentWithMentions>
-                  </p>
-                </div>
+                <ScrollArea className="w-full" viewportClassName="max-h-[calc(100vh-8rem)]" type="auto">
+                  <div className="px-4 py-3">
+                    {renderImages()}
+                    <p className="m-0 whitespace-pre-wrap break-words text-base leading-relaxed text-foreground">
+                      <ContentWithMentions>{normalizedContent}</ContentWithMentions>
+                    </p>
+                  </div>
+                </ScrollArea>
                 <div className="border-t border-slate-200/50 px-4 py-2.5 dark:border-slate-700/50">
                   <button
                     type="button"

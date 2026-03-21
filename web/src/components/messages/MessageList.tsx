@@ -38,6 +38,10 @@ function isNearBottom(container: HTMLDivElement): boolean {
   return getDistanceFromBottom(container) < BOTTOM_THRESHOLD_PX;
 }
 
+/** Inset applied to bottom-anchored elements (status bar, scroll-to-bottom, tail padding)
+ *  so they sit slightly inside the composer area rather than flush at its top edge. */
+const COMPOSER_BOTTOM_INSET = "2rem";
+
 interface MessageListProps {
   sessionId: string;
 }
@@ -779,21 +783,21 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
               </div>
               <div
                 className="pointer-events-none sticky z-20 mx-auto max-w-4xl px-4 sm:px-6"
-                style={{ bottom: "var(--composer-h, 10rem)" }}
+                style={{ bottom: `calc(var(--composer-h, 10rem) - ${COMPOSER_BOTTOM_INSET})` }}
               >
                 <SessionStatusBar status={mainSessionStatus} runtime={runtime} />
               </div>
               {/* Padding so content isn't hidden under the absolute positioned composer */}
               <div
                 className="shrink-0"
-                style={{ height: "var(--composer-h, 10rem)" }}
+                style={{ height: `calc(var(--composer-h, 10rem) - ${COMPOSER_BOTTOM_INSET})` }}
               />
             </div>
           </div>
           {showScrollToBottom ? (
             <div
               className="pointer-events-none absolute left-1/2 z-20 -translate-x-1/2"
-              style={{ bottom: "var(--composer-h, 10rem)" }}
+              style={{ bottom: `calc(var(--composer-h, 10rem) - ${COMPOSER_BOTTOM_INSET})` }}
             >
               <Tooltip>
                 <TooltipTrigger asChild>

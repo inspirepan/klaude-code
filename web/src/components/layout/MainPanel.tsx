@@ -34,9 +34,9 @@ export function MainPanel(): JSX.Element {
   return (
     <main ref={mainRef} className="main-panel relative">
       {isDraft ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex h-12 shrink-0 items-center gap-3 border-b border-neutral-200/80 bg-white/95 px-4 backdrop-blur sm:px-6">
-            {!sidebarOpen ? (
+        <div className="relative min-h-0 flex-1 bg-surface/45">
+          {!sidebarOpen ? (
+            <div className="absolute left-4 top-3 z-30 sm:left-6">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -64,17 +64,9 @@ export function MainPanel(): JSX.Element {
                   </span>
                 </TooltipContent>
               </Tooltip>
-            ) : null}
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-baseline gap-2 text-base leading-5">
-                <span className="truncate font-semibold text-neutral-800">New session</span>
-              </div>
             </div>
-          </div>
-
-          <div className="relative min-h-0 flex-1 bg-surface/45">
-            <NewSessionOverlay showBackdrop={false} />
-          </div>
+          ) : null}
+          <NewSessionOverlay showBackdrop={false} />
         </div>
       ) : (
         <>
