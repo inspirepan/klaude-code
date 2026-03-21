@@ -20,6 +20,9 @@ export default {
         sm: ["0.75rem", { lineHeight: "1rem" }], // 12px (was xs)
         base: ["0.875rem", { lineHeight: "1.25rem" }], // 14px (was sm)
       },
+      animation: {
+        "spin-slow": "spin 3s linear infinite",
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",

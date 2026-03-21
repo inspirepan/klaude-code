@@ -29,6 +29,7 @@ export interface SessionStatusState {
   totalCost: number | null;
   currency: string;
   taskStartedAt: number | null;
+  taskElapsedSeconds: number | null;
 }
 
 function parseUserMessageImages(raw: unknown): MessageImagePart[] {
@@ -85,6 +86,7 @@ function createInitialSessionStatus(sessionId: string): SessionStatusState {
     totalCost: null,
     currency: "USD",
     taskStartedAt: null,
+    taskElapsedSeconds: null,
   };
 }
 
@@ -198,7 +200,14 @@ function updateSessionStatus(
   };
 }
 
-function clearTaskScopedStatus(status: SessionStatusState): SessionStatusState {
+function clearTaskScopedStatus(
+  status: SessionStatusState,
+  finishedAt: number | null = null,
+): SessionStatusState {
+  const elapsed =
+    status.taskStartedAt != null && finishedAt != null
+      ? Math.max(0, Math.floor(finishedAt - status.taskStartedAt))
+      : status.taskElapsedSeconds;
   return {
     ...status,
     taskActive: false,
@@ -208,6 +217,7 @@ function clearTaskScopedStatus(status: SessionStatusState): SessionStatusState {
     isComposing: false,
     assistantCharCount: 0,
     taskStartedAt: null,
+    taskElapsedSeconds: elapsed,
   };
 }
 
@@ -271,13 +281,15 @@ function reduceStatusEvent(
 
     case "task.finish": {
       if (sessionId === null) return state;
-      return updateSessionStatus(state, sessionId, (current) => clearTaskScopedStatus(current));
+      return updateSessionStatus(state, sessionId, (current) =>
+        clearTaskScopedStatus(current, timestamp),
+      );
     }
 
     case "interrupt": {
       if (sessionId === null) return state;
       const nextState = updateSessionStatus(state, sessionId, (current) =>
-        clearTaskScopedStatus(current),
+        clearTaskScopedStatus(current, timestamp),
       );
       const interruptedSession = getSessionStatus(nextState, sessionId);
       if (interruptedSession.isSubAgent) {
@@ -287,7 +299,7 @@ function reduceStatusEvent(
       const nextStatuses: Record<string, SessionStatusState> = { ...nextState.statusBySessionId };
       for (const [childSessionId, status] of Object.entries(nextState.statusBySessionId)) {
         if (!status.isSubAgent || !status.taskActive) continue;
-        nextStatuses[childSessionId] = clearTaskScopedStatus(status);
+        nextStatuses[childSessionId] = clearTaskScopedStatus(status, timestamp);
         changed = true;
       }
       if (!changed) return nextState;
@@ -298,6 +310,7 @@ function reduceStatusEvent(
     }
 
     case "end": {
+      const nowSec = Date.now() / 1000;
       let changed = false;
       const nextStatuses: Record<string, SessionStatusState> = {};
       for (const [existingSessionId, status] of Object.entries(state.statusBySessionId)) {
@@ -312,7 +325,7 @@ function reduceStatusEvent(
           nextStatuses[existingSessionId] = status;
           continue;
         }
-        nextStatuses[existingSessionId] = clearTaskScopedStatus(status);
+        nextStatuses[existingSessionId] = clearTaskScopedStatus(status, nowSec);
         changed = true;
       }
       if (!changed) return state;
@@ -324,7 +337,9 @@ function reduceStatusEvent(
 
     case "error": {
       if (sessionId === null || event.can_retry === true) return state;
-      return updateSessionStatus(state, sessionId, (current) => clearTaskScopedStatus(current));
+      return updateSessionStatus(state, sessionId, (current) =>
+        clearTaskScopedStatus(current, timestamp),
+      );
     }
 
     case "user.interaction.request": {

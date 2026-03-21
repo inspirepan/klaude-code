@@ -1,13 +1,25 @@
+import { Circle, CircleCheck, CircleDashed } from "lucide-react";
+
 import type { TodoListUIExtra } from "./message-ui-extra";
 
+const iconSize = "h-3.5 w-3.5 shrink-0";
+
 const statusConfig = {
-  pending: { mark: "\u25A2", markClass: "text-neutral-300", textClass: "text-neutral-500" },
-  in_progress: { mark: "\u25C9", markClass: "text-blue-600", textClass: "text-blue-600" },
+  pending: { iconClass: `${iconSize} text-neutral-300`, textClass: "text-neutral-500" },
+  in_progress: {
+    iconClass: `${iconSize} text-blue-600 animate-spin-slow`,
+    textClass: "text-blue-600",
+  },
   completed: {
-    mark: "\u2714",
-    markClass: "text-emerald-500",
+    iconClass: `${iconSize} text-emerald-500`,
     textClass: "text-neutral-500 line-through",
   },
+} as const;
+
+const statusIcon = {
+  pending: Circle,
+  in_progress: CircleDashed,
+  completed: CircleCheck,
 } as const;
 
 interface TodoListViewProps {
@@ -23,12 +35,13 @@ export function TodoListView({ uiExtra }: TodoListViewProps): JSX.Element {
       {todos.map((todo, i) => {
         const isNewCompleted = todo.status === "completed" && newCompletedSet.has(todo.content);
         const config = statusConfig[todo.status];
-        const markClass = isNewCompleted ? "text-emerald-600 font-semibold" : config.markClass;
+        const Icon = statusIcon[todo.status];
+        const iconClass = isNewCompleted ? `${iconSize} text-emerald-600` : config.iconClass;
         const textClass = isNewCompleted ? "text-emerald-700 font-semibold" : config.textClass;
 
         return (
-          <div key={i} className="flex items-start gap-2 leading-relaxed">
-            <span className={`w-4 shrink-0 text-center ${markClass}`}>{config.mark}</span>
+          <div key={i} className="flex items-center gap-2 leading-relaxed">
+            <Icon className={iconClass} />
             <span className={textClass}>{todo.content}</span>
           </div>
         );

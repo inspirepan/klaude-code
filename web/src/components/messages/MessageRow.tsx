@@ -31,7 +31,7 @@ export function MessageRow({
       className={`group/row min-w-0 ${isUser ? "-mx-4 -mt-2.5 px-4 pt-2.5 sm:-mx-6 sm:px-6" : ""}`}
     >
       <div
-        className={`min-w-0 transition-shadow duration-150 ${isUser ? "" : "rounded-xl"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
+        className={`min-w-0 transition-shadow duration-150 ${isUser ? "" : "rounded-lg"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
       >
         <MessageItem item={item} workDir={workDir} />
         {canCopy ? (
