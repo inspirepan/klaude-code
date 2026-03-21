@@ -49,22 +49,22 @@ export function ProjectGroup({
   const hasMore = sessions.length > 10;
 
   return (
-    <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-1.5">
-      <div className="flex items-center gap-1">
+    <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-0.5">
+      <div className="flex items-center gap-0.5">
         <Tooltip>
           <TooltipTrigger asChild>
-            <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1.5 text-neutral-700 transition-colors hover:bg-muted/50 hover:text-neutral-900">
+            <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-neutral-700 transition-colors hover:bg-muted/50 hover:text-neutral-900">
               {collapsed ? (
-                <Folder className="h-4 w-4 shrink-0 text-neutral-700" />
+                <Folder className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
               ) : (
-                <FolderOpen className="h-4 w-4 shrink-0 text-neutral-700" />
+                <FolderOpen className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
               )}
               <div className="min-w-0 flex-1 text-left">
-                <div className="flex min-w-0 items-center gap-1 text-base font-normal leading-5 text-neutral-800">
+                <div className="flex min-w-0 items-center gap-1 text-sm font-normal leading-5 text-neutral-800">
                   <span className="truncate font-semibold text-neutral-700 [direction:rtl]">
                     {workDirLabel(workDir)}
                   </span>
-                  <span className="shrink-0 text-neutral-500">({sessions.length})</span>
+                  <span className="shrink-0 text-xs text-neutral-400">({sessions.length})</span>
                 </div>
               </div>
             </CollapsibleTrigger>
@@ -76,13 +76,13 @@ export function ProjectGroup({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-700"
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-700"
                 onClick={() => {
                   onSelectDraft(workDir);
                 }}
                 aria-label={`New session in ${workDir}`}
               >
-                <SquarePen className="h-3.5 w-3.5" />
+                <SquarePen className="h-3 w-3" />
               </button>
             </TooltipTrigger>
             <TooltipContent>New session in {workDir}</TooltipContent>
@@ -90,7 +90,7 @@ export function ProjectGroup({
         )}
       </div>
 
-      <CollapsibleContent className="ml-3.5 border-l border-neutral-200 pl-2">
+      <CollapsibleContent className="ml-3 border-l border-neutral-200 pl-1.5">
         <div className="space-y-0.5 pb-0.5">
           {displaySessions.map((session) => (
             <SessionCard

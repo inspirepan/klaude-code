@@ -53,6 +53,22 @@ function formatShortTime(timestampSeconds: number): string {
   return `${date.getMonth() + 1}-${String(date.getDate()).padStart(2, "0")} ${hours}:${minutes}`;
 }
 
+function formatRelativeTime(timestampSeconds: number): string {
+  const diffSeconds = Math.floor(Date.now() / 1000 - timestampSeconds);
+  if (diffSeconds < 60) return "now";
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes}m`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d`;
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffWeeks < 5) return `${diffWeeks}w`;
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12) return `${diffMonths}mo`;
+  return `${Math.floor(diffDays / 365)}y`;
+}
+
 function formatDetailedTime(timestampSeconds: number): string {
   const date = new Date(timestampSeconds * 1000);
   const year = date.getFullYear();
@@ -170,11 +186,14 @@ export function SessionCard({
   });
 
   if (compact) {
+    const relativeTime = formatRelativeTime(session.updated_at);
+    const added = diffSummary.diff_lines_added;
+    const removed = diffSummary.diff_lines_removed;
     return (
       <div className="group">
         <div
           className={cn(
-            "relative flex w-full min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-2.5 pr-2 text-left transition-colors",
+            "relative flex w-full min-w-0 items-center gap-1 rounded-md py-1 pl-1.5 pr-1.5 text-left transition-colors",
             showSuccessState
               ? active
                 ? "status-success-card-settle-active"
@@ -194,27 +213,30 @@ export function SessionCard({
           }}
           title={title}
         >
+          {hasUnreadCompletion ? <UnreadCompletionDot /> : null}
           <SessionTitleText
             title={title}
             as="div"
-            className="flex min-w-0 flex-1 items-baseline text-base leading-5"
+            className="flex min-w-0 flex-1 items-baseline text-sm leading-5"
             secondaryClassName="shrink truncate"
           />
-          <DiffStats
-            added={diffSummary.diff_lines_added}
-            removed={diffSummary.diff_lines_removed}
-          />
+          <span className="w-8 shrink-0 text-right text-xs tabular-nums leading-4 text-emerald-600">
+            {added > 0 ? `+${added}` : ""}
+          </span>
+          <span className="w-8 shrink-0 text-right text-xs tabular-nums leading-4 text-rose-600">
+            {removed > 0 ? `-${removed}` : ""}
+          </span>
           <span
-            className="shrink-0 whitespace-nowrap text-xs leading-4 text-neutral-500"
+            className="w-7 shrink-0 text-right text-xs leading-4 text-neutral-400"
             title={updatedAtDetailed}
           >
-            {updatedAt}
+            {relativeTime}
           </span>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 hover:text-neutral-700 focus:outline-none"
+                className="pointer-events-none inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:outline-none focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
                 aria-label={session.archived ? "Unarchive session" : "Archive session"}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -266,7 +288,7 @@ export function SessionCard({
           <span className="mt-1 flex shrink-0">
             {getRuntimeIcon(runtime, showSuccessState, hasUnreadCompletion)}
           </span>
-          <div className="min-w-0 flex-1 truncate text-base leading-5">
+          <div className="min-w-0 flex-1 truncate text-sm leading-5">
             <SessionTitleText title={title} as="span" truncate={false} />
           </div>
         </div>

@@ -533,18 +533,18 @@ export function LeftSidebar(): JSX.Element {
                 </div>
               ) : null}
 
-              <div className="space-y-4 pt-2">
+              <div className="space-y-2 pt-1">
                 {inProgressSessions.length > 0 ? (
                   <div>
-                    <div className="mb-2 px-1.5">
-                      <span className="inline-flex items-center rounded-full border border-blue-200/70 bg-blue-50 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-blue-700">
+                    <div className="mb-1 px-1.5">
+                      <span className="inline-flex items-center rounded-full border border-blue-200/70 bg-blue-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-blue-700">
                         <span>In Progress</span>
-                        <span className="ml-2 border-l border-blue-200/80 pl-2 text-blue-600">
+                        <span className="ml-1.5 border-l border-blue-200/80 pl-1.5 text-blue-600">
                           {inProgressSessions.length}
                         </span>
                       </span>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       {inProgressSessions.map((session) => (
                         <SessionCard
                           key={session.id}
@@ -577,10 +577,10 @@ export function LeftSidebar(): JSX.Element {
 
                 {doneGroups.length > 0 ? (
                   <div>
-                    <div className="mb-2 px-1.5">
-                      <span className="inline-flex items-center rounded-full border border-emerald-200/70 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-emerald-700">
+                    <div className="mb-1 px-1.5">
+                      <span className="inline-flex items-center rounded-full border border-emerald-200/70 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-emerald-700">
                         <span>DONE</span>
-                        <span className="ml-2 border-l border-emerald-200/80 pl-2 text-emerald-600">
+                        <span className="ml-1.5 border-l border-emerald-200/80 pl-1.5 text-emerald-600">
                           {doneSessions.length}
                         </span>
                       </span>
@@ -591,6 +591,7 @@ export function LeftSidebar(): JSX.Element {
                         workDir={group.work_dir}
                         sessions={group.sessions}
                         collapsed={collapsedByWorkDir[group.work_dir] ?? false}
+                        compactSessions
                         activeSessionId={activeSessionId}
                         runtimeBySessionId={runtimeBySessionId}
                         recentCompletionStartedAtBySessionId={recentCompletionStartedAtBySessionId}
