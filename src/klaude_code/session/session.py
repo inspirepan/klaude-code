@@ -579,7 +579,7 @@ class Session(BaseModel):
         yield events.TaskStartEvent(
             session_id=self.id,
             sub_agent_state=self.sub_agent_state,
-            timestamp=self.created_at if self.created_at > 0 else None,
+            timestamp=self.created_at if self.created_at > 0 else time.time(),
         )
         msg_ts: float = 0.0
         for idx, it in enumerate(history):
@@ -753,9 +753,7 @@ class Session(BaseModel):
                         timestamp=msg_ts,
                     )
                 case message.SpawnSubAgentEntry() as sa:
-                    yield from self._iter_sub_agent_history_by_id(
-                        sa.session_id, seen_sub_agent_sessions
-                    )
+                    yield from self._iter_sub_agent_history_by_id(sa.session_id, seen_sub_agent_sessions)
                 case message.SystemMessage():
                     pass
             prev_item = it
@@ -796,9 +794,7 @@ class Session(BaseModel):
         ui_extra = tool_result.ui_extra
         if not isinstance(ui_extra, model.SessionIdUIExtra):
             return
-        yield from self._iter_sub_agent_history_by_id(
-            ui_extra.session_id, seen_sub_agent_sessions
-        )
+        yield from self._iter_sub_agent_history_by_id(ui_extra.session_id, seen_sub_agent_sessions)
 
     class SessionMetaBrief(BaseModel):
         id: str

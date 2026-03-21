@@ -186,8 +186,15 @@ export function AtFileCompletionList({
   }, [highlightIndex, items]);
 
   return (
-    <div className={`absolute left-0 right-0 z-20 overflow-hidden rounded-lg border border-neutral-200/80 bg-white shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${dropUp ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}>
-      <ScrollArea ref={listRef} className="w-full pb-1.5 pt-2" viewportClassName="max-h-72" type="hover">
+    <div
+      className={`absolute left-0 right-0 z-20 overflow-hidden rounded-lg border border-neutral-200/80 bg-white shadow-[0_4px_16px_rgba(0,0,0,0.08)] ${dropUp ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}
+    >
+      <ScrollArea
+        ref={listRef}
+        className="w-full pb-1.5 pt-2"
+        viewportClassName="max-h-72"
+        type="hover"
+      >
         {items.map((path, index) => {
           const highlighted = index === highlightIndex;
           const display = getFileCompletionDisplay(path);

@@ -140,7 +140,12 @@ export function DraftWorkspacePicker({
         {workspaceMenuOpen ? (
           <div className="absolute left-0 right-0 z-20 mt-1.5 overflow-hidden rounded-lg border border-neutral-200/80 bg-white pb-1.5 pt-2 shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
             {filteredWorkspaceOptions.length > 0 ? (
-              <ScrollArea ref={listRef} className="w-full" viewportClassName="max-h-64" type="hover">
+              <ScrollArea
+                ref={listRef}
+                className="w-full"
+                viewportClassName="max-h-64"
+                type="hover"
+              >
                 {filteredWorkspaceOptions.map((workspace) => {
                   const isHighlighted = workspace === filteredWorkspaceOptions[highlightIndex];
                   const isSelected = workspace === normalizedDraftWorkDir;

@@ -61,14 +61,16 @@ class SubAgentExecutor:
         # Record the sub-agent session ID in the parent session's history so that
         # history replay can discover and inline the sub-agent's events even before
         # the Agent tool call completes.
-        parent_session.append_history([
-            message.SpawnSubAgentEntry(
-                session_id=child_session.id,
-                sub_agent_type=state.sub_agent_type,
-                sub_agent_desc=state.sub_agent_desc,
-                fork_context=state.fork_context,
-            )
-        ])
+        parent_session.append_history(
+            [
+                message.SpawnSubAgentEntry(
+                    session_id=child_session.id,
+                    sub_agent_type=state.sub_agent_type,
+                    sub_agent_desc=state.sub_agent_desc,
+                    fork_context=state.fork_context,
+                )
+            ]
+        )
 
         if record_session_id is not None:
             record_session_id(child_session.id)

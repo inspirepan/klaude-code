@@ -350,7 +350,12 @@ export function ComposerCard({
         setSlashCompletionHighlightIndex(0);
         return;
       }
-      const items = buildSlashCompletionItems(match.groups.prefix, match.groups.frag, skills, !!onCompact);
+      const items = buildSlashCompletionItems(
+        match.groups.prefix,
+        match.groups.frag,
+        skills,
+        !!onCompact,
+      );
       setSlashCompletionItems(items);
       setSlashCompletionHighlightIndex(0);
     },

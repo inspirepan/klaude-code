@@ -502,9 +502,7 @@ class TestSessionPersistence:
 
         arun(_test())
 
-    def test_spawn_sub_agent_entry_replays_sub_agent_history(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_spawn_sub_agent_entry_replays_sub_agent_history(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """SpawnSubAgentEntry triggers sub-agent history replay (even without ToolResultMessage)."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -521,9 +519,7 @@ class TestSessionPersistence:
                     message.UserMessage(parts=message.text_parts_from_str("find foo")),
                     message.AssistantMessage(parts=message.text_parts_from_str("found it")),
                     model.TaskMetadataItem(
-                        main_agent=model.TaskMetadata(
-                            model_id="test", model_name="test", turn_count=1, task_duration_s=2.0
-                        )
+                        main_agent=model.TaskMetadata(model_name="test", turn_count=1, task_duration_s=2.0)
                     ),
                 ]
             )
@@ -613,9 +609,7 @@ class TestSessionPersistence:
 
         arun(_test())
 
-    def test_spawn_sub_agent_entry_deduplicates_with_tool_result(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_spawn_sub_agent_entry_deduplicates_with_tool_result(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """When both SpawnSubAgentEntry and ToolResultMessage exist, sub-agent events appear only once."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -630,9 +624,7 @@ class TestSessionPersistence:
                 [
                     message.AssistantMessage(parts=message.text_parts_from_str("done")),
                     model.TaskMetadataItem(
-                        main_agent=model.TaskMetadata(
-                            model_id="test", model_name="test", turn_count=1, task_duration_s=1.0
-                        )
+                        main_agent=model.TaskMetadata(model_name="test", turn_count=1, task_duration_s=1.0)
                     ),
                 ]
             )
@@ -672,9 +664,7 @@ class TestSessionPersistence:
 
             # Sub-agent TaskStartEvent should appear exactly once (dedup via seen_sub_agent_sessions)
             sub_starts = [
-                e
-                for e in events_list
-                if isinstance(e, events.TaskStartEvent) and e.session_id == sub_session.id
+                e for e in events_list if isinstance(e, events.TaskStartEvent) and e.session_id == sub_session.id
             ]
             assert len(sub_starts) == 1
 

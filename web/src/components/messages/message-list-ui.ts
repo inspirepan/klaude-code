@@ -53,7 +53,6 @@ export function getSessionActivityText(status: SessionStatusState | null): strin
             : null;
 }
 
-
 export function isCopyableAssistantText(item: MessageItemType): item is AssistantTextItem {
   return item.type === "assistant_text" && !item.isStreaming && item.content.split("\n").length > 5;
 }

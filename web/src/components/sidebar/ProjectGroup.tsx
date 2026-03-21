@@ -52,9 +52,7 @@ export function ProjectGroup({
       return state !== "idle";
     });
   const hasAnyUnread =
-    !hasAnyRunning &&
-    collapsed &&
-    sessions.some((s) => completedUnreadBySessionId[s.id] === true);
+    !hasAnyRunning && collapsed && sessions.some((s) => completedUnreadBySessionId[s.id] === true);
 
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-0.5">
@@ -136,9 +134,7 @@ export function ProjectGroup({
                 setShowAll(true);
               }}
             >
-              <span className="flex-1 text-xs font-normal">
-                Load more ({sessions.length - 5})
-              </span>
+              <span className="flex-1 text-xs font-normal">Load more ({sessions.length - 5})</span>
             </button>
           )}
         </div>
