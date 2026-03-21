@@ -278,7 +278,14 @@ function applySessionUpsert(
     };
   }
 
+  // Only trigger the completion animation from session-list upserts when
+  // the session WebSocket is NOT active.  When the WS is connected, the
+  // task.finish event handled by handleWsEvent will fire the animation
+  // exactly once.  Without this guard the upsert fires repeatedly because
+  // keepWsState preserves the WS-driven "running" sessionState while the
+  // API already reports "idle", re-triggering the condition on every push.
   if (
+    !keepWsState &&
     previousSession !== null &&
     previousRuntime.sessionState !== "idle" &&
     session.session_state === "idle"
