@@ -251,6 +251,13 @@ class OperationDispatcher:
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
         await self._agent_runner.clear_session(operation.session_id)
 
+    async def handle_fork_and_switch_session(self, operation: op.ForkAndSwitchSessionOperation) -> None:
+        await self._agent_runner.fork_and_switch_session(
+            session_id=operation.session_id,
+            new_session_id=operation.new_session_id,
+            original_session_short_id=operation.original_session_short_id,
+        )
+
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
 

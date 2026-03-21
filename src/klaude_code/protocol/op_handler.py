@@ -18,6 +18,7 @@ if TYPE_CHECKING:
         CloseSessionOperation,
         CompactSessionOperation,
         ContinueAgentOperation,
+        ForkAndSwitchSessionOperation,
         GetSessionStatsOperation,
         InitAgentOperation,
         InterruptOperation,
@@ -83,6 +84,10 @@ class OperationHandler(Protocol):
 
     async def handle_clear_session(self, operation: ClearSessionOperation) -> None:
         """Handle a clear session operation."""
+        ...
+
+    async def handle_fork_and_switch_session(self, operation: ForkAndSwitchSessionOperation) -> None:
+        """Handle a fork-and-switch session operation."""
         ...
 
     async def handle_interrupt(self, operation: InterruptOperation) -> None:

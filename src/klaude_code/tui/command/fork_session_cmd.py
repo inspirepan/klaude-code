@@ -1,13 +1,13 @@
 import asyncio
+import os
 import sys
 from dataclasses import dataclass
 from typing import Literal
 
 from prompt_toolkit.styles import Style, merge_styles
 
-from klaude_code.protocol import events, message, model
+from klaude_code.protocol import events, message, op
 from klaude_code.session import Session
-from klaude_code.tui.input.key_bindings import copy_to_clipboard
 from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, select_one
 
 from .command_abc import Agent, CommandABC, CommandResult
@@ -308,50 +308,35 @@ class ForkSessionCommand(CommandABC):
         # Build fork points from conversation history
         fork_points = _build_fork_points(agent.session.conversation_history)
 
-        if not fork_points:
-            # Only one user message, just fork entirely
-            new_session = agent.session.fork()
-            await new_session.wait_for_flush()
+        selected: int | None = None
+        if fork_points:
+            # Interactive selection
+            result = await asyncio.to_thread(_select_fork_point_sync, fork_points)
 
-            short_id = Session.shortest_unique_prefix(new_session.id, work_dir=new_session.work_dir)
-            resume_cmd = f"klaude -r {short_id}"
-            copy_to_clipboard(resume_cmd)
-
-            event = events.NoticeEvent(
-                session_id=agent.session.id,
-                content=f"Session forked successfully. New session id: {new_session.id}",
-                ui_extra=model.SessionIdUIExtra(session_id=new_session.id),
-            )
-            return CommandResult(events=[event])
-
-        # Interactive selection
-        selected = await asyncio.to_thread(_select_fork_point_sync, fork_points)
-
-        if selected == "cancelled":
-            event = events.NoticeEvent(
-                session_id=agent.session.id,
-                content="(fork cancelled)",
-            )
-            return CommandResult(events=[event])
+            if result == "cancelled":
+                event = events.NoticeEvent(
+                    session_id=agent.session.id,
+                    content="(fork cancelled)",
+                )
+                return CommandResult(events=[event])
+            selected = result
 
         # Perform the fork
         new_session = agent.session.fork(until_index=selected)
         await new_session.wait_for_flush()
 
-        # Build result message
-        selected_point = next((fp for fp in fork_points if fp.history_index == selected), None)
-        if selected_point is not None and selected_point.kind == "compaction":
-            fork_description = "after compaction"
-        else:
-            fork_description = "entire conversation" if selected == -1 else f"up to message index {selected}"
+        # Compute original session short id for the "switch back" hint
+        original_short_id = Session.shortest_unique_prefix(agent.session.id, work_dir=agent.session.work_dir)
 
-        short_id = Session.shortest_unique_prefix(new_session.id, work_dir=new_session.work_dir)
-        resume_cmd = f"klaude -r {short_id}"
-        copy_to_clipboard(resume_cmd)
+        # Clear terminal before switching
+        os.system("cls" if os.name == "nt" else "clear")
 
-        event = events.NoticeEvent(
-            session_id=agent.session.id,
-            content=f"Session forked ({fork_description}). New session id: {new_session.id}",
-            ui_extra=model.SessionIdUIExtra(session_id=new_session.id),
+        return CommandResult(
+            operations=[
+                op.ForkAndSwitchSessionOperation(
+                    session_id=agent.session.id,
+                    new_session_id=new_session.id,
+                    original_session_short_id=original_short_id,
+                )
+            ],
         )
-        return CommandResult(events=[event])
