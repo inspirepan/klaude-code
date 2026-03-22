@@ -16,7 +16,9 @@ export function CommandListPanel({
   children: React.ReactNode;
 }): JSX.Element {
   return (
-    <div className={cn("overflow-hidden rounded-xl border border-border/80 bg-background", className)}>
+    <div
+      className={cn("overflow-hidden rounded-xl border border-border/80 bg-background", className)}
+    >
       {children}
     </div>
   );

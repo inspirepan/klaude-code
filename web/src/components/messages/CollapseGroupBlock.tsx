@@ -339,9 +339,22 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
     }
   }
 
+  // Stable ordering: edits first, then execution, then reads, then web
+  const TOOL_ORDER: Record<string, number> = {
+    Edit: 0,
+    Write: 1,
+    apply_patch: 2,
+    Bash: 3,
+    Read: 4,
+    WebFetch: 5,
+    WebSearch: 6,
+  };
+  const sortedEntries = [...grouped.entries()]
+    .filter(([, values]) => values.length > 0)
+    .sort(([a], [b]) => (TOOL_ORDER[a] ?? 99) - (TOOL_ORDER[b] ?? 99));
+
   const parts: SummaryPart[] = [];
-  for (const [name, values] of grouped) {
-    if (values.length === 0) continue;
+  for (const [name, values] of sortedEntries) {
     const unique = [...new Set(values)];
     switch (name) {
       case "Read": {
@@ -442,7 +455,7 @@ function summaryToText(summary: SummaryPart[]): string {
       }
       return `${part.label} ${part.value}`;
     })
-    .join(", ");
+    .join(" \u00b7 ");
 }
 
 function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
@@ -450,10 +463,10 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
     <>
       {summary.map((part, partIdx) => (
         <span key={partIdx}>
-          {partIdx > 0 ? ", " : null}
+          {partIdx > 0 ? <span className="mx-1.5 text-neutral-400">{"\u00b7"}</span> : null}
           {part.fileStats ? (
             <>
-              {part.label}{" "}
+              <span className="font-medium text-neutral-700">{part.label}</span>{" "}
               {part.fileStats.map((fs, fsIdx) => (
                 <span key={fsIdx}>
                   {fsIdx > 0 ? ", " : null}
@@ -470,7 +483,7 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
             </>
           ) : (
             <>
-              {part.label} {part.value}
+              <span className="font-medium text-neutral-700">{part.label}</span> {part.value}
             </>
           )}
         </span>
@@ -536,22 +549,17 @@ export function CollapseGroupBlock({
           <button
             type="button"
             onClick={onToggle}
-            className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-base text-neutral-600 transition-colors hover:text-neutral-700`}
+            className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-base text-neutral-500 transition-colors hover:text-neutral-600`}
           >
             <CollapseRailMarker open={!collapsed} />
             <span className="flex min-w-0 items-center gap-1.5 pl-1">
-              <span className="shrink-0 font-mono">
-                {stepLabel}
-                {summary.length > 0 ? <span className="text-neutral-600">,</span> : null}
-              </span>
-              {summary.length > 0 ? (
-                <span
-                  ref={summarySpanRef}
-                  className="min-w-0 truncate pl-1 font-mono text-neutral-600"
-                >
+              {summary.length === 0 ? (
+                <span className="shrink-0 font-mono">{stepLabel}</span>
+              ) : (
+                <span ref={summarySpanRef} className="min-w-0 truncate font-mono text-neutral-500">
                   <SummaryDisplay summary={summary} />
                 </span>
-              ) : null}
+              )}
             </span>
           </button>
         </TooltipTrigger>

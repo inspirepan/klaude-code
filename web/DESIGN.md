@@ -64,11 +64,10 @@ Dark mode inverts the neutral scale but keeps the same semantic color mapping. `
 
 ### Font Stack
 
-| Role                   | Family                   | Fallback Chain                                                                                                  |
-| ---------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| **UI / Body**          | `IBM Plex Sans Variable` | system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", sans-serif |
-| **Code / Monospace**   | `Lilex Variable`         | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace                                                |
-| **Display (reserved)** | `TX-02`                  | Loaded as @font-face (400/700, normal/italic); not yet actively used in the UI                                  |
+| Role                 | Family           | Source                                               | Fallback Chain                                                                                                  |
+| -------------------- | ---------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **UI / Body**        | `Geist Variable` | `@fontsource-variable/geist`                         | system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", sans-serif |
+| **Code / Monospace** | `TX-02`          | Local @font-face (400/700, normal/italic, woff2+otf) | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace                                                |
 
 ### Scale & Font Size Zones
 
