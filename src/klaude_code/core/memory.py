@@ -200,8 +200,12 @@ def discover_memory_files_near_paths(
 
 
 def get_auto_memory_path(work_dir: Path) -> Path:
-    """Return the path to the per-project MEMORY.md (may not exist yet)."""
+    """Return the path to the per-project MEMORY.md (may not exist yet).
+
+    Creates the memory directory if it does not exist.
+    """
     paths = ProjectPaths(project_key=project_key_from_path(work_dir))
+    paths.memory_dir.mkdir(parents=True, exist_ok=True)
     return paths.memory_dir / AUTO_MEMORY_FILE
 
 
