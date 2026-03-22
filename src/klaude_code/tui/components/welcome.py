@@ -37,40 +37,28 @@ def _format_memory_path(path: str, *, work_dir: Path) -> str:
         return path
 
 
-def _build_grouped_tree(
+def _build_multi_column_tree(
     title: str,
-    groups: list[tuple[str, str]],
+    grouped_items: list[tuple[str, list[str]]],
 ) -> Tree:
-    """Build a Tree with grouped children (e.g. skills, context)."""
+    """Build a Tree with grouped children displayed in multi-column layout."""
     tree = _RoundedTree(Text(title, style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
-    label_width = max(len(label) for label, _ in groups)
-    for label, content in groups:
-        row = Text()
-        row.append(label, style=ThemeKey.WELCOME_SCOPE)
-        row.append(" " * (label_width - len(label)), style=ThemeKey.WELCOME_INFO)
-        row.append(f" {content}", style=ThemeKey.WELCOME_INFO)
-        tree.add(row)
-    return tree
-
-
-def _build_skills_tree(grouped_skills: list[tuple[str, list[str]]]) -> Tree:
-    tree = _RoundedTree(Text("skills", style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
-    # 12 = quote prefix (3) + tree guide indent (4) + margin (3) + skill indent (2)
+    # 12 = quote prefix (3) + tree guide indent (4) + margin (3) + item indent (2)
     content_width = shutil.get_terminal_size().columns - 12
-    all_skills = [s for _, skills in grouped_skills for s in skills]
-    name_width = max(len(s) for s in all_skills)
+    all_items = [item for _, items in grouped_items for item in items]
+    name_width = max(len(item) for item in all_items)
     sep = " | "
     num_cols = min(4, max(1, (content_width + len(sep)) // (name_width + len(sep))))
-    for scope, skills in grouped_skills:
+    for scope, items in grouped_items:
         scope_text = Text()
         scope_text.append(scope, style=ThemeKey.WELCOME_SCOPE)
-        for i, skill in enumerate(skills):
+        for i, item in enumerate(items):
             if i % num_cols == 0:
                 scope_text.append("\n")
                 scope_text.append("  ", style=ThemeKey.WELCOME_INFO)
             else:
                 scope_text.append(sep, style=ThemeKey.LINES)
-            scope_text.append(f"{skill:<{name_width}}", style=ThemeKey.WELCOME_INFO)
+            scope_text.append(f"{item:<{name_width}}", style=ThemeKey.WELCOME_INFO)
         tree.add(scope_text)
     return tree
 
@@ -138,14 +126,14 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     # Context tree: loaded memories
     work_dir = Path(e.work_dir)
     loaded_memories = e.loaded_memories or {}
-    memory_items: list[tuple[str, str]] = []
+    grouped_memories: list[tuple[str, list[str]]] = []
     for scope in ("user", "project"):
         paths = loaded_memories.get(scope) or []
         if paths:
-            memory_items.append((scope, ", ".join(_format_memory_path(p, work_dir=work_dir) for p in paths)))
-    if memory_items:
+            grouped_memories.append((scope, [_format_memory_path(p, work_dir=work_dir) for p in paths]))
+    if grouped_memories:
         renderables.append(Text())
-        renderables.append(_build_grouped_tree("context", memory_items))
+        renderables.append(_build_multi_column_tree("context", grouped_memories))
 
     # Skills tree
     loaded_skills = e.loaded_skills or {}
@@ -156,7 +144,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
             grouped_skills.append((scope, skills))
     if grouped_skills:
         renderables.append(Text())
-        renderables.append(_build_skills_tree(grouped_skills))
+        renderables.append(_build_multi_column_tree("skills", grouped_skills))
 
     loaded_skill_warnings = e.loaded_skill_warnings or {}
     warning_items: list[tuple[str, str]] = []
