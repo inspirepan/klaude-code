@@ -1,12 +1,7 @@
-import { Wrench } from "lucide-react";
+import { CircleCheck, Loader } from "lucide-react";
 
 import type { SessionStatusState } from "../../stores/event-reducer";
-import {
-  formatElapsed,
-  formatSubAgentTypeLabel,
-  getSessionActivityText,
-  shortSessionId,
-} from "./message-list-ui";
+import { formatElapsed, formatSubAgentTypeLabel, shortSessionId } from "./message-list-ui";
 
 interface SubAgentGroupCardProps {
   sourceSessionId: string;
@@ -31,27 +26,26 @@ export function SubAgentGroupCard({
   nowSeconds,
   onClick,
 }: SubAgentGroupCardProps): JSX.Element {
-  const activityText = getSessionActivityText(status);
+  const isActive =
+    status != null && (status.taskActive || status.awaitingInput || status.compacting);
   const elapsedText =
-    status?.taskStartedAt != null &&
-    (status.taskActive || status.awaitingInput || status.compacting)
+    status?.taskStartedAt != null && isActive
       ? formatElapsed(nowSeconds - status.taskStartedAt)
-      : null;
+      : status?.taskElapsedSeconds != null
+        ? formatElapsed(status.taskElapsedSeconds)
+        : null;
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group/subagent flex w-3/5 cursor-pointer items-center gap-3 rounded-xl border border-neutral-200/80 bg-surface/50 px-4 py-3 text-left shadow-sm shadow-neutral-200/40 transition-colors hover:bg-neutral-50"
+      className="group/subagent flex w-3/5 cursor-pointer items-center gap-3 rounded-lg border border-neutral-200/80 bg-surface/50 px-4 py-3 text-left shadow-sm shadow-neutral-200/40 transition-colors hover:bg-neutral-50"
     >
-      {/* Status dot */}
-      {activityText ? (
-        <span className="relative flex h-1.5 w-1.5 shrink-0">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-500" />
-        </span>
+      {/* Status icon */}
+      {isActive ? (
+        <Loader className="h-3.5 w-3.5 shrink-0 animate-spin text-amber-500" />
       ) : isFinished ? (
-        <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+        <CircleCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
       ) : (
         <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-300" />
       )}
@@ -73,23 +67,14 @@ export function SubAgentGroupCard({
         </span>
       ) : null}
 
-      {/* Activity + elapsed + tool count (right-aligned) */}
+      {/* Elapsed + tool count (right-aligned) */}
       <div className="ml-auto flex shrink-0 items-center gap-2 text-base text-neutral-500">
-        {activityText ? <span className="font-mono text-base">{activityText}</span> : null}
-        {elapsedText ? (
-          <>
-            {activityText ? <span className="text-neutral-300">&middot;</span> : null}
-            <span className="font-mono">{elapsedText}</span>
-          </>
-        ) : null}
+        {elapsedText ? <span className="font-mono">{elapsedText}</span> : null}
         {toolCount > 0 ? (
           <>
-            {activityText || elapsedText ? (
-              <span className="text-neutral-300">&middot;</span>
-            ) : null}
-            <span className="flex items-center gap-1">
-              <Wrench className="h-3.5 w-3.5 shrink-0" />
-              <span>{toolCount}</span>
+            {elapsedText ? <span className="text-neutral-300">&middot;</span> : null}
+            <span>
+              {toolCount} tool call{toolCount !== 1 ? "s" : ""}
             </span>
           </>
         ) : null}
