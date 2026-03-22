@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import type { SessionStatusState } from "../../stores/event-reducer";
 import type {
   AssistantTextItem,
@@ -41,15 +42,15 @@ export function formatElapsed(totalSeconds: number): string {
 export function getSessionActivityText(status: SessionStatusState | null): string | null {
   if (status === null) return null;
   return status.awaitingInput
-    ? "Waiting for input …"
+    ? t("status.waitingInput")
     : status.compacting
-      ? "Compacting …"
+      ? t("status.compacting")
       : status.thinkingActive
-        ? "Thinking …"
+        ? t("status.thinking")
         : status.isComposing
-          ? "Typing …"
+          ? t("status.typing")
           : status.taskActive
-            ? "Running …"
+            ? t("status.running")
             : null;
 }
 

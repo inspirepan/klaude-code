@@ -7,6 +7,7 @@ import {
   Search,
 } from "lucide-react";
 import { SessionTitleText } from "@/components/SessionTitleText";
+import { useT } from "@/i18n";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 interface MessageListHeaderProps {
@@ -36,6 +37,7 @@ export function MessageListHeader({
   onBack,
   subAgentLabel,
 }: MessageListHeaderProps): JSX.Element {
+  const t = useT();
   const isSubAgentView = onBack !== undefined;
 
   return (
@@ -53,12 +55,12 @@ export function MessageListHeader({
                   type="button"
                   className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                   onClick={onBack}
-                  aria-label="Back to main session"
+                  aria-label={t("header.backToMain")}
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>Back to main session</TooltipContent>
+              <TooltipContent>{t("header.backToMain")}</TooltipContent>
             </Tooltip>
           ) : !sidebarOpen ? (
             <Tooltip>
@@ -69,13 +71,13 @@ export function MessageListHeader({
                   onClick={() => {
                     setSidebarOpen(true);
                   }}
-                  aria-label="Expand sidebar"
+                  aria-label={t("sidebar.expandSidebar")}
                 >
                   <PanelLeftOpen className="h-4 w-4" />
                 </button>
               </TooltipTrigger>
               <TooltipContent className="flex items-center gap-1.5">
-                <span>Expand sidebar</span>
+                <span>{t("sidebar.expandSidebar")}</span>
                 <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                   <span className="inline-flex whitespace-pre text-sm leading-none">
                     <kbd className="inline-flex font-sans">
@@ -92,7 +94,7 @@ export function MessageListHeader({
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5 text-base leading-5">
               {isSubAgentView ? (
-                <span className="truncate font-semibold">{subAgentLabel ?? "Sub Agent"}</span>
+                <span className="truncate font-semibold">{subAgentLabel ?? t("header.subAgent")}</span>
               ) : (
                 <>
                   <SessionTitleText
@@ -109,7 +111,7 @@ export function MessageListHeader({
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>
-                        Read-only — this session is owned by another live runtime
+                        {t("header.readOnly")}
                       </TooltipContent>
                     </Tooltip>
                   ) : null}
@@ -131,13 +133,13 @@ export function MessageListHeader({
                 type="button"
                 className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                 onClick={onCollapseAll}
-                aria-label="Collapse all"
+                aria-label={t("header.collapseAll")}
               >
                 <ChevronsDownUp className="h-4 w-4" />
               </button>
             </TooltipTrigger>
             <TooltipContent className="flex items-center gap-1.5">
-              <span>Collapse all</span>
+              <span>{t("header.collapseAll")}</span>
               <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                 <span className="inline-flex whitespace-pre text-sm leading-none">
                   <kbd className="inline-flex font-sans">
@@ -159,13 +161,13 @@ export function MessageListHeader({
                 type="button"
                 className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                 onClick={onExpandAll}
-                aria-label="Expand all"
+                aria-label={t("header.expandAll")}
               >
                 <ChevronsUpDown className="h-4 w-4" />
               </button>
             </TooltipTrigger>
             <TooltipContent className="flex items-center gap-1.5">
-              <span>Expand all</span>
+              <span>{t("header.expandAll")}</span>
               <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                 <span className="inline-flex whitespace-pre text-sm leading-none">
                   <kbd className="inline-flex font-sans">
@@ -187,13 +189,13 @@ export function MessageListHeader({
                 type="button"
                 className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                 onClick={onSearchOpen}
-                aria-label="Search messages"
+                aria-label={t("header.searchMessages")}
               >
                 <Search className="h-4 w-4" />
               </button>
             </TooltipTrigger>
             <TooltipContent className="flex items-center gap-1.5">
-              <span>Search</span>
+              <span>{t("header.search")}</span>
               <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                 <span className="inline-flex whitespace-pre text-sm leading-none">
                   <kbd className="inline-flex font-sans">

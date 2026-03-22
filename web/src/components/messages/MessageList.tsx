@@ -1,6 +1,7 @@
 import { ArrowDown, Loader } from "lucide-react";
 import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react";
 
+import { useT } from "@/i18n";
 import { useMountEffect } from "@/hooks/useMountEffect";
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
@@ -55,7 +56,7 @@ interface MessageListProps {
   sessionId: string;
 }
 
-function getSessionTitle(session: SessionSummary | null): string {
+function getSessionTitle(session: SessionSummary | null): string | null {
   const generatedTitle = session?.title?.trim();
   if (generatedTitle !== undefined && generatedTitle.length > 0) {
     return generatedTitle;
@@ -64,10 +65,11 @@ function getSessionTitle(session: SessionSummary | null): string {
   if (firstMessage !== undefined && firstMessage.length > 0) {
     return firstMessage;
   }
-  return "New session";
+  return null;
 }
 
 export function MessageList({ sessionId }: MessageListProps): JSX.Element {
+  const t = useT();
   const groups = useSessionStore((state) => state.groups);
   const runtime = useSessionStore((state) => state.runtimeBySessionId[sessionId] ?? null);
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
@@ -127,7 +129,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     () => groups.flatMap((group) => group.sessions).find((item) => item.id === sessionId) ?? null,
     [groups, sessionId],
   );
-  const sessionTitle = useMemo(() => getSessionTitle(session), [session]);
+  const sessionTitle = useMemo(() => getSessionTitle(session) ?? t("sidebar.newSession"), [session, t]);
   const { primary: primaryTitle, secondary: secondaryTitle } = useMemo(
     () => splitSessionTitle(sessionTitle),
     [sessionTitle],
@@ -681,12 +683,12 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                     type="button"
                     onClick={() => scrollToBottom()}
                     className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card/95 text-neutral-700 shadow-sm ring-1 ring-black/[0.06] backdrop-blur transition-colors hover:bg-card hover:text-neutral-900"
-                    aria-label="Scroll to bottom"
+                    aria-label={t("messageList.scrollToBottom")}
                   >
                     <ArrowDown className="h-4 w-4" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>Scroll to bottom</TooltipContent>
+                <TooltipContent>{t("messageList.scrollToBottom")}</TooltipContent>
               </Tooltip>
             </div>
           ) : null}

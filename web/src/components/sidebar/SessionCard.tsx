@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useMountEffect } from "@/hooks/useMountEffect";
 import { SessionTitleText } from "@/components/SessionTitleText";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/i18n";
 
 interface SessionCardProps {
   session: SessionSummary;
@@ -24,7 +25,7 @@ function UnreadCompletionDot(): JSX.Element {
   );
 }
 
-function getSessionTitle(session: SessionSummary): string {
+function getSessionTitle(session: SessionSummary): string | null {
   const generatedTitle = session.title?.trim();
   if (generatedTitle !== undefined && generatedTitle.length > 0) {
     return generatedTitle;
@@ -33,7 +34,7 @@ function getSessionTitle(session: SessionSummary): string {
   if (firstMessage !== undefined && firstMessage.length > 0) {
     return firstMessage;
   }
-  return "New session";
+  return null;
 }
 
 function formatRelativeTime(timestampSeconds: number): string {
@@ -98,10 +99,11 @@ export function SessionCard({
   onClick,
   onToggleArchive,
 }: SessionCardProps): JSX.Element {
+  const t = useT();
   const [showSuccessState, setShowSuccessState] = useState(false);
   const successAnimationFrameRef = useRef<number | null>(null);
   const successTimeoutRef = useRef<number | null>(null);
-  const title = shortenFileRefs(getSessionTitle(session));
+  const title = shortenFileRefs(getSessionTitle(session) ?? t("sidebar.newSession"));
   const updatedAtDetailed = formatDetailedTime(session.updated_at);
   const relativeTime = formatRelativeTime(session.updated_at);
   const diffSummary = session.file_change_summary;
@@ -206,7 +208,7 @@ export function SessionCard({
           <button
             type="button"
             className="hidden h-5 w-5 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:text-neutral-700 focus:outline-none focus-visible:inline-flex group-hover:inline-flex"
-            aria-label={session.archived ? "Unarchive session" : "Archive session"}
+            aria-label={session.archived ? t("sidebar.unarchiveSession") : t("sidebar.archiveSession")}
             onClick={(e) => {
               e.stopPropagation();
               onToggleArchive(session.id, !session.archived);
@@ -220,7 +222,7 @@ export function SessionCard({
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          {session.archived ? "Unarchive session" : "Archive session"}
+          {session.archived ? t("sidebar.unarchiveSession") : t("sidebar.archiveSession")}
         </TooltipContent>
       </Tooltip>
     </div>

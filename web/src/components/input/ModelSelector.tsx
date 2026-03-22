@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronRight, Search } from "lucide-react";
 
 import type { ConfigModelSummary } from "../../api/client";
+import { useT } from "@/i18n";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CommandListItem } from "@/components/ui/command-list";
 
@@ -28,12 +29,13 @@ export function ModelSelector({
   value,
   loading = false,
   disabled = false,
-  placeholder = "Select model",
+  placeholder,
   onSelect,
   triggerClassName,
   panelClassName,
   dropUp = true,
 }: ModelSelectorProps): JSX.Element {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -113,7 +115,7 @@ export function ModelSelector({
 
   const triggerLabel =
     current?.model_id ??
-    (value.trim().length > 0 ? value : loading ? "Loading models..." : placeholder);
+    (value.trim().length > 0 ? value : loading ? t("model.loading") : placeholder ?? t("model.selectModel"));
 
   return (
     <div ref={rootRef} className="relative">
@@ -171,7 +173,7 @@ export function ModelSelector({
                   }
                 }
               }}
-              placeholder="Filter models..."
+              placeholder={t("model.filterPlaceholder")}
               className="h-6 w-full bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-400"
             />
           </div>
@@ -248,7 +250,7 @@ export function ModelSelector({
                               ) : null}
                             </span>
                             <span className="inline-flex shrink-0 items-center gap-1 text-xs text-neutral-500">
-                              {model.is_default ? "default" : null}
+                              {model.is_default ? t("model.default") : null}
                               {selected ? <Check className="h-3 w-3" /> : null}
                             </span>
                           </CommandListItem>

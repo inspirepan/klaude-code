@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useT } from "@/i18n";
 import { useMountEffect } from "@/hooks/useMountEffect";
 import { fetchConfigModels, listDirs, type ConfigModelSummary } from "../../api/client";
 import { useSessionStore } from "../../stores/session-store";
@@ -19,6 +20,7 @@ export function NewSessionOverlay({
   onClose,
   showBackdrop = true,
 }: NewSessionOverlayProps): JSX.Element {
+  const t = useT();
   const draftWorkDir = useSessionStore((state) => state.draftWorkDir);
   const groups = useSessionStore((state) => state.groups);
   const setDraftWorkDir = useSessionStore((state) => state.setDraftWorkDir);
@@ -219,9 +221,9 @@ export function NewSessionOverlay({
         } sm:p-4`}
       >
         <div className="mb-3 space-y-0.5">
-          <div className="text-base font-semibold text-neutral-800">Start a new session</div>
+          <div className="text-base font-semibold text-neutral-800">{t("newSession.title")}</div>
           <div className="text-base leading-6 text-neutral-500">
-            Choose a workspace, then send your first message.
+            {t("newSession.subtitle")}
           </div>
         </div>
 
@@ -245,7 +247,7 @@ export function NewSessionOverlay({
           {normalizedDraftWorkDir.length > 0 ? (
             <>
               {modelError ? (
-                <div className="px-1 text-sm text-red-500">Load models failed: {modelError}</div>
+                <div className="px-1 text-sm text-red-500">{t("newSession.loadModelsFailed")(modelError)}</div>
               ) : null}
 
               <ComposerCard
@@ -262,12 +264,12 @@ export function NewSessionOverlay({
                 submitting={submitting}
                 disableSubmit={disableSubmit}
                 disableAttachments={submitting}
-                placeholder="What should we do?"
+                placeholder={t("composer.draftPlaceholder")}
                 modelOptions={modelOptions}
                 modelValue={selectedModel}
                 modelLoading={modelLoading}
                 modelDisabled={submitting || modelOptions.length === 0}
-                modelPlaceholder="Default model"
+                modelPlaceholder={t("model.defaultModel")}
                 onModelSelect={setSelectedModel}
                 modelDropUp={false}
                 completionDropUp={false}

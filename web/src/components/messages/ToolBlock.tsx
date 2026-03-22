@@ -1,6 +1,7 @@
 import { Loader } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
+import { useT } from "@/i18n";
 import type { ToolBlockItem } from "../../types/message";
 import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
 import { useCollapseAll } from "./collapse-all-context";
@@ -70,6 +71,7 @@ interface ToolBlockProps {
 }
 
 function PlanBlock({ item }: ToolBlockProps): JSX.Element {
+
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
@@ -79,7 +81,7 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
       ) : item.isStreaming ? (
         <div className="flex items-center gap-1.5 font-sans text-base text-neutral-600">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
-          <span>Planning…</span>
+          <span>{t("tool.planning")}</span>
         </div>
       ) : null}
     </div>
@@ -87,6 +89,7 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
 }
 
 function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
+  const t = useT();
   const questionExtra =
     item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
 
@@ -97,7 +100,7 @@ function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
       ) : item.isStreaming ? (
         <div className="flex items-center gap-1.5 font-sans text-base text-neutral-600">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
-          <span>Asking user question…</span>
+          <span>{t("tool.askingQuestion")}</span>
         </div>
       ) : null}
     </div>

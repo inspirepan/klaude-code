@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useT } from "@/i18n";
 import { useMountEffect } from "@/hooks/useMountEffect";
 import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
 import { useMessageStore } from "../../stores/message-store";
@@ -14,6 +15,7 @@ import { UserInteractionCard } from "./UserInteractionCard";
 const EMPTY_PENDING_INTERACTIONS: PendingUserInteractionRequest[] = [];
 
 export function MessageComposer(): JSX.Element {
+  const t = useT();
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const groups = useSessionStore((state) => state.groups);
   const runtimeBySessionId = useSessionStore((state) => state.runtimeBySessionId);
@@ -252,7 +254,7 @@ export function MessageComposer(): JSX.Element {
           />
         ) : null}
         {modelError ? (
-          <div className="px-1 text-sm text-red-500">Model switch failed: {modelError}</div>
+          <div className="px-1 text-sm text-red-500">{t("newSession.modelSwitchFailed")(modelError)}</div>
         ) : null}
         <ComposerCard
           sessionId={activeSessionId}
@@ -277,7 +279,7 @@ export function MessageComposer(): JSX.Element {
           disableAttachments={
             sessionBusy || sessionReadOnly || activeInteraction !== null || submitting
           }
-          placeholder="Send a follow-up..."
+          placeholder={t("composer.followUpPlaceholder")}
           modelOptions={resolvedModelOptions}
           modelValue={currentModelName}
           modelLoading={modelLoading}

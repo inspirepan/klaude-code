@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 
+import { useT } from "@/i18n";
 import { useMountEffect } from "@/hooks/useMountEffect";
 import { Search, X, ChevronUp, ChevronDown } from "lucide-react";
 
@@ -20,6 +21,7 @@ export function SearchBar({
   onPrev,
   onClose,
 }: SearchBarProps): JSX.Element {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
 
@@ -64,7 +66,7 @@ export function SearchBar({
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder="Search…"
+          placeholder={t("searchBar.placeholder")}
           className="w-48 bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-300"
         />
         {value ? (

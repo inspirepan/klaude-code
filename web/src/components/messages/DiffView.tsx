@@ -2,6 +2,7 @@ import { useMemo, useRef, useEffect, useState } from "react";
 import { PatchDiff } from "@pierre/diffs/react";
 import { DEFAULT_THEMES, preloadHighlighter } from "@pierre/diffs";
 
+import { useT } from "@/i18n";
 import type { ToolBlockItem } from "../../types/message";
 import { isDiffUIExtra, type DiffUIExtra } from "./message-ui-extra";
 
@@ -89,6 +90,7 @@ const DIFF_HEADER_SANS =
   '"Geist Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif';
 
 export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
+  const t = useT();
   const extra = uiExtra ?? (item.uiExtra && isDiffUIExtra(item.uiExtra) ? item.uiExtra : null);
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -200,7 +202,7 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
               className="self-start pb-1 pl-2 text-sm text-neutral-500 transition-colors hover:text-neutral-700"
               onClick={() => setExpanded((value) => !value)}
             >
-              {expanded ? "Show less" : "Show more"}
+              {expanded ? t("diff.showLess") : t("diff.showMore")}
             </button>
           </div>
         ) : null}

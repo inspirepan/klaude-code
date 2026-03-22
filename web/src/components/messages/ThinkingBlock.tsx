@@ -2,6 +2,7 @@ import { Loader } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 
+import { useT } from "@/i18n";
 import type { ThinkingBlockItem } from "../../types/message";
 import {
   CollapseRailConnector,
@@ -39,6 +40,7 @@ function Code({ children }: React.ComponentPropsWithoutRef<"code">): JSX.Element
 const thinkingComponents = { strong: Strong, pre: Pre, code: Code };
 
 export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
+  const t = useT();
   const { matchItemIds } = useSearch();
   const { collapseGen, expandGen } = useCollapseAll();
   const defaultExpanded = item.isStreaming;
@@ -79,7 +81,7 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
     >
       <CollapseRailMarker open={open} />
       <div className="flex min-w-0 items-start gap-1.5">
-        <span className="whitespace-nowrap font-mono font-normal text-neutral-600">Thought</span>
+        <span className="whitespace-nowrap font-mono font-normal text-neutral-600">{t("thinking.label")}</span>
         {item.isStreaming ? (
           <Loader className="mt-1 h-3 w-3 shrink-0 animate-spin text-neutral-500" />
         ) : null}

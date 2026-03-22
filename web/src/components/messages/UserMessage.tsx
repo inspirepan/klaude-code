@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { useT } from "@/i18n";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { UserMessageItem } from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
@@ -31,6 +32,7 @@ interface UserMessageProps {
 }
 
 export function UserMessage({ item }: UserMessageProps): JSX.Element {
+  const t = useT();
   const normalizedContent = useMemo(
     () =>
       item.content
@@ -158,7 +160,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
                 onClick={() => setShowMore(true)}
                 className={`mt-0 ${miniTextClass} cursor-pointer py-0 font-sans text-neutral-500 transition-colors hover:text-neutral-700`}
               >
-                Show more
+                {t("userMessage.showMore")}
               </button>
             ) : null}
           </div>
@@ -206,7 +208,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
                     onClick={() => setShowMore(false)}
                     className={`${miniTextClass} cursor-pointer py-0 font-sans text-neutral-500 transition-colors hover:text-neutral-700`}
                   >
-                    Show less
+                    {t("userMessage.showLess")}
                   </button>
                 </div>
               </div>

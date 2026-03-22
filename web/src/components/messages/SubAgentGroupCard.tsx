@@ -1,5 +1,6 @@
 import { CircleCheck, Loader } from "lucide-react";
 
+import { useT } from "@/i18n";
 import type { SessionStatusState } from "../../stores/event-reducer";
 import { formatElapsed, formatSubAgentTypeLabel, shortSessionId } from "./message-list-ui";
 
@@ -26,6 +27,7 @@ export function SubAgentGroupCard({
   nowSeconds,
   onClick,
 }: SubAgentGroupCardProps): JSX.Element {
+  const t = useT();
   const isActive =
     status != null && (status.taskActive || status.awaitingInput || status.compacting);
   const elapsedText =
@@ -52,18 +54,18 @@ export function SubAgentGroupCard({
 
       {/* Type label */}
       <span className="shrink-0 text-base font-semibold text-neutral-700">
-        Agent {formatSubAgentTypeLabel(sourceSessionType)}
+        {t("subAgent.agent")} {formatSubAgentTypeLabel(sourceSessionType)}
       </span>
 
       {/* Description */}
       <span className="min-w-0 truncate text-base text-neutral-600">
-        {sourceSessionDesc ?? `Sub Agent ${shortSessionId(sourceSessionId)}`}
+        {sourceSessionDesc ?? t("subAgent.defaultDesc")(shortSessionId(sourceSessionId))}
       </span>
 
       {/* Fork badge */}
       {sourceSessionFork ? (
         <span className="shrink-0 rounded-md border border-border bg-neutral-50 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
-          fork
+          {t("subAgent.fork")}
         </span>
       ) : null}
 
@@ -74,7 +76,7 @@ export function SubAgentGroupCard({
           <>
             {elapsedText ? <span className="text-neutral-300">&middot;</span> : null}
             <span>
-              {toolCount} tool call{toolCount !== 1 ? "s" : ""}
+              {t("subAgent.toolCall")(toolCount)}
             </span>
           </>
         ) : null}

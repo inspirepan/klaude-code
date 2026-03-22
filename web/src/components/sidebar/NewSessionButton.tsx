@@ -1,10 +1,12 @@
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n";
 
 interface NewSessionButtonProps {
   onClick: () => void;
 }
 
 export function NewSessionButton({ onClick }: NewSessionButtonProps): JSX.Element {
+  const t = useT();
   return (
     <Button
       type="button"
@@ -14,7 +16,7 @@ export function NewSessionButton({ onClick }: NewSessionButtonProps): JSX.Elemen
         onClick();
       }}
     >
-      <span className="truncate">New</span>
+      <span className="truncate">{t("sidebar.new")}</span>
       <span className="inline-flex shrink-0 items-center text-neutral-500" aria-hidden="true">
         <span className="inline-flex whitespace-pre text-sm leading-none">
           <kbd className="inline-flex font-sans">

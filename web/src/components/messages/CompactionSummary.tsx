@@ -9,6 +9,7 @@ import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 import { CheckCircle2, Circle } from "lucide-react";
 
+import { useT } from "@/i18n";
 import type { CompactionSummaryItem } from "../../types/message";
 import { mermaid } from "../../lib/mermaid-plugin";
 
@@ -53,11 +54,12 @@ function CompactionListItem(props: ComponentPropsWithoutRef<"li">): JSX.Element 
 const compactionComponents = { li: CompactionListItem };
 
 export function CompactionSummary({ item }: CompactionSummaryProps): JSX.Element {
+  const t = useT();
   return (
     <div className="relative mt-4 pt-5">
       <div className="pointer-events-none absolute left-1/2 top-0 w-[200vw] -translate-x-1/2 border-t border-border/80" />
       <div className="rounded-lg bg-blue-50/55 px-5 py-5">
-        <div className="mb-2 text-base font-semibold text-compaction-label">Compacted</div>
+        <div className="mb-2 text-base font-semibold text-compaction-label">{t("compaction.label")}</div>
         <div className="compaction-summary-md text-compaction-text">
           <Streamdown plugins={plugins} components={compactionComponents}>
             {item.content}

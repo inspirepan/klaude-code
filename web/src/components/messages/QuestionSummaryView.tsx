@@ -1,4 +1,6 @@
 import { Circle } from "lucide-react";
+
+import { useT } from "@/i18n";
 import type { AskUserQuestionSummaryUIExtra } from "./message-ui-extra";
 
 interface QuestionSummaryViewProps {
@@ -6,13 +8,14 @@ interface QuestionSummaryViewProps {
 }
 
 export function QuestionSummaryView({ uiExtra }: QuestionSummaryViewProps): JSX.Element {
-  const title = <div className="text-sm font-semibold text-neutral-600">QUESTION</div>;
+  const t = useT();
+  const title = <div className="text-sm font-semibold text-neutral-600">{t("question.label")}</div>;
 
   if (!uiExtra.items.length) {
     return (
       <div className="flex flex-col gap-1.5 py-1">
         {title}
-        <span className="text-base text-amber-600">(No answer provided)</span>
+        <span className="text-base text-amber-600">{t("question.noAnswer")}</span>
       </div>
     );
   }

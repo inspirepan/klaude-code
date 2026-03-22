@@ -4,6 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SessionCard } from "./SessionCard";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
+import { useT } from "@/i18n";
 
 interface ProjectGroupProps {
   workDir: string;
@@ -42,6 +43,7 @@ export function ProjectGroup({
   onSelectSession,
   onToggleArchive,
 }: ProjectGroupProps): JSX.Element {
+  const t = useT();
   const [showAll, setShowAll] = useState(false);
   const displaySessions = showAll ? sessions : sessions.slice(0, 5);
   const hasMore = sessions.length > 5;
@@ -93,12 +95,12 @@ export function ProjectGroup({
                 onClick={() => {
                   onSelectDraft(workDir);
                 }}
-                aria-label={`New session in ${workDir}`}
+                aria-label={t("sidebar.newSessionIn")(workDir)}
               >
                 <SquarePen className="h-3 w-3" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>New session in {workDir}</TooltipContent>
+            <TooltipContent>{t("sidebar.newSessionIn")(workDir)}</TooltipContent>
           </Tooltip>
         )}
       </div>
@@ -134,7 +136,7 @@ export function ProjectGroup({
                 setShowAll(true);
               }}
             >
-              <span className="flex-1 text-xs font-normal">Load more ({sessions.length - 5})</span>
+              <span className="flex-1 text-xs font-normal">{t("sidebar.loadMore")(sessions.length - 5)}</span>
             </button>
           )}
         </div>

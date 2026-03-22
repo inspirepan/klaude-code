@@ -1,6 +1,7 @@
 import { parse as shellParse } from "shell-quote";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useT } from "@/i18n";
 import type { MessageItem as MessageItemType, DeveloperMessageItem } from "../../types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { CollapseRailConnector, CollapseRailMarker, CollapseRailPanel } from "./CollapseRail";
@@ -174,7 +175,7 @@ function extractApplyPatchFileStats(patch: string): FileStat[] {
   return fileStats;
 }
 
-function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
+function summarizeCollapseItems(items: MessageItemType[], t: ReturnType<typeof useT>): SummaryPart[] {
   const grouped = new Map<string, string[]>();
   // Parallel stats for file-editing tools: [{ del, add }] per invocation
   const editStats = new Map<string, Array<{ del: number; add: number }>>();
@@ -281,7 +282,7 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
       case "Read": {
         const shown = unique.slice(0, 3).join(", ");
         const value = unique.length > 3 ? `${shown} +${unique.length - 3}` : shown;
-        parts.push({ label: "Read", value });
+        parts.push({ label: t("collapse.read"), value });
         break;
       }
       case "Edit": {
@@ -301,7 +302,7 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
           del: s.del,
           add: s.add,
         }));
-        parts.push({ label: "Edited", value: "", fileStats });
+        parts.push({ label: t("collapse.edited"), value: "", fileStats });
         break;
       }
       case "Write": {
@@ -316,7 +317,7 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
           } else merged.set(fname, { add: s.add });
         }
         const fileStats = [...merged.entries()].map(([name, s]) => ({ name, add: s.add }));
-        parts.push({ label: "Wrote", value: "", fileStats });
+        parts.push({ label: t("collapse.wrote"), value: "", fileStats });
         break;
       }
       case "apply_patch": {
@@ -336,12 +337,12 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
           del: s.del,
           add: s.add,
         }));
-        parts.push({ label: "Patched", value: "", fileStats });
+        parts.push({ label: t("collapse.patched"), value: "", fileStats });
         break;
       }
       case "Bash":
         parts.push({
-          label: "Ran",
+          label: t("collapse.ran"),
           value:
             unique.length > 5
               ? `${unique.slice(0, 5).join(", ")} +${unique.length - 5}`
@@ -349,11 +350,11 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
         });
         break;
       case "WebFetch":
-        parts.push({ label: "Fetch", value: unique[0]! });
+        parts.push({ label: t("collapse.fetch"), value: unique[0]! });
         break;
       case "WebSearch": {
         const q = unique[0]!;
-        parts.push({ label: "Search", value: q.length > 30 ? q.slice(0, 30) + "…" : q });
+        parts.push({ label: t("collapse.search"), value: q.length > 30 ? q.slice(0, 30) + "…" : q });
         break;
       }
     }
@@ -387,7 +388,7 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
           {partIdx > 0 ? <span className="mx-1.5 text-neutral-400">{"\u00b7"}</span> : null}
           {part.fileStats ? (
             <>
-              <span className="font-medium text-neutral-700">{part.label}</span>{" "}
+              <span className="font-normal text-neutral-700">{part.label}</span>{" "}
               {part.fileStats.map((fs, fsIdx) => (
                 <span key={fsIdx}>
                   {fsIdx > 0 ? ", " : null}
@@ -404,7 +405,7 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
             </>
           ) : (
             <>
-              <span className="font-medium text-neutral-700">{part.label}</span> {part.value}
+              <span className="font-normal text-neutral-700">{part.label}</span> {part.value}
             </>
           )}
         </span>
@@ -423,10 +424,11 @@ export function CollapseGroupBlock({
   onCopy,
   setItemRef,
 }: CollapseGroupBlockProps): JSX.Element {
+  const t = useT();
   const toolCount = items.filter((item) => item.type === "tool_block").length;
   const stepLabel =
-    toolCount > 0 ? `${toolCount} tool${toolCount === 1 ? "" : "s"} used` : "Thoughts";
-  const summary = useMemo(() => summarizeCollapseItems(items), [items]);
+    toolCount > 0 ? t("collapse.toolsUsed")(toolCount) : t("collapse.thoughts");
+  const summary = useMemo(() => summarizeCollapseItems(items, t), [items, t]);
   const summaryText = useMemo(() => summaryToText(summary), [summary]);
   const summarySpanRef = useRef<HTMLSpanElement>(null);
   const [isTruncated, setIsTruncated] = useState(false);

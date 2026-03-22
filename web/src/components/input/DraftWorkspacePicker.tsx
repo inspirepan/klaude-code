@@ -9,6 +9,7 @@ import {
 import { ArrowDown, ArrowUp, ChevronDown, CornerDownLeft, Folder } from "lucide-react";
 
 import { CommandListItem, CommandListPanel, CommandListScroll } from "@/components/ui/command-list";
+import { useT } from "@/i18n";
 
 interface DraftWorkspacePickerProps {
   draftWorkDir: string;
@@ -41,6 +42,7 @@ export function DraftWorkspacePicker({
   setWorkspaceMenuOpen,
   onSelect,
 }: DraftWorkspacePickerProps): JSX.Element {
+  const t = useT();
   const [highlightedWorkspace, setHighlightedWorkspace] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -103,9 +105,9 @@ export function DraftWorkspacePicker({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
         <label htmlFor="draft-workspace" className="text-sm font-semibold text-neutral-600">
-          Workspace
+          {t("workspace.label")}
         </label>
-        <span className="text-xs text-neutral-500">Choose or type a local path</span>
+        <span className="text-xs text-neutral-500">{t("workspace.hint")}</span>
       </div>
       <div ref={workspacePickerRef} className="relative">
         <div
@@ -130,7 +132,7 @@ export function DraftWorkspacePicker({
               setHighlightedWorkspace(null);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="/path/to/workspace"
+            placeholder={t("workspace.placeholder")}
             className="w-full flex-1 border-0 bg-transparent px-2 py-2 text-base text-neutral-700 outline-none placeholder:text-neutral-400"
           />
           <button
@@ -139,7 +141,7 @@ export function DraftWorkspacePicker({
             onClick={() => {
               setWorkspaceMenuOpen((prev) => !prev);
             }}
-            aria-label="Toggle workspace suggestions"
+            aria-label={t("workspace.toggle")}
           >
             <ChevronDown
               className={[
@@ -183,7 +185,7 @@ export function DraftWorkspacePicker({
               </CommandListScroll>
             ) : (
               <div className="px-3 py-2 text-sm text-neutral-500">
-                No matching directory found. Press Enter to use this path.
+                {t("workspace.noMatch")}
               </div>
             )}
             {filteredWorkspaceOptions.length > 0 ? (
@@ -197,21 +199,21 @@ export function DraftWorkspacePicker({
                       <ArrowDown className="h-2.5 w-2.5" />
                     </kbd>
                   </span>
-                  <span className="text-sm">navigate</span>
+                  <span className="text-sm">{t("workspace.navigate")}</span>
                 </span>
                 <span className="text-neutral-300">·</span>
                 <span className="inline-flex items-center gap-1.5 text-neutral-500">
                   <kbd className="inline-flex items-center justify-center rounded border border-border bg-surface px-1 text-[11px] font-medium leading-[18px] text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                     Tab
                   </kbd>
-                  <span className="text-sm">fill</span>
+                  <span className="text-sm">{t("workspace.fill")}</span>
                 </span>
                 <span className="text-neutral-300">·</span>
                 <span className="inline-flex items-center gap-1.5 text-neutral-500">
                   <kbd className="inline-flex items-center justify-center rounded border border-border bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                     <CornerDownLeft className="h-2.5 w-2.5" />
                   </kbd>
-                  <span className="text-sm">select</span>
+                  <span className="text-sm">{t("workspace.select")}</span>
                 </span>
               </div>
             ) : null}

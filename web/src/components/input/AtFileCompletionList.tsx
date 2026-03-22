@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { CommandListPanel, CommandListScroll, CommandListItem } from "@/components/ui/command-list";
+import { useT } from "@/i18n";
 
 // File extension -> icon + color mapping (muted brand colors)
 const EXT_ICONS: Record<string, { icon: LucideIcon; color: string }> = {
@@ -144,6 +145,7 @@ export function AtFileCompletionList({
   onSelect,
   dropUp = true,
 }: AtFileCompletionListProps): JSX.Element {
+  const t = useT();
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -185,7 +187,7 @@ export function AtFileCompletionList({
           );
         })}
         {loading && items.length === 0 ? (
-          <div className="px-3 py-1.5 text-sm text-neutral-500">Searching files...</div>
+          <div className="px-3 py-1.5 text-sm text-neutral-500">{t("fileSearch.searching")}</div>
         ) : null}
       </CommandListScroll>
     </CommandListPanel>

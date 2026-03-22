@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Check, CircleHelp, X } from "lucide-react";
+import { useT } from "@/i18n";
 
 import type {
   AskUserQuestionQuestion,
@@ -147,6 +148,7 @@ function QuestionPanel({
   onToggleOption: (optionId: string) => void;
   onNoteChange: (value: string) => void;
 }): JSX.Element {
+  const t = useT();
   return (
     <div>
       {/* Question header chip */}
@@ -155,7 +157,7 @@ function QuestionPanel({
           {question.header || `Question ${questionIndex + 1}`}
         </span>
         {question.multi_select && (
-          <span className="text-xs text-neutral-500">(select multiple)</span>
+          <span className="text-xs text-neutral-500">{t("interaction.selectMultiple")}</span>
         )}
       </div>
 
@@ -190,7 +192,7 @@ function QuestionPanel({
 
       {/* Validation hint — only after attempted submit */}
       {showValidation && !answered && (
-        <p className="mt-2 text-xs text-amber-600">Please select an option or type a response.</p>
+        <p className="mt-2 text-xs text-amber-600">{t("interaction.validationHint")}</p>
       )}
     </div>
   );
@@ -204,6 +206,7 @@ export function UserInteractionCard({
   disabled = false,
   onRespond,
 }: UserInteractionCardProps): JSX.Element {
+  const t = useT();
   const [selectedByQuestion, setSelectedByQuestion] = useState<Record<string, string[]>>({});
   const [noteByQuestion, setNoteByQuestion] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -293,13 +296,13 @@ export function UserInteractionCard({
         <div className="min-w-0 flex-1">
           <span className="text-base font-semibold text-neutral-800">
             {askPayload
-              ? `Agent has ${askPayload.questions.length} question${askPayload.questions.length === 1 ? "" : "s"} for you`
-              : "Agent needs your input"}
+              ? t("interaction.agentQuestion")(askPayload.questions.length)
+              : t("interaction.agentNeedsInput")}
           </span>
         </div>
         {pendingCount > 1 && (
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-neutral-500">
-            {pendingCount} pending
+            {t("interaction.pending")(pendingCount)}
           </span>
         )}
       </div>
@@ -416,7 +419,7 @@ export function UserInteractionCard({
             className="inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-sm text-neutral-500 transition hover:bg-muted hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <X className="h-3 w-3" />
-            Cancel
+            {t("interaction.cancel")}
           </button>
           <button
             type="button"
@@ -431,7 +434,7 @@ export function UserInteractionCard({
             className="inline-flex h-7 items-center gap-1 rounded-lg bg-blue-500 px-3 text-sm text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Check className="h-3 w-3" />
-            Submit
+            {t("interaction.submit")}
           </button>
         </div>
       </div>

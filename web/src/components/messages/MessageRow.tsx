@@ -1,5 +1,6 @@
 import type { RefCallback } from "react";
 
+import { useT } from "@/i18n";
 import type { MessageItem as MessageItemType } from "../../types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { MessageItem } from "./MessageItem";
@@ -22,6 +23,7 @@ export function MessageRow({
   onCopy,
   itemRef,
 }: MessageRowProps): JSX.Element {
+  const t = useT();
   const canCopy = isCopyableAssistantText(item);
   const isUser = item.type === "user_message";
 
@@ -42,12 +44,12 @@ export function MessageRow({
                   type="button"
                   onClick={() => onCopy(item)}
                   className="cursor-pointer font-mono text-sm leading-none text-neutral-500 opacity-0 transition-opacity duration-150 hover:text-neutral-700 group-hover/row:opacity-100"
-                  aria-label={copied ? "Copied" : "Copy"}
+                  aria-label={copied ? t("copy.copied") : t("copy.copy")}
                 >
-                  {copied ? "[Copied]" : "[Copy]"}
+                  {copied ? t("copy.copiedButton") : t("copy.copyButton")}
                 </button>
               </TooltipTrigger>
-              <TooltipContent>{copied ? "Copied" : "Copy"}</TooltipContent>
+              <TooltipContent>{copied ? t("copy.copied") : t("copy.copy")}</TooltipContent>
             </Tooltip>
           </div>
         ) : null}
