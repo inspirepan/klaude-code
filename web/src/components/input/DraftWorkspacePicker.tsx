@@ -61,8 +61,16 @@ export function DraftWorkspacePicker({
   }, [highlightIndex, filteredWorkspaceOptions]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === "Escape") {
+      setWorkspaceMenuOpen(false);
+      return;
+    }
     if (!workspaceMenuOpen || filteredWorkspaceOptions.length === 0) {
-      if (event.key === "Escape") setWorkspaceMenuOpen(false);
+      if (event.key === "Enter") {
+        event.preventDefault();
+        setWorkspaceMenuOpen(false);
+        onSelect?.();
+      }
       return;
     }
     if (event.key === "ArrowDown") {
@@ -81,8 +89,13 @@ export function DraftWorkspacePicker({
         setWorkspaceMenuOpen(false);
         onSelect?.();
       }
-    } else if (event.key === "Escape") {
-      setWorkspaceMenuOpen(false);
+    } else if (event.key === "Tab" && filteredWorkspaceOptions.length > 0) {
+      event.preventDefault();
+      const workspace = filteredWorkspaceOptions[highlightIndex];
+      if (workspace) {
+        setDraftWorkDir(workspace);
+        setHighlightedWorkspace(null);
+      }
     }
   };
 
@@ -184,7 +197,7 @@ export function DraftWorkspacePicker({
               </ScrollArea>
             ) : (
               <div className="px-2.5 py-1.5 text-base text-neutral-500">
-                No matching workspace. You can still type any local path.
+                No matching directory found. Press Enter to use this path.
               </div>
             )}
             {filteredWorkspaceOptions.length > 0 ? (
@@ -199,6 +212,13 @@ export function DraftWorkspacePicker({
                     </kbd>
                   </span>
                   <span className="text-sm">navigate</span>
+                </span>
+                <span className="text-neutral-300">·</span>
+                <span className="inline-flex items-center gap-1.5 text-neutral-400">
+                  <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface px-1 text-[11px] font-medium leading-[18px] text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                    Tab
+                  </kbd>
+                  <span className="text-sm">fill</span>
                 </span>
                 <span className="text-neutral-300">·</span>
                 <span className="inline-flex items-center gap-1.5 text-neutral-400">

@@ -191,6 +191,18 @@ export async function searchFileCompletions({
   return result.items;
 }
 
+interface ListDirsResponse {
+  items: string[];
+}
+
+export async function listDirs(path: string, signal?: AbortSignal): Promise<string[]> {
+  const params = new URLSearchParams({ path, limit: "20" });
+  const result = await requestJson<ListDirsResponse>(`/api/files/list-dirs?${params.toString()}`, {
+    signal,
+  });
+  return result.items;
+}
+
 export interface SkillItem {
   name: string;
   description: string;
