@@ -96,7 +96,7 @@ const zh: Translations = {
   "interrupt.message": "已被用户中断",
 
   // Thinking
-  "thinking.label": "思考",
+  "thinking.label": "思考过程",
 
   // Compaction
   "compaction.label": "已压缩",

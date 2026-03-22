@@ -1,4 +1,3 @@
-import { Loader } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 
@@ -80,12 +79,7 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
       onClick={() => setOpen((value) => !value)}
     >
       <CollapseRailMarker open={open} />
-      <div className="flex min-w-0 items-start gap-1.5">
-        <span className="whitespace-nowrap font-mono font-normal text-neutral-600">{t("thinking.label")}</span>
-        {item.isStreaming ? (
-          <Loader className="mt-1 h-3 w-3 shrink-0 animate-spin text-neutral-500" />
-        ) : null}
-      </div>
+      <span className="whitespace-nowrap font-mono font-normal text-neutral-600">{t("thinking.label")}</span>
 
       <CollapseRailPanel open={open} className="col-span-2">
         <div className={`mt-2 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
