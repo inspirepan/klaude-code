@@ -174,7 +174,7 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
 
 
 def render_todo_write_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Plan"
+    tool_name = "Update To-Dos"
     details: RenderableType | None = None
 
     if arguments:
