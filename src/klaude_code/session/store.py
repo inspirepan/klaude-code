@@ -48,7 +48,7 @@ class _WriterClosedError(RuntimeError):
 @dataclass
 class _WriteBatch:
     session_id: str
-    event_lines: list[str]
+    items: Sequence[message.HistoryEvent]
     meta: dict[str, Any]
     done: asyncio.Future[None]
 
@@ -105,9 +105,11 @@ class JsonlSessionWriter:
         session_dir = self._paths.session_dir(batch.session_id)
         session_dir.mkdir(parents=True, exist_ok=True)
 
+        event_lines = [encode_jsonl_line(item) for item in batch.items]
+
         events_path = self._paths.events_file(batch.session_id)
         with events_path.open("a", encoding="utf-8") as f:
-            for line in batch.event_lines:
+            for line in event_lines:
                 f.write(line)
             f.flush()
 
@@ -221,7 +223,7 @@ class JsonlSessionStore:
         self._last_flush[session_id] = done
         batch = _WriteBatch(
             session_id=session_id,
-            event_lines=[encode_jsonl_line(item) for item in items],
+            items=items,
             meta=meta,
             done=done,
         )
