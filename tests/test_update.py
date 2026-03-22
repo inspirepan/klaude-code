@@ -39,7 +39,7 @@ def test_persist_current_update_info_writes_state_file(monkeypatch: pytest.Monke
         ),
     )
 
-    update._persist_current_update_info()
+    update.persist_current_update_info()
 
     path = Path.home() / ".klaude" / update.UPDATE_STATE_FILE
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -54,7 +54,7 @@ def test_get_startup_update_summary_returns_message_from_persisted_state(
 ) -> None:
     del isolated_home
 
-    update._write_persisted_update_info(
+    update.write_persisted_update_info(
         update.PersistedUpdateInfo(
             checked_at=time.time(),
             installed="1.0.0",
@@ -85,7 +85,7 @@ def test_get_startup_update_summary_refreshes_stale_state_in_background(
 ) -> None:
     del isolated_home
 
-    update._write_persisted_update_info(
+    update.write_persisted_update_info(
         update.PersistedUpdateInfo(
             checked_at=time.time() - update.CHECK_INTERVAL_SECONDS - 1,
             installed="1.0.0",

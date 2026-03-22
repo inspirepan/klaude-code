@@ -237,7 +237,7 @@ def check_for_updates_blocking() -> VersionInfo | None:
     return _fetch_version_info()
 
 
-def _write_persisted_update_info(info: PersistedUpdateInfo) -> None:
+def write_persisted_update_info(info: PersistedUpdateInfo) -> None:
     path = _get_update_state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -263,11 +263,12 @@ def _load_persisted_update_info() -> PersistedUpdateInfo | None:
     if not isinstance(payload, dict):
         return None
 
-    checked_at = payload.get("checked_at")
-    installed = payload.get("installed")
-    latest = payload.get("latest")
-    update_available = payload.get("update_available")
-    install_kind = payload.get("install_kind", INSTALL_KIND_UNKNOWN)
+    data: dict[str, object] = payload  # type: ignore[assignment]
+    checked_at = data.get("checked_at")
+    installed = data.get("installed")
+    latest = data.get("latest")
+    update_available = data.get("update_available")
+    install_kind = data.get("install_kind", INSTALL_KIND_UNKNOWN)
 
     if not isinstance(checked_at, (int, float)):
         return None
@@ -289,14 +290,14 @@ def _load_persisted_update_info() -> PersistedUpdateInfo | None:
     )
 
 
-def _persist_current_update_info() -> None:
+def persist_current_update_info() -> None:
     global _background_check_in_progress
 
     try:
         info = _fetch_version_info()
         if info is None:
             return
-        _write_persisted_update_info(
+        write_persisted_update_info(
             PersistedUpdateInfo(
                 checked_at=time.time(),
                 installed=info.installed,
@@ -318,7 +319,7 @@ def _start_background_update_check() -> None:
             return
         _background_check_in_progress = True
 
-    thread = threading.Thread(target=_persist_current_update_info, daemon=True)
+    thread = threading.Thread(target=persist_current_update_info, daemon=True)
     thread.start()
 
 
