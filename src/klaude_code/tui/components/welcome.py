@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import ClassVar
 
@@ -54,11 +55,21 @@ def _build_grouped_tree(
 
 def _build_skills_tree(grouped_skills: list[tuple[str, list[str]]]) -> Tree:
     tree = _RoundedTree(Text("skills", style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
+    # 10 = quote prefix (3) + tree guide indent (4) + margin (3)
+    content_width = shutil.get_terminal_size().columns - 10
+    all_skills = [s for _, skills in grouped_skills for s in skills]
+    name_width = max(len(s) for s in all_skills)
+    sep = " | "
+    num_cols = min(4, max(1, (content_width + len(sep)) // (name_width + len(sep))))
     for scope, skills in grouped_skills:
         scope_text = Text()
         scope_text.append(f"[{scope}]", style=ThemeKey.WELCOME_SCOPE)
-        for skill in skills:
-            scope_text.append(f"\n • {skill}", style=ThemeKey.WELCOME_INFO)
+        for i, skill in enumerate(skills):
+            if i % num_cols == 0:
+                scope_text.append("\n")
+            else:
+                scope_text.append(sep, style=ThemeKey.LINES)
+            scope_text.append(f"{skill:<{name_width}}", style=ThemeKey.WELCOME_INFO)
         tree.add(scope_text)
     return tree
 
