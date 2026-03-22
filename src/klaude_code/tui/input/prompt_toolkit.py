@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import contextlib
-import shutil
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
-from typing import NamedTuple, override
+from typing import override
 
 import prompt_toolkit.layout.menus as pt_menus
 from prompt_toolkit import PromptSession
@@ -49,20 +48,10 @@ from klaude_code.tui.input.key_bindings import create_key_bindings
 from klaude_code.tui.input.paste import expand_paste_markers
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 
-
-class REPLStatusSnapshot(NamedTuple):
-    """Snapshot of REPL status for bottom toolbar display."""
-
-    update_message: str | None = None
-    debug_log_path: str | None = None
-
-
 COMPLETION_SELECTED_BG = "ansigreen"
 COMPLETION_MENU = "ansibrightblack"
 INPUT_PROMPT_STYLE = "ansicyan bold"
-INPUT_PROMPT_BASH_STYLE = "ansigreen bold"
-PLACEHOLDER_TEXT_STYLE = "fg:ansibrightblack"
-PLACEHOLDER_SYMBOL_STYLE = "fg:ansiblue"
+INPUT_PROMPT_BASH_STYLE = "ansigreen"
 COMPLETION_TRUNCATION_SYMBOL = "…"
 
 
@@ -94,8 +83,6 @@ def _trim_formatted_text_with_ellipsis(
     result.append(("", COMPLETION_TRUNCATION_SYMBOL))
     used_width = max_width - remaining_width
     return result, used_width
-
-
 # ---------------------------------------------------------------------------
 # Layout helpers
 # ---------------------------------------------------------------------------
@@ -120,18 +107,6 @@ def _left_align_completion_menus(container: Container) -> None:
 
     for child in container.get_children():
         _left_align_completion_menus(child)
-
-
-def _find_first_float_container(container: Container) -> FloatContainer | None:
-    if isinstance(container, FloatContainer):
-        return container
-    for child in container.get_children():
-        found = _find_first_float_container(child)
-        if found is not None:
-            return found
-    return None
-
-
 def _find_window_for_buffer(container: Container, target_buffer: Buffer) -> Window | None:
     if isinstance(container, Window):
         content = container.content
@@ -279,7 +254,6 @@ class PromptToolkitInput(InputProviderABC):
     def __init__(
         self,
         prompt: str = USER_MESSAGE_MARK,
-        status_provider: Callable[[], REPLStatusSnapshot] | None = None,
         pre_prompt: Callable[[], None] | None = None,
         post_prompt: Callable[[], None] | None = None,
         on_change_model: Callable[[str], Awaitable[None]] | None = None,
@@ -289,7 +263,6 @@ class PromptToolkitInput(InputProviderABC):
         command_info_provider: Callable[[], list[CommandInfo]] | None = None,
     ):
         self._prompt_text = prompt
-        self._status_provider = status_provider
         self._pre_prompt = pre_prompt
         self._post_prompt = post_prompt
         self._on_change_model = on_change_model
@@ -338,13 +311,12 @@ class PromptToolkitInput(InputProviderABC):
             key_bindings=kb,
             completer=ThreadedCompleter(create_repl_completer(command_info_provider=self._command_info_provider)),
             complete_while_typing=True,
-            # Keep the bottom toolbar stable while completion menus open/close.
-            # Reserving space dynamically can make the non-fullscreen prompt
-            # "jump" by printing extra lines.
+            # Avoid reserving extra rows for completion menus in non-fullscreen mode.
             reserve_space_for_menu=0,
             erase_when_done=True,
             mouse_support=False,
             prompt_continuation="  ",
+            rprompt=self._get_rprompt_message,
             style=Style.from_dict(
                 {
                     "completion-menu": "bg:default",
@@ -368,9 +340,6 @@ class PromptToolkitInput(InputProviderABC):
                     "search_input": "",
                     "search_success": "noinherit fg:ansigreen",
                     "search_none": "noinherit fg:ansired",
-                    # Empty bottom-toolbar style
-                    "bottom-toolbar": "bg:default fg:default noreverse",
-                    "bottom-toolbar.text": "bg:default fg:default noreverse",
                 }
             ),
         )
@@ -383,15 +352,12 @@ class PromptToolkitInput(InputProviderABC):
             return False
 
     def _get_prompt_message(self) -> FormattedText:
-        style = INPUT_PROMPT_BASH_STYLE if self._is_bash_mode_active() else INPUT_PROMPT_STYLE
-        return FormattedText([(style, self._prompt_text)])
+        return FormattedText([(INPUT_PROMPT_STYLE, self._prompt_text)])
 
-    def _bash_mode_toolbar_fragments(self) -> StyleAndTextTuples:
+    def _get_rprompt_message(self) -> FormattedText:
         if not self._is_bash_mode_active():
-            return []
-        return [
-            ("fg:ansigreen", " bash mode"),
-        ]
+            return FormattedText([])
+        return FormattedText([(INPUT_PROMPT_BASH_STYLE, "(bash mode)")])
 
     def _setup_model_picker(self) -> None:
         """Initialize the model picker overlay and attach it to the layout."""
@@ -479,9 +445,7 @@ class PromptToolkitInput(InputProviderABC):
             original_height = input_window.height
 
             # Keep a comfortable multiline editing area even when no completion
-            # space is reserved. (We set reserve_space_for_menu=0 to avoid the
-            # bottom toolbar jumping when completions open/close.)
-            #
+            # space is reserved.
             # Also allow the input area to grow with content so that large multi-line
             # inputs expand the prompt instead of scrolling within a fixed-height window.
             base_rows = 10
@@ -638,92 +602,6 @@ class PromptToolkitInput(InputProviderABC):
         await self._on_change_thinking(new_thinking)
 
     # -------------------------------------------------------------------------
-    # Bottom toolbar
-    # -------------------------------------------------------------------------
-
-    def _get_bottom_toolbar(self) -> FormattedText | None:
-        """Return bottom toolbar content.
-
-        This is used inside the prompt_toolkit Application, so avoid printing or
-        doing any blocking IO here.
-        """
-        update_message: str | None = None
-        debug_log_path: str | None = None
-        if self._status_provider is not None:
-            try:
-                status = self._status_provider()
-                update_message = status.update_message
-                debug_log_path = status.debug_log_path
-            except (AttributeError, RuntimeError):
-                pass
-
-        # Priority: update_message > debug_log_path > shortcut hints
-        display_text: str | None = None
-        text_style: str = ""
-        if update_message:
-            display_text = update_message
-            text_style = "#ansiyellow"
-        elif debug_log_path:
-            display_text = f"Debug log: {debug_log_path}"
-            text_style = "fg:ansibrightblack"
-
-        bash_frags = self._bash_mode_toolbar_fragments()
-        bash_plain = "".join(frag[1] for frag in bash_frags)
-
-        if display_text:
-            left_text = " " + display_text
-            try:
-                terminal_width = shutil.get_terminal_size().columns
-            except (OSError, ValueError):
-                terminal_width = 0
-
-            if terminal_width > 0 and bash_plain:
-                # Keep the right-side bash mode hint visible by truncating the left side if needed.
-                reserved = len(bash_plain)
-                max_left = max(0, terminal_width - reserved)
-                if len(left_text) > max_left:
-                    left_text = left_text[: max_left - 1] + "…" if max_left >= 2 else ""
-                padding = " " * max(0, terminal_width - len(left_text) - reserved)
-            else:
-                padding = ""
-
-            return FormattedText([(text_style, left_text + padding), *bash_frags])
-
-        # Show shortcut hints when nothing else to display.
-        # In bash mode, prefer showing only the bash hint (no placeholder shortcuts).
-        if bash_frags:
-            return FormattedText([("fg:default", " "), *bash_frags])
-        return self._render_shortcut_hints()
-
-    # -------------------------------------------------------------------------
-    # Shortcut hints (bottom toolbar)
-    # -------------------------------------------------------------------------
-
-    def _render_shortcut_hints(self) -> FormattedText:
-        text_style = PLACEHOLDER_TEXT_STYLE
-        symbol_style = PLACEHOLDER_SYMBOL_STYLE
-
-        return FormattedText(
-            [
-                (text_style, " "),
-                (symbol_style, "@"),
-                (text_style, " files • "),
-                (symbol_style, "/"),
-                (text_style, " commands · "),
-                (symbol_style, "//"),
-                (text_style, " skills • "),
-                (symbol_style, "!"),
-                (text_style, " shell • "),
-                (symbol_style, "ctrl-l"),
-                (text_style, " models • "),
-                (symbol_style, "ctrl-t"),
-                (text_style, " think • "),
-                (symbol_style, "ctrl-v"),
-                (text_style, " paste image"),
-            ]
-        )
-
-    # -------------------------------------------------------------------------
     # InputProviderABC implementation
     # -------------------------------------------------------------------------
 
@@ -746,7 +624,6 @@ class PromptToolkitInput(InputProviderABC):
             with patch_stdout(raw=True):
                 line: str = await self._session.prompt_async(
                     message=self._get_prompt_message,
-                    bottom_toolbar=self._get_bottom_toolbar,
                 )
             if self._post_prompt is not None:
                 with contextlib.suppress(Exception):

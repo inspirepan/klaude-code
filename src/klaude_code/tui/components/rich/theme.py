@@ -223,6 +223,7 @@ class ThemeKey(str, Enum):
     WELCOME_HIGHLIGHT = "welcome.highlight"
     WELCOME_INFO = "welcome.info"
     WELCOME_INFO_BOLD = "welcome.info.bold"
+    WELCOME_SHORTCUT = "welcome.shortcut"
     WELCOME_SCOPE = "welcome.scope"
     WARN_SCOPE = "warn.scope"
     # WELCOME DEBUG
@@ -373,7 +374,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.WELCOME_HIGHLIGHT.value: palette.blue,
                 ThemeKey.WELCOME_INFO.value: palette.grey1,
                 ThemeKey.WELCOME_INFO_BOLD.value: "bold " + palette.grey1,
-                ThemeKey.WELCOME_SCOPE.value: palette.grey1 + " on " + palette.code_background,
+                ThemeKey.WELCOME_SHORTCUT.value: palette.green,
+                ThemeKey.WELCOME_SCOPE.value: palette.green,
                 ThemeKey.WARN_SCOPE.value: palette.yellow + " on " + palette.code_background,
                 # WELCOME DEBUG
                 ThemeKey.WELCOME_DEBUG_TITLE.value: "bold " + palette.purple,

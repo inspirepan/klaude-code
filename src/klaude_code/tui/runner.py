@@ -21,7 +21,7 @@ from klaude_code.app.runtime import (
 from klaude_code.config import load_config
 from klaude_code.core.compaction import should_compact_threshold
 from klaude_code.core.control.runtime_facade import RuntimeFacade
-from klaude_code.log import get_current_log_file, log
+from klaude_code.log import log
 from klaude_code.protocol import events, llm_param, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session
@@ -31,8 +31,7 @@ from klaude_code.tui.command import (
 )
 from klaude_code.tui.command.command_abc import WebModeRequest
 from klaude_code.tui.display import TUIDisplay
-from klaude_code.tui.input import build_repl_status_snapshot
-from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, REPLStatusSnapshot
+from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput
 from klaude_code.tui.terminal.color import is_light_terminal_background
 from klaude_code.tui.terminal.control import install_sigint_interrupt, start_esc_interrupt_monitor
 from klaude_code.tui.terminal.selector import (
@@ -44,7 +43,6 @@ from klaude_code.tui.terminal.selector import (
     select_questions,
 )
 from klaude_code.tui.terminal.title import update_terminal_title
-from klaude_code.update import get_update_message
 
 
 async def submit_user_input_payload(
@@ -366,12 +364,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         on_model_change=_on_model_change,
     )
 
-    def _status_provider() -> REPLStatusSnapshot:
-        update_message = get_update_message()
-        debug_log = get_current_log_file()
-        debug_log_path = str(debug_log) if debug_log else None
-        return build_repl_status_snapshot(update_message, debug_log_path=debug_log_path)
-
     def _stop_rich_bottom_ui() -> None:
         active_display = components.display
         if isinstance(active_display, TUIDisplay):
@@ -420,7 +412,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         )
 
     input_provider: InputProviderABC = PromptToolkitInput(
-        status_provider=_status_provider,
         pre_prompt=_stop_rich_bottom_ui,
         get_current_model_config_name=lambda: (
             components.runtime.current_agent.session.model_config_name

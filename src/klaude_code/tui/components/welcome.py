@@ -55,22 +55,50 @@ def _build_grouped_tree(
 
 def _build_skills_tree(grouped_skills: list[tuple[str, list[str]]]) -> Tree:
     tree = _RoundedTree(Text("skills", style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
-    # 10 = quote prefix (3) + tree guide indent (4) + margin (3)
-    content_width = shutil.get_terminal_size().columns - 10
+    # 12 = quote prefix (3) + tree guide indent (4) + margin (3) + skill indent (2)
+    content_width = shutil.get_terminal_size().columns - 12
     all_skills = [s for _, skills in grouped_skills for s in skills]
     name_width = max(len(s) for s in all_skills)
     sep = " | "
     num_cols = min(4, max(1, (content_width + len(sep)) // (name_width + len(sep))))
     for scope, skills in grouped_skills:
         scope_text = Text()
-        scope_text.append(f"[{scope}]", style=ThemeKey.WELCOME_SCOPE)
+        scope_text.append(scope, style=ThemeKey.WELCOME_SCOPE)
         for i, skill in enumerate(skills):
             if i % num_cols == 0:
                 scope_text.append("\n")
+                scope_text.append("  ", style=ThemeKey.WELCOME_INFO)
             else:
                 scope_text.append(sep, style=ThemeKey.LINES)
             scope_text.append(f"{skill:<{name_width}}", style=ThemeKey.WELCOME_INFO)
         tree.add(scope_text)
+    return tree
+
+
+def _build_update_tree(update_info: events.WelcomeUpdateInfo) -> Tree:
+    title_style = ThemeKey.WARN_BOLD if update_info.level == "warn" else ThemeKey.WELCOME_HIGHLIGHT
+    body_style = ThemeKey.WARN if update_info.level == "warn" else ThemeKey.WELCOME_INFO
+    tree = _RoundedTree(Text("update", style=title_style), guide_style=ThemeKey.LINES)
+    tree.add(Text(update_info.message, style=body_style))
+    return tree
+
+
+def _build_shortcuts_tree() -> Tree:
+    tree = _RoundedTree(Text("shortcuts", style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
+    items = [
+        ("@", "files"),
+        ("/", "commands"),
+        ("//", "skills"),
+        ("!", "shell"),
+        ("ctrl-l", "models"),
+        ("ctrl-t", "think"),
+        ("ctrl-v", "paste image"),
+    ]
+    for key, desc in items:
+        row = Text()
+        row.append(key, style=ThemeKey.WELCOME_SHORTCUT)
+        row.append(f" {desc}", style=ThemeKey.WELCOME_INFO)
+        tree.add(row)
     return tree
 
 
@@ -100,6 +128,13 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     else:
         renderables.append(model_label)
 
+    if e.startup_info is not None:
+        if e.startup_info.update_info is not None:
+            renderables.append(Text())
+            renderables.append(_build_update_tree(e.startup_info.update_info))
+        renderables.append(Text())
+        renderables.append(_build_shortcuts_tree())
+
     # Context tree: loaded memories
     work_dir = Path(e.work_dir)
     loaded_memories = e.loaded_memories or {}
@@ -107,7 +142,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     for scope in ("user", "project"):
         paths = loaded_memories.get(scope) or []
         if paths:
-            memory_items.append((f"[{scope}]", ", ".join(_format_memory_path(p, work_dir=work_dir) for p in paths)))
+            memory_items.append((scope, ", ".join(_format_memory_path(p, work_dir=work_dir) for p in paths)))
     if memory_items:
         renderables.append(Text())
         renderables.append(_build_grouped_tree("context", memory_items))

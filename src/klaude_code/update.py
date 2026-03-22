@@ -13,12 +13,14 @@ import threading
 import time
 import urllib.request
 from importlib.metadata import PackageNotFoundError, distribution
-from typing import Any, NamedTuple, cast
+from pathlib import Path
+from typing import Any, Literal, NamedTuple, cast
 from urllib.parse import urlparse
 
 PACKAGE_NAME = "klaude-code"
 PYPI_URL = f"https://pypi.org/pypi/{PACKAGE_NAME}/json"
 CHECK_INTERVAL_SECONDS = 3600  # Check at most once per hour
+UPDATE_STATE_FILE = "update_state.json"
 
 INSTALL_KIND_UNKNOWN = "unknown"
 INSTALL_KIND_INDEX = "index"
@@ -44,96 +46,30 @@ class VersionInfo(NamedTuple):
     install_kind: str = INSTALL_KIND_UNKNOWN
 
 
-_cached_version_info: VersionInfo | None = None
-_last_check_time: float = 0.0
-_check_lock = threading.Lock()
-_check_in_progress = False
-_cached_installation_info: InstallationInfo | None = None
+class PersistedUpdateInfo(NamedTuple):
+    checked_at: float
+    installed: str | None
+    latest: str | None
+    update_available: bool
+    install_kind: str = INSTALL_KIND_UNKNOWN
 
-_auto_upgrade_lock = threading.Lock()
-_auto_upgrade_attempted = False
-_auto_upgrade_in_progress = False
-_auto_upgrade_succeeded = False
-_auto_upgrade_failed = False
-_auto_upgrade_target_version: str | None = None
+
+class StartupUpdateSummary(NamedTuple):
+    message: str
+    level: Literal["info", "warn"] = "warn"
+
+
+_cached_installation_info: InstallationInfo | None = None
+_background_check_lock = threading.Lock()
+_background_check_in_progress = False
 
 
 def _has_uv() -> bool:
     return shutil.which("uv") is not None
 
 
-def _get_auto_upgrade_state() -> tuple[bool, bool, bool, str | None]:
-    """Return auto-upgrade state as (in_progress, succeeded, failed, target_version)."""
-
-    with _auto_upgrade_lock:
-        return (
-            _auto_upgrade_in_progress,
-            _auto_upgrade_succeeded,
-            _auto_upgrade_failed,
-            _auto_upgrade_target_version,
-        )
-
-
-def _start_auto_upgrade_if_needed(info: VersionInfo) -> None:
-    """Start a background `uv tool upgrade` once per process when appropriate."""
-    global _auto_upgrade_attempted, _auto_upgrade_in_progress, _auto_upgrade_target_version
-
-    if info.install_kind != INSTALL_KIND_INDEX:
-        return
-    if not info.update_available or not info.latest:
-        return
-    if not _has_uv():
-        return
-
-    with _auto_upgrade_lock:
-        if _auto_upgrade_attempted:
-            return
-        _auto_upgrade_attempted = True
-        _auto_upgrade_in_progress = True
-        _auto_upgrade_target_version = info.latest
-
-    thread = threading.Thread(target=_run_auto_upgrade, args=(info.latest,), daemon=True)
-    thread.start()
-
-
-def _run_auto_upgrade(target_version: str) -> None:
-    """Run `uv tool upgrade` in background; changes apply on next process start."""
-    global _auto_upgrade_in_progress, _auto_upgrade_succeeded, _auto_upgrade_failed
-    global _cached_version_info, _last_check_time
-
-    success = False
-    try:
-        result = subprocess.run(
-            ["uv", "tool", "upgrade", PACKAGE_NAME],
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
-        success = result.returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        success = False
-
-    with _auto_upgrade_lock:
-        _auto_upgrade_in_progress = False
-        _auto_upgrade_succeeded = success
-        _auto_upgrade_failed = not success
-
-    if not success:
-        return
-
-    with _check_lock:
-        current = _cached_version_info
-        if current is None:
-            return
-        latest = target_version or current.latest
-        _cached_version_info = VersionInfo(
-            installed=latest or current.installed,
-            latest=latest,
-            update_available=False,
-            install_kind=current.install_kind,
-        )
-        _last_check_time = time.time()
+def _get_update_state_path() -> Path:
+    return Path.home() / ".klaude" / UPDATE_STATE_FILE
 
 
 def _classify_install_kind(source_url: str | None, direct_url_data: dict[str, Any] | None) -> str:
@@ -276,92 +212,7 @@ def _compare_versions(installed: str, latest: str) -> bool:
         return False
 
 
-def _do_version_check() -> None:
-    global _cached_version_info, _last_check_time, _check_in_progress
-    try:
-        install_info = get_installation_info()
-        installed = install_info.version or _get_installed_version()
-        latest = _get_latest_version()
-
-        update_available = False
-        if installed and latest:
-            update_available = _compare_versions(installed, latest)
-
-        with _check_lock:
-            _cached_version_info = VersionInfo(
-                installed=installed,
-                latest=latest,
-                update_available=update_available,
-                install_kind=install_info.install_kind,
-            )
-            _last_check_time = time.time()
-    finally:
-        with _check_lock:
-            _check_in_progress = False
-
-
-def check_for_updates() -> VersionInfo | None:
-    """Check for updates asynchronously with caching."""
-    global _check_in_progress
-
-    if not _has_uv():
-        return None
-
-    now = time.time()
-    with _check_lock:
-        cache_valid = _cached_version_info is not None and (now - _last_check_time) < CHECK_INTERVAL_SECONDS
-        if cache_valid:
-            return _cached_version_info
-
-        if not _check_in_progress:
-            _check_in_progress = True
-            thread = threading.Thread(target=_do_version_check, daemon=True)
-            thread.start()
-
-        return _cached_version_info
-
-
-def get_update_message() -> str | None:
-    """Return an update message if an update is available, otherwise None."""
-    info = check_for_updates()
-    in_progress, succeeded, failed, target_version = _get_auto_upgrade_state()
-
-    if in_progress:
-        target = target_version or (info.latest if info else "latest")
-        return f"Updating to {target} in background; changes apply on next launch."
-
-    if succeeded:
-        target = target_version or "latest"
-        return f"Background update to {target} completed. Restart `klaude` to use it."
-
-    if info is None:
-        return None
-
-    if info.install_kind == INSTALL_KIND_INDEX and info.update_available:
-        _start_auto_upgrade_if_needed(info)
-        in_progress, succeeded, failed, target_version = _get_auto_upgrade_state()
-        if in_progress:
-            return f"New version {info.latest} detected. Updating in background; changes apply on next launch."
-        if succeeded:
-            target = target_version or info.latest or "latest"
-            return f"Background update to {target} completed. Restart `klaude` to use it."
-        if failed:
-            return f"New version available: {info.latest}. Auto-update failed; run `klaude upgrade`."
-
-    if not info.update_available:
-        return None
-
-    if info.install_kind == INSTALL_KIND_EDITABLE:
-        return f"PyPI {info.latest} available. Local editable install detected; run `klaude upgrade` from a clean local checkout."
-
-    if info.install_kind == INSTALL_KIND_LOCAL:
-        return f"PyPI {info.latest} available. Local path install detected; run `klaude upgrade` from a clean local checkout."
-
-    return f"New version available: {info.latest}. Please run `klaude upgrade` to upgrade."
-
-
-def check_for_updates_blocking() -> VersionInfo | None:
-    """Check for updates synchronously (no caching)."""
+def _fetch_version_info() -> VersionInfo | None:
     if not _has_uv():
         return None
 
@@ -379,3 +230,141 @@ def check_for_updates_blocking() -> VersionInfo | None:
         update_available=update_available,
         install_kind=install_info.install_kind,
     )
+
+
+def check_for_updates_blocking() -> VersionInfo | None:
+    """Check for updates synchronously (no caching)."""
+    return _fetch_version_info()
+
+
+def _write_persisted_update_info(info: PersistedUpdateInfo) -> None:
+    path = _get_update_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "checked_at": info.checked_at,
+        "installed": info.installed,
+        "latest": info.latest,
+        "update_available": info.update_available,
+        "install_kind": info.install_kind,
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _load_persisted_update_info() -> PersistedUpdateInfo | None:
+    path = _get_update_state_path()
+    if not path.exists():
+        return None
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    checked_at = payload.get("checked_at")
+    installed = payload.get("installed")
+    latest = payload.get("latest")
+    update_available = payload.get("update_available")
+    install_kind = payload.get("install_kind", INSTALL_KIND_UNKNOWN)
+
+    if not isinstance(checked_at, (int, float)):
+        return None
+    if installed is not None and not isinstance(installed, str):
+        return None
+    if latest is not None and not isinstance(latest, str):
+        return None
+    if not isinstance(update_available, bool):
+        return None
+    if not isinstance(install_kind, str):
+        install_kind = INSTALL_KIND_UNKNOWN
+
+    return PersistedUpdateInfo(
+        checked_at=float(checked_at),
+        installed=installed,
+        latest=latest,
+        update_available=update_available,
+        install_kind=install_kind,
+    )
+
+
+def _persist_current_update_info() -> None:
+    global _background_check_in_progress
+
+    try:
+        info = _fetch_version_info()
+        if info is None:
+            return
+        _write_persisted_update_info(
+            PersistedUpdateInfo(
+                checked_at=time.time(),
+                installed=info.installed,
+                latest=info.latest,
+                update_available=info.update_available,
+                install_kind=info.install_kind,
+            )
+        )
+    finally:
+        with _background_check_lock:
+            _background_check_in_progress = False
+
+
+def _start_background_update_check() -> None:
+    global _background_check_in_progress
+
+    with _background_check_lock:
+        if _background_check_in_progress:
+            return
+        _background_check_in_progress = True
+
+    thread = threading.Thread(target=_persist_current_update_info, daemon=True)
+    thread.start()
+
+
+def _is_persisted_update_info_fresh(info: PersistedUpdateInfo) -> bool:
+    return (time.time() - info.checked_at) < CHECK_INTERVAL_SECONDS
+
+
+def _build_update_message(installed: str | None, latest: str | None, install_kind: str, *, update_available: bool) -> str | None:
+    if not update_available or not latest:
+        return None
+
+    installed_display = installed or "unknown"
+    if install_kind == INSTALL_KIND_EDITABLE:
+        return (
+            f"PyPI {latest} available. Current {installed_display} (editable install); "
+            "run `klaude upgrade` from a clean local checkout."
+        )
+    if install_kind == INSTALL_KIND_LOCAL:
+        return (
+            f"PyPI {latest} available. Current {installed_display} (local path install); "
+            "run `klaude upgrade` from a clean local checkout."
+        )
+    if install_kind == INSTALL_KIND_DIRECT_URL:
+        return (
+            f"PyPI {latest} available. Current {installed_display} (direct URL install); "
+            "reinstall from the source URL if needed."
+        )
+    return f"PyPI {latest} available. Current {installed_display} (PyPI install); run `klaude upgrade`."
+
+
+def get_startup_update_summary() -> StartupUpdateSummary | None:
+    """Return startup welcome update info and trigger a background refresh when needed."""
+
+    persisted = _load_persisted_update_info()
+    if persisted is None or not _is_persisted_update_info_fresh(persisted):
+        _start_background_update_check()
+
+    if persisted is None:
+        return None
+
+    message = _build_update_message(
+        persisted.installed,
+        persisted.latest,
+        persisted.install_kind,
+        update_available=persisted.update_available,
+    )
+    if message is None:
+        return None
+    return StartupUpdateSummary(message=message, level="warn")

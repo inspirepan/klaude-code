@@ -31,6 +31,7 @@ from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, model, op, user_interaction
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
+from klaude_code.update import get_startup_update_summary
 
 
 @dataclass
@@ -287,6 +288,8 @@ class AgentOperationHandler:
             request_user_interaction=self._build_request_user_interaction_callback(session_id=session.id),
         )
 
+        startup_update = get_startup_update_summary()
+
         await self._emit_event(
             events.WelcomeEvent(
                 session_id=session.id,
@@ -296,6 +299,16 @@ class AgentOperationHandler:
                 loaded_skills=get_loaded_skill_names_by_location(),
                 loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=session.work_dir),
+                startup_info=events.WelcomeStartupInfo(
+                    update_info=(
+                        events.WelcomeUpdateInfo(
+                            message=startup_update.message,
+                            level=startup_update.level,
+                        )
+                        if startup_update is not None
+                        else None
+                    )
+                ),
             )
         )
 

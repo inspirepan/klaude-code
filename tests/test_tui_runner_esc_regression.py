@@ -89,12 +89,6 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     def _noop_update_terminal_title(*_args: object, **_kwargs: object) -> None:
         return None
 
-    def _noop_get_update_message() -> None:
-        return None
-
-    def _noop_get_current_log_file() -> None:
-        return None
-
     def _noop_backfill(*_args: object, **_kwargs: object) -> None:
         return None
 
@@ -111,8 +105,6 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(runner, "PromptToolkitInput", _FakePromptToolkitInput)
     monkeypatch.setattr(runner, "load_config", _load_config)
     monkeypatch.setattr(runner, "update_terminal_title", _noop_update_terminal_title)
-    monkeypatch.setattr(runner, "get_update_message", _noop_get_update_message)
-    monkeypatch.setattr(runner, "get_current_log_file", _noop_get_current_log_file)
     monkeypatch.setattr(runner, "backfill_session_model_config", _noop_backfill)
     monkeypatch.setattr(runner, "cleanup_app_components", _noop_cleanup)
     monkeypatch.setattr(runner, "initialize_session", _fake_initialize_session)
