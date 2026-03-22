@@ -97,7 +97,7 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
             }}
           >
             <Streamdown
-              mode="streaming"
+              mode={item.isStreaming ? "static" : "streaming"}
               isAnimating={item.isStreaming}
               animated={item.isStreaming ? streamAnimation : undefined}
               components={thinkingComponents}
