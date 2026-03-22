@@ -136,7 +136,9 @@ export function ProjectGroup({
                 setShowAll(true);
               }}
             >
-              <span className="flex-1 text-xs font-normal">{t("sidebar.loadMore")(sessions.length - 5)}</span>
+              <span className="flex-1 text-xs font-normal">
+                {t("sidebar.loadMore")(sessions.length - 5)}
+              </span>
             </button>
           )}
         </div>

@@ -107,7 +107,8 @@ const en = {
   "toolResult.noContent": "(no content)",
   "toolResult.showLess": "Show less",
   "toolResult.showMore": (count: number) => `Show more (${count} lines)`,
-  "toolResult.linesHidden": (count: number) => `\u00b7\u00b7\u00b7 ${count} lines hidden \u00b7\u00b7\u00b7`,
+  "toolResult.linesHidden": (count: number) =>
+    `\u00b7\u00b7\u00b7 ${count} lines hidden \u00b7\u00b7\u00b7`,
 
   // Sub agent
   "subAgent.agent": "Agent",
@@ -191,10 +192,8 @@ const en = {
 
   // Developer summary
   "developer.summarySkill": (name: string) => `skill:${name}`,
-  "developer.summaryFolderList": (n: number) =>
-    `${n} folder ${n === 1 ? "list" : "lists"}`,
-  "developer.summaryReread": (n: number) =>
-    `${n} re-read ${n === 1 ? "file" : "files"}`,
+  "developer.summaryFolderList": (n: number) => `${n} folder ${n === 1 ? "list" : "lists"}`,
+  "developer.summaryReread": (n: number) => `${n} re-read ${n === 1 ? "file" : "files"}`,
 
   // Plurals
   "plural.memory": (n: number) => `${n} ${n === 1 ? "memory" : "memories"}`,

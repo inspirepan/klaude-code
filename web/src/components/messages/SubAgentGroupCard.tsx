@@ -75,9 +75,7 @@ export function SubAgentGroupCard({
         {toolCount > 0 ? (
           <>
             {elapsedText ? <span className="text-neutral-300">&middot;</span> : null}
-            <span>
-              {t("subAgent.toolCall")(toolCount)}
-            </span>
+            <span>{t("subAgent.toolCall")(toolCount)}</span>
           </>
         ) : null}
       </div>

@@ -208,7 +208,9 @@ export function SessionCard({
           <button
             type="button"
             className="hidden h-5 w-5 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:text-neutral-700 focus:outline-none focus-visible:inline-flex group-hover:inline-flex"
-            aria-label={session.archived ? t("sidebar.unarchiveSession") : t("sidebar.archiveSession")}
+            aria-label={
+              session.archived ? t("sidebar.unarchiveSession") : t("sidebar.archiveSession")
+            }
             onClick={(e) => {
               e.stopPropagation();
               onToggleArchive(session.id, !session.archived);

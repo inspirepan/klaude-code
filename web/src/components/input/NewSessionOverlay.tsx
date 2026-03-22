@@ -222,9 +222,7 @@ export function NewSessionOverlay({
       >
         <div className="mb-3 space-y-0.5">
           <div className="text-base font-semibold text-neutral-800">{t("newSession.title")}</div>
-          <div className="text-base leading-6 text-neutral-500">
-            {t("newSession.subtitle")}
-          </div>
+          <div className="text-base leading-6 text-neutral-500">{t("newSession.subtitle")}</div>
         </div>
 
         <div className="space-y-3">
@@ -247,7 +245,9 @@ export function NewSessionOverlay({
           {normalizedDraftWorkDir.length > 0 ? (
             <>
               {modelError ? (
-                <div className="px-1 text-sm text-red-500">{t("newSession.loadModelsFailed")(modelError)}</div>
+                <div className="px-1 text-sm text-red-500">
+                  {t("newSession.loadModelsFailed")(modelError)}
+                </div>
               ) : null}
 
               <ComposerCard

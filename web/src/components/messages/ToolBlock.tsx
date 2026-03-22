@@ -71,7 +71,6 @@ interface ToolBlockProps {
 }
 
 function PlanBlock({ item }: ToolBlockProps): JSX.Element {
-
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (

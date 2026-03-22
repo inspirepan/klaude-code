@@ -133,7 +133,9 @@ export function ToolBlockResult({
               })()}
             </div>
           ) : isEmptyResult ? (
-            <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-500`}>{t("toolResult.noContent")}</div>
+            <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-500`}>
+              {t("toolResult.noContent")}
+            </div>
           ) : null}
         </div>
       </div>

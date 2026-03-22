@@ -21,36 +21,71 @@ interface CollapseGroupBlockProps {
 
 // Commands that take a meaningful subcommand as their second token
 const SUBCOMMAND_COMMANDS = new Set([
+  // Version control
   "git",
   "jj",
   "hg",
   "svn",
+  // Containers & orchestration
   "docker",
   "docker-compose",
   "podman",
   "kubectl",
   "helm",
+  "minikube",
+  // JS package managers
   "npm",
   "yarn",
   "pnpm",
+  "bun",
+  "deno",
+  // Rust
   "cargo",
+  "rustup",
+  // Python
   "uv",
   "pip",
+  "pipx",
   "poetry",
+  "conda",
+  "python",
+  // Ruby
+  "ruby",
+  "gem",
+  "bundle",
+  // Other languages
+  "go",
+  "dotnet",
+  "swift",
+  "mix",
+  "gradle",
+  // System package managers
   "brew",
   "apt",
   "apt-get",
   "dnf",
   "yum",
   "pacman",
+  // Cloud & infra
   "aws",
   "gcloud",
   "az",
-  "go",
-  "rustup",
-  "python",
-  "ruby",
+  "terraform",
+  "pulumi",
+  "fly",
+  "vercel",
+  "netlify",
+  "heroku",
+  "wrangler",
+  // Build tools
+  "make",
+  "just",
+  "nx",
+  "turbo",
+  "bazel",
+  // CLI tools
   "gh",
+  // Service managers
   "systemctl",
   "launchctl",
   "supervisorctl",
@@ -175,7 +210,10 @@ function extractApplyPatchFileStats(patch: string): FileStat[] {
   return fileStats;
 }
 
-function summarizeCollapseItems(items: MessageItemType[], t: ReturnType<typeof useT>): SummaryPart[] {
+function summarizeCollapseItems(
+  items: MessageItemType[],
+  t: ReturnType<typeof useT>,
+): SummaryPart[] {
   const grouped = new Map<string, string[]>();
   // Parallel stats for file-editing tools: [{ del, add }] per invocation
   const editStats = new Map<string, Array<{ del: number; add: number }>>();
@@ -354,7 +392,10 @@ function summarizeCollapseItems(items: MessageItemType[], t: ReturnType<typeof u
         break;
       case "WebSearch": {
         const q = unique[0]!;
-        parts.push({ label: t("collapse.search"), value: q.length > 30 ? q.slice(0, 30) + "…" : q });
+        parts.push({
+          label: t("collapse.search"),
+          value: q.length > 30 ? q.slice(0, 30) + "…" : q,
+        });
         break;
       }
     }
@@ -426,8 +467,7 @@ export function CollapseGroupBlock({
 }: CollapseGroupBlockProps): JSX.Element {
   const t = useT();
   const toolCount = items.filter((item) => item.type === "tool_block").length;
-  const stepLabel =
-    toolCount > 0 ? t("collapse.toolsUsed")(toolCount) : t("collapse.thoughts");
+  const stepLabel = toolCount > 0 ? t("collapse.toolsUsed")(toolCount) : t("collapse.thoughts");
   const summary = useMemo(() => summarizeCollapseItems(items, t), [items, t]);
   const summaryText = useMemo(() => summaryToText(summary), [summary]);
   const summarySpanRef = useRef<HTMLSpanElement>(null);

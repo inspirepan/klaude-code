@@ -94,7 +94,9 @@ export function MessageListHeader({
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5 text-base leading-5">
               {isSubAgentView ? (
-                <span className="truncate font-semibold">{subAgentLabel ?? t("header.subAgent")}</span>
+                <span className="truncate font-semibold">
+                  {subAgentLabel ?? t("header.subAgent")}
+                </span>
               ) : (
                 <>
                   <SessionTitleText
@@ -110,9 +112,7 @@ export function MessageListHeader({
                           <Lock className="h-3 w-3" />
                         </span>
                       </TooltipTrigger>
-                      <TooltipContent>
-                        {t("header.readOnly")}
-                      </TooltipContent>
+                      <TooltipContent>{t("header.readOnly")}</TooltipContent>
                     </Tooltip>
                   ) : null}
                   {workspacePath ? (

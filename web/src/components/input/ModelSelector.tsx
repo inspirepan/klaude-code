@@ -115,7 +115,11 @@ export function ModelSelector({
 
   const triggerLabel =
     current?.model_id ??
-    (value.trim().length > 0 ? value : loading ? t("model.loading") : placeholder ?? t("model.selectModel"));
+    (value.trim().length > 0
+      ? value
+      : loading
+        ? t("model.loading")
+        : (placeholder ?? t("model.selectModel")));
 
   return (
     <div ref={rootRef} className="relative">

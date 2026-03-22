@@ -29,8 +29,7 @@ const zh: Translations = {
   "archiveCleanup.confirmDesc": "归档超过 3 天或没有变更的会话。",
   "archiveCleanup.archiving": "正在归档超过 3 天或没有变更的会话",
   "archiveCleanup.noEligible": "没有超过 3 天或没有变更的会话",
-  "archiveCleanup.tooltip": (count: number) =>
-    `归档 ${count} 个超过 3 天或没有变更的会话`,
+  "archiveCleanup.tooltip": (count: number) => `归档 ${count} 个超过 3 天或没有变更的会话`,
   "archiveCleanup.cancel": "取消",
   "archiveCleanup.archive": "归档",
 
@@ -109,7 +108,8 @@ const zh: Translations = {
   "toolResult.noContent": "（无内容）",
   "toolResult.showLess": "收起",
   "toolResult.showMore": (count: number) => `展开更多 (${count} 行)`,
-  "toolResult.linesHidden": (count: number) => `\u00b7\u00b7\u00b7 隐藏了 ${count} 行 \u00b7\u00b7\u00b7`,
+  "toolResult.linesHidden": (count: number) =>
+    `\u00b7\u00b7\u00b7 隐藏了 ${count} 行 \u00b7\u00b7\u00b7`,
 
   // Sub agent
   "subAgent.agent": "Agent",
@@ -129,8 +129,7 @@ const zh: Translations = {
   // User interaction
   "interaction.selectMultiple": "（可多选）",
   "interaction.validationHint": "请选择一个选项或输入回复。",
-  "interaction.agentQuestion": (count: number) =>
-    `Agent 有 ${count} 个问题需要你回答`,
+  "interaction.agentQuestion": (count: number) => `Agent 有 ${count} 个问题需要你回答`,
   "interaction.agentNeedsInput": "Agent 需要你的输入",
   "interaction.pending": (count: number) => `${count} 个待处理`,
   "interaction.cancel": "取消",

@@ -184,9 +184,7 @@ export function DraftWorkspacePicker({
                 })}
               </CommandListScroll>
             ) : (
-              <div className="px-3 py-2 text-sm text-neutral-500">
-                {t("workspace.noMatch")}
-              </div>
+              <div className="px-3 py-2 text-sm text-neutral-500">{t("workspace.noMatch")}</div>
             )}
             {filteredWorkspaceOptions.length > 0 ? (
               <div className="flex items-center gap-2 border-t border-neutral-100 px-2.5 py-1.5">

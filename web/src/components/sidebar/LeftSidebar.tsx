@@ -616,7 +616,9 @@ export function LeftSidebar(): JSX.Element {
                       </div>
                     </ScrollArea>
                   ) : (
-                    <div className="px-3 py-3 text-sm text-neutral-500">{t("sidebar.noArchivedSessions")}</div>
+                    <div className="px-3 py-3 text-sm text-neutral-500">
+                      {t("sidebar.noArchivedSessions")}
+                    </div>
                   )}
                 </div>
               ) : null}

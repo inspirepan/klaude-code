@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
-import { t, useT } from "@/i18n";
+import { useT } from "@/i18n";
 import type { TaskMetadataAgent, TaskMetadataItem } from "../../types/message";
 import { CollapseRailPanel } from "./CollapseRail";
 import { formatCompactNumber, formatElapsed } from "./message-list-ui";
@@ -87,19 +87,28 @@ function buildDetailRows(agent: TaskMetadataAgent, t: ReturnType<typeof useT>): 
       rows.push({ label: t("taskMeta.cacheRead"), value: v });
     }
     if (usage.cacheWriteTokens > 0) {
-      rows.push({ label: t("taskMeta.cacheWrite"), value: formatCompactNumber(usage.cacheWriteTokens) });
+      rows.push({
+        label: t("taskMeta.cacheWrite"),
+        value: formatCompactNumber(usage.cacheWriteTokens),
+      });
     }
 
     rows.push({ label: t("taskMeta.outputTokens"), value: formatCompactNumber(outputTokens) });
 
     if (usage.reasoningTokens > 0) {
-      rows.push({ label: t("taskMeta.reasoning"), value: formatCompactNumber(usage.reasoningTokens) });
+      rows.push({
+        label: t("taskMeta.reasoning"),
+        value: formatCompactNumber(usage.reasoningTokens),
+      });
     }
     if (usage.contextPercent !== null) {
       rows.push({ label: t("taskMeta.context"), value: `${usage.contextPercent.toFixed(1)}%` });
     }
     if (usage.totalCost !== null) {
-      rows.push({ label: t("taskMeta.cost"), value: formatCurrency(usage.totalCost, usage.currency) });
+      rows.push({
+        label: t("taskMeta.cost"),
+        value: formatCurrency(usage.totalCost, usage.currency),
+      });
     }
   }
 
@@ -107,10 +116,16 @@ function buildDetailRows(agent: TaskMetadataAgent, t: ReturnType<typeof useT>): 
     rows.push({ label: t("taskMeta.duration"), value: formatElapsed(agent.durationSeconds) });
   }
   if (usage?.throughputTps !== null && usage?.throughputTps !== undefined) {
-    rows.push({ label: t("taskMeta.throughput"), value: `${usage.throughputTps.toFixed(1)} tok/s` });
+    rows.push({
+      label: t("taskMeta.throughput"),
+      value: `${usage.throughputTps.toFixed(1)} tok/s`,
+    });
   }
   if (agent.turnCount > 0) {
-    rows.push({ label: t("taskMeta.stepsLabel"), value: t("taskMeta.stepsValue")(agent.turnCount) });
+    rows.push({
+      label: t("taskMeta.stepsLabel"),
+      value: t("taskMeta.stepsValue")(agent.turnCount),
+    });
   }
 
   return rows;

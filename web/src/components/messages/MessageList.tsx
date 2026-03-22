@@ -125,7 +125,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     () => groups.flatMap((group) => group.sessions).find((item) => item.id === sessionId) ?? null,
     [groups, sessionId],
   );
-  const sessionTitle = useMemo(() => getSessionTitle(session) ?? t("sidebar.newSession"), [session, t]);
+  const sessionTitle = useMemo(
+    () => getSessionTitle(session) ?? t("sidebar.newSession"),
+    [session, t],
+  );
   const { primary: primaryTitle, secondary: secondaryTitle } = useMemo(
     () => splitSessionTitle(sessionTitle),
     [sessionTitle],

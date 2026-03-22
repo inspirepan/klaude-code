@@ -67,7 +67,6 @@ interface ComposerCardProps {
   completionDropUp?: boolean;
 }
 
-
 function parseCompactCommand(text: string): { focus: string | null } | null {
   const match = COMPACT_COMMAND_PATTERN.exec(text.trim());
   if (!match) return null;
@@ -139,7 +138,11 @@ export function ComposerCard({
 
   const attachmentsDisabled = disableAttachments || interruptible || uploadingCount > 0;
   const buttonDisabled = uploadingCount > 0 || (interruptible ? disableInterrupt : disableSubmit);
-  const buttonLabel = interruptible ? t("composer.interrupt") : submitting ? t("composer.sending") : t("composer.send");
+  const buttonLabel = interruptible
+    ? t("composer.interrupt")
+    : submitting
+      ? t("composer.sending")
+      : t("composer.send");
   const anyCompletionOpen = fileComp.open || slashComp.open;
 
   const handleSubmitOrCompact = useCallback(() => {
@@ -399,7 +402,9 @@ export function ComposerCard({
       ) : null}
       {uploadingCount > 0 ? (
         <div className="mt-2 text-sm text-neutral-500">
-          {uploadingCount === 1 ? t("composer.uploadingImage") : t("composer.uploadingImages")(uploadingCount)}
+          {uploadingCount === 1
+            ? t("composer.uploadingImage")
+            : t("composer.uploadingImages")(uploadingCount)}
         </div>
       ) : null}
       {uploadError ? <div className="mt-2 text-sm text-red-500">{uploadError}</div> : null}

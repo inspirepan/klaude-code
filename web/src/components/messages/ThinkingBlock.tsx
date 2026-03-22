@@ -79,7 +79,9 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
       onClick={() => setOpen((value) => !value)}
     >
       <CollapseRailMarker open={open} />
-      <span className="whitespace-nowrap font-mono font-normal text-neutral-600">{t("thinking.label")}</span>
+      <span className="whitespace-nowrap font-mono font-normal text-neutral-600">
+        {t("thinking.label")}
+      </span>
 
       <CollapseRailPanel open={open} className="col-span-2">
         <div className={`mt-2 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
