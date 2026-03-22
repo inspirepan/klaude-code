@@ -46,9 +46,7 @@ export function TodoListView({ uiExtra }: TodoListViewProps): JSX.Element {
           </div>
         );
       })}
-      {explanation && (
-        <p className="mt-1 text-sm text-neutral-400 italic">{explanation}</p>
-      )}
+      {explanation && <p className="mt-1 text-sm italic text-neutral-400">{explanation}</p>}
     </div>
   );
 }
