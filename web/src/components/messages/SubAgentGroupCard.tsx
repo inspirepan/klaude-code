@@ -39,7 +39,7 @@ export function SubAgentGroupCard({
     <button
       type="button"
       onClick={onClick}
-      className="group/subagent flex w-3/5 cursor-pointer items-center gap-3 rounded-lg border border-neutral-200/80 bg-surface/50 px-4 py-3 text-left shadow-sm shadow-neutral-200/40 transition-colors hover:bg-neutral-50"
+      className="group/subagent flex w-3/5 cursor-pointer items-center gap-2.5 rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2.5 text-left shadow-sm shadow-neutral-200/40 transition-colors hover:bg-neutral-50"
     >
       {/* Status icon */}
       {isActive ? (
