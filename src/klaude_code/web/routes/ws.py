@@ -257,18 +257,65 @@ def _validate_incoming_frame(payload: dict[str, Any], frame_type: str) -> Incomi
     return CompactFrame.model_validate(payload)
 
 
+def _collect_descendant_session_ids(session_id: str, work_dir: Path) -> set[str]:
+    """Collect all descendant sub-agent session IDs by scanning session histories.
+
+    Uses BFS to find SpawnSubAgentEntry items in the parent session and recurse
+    into child sessions.  This is needed when there is no in-memory session
+    snapshot (e.g. viewing a TUI-owned session from the web) so that sub-agent
+    events can be forwarded via session-id matching.
+    """
+    result: set[str] = set()
+    queue = [session_id]
+    visited: set[str] = {session_id}
+    store = get_store_for_path(work_dir)
+    while queue:
+        current_id = queue.pop(0)
+        try:
+            history = store.load_history(current_id)
+        except Exception:
+            continue
+        for item in history:
+            if isinstance(item, message.SpawnSubAgentEntry):
+                child_id = item.session_id
+                if child_id not in visited:
+                    visited.add(child_id)
+                    result.add(child_id)
+                    queue.append(child_id)
+    return result
+
+
 async def _forward_events(session_id: str, websocket: WebSocket) -> None:
     state = get_web_state_from_ws(websocket)
     subscription = state.subscribe_events(None)
     tracked_task_ids: set[str] = set()
+    tracked_child_session_ids: set[str] = set()
 
     snapshot = state.runtime.session_registry.snapshot(session_id)
     if snapshot is not None and snapshot.active_root_task is not None:
         tracked_task_ids.add(snapshot.active_root_task.task_id)
 
+    # When there is no active root task tracked (e.g. viewing a TUI-owned session
+    # or reconnecting after a server restart), scan the persisted history for
+    # sub-agent sessions so their real-time events are forwarded to this WebSocket.
+    if not tracked_task_ids:
+        work_dir = resolve_session_work_dir(state.home_dir, session_id)
+        if work_dir is not None:
+            tracked_child_session_ids = _collect_descendant_session_ids(session_id, work_dir)
+            if tracked_child_session_ids:
+                log_debug(
+                    f"[web/ws:{session_id[:8]}] tracked {len(tracked_child_session_ids)} descendant session(s) from history",
+                    debug_type=DebugType.EXECUTION,
+                )
+
     try:
         async for envelope in subscription:
             if envelope.session_id == session_id:
+                if envelope.task_id is not None:
+                    tracked_task_ids.add(envelope.task_id)
+            elif envelope.session_id in tracked_child_session_ids:
+                # Forward child/grandchild session events, and seed the task_id
+                # so that future descendants spawned dynamically also pass through.
                 if envelope.task_id is not None:
                     tracked_task_ids.add(envelope.task_id)
             elif envelope.task_id not in tracked_task_ids:
