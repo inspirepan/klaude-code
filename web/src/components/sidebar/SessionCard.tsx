@@ -205,7 +205,7 @@ export function SessionCard({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:text-neutral-700 focus:outline-none focus-visible:inline-flex group-hover:inline-flex"
+            className="hidden h-5 w-5 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:text-neutral-700 focus:outline-none focus-visible:inline-flex group-hover:inline-flex"
             aria-label={session.archived ? "Unarchive session" : "Archive session"}
             onClick={(e) => {
               e.stopPropagation();

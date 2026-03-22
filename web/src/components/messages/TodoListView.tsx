@@ -12,7 +12,7 @@ const statusConfig = {
   },
   completed: {
     iconClass: `${iconSize} text-emerald-500`,
-    textClass: "text-neutral-500 line-through",
+    textClass: "text-neutral-500 line-through decoration-neutral-400",
   },
 } as const;
 
@@ -37,7 +37,7 @@ export function TodoListView({ uiExtra }: TodoListViewProps): JSX.Element {
         const config = statusConfig[todo.status];
         const Icon = statusIcon[todo.status];
         const iconClass = isNewCompleted ? `${iconSize} text-emerald-600` : config.iconClass;
-        const textClass = isNewCompleted ? "text-emerald-700 font-semibold" : config.textClass;
+        const textClass = isNewCompleted ? "text-emerald-700" : config.textClass;
 
         return (
           <div key={i} className="flex items-center gap-2 leading-relaxed">
