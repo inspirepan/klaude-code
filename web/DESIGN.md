@@ -70,21 +70,32 @@ Dark mode inverts the neutral scale but keeps the same semantic color mapping. `
 | **Code / Monospace**   | `Lilex Variable`         | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace                                                |
 | **Display (reserved)** | `TX-02`                  | Loaded as @font-face (400/700, normal/italic); not yet actively used in the UI                                  |
 
-### Scale (overridden from Tailwind defaults)
+### Scale & Font Size Zones
 
-The entire type scale is shifted one notch smaller than Tailwind's defaults to achieve information density without feeling cramped:
+Three font sizes, each with a clear domain:
 
-| Tailwind Class | Actual Size      | Line Height | Usage                                        |
-| -------------- | ---------------- | ----------- | -------------------------------------------- |
-| `text-xs`      | 11px (0.6875rem) | 16px        | Timestamps, metadata chips, keyboard hints   |
-| `text-sm`      | 12px (0.75rem)   | 16px        | Secondary labels, sidebar text, tool headers |
-| `text-base`    | 14px (0.875rem)  | 20px        | Body text, assistant messages, input fields  |
+| Tailwind Class | Actual Size      | Line Height | Zone                                    |
+| -------------- | ---------------- | ----------- | --------------------------------------- |
+| `text-base`    | 16px (1rem)      | 24px        | **Message content** -- the reading zone |
+| `text-sm`      | 14px (0.875rem)  | 20px        | **UI chrome** -- everything else        |
+| `text-xs`      | 13px (0.8125rem) | 18px        | **Metadata** -- rarely used             |
+
+**`text-base` (16px) -- message content zone only:**
+Assistant text, user messages, composer textarea, tool block content (plan explanations, streaming labels), thinking blocks, developer messages, collapse group summaries, compaction summaries, error/interrupt messages, todo lists, question summaries, user interaction card question text and options, sub-agent card type label and description, session title in MessageListHeader, new session overlay title/description.
+
+**`text-sm` (14px) -- all UI chrome:**
+All buttons (default base class), sidebar text (session cards, project groups, archive panels), toolbar icons, status bars, search inputs, completion/dropdown list items (file/slash/model/workspace), tool block header detail chips, file path labels, sub-agent metadata (elapsed/tool count), diff view toggles, task metadata table, copy buttons, tooltip content (unless overridden by text-xs).
+
+**`text-xs` (13px) -- sparingly:**
+SessionCard timestamps and diff stats, ProjectGroup counts and "Load more", ModelSelector provider category labels, UserInteractionCard small descriptions, archive panel uppercase labels.
+
+**Rule**: Never use `text-base` for UI chrome. Never use `text-xs` where `text-sm` would work. When in doubt, use `text-sm`.
 
 ### Weight & Style Conventions
 
 - **Regular (400)**: All body text, assistant responses, input
-- **Medium (500)**: Frontmatter keys, section headers, active sidebar items
-- **Semibold (600)**: Buttons, tool names in monospace, group collapse labels
+- **Medium (500)**: Frontmatter keys, section headers, active sidebar items, NewSessionButton label
+- **Semibold (600)**: Buttons (base class), tool names in monospace, group collapse labels
 - **Bold (700)**: Reserved for display `TX-02` usage only
 - **Italic**: Thinking blocks are rendered entirely in italic to distinguish internal reasoning from output
 
@@ -93,20 +104,20 @@ The entire type scale is shifted one notch smaller than Tailwind's defaults to a
 A strict neutral scale for text, from strongest to weakest:
 
 | Level            | Class              | Hex       | Usage                                                                                |
-| ---------------- | ------------------ | --------- | ------------------------------------------------------------------------------------ | --------------------------------------------- |
+| ---------------- | ------------------ | --------- | ------------------------------------------------------------------------------------ |
 | Primary          | `text-foreground`  | `#0a0a0a` | Body text, assistant responses                                                       |
 | Strong secondary | `text-neutral-800` | `#262626` | Session titles, composer text, card headings                                         |
 | Secondary        | `text-neutral-700` | `#404040` | Tool names, file names, input text, question text, tooltips                          |
 | Tertiary         | `text-neutral-600` | `#525252` | Thinking content, developer messages, collapse summaries, tool detail text           |
 | Quaternary       | `text-neutral-500` | `#737373` | Icon buttons at rest, copy buttons, metadata, completion list parents, spinner icons |
 | Placeholder      | `text-neutral-400` | `#a3a3a3` | Placeholder text only (via `placeholder:text-neutral-400`)                           |
-| Decorative       | `text-neutral-300` | `#d4d4d4` | Separators (`                                                                        | `, dots), disabled states, pending todo icons |
+| Decorative       | `text-neutral-300` | `#d4d4d4` | Separators, dots, disabled states, pending todo icons                                |
 
 **Rule**: When a text-neutral-500 element has a hover state, use `hover:text-neutral-700`. When a text-neutral-600 element has a hover state, use `hover:text-neutral-800`.
 
 ### Character
 
-Anti-aliased rendering (`-webkit-font-smoothing: antialiased`). The assistant text area uses generous `line-height: 1.7` for comfortable reading of long-form markdown. Code blocks and tool output use the monospace stack at `0.95em` relative size. The overall typographic feel is **compact but breathable** -- high information density with enough vertical rhythm to avoid fatigue.
+Anti-aliased rendering (`-webkit-font-smoothing: antialiased`). The assistant text area uses `line-height: 1.6` for compact but comfortable reading of long-form markdown. Code blocks and tool output use the monospace stack at `0.95em` relative size. The overall typographic feel is **compact but breathable** -- high information density with enough vertical rhythm to avoid fatigue.
 
 ## 4. Component Stylings
 
@@ -160,14 +171,16 @@ A two-column layout: **sidebar + main panel**. The sidebar is resizable via drag
 
 ### Spacing Strategy
 
-- **Macro spacing**: The main content area uses `px-4 sm:px-6` horizontal padding. The sidebar uses `px-2` to `px-3`.
+- **Main content horizontal**: `px-4 sm:px-6` on the `max-w-4xl` centered column.
+- **Sidebar horizontal**: `px-3` for header/footer bars, `px-2.5` for scroll content.
+- **Message section rhythm**: `space-y-5` between message sections (user turns).
+- **Project group rhythm**: `space-y-3` between sidebar project groups.
 - **Message list bottom padding**: Dynamically calculated via CSS variable `--composer-h` (set by `ResizeObserver` on the composer). This ensures messages are never hidden behind the fixed-position composer.
-- **Vertical rhythm in messages**: Minimal gaps between items in the same "turn." Larger visual breaks between user message sections. The overall density is high -- no excessive whitespace between tool blocks and assistant text.
 
 ### Width Constraints
 
-- **Message content**: No explicit `max-width` on the content column. The content stretches to fill the main panel. Very wide screens will produce long lines -- this is intentional for code-heavy output. Markdown prose uses `line-height: 1.7` to maintain readability at width.
-- **Sidebar**: Default width stored in `localStorage`, resizable. Minimum and maximum bounds enforced during drag.
+- **Message content**: `max-w-4xl` (896px) centered with `mx-auto`. Markdown prose uses `line-height: 1.6` to maintain readability at width.
+- **Sidebar**: Default 340px, stored in `localStorage`, resizable via drag. Minimum 256px, maximum 512px (clamped by available viewport).
 
 ### Scroll Behavior
 

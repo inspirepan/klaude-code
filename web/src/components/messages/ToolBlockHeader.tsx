@@ -51,7 +51,7 @@ export function ToolBlockHeader({
 
   return (
     <>
-      <CollapseRailMarker open={open} expandable={expandable} indicatorClassName="mt-1" />
+      <CollapseRailMarker open={open} expandable={expandable} />
 
       {/* Col 2: tool name + detail */}
       <div className="flex min-h-6 min-w-0 items-center gap-1.5">

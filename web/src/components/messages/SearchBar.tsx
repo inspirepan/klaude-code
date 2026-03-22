@@ -65,7 +65,7 @@ export function SearchBar({
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder="Search…"
-          className="w-48 bg-transparent text-base text-neutral-700 outline-none placeholder:text-neutral-300"
+          className="w-48 bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-300"
         />
         {value ? (
           <span className="whitespace-nowrap text-sm tabular-nums text-neutral-500">

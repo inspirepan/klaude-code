@@ -68,7 +68,7 @@ export function SubAgentGroupCard({
       ) : null}
 
       {/* Elapsed + tool count (right-aligned) */}
-      <div className="ml-auto flex shrink-0 items-center gap-2 text-base text-neutral-500">
+      <div className="ml-auto flex shrink-0 items-center gap-2 text-sm text-neutral-500">
         {elapsedText ? <span className="font-mono">{elapsedText}</span> : null}
         {toolCount > 0 ? (
           <>

@@ -16,9 +16,9 @@ export default {
         mono: ["Lilex Variable", ...defaultTheme.fontFamily.mono],
       },
       fontSize: {
-        xs: ["0.6875rem", { lineHeight: "1rem" }], // 11px (was 2xs)
-        sm: ["0.75rem", { lineHeight: "1rem" }], // 12px (was xs)
-        base: ["0.875rem", { lineHeight: "1.25rem" }], // 14px (was sm)
+        xs: ["0.8125rem", { lineHeight: "1.125rem" }], // 13px
+        sm: ["0.875rem", { lineHeight: "1.25rem" }], // 14px
+        base: ["1rem", { lineHeight: "1.5rem" }], // 16px
       },
       animation: {
         "spin-slow": "spin 3s linear infinite",

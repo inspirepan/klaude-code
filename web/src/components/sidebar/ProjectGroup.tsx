@@ -56,10 +56,10 @@ export function ProjectGroup({
 
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-0.5">
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
-            <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-neutral-700 transition-colors hover:bg-muted/50 hover:text-neutral-900">
+            <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1.5 text-neutral-700 transition-colors hover:bg-muted/50 hover:text-neutral-900">
               {collapsed ? (
                 <Folder className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
               ) : (
@@ -104,7 +104,7 @@ export function ProjectGroup({
       </div>
 
       <CollapsibleContent className="ml-3 border-l border-border pl-1.5">
-        <div className="pb-0.5">
+        <div className="pb-1 pt-0.5">
           {displaySessions.map((session) => (
             <SessionCard
               key={session.id}

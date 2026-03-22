@@ -61,11 +61,11 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
           ) : (
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-300" />
           )}
-          <span className="truncate font-sans text-base">{statusLabel}</span>
+          <span className="truncate font-sans text-sm">{statusLabel}</span>
         </>
       ) : null}
       {elapsed ? (
-        <span className="font-sans text-base">
+        <span className="font-sans text-sm">
           {statusLabel ? <span className="mr-2 text-neutral-300">&middot;</span> : null}
           {elapsed}
         </span>

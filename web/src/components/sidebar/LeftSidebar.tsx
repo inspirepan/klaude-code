@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ARCHIVE_CLEANUP_AGE_SECONDS = 3 * 24 * 60 * 60;
-const DEFAULT_SIDEBAR_WIDTH = 304;
+const DEFAULT_SIDEBAR_WIDTH = 340;
 const SIDEBAR_WIDTH_STORAGE_KEY = "klaude:left-sidebar:width";
 const ARCHIVED_GROUP_COLLAPSE_STORAGE_KEY = "klaude:left-sidebar:archived-collapsed-groups";
 
@@ -487,10 +487,10 @@ export function LeftSidebar(): JSX.Element {
               {loadError !== null ? (
                 <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-card p-3">
                   <div className="mb-1 font-semibold">Load failed</div>
-                  <div className="break-words text-base text-neutral-500">{loadError}</div>
+                  <div className="break-words text-sm text-neutral-500">{loadError}</div>
                   <button
                     type="button"
-                    className="mt-2 cursor-pointer rounded-md border border-neutral-300 bg-card px-2.5 py-1.5 text-base"
+                    className="mt-2 cursor-pointer rounded-md border border-neutral-300 bg-card px-2.5 py-1.5 text-sm"
                     onClick={() => {
                       void refreshSessions();
                     }}
@@ -514,7 +514,7 @@ export function LeftSidebar(): JSX.Element {
                 </div>
               ) : null}
 
-              <div className="space-y-2 pt-1">
+              <div className="space-y-3 pt-1">
                 {activeGroups.map((group) => (
                   <ProjectGroup
                     key={group.work_dir}

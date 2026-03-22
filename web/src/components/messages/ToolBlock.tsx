@@ -108,7 +108,7 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
   const { matchItemIds } = useSearch();
   const { collapseGen, expandGen } = useCollapseAll();
   const bodyTextClass = "text-base";
-  const headerDetailTextClass = "!text-base";
+  const headerDetailTextClass = "!text-sm";
   const detailChipClass = "rounded bg-surface px-1.5 py-0.5 align-middle leading-5";
 
   const defaultExpanded = shouldExpandResult(item);

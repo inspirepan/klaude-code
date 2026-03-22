@@ -171,7 +171,7 @@ export function ModelSelector({
                 }
               }}
               placeholder="Filter models..."
-              className="h-6 w-full bg-transparent text-base text-neutral-700 outline-none placeholder:text-neutral-400"
+              className="h-6 w-full bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-400"
             />
           </div>
           <ScrollArea
@@ -247,7 +247,7 @@ export function ModelSelector({
                               setQuery("");
                             }}
                           >
-                            <span className="min-w-0 flex-1 truncate text-base">
+                            <span className="min-w-0 flex-1 truncate text-sm">
                               {model.model_id}
                               {reasoningParam ? (
                                 <span className="text-neutral-500">

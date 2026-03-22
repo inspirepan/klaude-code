@@ -219,7 +219,7 @@ export function AtFileCompletionList({
                 className="h-4 w-4 shrink-0"
                 style={iconColor ? { color: iconColor } : undefined}
               />
-              <span className="min-w-0 flex-1 truncate text-base leading-6">
+              <span className="min-w-0 flex-1 truncate text-sm leading-6">
                 <span className="text-neutral-500">{display.parent ?? ""}</span>
                 <span className="text-neutral-700">{display.name}</span>
               </span>
@@ -227,7 +227,7 @@ export function AtFileCompletionList({
           );
         })}
         {loading && items.length === 0 ? (
-          <div className="px-2.5 py-1.5 text-base text-neutral-500">Searching files…</div>
+          <div className="px-2.5 py-1.5 text-sm text-neutral-500">Searching files…</div>
         ) : null}
       </ScrollArea>
     </div>

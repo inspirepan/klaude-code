@@ -9,7 +9,7 @@ export function NewSessionButton({ onClick }: NewSessionButtonProps): JSX.Elemen
     <Button
       type="button"
       variant="outline"
-      className="h-8 w-full min-w-0 justify-center gap-1.5 overflow-hidden rounded-lg border-border px-2.5 text-base font-normal text-neutral-900 hover:bg-muted"
+      className="h-8 w-full min-w-0 justify-center gap-1.5 overflow-hidden rounded-lg border-border px-2.5 text-sm font-medium text-neutral-900 hover:bg-muted"
       onClick={() => {
         onClick();
       }}

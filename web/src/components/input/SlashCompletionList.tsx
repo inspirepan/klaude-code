@@ -68,7 +68,7 @@ export function SlashCompletionList({
                 onSelect(item);
               }}
             >
-              <span className="min-w-0 flex-1 truncate text-base leading-6">
+              <span className="min-w-0 flex-1 truncate text-sm leading-6">
                 <span className="text-neutral-800">
                   {item.kind === "command" ? `/${item.name}` : `skill:${item.name}`}
                 </span>

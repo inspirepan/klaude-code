@@ -187,7 +187,7 @@ export function DraftWorkspacePicker({
                       }}
                     >
                       <Folder className="h-4 w-4 shrink-0 text-neutral-500" />
-                      <span className="min-w-0 flex-1 truncate text-base leading-6">
+                      <span className="min-w-0 flex-1 truncate text-sm leading-6">
                         <span className="text-neutral-500">{parent ?? ""}</span>
                         <span className="text-neutral-700">{name}</span>
                       </span>
@@ -196,7 +196,7 @@ export function DraftWorkspacePicker({
                 })}
               </ScrollArea>
             ) : (
-              <div className="px-2.5 py-1.5 text-base text-neutral-500">
+              <div className="px-2.5 py-1.5 text-sm text-neutral-500">
                 No matching directory found. Press Enter to use this path.
               </div>
             )}

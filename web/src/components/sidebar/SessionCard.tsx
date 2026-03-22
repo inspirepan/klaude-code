@@ -142,7 +142,7 @@ export function SessionCard({
     <div className="group flex items-center gap-0.5">
       <div
         className={cn(
-          "relative flex min-w-0 flex-1 items-center gap-1 rounded-md py-1 pl-1.5 pr-1.5 text-left transition-colors",
+          "relative flex min-w-0 flex-1 items-center gap-1.5 rounded-md py-1.5 pl-2 pr-2 text-left transition-colors",
           showSuccessState
             ? active
               ? "status-success-card-settle-active"
