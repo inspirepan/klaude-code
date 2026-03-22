@@ -27,7 +27,7 @@ interface TodoListViewProps {
 }
 
 export function TodoListView({ uiExtra }: TodoListViewProps): JSX.Element {
-  const { todos, new_completed } = uiExtra.todo_list;
+  const { todos, new_completed, explanation } = uiExtra.todo_list;
   const newCompletedSet = new Set(new_completed);
 
   return (
@@ -46,6 +46,9 @@ export function TodoListView({ uiExtra }: TodoListViewProps): JSX.Element {
           </div>
         );
       })}
+      {explanation && (
+        <p className="mt-1 text-sm text-neutral-400 italic">{explanation}</p>
+      )}
     </div>
   );
 }

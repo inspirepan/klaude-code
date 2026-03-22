@@ -70,7 +70,6 @@ FAST_TOOLS: frozenset[str] = frozenset(
         tools.WRITE,
         tools.BASH,
         tools.TODO_WRITE,
-        tools.UPDATE_PLAN,
         tools.APPLY_PATCH,
         tools.REPORT_BACK,
         tools.REWIND,

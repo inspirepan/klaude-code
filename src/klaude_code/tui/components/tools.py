@@ -173,7 +173,7 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
     return _render_tool_call_tree(mark=MARK_BASH, tool_name=tool_name, details=None)
 
 
-def render_update_plan_tool_call(arguments: str) -> RenderableType:
+def render_todo_write_tool_call(arguments: str) -> RenderableType:
     tool_name = "Plan"
     details: RenderableType | None = None
 
@@ -388,7 +388,10 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
         text.stylize(text_style)
         todo_grid.add_row(Text(mark, style=mark_style), text)
 
-    return todo_grid
+    parts: list[RenderableType] = [todo_grid]
+    if ui_extra.explanation:
+        parts.append(Text(ui_extra.explanation, style=ThemeKey.TODO_EXPLANATION))
+    return Group(*parts) if len(parts) > 1 else todo_grid
 
 
 def render_generic_tool_result(result: str, *, is_error: bool = False) -> RenderableType:
@@ -607,7 +610,6 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.READ: "Reading",
     tools.WRITE: "Writing",
     tools.TODO_WRITE: "Planning",
-    tools.UPDATE_PLAN: "Planning",
     tools.WEB_FETCH: "Fetching Web",
     tools.WEB_SEARCH: "Searching Web",
     tools.REPORT_BACK: "Reporting",
@@ -649,9 +651,7 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
         case tools.APPLY_PATCH:
             return render_apply_patch_tool_call(e.arguments)
         case tools.TODO_WRITE:
-            return render_generic_tool_call("Update To-Dos", "", MARK_PLAN)
-        case tools.UPDATE_PLAN:
-            return render_update_plan_tool_call(e.arguments)
+            return render_todo_write_tool_call(e.arguments)
         case tools.REPORT_BACK:
             return render_report_back_tool_call()
         case tools.REWIND:
@@ -765,7 +765,7 @@ def render_tool_result(
             if diff_ui:
                 return wrap(r_diffs.render_structured_diff(diff_ui, show_file_name=True))
             return _render_fallback()
-        case tools.TODO_WRITE | tools.UPDATE_PLAN:
+        case tools.TODO_WRITE:
             return wrap(render_todo(e))
         case tools.BASH:
             return _render_fallback()

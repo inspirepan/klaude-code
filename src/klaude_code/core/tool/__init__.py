@@ -18,7 +18,6 @@ from .rewind_tool import RewindTool
 from .shell.bash_tool import BashTool
 from .shell.command_safety import SafetyCheckResult, is_safe_command
 from .todo.todo_write_tool import TodoWriteTool
-from .todo.update_plan_tool import UpdatePlanTool
 from .tool_abc import ToolABC
 from .tool_registry import get_registry, get_tool_schemas
 from .tool_runner import run_tool
@@ -43,7 +42,7 @@ __all__ = [
     "TodoWriteTool",
     "ToolABC",
     "ToolContext",
-    "UpdatePlanTool",
+
     "WebFetchTool",
     "WebSearchTool",
     "WriteTool",

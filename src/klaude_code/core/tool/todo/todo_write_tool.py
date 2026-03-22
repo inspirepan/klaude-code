@@ -40,6 +40,7 @@ def get_new_completed_todos(old_todos: list[model.TodoItem], new_todos: list[mod
 
 class TodoWriteArguments(BaseModel):
     todos: list[model.TodoItem]
+    explanation: str | None = None
 
 
 @register(tools.TODO_WRITE)
@@ -68,7 +69,11 @@ class TodoWriteTool(ToolABC):
                             "additionalProperties": False,
                         },
                         "description": "The updated todo list",
-                    }
+                    },
+                    "explanation": {
+                        "type": "string",
+                        "description": "Optional explanation for the current plan state.",
+                    },
                 },
                 "required": ["todos"],
                 "additionalProperties": False,
@@ -96,7 +101,7 @@ class TodoWriteTool(ToolABC):
         # Store todos via todo context
         todo_context.set_todos(args.todos)
 
-        ui_extra = model.TodoUIExtra(todos=args.todos, new_completed=new_completed)
+        ui_extra = model.TodoUIExtra(todos=args.todos, new_completed=new_completed, explanation=args.explanation)
 
         response = f"""Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
 

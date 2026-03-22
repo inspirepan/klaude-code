@@ -36,11 +36,6 @@ AGENT_EXPLORE_PARALLEL_INST = """- Launch multiple explore sub-agents in paralle
 TODO_FREQUENT_USAGE_INST = """- Use `TodoWrite` frequently for planning and tracking progress on multi-step tasks."""
 TODO_COMPLETE_IMMEDIATELY_INST = """- Mark todos completed immediately when finished. Do not batch-complete later."""
 
-UPDATE_PLAN_USAGE_INST = """- Use `update_plan` for non-trivial tasks with meaningful, verifiable steps."""
-UPDATE_PLAN_STATUS_INST = (
-    """- Keep exactly one step `in_progress`, update status as work progresses, and mark completed promptly."""
-)
-
 ASK_USER_QUESTION_USAGE_INST = (
     """- Use the AskUserQuestion tool to ask questions, clarify and gather information as needed."""
 )
@@ -111,9 +106,6 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
 
     if tools.TODO_WRITE in tool_name_set:
         strategy_lines.extend([TODO_FREQUENT_USAGE_INST, TODO_COMPLETE_IMMEDIATELY_INST])
-
-    if tools.UPDATE_PLAN in tool_name_set:
-        strategy_lines.extend([UPDATE_PLAN_USAGE_INST, UPDATE_PLAN_STATUS_INST])
 
     if tools.ASK_USER_QUESTION in tool_name_set:
         strategy_lines.append(ASK_USER_QUESTION_USAGE_INST)

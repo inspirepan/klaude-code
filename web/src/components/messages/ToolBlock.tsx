@@ -1,5 +1,5 @@
 import { Loader } from "lucide-react";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 
 import type { ToolBlockItem } from "../../types/message";
 import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
@@ -13,7 +13,7 @@ import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra"
 import { hasRichUIExtra } from "./tool-rich-result-ui";
 import { useStreamThrottle } from "./useStreamThrottle";
 
-const PLAN_TOOLS = new Set(["TodoWrite", "update_plan"]);
+const PLAN_TOOLS = new Set(["TodoWrite"]);
 const DEFAULT_EXPANDED_TOOLS = new Set(["apply_patch", "Edit", "Write"]);
 
 function extractHeaderDetail(toolName: string, args: string): string {
@@ -69,29 +69,11 @@ interface ToolBlockProps {
   workDir?: string;
 }
 
-function extractPlanExplanation(args: string): string {
-  try {
-    const parsed = JSON.parse(args);
-    if (typeof parsed.explanation === "string") return parsed.explanation.trim();
-  } catch {
-    /* ignore */
-  }
-  return "";
-}
-
 function PlanBlock({ item }: ToolBlockProps): JSX.Element {
-  const explanation = useMemo(() => {
-    if (item.toolName === "update_plan") return extractPlanExplanation(item.arguments);
-    return "";
-  }, [item.toolName, item.arguments]);
-
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
     <div className="w-fit rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2.5 text-base">
-      {explanation ? (
-        <p className="mb-1 font-sans text-base text-neutral-500">{explanation}</p>
-      ) : null}
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} />
       ) : item.isStreaming ? (
