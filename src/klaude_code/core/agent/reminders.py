@@ -8,6 +8,7 @@ from klaude_code.core.memory import (
     Memory,
     discover_memory_files_near_paths,
     format_memories_reminder,
+    format_memory_content,
     get_auto_memory_path,
     get_memory_paths,
     load_auto_memory,
@@ -114,6 +115,7 @@ async def _load_at_file_recursive(
     collected_images: list[message.ImageURLPart],
     collected_image_paths: list[str],
     visited: set[str],
+    discovered_memories: list[Memory],
     base_dir: Path | None = None,
     mentioned_in: str | None = None,
 ) -> None:
@@ -165,6 +167,7 @@ Result of calling the {tools.READ} tool:
                         collected_images,
                         collected_image_paths,
                         visited,
+                        discovered_memories,
                         base_dir=path.parent,
                         mentioned_in=path_str,
                     )
@@ -182,6 +185,17 @@ Result of calling the {tools.BASH} tool:
         )
         at_ops.append(model.AtFileOp(operation="List", path=path_str + "/", mentioned_in=mentioned_in))
 
+        # Discover memory files (AGENTS.md/CLAUDE.md) along the path from work_dir to this directory
+        new_memories = discover_memory_files_near_paths(
+            [path_str],
+            work_dir=session.work_dir,
+            is_memory_loaded=lambda p: _is_memory_loaded(session, p),
+            mark_memory_loaded=lambda p: _mark_memory_loaded(session, p),
+        )
+        for memory in new_memories:
+            formatted_blocks.append(format_memory_content(memory))
+            discovered_memories.append(memory)
+
 
 async def at_file_reader_reminder(
     session: Session,
@@ -195,6 +209,7 @@ async def at_file_reader_reminder(
     formatted_blocks: list[str] = []
     collected_images: list[message.ImageURLPart] = []
     collected_image_paths: list[str] = []
+    discovered_memories: list[Memory] = []
     visited: set[str] = set()
 
     for source in at_pattern_sources:
@@ -206,6 +221,7 @@ async def at_file_reader_reminder(
             collected_images,
             collected_image_paths,
             visited,
+            discovered_memories,
             mentioned_in=source.mentioned_in,
         )
 
@@ -216,6 +232,12 @@ async def at_file_reader_reminder(
     ui_items: list[model.DeveloperUIItem] = [model.AtFileOpsUIItem(ops=at_ops)]
     if collected_image_paths:
         ui_items.append(model.AtFileImagesUIItem(paths=collected_image_paths))
+    if discovered_memories:
+        loaded_files = [
+            model.MemoryFileLoaded(path=m.path, mentioned_patterns=_extract_at_patterns(m.content))
+            for m in discovered_memories
+        ]
+        ui_items.append(model.MemoryLoadedUIItem(files=loaded_files))
     return message.DeveloperMessage(
         parts=message.parts_from_text_and_images(
             f"""<system-reminder>{at_files_str}\n</system-reminder>""",
@@ -488,13 +510,3 @@ async def last_path_memory_reminder(
             ui_extra=model.DeveloperUIExtra(items=[model.MemoryLoadedUIItem(files=loaded_files)]),
         )
     return None
-
-
-ALL_REMINDERS = [
-    file_changed_externally_reminder,
-    memory_reminder,
-    last_path_memory_reminder,
-    at_file_reader_reminder,
-    image_reminder,
-    skill_reminder,
-]
