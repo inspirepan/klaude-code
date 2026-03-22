@@ -16,8 +16,6 @@ interface ThinkingBlockProps {
   item: ThinkingBlockItem;
 }
 
-const streamAnimation = { animation: "fadeIn" as const, duration: 120, sep: "char" as const };
-
 function Strong(props: React.ComponentPropsWithoutRef<"strong">): JSX.Element {
   return <strong className="font-normal text-neutral-700" {...props} />;
 }
@@ -99,7 +97,6 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
             <Streamdown
               mode={item.isStreaming ? "static" : "streaming"}
               isAnimating={item.isStreaming}
-              animated={item.isStreaming ? streamAnimation : undefined}
               components={thinkingComponents}
             >
               {item.content}

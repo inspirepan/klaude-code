@@ -151,13 +151,13 @@ export function DraftWorkspacePicker({
         </div>
 
         {workspaceMenuOpen ? (
-          <div className="absolute left-0 right-0 z-20 mt-1.5 overflow-hidden rounded-lg border border-neutral-200/80 bg-white pb-1.5 pt-2 shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
+          <div className="absolute left-0 right-0 z-20 mt-1.5 overflow-hidden rounded-lg border border-neutral-200/80 bg-white py-2 shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
             {filteredWorkspaceOptions.length > 0 ? (
               <ScrollArea
                 ref={listRef}
                 className="w-full"
                 viewportClassName="max-h-64"
-                type="hover"
+                type="always"
               >
                 {filteredWorkspaceOptions.map((workspace) => {
                   const isHighlighted = workspace === filteredWorkspaceOptions[highlightIndex];
@@ -169,7 +169,7 @@ export function DraftWorkspacePicker({
                       data-workspace={workspace}
                       type="button"
                       className={[
-                        "ml-2 mr-2.5 flex w-[calc(100%-1.125rem)] items-center gap-2 rounded-md px-2 py-1 text-left transition-colors",
+                        "ml-2 mr-3.5 flex w-[calc(100%-1.375rem)] items-center gap-2 rounded-md px-2 py-1 text-left transition-colors",
                         isHighlighted || isSelected
                           ? "bg-muted text-neutral-900"
                           : "text-neutral-600 hover:bg-surface",

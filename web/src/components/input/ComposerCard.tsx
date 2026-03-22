@@ -407,7 +407,10 @@ export function ComposerCard({
           loading={modelLoading}
           disabled={modelDisabled}
           placeholder={modelPlaceholder}
-          onSelect={onModelSelect}
+          onSelect={(modelName) => {
+            onModelSelect(modelName);
+            requestAnimationFrame(() => ref.current?.focus());
+          }}
           dropUp={modelDropUp}
         />
         <div className="flex items-center gap-2">

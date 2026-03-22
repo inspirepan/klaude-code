@@ -191,9 +191,9 @@ export function AtFileCompletionList({
     >
       <ScrollArea
         ref={listRef}
-        className="w-full pb-1.5 pt-2"
+        className="w-full py-2"
         viewportClassName="max-h-72"
-        type="hover"
+        type="always"
       >
         {items.map((path, index) => {
           const highlighted = index === highlightIndex;
@@ -207,7 +207,7 @@ export function AtFileCompletionList({
               data-file-completion={path}
               type="button"
               className={[
-                "ml-2 mr-2.5 flex w-[calc(100%-1.125rem)] items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors",
+                "ml-2 mr-3.5 flex w-[calc(100%-1.375rem)] items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors",
                 highlighted ? "bg-muted text-neutral-900" : "text-neutral-600 hover:bg-surface",
               ].join(" ")}
               onMouseDown={(event) => {

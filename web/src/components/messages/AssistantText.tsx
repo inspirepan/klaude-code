@@ -14,7 +14,6 @@ interface AssistantTextProps {
 }
 
 const plugins = { code, mermaid };
-const streamAnimation = { animation: "fadeIn" as const, duration: 120, sep: "char" as const };
 const REMOTE_URL_PREFIXES = ["http://", "https://", "data:", "blob:", "//", "#", "/api/"];
 const WINDOWS_ABSOLUTE_PATH_RE = /^[A-Za-z]:[\\/]/;
 const POSIX_LOCAL_ROOT_PREFIXES = ["/Users/", "/home/", "/tmp/", "/var/", "/private/", "/Volumes/"];
@@ -74,7 +73,6 @@ export function AssistantText({ item }: AssistantTextProps): JSX.Element {
       <Streamdown
         mode={item.isStreaming ? "static" : "streaming"}
         isAnimating={item.isStreaming}
-        animated={streamAnimation}
         plugins={plugins}
         urlTransform={urlTransform}
       >
