@@ -36,6 +36,10 @@ class UploadImageRequest(BaseModel):
     file_name: str | None = None
 
 
+class ListDirsResponse(BaseModel):
+    items: list[str]
+
+
 class SearchFilesResponse(BaseModel):
     items: list[str]
 
@@ -241,6 +245,50 @@ def _resolve_image_suffix(*, mime_type: str, file_name: str | None) -> str | Non
     if suffix and guessed_mime == mime_type and suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
         return suffix
     return _IMAGE_MIME_SUFFIXES.get(mime_type)
+
+
+def _list_dirs(path_input: str, *, limit: int) -> list[str]:
+    """List directories matching a partial filesystem path for workspace completion."""
+    expanded = os.path.expanduser(path_input)
+
+    if expanded.endswith("/"):
+        parent = Path(expanded)
+        prefix = ""
+    else:
+        parent = Path(expanded).parent
+        prefix = Path(expanded).name.lower()
+
+    if not parent.is_dir():
+        return []
+
+    results: list[str] = []
+    try:
+        entries = sorted(parent.iterdir(), key=lambda p: (p.name.startswith("."), p.name.lower()))
+    except OSError:
+        return []
+
+    for entry in entries:
+        if not entry.is_dir():
+            continue
+        if entry.name in _SEARCH_EXCLUDED_DIRS:
+            continue
+        if prefix and not entry.name.lower().startswith(prefix):
+            continue
+        results.append(str(entry) + "/")
+        if len(results) >= limit:
+            break
+    return results
+
+
+@router.get("/list-dirs")
+async def list_dirs(
+    path: str = Query("", description="Partial filesystem path to complete"),
+    limit: int = Query(20, ge=1, le=50),
+) -> ListDirsResponse:
+    """List directories matching a partial path for workspace picker completion."""
+    if not path.strip():
+        return ListDirsResponse(items=[])
+    return ListDirsResponse(items=_list_dirs(path.strip(), limit=limit))
 
 
 @router.get("")

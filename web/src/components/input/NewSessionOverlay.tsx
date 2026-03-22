@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useMountEffect } from "@/hooks/useMountEffect";
-import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
+import { fetchConfigModels, listDirs, type ConfigModelSummary } from "../../api/client";
 import { useSessionStore } from "../../stores/session-store";
 import { ComposerCard, type ComposerImageAttachment } from "./ComposerCard";
 import { DraftWorkspacePicker } from "./DraftWorkspacePicker";
@@ -44,13 +44,44 @@ export function NewSessionOverlay({
     [groups],
   );
   const normalizedDraftWorkDir = draftWorkDir.trim();
+  const [dirCompletions, setDirCompletions] = useState<string[]>([]);
   const filteredWorkspaceOptions = useMemo(() => {
     if (normalizedDraftWorkDir.length === 0) {
       return workspaceOptions;
     }
     const query = normalizedDraftWorkDir.toLowerCase();
-    return workspaceOptions.filter((workspace) => workspace.toLowerCase().includes(query));
-  }, [normalizedDraftWorkDir, workspaceOptions]);
+    const historyMatches = workspaceOptions.filter((workspace) =>
+      workspace.toLowerCase().includes(query),
+    );
+    // Merge filesystem completions, deduplicating against history matches
+    const seen = new Set(historyMatches.map((w) => w.replace(/\/+$/, "")));
+    const fsMatches = dirCompletions.filter((dir) => !seen.has(dir.replace(/\/+$/, "")));
+    return [...historyMatches, ...fsMatches];
+  }, [normalizedDraftWorkDir, workspaceOptions, dirCompletions]);
+
+  useEffect(() => {
+    if (normalizedDraftWorkDir.length === 0) {
+      setDirCompletions([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void listDirs(normalizedDraftWorkDir, controller.signal)
+        .then((items) => {
+          if (!controller.signal.aborted) {
+            setDirCompletions(items);
+          }
+        })
+        .catch(() => {
+          // ignore aborted / network errors
+        });
+    }, 150);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [normalizedDraftWorkDir]);
+
   const normalizedText = text.trim();
   const hasImages = images.length > 0;
   const disableSubmit =
