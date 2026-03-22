@@ -55,7 +55,7 @@ export function ToolBlockHeader({
 
       {/* Col 2: tool name + detail */}
       <div className="flex min-h-6 min-w-0 items-center gap-1.5">
-        <span className="whitespace-nowrap font-mono font-semibold text-neutral-600">
+        <span className="whitespace-nowrap font-mono font-semibold text-neutral-700">
           {item.toolName}
         </span>
         {detailChip ? (

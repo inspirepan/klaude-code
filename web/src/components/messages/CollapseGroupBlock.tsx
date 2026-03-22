@@ -460,7 +460,7 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
                   {fs.name}
                   {" ("}
                   {fs.del !== undefined && fs.del > 0 ? (
-                    <span className="text-rose-600">-{fs.del}</span>
+                    <span className="text-red-600">-{fs.del}</span>
                   ) : null}
                   {fs.del !== undefined && fs.del > 0 && fs.add > 0 ? " " : null}
                   {fs.add > 0 ? <span className="text-emerald-600">+{fs.add}</span> : null}
@@ -536,18 +536,18 @@ export function CollapseGroupBlock({
           <button
             type="button"
             onClick={onToggle}
-            className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-base text-neutral-500 transition-colors hover:text-neutral-600`}
+            className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-base text-neutral-600 transition-colors hover:text-neutral-700`}
           >
             <CollapseRailMarker open={!collapsed} className="pt-0.5" indicatorClassName="mt-0" />
             <span className="flex min-w-0 items-center gap-1.5 pl-1">
               <span className="shrink-0 font-mono">
                 {stepLabel}
-                {summary.length > 0 ? <span className="text-neutral-500">,</span> : null}
+                {summary.length > 0 ? <span className="text-neutral-600">,</span> : null}
               </span>
               {summary.length > 0 ? (
                 <span
                   ref={summarySpanRef}
-                  className="min-w-0 truncate pl-1 font-mono text-neutral-500"
+                  className="min-w-0 truncate pl-1 font-mono text-neutral-600"
                 >
                   <SummaryDisplay summary={summary} />
                 </span>

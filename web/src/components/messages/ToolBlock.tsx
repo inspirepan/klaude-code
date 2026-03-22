@@ -73,11 +73,11 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="w-fit rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2.5 text-base">
+    <div className="w-fit rounded-lg border border-border/80 bg-surface/50 px-3.5 py-2.5 text-base">
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 font-sans text-base text-neutral-500">
+        <div className="flex items-center gap-1.5 font-sans text-base text-neutral-600">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
           <span>Planning…</span>
         </div>
@@ -91,11 +91,11 @@ function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
     item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2.5 text-base">
+    <div className="rounded-lg border border-border/80 bg-surface/50 px-3.5 py-2.5 text-base">
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 font-sans text-base text-neutral-500">
+        <div className="flex items-center gap-1.5 font-sans text-base text-neutral-600">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
           <span>Asking user question…</span>
         </div>
@@ -170,8 +170,8 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
   const detailColor = isError
     ? "text-red-700"
     : item.resultStatus === "aborted"
-      ? "text-neutral-500"
-      : "text-neutral-500";
+      ? "text-neutral-600"
+      : "text-neutral-600";
 
   return (
     <div

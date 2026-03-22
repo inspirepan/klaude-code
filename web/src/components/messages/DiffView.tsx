@@ -197,7 +197,7 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
           <div className="bg-surface pt-1">
             <button
               type="button"
-              className="self-start pb-1 pl-2 text-sm text-neutral-400 transition-colors hover:text-neutral-600"
+              className="self-start pb-1 pl-2 text-sm text-neutral-500 transition-colors hover:text-neutral-700"
               onClick={() => setExpanded((value) => !value)}
             >
               {expanded ? "Show less" : "Show more"}

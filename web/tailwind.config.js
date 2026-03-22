@@ -23,6 +23,12 @@ export default {
       animation: {
         "spin-slow": "spin 3s linear infinite",
       },
+      boxShadow: {
+        float: "0 4px 16px rgba(0, 0, 0, 0.08)",
+        "float-lg": "0 8px 30px rgba(0, 0, 0, 0.08)",
+        toast: "0 8px 24px -16px rgba(15, 15, 15, 0.35)",
+        overlay: "0 24px 80px rgba(0, 0, 0, 0.14)",
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",

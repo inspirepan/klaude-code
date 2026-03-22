@@ -134,7 +134,7 @@ function CollapsibleRow({
     >
       <CollapseRailMarker open={open} expandable={expandable} inactiveMode="hidden" />
       <span
-        className={`min-w-0 whitespace-nowrap font-mono font-normal text-neutral-500 ${labelClassName ?? ""}`}
+        className={`min-w-0 whitespace-nowrap font-mono font-normal text-neutral-600 ${labelClassName ?? ""}`}
       >
         {label}
       </span>
@@ -155,7 +155,7 @@ function CollapsibleRow({
 
 function PathList({ paths }: { paths: string[] }): JSX.Element {
   return (
-    <ul className="list-disc space-y-1 pl-5 text-base leading-6 marker:text-neutral-500">
+    <ul className="list-disc space-y-1 pl-5 text-base leading-6 marker:text-neutral-600">
       {paths.map((p) => (
         <li key={p}>
           <PathPill path={p} />
@@ -189,7 +189,7 @@ function AttachDetail({
                 <PathList paths={g.paths} />
                 {g.mentionedIn ? (
                   <div className="mt-0.5 text-base leading-6">
-                    <span className="mr-1 text-neutral-500">mentioned in</span>
+                    <span className="mr-1 text-neutral-600">mentioned in</span>
                     <PathPill path={g.mentionedIn} />
                   </div>
                 ) : null}
@@ -208,7 +208,7 @@ function AttachDetail({
               key={p}
               src={buildFileApiUrl(p, sessionId)}
               alt={p}
-              className="block h-auto max-h-[220px] w-full rounded-md border border-neutral-200/70 bg-white object-contain"
+              className="block h-auto max-h-[220px] w-full rounded-md border border-border/70 bg-card object-contain"
               loading="lazy"
             />
           ))}
@@ -229,7 +229,7 @@ export function DeveloperMessage({ items }: DeveloperMessageProps): JSX.Element 
   const summary = hasAttachments ? buildAttachedSummary(items) : "";
 
   return (
-    <div className="flex flex-col font-sans text-base text-neutral-500">
+    <div className="flex flex-col font-sans text-base text-neutral-600">
       {hasAttachments ? (
         <CollapsibleRow label={`Attached ${summary}`}>
           <AttachDetail devItems={items} images={images} />

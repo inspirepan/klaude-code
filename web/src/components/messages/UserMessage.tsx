@@ -125,7 +125,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
               <img
                 src={src}
                 alt={alt}
-                className="block h-auto max-h-[180px] w-auto max-w-[min(260px,100%)] rounded-md border border-neutral-200/70 bg-white object-contain"
+                className="block h-auto max-h-[180px] w-auto max-w-[min(260px,100%)] rounded-md border border-border/70 bg-card object-contain"
                 loading="lazy"
               />
             </button>
@@ -181,7 +181,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
               aria-modal="true"
             >
               <div
-                className="bg-white/72 absolute inset-0 backdrop-blur-[3px]"
+                className="bg-card/72 absolute inset-0 backdrop-blur-[3px]"
                 onClick={() => setShowMore(false)}
               />
               <div
@@ -227,7 +227,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
                 src={expandedImageSrc}
                 alt={expandedImageAlt}
                 onClick={(event) => event.stopPropagation()}
-                className="block h-auto max-h-[calc(100vh-2rem)] w-auto max-w-[calc(100vw-2rem)] rounded-lg bg-white shadow-2xl"
+                className="block h-auto max-h-[calc(100vh-2rem)] w-auto max-w-[calc(100vw-2rem)] rounded-lg bg-card shadow-2xl"
               />
             </div>,
             document.body,

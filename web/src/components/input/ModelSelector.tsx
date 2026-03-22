@@ -132,7 +132,7 @@ export function ModelSelector({
       >
         <span className="max-w-44 truncate">{triggerLabel}</span>
         <ChevronDown
-          className={`h-3.5 w-3.5 mt-px text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`mt-px h-3.5 w-3.5 text-neutral-500 transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
 
@@ -140,11 +140,11 @@ export function ModelSelector({
         <div
           className={
             panelClassName ??
-            `absolute left-0 z-30 w-[360px] overflow-hidden rounded-lg border border-neutral-200/80 bg-white pt-1 shadow-[0_8px_30px_rgba(0,0,0,0.08)] ${dropUp ? "bottom-full mb-2" : "top-full mt-2"}`
+            `absolute left-0 z-30 w-[360px] overflow-hidden rounded-lg border border-border/80 bg-card pt-1 shadow-float-lg ${dropUp ? "bottom-full mb-2" : "top-full mt-2"}`
           }
         >
           <div className="flex items-center gap-1.5 border-b border-neutral-100 px-2 pb-1.5 pt-1">
-            <Search className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+            <Search className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
             <input
               ref={searchRef}
               type="text"
@@ -174,7 +174,12 @@ export function ModelSelector({
               className="h-6 w-full bg-transparent text-base text-neutral-700 outline-none placeholder:text-neutral-400"
             />
           </div>
-          <ScrollArea ref={listRef} className="w-full py-2" viewportClassName="max-h-96" type="always">
+          <ScrollArea
+            ref={listRef}
+            className="w-full py-2"
+            viewportClassName="max-h-96"
+            type="always"
+          >
             {groups.map((group) => {
               const collapsed = collapsedProviders[group.provider] === true;
               return (

@@ -232,7 +232,7 @@ export function ComposerCard({
   return (
     <div
       ref={rootRef}
-      className="rounded-lg bg-white px-4 py-2.5 shadow-sm ring-1 ring-black/[0.06]"
+      className="rounded-lg bg-card px-4 py-2.5 shadow-sm ring-1 ring-black/[0.06]"
     >
       <input
         ref={fileInputRef}
@@ -366,7 +366,7 @@ export function ComposerCard({
           {images.map((attachment) => (
             <div
               key={attachment.id}
-              className="group relative overflow-hidden rounded-md border border-neutral-200/80 bg-surface"
+              className="group relative overflow-hidden rounded-md border border-border/80 bg-surface"
             >
               <img
                 src={buildFileApiUrl(attachment.image.file_path)}
@@ -423,7 +423,7 @@ export function ComposerCard({
                 }}
                 disabled={attachmentsDisabled}
                 aria-label="Add image"
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-500 transition-colors hover:border-neutral-300 hover:text-neutral-700 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-300"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-neutral-500 transition-colors hover:border-neutral-300 hover:text-neutral-700 disabled:cursor-not-allowed disabled:border-border disabled:text-neutral-300"
               >
                 <Plus className="h-4 w-4" strokeWidth={2.2} />
               </button>
@@ -453,7 +453,7 @@ export function ComposerCard({
             <TooltipContent className="flex items-center gap-1.5">
               <span>{buttonLabel}</span>
               {interruptible ? (
-                <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+                <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                   <span className="inline-flex whitespace-pre text-[12px] leading-none">
                     <kbd className="inline-flex font-sans">
                       <span className="min-w-[1em] text-center">Esc</span>

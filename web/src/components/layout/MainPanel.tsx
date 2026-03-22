@@ -41,7 +41,7 @@ export function MainPanel(): JSX.Element {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                     onClick={() => {
                       setSidebarOpen(true);
                     }}
@@ -52,7 +52,7 @@ export function MainPanel(): JSX.Element {
                 </TooltipTrigger>
                 <TooltipContent className="flex items-center gap-1.5">
                   <span>Expand sidebar</span>
-                  <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+                  <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                     <span className="inline-flex whitespace-pre text-sm leading-none">
                       <kbd className="inline-flex font-sans">
                         <span className="min-w-[1em] text-center">⌘</span>

@@ -56,8 +56,8 @@ export function SearchBar({
 
   return (
     <div className="absolute right-4 top-2 z-30 sm:right-6">
-      <div className="flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 shadow-sm">
-        <Search className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+      <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 shadow-sm">
+        <Search className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
         <input
           ref={inputRef}
           type="text"
@@ -77,7 +77,7 @@ export function SearchBar({
             type="button"
             onClick={onPrev}
             disabled={totalMatches === 0}
-            className="cursor-pointer p-0.5 text-neutral-400 hover:text-neutral-600 disabled:cursor-default disabled:opacity-30"
+            className="cursor-pointer p-0.5 text-neutral-500 hover:text-neutral-700 disabled:cursor-default disabled:opacity-30"
           >
             <ChevronUp className="h-3.5 w-3.5" />
           </button>
@@ -85,14 +85,14 @@ export function SearchBar({
             type="button"
             onClick={onNext}
             disabled={totalMatches === 0}
-            className="cursor-pointer p-0.5 text-neutral-400 hover:text-neutral-600 disabled:cursor-default disabled:opacity-30"
+            className="cursor-pointer p-0.5 text-neutral-500 hover:text-neutral-700 disabled:cursor-default disabled:opacity-30"
           >
             <ChevronDown className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="ml-0.5 cursor-pointer p-0.5 text-neutral-400 hover:text-neutral-600"
+            className="ml-0.5 cursor-pointer p-0.5 text-neutral-500 hover:text-neutral-700"
           >
             <X className="h-3.5 w-3.5" />
           </button>

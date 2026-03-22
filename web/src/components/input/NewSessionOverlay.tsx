@@ -207,15 +207,15 @@ export function NewSessionOverlay({
     <div className="absolute inset-0 z-20 flex items-center justify-center px-4 py-6 sm:px-6">
       {showBackdrop ? (
         <div
-          className="bg-white/72 absolute inset-0 backdrop-blur-[3px]"
+          className="bg-card/72 absolute inset-0 backdrop-blur-[3px]"
           onClick={() => {
             onClose?.();
           }}
         />
       ) : null}
       <div
-        className={`relative w-full max-w-2xl -translate-y-[25vh] rounded-xl border border-neutral-200/90 bg-white p-3 ${
-          showBackdrop ? "shadow-[0_24px_80px_rgba(0,0,0,0.14)]" : ""
+        className={`relative w-full max-w-2xl -translate-y-[25vh] rounded-xl border border-border/90 bg-card p-3 ${
+          showBackdrop ? "shadow-overlay" : ""
         } sm:p-4`}
       >
         <div className="mb-3 space-y-0.5">

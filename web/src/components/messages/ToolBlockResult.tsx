@@ -74,7 +74,7 @@ export function ToolBlockResult({
                           </div>
                         ))}
                         <div
-                          className={`my-0.5 ${miniTextClass} cursor-default font-sans text-neutral-400`}
+                          className={`my-0.5 ${miniTextClass} cursor-default font-sans text-neutral-500`}
                         >
                           {`··· ${hiddenCount} lines hidden ···`}
                         </div>

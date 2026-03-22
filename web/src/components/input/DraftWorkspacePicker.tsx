@@ -110,11 +110,11 @@ export function DraftWorkspacePicker({
       <div ref={workspacePickerRef} className="relative">
         <div
           className={[
-            "flex items-center rounded-lg bg-white shadow-sm ring-1 ring-black/5 transition-colors",
-            workspaceMenuOpen ? "bg-white" : "hover:bg-white",
+            "flex items-center rounded-lg bg-card shadow-sm ring-1 ring-black/5 transition-colors",
+            workspaceMenuOpen ? "bg-card" : "hover:bg-card",
           ].join(" ")}
         >
-          <div className="pl-3 text-neutral-400">
+          <div className="pl-3 text-neutral-500">
             <Folder className="h-4 w-4" />
           </div>
           <input
@@ -135,7 +135,7 @@ export function DraftWorkspacePicker({
           />
           <button
             type="button"
-            className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-700"
+            className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
             onClick={() => {
               setWorkspaceMenuOpen((prev) => !prev);
             }}
@@ -151,7 +151,7 @@ export function DraftWorkspacePicker({
         </div>
 
         {workspaceMenuOpen ? (
-          <div className="absolute left-0 right-0 z-20 mt-1.5 overflow-hidden rounded-lg border border-neutral-200/80 bg-white py-2 shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
+          <div className="absolute left-0 right-0 z-20 mt-1.5 overflow-hidden rounded-lg border border-border/80 bg-card py-2 shadow-float">
             {filteredWorkspaceOptions.length > 0 ? (
               <ScrollArea
                 ref={listRef}
@@ -186,7 +186,7 @@ export function DraftWorkspacePicker({
                         onSelect?.();
                       }}
                     >
-                      <Folder className="h-4 w-4 shrink-0 text-neutral-400" />
+                      <Folder className="h-4 w-4 shrink-0 text-neutral-500" />
                       <span className="min-w-0 flex-1 truncate text-base leading-6">
                         <span className="text-neutral-500">{parent ?? ""}</span>
                         <span className="text-neutral-700">{name}</span>
@@ -202,27 +202,27 @@ export function DraftWorkspacePicker({
             )}
             {filteredWorkspaceOptions.length > 0 ? (
               <div className="flex items-center gap-2 border-t border-neutral-100 px-2.5 py-1.5">
-                <span className="inline-flex items-center gap-1.5 text-neutral-400">
+                <span className="inline-flex items-center gap-1.5 text-neutral-500">
                   <span className="inline-flex items-center gap-0.5">
-                    <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                    <kbd className="inline-flex items-center justify-center rounded border border-border bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                       <ArrowUp className="h-2.5 w-2.5" />
                     </kbd>
-                    <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                    <kbd className="inline-flex items-center justify-center rounded border border-border bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                       <ArrowDown className="h-2.5 w-2.5" />
                     </kbd>
                   </span>
                   <span className="text-sm">navigate</span>
                 </span>
                 <span className="text-neutral-300">·</span>
-                <span className="inline-flex items-center gap-1.5 text-neutral-400">
-                  <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface px-1 text-[11px] font-medium leading-[18px] text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                <span className="inline-flex items-center gap-1.5 text-neutral-500">
+                  <kbd className="inline-flex items-center justify-center rounded border border-border bg-surface px-1 text-[11px] font-medium leading-[18px] text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                     Tab
                   </kbd>
                   <span className="text-sm">fill</span>
                 </span>
                 <span className="text-neutral-300">·</span>
-                <span className="inline-flex items-center gap-1.5 text-neutral-400">
-                  <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                <span className="inline-flex items-center gap-1.5 text-neutral-500">
+                  <kbd className="inline-flex items-center justify-center rounded border border-border bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                     <CornerDownLeft className="h-2.5 w-2.5" />
                   </kbd>
                   <span className="text-sm">select</span>

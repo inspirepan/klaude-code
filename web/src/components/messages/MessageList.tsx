@@ -680,7 +680,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                   <button
                     type="button"
                     onClick={() => scrollToBottom()}
-                    className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white/95 text-neutral-700 shadow-sm ring-1 ring-black/[0.06] backdrop-blur transition-colors hover:bg-white hover:text-neutral-900"
+                    className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card/95 text-neutral-700 shadow-sm ring-1 ring-black/[0.06] backdrop-blur transition-colors hover:bg-card hover:text-neutral-900"
                     aria-label="Scroll to bottom"
                   >
                     <ArrowDown className="h-4 w-4" />

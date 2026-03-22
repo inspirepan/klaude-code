@@ -334,7 +334,7 @@ export function LeftSidebar(): JSX.Element {
     })();
   };
 
-  const archiveCleanupButtonClassName = `inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors ${archiveCleanupEligibleCount === 0 || archiveCleanupPending ? "cursor-default opacity-50" : "cursor-pointer hover:bg-muted hover:text-neutral-600"}`;
+  const archiveCleanupButtonClassName = `inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition-colors ${archiveCleanupEligibleCount === 0 || archiveCleanupPending ? "cursor-default opacity-50" : "cursor-pointer hover:bg-muted hover:text-neutral-700"}`;
 
   return (
     // grid-template-columns trick (same as CollapseGroupBlock's grid-template-rows):
@@ -353,7 +353,7 @@ export function LeftSidebar(): JSX.Element {
         <aside
           ref={sidebarRef}
           data-sidebar="left"
-          className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-neutral-200 bg-sidebar ${archivedMenuOpen || archiveCleanupConfirmOpen ? "z-50" : ""}`}
+          className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-border bg-sidebar ${archivedMenuOpen || archiveCleanupConfirmOpen ? "z-50" : ""}`}
           style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
         >
           {/* header floats above scroll area */}
@@ -411,7 +411,7 @@ export function LeftSidebar(): JSX.Element {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                     onClick={() => {
                       setSidebarOpen(false);
                     }}
@@ -422,7 +422,7 @@ export function LeftSidebar(): JSX.Element {
                 </TooltipTrigger>
                 <TooltipContent className="flex items-center gap-1.5">
                   <span>Collapse sidebar</span>
-                  <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+                  <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                     <span className="inline-flex whitespace-pre text-sm leading-none">
                       <kbd className="inline-flex font-sans">
                         <span className="min-w-[1em] text-center">⌘</span>
@@ -437,7 +437,7 @@ export function LeftSidebar(): JSX.Element {
               {archiveCleanupConfirmOpen ? (
                 <div
                   ref={archiveCleanupContentRef}
-                  className="absolute left-3 top-full z-40 mt-2 w-72 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 shadow-sm"
+                  className="absolute left-3 top-full z-40 mt-2 w-72 rounded-md border border-border bg-card px-3 py-2 text-sm text-neutral-700 shadow-sm"
                 >
                   <div className="space-y-2">
                     <div className="text-sm font-medium text-neutral-800">
@@ -469,7 +469,7 @@ export function LeftSidebar(): JSX.Element {
                       </button>
                       <button
                         type="button"
-                        className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm font-medium text-neutral-700 transition-colors hover:bg-muted hover:text-neutral-900"
+                        className="rounded-md border border-border bg-card px-2 py-1 text-sm font-medium text-neutral-700 transition-colors hover:bg-muted hover:text-neutral-900"
                         onClick={handleConfirmArchiveCleanup}
                       >
                         Archive
@@ -485,12 +485,12 @@ export function LeftSidebar(): JSX.Element {
             {/* pt-14 reserves space so top content isn't hidden behind the floating header */}
             <div className="px-2.5 pb-14 pt-14">
               {loadError !== null ? (
-                <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3">
+                <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-card p-3">
                   <div className="mb-1 font-semibold">Load failed</div>
                   <div className="break-words text-base text-neutral-500">{loadError}</div>
                   <button
                     type="button"
-                    className="mt-2 cursor-pointer rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-base"
+                    className="mt-2 cursor-pointer rounded-md border border-neutral-300 bg-card px-2.5 py-1.5 text-base"
                     onClick={() => {
                       void refreshSessions();
                     }}
@@ -555,7 +555,7 @@ export function LeftSidebar(): JSX.Element {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                     onClick={() => {
                       setArchivedMenuOpen((prev) => !prev);
                     }}
@@ -568,7 +568,7 @@ export function LeftSidebar(): JSX.Element {
               </Tooltip>
 
               {archivedMenuOpen ? (
-                <div className="absolute bottom-full left-0 z-40 mb-2 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-neutral-200/80 bg-white p-1 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
+                <div className="absolute bottom-full left-0 z-40 mb-2 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border/80 bg-card p-1 shadow-float-lg">
                   <div className="flex items-center justify-between border-b border-neutral-100 px-2 py-1.5">
                     <span className="text-xs font-medium uppercase tracking-[0.08em] text-neutral-500">
                       Archived
@@ -623,7 +623,7 @@ export function LeftSidebar(): JSX.Element {
 
           {archiveUndoSessionId !== null ? (
             <div className="pointer-events-none absolute inset-x-2 bottom-2 z-40">
-              <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white/95 px-2.5 py-2 shadow-[0_8px_24px_-16px_rgba(15,15,15,0.35)] backdrop-blur">
+              <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-lg border border-border bg-card/95 px-2.5 py-2 shadow-toast backdrop-blur">
                 <span className="text-sm text-neutral-700">Session archived</span>
                 <Tooltip>
                   <TooltipTrigger asChild>

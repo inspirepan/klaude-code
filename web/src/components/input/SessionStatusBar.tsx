@@ -53,7 +53,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
   }
 
   return (
-    <div className="flex items-center gap-2 pt-0.5 text-neutral-400">
+    <div className="flex items-center gap-2 pt-0.5 text-neutral-500">
       {statusLabel ? (
         <>
           {hasLiveStatus ? (

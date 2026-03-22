@@ -12,63 +12,73 @@ All colors are delivered via HSL CSS custom properties in `:root` / `.dark`, con
 
 ### Neutral Foundation
 
-| Token | HSL | Hex (approx.) | Role |
-|-------|-----|---------------|------|
-| `--background` | `0 0% 98%` | `#fafafa` | Main content area -- barely-warm off-white |
-| `--foreground` | `0 0% 3.9%` | `#0a0a0a` | Primary text -- near-black for maximum readability |
-| `--surface` | `0 0% 96.1%` | `#f5f5f5` | Code blocks, thinking blocks, recessed containers |
-| `--muted` | `0 0% 89.8%` | `#e5e5e5` | Sidebar background, secondary fills, badges |
-| `--muted-foreground` | `0 0% 45.1%` | `#737373` | De-emphasized text -- timestamps, metadata, placeholders |
-| `--border` | `0 0% 83.1%` | `#d4d4d4` | Hairline dividers, card edges (always 1px) |
-| `--sidebar` | `0 0% 96.1%` | `#f5f5f5` | Left sidebar fill |
-| `--card` | `0 0% 100%` | `#ffffff` | Cards, popovers, composer -- pure white for lift |
+| Token                | HSL          | Hex (approx.) | Role                                                      |
+| -------------------- | ------------ | ------------- | --------------------------------------------------------- |
+| `--background`       | `0 0% 98%`   | `#fafafa`     | Main content area -- barely-warm off-white                |
+| `--foreground`       | `0 0% 3.9%`  | `#0a0a0a`     | Primary text -- near-black for maximum readability        |
+| `--surface`          | `0 0% 96.1%` | `#f5f5f5`     | Code blocks, thinking blocks, recessed containers         |
+| `--muted`            | `0 0% 89.8%` | `#e5e5e5`     | Sidebar background, secondary fills, badges               |
+| `--muted-foreground` | `0 0% 40%`   | `#666666`     | De-emphasized text -- timestamps, metadata                |
+| `--border`           | `0 0% 89.8%` | `#e5e5e5`     | Hairline dividers, card edges (always 1px, = neutral-200) |
+| `--input`            | `0 0% 89.8%` | `#e5e5e5`     | Input borders                                             |
+| `--sidebar`          | `0 0% 96.1%` | `#f5f5f5`     | Left sidebar fill                                         |
+| `--sidebar-border`   | `0 0% 89.8%` | `#e5e5e5`     | Sidebar divider                                           |
+| `--card`             | `0 0% 100%`  | `#ffffff`     | Cards, popovers, composer -- pure white for lift          |
 
 ### Semantic Colors
 
-| Name | Value | Role |
-|------|-------|------|
-| Blue-500 | `#3b82f6` | Primary interactive accent -- submit buttons, selected options, question icons, focused inputs |
-| Blue-50/80 | `#eff6ff` | Selected pill backgrounds, focus rings |
-| Amber-600 | `#d97706` | Active/running state -- interrupt button, active ring |
-| Amber-300/70 | `#fcd34d` | Active message highlight ring |
-| Green-700 | `#166534` | Success settle animation start color |
-| Red-500 | `#ef4444` | Error text, destructive actions |
-| Neutral-800 | `#262626` | Default send button, primary dark elements |
-| Neutral-400/500 | `#a3a3a3` / `#737373` | Icons at rest, secondary text, placeholder text |
+Unified color families: **emerald** for success, **red** for error, **amber** for warning/active, **blue** for interactive.
+
+| Name                | Value                             | Role                                                                           |
+| ------------------- | --------------------------------- | ------------------------------------------------------------------------------ |
+| Emerald-500/600/700 | `#10b981` / `#059669` / `#047857` | Success states, completion indicators, unread dots                             |
+| Red-500/700         | `#ef4444` / `#b91c1c`             | Error text, destructive actions, error tool results                            |
+| Amber-500/600       | `#f59e0b` / `#d97706`             | Active/running state, interrupt button, active ring                            |
+| Blue-500            | `#3b82f6`                         | Primary interactive accent -- submit buttons, selected options, focused inputs |
+| Blue-50/80          | `#eff6ff`                         | Selected pill backgrounds, focus rings                                         |
+| Neutral-800         | `#262626`                         | Default send button, primary dark elements                                     |
 
 ### Fixed-Purpose Colors
 
-| Name | Value | Role |
-|------|-------|------|
-| `user-bubble` | `rgb(229, 243, 255)` | User message background -- pale blue tint |
-| `user-bubble-hover` | `rgb(219, 238, 255)` | User message hover |
-| `user-bubble-text` | `rgb(0, 40, 77)` | User message text -- deep navy |
-| `compaction-label` | `#5b6f92` | Compaction summary label text |
-| `compaction-text` | `#2f3f5f` | Compaction summary body text |
+| Name                | Value                | Role                                      |
+| ------------------- | -------------------- | ----------------------------------------- |
+| `user-bubble`       | `rgb(229, 243, 255)` | User message background -- pale blue tint |
+| `user-bubble-hover` | `rgb(219, 238, 255)` | User message hover                        |
+| `user-bubble-text`  | `rgb(0, 40, 77)`     | User message text -- deep navy            |
+| `compaction-label`  | `#5b6f92`            | Compaction summary label text             |
+| `compaction-text`   | `#2f3f5f`            | Compaction summary body text              |
 
 ### Dark Theme Shift
 
 Dark mode inverts the neutral scale but keeps the same semantic color mapping. `--background` becomes `0 0% 3.9%` (near-black), `--surface` becomes `0 0% 7%`, borders drop to `0 0% 14.9%`. The palette remains achromatic -- no blue/purple tint in dark backgrounds.
 
+### Color Rules
+
+- **Never mix green families**: use `emerald-*` exclusively. Never `green-*`.
+- **Never mix red families**: use `red-*` exclusively. Never `rose-*`.
+- **Never hardcode `bg-white`**: use `bg-card` (adapts to dark mode).
+- **Never hardcode border colors**: use `border-border` (maps to `--border` token). Use `border-neutral-300` only for intentionally heavier borders.
+- **Body text uses `--foreground`**: never hardcode `#171717` or other hex values for body text.
+
 ## 3. Typography Rules
 
 ### Font Stack
 
-| Role | Family | Fallback Chain |
-|------|--------|----------------|
-| **UI / Body** | `IBM Plex Sans Variable` | system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", sans-serif |
-| **Code / Monospace** | `Lilex Variable` | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace |
-| **Display (reserved)** | `TX-02` | Loaded as @font-face (400/700, normal/italic); not yet actively used in the UI |
+| Role                   | Family                   | Fallback Chain                                                                                                  |
+| ---------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| **UI / Body**          | `IBM Plex Sans Variable` | system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", sans-serif |
+| **Code / Monospace**   | `Lilex Variable`         | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace                                                |
+| **Display (reserved)** | `TX-02`                  | Loaded as @font-face (400/700, normal/italic); not yet actively used in the UI                                  |
 
 ### Scale (overridden from Tailwind defaults)
 
 The entire type scale is shifted one notch smaller than Tailwind's defaults to achieve information density without feeling cramped:
 
-| Tailwind Class | Actual Size | Line Height | Usage |
-|----------------|-------------|-------------|-------|
-| `text-xs` | 11px (0.6875rem) | 16px | Timestamps, metadata chips, keyboard hints |
-| `text-sm` | 12px (0.75rem) | 16px | Secondary labels, sidebar text, tool headers |
-| `text-base` | 14px (0.875rem) | 20px | Body text, assistant messages, input fields |
+| Tailwind Class | Actual Size      | Line Height | Usage                                        |
+| -------------- | ---------------- | ----------- | -------------------------------------------- |
+| `text-xs`      | 11px (0.6875rem) | 16px        | Timestamps, metadata chips, keyboard hints   |
+| `text-sm`      | 12px (0.75rem)   | 16px        | Secondary labels, sidebar text, tool headers |
+| `text-base`    | 14px (0.875rem)  | 20px        | Body text, assistant messages, input fields  |
 
 ### Weight & Style Conventions
 
@@ -77,6 +87,22 @@ The entire type scale is shifted one notch smaller than Tailwind's defaults to a
 - **Semibold (600)**: Buttons, tool names in monospace, group collapse labels
 - **Bold (700)**: Reserved for display `TX-02` usage only
 - **Italic**: Thinking blocks are rendered entirely in italic to distinguish internal reasoning from output
+
+### Text Color Hierarchy
+
+A strict neutral scale for text, from strongest to weakest:
+
+| Level            | Class              | Hex       | Usage                                                                                |
+| ---------------- | ------------------ | --------- | ------------------------------------------------------------------------------------ | --------------------------------------------- |
+| Primary          | `text-foreground`  | `#0a0a0a` | Body text, assistant responses                                                       |
+| Strong secondary | `text-neutral-800` | `#262626` | Session titles, composer text, card headings                                         |
+| Secondary        | `text-neutral-700` | `#404040` | Tool names, file names, input text, question text, tooltips                          |
+| Tertiary         | `text-neutral-600` | `#525252` | Thinking content, developer messages, collapse summaries, tool detail text           |
+| Quaternary       | `text-neutral-500` | `#737373` | Icon buttons at rest, copy buttons, metadata, completion list parents, spinner icons |
+| Placeholder      | `text-neutral-400` | `#a3a3a3` | Placeholder text only (via `placeholder:text-neutral-400`)                           |
+| Decorative       | `text-neutral-300` | `#d4d4d4` | Separators (`                                                                        | `, dots), disabled states, pending todo icons |
+
+**Rule**: When a text-neutral-500 element has a hover state, use `hover:text-neutral-700`. When a text-neutral-600 element has a hover state, use `hover:text-neutral-800`.
 
 ### Character
 
@@ -97,21 +123,21 @@ Anti-aliased rendering (`-webkit-font-smoothing: antialiased`). The assistant te
 
 ### Cards & Containers
 
-- **Composer card**: `rounded-lg` (8px), `bg-white`, `shadow-sm`, `ring-1 ring-black/[0.06]`. The ring is almost invisible -- just enough to define the card edge against the off-white background. This is the signature "barely-there border" pattern.
-- **User interaction card**: `rounded-2xl` (16px), `border border-neutral-200/80`, `bg-white`, `shadow-sm shadow-neutral-200/40`. Slightly more elevated than the composer -- rounder corners signal "this needs your attention."
-- **Sidebar**: Flat `bg-sidebar` with a single `border-r border-neutral-200` divider. No shadow. The sidebar should feel like part of the page, not floating above it.
-- **Popovers/Dropdowns**: `bg-white`, `border border-neutral-200/80`, `shadow-[0_8px_30px_rgba(0,0,0,0.08)]`. Stronger shadow than cards to establish elevation hierarchy.
-- **Tooltips**: `rounded-md`, `border border-neutral-200`, `bg-white`, `shadow-sm`, `text-xs`. Minimal and precise.
+- **Composer card**: `rounded-lg` (8px), `bg-card`, `shadow-sm`, `ring-1 ring-black/[0.06]`. The ring is almost invisible -- just enough to define the card edge against the off-white background. This is the signature "barely-there border" pattern.
+- **User interaction card**: `rounded-2xl` (16px), `border border-border/80`, `bg-card`, `shadow-sm`. Slightly more elevated than the composer -- rounder corners signal "this needs your attention."
+- **Sidebar**: Flat `bg-sidebar` with a single `border-r border-border` divider. No shadow. The sidebar should feel like part of the page, not floating above it.
+- **Popovers/Dropdowns**: `bg-card`, `border border-border/80`, `shadow-float-lg`. Stronger shadow than cards to establish elevation hierarchy.
+- **Tooltips**: `rounded-md`, `border border-border`, `bg-card`, `shadow-sm`, `text-xs`. Minimal and precise.
 
 ### Inputs & Forms
 
 - **Composer textarea**: Borderless, transparent background (`border-0 bg-transparent`). The card itself provides the visual container.
-- **Search/filter inputs**: `rounded-lg`, `border border-neutral-200`, `bg-surface/50`. On focus: `border-blue-300 bg-white ring-2 ring-blue-100`.
-- **Selection pills (radio/checkbox)**: `rounded-lg`, `border px-3 py-2`. Selected state uses `border-blue-200 bg-blue-50/80 ring-1 ring-blue-200/60`. Unselected: `border-neutral-200 bg-white hover:border-neutral-300 hover:bg-surface`. The selection indicator is a small `rounded-full` circle with inner dot.
+- **Search/filter inputs**: `rounded-lg`, `border border-border`, `bg-surface/50`. On focus: `border-blue-300 bg-card ring-2 ring-blue-100`.
+- **Selection pills (radio/checkbox)**: `rounded-lg`, `border px-3 py-2`. Selected state uses `border-blue-200 bg-blue-50/80 ring-1 ring-blue-200/60`. Unselected: `border-border bg-card hover:border-neutral-300 hover:bg-surface`. The selection indicator is a small `rounded-full` circle with inner dot.
 
 ### Collapse & Expand Groups
 
-- **Rail marker**: Monospace `text-sm text-neutral-500` label (`[-]`/`[+]`) with a vertical `w-px bg-neutral-200` connecting line.
+- **Rail marker**: Monospace `text-sm text-neutral-600` label (`[-]`/`[+]`) with a vertical `w-px bg-neutral-200` connecting line.
 - **Panel animation**: `transition-[height] duration-200 ease-out` with imperative DOM height measurement (`useLayoutEffect`). Inner content uses `backface-visibility: hidden` for GPU compositing during height transitions.
 - **No conditional rendering**: Collapsed content stays in DOM with `overflow: hidden` and `height: 0`. This prevents layout recalculation mid-animation.
 
@@ -122,8 +148,8 @@ Anti-aliased rendering (`-webkit-font-smoothing: antialiased`). The assistant te
 ### Status Indicators
 
 - **Running**: `animate-spin` loader icon (Lucide `Loader`), `text-neutral-500`
-- **Success settle**: Custom keyframe animation -- starts at green `#166534` with `scale(0.9)`, settles to `#a3a3a3` at `opacity: 0.82` over 1.6s `ease-out`. The card background simultaneously fades from green-100 to transparent.
-- **Unread dot**: Small `rounded-full` green circle in the sidebar.
+- **Success settle**: Custom keyframe animation -- starts at emerald-800 `#065f46` with `scale(0.95)`, settles to `#a3a3a3` at `opacity: 0.82` over 1.6s `ease-out`. The card background simultaneously fades from emerald-100 to transparent.
+- **Unread dot**: Small `rounded-full` emerald circle in the sidebar.
 - **Error**: Red text, dashed border container for retry states.
 
 ## 5. Layout Principles
@@ -160,15 +186,15 @@ Guided by the principle that **animation frequency determines animation presence
 
 ### Animation Decision Matrix
 
-| Element | Frequency | Animation |
-|---------|-----------|-----------|
-| Keyboard shortcuts (Cmd+B, Cmd+Shift+O) | 100+/day | **None** -- instant state change |
-| Tooltip appearance | Tens/day | 125ms fade + zoom + directional slide (on `delayed-open` only) |
-| Collapse/expand groups | Tens/day | 200ms `ease-out` height transition |
-| Sidebar show/hide | Occasional | 200ms `ease-in-out` grid-template-columns transition |
-| Streaming text | Continuous | `stream-fade-in`: 120ms `ease-out` opacity (near-instantaneous) |
-| Success settle | Rare | 1.6s multi-stage keyframe (green flash -> neutral fade) |
-| Todo shimmer | Continuous | 3.6s linear gradient sweep (subtle, background) |
+| Element                                 | Frequency  | Animation                                                       |
+| --------------------------------------- | ---------- | --------------------------------------------------------------- |
+| Keyboard shortcuts (Cmd+B, Cmd+Shift+O) | 100+/day   | **None** -- instant state change                                |
+| Tooltip appearance                      | Tens/day   | 125ms fade + zoom + directional slide (on `delayed-open` only)  |
+| Collapse/expand groups                  | Tens/day   | 200ms `ease-out` height transition                              |
+| Sidebar show/hide                       | Occasional | 200ms `ease-in-out` grid-template-columns transition            |
+| Streaming text                          | Continuous | `stream-fade-in`: 120ms `ease-out` opacity (near-instantaneous) |
+| Success settle                          | Rare       | 1.6s multi-stage keyframe (emerald flash -> neutral fade)       |
+| Todo shimmer                            | Continuous | 3.6s linear gradient sweep (subtle, background)                 |
 
 ### Easing
 
@@ -193,31 +219,33 @@ Guided by the principle that **animation frequency determines animation presence
 
 All icons from **Lucide React**. Sizing follows these conventions:
 
-| Context | Size | Additional Classes |
-|---------|------|--------------------|
-| Inline with text | `h-3.5 w-3.5` or `h-4 w-4` | `shrink-0` |
-| Toolbar / action buttons | `h-4 w-4` | `shrink-0` |
-| Sidebar navigation | `h-4 w-4` | `shrink-0` |
-| Status indicators | `h-3 w-3` | `shrink-0`, sometimes `animate-spin` |
+| Context                  | Size                       | Additional Classes                   |
+| ------------------------ | -------------------------- | ------------------------------------ |
+| Inline with text         | `h-3.5 w-3.5` or `h-4 w-4` | `shrink-0`                           |
+| Toolbar / action buttons | `h-4 w-4`                  | `shrink-0`                           |
+| Sidebar navigation       | `h-4 w-4`                  | `shrink-0`                           |
+| Status indicators        | `h-3 w-3`                  | `shrink-0`, sometimes `animate-spin` |
 
 Alignment rule: Icons in flex rows use `items-center` for single-line layouts, `items-start` + `mt-*` for multi-line. Never use `items-baseline` with icons. Never use `vertical-align` hacks.
 
 ## 8. Shadows & Depth
 
-The elevation system is extremely flat -- three levels total:
+The elevation system is extremely flat. Named shadow tokens are defined in `tailwind.config.js`:
 
-| Level | Shadow | Usage |
-|-------|--------|-------|
-| **Ground** | None | Sidebar, message list, backgrounds |
-| **Card** | `shadow-sm` or `ring-1 ring-black/[0.06]` | Composer, tool result cards, session cards |
-| **Floating** | `shadow-[0_8px_30px_rgba(0,0,0,0.08)]` | Dropdowns, archived menu, model selector |
-| **Toast** | `shadow-[0_8px_24px_-16px_rgba(15,15,15,0.35)]` + `backdrop-blur` | Undo toasts, transient notifications |
+| Level        | Token             | Value                                  | Usage                                          |
+| ------------ | ----------------- | -------------------------------------- | ---------------------------------------------- |
+| **Ground**   | (none)            | No shadow                              | Sidebar, message list, backgrounds             |
+| **Card**     | `shadow-sm`       | Tailwind default                       | Composer, tool result cards, session cards     |
+| **Dropdown** | `shadow-float`    | `0 4px 16px rgba(0,0,0,0.08)`          | Small dropdowns, completion lists              |
+| **Panel**    | `shadow-float-lg` | `0 8px 30px rgba(0,0,0,0.08)`          | Large dropdowns, archived menu, model selector |
+| **Toast**    | `shadow-toast`    | `0 8px 24px -16px rgba(15,15,15,0.35)` | Undo toasts (+ `backdrop-blur`)                |
+| **Overlay**  | `shadow-overlay`  | `0 24px 80px rgba(0,0,0,0.14)`         | New session overlay                            |
 
-No heavy drop shadows anywhere. The depth hierarchy is communicated primarily through **background color contrast** (white card on off-white background) rather than shadow.
+No heavy drop shadows anywhere. The depth hierarchy is communicated primarily through **background color contrast** (white card on off-white background) rather than shadow. Never use arbitrary `shadow-[...]` values -- use the named tokens above.
 
 ## 9. Dark Mode Strategy
 
-Dark mode uses a pure achromatic palette -- no blue, purple, or warm tint in backgrounds. The `--background` inverts to near-black (`0 0% 3.9%`), surfaces go to `0 0% 7%`. Semantic accent colors (blue, amber, green, red) retain their hue but may shift lightness for contrast.
+Dark mode uses a pure achromatic palette -- no blue, purple, or warm tint in backgrounds. The `--background` inverts to near-black (`0 0% 3.9%`), surfaces go to `0 0% 7%`. Semantic accent colors (blue, amber, emerald, red) retain their hue but may shift lightness for contrast.
 
 The `darkMode: ["class"]` approach means dark mode is toggled by adding `.dark` to the root element, not by `prefers-color-scheme`. This allows explicit user control.
 
@@ -226,31 +254,37 @@ The `darkMode: ["class"]` approach means dark mode is toggled by adding `.dark` 
 Areas where the current implementation can be improved, informed by the Emil Kowalski design engineering philosophy:
 
 ### Missing Tactile Feedback
+
 - Buttons lack `:active` scale. Add `transform: scale(0.97)` with `transition: transform 160ms ease-out` to all pressable elements. This single change makes the entire interface feel more responsive.
 - Send button (the most-pressed element) should have the most satisfying press response.
 
 ### Animation Refinements
+
 - Tooltip `transform-origin` should use `var(--radix-tooltip-content-transform-origin)` to scale from the trigger point, not center. Currently using default.
 - Popover/dropdown `transform-origin` should similarly use Radix's `--radix-popover-content-transform-origin`.
-- The success settle animation starts from `scale(0.9)` -- acceptable, but `scale(0.95)` would feel more natural per the "never animate from scale(0)" principle.
 
 ### Hover State Gaps
+
 - Hover animations should be gated behind `@media (hover: hover) and (pointer: fine)` to prevent false positives on touch devices.
 
 ### Custom Easing Curves
+
 - Current transitions use Tailwind defaults (`ease-out`, `ease-in-out`). These are too gentle. Consider custom curves:
   - `cubic-bezier(0.23, 1, 0.32, 1)` for a punchier ease-out
   - `cubic-bezier(0.77, 0, 0.175, 1)` for smoother ease-in-out
 
 ### Performance
+
 - Height-based collapse animations are correctly using `transition-[height]` with `backface-visibility: hidden` -- this is the right approach.
 - `transition: all` should be audited and replaced with specific property transitions wherever found.
 - CSS animations (spinners, shimmer) are already off-main-thread. Good.
 
 ### Accessibility
+
 - `prefers-reduced-motion` is not yet implemented. Add a media query to reduce or eliminate transform/position animations while keeping opacity/color transitions for state indication.
 
 ### Perceived Speed
+
 - Streaming text uses a 120ms fade-in -- good, nearly instant.
 - Consider making the loading spinner slightly faster to improve perceived load times.
 - The `useStreamThrottle` hook (80ms minimum update interval) is a good balance between smoothness and performance.

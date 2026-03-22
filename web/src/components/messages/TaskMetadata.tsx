@@ -126,7 +126,7 @@ function DetailTable({ rows }: { rows: DetailRow[] }): JSX.Element {
     <div className="ml-5 mt-1">
       {rows.map((row, i) => (
         <div key={row.label} className="flex items-baseline gap-2 text-sm">
-          <span className="w-24 shrink-0 py-1.5 text-right font-sans text-neutral-400">
+          <span className="w-24 shrink-0 py-1.5 text-right font-sans text-neutral-500">
             {row.label}
           </span>
           <span

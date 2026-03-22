@@ -70,12 +70,12 @@ export function ProjectGroup({
                   <span className="truncate font-medium text-neutral-500 [direction:rtl]">
                     {workDirLabel(workDir)}
                   </span>
-                  <span className="shrink-0 text-xs text-neutral-400">({sessions.length})</span>
+                  <span className="shrink-0 text-xs text-neutral-500">({sessions.length})</span>
                   {hasAnyRunning ? (
                     <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
                   ) : hasAnyUnread ? (
                     <span className="flex h-3 w-3 shrink-0 items-center justify-center">
-                      <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
                     </span>
                   ) : null}
                 </div>
@@ -89,7 +89,7 @@ export function ProjectGroup({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-700"
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                 onClick={() => {
                   onSelectDraft(workDir);
                 }}
@@ -103,7 +103,7 @@ export function ProjectGroup({
         )}
       </div>
 
-      <CollapsibleContent className="ml-3 border-l border-neutral-200 pl-1.5">
+      <CollapsibleContent className="ml-3 border-l border-border pl-1.5">
         <div className="pb-0.5">
           {displaySessions.map((session) => (
             <SessionCard

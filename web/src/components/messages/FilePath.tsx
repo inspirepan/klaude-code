@@ -25,7 +25,7 @@ function FilePathContent({ display }: { display: string }): JSX.Element {
   return (
     <>
       {dir ? <span className="text-neutral-500">{dir}</span> : null}
-      <span className="text-neutral-600">{name}</span>
+      <span className="text-neutral-700">{name}</span>
     </>
   );
 }

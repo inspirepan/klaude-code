@@ -42,16 +42,16 @@ export function MessageListHeader({
     <div className="relative z-20 shrink-0">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-full h-3 bg-gradient-to-b from-[#f9f9f8] to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-full h-3 bg-gradient-to-b from-background to-transparent"
       />
-      <div className="bg-[#f9f9f8] backdrop-blur-sm">
+      <div className="bg-background backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-1.5 px-3 pb-1 pt-2.5 sm:px-4">
           {isSubAgentView ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                  className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                   onClick={onBack}
                   aria-label="Back to main session"
                 >
@@ -65,7 +65,7 @@ export function MessageListHeader({
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                  className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                   onClick={() => {
                     setSidebarOpen(true);
                   }}
@@ -76,7 +76,7 @@ export function MessageListHeader({
               </TooltipTrigger>
               <TooltipContent className="flex items-center gap-1.5">
                 <span>Expand sidebar</span>
-                <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+                <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                   <span className="inline-flex whitespace-pre text-sm leading-none">
                     <kbd className="inline-flex font-sans">
                       <span className="min-w-[1em] text-center">⌘</span>
@@ -129,7 +129,7 @@ export function MessageListHeader({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                 onClick={onCollapseAll}
                 aria-label="Collapse all"
               >
@@ -138,7 +138,7 @@ export function MessageListHeader({
             </TooltipTrigger>
             <TooltipContent className="flex items-center gap-1.5">
               <span>Collapse all</span>
-              <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+              <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                 <span className="inline-flex whitespace-pre text-sm leading-none">
                   <kbd className="inline-flex font-sans">
                     <span className="min-w-[1em] text-center">⌘</span>
@@ -157,7 +157,7 @@ export function MessageListHeader({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                 onClick={onExpandAll}
                 aria-label="Expand all"
               >
@@ -166,7 +166,7 @@ export function MessageListHeader({
             </TooltipTrigger>
             <TooltipContent className="flex items-center gap-1.5">
               <span>Expand all</span>
-              <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+              <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                 <span className="inline-flex whitespace-pre text-sm leading-none">
                   <kbd className="inline-flex font-sans">
                     <span className="min-w-[1em] text-center">⌘</span>
@@ -185,7 +185,7 @@ export function MessageListHeader({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                 onClick={onSearchOpen}
                 aria-label="Search messages"
               >
@@ -194,7 +194,7 @@ export function MessageListHeader({
             </TooltipTrigger>
             <TooltipContent className="flex items-center gap-1.5">
               <span>Search</span>
-              <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+              <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                 <span className="inline-flex whitespace-pre text-sm leading-none">
                   <kbd className="inline-flex font-sans">
                     <span className="min-w-[1em] text-center">⌘</span>

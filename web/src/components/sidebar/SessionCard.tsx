@@ -19,7 +19,7 @@ interface SessionCardProps {
 function UnreadCompletionDot(): JSX.Element {
   return (
     <span className="flex h-3 w-3 shrink-0 items-center justify-center">
-      <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
     </span>
   );
 }
@@ -74,7 +74,7 @@ function DiffStats({ added, removed }: { added: number; removed: number }): JSX.
   return (
     <span className="inline-flex shrink-0 gap-1 whitespace-nowrap text-xs leading-4">
       {added > 0 ? <span className="text-emerald-600">+{added}</span> : null}
-      {removed > 0 ? <span className="text-rose-600">-{removed}</span> : null}
+      {removed > 0 ? <span className="text-red-600">-{removed}</span> : null}
     </span>
   );
 }
@@ -181,7 +181,7 @@ export function SessionCard({
         />
         <DiffStats added={diffSummary.diff_lines_added} removed={diffSummary.diff_lines_removed} />
         <span
-          className="w-7 shrink-0 text-right text-xs leading-4 text-neutral-400"
+          className="w-7 shrink-0 text-right text-xs leading-4 text-neutral-500"
           title={updatedAtDetailed}
         >
           {relativeTime}
@@ -191,7 +191,7 @@ export function SessionCard({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:outline-none focus-visible:opacity-100 group-hover:opacity-100"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-500 opacity-0 transition-opacity hover:text-neutral-700 focus:outline-none focus-visible:opacity-100 group-hover:opacity-100"
             aria-label={session.archived ? "Unarchive session" : "Archive session"}
             onClick={() => {
               onToggleArchive(session.id, !session.archived);

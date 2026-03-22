@@ -39,7 +39,7 @@ export function SubAgentGroupCard({
     <button
       type="button"
       onClick={onClick}
-      className="group/subagent flex w-3/5 cursor-pointer items-center gap-2.5 rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2.5 text-left shadow-sm shadow-neutral-200/40 transition-colors hover:bg-neutral-50"
+      className="group/subagent flex w-3/5 cursor-pointer items-center gap-2.5 rounded-lg border border-border/80 bg-surface/50 px-3.5 py-2.5 text-left shadow-sm shadow-neutral-200/40 transition-colors hover:bg-neutral-50"
     >
       {/* Status icon */}
       {isActive ? (
@@ -51,7 +51,7 @@ export function SubAgentGroupCard({
       )}
 
       {/* Type label */}
-      <span className="shrink-0 text-base font-semibold text-neutral-800">
+      <span className="shrink-0 text-base font-semibold text-neutral-700">
         {formatSubAgentTypeLabel(sourceSessionType)}
       </span>
 
@@ -62,7 +62,7 @@ export function SubAgentGroupCard({
 
       {/* Fork badge */}
       {sourceSessionFork ? (
-        <span className="shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+        <span className="shrink-0 rounded-md border border-border bg-neutral-50 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
           fork
         </span>
       ) : null}

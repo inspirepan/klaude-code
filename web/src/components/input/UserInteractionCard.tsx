@@ -98,14 +98,14 @@ function OptionPill({
       className={`group/pill inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-left transition-all ${
         checked
           ? "border-blue-200 bg-blue-50/80 ring-1 ring-blue-200/60"
-          : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-surface"
+          : "border-border bg-card hover:border-neutral-300 hover:bg-surface"
       } disabled:cursor-not-allowed disabled:opacity-50`}
     >
       <span
         className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-all ${
           checked
             ? "border-blue-500 bg-blue-500 text-white"
-            : "border-neutral-300 bg-white group-hover/pill:border-neutral-400"
+            : "border-neutral-300 bg-card group-hover/pill:border-neutral-400"
         }`}
       >
         {checked && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
@@ -184,7 +184,7 @@ function QuestionPanel({
           value={note}
           onChange={(e) => onNoteChange(e.target.value)}
           placeholder={`Other: ${question.input_placeholder ?? "Type something."}`}
-          className="h-9 w-full rounded-lg border border-neutral-200 bg-surface/50 px-3 text-base text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-9 w-full rounded-lg border border-border bg-surface/50 px-3 text-base text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-blue-300 focus:bg-card focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
 
@@ -286,7 +286,7 @@ export function UserInteractionCard({
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-neutral-200/80 bg-white shadow-sm shadow-neutral-200/40">
+    <section className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm shadow-neutral-200/40">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-5 pb-1 pt-4">
         <CircleHelp className="h-4 w-4 shrink-0 text-blue-500" />
@@ -328,7 +328,7 @@ export function UserInteractionCard({
                       {/* Answered dot */}
                       <span
                         className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
-                          answered ? "bg-green-600" : "bg-neutral-300"
+                          answered ? "bg-emerald-600" : "bg-neutral-300"
                         }`}
                       />
                       {q.header || `Q${i + 1}`}
