@@ -222,6 +222,10 @@ class SkillLoader:
                 self.loaded_skills[skill.name] = skill
                 return
 
+            # Same resolved path found through different directory entries (e.g. symlinks) — skip silently.
+            if skill.skill_path == existing.skill_path:
+                return
+
             warning_prefix = f'{skill.skill_path}: duplicate skill "{skill.name}" conflicts with {existing.skill_path}'
             if priority.get(skill.location, -1) >= priority.get(existing.location, -1):
                 warning = f"{warning_prefix}; overriding previous definition"

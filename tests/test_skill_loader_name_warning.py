@@ -122,3 +122,32 @@ def test_discover_skills_records_conflict_warning_on_override(tmp_path: Path, mo
     warnings = loader.skill_warnings_by_location["user"]
     assert len(warnings) == 1
     assert 'duplicate skill "dup-skill"' in warnings[0]
+
+
+def test_discover_skills_no_warning_for_symlink_duplicate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When two user skill dirs find the same file via symlink, no duplicate warning should be emitted."""
+    real_dir = tmp_path / "real-skills" / "my-skill"
+    real_dir.mkdir(parents=True)
+    (real_dir / "SKILL.md").write_text(
+        "---\nname: my-skill\ndescription: demo\n---\n",
+        encoding="utf-8",
+    )
+
+    # Second user dir contains a symlink to the same skill
+    link_root = tmp_path / "link-skills"
+    link_root.mkdir(parents=True)
+    try:
+        (link_root / "my-skill").symlink_to(real_dir, target_is_directory=True)
+    except OSError as e:
+        pytest.skip(f"symlink not supported in this environment: {e}")
+
+    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
+    monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [real_dir.parent, link_root])
+    monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
+
+    loader = SkillLoader()
+    loader.discover_skills(work_dir=tmp_path)
+
+    assert "my-skill" in loader.loaded_skills
+    # No duplicate warning since both paths resolve to the same file
+    assert loader.skill_warnings_by_location["user"] == []
