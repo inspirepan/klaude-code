@@ -159,6 +159,7 @@ class TaskMetadataItem(BaseModel):
 
     main_agent: TaskMetadata = Field(default_factory=TaskMetadata)  # Main agent metadata
     sub_agent_task_metadata: list[TaskMetadata] = Field(default_factory=lambda: list[TaskMetadata]())
+    is_partial: bool = False
     created_at: datetime = Field(default_factory=datetime.now)
 
 

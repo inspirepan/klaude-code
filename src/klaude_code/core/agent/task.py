@@ -280,6 +280,7 @@ class TaskExecutor:
             task_duration_s = time.perf_counter() - self._started_at
             accumulated = self._metadata_accumulator.get_partial_item(task_duration_s)
             if accumulated is not None:
+                accumulated.is_partial = True
                 session_id = self._context.session_ctx.session_id
                 ui_events.append(events.TaskMetadataEvent(metadata=accumulated, session_id=session_id, is_partial=True))
                 self._context.session_ctx.append_history([accumulated])
@@ -558,6 +559,7 @@ class TaskExecutor:
         accumulated = metadata_accumulator.finalize(task_duration_s)
 
         is_partial_metadata = turn is not None and not turn.continue_agent
+        accumulated.is_partial = is_partial_metadata
         yield events.TaskMetadataEvent(
             metadata=accumulated, session_id=session_ctx.session_id, is_partial=is_partial_metadata
         )
