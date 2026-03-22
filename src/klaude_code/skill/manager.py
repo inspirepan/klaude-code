@@ -14,12 +14,16 @@ _initialized: bool = False
 
 
 def _ensure_initialized() -> SkillLoader:
-    """Ensure the skill system is initialized and return the loader."""
+    """Ensure the skill system is initialized and return the loader.
+
+    The global singleton is bound to the process CWD at first initialization.
+    Web mode bypasses this via ``get_available_skills_for_work_dir()``.
+    """
     global _loader, _initialized
     if not _initialized:
         install_system_skills()
         _loader = SkillLoader()
-        _loader.discover_skills()
+        _loader.discover_skills(work_dir=Path.cwd())
         _initialized = True
     assert _loader is not None
     return _loader

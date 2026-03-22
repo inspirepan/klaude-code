@@ -46,10 +46,6 @@ def get_store_for_path(work_dir: Path) -> JsonlSessionStore:
     return store
 
 
-def get_default_store() -> JsonlSessionStore:
-    return get_store_for_path(Path.cwd())
-
-
 async def close_default_store() -> None:
     stores = list(_DEFAULT_STORES.values())
     _DEFAULT_STORES.clear()

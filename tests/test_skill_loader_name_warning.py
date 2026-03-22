@@ -19,7 +19,7 @@ def test_discover_skills_records_name_folder_mismatch_warning(tmp_path: Path, mo
     monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
 
     loader = SkillLoader()
-    loader.discover_skills()
+    loader.discover_skills(work_dir=tmp_path)
 
     warnings = loader.skill_warnings_by_location["user"]
     assert len(warnings) == 1
@@ -40,7 +40,7 @@ def test_discover_skills_no_warning_when_name_matches_folder(tmp_path: Path, mon
     monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
 
     loader = SkillLoader()
-    loader.discover_skills()
+    loader.discover_skills(work_dir=tmp_path)
 
     assert loader.skill_warnings_by_location["user"] == []
 
@@ -61,7 +61,7 @@ def test_discover_skills_falls_back_to_folder_name_when_name_missing(
     monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
 
     loader = SkillLoader()
-    loader.discover_skills()
+    loader.discover_skills(work_dir=tmp_path)
 
     assert "fallback-name" in loader.loaded_skills
     assert loader.loaded_skills["fallback-name"].name == "fallback-name"
@@ -88,7 +88,7 @@ def test_discover_skills_follows_subdirectory_symlink(tmp_path: Path, monkeypatc
     monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
 
     loader = SkillLoader()
-    loader.discover_skills()
+    loader.discover_skills(work_dir=tmp_path)
 
     assert "link-skill" in loader.loaded_skills
 
@@ -116,7 +116,7 @@ def test_discover_skills_records_conflict_warning_on_override(tmp_path: Path, mo
     monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
 
     loader = SkillLoader()
-    loader.discover_skills()
+    loader.discover_skills(work_dir=tmp_path)
 
     assert loader.loaded_skills["dup-skill"].location == "user"
     warnings = loader.skill_warnings_by_location["user"]

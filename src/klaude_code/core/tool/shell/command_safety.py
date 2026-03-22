@@ -10,7 +10,7 @@ class SafetyCheckResult:
         self.error_msg = error_msg
 
 
-def _is_safe_rm_argv(argv: list[str], work_dir: str | None = None) -> SafetyCheckResult:
+def _is_safe_rm_argv(argv: list[str], work_dir: str) -> SafetyCheckResult:
     """Check safety of rm command arguments."""
     # Enforce strict safety rules for rm operands
     # - Forbid absolute paths, tildes, wildcards (*?[), and trailing '/'
@@ -18,8 +18,7 @@ def _is_safe_rm_argv(argv: list[str], work_dir: str | None = None) -> SafetyChec
     # - If -r/-R/-rf/-fr present: only allow relative paths whose targets
     #   exist and are not symbolic links
 
-    cwd = work_dir or os.getcwd()
-    workspace_root = os.path.realpath(cwd)
+    workspace_root = os.path.realpath(work_dir)
 
     recursive = False
     end_of_opts = False
@@ -65,7 +64,7 @@ def _is_safe_rm_argv(argv: list[str], work_dir: str | None = None) -> SafetyChec
             return SafetyCheckResult(False, f"rm: Trailing slash not allowed: '{op}'")
 
         # Resolve and ensure stays within workspace_root
-        op_abs = os.path.realpath(os.path.join(cwd, op))
+        op_abs = os.path.realpath(os.path.join(work_dir, op))
         try:
             if os.path.commonpath([op_abs, workspace_root]) != workspace_root:
                 return SafetyCheckResult(False, f"rm: Path escapes workspace: '{op}' -> '{op_abs}'")
@@ -75,7 +74,7 @@ def _is_safe_rm_argv(argv: list[str], work_dir: str | None = None) -> SafetyChec
 
         if recursive:
             # For recursive deletion, require operand exists and is not a symlink
-            op_lpath = os.path.join(cwd, op)
+            op_lpath = os.path.join(work_dir, op)
             if not os.path.exists(op_lpath):
                 return SafetyCheckResult(False, f"rm -r: Target does not exist: '{op}'")
             if os.path.islink(op_lpath):
@@ -85,15 +84,14 @@ def _is_safe_rm_argv(argv: list[str], work_dir: str | None = None) -> SafetyChec
     return SafetyCheckResult(True)
 
 
-def _is_safe_trash_argv(argv: list[str], work_dir: str | None = None) -> SafetyCheckResult:
+def _is_safe_trash_argv(argv: list[str], work_dir: str) -> SafetyCheckResult:
     """Check safety of trash command arguments."""
     # Apply similar safety rules as rm but slightly more permissive
     # - Forbid absolute paths, tildes, wildcards (*?[), and trailing '/'
     # - Resolve each operand with realpath and ensure it stays under CWD
     # - Unlike rm, allow symlinks since trash is less destructive
 
-    cwd = work_dir or os.getcwd()
-    workspace_root = os.path.realpath(cwd)
+    workspace_root = os.path.realpath(work_dir)
 
     end_of_opts = False
     operands: list[str] = []
@@ -128,7 +126,7 @@ def _is_safe_trash_argv(argv: list[str], work_dir: str | None = None) -> SafetyC
             return SafetyCheckResult(False, f"trash: Trailing slash not allowed: '{op}'")
 
         # Resolve and ensure stays within workspace_root
-        op_abs = os.path.realpath(os.path.join(cwd, op))
+        op_abs = os.path.realpath(os.path.join(work_dir, op))
         try:
             if os.path.commonpath([op_abs, workspace_root]) != workspace_root:
                 return SafetyCheckResult(False, f"trash: Path escapes workspace: '{op}' -> '{op_abs}'")
@@ -140,7 +138,7 @@ def _is_safe_trash_argv(argv: list[str], work_dir: str | None = None) -> SafetyC
     return SafetyCheckResult(True)
 
 
-def _is_safe_argv(argv: list[str], work_dir: str | None = None) -> SafetyCheckResult:
+def _is_safe_argv(argv: list[str], work_dir: str) -> SafetyCheckResult:
     if not argv:
         return SafetyCheckResult(False, "Empty command")
 
@@ -156,7 +154,7 @@ def _is_safe_argv(argv: list[str], work_dir: str | None = None) -> SafetyCheckRe
     return SafetyCheckResult(True)
 
 
-def is_safe_command(command: str, work_dir: str | None = None) -> SafetyCheckResult:
+def is_safe_command(command: str, *, work_dir: str) -> SafetyCheckResult:
     """Determine if a command is safe enough to run.
 
     Only rm and trash commands are checked for safety. All other commands

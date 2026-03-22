@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from klaude_code.log import log
 from klaude_code.session.selector import build_session_select_options, format_user_messages_display
 from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, select_one
@@ -9,7 +11,7 @@ def select_session_sync(session_ids: list[str] | None = None) -> str | None:
     Args:
         session_ids: Optional list of session IDs to filter. If provided, only show these sessions.
     """
-    options = build_session_select_options()
+    options = build_session_select_options(work_dir=Path.cwd())
     if session_ids is not None:
         session_id_set = set(session_ids)
         options = [opt for opt in options if opt.session_id in session_id_set]

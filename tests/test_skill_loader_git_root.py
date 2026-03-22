@@ -18,12 +18,11 @@ def test_discover_skills_includes_git_root_project_skills(tmp_path: Path, monkey
         encoding="utf-8",
     )
 
-    monkeypatch.chdir(work_dir)
     monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [])
 
     loader = SkillLoader()
-    loader.discover_skills()
+    loader.discover_skills(work_dir=work_dir)
 
     assert "root-skill" in loader.loaded_skills
     assert loader.loaded_skills["root-skill"].location == "project"
@@ -51,12 +50,11 @@ def test_discover_skills_prefers_cwd_project_skill_over_git_root(
         encoding="utf-8",
     )
 
-    monkeypatch.chdir(work_dir)
     monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [])
 
     loader = SkillLoader()
-    loader.discover_skills()
+    loader.discover_skills(work_dir=work_dir)
 
     assert "shared-skill" in loader.loaded_skills
     assert loader.loaded_skills["shared-skill"].description == "from cwd"

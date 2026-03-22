@@ -51,13 +51,13 @@ def format_user_messages_display(messages: list[str]) -> list[str]:
     return result
 
 
-def build_session_select_options(work_dir: Path | None = None) -> list[SessionSelectOption]:
+def build_session_select_options(work_dir: Path) -> list[SessionSelectOption]:
     """Build session selection options data.
 
     Returns:
         List of SessionSelectOption, or empty list if no sessions exist.
     """
-    sessions = Session.list_sessions(work_dir or Path.cwd())
+    sessions = Session.list_sessions(work_dir)
     if not sessions:
         return []
 

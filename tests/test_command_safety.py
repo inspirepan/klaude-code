@@ -41,14 +41,14 @@ class TestCommandSafety(unittest.TestCase):
 
     # Helpers
     def assert_safe(self, command: str):
-        result = is_safe_command(command)
+        result = is_safe_command(command, work_dir=os.getcwd())
         self.assertTrue(
             result.is_safe,
             msg=f"Expected SAFE, got UNSAFE for: {command} (Error: {result.error_msg})",
         )
 
     def assert_unsafe(self, command: str, expected_error: str | None = None):
-        result = is_safe_command(command)
+        result = is_safe_command(command, work_dir=os.getcwd())
         self.assertFalse(result.is_safe, msg=f"Expected UNSAFE, got SAFE for: {command}")
         if expected_error:
             self.assertIn(

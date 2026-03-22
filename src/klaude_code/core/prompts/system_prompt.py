@@ -187,11 +187,12 @@ def load_system_prompt(
     model_name: str,
     sub_agent_type: tools.SubAgentType | None = None,
     available_tools: list[llm_param.ToolSchema] | None = None,
-    work_dir: Path | None = None,
+    *,
+    work_dir: Path,
 ) -> str:
     """Get system prompt content for the given model and sub-agent type."""
 
-    effective_work_dir = work_dir or Path.cwd()
+    effective_work_dir = work_dir
 
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)
