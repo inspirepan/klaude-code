@@ -1,3 +1,4 @@
+import { parse as shellParse } from "shell-quote";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { MessageItem as MessageItemType, DeveloperMessageItem } from "../../types/message";
@@ -75,126 +76,46 @@ function basename(path: string): string {
 const IGNORED_COMMANDS = new Set(["cd"]);
 const COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME = "grid-cols-[28px_1fr]";
 
-type ShellQuote = "none" | "single" | "double";
-
-/** Split a shell command into statement segments, respecting quoting and escapes. */
-function splitShellStatements(command: string): string[] {
-  const statements: string[] = [];
-  let current = "";
-  let quote: ShellQuote = "none";
-
-  for (let i = 0; i < command.length; i++) {
-    const ch = command[i]!;
-
-    if (quote === "single") {
-      if (ch === "'") quote = "none";
-      else current += ch;
-      continue;
-    }
-
-    if (quote === "double") {
-      if (ch === '"') {
-        quote = "none";
-      } else if (ch === "\\" && i + 1 < command.length) {
-        current += command[++i]!;
-      } else {
-        current += ch;
-      }
-      continue;
-    }
-
-    // Unquoted
-    if (ch === "'") {
-      quote = "single";
-    } else if (ch === '"') {
-      quote = "double";
-    } else if (ch === ";" || ch === "\n") {
-      statements.push(current);
-      current = "";
-    } else if (ch === "&" && command[i + 1] === "&") {
-      statements.push(current);
-      current = "";
-      i++;
-    } else if (ch === "|" && command[i + 1] === "|") {
-      statements.push(current);
-      current = "";
-      i++;
-    } else {
-      current += ch;
-    }
-  }
-
-  if (current.trim()) statements.push(current);
-  return statements;
-}
-
-/** Tokenize a single shell statement, respecting quoting. Returns unquoted token values. */
-function tokenizeShellStatement(stmt: string): string[] {
-  const tokens: string[] = [];
-  let current = "";
-  let quote: ShellQuote = "none";
-
-  for (let i = 0; i < stmt.length; i++) {
-    const ch = stmt[i]!;
-
-    if (quote === "single") {
-      if (ch === "'") quote = "none";
-      else current += ch;
-      continue;
-    }
-
-    if (quote === "double") {
-      if (ch === '"') {
-        quote = "none";
-      } else if (ch === "\\" && i + 1 < stmt.length) {
-        current += stmt[++i]!;
-      } else {
-        current += ch;
-      }
-      continue;
-    }
-
-    // Unquoted
-    if (ch === "'") {
-      quote = "single";
-    } else if (ch === '"') {
-      quote = "double";
-    } else if (ch === " " || ch === "\t") {
-      if (current) {
-        tokens.push(current);
-        current = "";
-      }
-    } else {
-      current += ch;
-    }
-  }
-
-  if (current) tokens.push(current);
-  return tokens;
-}
-
-function extractCommandFromStatement(stmt: string): string | null {
-  const tokens = tokenizeShellStatement(stmt);
-  if (tokens.length === 0) return null;
-  const cmd = tokens[0]!;
-  if (IGNORED_COMMANDS.has(cmd)) return null;
-  if (SUBCOMMAND_COMMANDS.has(cmd)) {
-    for (let i = 1; i < tokens.length; i++) {
-      if (!tokens[i]!.startsWith("-")) {
-        return `${cmd} ${tokens[i]}`;
-      }
-    }
-  }
-  return cmd;
-}
+// Operators that separate independent statements (we extract a command from each)
+const STATEMENT_SEPARATORS = new Set(["&&", "||", ";", "\n"]);
 
 function extractBashSummaries(command: string): string[] {
-  // Pipe | is not a separator (it chains, not sequences); only || is
-  const statements = splitShellStatements(command);
+  const tokens = shellParse(command);
+
+  // Split token stream into statements on control operators
+  const statements: string[][] = [];
+  let current: string[] = [];
+
+  for (const tok of tokens) {
+    if (typeof tok === "object" && "op" in tok) {
+      if (STATEMENT_SEPARATORS.has(tok.op)) {
+        if (current.length > 0) statements.push(current);
+        current = [];
+        continue;
+      }
+      // Pipe | and redirections are part of the same statement; skip the operator
+      continue;
+    }
+    if (typeof tok === "string") {
+      current.push(tok);
+    }
+  }
+  if (current.length > 0) statements.push(current);
+
+  // Extract command name from each statement
   const summaries: string[] = [];
-  for (const stmt of statements) {
-    const result = extractCommandFromStatement(stmt);
-    if (result !== null) summaries.push(result);
+  for (const words of statements) {
+    if (words.length === 0) continue;
+    const cmd = words[0]!;
+    if (IGNORED_COMMANDS.has(cmd)) continue;
+    if (SUBCOMMAND_COMMANDS.has(cmd)) {
+      const sub = words.slice(1).find((w) => !w.startsWith("-"));
+      if (sub) {
+        summaries.push(`${cmd} ${sub}`);
+        continue;
+      }
+    }
+    summaries.push(cmd);
   }
   return summaries;
 }
