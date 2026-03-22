@@ -104,7 +104,7 @@ export function ProjectGroup({
       </div>
 
       <CollapsibleContent className="ml-3 border-l border-neutral-200 pl-1.5">
-        <div className="space-y-0.5 pb-0.5">
+        <div className="pb-0.5">
           {displaySessions.map((session) => (
             <SessionCard
               key={session.id}

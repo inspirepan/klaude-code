@@ -139,10 +139,10 @@ export function SessionCard({
   });
 
   return (
-    <div className="group">
+    <div className="group flex items-center gap-0.5">
       <div
         className={cn(
-          "relative flex w-full min-w-0 items-center gap-1 rounded-md py-1 pl-1.5 pr-1.5 text-left transition-colors",
+          "relative flex min-w-0 flex-1 items-center gap-1 rounded-md py-1 pl-1.5 pr-1.5 text-left transition-colors",
           showSuccessState
             ? active
               ? "status-success-card-settle-active"
@@ -186,29 +186,28 @@ export function SessionCard({
         >
           {relativeTime}
         </span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className="pointer-events-none inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:outline-none focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
-              aria-label={session.archived ? "Unarchive session" : "Archive session"}
-              onClick={(event) => {
-                event.stopPropagation();
-                onToggleArchive(session.id, !session.archived);
-              }}
-            >
-              {session.archived ? (
-                <ArchiveRestore className="h-3 w-3" />
-              ) : (
-                <Archive className="h-3 w-3" />
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {session.archived ? "Unarchive session" : "Archive session"}
-          </TooltipContent>
-        </Tooltip>
       </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:outline-none focus-visible:opacity-100 group-hover:opacity-100"
+            aria-label={session.archived ? "Unarchive session" : "Archive session"}
+            onClick={() => {
+              onToggleArchive(session.id, !session.archived);
+            }}
+          >
+            {session.archived ? (
+              <ArchiveRestore className="h-3 w-3" />
+            ) : (
+              <Archive className="h-3 w-3" />
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {session.archived ? "Unarchive session" : "Archive session"}
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }
