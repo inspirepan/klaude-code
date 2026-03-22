@@ -398,6 +398,96 @@ class TestReminders(BaseTempDirTest):
         self.assertIn(str(child_path), paths)
         self.assertIn(sibling_path, paths)
 
+    def test_at_file_reader_reminder_discovers_memory_in_directory(self):
+        """When @dir is used, AGENTS.md in that directory should be auto-injected."""
+        subdir = Path("subdir")
+        subdir.mkdir(exist_ok=True)
+        (subdir / "file.txt").write_text("hello\n")
+        agents_md = subdir / "AGENTS.md"
+        agents_md.write_text("# Subdir Instructions\nDo something special.\n")
+
+        dir_path = str(subdir.resolve())
+        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{dir_path}")))
+
+        reminder = arun(at_file_reader_reminder(self.session))
+        self.assertIsNotNone(reminder)
+        assert reminder is not None
+
+        # Should have the ls op for the directory
+        ops = _get_at_file_ops(reminder)
+        self.assertEqual(len(ops), 1)
+        self.assertEqual(ops[0].operation, "List")
+
+        # Memory file should be discovered and included in text
+        text = message.join_text_parts(reminder.parts)
+        self.assertIn("Subdir Instructions", text)
+        self.assertIn("Do something special", text)
+
+        # Memory file should be reflected in UI
+        assert reminder.ui_extra is not None
+        memory_items = [i for i in reminder.ui_extra.items if isinstance(i, model.MemoryLoadedUIItem)]
+        self.assertEqual(len(memory_items), 1)
+        self.assertEqual(len(memory_items[0].files), 1)
+        self.assertTrue(memory_items[0].files[0].path.endswith("AGENTS.md"))
+
+        # Memory file should be marked as loaded in file_tracker
+        self.assertIn(str(agents_md.resolve()), self.session.file_tracker)
+        status = self.session.file_tracker[str(agents_md.resolve())]
+        self.assertTrue(status.is_memory)
+
+    def test_at_file_reader_reminder_discovers_memory_in_parent_dirs(self):
+        """When @deep/dir is used, AGENTS.md in intermediate dirs should also be injected."""
+        parent = Path("parent")
+        parent.mkdir(exist_ok=True)
+        (parent / "AGENTS.md").write_text("parent instructions\n")
+        child = parent / "child"
+        child.mkdir(exist_ok=True)
+        (child / "data.txt").write_text("data\n")
+        (child / "AGENTS.md").write_text("child instructions\n")
+
+        dir_path = str(child.resolve())
+        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{dir_path}")))
+
+        reminder = arun(at_file_reader_reminder(self.session))
+        self.assertIsNotNone(reminder)
+        assert reminder is not None
+
+        text = message.join_text_parts(reminder.parts)
+        self.assertIn("parent instructions", text)
+        self.assertIn("child instructions", text)
+
+    def test_at_file_reader_reminder_no_duplicate_memory_if_already_loaded(self):
+        """Memory files already loaded by memory_reminder should not be loaded again."""
+        subdir = Path("subdir")
+        subdir.mkdir(exist_ok=True)
+        (subdir / "file.txt").write_text("hello\n")
+        agents_md = subdir / "AGENTS.md"
+        agents_md.write_text("subdir instructions\n")
+
+        # Pre-mark the memory as loaded (simulating memory_reminder having loaded it)
+        agents_path = str(agents_md.resolve())
+        self.session.file_tracker[agents_path] = model.FileStatus(
+            mtime=agents_md.stat().st_mtime,
+            content_sha256=hashlib.sha256(agents_md.read_bytes()).hexdigest(),
+            is_memory=True,
+        )
+
+        dir_path = str(subdir.resolve())
+        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{dir_path}")))
+
+        reminder = arun(at_file_reader_reminder(self.session))
+        self.assertIsNotNone(reminder)
+        assert reminder is not None
+
+        # Should have the ls op but no memory content
+        text = message.join_text_parts(reminder.parts)
+        self.assertNotIn("subdir instructions", text)
+
+        # No MemoryLoadedUIItem
+        assert reminder.ui_extra is not None
+        memory_items = [i for i in reminder.ui_extra.items if isinstance(i, model.MemoryLoadedUIItem)]
+        self.assertEqual(len(memory_items), 0)
+
 
 class TestEditTool(BaseTempDirTest):
     def test_edit_requires_read_first(self):

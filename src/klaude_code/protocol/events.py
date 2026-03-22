@@ -64,6 +64,8 @@ __all__ = [
     "UserInteractionResponseReceivedEvent",
     "UserMessageEvent",
     "WelcomeEvent",
+    "WelcomeStartupInfo",
+    "WelcomeUpdateInfo",
     "event_durability",
     "event_type_name",
     "parse_event_envelope",
@@ -314,6 +316,15 @@ class ResponseCompleteEvent(ResponseEvent):
     thinking_text: str | None = None
 
 
+class WelcomeUpdateInfo(BaseModel):
+    message: str
+    level: Literal["info", "warn"] = "warn"
+
+
+class WelcomeStartupInfo(BaseModel):
+    update_info: WelcomeUpdateInfo | None = None
+
+
 class WelcomeEvent(Event):
     work_dir: str
     llm_config: llm_param.LLMConfigParameter
@@ -322,6 +333,7 @@ class WelcomeEvent(Event):
     loaded_skills: dict[str, list[str]] = Field(default_factory=dict)
     loaded_skill_warnings: dict[str, list[str]] = Field(default_factory=dict)
     loaded_memories: dict[str, list[str]] = Field(default_factory=dict)
+    startup_info: WelcomeStartupInfo | None = None
 
 
 class ErrorEvent(Event):
