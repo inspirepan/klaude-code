@@ -48,10 +48,6 @@ function isNearBottom(container: HTMLDivElement): boolean {
   );
 }
 
-/** Inset applied to bottom-anchored elements (status bar, scroll-to-bottom, tail padding)
- *  so they sit slightly inside the composer area rather than flush at its top edge. */
-const COMPOSER_BOTTOM_INSET = "2rem";
-
 interface MessageListProps {
   sessionId: string;
 }
@@ -659,24 +655,16 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                   </div>
                 ) : null}
               </div>
-              <div className="mx-auto max-w-4xl px-4 sm:px-6">
+              <div className="mx-auto max-w-4xl px-4 pb-4 sm:px-6">
                 <SessionStatusBar
                   status={viewingSubAgentSessionId ? effectiveStatus : mainSessionStatus}
                   runtime={viewingSubAgentSessionId ? null : runtime}
                 />
               </div>
-              {/* Padding so content isn't hidden under the absolute positioned composer */}
-              <div
-                className="shrink-0"
-                style={{ height: `calc(var(--composer-h, 10rem) - ${COMPOSER_BOTTOM_INSET})` }}
-              />
             </div>
           </div>
           {showScrollToBottom ? (
-            <div
-              className="pointer-events-none absolute left-1/2 z-20 -translate-x-1/2"
-              style={{ bottom: `calc(var(--composer-h, 10rem) - ${COMPOSER_BOTTOM_INSET})` }}
-            >
+            <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button

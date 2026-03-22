@@ -1,6 +1,4 @@
 import { PanelLeftOpen } from "lucide-react";
-import { useRef } from "react";
-import { useMountEffect } from "@/hooks/useMountEffect";
 import { useAppStore } from "../../stores/app-store";
 import { useSessionStore } from "../../stores/session-store";
 import { MessageComposer } from "../input/MessageComposer";
@@ -15,24 +13,9 @@ export function MainPanel(): JSX.Element {
   const newSessionOverlayOpen = useAppStore((state) => state.newSessionOverlayOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
-  const mainRef = useRef<HTMLElement>(null);
-  const composerRef = useRef<HTMLDivElement>(null);
-
-  useMountEffect(() => {
-    const el = composerRef.current;
-    const root = mainRef.current;
-    if (!el || !root) return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry) {
-        root.style.setProperty("--composer-h", `${entry.contentRect.height}px`);
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  });
 
   return (
-    <main ref={mainRef} className="main-panel relative">
+    <main className="main-panel relative">
       {isDraft ? (
         <div className="relative min-h-0 flex-1 bg-surface/45">
           {!sidebarOpen ? (
@@ -71,7 +54,7 @@ export function MainPanel(): JSX.Element {
       ) : (
         <>
           <MessageList sessionId={activeSessionId} />
-          <div ref={composerRef} className="absolute bottom-0 left-0 right-0 z-30">
+          <div className="relative z-30 shrink-0">
             <MessageComposer key={activeSessionId} />
           </div>
           {newSessionOverlayOpen ? (

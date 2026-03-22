@@ -234,8 +234,8 @@ export function MessageComposer(): JSX.Element {
         ];
 
   return (
-    <div className="relative shrink-0 px-4 pb-4 sm:px-6">
-      <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-t from-white/95 via-white/80 to-transparent [-webkit-mask-image:linear-gradient(to_bottom,transparent,black_3rem)] [mask-image:linear-gradient(to_bottom,transparent,black_3rem)]" />
+    <div className="relative shrink-0 overflow-visible px-4 pb-4 sm:px-6">
+      <div className="pointer-events-none absolute -top-12 bottom-0 left-0 right-0 z-0 bg-gradient-to-t from-white/95 via-white/80 via-[30%] to-transparent [backface-visibility:hidden]" />
       <div className="relative z-10 mx-auto max-w-4xl space-y-3">
         {activeInteraction ? (
           <UserInteractionCard
