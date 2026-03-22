@@ -137,7 +137,7 @@ class ModelProfileProvider(Protocol):
         sub_agent_type: tools.SubAgentType | None = None,
         *,
         output_schema: dict[str, Any] | None = None,
-        work_dir: Path | None = None,
+        work_dir: Path,
     ) -> AgentProfile: ...
 
 
@@ -153,7 +153,7 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         sub_agent_type: tools.SubAgentType | None = None,
         *,
         output_schema: dict[str, Any] | None = None,
-        work_dir: Path | None = None,
+        work_dir: Path,
     ) -> AgentProfile:
         model_name = llm_client.model_name
         agent_tools = load_agent_tools(model_name, sub_agent_type, config=self._config)
@@ -182,7 +182,7 @@ class VanillaModelProfileProvider(ModelProfileProvider):
         sub_agent_type: tools.SubAgentType | None = None,
         *,
         output_schema: dict[str, Any] | None = None,
-        work_dir: Path | None = None,
+        work_dir: Path,
     ) -> AgentProfile:
         del sub_agent_type, work_dir
         profile = AgentProfile(

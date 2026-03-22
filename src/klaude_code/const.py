@@ -217,11 +217,6 @@ def project_key_from_path(path: Path) -> str:
     return str(path.resolve()).strip("/").replace("/", "-")
 
 
-def project_key_from_cwd() -> str:
-    """Derive the project key from the current working directory."""
-    return project_key_from_path(Path.cwd())
-
-
 @dataclass(frozen=True)
 class ProjectPaths:
     """Path utilities for project-scoped storage."""

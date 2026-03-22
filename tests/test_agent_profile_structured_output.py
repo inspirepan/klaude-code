@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from pathlib import Path
 
 from klaude_code.core.agent_profile import STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT, DefaultModelProfileProvider
 from klaude_code.llm import LLMClientABC
@@ -30,7 +31,7 @@ class DummyLLMClient(LLMClientABC):
         return DummyLLMStream()
 
 
-def test_default_profile_provider_injects_report_back_on_output_schema() -> None:
+def test_default_profile_provider_injects_report_back_on_output_schema(tmp_path: Path) -> None:
     provider = DefaultModelProfileProvider()
     client = DummyLLMClient(
         llm_param.LLMConfigParameter(protocol=llm_param.LLMClientProtocol.OPENAI, model_id="gpt-5.2-codex")
@@ -42,7 +43,7 @@ def test_default_profile_provider_injects_report_back_on_output_schema() -> None
         "required": ["foo"],
     }
 
-    profile = provider.build_profile(client, output_schema=schema)
+    profile = provider.build_profile(client, output_schema=schema, work_dir=tmp_path)
     assert profile.system_prompt is not None
     assert profile.system_prompt.endswith(STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT)
 
