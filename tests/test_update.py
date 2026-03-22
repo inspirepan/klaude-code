@@ -75,8 +75,7 @@ def test_get_startup_update_summary_returns_message_from_persisted_state(
     assert summary is not None
     assert summary.level == "warn"
     assert summary.message == (
-        "PyPI 1.1.0 available. Current 1.0.0 (local path install); "
-        "run `klaude upgrade` from a clean local checkout."
+        "PyPI 1.1.0 available. Current 1.0.0 (local path install); run `klaude upgrade` from a clean local checkout."
     )
     assert started["value"] is False
 

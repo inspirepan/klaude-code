@@ -326,7 +326,9 @@ def _is_persisted_update_info_fresh(info: PersistedUpdateInfo) -> bool:
     return (time.time() - info.checked_at) < CHECK_INTERVAL_SECONDS
 
 
-def _build_update_message(installed: str | None, latest: str | None, install_kind: str, *, update_available: bool) -> str | None:
+def _build_update_message(
+    installed: str | None, latest: str | None, install_kind: str, *, update_available: bool
+) -> str | None:
     if not update_available or not latest:
         return None
 

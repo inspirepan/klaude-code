@@ -407,9 +407,7 @@ class TestReminders(BaseTempDirTest):
         agents_md.write_text("# Subdir Instructions\nDo something special.\n")
 
         dir_path = str(subdir.resolve())
-        self.session.conversation_history.append(
-            message.UserMessage(parts=message.text_parts_from_str(f"@{dir_path}"))
-        )
+        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{dir_path}")))
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)
@@ -448,9 +446,7 @@ class TestReminders(BaseTempDirTest):
         (child / "AGENTS.md").write_text("child instructions\n")
 
         dir_path = str(child.resolve())
-        self.session.conversation_history.append(
-            message.UserMessage(parts=message.text_parts_from_str(f"@{dir_path}"))
-        )
+        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{dir_path}")))
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)
@@ -477,9 +473,7 @@ class TestReminders(BaseTempDirTest):
         )
 
         dir_path = str(subdir.resolve())
-        self.session.conversation_history.append(
-            message.UserMessage(parts=message.text_parts_from_str(f"@{dir_path}"))
-        )
+        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{dir_path}")))
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)

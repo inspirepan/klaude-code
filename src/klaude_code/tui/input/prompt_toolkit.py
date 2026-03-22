@@ -83,6 +83,8 @@ def _trim_formatted_text_with_ellipsis(
     result.append(("", COMPLETION_TRUNCATION_SYMBOL))
     used_width = max_width - remaining_width
     return result, used_width
+
+
 # ---------------------------------------------------------------------------
 # Layout helpers
 # ---------------------------------------------------------------------------
@@ -107,6 +109,8 @@ def _left_align_completion_menus(container: Container) -> None:
 
     for child in container.get_children():
         _left_align_completion_menus(child)
+
+
 def _find_window_for_buffer(container: Container, target_buffer: Buffer) -> Window | None:
     if isinstance(container, Window):
         content = container.content
