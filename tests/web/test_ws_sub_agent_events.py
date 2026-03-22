@@ -36,6 +36,7 @@ from .conftest import FakeLLMClient
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _write_session_meta(
     *,
     work_dir: Path,

@@ -14,11 +14,7 @@ import { CollapseAllContext } from "./collapse-all-context";
 import { DeveloperMessage } from "./DeveloperMessage";
 import { MessageListHeader } from "./MessageListHeader";
 import { MessageRow } from "./MessageRow";
-import {
-  buildSections,
-  buildSectionBlocks,
-  findMatchingItemIds,
-} from "./message-sections";
+import { buildSections, buildSectionBlocks, findMatchingItemIds } from "./message-sections";
 import { SearchBar } from "./SearchBar";
 import { SubAgentGroupCard } from "./SubAgentGroupCard";
 import {
@@ -46,7 +42,9 @@ function getSubAgentIdFromUrl(): string | null {
 }
 
 function isNearBottom(container: HTMLDivElement): boolean {
-  return container.scrollHeight - container.scrollTop - container.clientHeight < BOTTOM_THRESHOLD_PX;
+  return (
+    container.scrollHeight - container.scrollTop - container.clientHeight < BOTTOM_THRESHOLD_PX
+  );
 }
 
 /** Inset applied to bottom-anchored elements (status bar, scroll-to-bottom, tail padding)

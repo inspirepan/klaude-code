@@ -9,11 +9,7 @@ import {
 } from "react";
 import { ArrowUp, Plus, Square, X } from "lucide-react";
 
-import {
-  buildFileApiUrl,
-  uploadImageAttachment,
-  type ConfigModelSummary,
-} from "../../api/client";
+import { buildFileApiUrl, uploadImageAttachment, type ConfigModelSummary } from "../../api/client";
 import type { MessageImageFilePart } from "../../types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { AtFileCompletionList } from "./AtFileCompletionList";
@@ -288,10 +284,7 @@ export function ComposerCard({
                 fileComp.setHighlightIndex(Math.max(fileComp.highlightIndex - 1, 0));
                 return;
               }
-              if (
-                (event.key === "Enter" || event.key === "Tab") &&
-                fileComp.items.length > 0
-              ) {
+              if ((event.key === "Enter" || event.key === "Tab") && fileComp.items.length > 0) {
                 event.preventDefault();
                 const path = fileComp.items[fileComp.highlightIndex];
                 if (path) {
@@ -319,10 +312,7 @@ export function ComposerCard({
                 slashComp.setHighlightIndex(Math.max(slashComp.highlightIndex - 1, 0));
                 return;
               }
-              if (
-                (event.key === "Enter" || event.key === "Tab") &&
-                slashComp.items.length > 0
-              ) {
+              if ((event.key === "Enter" || event.key === "Tab") && slashComp.items.length > 0) {
                 event.preventDefault();
                 const item = slashComp.items[slashComp.highlightIndex];
                 if (item) {

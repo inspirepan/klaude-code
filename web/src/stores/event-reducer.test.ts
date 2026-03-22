@@ -137,7 +137,11 @@ describe("reduceEvent — interleaved thinking and text", () => {
     state = reduceEvent(state, "assistant.text.end", makeEvent(), null);
 
     expect(state.items).toHaveLength(2);
-    expect(state.items[0]).toMatchObject({ type: "thinking", content: "think", isStreaming: false });
+    expect(state.items[0]).toMatchObject({
+      type: "thinking",
+      content: "think",
+      isStreaming: false,
+    });
     expect(state.items[1]).toMatchObject({
       type: "assistant_text",
       content: "reply",

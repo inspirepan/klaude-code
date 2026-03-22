@@ -4,12 +4,12 @@
 
 ## 核心概念
 
-| 概念 | 说明 |
-|---|---|
-| `HistoryEvent` | 持久化到 `events.jsonl` 的完整消息（UserMessage / AssistantMessage / ToolResultMessage 等） |
-| `EventEnvelope` | 运行时实时事件的传输包装，包含细粒度 delta（AssistantTextDelta、ThinkingDelta 等），不直接落盘 |
-| `ReplayEventUnion` | 从 `HistoryEvent` 重新编译出的回放事件，重建流式边界（Start/Delta/End） |
-| `SpawnSubAgentEntry` | 写入父 session 历史的标记，记录子 agent 的 session_id，在子 agent 开始执行前写入 |
+| 概念                 | 说明                                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| `HistoryEvent`       | 持久化到 `events.jsonl` 的完整消息（UserMessage / AssistantMessage / ToolResultMessage 等）    |
+| `EventEnvelope`      | 运行时实时事件的传输包装，包含细粒度 delta（AssistantTextDelta、ThinkingDelta 等），不直接落盘 |
+| `ReplayEventUnion`   | 从 `HistoryEvent` 重新编译出的回放事件，重建流式边界（Start/Delta/End）                        |
+| `SpawnSubAgentEntry` | 写入父 session 历史的标记，记录子 agent 的 session_id，在子 agent 开始执行前写入               |
 
 ## 整体架构
 
@@ -64,6 +64,7 @@ graph TB
 5. 返回 `{"session_id": ..., "events": [...]}`
 
 `get_history_item()` 的关键处理：
+
 - 对每个 `AssistantMessage` 重建 ThinkingStart/Delta/End + AssistantTextStart/Delta/End 边界
 - ToolCall 做延迟发射（等对应 ToolResult 出现后一起发）
 - 递归展开子 agent 历史（通过 `SpawnSubAgentEntry` 和 `ToolResultMessage.ui_extra`）
@@ -110,6 +111,7 @@ WebSocket 订阅全局 `EnvelopeBus`，按以下规则过滤：
 4. 其他 → 丢弃
 
 `tracked_task_ids` 的初始化：
+
 - 如果有内存中的 session snapshot（同一 web server 启动的会话），直接取 `active_root_task.task_id`
 - 子 agent 事件继承父 agent 的 `task_id`（通过 `event_publish_context` 传递），所以通过 task_id 机制自然转发
 
@@ -168,12 +170,12 @@ sequenceDiagram
 
 Web 端通过 `load_session_read_only()` 判断会话是否只读：
 
-| 条件 | 结果 |
-|---|---|
-| 当前 web server 持有该 session 的 actor | 可写 |
-| owner 心跳超过 15 秒 | 可写（接管） |
-| owner 是同一个 runtime_id | 可写 |
-| owner 是 TUI 且心跳存活 | 只读 |
-| owner 是其他 Web 且会话 running/waiting | 只读 |
+| 条件                                    | 结果         |
+| --------------------------------------- | ------------ |
+| 当前 web server 持有该 session 的 actor | 可写         |
+| owner 心跳超过 15 秒                    | 可写（接管） |
+| owner 是同一个 runtime_id               | 可写         |
+| owner 是 TUI 且心跳存活                 | 只读         |
+| owner 是其他 Web 且会话 running/waiting | 只读         |
 
 只读会话：不初始化 actor、不获取 holder、前端只能查看不能发送命令。

@@ -8,10 +8,7 @@ import {
   fetchSessionHistory,
   unarchiveSession,
 } from "../api/client";
-import type {
-  PendingUserInteractionRequest,
-  UserInteractionResponse,
-} from "../types/interaction";
+import type { PendingUserInteractionRequest, UserInteractionResponse } from "../types/interaction";
 import type {
   ActiveSessionId,
   SessionGroup,
