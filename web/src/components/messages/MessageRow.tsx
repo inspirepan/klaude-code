@@ -35,7 +35,7 @@ export function MessageRow({
       >
         <MessageItem item={item} workDir={workDir} />
         {canCopy ? (
-          <div className="mt-1 flex justify-end">
+          <div className="mt-2.5 flex justify-end">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
