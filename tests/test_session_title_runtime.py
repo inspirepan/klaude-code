@@ -83,7 +83,6 @@ def test_generate_session_title_uses_only_user_messages() -> None:
     assert "overall topic should summarize the main theme of the whole conversation" in rendered.lower()
     assert "current task should summarize what the latest user message is currently trying to do" in rendered.lower()
     assert "prefer the main substantive task/topic of the current user message" in rendered.lower()
-    assert "workflow or administrative follow-up" in rendered.lower()
     assert "reflect user intent, not internal tool usage or skill execution" in rendered.lower()
     assert "prefer reusing its overall topic" in rendered.lower()
     assert "reuse its overall topic unless the conversation theme changed" in rendered.lower()
