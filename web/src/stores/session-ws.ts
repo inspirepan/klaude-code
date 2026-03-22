@@ -219,7 +219,7 @@ export function connectSessionStream(set: SetState): void {
       if (sessionStreamReconnectTimer !== null) {
         return;
       }
-      sessionStreamReconnectTimer = window.setTimeout(() => {
+      sessionStreamReconnectTimer = setTimeout(() => {
         sessionStreamReconnectTimer = null;
         connectSessionStream(set);
       }, 1000);
