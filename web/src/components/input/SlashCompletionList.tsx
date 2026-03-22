@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { CommandListPanel, CommandListScroll, CommandListItem } from "@/components/ui/command-list";
 
 export interface SlashCompletionItem {
   /** "command" for built-in commands, "skill" for loaded skills. */
@@ -43,41 +43,27 @@ export function SlashCompletionList({
   }, [highlightIndex, items]);
 
   return (
-    <div
-      className={`absolute left-0 right-0 z-20 overflow-hidden rounded-lg border border-border/80 bg-card shadow-float ${dropUp ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}
+    <CommandListPanel
+      className={`absolute left-0 right-0 z-20 shadow-float ${dropUp ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}
     >
-      <ScrollArea ref={listRef} className="w-full py-2" viewportClassName="max-h-72" type="always">
-        {items.map((item, index) => {
-          const highlighted = index === highlightIndex;
-          return (
-            <button
-              key={item.insertText}
-              data-slash-completion={item.insertText}
-              type="button"
-              className={[
-                "ml-2 mr-3.5 flex w-[calc(100%-1.375rem)] items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors",
-                highlighted ? "bg-muted text-neutral-900" : "text-neutral-600 hover:bg-surface",
-              ].join(" ")}
-              onMouseDown={(event) => {
-                event.preventDefault();
-              }}
-              onPointerEnter={() => {
-                onHighlightIndexChange(index);
-              }}
-              onClick={() => {
-                onSelect(item);
-              }}
-            >
-              <span className="min-w-0 flex-1 truncate text-sm leading-6">
-                <span className="text-neutral-800">
-                  {item.kind === "command" ? `/${item.name}` : `skill:${item.name}`}
-                </span>
-                <span className="ml-2 text-neutral-500">{item.description}</span>
+      <CommandListScroll ref={listRef}>
+        {items.map((item, index) => (
+          <CommandListItem
+            key={item.insertText}
+            data-slash-completion={item.insertText}
+            highlighted={index === highlightIndex}
+            onPointerEnter={() => onHighlightIndexChange(index)}
+            onClick={() => onSelect(item)}
+          >
+            <span className="min-w-0 flex-1 truncate">
+              <span className="font-medium text-neutral-800">
+                {item.kind === "command" ? `/${item.name}` : `skill:${item.name}`}
               </span>
-            </button>
-          );
-        })}
-      </ScrollArea>
-    </div>
+              <span className="ml-2 text-neutral-500">{item.description}</span>
+            </span>
+          </CommandListItem>
+        ))}
+      </CommandListScroll>
+    </CommandListPanel>
   );
 }

@@ -514,7 +514,7 @@ export function LeftSidebar(): JSX.Element {
                 </div>
               ) : null}
 
-              <div className="space-y-3 pt-1">
+              <div className="space-y-0.5 pt-1">
                 {activeGroups.map((group) => (
                   <ProjectGroup
                     key={group.work_dir}

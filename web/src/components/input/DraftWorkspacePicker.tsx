@@ -8,7 +8,7 @@ import {
 } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, CornerDownLeft, Folder } from "lucide-react";
 
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { CommandListItem, CommandListPanel, CommandListScroll } from "@/components/ui/command-list";
 
 interface DraftWorkspacePickerProps {
   draftWorkDir: string;
@@ -151,32 +151,18 @@ export function DraftWorkspacePicker({
         </div>
 
         {workspaceMenuOpen ? (
-          <div className="absolute left-0 right-0 z-20 mt-1.5 overflow-hidden rounded-lg border border-border/80 bg-card py-2 shadow-float">
+          <CommandListPanel className="absolute left-0 right-0 z-20 mt-1.5 shadow-float">
             {filteredWorkspaceOptions.length > 0 ? (
-              <ScrollArea
-                ref={listRef}
-                className="w-full"
-                viewportClassName="max-h-64"
-                type="always"
-              >
+              <CommandListScroll ref={listRef} maxHeight="max-h-64">
                 {filteredWorkspaceOptions.map((workspace) => {
                   const isHighlighted = workspace === filteredWorkspaceOptions[highlightIndex];
                   const isSelected = workspace === normalizedDraftWorkDir;
                   const { name, parent } = workDirDisplay(workspace);
                   return (
-                    <button
+                    <CommandListItem
                       key={workspace}
                       data-workspace={workspace}
-                      type="button"
-                      className={[
-                        "ml-2 mr-3.5 flex w-[calc(100%-1.375rem)] items-center gap-2 rounded-md px-2 py-1 text-left transition-colors",
-                        isHighlighted || isSelected
-                          ? "bg-muted text-neutral-900"
-                          : "text-neutral-600 hover:bg-surface",
-                      ].join(" ")}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                      }}
+                      highlighted={isHighlighted || isSelected}
                       onPointerEnter={() => {
                         setHighlightedWorkspace(workspace);
                       }}
@@ -187,16 +173,16 @@ export function DraftWorkspacePicker({
                       }}
                     >
                       <Folder className="h-4 w-4 shrink-0 text-neutral-500" />
-                      <span className="min-w-0 flex-1 truncate text-sm leading-6">
+                      <span className="min-w-0 flex-1 truncate">
                         <span className="text-neutral-500">{parent ?? ""}</span>
                         <span className="text-neutral-700">{name}</span>
                       </span>
-                    </button>
+                    </CommandListItem>
                   );
                 })}
-              </ScrollArea>
+              </CommandListScroll>
             ) : (
-              <div className="px-2.5 py-1.5 text-sm text-neutral-500">
+              <div className="px-3 py-2 text-sm text-neutral-500">
                 No matching directory found. Press Enter to use this path.
               </div>
             )}
@@ -229,7 +215,7 @@ export function DraftWorkspacePicker({
                 </span>
               </div>
             ) : null}
-          </div>
+          </CommandListPanel>
         ) : null}
       </div>
     </div>

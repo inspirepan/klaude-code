@@ -3,6 +3,7 @@ import { Check, ChevronDown, ChevronRight, Search } from "lucide-react";
 
 import type { ConfigModelSummary } from "../../api/client";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { CommandListItem } from "@/components/ui/command-list";
 
 interface ModelSelectorProps {
   options: ConfigModelSummary[];
@@ -140,7 +141,7 @@ export function ModelSelector({
         <div
           className={
             panelClassName ??
-            `absolute left-0 z-30 w-[360px] overflow-hidden rounded-lg border border-border/80 bg-card pt-1 shadow-float-lg ${dropUp ? "bottom-full mb-2" : "top-full mt-2"}`
+            `absolute left-0 z-30 w-[360px] overflow-hidden rounded-xl border border-border/80 bg-card pt-1 shadow-float-lg ${dropUp ? "bottom-full mb-2" : "top-full mt-2"}`
           }
         >
           <div className="flex items-center gap-1.5 border-b border-neutral-100 px-2 pb-1.5 pt-1">
@@ -176,9 +177,9 @@ export function ModelSelector({
           </div>
           <ScrollArea
             ref={listRef}
-            className="w-full py-2"
+            className="w-full py-1"
             viewportClassName="max-h-96"
-            type="always"
+            type="auto"
           >
             {groups.map((group) => {
               const collapsed = collapsedProviders[group.provider] === true;
@@ -186,7 +187,7 @@ export function ModelSelector({
                 <div key={group.provider}>
                   <button
                     type="button"
-                    className="ml-2 mr-3.5 flex w-[calc(100%-1.375rem)] items-center gap-1 rounded-md px-1.5 pb-0.5 pt-1.5 text-xs uppercase tracking-wide text-emerald-700 transition-colors hover:bg-surface"
+                    className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-1 rounded-lg px-2 pb-0.5 pt-1.5 text-xs uppercase tracking-wide text-emerald-700 transition-colors hover:bg-surface"
                     onMouseDown={(event) => {
                       event.preventDefault();
                     }}
@@ -222,21 +223,11 @@ export function ModelSelector({
                           ? rawParam.slice("reasoning ".length)
                           : rawParam;
                         return (
-                          <button
+                          <CommandListItem
                             key={model.name}
                             data-model-name={model.name}
-                            type="button"
-                            className={[
-                              "ml-2 mr-3.5 flex w-[calc(100%-1.375rem)] items-center justify-between gap-2 rounded-md py-[5px] pl-[22px] pr-2 text-left transition-colors",
-                              highlighted
-                                ? "bg-muted text-neutral-900"
-                                : selected
-                                  ? "bg-surface text-neutral-900"
-                                  : "text-neutral-600",
-                            ].join(" ")}
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                            }}
+                            highlighted={highlighted || selected}
+                            className={`justify-between pl-6 ${!highlighted && selected ? "bg-surface" : ""}`}
                             onPointerEnter={() => {
                               const idx = visibleModels.indexOf(model.name);
                               if (idx >= 0) setHighlightIndex(idx);
@@ -247,7 +238,7 @@ export function ModelSelector({
                               setQuery("");
                             }}
                           >
-                            <span className="min-w-0 flex-1 truncate text-sm">
+                            <span className="min-w-0 flex-1 truncate">
                               {model.model_id}
                               {reasoningParam ? (
                                 <span className="text-neutral-500">
@@ -260,7 +251,7 @@ export function ModelSelector({
                               {model.is_default ? "default" : null}
                               {selected ? <Check className="h-3 w-3" /> : null}
                             </span>
-                          </button>
+                          </CommandListItem>
                         );
                       })}
                 </div>
