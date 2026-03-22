@@ -52,7 +52,7 @@ export function SubAgentGroupCard({
 
       {/* Type label */}
       <span className="shrink-0 text-base font-semibold text-neutral-700">
-        {formatSubAgentTypeLabel(sourceSessionType)}
+        Agent {formatSubAgentTypeLabel(sourceSessionType)}
       </span>
 
       {/* Description */}
@@ -69,7 +69,7 @@ export function SubAgentGroupCard({
 
       {/* Elapsed + tool count (right-aligned) */}
       <div className="ml-auto flex shrink-0 items-center gap-2 text-sm text-neutral-500">
-        {elapsedText ? <span className="font-mono">{elapsedText}</span> : null}
+        {elapsedText ? <span className="font-sans">{elapsedText}</span> : null}
         {toolCount > 0 ? (
           <>
             {elapsedText ? <span className="text-neutral-300">&middot;</span> : null}
