@@ -9,7 +9,7 @@ IMPORT_LINT := $(UV) run lint-imports
 PYTEST := $(UV) run pytest
 
 .PHONY: help install build build-web lint ruff-check format format-check typecheck imports test test-network \
-        web-lint web-format web-format-check
+        web-lint web-test web-format web-format-check
 
 help:
 	@printf "%s\n" \
@@ -19,7 +19,7 @@ help:
 		"  make build-web    Build web frontend only" \
 		"  make lint         Run ruff + pyright + import-linter + web eslint" \
 		"  make format       Auto-fix with ruff + prettier" \
-		"  make test         Run tests (pytest)"
+		"  make test         Run tests (pytest + vitest)"
 
 install:
 	git submodule update --init --recursive
@@ -55,13 +55,16 @@ imports:
 web-lint:
 	cd web && $(NPM) run lint
 
+web-test:
+	cd web && $(NPM) test
+
 web-format:
 	cd web && $(NPM) run format
 
 web-format-check:
 	cd web && $(NPM) run format:check
 
-test:
+test: web-test
 	$(PYTEST) -m "not network"
 
 test-network:

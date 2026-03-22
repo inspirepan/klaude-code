@@ -9,13 +9,14 @@ Python package with source code located in `src/klaude_code/`. Main modules incl
 - `src/klaude_code/tui/`: User interface components
 - `src/klaude_code/protocol/`: Communication structures and event definitions
 
-Tests are located in the `tests/` directory.
+Python tests are located in the `tests/` directory. Web frontend tests are in `web/src/` alongside source files (`*.test.ts`).
 
 ## Build, Test, and Development Commands
 
-- `make lint`: Run ruff + pyright + import-linter
-- `make format`: Auto-fix with ruff check --fix + ruff format
-- `make test`: Run tests (pytest)
+- `make lint`: Run ruff + pyright + import-linter + web eslint
+- `make format`: Auto-fix with ruff check --fix + ruff format + prettier
+- `make test`: Run all tests (vitest + pytest)
+- `make web-test`: Run web frontend tests only (vitest)
 - `git submodule update --init --recursive`: Sync required submodule before build/test/release (`src/klaude_code/skill/assets`)
 - use `tmux-test` skill to test UI interactive features
 
@@ -31,11 +32,18 @@ Tests are located in the `tests/` directory.
 
 ## Testing Guidelines
 
-- Use pytest as the testing framework
+### Python (pytest)
+
 - Test files should be placed in `tests/` directory
 - Test naming convention: `test_*.py`
-- Run tests with `pytest` command
+- Run tests with `make test` or `uv run pytest`
 - For tests that create or persist `Session` data, use the `isolated_home` fixture from `tests/conftest.py` so `HOME`/`Path.home()` point to a per-test temp directory and do not pollute the real `~/.klaude` session store
+
+### Web frontend (vitest)
+
+- Test files are co-located with source: `web/src/**/*.test.ts`
+- Run tests with `make web-test` or `cd web && pnpm test`
+- Pure logic tests (reducers, store helpers) are preferred — no DOM or browser required
 
 ## Python Type Hints
 

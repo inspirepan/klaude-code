@@ -9,34 +9,18 @@ import {
 } from "react";
 import { ArrowUp, Plus, Square, X } from "lucide-react";
 
-import {
-  buildFileApiUrl,
-  fetchSkills,
-  searchFileCompletions,
-  uploadImageAttachment,
-  type ConfigModelSummary,
-  type SkillItem,
-} from "../../api/client";
+import { buildFileApiUrl, uploadImageAttachment, type ConfigModelSummary } from "../../api/client";
 import type { MessageImageFilePart } from "../../types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { AtFileCompletionList } from "./AtFileCompletionList";
 import { ModelSelector } from "./ModelSelector";
-import { SlashCompletionList, type SlashCompletionItem } from "./SlashCompletionList";
+import { SlashCompletionList } from "./SlashCompletionList";
+import { useFileCompletion } from "./useFileCompletion";
+import { useSlashCompletion } from "./useSlashCompletion";
 
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const SUPPORTED_IMAGE_ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
-const AT_COMPLETION_PATTERN = /(^|\s)@(?<frag>"[^"]*"|[^\s]*)$/;
-const AT_COMPLETION_DEBOUNCE_MS = 120;
-const SLASH_COMPLETION_PATTERN = /^(?<prefix>\/\/|\/)(?<frag>[^\s/]*)$/;
 const COMPACT_COMMAND_PATTERN = /^\/compact(?:\s+(?<focus>.+))?$/;
-
-interface FileCompletionContext {
-  fragment: string;
-  searchQuery: string;
-  tokenStart: number;
-  tokenEnd: number;
-  isQuoted: boolean;
-}
 
 export interface ComposerImageAttachment {
   id: string;
@@ -80,141 +64,6 @@ interface ComposerCardProps {
   modelDropUp?: boolean;
   /** Open completion lists above (default) or below the textarea. */
   completionDropUp?: boolean;
-}
-
-function getFileCompletionContext(
-  text: string,
-  cursorPosition: number,
-): FileCompletionContext | null {
-  const textBeforeCursor = text.slice(0, cursorPosition);
-  const match = AT_COMPLETION_PATTERN.exec(textBeforeCursor);
-  const fragment = match?.groups?.frag;
-  if (fragment === undefined) {
-    return null;
-  }
-
-  let searchQuery = fragment;
-  const isQuoted = fragment.startsWith('"');
-  if (isQuoted) {
-    searchQuery = searchQuery.slice(1);
-    if (searchQuery.endsWith('"')) {
-      searchQuery = searchQuery.slice(0, -1);
-    }
-  }
-
-  return {
-    fragment,
-    searchQuery,
-    tokenStart: textBeforeCursor.length - `@${fragment}`.length,
-    tokenEnd: cursorPosition,
-    isQuoted,
-  };
-}
-
-function formatFileCompletionText(path: string, isQuoted: boolean): string {
-  if (isQuoted || /\s/.test(path)) {
-    return `@"${path}" `;
-  }
-  return `@${path} `;
-}
-
-const COMPACT_COMPLETION_ITEM: SlashCompletionItem = {
-  kind: "command",
-  name: "compact",
-  description: "Clear context, keep summary",
-  insertText: "/compact ",
-};
-
-/** Rank a skill match. Lower values = better match. Returns null when no match. */
-function skillMatchRank(
-  name: string,
-  description: string,
-  frag: string,
-): [number, number, number, number, number, number, number] | null {
-  const nameLower = name.toLowerCase();
-  const descLower = description.toLowerCase();
-  const tokenLower = `skill:${nameLower}`;
-
-  const namePrefix = nameLower.startsWith(frag);
-  const segmentPrefix = nameLower.split(/[-_:]/).some((seg) => seg.startsWith(frag));
-  const tokenPrefix = tokenLower.startsWith(frag);
-  const nameContains = nameLower.includes(frag);
-  const tokenContains = tokenLower.includes(frag);
-  const descContains = descLower.includes(frag);
-
-  if (!nameContains && !tokenContains && !descContains) return null;
-
-  return [
-    namePrefix ? 0 : 1,
-    segmentPrefix ? 0 : 1,
-    tokenPrefix ? 0 : 1,
-    nameContains ? 0 : 1,
-    tokenContains ? 0 : 1,
-    descContains ? 0 : 1,
-    nameLower.length,
-  ];
-}
-
-function compareRanks(
-  a: [number, number, number, number, number, number, number],
-  b: [number, number, number, number, number, number, number],
-): number {
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return a[i] - b[i];
-  }
-  return 0;
-}
-
-function buildSlashCompletionItems(
-  prefix: string,
-  fragment: string,
-  skills: SkillItem[],
-  showCommands: boolean,
-): SlashCompletionItem[] {
-  const items: SlashCompletionItem[] = [];
-  const frag = fragment.toLowerCase();
-
-  if (showCommands && prefix === "/") {
-    if (frag === "" || "compact".includes(frag)) {
-      items.push(COMPACT_COMPLETION_ITEM);
-    }
-  }
-
-  if (frag === "") {
-    for (const skill of skills) {
-      items.push({
-        kind: "skill",
-        name: skill.name,
-        description: skill.description,
-        location: skill.location,
-        insertText: `${prefix}skill:${skill.name} `,
-      });
-    }
-    return items;
-  }
-
-  const ranked: { item: SlashCompletionItem; rank: ReturnType<typeof skillMatchRank> & object }[] =
-    [];
-  for (const skill of skills) {
-    const rank = skillMatchRank(skill.name, skill.description, frag);
-    if (rank === null) continue;
-    ranked.push({
-      item: {
-        kind: "skill",
-        name: skill.name,
-        description: skill.description,
-        location: skill.location,
-        insertText: `${prefix}skill:${skill.name} `,
-      },
-      rank,
-    });
-  }
-  ranked.sort((a, b) => compareRanks(a.rank, b.rank));
-  for (const entry of ranked) {
-    items.push(entry.item);
-  }
-
-  return items;
 }
 
 function parseCompactCommand(text: string): { focus: string | null } | null {
@@ -269,116 +118,26 @@ export function ComposerCard({
   const ref = externalRef ?? internalRef;
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadingCount, setUploadingCount] = useState(0);
-  const [fileCompletion, setFileCompletion] = useState<FileCompletionContext | null>(null);
-  const [fileCompletionItems, setFileCompletionItems] = useState<string[]>([]);
-  const [fileCompletionLoading, setFileCompletionLoading] = useState(false);
-  const [fileCompletionHighlightIndex, setFileCompletionHighlightIndex] = useState(0);
-  const [skills, setSkills] = useState<SkillItem[]>([]);
-  const [slashCompletionItems, setSlashCompletionItems] = useState<SlashCompletionItem[]>([]);
-  const [slashCompletionHighlightIndex, setSlashCompletionHighlightIndex] = useState(0);
+
+  const fileComp = useFileCompletion({
+    sessionId,
+    searchWorkDir,
+    text,
+    onTextChange,
+    textareaRef: ref,
+  });
+
+  const slashComp = useSlashCompletion({
+    skillWorkDir,
+    hasCompact: !!onCompact,
+    onTextChange,
+    textareaRef: ref,
+  });
+
   const attachmentsDisabled = disableAttachments || interruptible || uploadingCount > 0;
   const buttonDisabled = uploadingCount > 0 || (interruptible ? disableInterrupt : disableSubmit);
   const buttonLabel = interruptible ? "Interrupt" : submitting ? "Sending" : "Send";
-  const fileCompletionOpen = fileCompletionLoading || fileCompletionItems.length > 0;
-  const slashCompletionOpen = slashCompletionItems.length > 0;
-  const anyCompletionOpen = fileCompletionOpen || slashCompletionOpen;
-
-  const closeFileCompletion = useCallback(() => {
-    setFileCompletion(null);
-    setFileCompletionItems([]);
-    setFileCompletionLoading(false);
-    setFileCompletionHighlightIndex(0);
-  }, []);
-
-  const updateFileCompletion = useCallback((nextText: string, cursorPosition: number | null) => {
-    const resolvedCursor = cursorPosition ?? nextText.length;
-    const nextCompletion = getFileCompletionContext(nextText, resolvedCursor);
-    setFileCompletion((current) => {
-      if (
-        current?.fragment === nextCompletion?.fragment &&
-        current?.tokenStart === nextCompletion?.tokenStart &&
-        current?.tokenEnd === nextCompletion?.tokenEnd
-      ) {
-        return current;
-      }
-      return nextCompletion;
-    });
-    if (nextCompletion === null) {
-      setFileCompletionItems([]);
-      setFileCompletionLoading(false);
-    }
-    setFileCompletionHighlightIndex(0);
-  }, []);
-
-  const applyFileCompletion = useCallback(
-    (path: string) => {
-      if (fileCompletion === null) {
-        return;
-      }
-
-      const insertedText = formatFileCompletionText(path, fileCompletion.isQuoted);
-      const nextText = `${text.slice(0, fileCompletion.tokenStart)}${insertedText}${text.slice(fileCompletion.tokenEnd)}`;
-      const nextCursorPosition = fileCompletion.tokenStart + insertedText.length;
-
-      onTextChange(nextText);
-      closeFileCompletion();
-
-      requestAnimationFrame(() => {
-        const textarea = ref.current;
-        if (!textarea) {
-          return;
-        }
-        textarea.focus();
-        textarea.setSelectionRange(nextCursorPosition, nextCursorPosition);
-      });
-    },
-    [closeFileCompletion, fileCompletion, onTextChange, ref, text],
-  );
-
-  const closeSlashCompletion = useCallback(() => {
-    setSlashCompletionItems([]);
-    setSlashCompletionHighlightIndex(0);
-  }, []);
-
-  const updateSlashCompletion = useCallback(
-    (nextText: string, cursorPosition: number | null) => {
-      const resolvedCursor = cursorPosition ?? nextText.length;
-      const textBeforeCursor = nextText.slice(0, resolvedCursor);
-      const match = SLASH_COMPLETION_PATTERN.exec(textBeforeCursor);
-      if (!match?.groups) {
-        setSlashCompletionItems([]);
-        setSlashCompletionHighlightIndex(0);
-        return;
-      }
-      const items = buildSlashCompletionItems(
-        match.groups.prefix,
-        match.groups.frag,
-        skills,
-        !!onCompact,
-      );
-      setSlashCompletionItems(items);
-      setSlashCompletionHighlightIndex(0);
-    },
-    [skills, onCompact],
-  );
-
-  const applySlashCompletion = useCallback(
-    (item: SlashCompletionItem) => {
-      onTextChange(item.insertText);
-      closeSlashCompletion();
-
-      requestAnimationFrame(() => {
-        const textarea = ref.current;
-        if (!textarea) {
-          return;
-        }
-        textarea.focus();
-        const pos = item.insertText.length;
-        textarea.setSelectionRange(pos, pos);
-      });
-    },
-    [closeSlashCompletion, onTextChange, ref],
-  );
+  const anyCompletionOpen = fileComp.open || slashComp.open;
 
   const handleSubmitOrCompact = useCallback(() => {
     const compact = parseCompactCommand(text);
@@ -413,65 +172,14 @@ export function ComposerCard({
   }, [ref, text]);
 
   useEffect(() => {
-    let cancelled = false;
-    void fetchSkills(skillWorkDir)
-      .then((items) => {
-        if (!cancelled) {
-          setSkills(items);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [skillWorkDir]);
-
-  useEffect(() => {
-    if (fileCompletion === null) {
-      return;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => {
-      setFileCompletionLoading(true);
-      void searchFileCompletions({
-        sessionId,
-        workDir: searchWorkDir,
-        query: fileCompletion.searchQuery,
-        signal: controller.signal,
-      })
-        .then((items) => {
-          setFileCompletionItems(items);
-          setFileCompletionHighlightIndex(0);
-        })
-        .catch((error) => {
-          if (error instanceof DOMException && error.name === "AbortError") {
-            return;
-          }
-          setFileCompletionItems([]);
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) {
-            setFileCompletionLoading(false);
-          }
-        });
-    }, AT_COMPLETION_DEBOUNCE_MS);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [fileCompletion, searchWorkDir, sessionId]);
-
-  useEffect(() => {
     if (!anyCompletionOpen) {
       return;
     }
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) {
-        closeFileCompletion();
-        closeSlashCompletion();
+        fileComp.close();
+        slashComp.close();
       }
     };
 
@@ -479,14 +187,14 @@ export function ComposerCard({
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
     };
-  }, [anyCompletionOpen, closeFileCompletion, closeSlashCompletion]);
+  }, [anyCompletionOpen, fileComp, slashComp]);
 
   useEffect(() => {
     if (text.length === 0) {
-      closeFileCompletion();
-      closeSlashCompletion();
+      fileComp.close();
+      slashComp.close();
     }
-  }, [closeFileCompletion, closeSlashCompletion, text]);
+  }, [fileComp, slashComp, text]);
 
   const handleFileBatch = async (files: File[]): Promise<void> => {
     if (files.length === 0) {
@@ -544,12 +252,12 @@ export function ComposerCard({
           value={text}
           onChange={(event) => {
             onTextChange(event.target.value);
-            updateFileCompletion(event.target.value, event.target.selectionStart);
-            updateSlashCompletion(event.target.value, event.target.selectionStart);
+            fileComp.update(event.target.value, event.target.selectionStart);
+            slashComp.update(event.target.value, event.target.selectionStart);
           }}
           onSelect={(event) => {
-            updateFileCompletion(event.currentTarget.value, event.currentTarget.selectionStart);
-            updateSlashCompletion(event.currentTarget.value, event.currentTarget.selectionStart);
+            fileComp.update(event.currentTarget.value, event.currentTarget.selectionStart);
+            slashComp.update(event.currentTarget.value, event.currentTarget.selectionStart);
           }}
           onPaste={(event) => {
             const files = Array.from(event.clipboardData.items)
@@ -563,64 +271,58 @@ export function ComposerCard({
             void handleFileBatch(files);
           }}
           onKeyDown={(event) => {
-            if (fileCompletionOpen) {
-              if (event.key === "ArrowDown" && fileCompletionItems.length > 0) {
+            if (fileComp.open) {
+              if (event.key === "ArrowDown" && fileComp.items.length > 0) {
                 event.preventDefault();
-                setFileCompletionHighlightIndex((current) =>
-                  Math.min(current + 1, fileCompletionItems.length - 1),
+                fileComp.setHighlightIndex(
+                  Math.min(fileComp.highlightIndex + 1, fileComp.items.length - 1),
                 );
                 return;
               }
-              if (event.key === "ArrowUp" && fileCompletionItems.length > 0) {
+              if (event.key === "ArrowUp" && fileComp.items.length > 0) {
                 event.preventDefault();
-                setFileCompletionHighlightIndex((current) => Math.max(current - 1, 0));
+                fileComp.setHighlightIndex(Math.max(fileComp.highlightIndex - 1, 0));
                 return;
               }
-              if (
-                (event.key === "Enter" || event.key === "Tab") &&
-                fileCompletionItems.length > 0
-              ) {
+              if ((event.key === "Enter" || event.key === "Tab") && fileComp.items.length > 0) {
                 event.preventDefault();
-                const path = fileCompletionItems[fileCompletionHighlightIndex];
+                const path = fileComp.items[fileComp.highlightIndex];
                 if (path) {
-                  applyFileCompletion(path);
+                  fileComp.apply(path);
                 }
                 return;
               }
               if (event.key === "Escape") {
                 event.preventDefault();
-                closeFileCompletion();
+                fileComp.close();
                 return;
               }
             }
 
-            if (slashCompletionOpen) {
-              if (event.key === "ArrowDown" && slashCompletionItems.length > 0) {
+            if (slashComp.open) {
+              if (event.key === "ArrowDown" && slashComp.items.length > 0) {
                 event.preventDefault();
-                setSlashCompletionHighlightIndex((current) =>
-                  Math.min(current + 1, slashCompletionItems.length - 1),
+                slashComp.setHighlightIndex(
+                  Math.min(slashComp.highlightIndex + 1, slashComp.items.length - 1),
                 );
                 return;
               }
-              if (event.key === "ArrowUp" && slashCompletionItems.length > 0) {
+              if (event.key === "ArrowUp" && slashComp.items.length > 0) {
                 event.preventDefault();
-                setSlashCompletionHighlightIndex((current) => Math.max(current - 1, 0));
+                slashComp.setHighlightIndex(Math.max(slashComp.highlightIndex - 1, 0));
                 return;
               }
-              if (
-                (event.key === "Enter" || event.key === "Tab") &&
-                slashCompletionItems.length > 0
-              ) {
+              if ((event.key === "Enter" || event.key === "Tab") && slashComp.items.length > 0) {
                 event.preventDefault();
-                const item = slashCompletionItems[slashCompletionHighlightIndex];
+                const item = slashComp.items[slashComp.highlightIndex];
                 if (item) {
-                  applySlashCompletion(item);
+                  slashComp.apply(item);
                 }
                 return;
               }
               if (event.key === "Escape") {
                 event.preventDefault();
-                closeSlashCompletion();
+                slashComp.close();
                 return;
               }
             }
@@ -639,22 +341,22 @@ export function ComposerCard({
           placeholder={placeholder}
           className="min-h-[2rem] w-full resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0.5 text-base leading-7 text-neutral-800 outline-none placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-40"
         />
-        {fileCompletionOpen ? (
+        {fileComp.open ? (
           <AtFileCompletionList
-            items={fileCompletionItems}
-            loading={fileCompletionLoading}
-            highlightIndex={fileCompletionHighlightIndex}
-            onHighlightIndexChange={setFileCompletionHighlightIndex}
-            onSelect={applyFileCompletion}
+            items={fileComp.items}
+            loading={fileComp.loading}
+            highlightIndex={fileComp.highlightIndex}
+            onHighlightIndexChange={fileComp.setHighlightIndex}
+            onSelect={fileComp.apply}
             dropUp={completionDropUp}
           />
         ) : null}
-        {slashCompletionOpen ? (
+        {slashComp.open ? (
           <SlashCompletionList
-            items={slashCompletionItems}
-            highlightIndex={slashCompletionHighlightIndex}
-            onHighlightIndexChange={setSlashCompletionHighlightIndex}
-            onSelect={applySlashCompletion}
+            items={slashComp.items}
+            highlightIndex={slashComp.highlightIndex}
+            onHighlightIndexChange={slashComp.setHighlightIndex}
+            onSelect={slashComp.apply}
             dropUp={completionDropUp}
           />
         ) : null}

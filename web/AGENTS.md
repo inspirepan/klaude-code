@@ -2,6 +2,10 @@
 
 Run `pnpm lint` and `pnpm format:check` before committing. Fix all errors; warnings are acceptable.
 
+## Architecture docs
+
+- [Session 事件链路总览](docs/session-event-pipeline.md) -- Web 端会话加载、history 存量、WebSocket 增量、子 agent 续联、只读判定的完整链路说明
+
 ## Tooltip and shortcut hint rules
 
 - Every `<button>` in the web frontend must use the shared tooltip style from `src/components/ui/tooltip.tsx` (`Tooltip`, `TooltipTrigger`, `TooltipContent`). Do not rely on native `title` tooltips for button hints.

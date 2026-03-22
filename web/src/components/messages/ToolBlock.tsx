@@ -88,7 +88,7 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="w-fit rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2 text-base">
+    <div className="w-fit rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2.5 text-base">
       {explanation ? (
         <p className="mb-1 font-sans text-base text-neutral-500">{explanation}</p>
       ) : null}
@@ -109,7 +109,7 @@ function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
     item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2 text-base">
+    <div className="rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2.5 text-base">
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} />
       ) : item.isStreaming ? (

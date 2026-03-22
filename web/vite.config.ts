@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
@@ -21,5 +22,8 @@ export default defineConfig({
   build: {
     outDir: "../src/klaude_code/web/dist",
     emptyOutDir: true,
+  },
+  test: {
+    include: ["src/**/*.test.{ts,tsx}"],
   },
 });
