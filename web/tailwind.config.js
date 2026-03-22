@@ -20,6 +20,9 @@ export default {
         sm: ["0.875rem", { lineHeight: "1.25rem" }], // 14px
         base: ["1rem", { lineHeight: "1.5rem" }], // 16px
       },
+      transitionTimingFunction: {
+        "out-strong": "cubic-bezier(0.23, 1, 0.32, 1)",
+      },
       animation: {
         "spin-slow": "spin 3s linear infinite",
       },
