@@ -51,7 +51,7 @@ AGENT_SCHEMA = llm_param.ToolSchema(
             },
             "description": {
                 "type": "string",
-                "description": "A short (3-5 word) description of the task.",
+                "description": "A short (3-5 word) description of the task. Use the same language the user is using.",
             },
             "prompt": {
                 "type": "string",
