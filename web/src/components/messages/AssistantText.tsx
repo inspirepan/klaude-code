@@ -71,7 +71,7 @@ export function AssistantText({ item }: AssistantTextProps): JSX.Element {
     <div className="assistant-text relative">
       {entries ? <FrontmatterTable entries={entries} /> : null}
       <Streamdown
-        mode={item.isStreaming ? "static" : "streaming"}
+        mode={item.isStreaming ? "streaming" : "static"}
         isAnimating={item.isStreaming}
         plugins={plugins}
         urlTransform={urlTransform}
