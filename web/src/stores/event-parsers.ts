@@ -41,6 +41,11 @@ export function parseTaskMetadataUsage(raw: unknown): TaskMetadataUsage | null {
   const cacheReadCost = parseFiniteNumber(u.cache_read_cost);
   const costs = [inputCost, outputCost, cacheReadCost].filter((c) => c !== null) as number[];
   const totalCost = costs.length > 0 ? costs.reduce((a, b) => a + b, 0) : null;
+  const contextLimit = parseFiniteNumber(u.context_limit);
+  const maxTokens = parseFiniteNumber(u.max_tokens) ?? DEFAULT_MAX_TOKENS;
+  const contextEffectiveLimit =
+    contextLimit !== null && contextLimit - maxTokens > 0 ? contextLimit - maxTokens : null;
+
   return {
     inputTokens,
     cachedTokens,
@@ -50,6 +55,8 @@ export function parseTaskMetadataUsage(raw: unknown): TaskMetadataUsage | null {
     totalCost,
     currency: typeof u.currency === "string" ? u.currency : "USD",
     contextPercent: parseFiniteNumber(u.context_usage_percent),
+    contextSize: parseFiniteNumber(u.context_size),
+    contextEffectiveLimit,
     throughputTps: parseFiniteNumber(u.throughput_tps),
     cacheHitRate: parseFiniteNumber(u.cache_hit_rate),
   };

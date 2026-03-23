@@ -16,42 +16,6 @@ function formatCurrency(value: number, currency: string): string {
 }
 
 // ------------------------------------------------------------------
-// Summary line (collapsed view)
-// ------------------------------------------------------------------
-
-function buildSummaryText(item: TaskMetadataItem, t: ReturnType<typeof useT>): string {
-  const agent = item.mainAgent;
-  const duration = agent.durationSeconds;
-  const turns = agent.turnCount;
-
-  if (duration === null && turns === 0) return agentIdentity(agent, t);
-
-  const prefix = item.isPartial ? t("taskMeta.interruptedAfter") : t("taskMeta.workedFor");
-  const parts: string[] = [prefix];
-
-  if (duration !== null) {
-    parts.push(formatElapsed(duration));
-  }
-  if (turns > 0) {
-    parts.push(t("taskMeta.steps")(turns));
-  }
-
-  return parts.join(" ");
-}
-
-function agentIdentity(agent: TaskMetadataAgent, t: ReturnType<typeof useT>): string {
-  let identity = agent.modelName;
-  if (agent.provider) {
-    const sub = agent.provider.includes("/") ? agent.provider.split("/").pop()! : agent.provider;
-    identity += ` ${t("taskMeta.via")(sub)}`;
-  }
-  if (agent.subAgentName) {
-    identity = `${agent.subAgentName} ${identity}`;
-  }
-  return identity;
-}
-
-// ------------------------------------------------------------------
 // Detail rows (expanded view)
 // ------------------------------------------------------------------
 
@@ -102,7 +66,11 @@ function buildDetailRows(agent: TaskMetadataAgent, t: ReturnType<typeof useT>): 
       });
     }
     if (usage.contextPercent !== null) {
-      rows.push({ label: t("taskMeta.context"), value: `${usage.contextPercent.toFixed(1)}%` });
+      let ctx = `${usage.contextPercent.toFixed(1)}%`;
+      if (usage.contextSize !== null && usage.contextEffectiveLimit !== null) {
+        ctx = `${formatCompactNumber(usage.contextSize)}/${formatCompactNumber(usage.contextEffectiveLimit)} (${usage.contextPercent.toFixed(1)}%)`;
+      }
+      rows.push({ label: t("taskMeta.context"), value: ctx });
     }
     if (usage.totalCost !== null) {
       rows.push({
@@ -140,7 +108,7 @@ function DetailTable({ rows }: { rows: DetailRow[] }): JSX.Element {
     <div className="ml-5 mt-1">
       {rows.map((row, i) => (
         <div key={row.label} className="flex items-baseline gap-2 text-sm">
-          <span className="w-24 shrink-0 py-1.5 text-right font-sans text-neutral-500">
+          <span className="w-28 shrink-0 py-1.5 text-right font-sans text-neutral-500">
             {row.label}
           </span>
           <span
@@ -161,20 +129,29 @@ function DetailTable({ rows }: { rows: DetailRow[] }): JSX.Element {
 export function TaskMetadata({ item }: TaskMetadataProps): JSX.Element {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const summaryText = buildSummaryText(item, t);
+  const agent = item.mainAgent;
+  const modelLabel = agent.subAgentName ? `${agent.subAgentName} ${agent.modelName}` : agent.modelName;
 
   return (
     <div>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex w-full cursor-pointer items-center gap-1 text-left font-mono text-base leading-relaxed transition-colors ${
+        className={`flex w-full cursor-pointer items-center gap-1 text-left text-sm leading-relaxed transition-colors ${
           item.isPartial
             ? "text-amber-600 hover:text-amber-700"
             : "text-emerald-700 hover:text-emerald-800"
         }`}
       >
-        <span className="min-w-0 truncate">{summaryText}</span>
+        <span className="min-w-0 truncate">
+          <span className="font-mono">{modelLabel}</span>
+          {agent.durationSeconds !== null && (
+            <>
+              <span className="mx-1.5 text-neutral-400">{"\u00b7"}</span>
+              <span className="font-mono">{formatElapsed(agent.durationSeconds)}</span>
+            </>
+          )}
+        </span>
         {open ? (
           <ChevronDown className="h-3.5 w-3.5 shrink-0" />
         ) : (
