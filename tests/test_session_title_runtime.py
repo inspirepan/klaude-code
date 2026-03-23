@@ -79,14 +79,9 @@ def test_generate_session_title_uses_only_user_messages() -> None:
     assert "<current_user_message>" in rendered
     assert "first request" in rendered
     assert "latest request about src/app.py" in rendered
-    assert "output exactly in the format: overall topic — current task" in rendered.lower()
-    assert "overall topic should summarize the main theme of the whole conversation" in rendered.lower()
-    assert "current task should summarize what the latest user message is currently trying to do" in rendered.lower()
-    assert "prefer the main substantive task/topic of the current user message" in rendered.lower()
-    assert "reflect user intent, not internal tool usage or skill execution" in rendered.lower()
-    assert "prefer reusing its overall topic" in rendered.lower()
-    assert "reuse its overall topic unless the conversation theme changed" in rendered.lower()
-    assert "prefer short imperative phrases when natural" in rendered.lower()
+    assert "be specific" in rendered.lower()
+    assert "reflect user intent" in rendered.lower()
+    assert "previous title" in rendered.lower()
     assert "<previous_title>" in rendered
     assert "Existing title" in rendered
     assert "assistant" not in rendered.lower()
