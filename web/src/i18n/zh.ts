@@ -146,6 +146,7 @@ const zh: Translations = {
 
   // Tool block
   "tool.planning": "规划中\u2026",
+  "tool.todoTitle": "计划清单",
   "tool.askingQuestion": "等待用户回答\u2026",
 
   // Collapse group
@@ -157,6 +158,7 @@ const zh: Translations = {
   "collapse.fetch": "获取网页",
   "collapse.search": "搜索网页",
   "collapse.thoughts": "思考",
+  "collapse.completed": "完成",
   "collapse.toolsUsed": (count: number) => `使用了 ${count} 个工具`,
 
   // User message
@@ -174,11 +176,11 @@ const zh: Translations = {
   "taskMeta.model": "模型",
   "taskMeta.provider": "提供商",
   "taskMeta.inputTokens": "输入 token",
-  "taskMeta.cacheRead": "缓存读取",
+  "taskMeta.cacheRead": "缓存读取 token",
   "taskMeta.cacheHitRate": (pct: number) => `(${pct}% 命中)`,
-  "taskMeta.cacheWrite": "缓存写入",
+  "taskMeta.cacheWrite": "缓存写入 token",
   "taskMeta.outputTokens": "输出 token",
-  "taskMeta.reasoning": "推理",
+  "taskMeta.reasoning": "推理 token",
   "taskMeta.context": "上下文",
   "taskMeta.cost": "费用",
   "taskMeta.duration": "耗时",

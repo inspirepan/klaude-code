@@ -1,5 +1,6 @@
 import { Circle, CircleCheck, CircleDashed } from "lucide-react";
 
+import { useT } from "@/i18n";
 import type { TodoListUIExtra } from "./message-ui-extra";
 
 const iconSize = "h-3.5 w-3.5 shrink-0";
@@ -7,8 +8,8 @@ const iconSize = "h-3.5 w-3.5 shrink-0";
 const statusConfig = {
   pending: { iconClass: `${iconSize} text-neutral-300`, textClass: "text-neutral-500" },
   in_progress: {
-    iconClass: `${iconSize} text-blue-600 animate-spin-slow`,
-    textClass: "text-blue-600",
+    iconClass: `${iconSize} text-amber-500 animate-spin-slow`,
+    textClass: "text-amber-600",
   },
   completed: {
     iconClass: `${iconSize} text-emerald-500`,
@@ -27,11 +28,13 @@ interface TodoListViewProps {
 }
 
 export function TodoListView({ uiExtra }: TodoListViewProps): JSX.Element {
+  const t = useT();
   const { todos, new_completed, explanation } = uiExtra.todo_list;
   const newCompletedSet = new Set(new_completed);
 
   return (
     <div className="flex w-fit flex-col gap-0.5 py-1 text-base">
+      <span className="mb-0.5 font-semibold text-neutral-700">{t("tool.todoTitle")}</span>
       {todos.map((todo, i) => {
         const isNewCompleted = todo.status === "completed" && newCompletedSet.has(todo.content);
         const config = statusConfig[todo.status];

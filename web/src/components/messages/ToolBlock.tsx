@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 
 import { useT } from "@/i18n";
 import type { ToolBlockItem } from "../../types/message";
-import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
+import { COLLAPSE_RAIL_GRID_CLASS_NAME, CollapseRailMarker } from "./CollapseRail";
 import { useCollapseAll } from "./collapse-all-context";
 import { useSearch } from "./search-context";
 import { TodoListView } from "./TodoListView";
@@ -14,7 +14,6 @@ import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra"
 import { hasRichUIExtra } from "./tool-rich-result-ui";
 import { useStreamThrottle } from "./useStreamThrottle";
 
-const PLAN_TOOLS = new Set(["TodoWrite"]);
 const DEFAULT_EXPANDED_TOOLS = new Set(["apply_patch", "Edit", "Write"]);
 
 function extractHeaderDetail(toolName: string, args: string): string {
@@ -71,10 +70,11 @@ interface ToolBlockProps {
 }
 
 function PlanBlock({ item }: ToolBlockProps): JSX.Element {
+  const t = useT();
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="w-fit rounded-lg border border-border/80 bg-surface/50 px-3.5 py-2.5 text-base">
+    <div className="w-fit rounded-lg border border-border/80 bg-surface/50 px-3 py-1.5 text-base">
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} />
       ) : item.isStreaming ? (
@@ -155,7 +155,7 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
     }
   }, [hasStreamingContent, open]);
 
-  if (PLAN_TOOLS.has(item.toolName)) {
+  if (item.toolName === "TodoWrite") {
     return <PlanBlock item={item} />;
   }
   if (item.toolName === "AskUserQuestion") {
@@ -177,13 +177,16 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
 
   return (
     <div
-      className={`-my-1 grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} ${bodyTextClass} ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
+      <CollapseRailMarker
+        open={open}
+        expandable={expandable}
+        className={expandable ? "row-span-2" : undefined}
+      />
       <ToolBlockHeader
         item={item}
-        expandable={expandable}
-        open={open}
         detail={detail}
         detailColor={detailColor}
         workDir={workDir}

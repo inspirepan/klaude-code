@@ -29,15 +29,32 @@ export interface SectionDevGroupBlock {
   items: DeveloperMessageItem[];
 }
 
+export type PlannedInnerBlock = SectionItemBlock | SectionSubAgentBlock | SectionDevGroupBlock;
+
+export interface PlannedTodoItem {
+  content: string;
+  completed: boolean;
+}
+
+export interface SectionPlannedGroupBlock {
+  type: "planned_group";
+  id: string;
+  todos: PlannedTodoItem[];
+  blocks: PlannedInnerBlock[];
+}
+
 export type SectionBlock =
   | SectionItemBlock
   | SectionSubAgentBlock
   | SectionCollapseGroupBlock
-  | SectionDevGroupBlock;
+  | SectionDevGroupBlock
+  | SectionPlannedGroupBlock;
+
+const NON_COLLAPSIBLE_TOOLS = new Set(["TodoWrite"]);
 
 function isCollapsibleItem(item: MessageItem): boolean {
   if (item.type === "tool_block") {
-    return !isTodoListUIExtra(item.uiExtra) && !isQuestionSummaryUIExtra(item.uiExtra);
+    return !isQuestionSummaryUIExtra(item.uiExtra) && !NON_COLLAPSIBLE_TOOLS.has(item.toolName);
   }
   return item.type === "thinking" || item.type === "developer_message";
 }
@@ -97,6 +114,120 @@ export function buildSections(
   return result;
 }
 
+function isTodoWriteBlock(block: SectionBlock): block is SectionItemBlock {
+  return (
+    block.type === "item" && block.item.type === "tool_block" && block.item.toolName === "TodoWrite"
+  );
+}
+
+function todoWriteHasInProgress(item: MessageItem): boolean {
+  if (item.type !== "tool_block" || !item.uiExtra || !isTodoListUIExtra(item.uiExtra)) return false;
+  return item.uiExtra.todo_list.todos.some((t) => t.status === "in_progress");
+}
+
+function getInProgressTodoContents(item: MessageItem): string[] {
+  if (item.type !== "tool_block" || !item.uiExtra || !isTodoListUIExtra(item.uiExtra)) return [];
+  return item.uiExtra.todo_list.todos
+    .filter((t) => t.status === "in_progress")
+    .map((t) => t.content);
+}
+
+/** Build PlannedTodoItems by comparing in_progress items against the next TodoWrite's state. */
+function buildPlannedTodos(
+  startItem: MessageItem,
+  nextTodoWriteItem: MessageItem | null,
+): PlannedTodoItem[] {
+  const contents = getInProgressTodoContents(startItem);
+  if (contents.length === 0) return [];
+
+  // Build a set of completed contents from the next TodoWrite (if it exists)
+  const completedSet = new Set<string>();
+  if (
+    nextTodoWriteItem &&
+    nextTodoWriteItem.type === "tool_block" &&
+    nextTodoWriteItem.uiExtra &&
+    isTodoListUIExtra(nextTodoWriteItem.uiExtra)
+  ) {
+    for (const t of nextTodoWriteItem.uiExtra.todo_list.todos) {
+      if (t.status === "completed") completedSet.add(t.content);
+    }
+  }
+
+  return contents.map((content) => ({
+    content,
+    completed: completedSet.has(content),
+  }));
+}
+
+/** Apply the standard collapsible-merging pass to a slice of raw blocks. */
+function mergeCollapsibleBlocks(
+  rawBlocks: SectionBlock[],
+  effectiveSessionId: string,
+): SectionBlock[] {
+  const blocks: SectionBlock[] = [];
+  let pending: MessageItem[] = [];
+
+  const flushPending = (): void => {
+    if (pending.length === 0) return;
+    const hasToolBlock = pending.some((item) => item.type === "tool_block");
+    if (hasToolBlock) {
+      blocks.push({
+        type: "collapse_group",
+        id: `cg-${effectiveSessionId}-${pending[0]!.id}`,
+        items: pending,
+      });
+    } else {
+      for (const item of pending) {
+        if (item.type === "developer_message") {
+          const last = blocks[blocks.length - 1];
+          if (last?.type === "dev_group") {
+            last.items.push(item);
+          } else {
+            blocks.push({ type: "dev_group", id: item.id, items: [item] });
+          }
+        } else {
+          blocks.push({ type: "item", item });
+        }
+      }
+    }
+    pending = [];
+  };
+
+  for (const block of rawBlocks) {
+    if (block.type === "item" && isCollapsibleItem(block.item)) {
+      pending.push(block.item);
+    } else {
+      flushPending();
+      blocks.push(block);
+    }
+  }
+  flushPending();
+  return blocks;
+}
+
+/** Collect raw blocks into planned-group inner blocks (flat, merging consecutive dev messages). */
+function buildPlannedInnerBlocks(
+  rawBlocks: SectionBlock[],
+  start: number,
+  end: number,
+): PlannedInnerBlock[] {
+  const inner: PlannedInnerBlock[] = [];
+  for (let j = start; j < end; j++) {
+    const b = rawBlocks[j]!;
+    if (b.type === "item" && b.item.type === "developer_message") {
+      const last = inner[inner.length - 1];
+      if (last?.type === "dev_group") {
+        last.items.push(b.item);
+      } else {
+        inner.push({ type: "dev_group", id: b.item.id, items: [b.item] });
+      }
+    } else if (b.type === "item" || b.type === "sub_agent_group") {
+      inner.push(b);
+    }
+  }
+  return inner;
+}
+
 /** Build section blocks: group sub-agent items, then merge consecutive collapsible items. */
 export function buildSectionBlocks(
   sections: MessageItem[][],
@@ -144,46 +275,66 @@ export function buildSectionBlocks(
       i += 1;
     }
 
-    // Second pass: merge consecutive thinking/tool_block items into collapse groups
-    const blocks: SectionBlock[] = [];
-    let pending: MessageItem[] = [];
+    // Second pass: identify planned intervals, then merge remaining collapsible items
 
-    const flushPending = (): void => {
-      if (pending.length === 0) return;
-      const hasToolBlock = pending.some((item) => item.type === "tool_block");
-      if (hasToolBlock) {
-        blocks.push({
-          type: "collapse_group",
-          id: `cg-${effectiveSessionId}-${pending[0].id}`,
-          items: pending,
-        });
-      } else {
-        // Split apart, but merge consecutive developer_message items
-        for (const item of pending) {
-          if (item.type === "developer_message") {
-            const last = blocks[blocks.length - 1];
-            if (last?.type === "dev_group") {
-              last.items.push(item);
-            } else {
-              blocks.push({ type: "dev_group", id: item.id, items: [item] });
-            }
-          } else {
-            blocks.push({ type: "item", item });
-          }
+    // Find TodoWrite block indices
+    const todoWriteIndices: number[] = [];
+    for (let k = 0; k < rawBlocks.length; k++) {
+      if (isTodoWriteBlock(rawBlocks[k]!)) todoWriteIndices.push(k);
+    }
+
+    // Identify planned intervals: [in_progress TodoWrite, next TodoWrite)
+    interface PlannedInterval {
+      start: number;
+      end: number;
+      nextTodoWriteIdx: number | null;
+    }
+    const plannedIntervals: PlannedInterval[] = [];
+    for (let t = 0; t < todoWriteIndices.length; t++) {
+      const idx = todoWriteIndices[t]!;
+      const block = rawBlocks[idx]! as SectionItemBlock;
+      if (todoWriteHasInProgress(block.item)) {
+        const hasNext = t + 1 < todoWriteIndices.length;
+        const end = hasNext ? todoWriteIndices[t + 1]! : rawBlocks.length;
+        // Only create planned group if there are inner blocks after the TodoWrite
+        if (end > idx + 1) {
+          plannedIntervals.push({
+            start: idx,
+            end,
+            nextTodoWriteIdx: hasNext ? todoWriteIndices[t + 1]! : null,
+          });
         }
       }
-      pending = [];
-    };
-
-    for (const block of rawBlocks) {
-      if (block.type === "item" && isCollapsibleItem(block.item)) {
-        pending.push(block.item);
-      } else {
-        flushPending();
-        blocks.push(block);
-      }
     }
-    flushPending();
+
+    // Build final blocks: planned intervals become planned_groups, rest uses normal merging
+    const blocks: SectionBlock[] = [];
+    let cursor = 0;
+
+    for (const interval of plannedIntervals) {
+      if (cursor < interval.start) {
+        blocks.push(
+          ...mergeCollapsibleBlocks(rawBlocks.slice(cursor, interval.start), effectiveSessionId),
+        );
+      }
+      const startItem = (rawBlocks[interval.start]! as SectionItemBlock).item;
+      const nextItem =
+        interval.nextTodoWriteIdx !== null
+          ? (rawBlocks[interval.nextTodoWriteIdx]! as SectionItemBlock).item
+          : null;
+      blocks.push({
+        type: "planned_group",
+        id: `pg-${effectiveSessionId}-${startItem.id}`,
+        todos: buildPlannedTodos(startItem, nextItem),
+        blocks: buildPlannedInnerBlocks(rawBlocks, interval.start + 1, interval.end),
+      });
+      cursor = interval.end;
+    }
+
+    if (cursor < rawBlocks.length) {
+      blocks.push(...mergeCollapsibleBlocks(rawBlocks.slice(cursor), effectiveSessionId));
+    }
+
     return blocks;
   });
 }

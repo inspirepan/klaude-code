@@ -64,10 +64,10 @@ Dark mode inverts the neutral scale but keeps the same semantic color mapping. `
 
 ### Font Stack
 
-| Role                 | Family           | Source                                               | Fallback Chain                                                                                                  |
-| -------------------- | ---------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| **UI / Body**        | `Geist Variable` | `@fontsource-variable/geist`                         | system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", sans-serif |
-| **Code / Monospace** | `TX-02`          | Local @font-face (400/700, normal/italic, woff2+otf) | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace                                                |
+| Role                 | Family           | Source                                            | Fallback Chain                                                                                                 |
+| -------------------- | ---------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **UI / Body**        | SF Pro (system)  | System font via `-apple-system`                   | BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif |
+| **Code / Monospace** | `JetBrains Mono` | Local @font-face (variable, normal/italic, woff2) | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace                                               |
 
 ### Scale & Font Size Zones
 
@@ -95,7 +95,7 @@ SessionCard timestamps and diff stats, ProjectGroup counts and "Load more", Mode
 - **Regular (400)**: All body text, assistant responses, input
 - **Medium (500)**: Frontmatter keys, section headers, active sidebar items, NewSessionButton label
 - **Semibold (600)**: Buttons (base class), tool names in monospace, group collapse labels
-- **Bold (700)**: Reserved for display `TX-02` usage only
+- **Bold (700)**: Reserved for display `JetBrains Mono` usage only
 - **Italic**: Thinking blocks are rendered entirely in italic to distinguish internal reasoning from output
 
 ### Text Color Hierarchy
@@ -116,7 +116,7 @@ A strict neutral scale for text, from strongest to weakest:
 
 ### Character
 
-Anti-aliased rendering (`-webkit-font-smoothing: antialiased`). The assistant text area uses `line-height: 1.6` for compact but comfortable reading of long-form markdown. Code blocks and tool output use the monospace stack at `0.95em` relative size. The overall typographic feel is **compact but breathable** -- high information density with enough vertical rhythm to avoid fatigue.
+Anti-aliased rendering (`-webkit-font-smoothing: antialiased`). The assistant text area uses `line-height: 1.6` for compact but comfortable reading of long-form markdown. Code blocks and tool output use the monospace stack at `0.9em` relative size. The overall typographic feel is **compact but breathable** -- high information density with enough vertical rhythm to avoid fatigue.
 
 ## 4. Component Stylings
 

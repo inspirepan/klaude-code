@@ -133,6 +133,8 @@ export interface TaskMetadataUsage {
   totalCost: number | null;
   currency: string;
   contextPercent: number | null;
+  contextSize: number | null;
+  contextEffectiveLimit: number | null;
   throughputTps: number | null;
   cacheHitRate: number | null;
 }

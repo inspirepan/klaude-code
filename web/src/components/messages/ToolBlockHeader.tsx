@@ -2,7 +2,6 @@ import { Loader } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ToolBlockItem } from "../../types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { CollapseRailMarker } from "./CollapseRail";
 import { FilePath } from "./FilePath";
 import { HighlightText } from "./HighlightText";
 
@@ -10,8 +9,6 @@ const FILE_PATH_TOOLS = new Set(["Read", "Edit", "Write"]);
 
 interface ToolBlockHeaderProps {
   item: ToolBlockItem;
-  expandable: boolean;
-  open: boolean;
   detail: string;
   detailColor: string;
   workDir?: string;
@@ -21,8 +18,6 @@ interface ToolBlockHeaderProps {
 
 export function ToolBlockHeader({
   item,
-  expandable,
-  open,
   detail,
   detailColor,
   workDir,
@@ -50,30 +45,23 @@ export function ToolBlockHeader({
   ) : null;
 
   return (
-    <>
-      <CollapseRailMarker open={open} expandable={expandable} />
-
-      {/* Col 2: tool name + detail */}
-      <div className="flex min-h-6 min-w-0 items-center gap-1.5">
-        <span className="whitespace-nowrap font-mono font-semibold text-neutral-700">
-          {item.toolName}
-        </span>
-        {detailChip ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="min-w-0">{detailChip}</span>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-lg p-0 font-mono">
-              <ScrollArea className="w-full" viewportClassName="max-h-[60vh]" type="auto">
-                <div className="whitespace-pre-wrap break-all px-3 py-1.5">{detail}</div>
-              </ScrollArea>
-            </TooltipContent>
-          </Tooltip>
-        ) : null}
-        {item.isStreaming ? (
-          <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
-        ) : null}
-      </div>
-    </>
+    <div className="flex min-h-6 min-w-0 items-center gap-1.5">
+      <span className="whitespace-nowrap font-medium text-neutral-700">{item.toolName}</span>
+      {detailChip ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="min-w-0">{detailChip}</span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-lg p-0 font-mono">
+            <ScrollArea className="w-full" viewportClassName="max-h-[60vh]" type="auto">
+              <div className="whitespace-pre-wrap break-all px-3 py-1.5">{detail}</div>
+            </ScrollArea>
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+      {item.isStreaming ? (
+        <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
+      ) : null}
+    </div>
   );
 }

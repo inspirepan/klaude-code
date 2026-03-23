@@ -193,7 +193,7 @@ export function ModelSelector({
                 <div key={group.provider}>
                   <button
                     type="button"
-                    className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-1 rounded-lg px-2 pb-0.5 pt-1.5 text-xs uppercase tracking-wide text-emerald-700 transition-colors hover:bg-surface"
+                    className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-1 rounded-lg px-2 pb-0.5 pt-1.5 text-xs tracking-wide text-emerald-700 transition-colors hover:bg-surface"
                     onMouseDown={(event) => {
                       event.preventDefault();
                     }}

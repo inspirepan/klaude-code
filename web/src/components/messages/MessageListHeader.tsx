@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   ArrowLeft,
   ChevronsDownUp,
@@ -39,6 +40,15 @@ export function MessageListHeader({
 }: MessageListHeaderProps): JSX.Element {
   const t = useT();
   const isSubAgentView = onBack !== undefined;
+
+  useEffect(() => {
+    const title = isSubAgentView
+      ? (subAgentLabel ?? t("header.subAgent"))
+      : secondaryTitle
+        ? `${primaryTitle} — ${secondaryTitle}`
+        : primaryTitle;
+    document.title = title ? `${title} — Klaude` : "Klaude";
+  }, [primaryTitle, secondaryTitle, subAgentLabel, isSubAgentView, t]);
 
   return (
     <div className="relative z-20 shrink-0">

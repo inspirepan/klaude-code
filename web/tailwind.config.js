@@ -12,8 +12,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Geist Variable", ...defaultTheme.fontFamily.sans],
-        mono: ["TX-02", ...defaultTheme.fontFamily.mono],
+        sans: ["Geist", ...defaultTheme.fontFamily.sans],
+        mono: ["Geist Mono", ...defaultTheme.fontFamily.mono],
       },
       fontSize: {
         xs: ["0.8125rem", { lineHeight: "1.125rem" }], // 13px

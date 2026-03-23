@@ -146,6 +146,7 @@ const en = {
 
   // Tool block
   "tool.planning": "Planning\u2026",
+  "tool.todoTitle": "Update To-Do",
   "tool.askingQuestion": "Asking user question\u2026",
 
   // Collapse group
@@ -157,6 +158,7 @@ const en = {
   "collapse.fetch": "Fetch",
   "collapse.search": "Search",
   "collapse.thoughts": "Thoughts",
+  "collapse.completed": "Completed",
   "collapse.toolsUsed": (count: number) => `${count} tool${count === 1 ? "" : "s"} used`,
 
   // User message

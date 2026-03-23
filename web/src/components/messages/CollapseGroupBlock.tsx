@@ -4,7 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/i18n";
 import type { MessageItem as MessageItemType, DeveloperMessageItem } from "../../types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { CollapseRailConnector, CollapseRailMarker, CollapseRailPanel } from "./CollapseRail";
+import {
+  COLLAPSE_RAIL_GRID_CLASS_NAME,
+  CollapseRailConnector,
+  CollapseRailMarker,
+  CollapseRailPanel,
+} from "./CollapseRail";
+import { isDiffUIExtra } from "./message-ui-extra";
 import { MessageRow } from "./MessageRow";
 import { DeveloperMessage } from "./DeveloperMessage";
 
@@ -110,7 +116,6 @@ function basename(path: string): string {
 }
 
 const IGNORED_COMMANDS = new Set(["cd"]);
-const COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME = "grid-cols-[28px_1fr]";
 
 // Operators that separate independent statements (we extract a command from each)
 const STATEMENT_SEPARATORS = new Set(["&&", "||", ";", "\n"]);
@@ -210,6 +215,27 @@ function extractApplyPatchFileStats(patch: string): FileStat[] {
   return fileStats;
 }
 
+function extractDiffStats(
+  uiExtra: Record<string, unknown> | null,
+): { del: number; add: number } | null {
+  if (!uiExtra) return null;
+  const extras = isDiffUIExtra(uiExtra)
+    ? [uiExtra]
+    : uiExtra.type === "multi" && Array.isArray(uiExtra.items)
+      ? (uiExtra.items as Record<string, unknown>[]).filter(isDiffUIExtra)
+      : [];
+  if (extras.length === 0) return null;
+  let del = 0;
+  let add = 0;
+  for (const extra of extras) {
+    for (const file of extra.files) {
+      del += file.stats_remove;
+      add += file.stats_add;
+    }
+  }
+  return { del, add };
+}
+
 function summarizeCollapseItems(
   items: MessageItemType[],
   t: ReturnType<typeof useT>,
@@ -240,8 +266,13 @@ function summarizeCollapseItems(
       case "Edit": {
         const p = typeof args.file_path === "string" ? basename(args.file_path) : null;
         if (!p) break;
-        const del = typeof args.old_string === "string" ? args.old_string.split("\n").length : 0;
-        const add = typeof args.new_string === "string" ? args.new_string.split("\n").length : 0;
+        const diffStats = extractDiffStats(item.uiExtra);
+        const del =
+          diffStats?.del ??
+          (typeof args.old_string === "string" ? args.old_string.split("\n").length : 0);
+        const add =
+          diffStats?.add ??
+          (typeof args.new_string === "string" ? args.new_string.split("\n").length : 0);
         bucket.push(p);
         if (!editStats.has(name)) editStats.set(name, []);
         editStats.get(name)!.push({ del, add });
@@ -250,10 +281,13 @@ function summarizeCollapseItems(
       case "Write": {
         const p = typeof args.file_path === "string" ? basename(args.file_path) : null;
         if (!p) break;
-        const add = typeof args.content === "string" ? args.content.split("\n").length : 0;
+        const diffStats = extractDiffStats(item.uiExtra);
+        const add =
+          diffStats?.add ??
+          (typeof args.content === "string" ? args.content.split("\n").length : 0);
         bucket.push(p);
         if (!editStats.has(name)) editStats.set(name, []);
-        editStats.get(name)!.push({ del: 0, add });
+        editStats.get(name)!.push({ del: diffStats?.del ?? 0, add });
         break;
       }
       case "apply_patch": {
@@ -429,24 +463,25 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
           {partIdx > 0 ? <span className="mx-1.5 text-neutral-400">{"\u00b7"}</span> : null}
           {part.fileStats ? (
             <>
-              <span className="font-normal text-neutral-700">{part.label}</span>{" "}
+              <span className="font-normal text-neutral-500">{part.label}</span>{" "}
               {part.fileStats.map((fs, fsIdx) => (
                 <span key={fsIdx}>
                   {fsIdx > 0 ? ", " : null}
                   {fs.name}
-                  {" ("}
+                  {" ( "}
                   {fs.del !== undefined && fs.del > 0 ? (
                     <span className="text-red-600">-{fs.del}</span>
                   ) : null}
                   {fs.del !== undefined && fs.del > 0 && fs.add > 0 ? " " : null}
                   {fs.add > 0 ? <span className="text-emerald-600">+{fs.add}</span> : null}
-                  {")"}
+                  {" )"}
                 </span>
               ))}
             </>
           ) : (
             <>
-              <span className="font-normal text-neutral-700">{part.label}</span> {part.value}
+              <span className="font-normal text-neutral-500">{part.label}</span>{" "}
+              <span style={{ fontSize: "0.9em" }}>{part.value}</span>
             </>
           )}
         </span>
@@ -512,14 +547,14 @@ export function CollapseGroupBlock({
           <button
             type="button"
             onClick={onToggle}
-            className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-base text-neutral-500 transition-colors hover:text-neutral-600`}
+            className={`grid w-full min-w-0 ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-base text-neutral-500 transition-colors hover:text-neutral-600`}
           >
             <CollapseRailMarker open={!collapsed} />
-            <span className="flex min-w-0 items-center gap-1.5 pl-1">
+            <span className="flex min-w-0 items-center">
               {summary.length === 0 ? (
-                <span className="shrink-0 font-mono">{stepLabel}</span>
+                <span className="min-w-0 truncate">{stepLabel}</span>
               ) : (
-                <span ref={summarySpanRef} className="min-w-0 truncate font-mono text-neutral-500">
+                <span ref={summarySpanRef} className="min-w-0 truncate text-neutral-500">
                   <SummaryDisplay summary={summary} />
                 </span>
               )}
@@ -534,9 +569,9 @@ export function CollapseGroupBlock({
       </Tooltip>
       {/* grid-template-rows trick: 0fr→1fr gives smooth height transition without JS height measurement */}
       <CollapseRailPanel open={!collapsed}>
-        <div className={`mt-3 grid min-w-0 items-start ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME}`}>
-          <CollapseRailConnector lineClassName="-mt-3" />
-          <div className="min-w-0 space-y-5 pb-1">
+        <div className={`mt-1.5 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
+          <CollapseRailConnector lineClassName="-mt-1.5" />
+          <div className="min-w-0 space-y-3 pb-1">
             {renderBlocks.map((block, idx) => {
               if (block.kind === "dev") {
                 return <DeveloperMessage key={`dev-${idx}`} items={block.items} />;

@@ -15,7 +15,13 @@ import { CollapseAllContext } from "./collapse-all-context";
 import { DeveloperMessage } from "./DeveloperMessage";
 import { MessageListHeader } from "./MessageListHeader";
 import { MessageRow } from "./MessageRow";
-import { buildSections, buildSectionBlocks, findMatchingItemIds } from "./message-sections";
+import { PlannedGroupBlock } from "./PlannedGroupBlock";
+import {
+  buildSections,
+  buildSectionBlocks,
+  findMatchingItemIds,
+  type SectionBlock,
+} from "./message-sections";
 import { SearchBar } from "./SearchBar";
 import { SubAgentGroupCard } from "./SubAgentGroupCard";
 import {
@@ -26,6 +32,30 @@ import {
 import { SearchProvider, type SearchState } from "./search-context";
 import { SessionStatusBar } from "../input/SessionStatusBar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+
+// Item types whose components include the rail grid internally (grid-cols-[16px_1fr] gap-x-1.5).
+// All other item types need RAIL_CONTENT_OFFSET to align with the grid's right column.
+const GRID_ITEM_TYPES = new Set([
+  "thinking",
+  "tool_block",
+  "developer_message",
+  "task_metadata",
+  "interrupt",
+  "error",
+]);
+
+// Tool blocks that render as cards (no rail grid) and need the content offset.
+const CARD_TOOL_NAMES = new Set(["TodoWrite", "AskUserQuestion"]);
+
+// Left offset matching the rail grid: 16px column + 6px gap = 22px.
+const RAIL_CONTENT_OFFSET = "pl-[22px]";
+
+function blockSpacingClass(block: SectionBlock, isFirst: boolean): string {
+  if (isFirst) return "";
+  if (block.type === "planned_group" || block.type === "collapse_group") return "mt-3";
+  if (block.type === "item" && block.item.type === "tool_block") return "mt-3";
+  return "mt-3";
+}
 
 const EMPTY_ITEMS: MessageItemType[] = [];
 const EMPTY_SUB_AGENT_DESC_MAP: Record<string, string> = {};
@@ -448,9 +478,12 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     const map = new Map<string, string>();
     for (const blocks of sectionBlocks) {
       for (const block of blocks) {
-        if (block.type !== "collapse_group") continue;
-        for (const item of block.items) {
-          map.set(item.id, block.id);
+        if (block.type === "collapse_group") {
+          for (const item of block.items) map.set(item.id, block.id);
+        } else if (block.type === "planned_group") {
+          for (const inner of block.blocks) {
+            if (inner.type === "item") map.set(inner.item.id, block.id);
+          }
         }
       }
     }
@@ -462,7 +495,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     if (!lastSection) return new Set<string>();
     const ids = new Set<string>();
     for (const block of lastSection) {
-      if (block.type === "collapse_group") ids.add(block.id);
+      if (block.type === "collapse_group" || block.type === "planned_group") ids.add(block.id);
     }
     return ids;
   }, [sectionBlocks]);
@@ -471,7 +504,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     const ids: string[] = [];
     for (const blocks of sectionBlocks) {
       for (const block of blocks) {
-        if (block.type === "collapse_group") ids.push(block.id);
+        if (block.type === "collapse_group" || block.type === "planned_group") ids.push(block.id);
       }
     }
     return ids;
@@ -583,31 +616,93 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 {hasItems ? (
                   <>
                     {sections.map((section, sectionIndex) => (
-                      <div key={section[0].id} className="space-y-5">
-                        {sectionBlocks[sectionIndex]?.map((block) => {
+                      <div key={section[0].id} className="group/section">
+                        {sectionBlocks[sectionIndex]?.map((block, blockIdx) => {
+                          const spacing = blockSpacingClass(block, blockIdx === 0);
+
                           if (block.type === "dev_group") {
-                            return <DeveloperMessage key={block.id} items={block.items} />;
+                            return (
+                              <div key={block.id} className={spacing}>
+                                <DeveloperMessage items={block.items} />
+                              </div>
+                            );
                           }
 
                           if (block.type === "collapse_group") {
                             const collapsed = isCollapseGroupCollapsed(block.id);
                             return (
-                              <CollapseGroupBlock
-                                key={block.id}
-                                items={block.items}
-                                collapsed={collapsed}
-                                onToggle={() => {
-                                  setCollapsedCollapseGroups((prev) => ({
-                                    ...prev,
-                                    [block.id]: !collapsed,
-                                  }));
-                                }}
-                                activeItemId={activeItemId}
-                                copiedItemId={copiedItemId}
-                                workDir={workspacePath}
-                                onCopy={handleCopy}
-                                setItemRef={setItemRef}
-                              />
+                              <div key={block.id} className={spacing}>
+                                <CollapseGroupBlock
+                                  items={block.items}
+                                  collapsed={collapsed}
+                                  onToggle={() => {
+                                    setCollapsedCollapseGroups((prev) => ({
+                                      ...prev,
+                                      [block.id]: !collapsed,
+                                    }));
+                                  }}
+                                  activeItemId={activeItemId}
+                                  copiedItemId={copiedItemId}
+                                  workDir={workspacePath}
+                                  onCopy={handleCopy}
+                                  setItemRef={setItemRef}
+                                />
+                              </div>
+                            );
+                          }
+
+                          if (block.type === "planned_group") {
+                            const pgCollapsed = isCollapseGroupCollapsed(block.id);
+                            return (
+                              <div key={block.id} className={spacing}>
+                                <PlannedGroupBlock
+                                  todos={block.todos}
+                                  collapsed={pgCollapsed}
+                                  onToggle={() => {
+                                    setCollapsedCollapseGroups((prev) => ({
+                                      ...prev,
+                                      [block.id]: !pgCollapsed,
+                                    }));
+                                  }}
+                                >
+                                  {block.blocks.map((inner) => {
+                                    if (inner.type === "dev_group") {
+                                      return (
+                                        <DeveloperMessage key={inner.id} items={inner.items} />
+                                      );
+                                    }
+                                    if (inner.type === "sub_agent_group") {
+                                      const isFinished =
+                                        subAgentFinishedBySessionId[inner.sourceSessionId] === true;
+                                      return (
+                                        <SubAgentGroupCard
+                                          key={inner.groupId}
+                                          sourceSessionId={inner.sourceSessionId}
+                                          sourceSessionType={inner.sourceSessionType}
+                                          sourceSessionDesc={inner.sourceSessionDesc}
+                                          sourceSessionFork={inner.sourceSessionFork}
+                                          toolCount={inner.toolCount}
+                                          status={statusBySessionId[inner.sourceSessionId] ?? null}
+                                          isFinished={isFinished}
+                                          nowSeconds={nowSeconds}
+                                          onClick={() => handleEnterSubAgent(inner.sourceSessionId)}
+                                        />
+                                      );
+                                    }
+                                    return (
+                                      <MessageRow
+                                        key={inner.item.id}
+                                        item={inner.item}
+                                        workDir={workspacePath}
+                                        isActive={inner.item.id === activeItemId}
+                                        copied={copiedItemId === inner.item.id}
+                                        onCopy={handleCopy}
+                                        itemRef={(el) => setItemRef(inner.item.id, el)}
+                                      />
+                                    );
+                                  })}
+                                </PlannedGroupBlock>
+                              </div>
                             );
                           }
 
@@ -615,34 +710,44 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                             const isFinished =
                               subAgentFinishedBySessionId[block.sourceSessionId] === true;
                             return (
-                              <SubAgentGroupCard
+                              <div
                                 key={block.groupId}
-                                sourceSessionId={block.sourceSessionId}
-                                sourceSessionType={block.sourceSessionType}
-                                sourceSessionDesc={block.sourceSessionDesc}
-                                sourceSessionFork={block.sourceSessionFork}
-                                toolCount={block.toolCount}
-                                status={statusBySessionId[block.sourceSessionId] ?? null}
-                                isFinished={isFinished}
-                                nowSeconds={nowSeconds}
-                                onClick={() => handleEnterSubAgent(block.sourceSessionId)}
-                              />
+                                className={`${spacing} ${RAIL_CONTENT_OFFSET}`}
+                              >
+                                <SubAgentGroupCard
+                                  sourceSessionId={block.sourceSessionId}
+                                  sourceSessionType={block.sourceSessionType}
+                                  sourceSessionDesc={block.sourceSessionDesc}
+                                  sourceSessionFork={block.sourceSessionFork}
+                                  toolCount={block.toolCount}
+                                  status={statusBySessionId[block.sourceSessionId] ?? null}
+                                  isFinished={isFinished}
+                                  nowSeconds={nowSeconds}
+                                  onClick={() => handleEnterSubAgent(block.sourceSessionId)}
+                                />
+                              </div>
                             );
                           }
 
                           const item = block.item;
+                          const hasRailGrid =
+                            GRID_ITEM_TYPES.has(item.type) &&
+                            !(item.type === "tool_block" && CARD_TOOL_NAMES.has(item.toolName));
+                          const itemOffset =
+                            item.type !== "user_message" && !hasRailGrid ? RAIL_CONTENT_OFFSET : "";
                           return (
-                            <MessageRow
-                              key={item.id}
-                              item={item}
-                              workDir={workspacePath}
-                              isActive={item.id === activeItemId}
-                              copied={copiedItemId === item.id}
-                              onCopy={handleCopy}
-                              itemRef={(el) => {
-                                setItemRef(item.id, el);
-                              }}
-                            />
+                            <div key={item.id} className={`${spacing} ${itemOffset}`}>
+                              <MessageRow
+                                item={item}
+                                workDir={workspacePath}
+                                isActive={item.id === activeItemId}
+                                copied={copiedItemId === item.id}
+                                onCopy={handleCopy}
+                                itemRef={(el) => {
+                                  setItemRef(item.id, el);
+                                }}
+                              />
+                            </div>
                           );
                         })}
                       </div>

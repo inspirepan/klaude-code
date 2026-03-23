@@ -4,7 +4,6 @@ import { Streamdown } from "streamdown";
 import { useT } from "@/i18n";
 import type { ThinkingBlockItem } from "../../types/message";
 import {
-  CollapseRailConnector,
   COLLAPSE_RAIL_GRID_CLASS_NAME,
   CollapseRailMarker,
   CollapseRailPanel,
@@ -17,12 +16,12 @@ interface ThinkingBlockProps {
 }
 
 function Strong(props: React.ComponentPropsWithoutRef<"strong">): JSX.Element {
-  return <strong className="font-normal text-neutral-700" {...props} />;
+  return <strong className="font-normal text-neutral-500" {...props} />;
 }
 
 function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): JSX.Element {
   return (
-    <span className="block font-mono" style={{ fontSize: "0.95em" }}>
+    <span className="block font-mono" style={{ fontSize: "0.9em" }}>
       {children}
     </span>
   );
@@ -30,7 +29,7 @@ function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): JSX.Element {
 
 function Code({ children }: React.ComponentPropsWithoutRef<"code">): JSX.Element {
   return (
-    <span className="font-mono" style={{ fontSize: "0.95em" }}>
+    <span className="font-mono" style={{ fontSize: "0.9em" }}>
       {children}
     </span>
   );
@@ -75,31 +74,26 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
 
   return (
     <div
-      className={`-my-1 grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} cursor-pointer font-mono text-base`}
+      className={`grid cursor-pointer items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} text-base`}
       onClick={() => setOpen((value) => !value)}
     >
-      <CollapseRailMarker open={open} />
-      <span className="whitespace-nowrap font-mono font-normal text-neutral-600">
-        {t("thinking.label")}
-      </span>
+      <CollapseRailMarker open={open} className="row-span-2" />
+      <span className="whitespace-nowrap font-normal text-neutral-500">{t("thinking.label")}</span>
 
-      <CollapseRailPanel open={open} className="col-span-2">
-        <div className={`mt-2 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
-          <CollapseRailConnector />
-          <div
-            className="thinking-block min-w-0 font-sans text-base leading-relaxed text-neutral-600"
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
+      <CollapseRailPanel open={open}>
+        <div
+          className="thinking-block mt-2 min-w-0 font-sans text-base leading-relaxed text-neutral-500"
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <Streamdown
+            mode={item.isStreaming ? "static" : "streaming"}
+            isAnimating={item.isStreaming}
+            components={thinkingComponents}
           >
-            <Streamdown
-              mode={item.isStreaming ? "static" : "streaming"}
-              isAnimating={item.isStreaming}
-              components={thinkingComponents}
-            >
-              {item.content}
-            </Streamdown>
-          </div>
+            {item.content}
+          </Streamdown>
         </div>
       </CollapseRailPanel>
     </div>
