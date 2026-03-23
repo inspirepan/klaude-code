@@ -594,8 +594,3 @@ def cost_command(
     table = render_cost_table(daily_stats)
     console = Console()
     console.print(table)
-
-
-def register_cost_commands(app: typer.Typer) -> None:
-    """Register cost command to the given Typer app."""
-    app.command("cost")(cost_command)

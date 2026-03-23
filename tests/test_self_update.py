@@ -28,8 +28,8 @@ def test_upgrade_command_updates_clean_editable_local_git_checkout(monkeypatch: 
         update_available=True,
         install_kind=update.INSTALL_KIND_EDITABLE,
     )
-    monkeypatch.setattr(self_update, "check_for_updates_blocking", lambda: info)
-    monkeypatch.setattr(self_update, "get_install_source_path", lambda: str(source_path))
+    monkeypatch.setattr(update, "check_for_updates_blocking", lambda: info)
+    monkeypatch.setattr(update, "get_install_source_path", lambda: str(source_path))
 
     def fake_which(cmd: str) -> str:
         return f"/usr/bin/{cmd}"
@@ -59,7 +59,7 @@ def test_upgrade_command_updates_clean_editable_local_git_checkout(monkeypatch: 
     def fake_log(*objects: _LogObject) -> None:
         messages.extend(obj[0] if isinstance(obj, tuple) else obj for obj in objects)
 
-    monkeypatch.setattr(self_update, "log", fake_log)
+    monkeypatch.setattr("klaude_code.log.log", fake_log)
 
     self_update.upgrade_command(check=False)
 
@@ -73,7 +73,7 @@ def test_upgrade_command_updates_clean_editable_local_git_checkout(monkeypatch: 
 
 
 def test_print_version_uses_display_version(monkeypatch: MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-    monkeypatch.setattr(self_update, "get_display_version", lambda: "1.2.3 (editable)")
+    monkeypatch.setattr(update, "get_display_version", lambda: "1.2.3 (editable)")
 
     self_update.version_command()
 
@@ -90,8 +90,8 @@ def test_upgrade_command_rejects_dirty_local_git_checkout(monkeypatch: MonkeyPat
         update_available=True,
         install_kind=update.INSTALL_KIND_LOCAL,
     )
-    monkeypatch.setattr(self_update, "check_for_updates_blocking", lambda: info)
-    monkeypatch.setattr(self_update, "get_install_source_path", lambda: str(source_path))
+    monkeypatch.setattr(update, "check_for_updates_blocking", lambda: info)
+    monkeypatch.setattr(update, "get_install_source_path", lambda: str(source_path))
 
     def fake_which(cmd: str) -> str:
         return f"/usr/bin/{cmd}"
@@ -121,7 +121,7 @@ def test_upgrade_command_rejects_dirty_local_git_checkout(monkeypatch: MonkeyPat
     def fake_log(*objects: _LogObject) -> None:
         messages.extend(obj[0] if isinstance(obj, tuple) else obj for obj in objects)
 
-    monkeypatch.setattr(self_update, "log", fake_log)
+    monkeypatch.setattr("klaude_code.log.log", fake_log)
 
     with pytest.raises(self_update.typer.Exit) as exc_info:
         self_update.upgrade_command(check=False)

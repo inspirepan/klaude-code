@@ -76,7 +76,7 @@ def test_main_callback_starts_web_mode_after_tui_returns_request(monkeypatch: py
     monkeypatch.setattr(tui_runner, "run_interactive", _run_interactive)
     monkeypatch.setattr(cli_main, "run_web_server_command", _run_web_server_command)
     monkeypatch.setattr(cli_main, "prepare_debug_logging", _prepare_debug_logging)
-    monkeypatch.setattr(cli_main, "update_terminal_title", _update_terminal_title)
+    monkeypatch.setattr("klaude_code.tui.terminal.title.update_terminal_title", _update_terminal_title)
     monkeypatch.setattr(cli_main.sys, "stdin", SimpleNamespace(isatty=lambda: True))
     monkeypatch.setattr(cli_main.sys, "stdout", SimpleNamespace(isatty=lambda: True))
     monkeypatch.setattr(config_module, "load_config", _load_config)

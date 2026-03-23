@@ -6,15 +6,13 @@ import sys
 
 import typer
 
-from klaude_code.config import config_path, create_example_config, example_config_path, load_config
-from klaude_code.log import log
-
 
 def list_models(
     show_all: bool = typer.Option(False, "--all", "-a", help="Include unavailable providers"),
 ) -> None:
     """List available models"""
     from klaude_code.cli.list_model import display_models_and_providers
+    from klaude_code.config import load_config
     from klaude_code.tui.terminal.color import is_light_terminal_background
 
     config = load_config()
@@ -32,6 +30,9 @@ def list_models(
 
 def edit_config() -> None:
     """Edit config file"""
+    from klaude_code.config import config_path, create_example_config, example_config_path
+    from klaude_code.log import log
+
     editor = os.environ.get("EDITOR")
 
     # If no EDITOR is set, prioritize TextEdit on macOS

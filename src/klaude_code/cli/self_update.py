@@ -6,19 +6,10 @@ from pathlib import Path
 
 import typer
 
-from klaude_code.log import log
-from klaude_code.update import (
-    INSTALL_KIND_DIRECT_URL,
-    INSTALL_KIND_EDITABLE,
-    INSTALL_KIND_LOCAL,
-    PACKAGE_NAME,
-    check_for_updates_blocking,
-    get_display_version,
-    get_install_source_path,
-)
-
 
 def _print_version() -> None:
+    from klaude_code.update import PACKAGE_NAME, get_display_version
+
     print(f"{PACKAGE_NAME} {get_display_version()}")
 
 
@@ -36,6 +27,9 @@ def version_command() -> None:
 
 
 def _upgrade_local_git_install(install_kind: str, source_path: str) -> None:
+    from klaude_code.log import log
+    from klaude_code.update import INSTALL_KIND_EDITABLE
+
     repo_path = Path(source_path).expanduser()
     source_display = str(repo_path)
 
@@ -105,6 +99,15 @@ def upgrade_command(
     ),
 ) -> None:
     """Upgrade to latest version"""
+    from klaude_code.log import log
+    from klaude_code.update import (
+        INSTALL_KIND_DIRECT_URL,
+        INSTALL_KIND_EDITABLE,
+        INSTALL_KIND_LOCAL,
+        PACKAGE_NAME,
+        check_for_updates_blocking,
+        get_install_source_path,
+    )
 
     info = check_for_updates_blocking()
 

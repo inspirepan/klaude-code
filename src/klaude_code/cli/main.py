@@ -2,47 +2,54 @@ import asyncio
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import typer
 from typer.core import TyperGroup
 
 from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
-from klaude_code.cli.cost_cmd import register_cost_commands
-from klaude_code.cli.debug import prepare_debug_logging
 from klaude_code.cli.self_update import register_self_upgrade_commands, version_option_callback
-from klaude_code.cli.web_cmd import register_web_commands, run_web_server_command
-from klaude_code.session import Session
-from klaude_code.tui.terminal.session_selector import select_session_sync
-from klaude_code.tui.terminal.title import update_terminal_title
 
 
-def _build_env_help() -> str:
-    from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
+class _LazyEnvHelp:
+    """Lazy proxy that defers heavy config imports until --help is shown.
 
-    lines = [
-        "Environment Variables:",
-        "",
-        "Provider API keys (built-in config):",
-    ]
-    # Calculate max env_var length for alignment
-    max_len = max(len(k.env_var) for k in SUPPORTED_API_KEYS)
-    for k in SUPPORTED_API_KEYS:
-        lines.append(f"  {k.env_var:<{max_len}}  {k.description}")
-    lines.extend(
-        [
-            "",
-            "Tool limits (Read):",
-            "  KLAUDE_READ_GLOBAL_LINE_CAP    Max lines to read (default: 2000)",
-            "  KLAUDE_READ_MAX_CHARS          Max total chars to read (default: 50000)",
-            "  KLAUDE_READ_MAX_IMAGE_BYTES    Max image bytes to read (default: 64MB)",
-        ]
-    )
-    return "\n\n".join(lines)
+    Typer/Click calls .split() and str() on the epilog, so we materialise
+    the real string on first attribute access.
+    """
 
+    _value: str | None = None
 
-ENV_HELP = _build_env_help()
+    def _resolve(self) -> str:
+        if self._value is None:
+            from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
+
+            lines = [
+                "Environment Variables:",
+                "",
+                "Provider API keys (built-in config):",
+            ]
+            max_len = max(len(k.env_var) for k in SUPPORTED_API_KEYS)
+            for k in SUPPORTED_API_KEYS:
+                lines.append(f"  {k.env_var:<{max_len}}  {k.description}")
+            lines.extend(
+                [
+                    "",
+                    "Tool limits (Read):",
+                    "  KLAUDE_READ_GLOBAL_LINE_CAP    Max lines to read (default: 2000)",
+                    "  KLAUDE_READ_MAX_CHARS          Max total chars to read (default: 50000)",
+                    "  KLAUDE_READ_MAX_IMAGE_BYTES    Max image bytes to read (default: 64MB)",
+                ]
+            )
+            self._value = "\n\n".join(lines)
+        return self._value
+
+    def __str__(self) -> str:
+        return self._resolve()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._resolve(), name)
 
 
 def _looks_like_flag(token: str) -> bool:
@@ -124,22 +131,54 @@ class _PreprocessingTyperGroup(TyperGroup):
         )
 
 
+def prepare_debug_logging(debug: bool) -> tuple[bool, Path | None]:
+    from klaude_code.cli.debug import prepare_debug_logging as _prepare_debug_logging
+
+    return _prepare_debug_logging(debug)
+
+
+def run_web_server_command(*, host: str, port: int, no_open: bool, debug: bool) -> None:
+    from klaude_code.cli.web_cmd import run_web_server_command as _run_web_server_command
+
+    _run_web_server_command(host=host, port=port, no_open=no_open, debug=debug)
+
+
 app = typer.Typer(
     cls=_PreprocessingTyperGroup,
     add_completion=False,
     pretty_exceptions_enable=False,
     no_args_is_help=False,
     rich_markup_mode="rich",
-    epilog=ENV_HELP,
+    epilog=cast(str, _LazyEnvHelp()),
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 
 # Register subcommands from modules
 register_auth_commands(app)
 register_config_commands(app)
-register_cost_commands(app)
-register_web_commands(app)
 register_self_upgrade_commands(app)
+
+
+@app.command("web")
+def _web_command_wrapper(  # pyright: ignore[reportUnusedFunction]
+    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind web server"),
+    port: int = typer.Option(8765, "--port", help="Port to bind web server"),
+    no_open: bool = typer.Option(False, "--no-open", help="Do not open browser automatically"),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug logs for web server"),
+) -> None:
+    run_web_server_command(host=host, port=port, no_open=no_open, debug=debug)
+
+
+# cost command is registered via a lazy wrapper to avoid pulling in
+# klaude_code.protocol at import time (~200ms).
+@app.command("cost")
+def _cost_command_wrapper(  # pyright: ignore[reportUnusedFunction]
+    days: int | None = typer.Option(None, "--days", "-d", "--recent", help="Limit to last N days"),
+) -> None:
+    """Show usage stats"""
+    from klaude_code.cli.cost_cmd import cost_command
+
+    cost_command(days=days)
 
 
 @app.command("help", hidden=True)
@@ -203,6 +242,9 @@ def main_callback(
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
         from klaude_code.log import log
+        from klaude_code.session import Session
+        from klaude_code.tui.terminal.session_selector import select_session_sync
+        from klaude_code.tui.terminal.title import update_terminal_title
 
         resume_by_id_value = resume_by_id.strip() if resume_by_id is not None else None
         if resume_by_id_value == "":
