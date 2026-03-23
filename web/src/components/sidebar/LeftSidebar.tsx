@@ -222,7 +222,7 @@ export function LeftSidebar(): JSX.Element {
     () =>
       groups
         .flatMap((group) => group.sessions)
-        .filter((session) => !session.archived)
+        .filter((session) => !session.archived && session.messages_count > 0)
         .sort((a, b) => b.updated_at - a.updated_at),
     [groups],
   );
