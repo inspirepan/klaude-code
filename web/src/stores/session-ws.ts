@@ -1,5 +1,6 @@
 import {
   fetchRunningSessions,
+  fetchSessionHistory,
   normalizeSessionSummary,
   type RunningSessionState,
 } from "../api/client";
@@ -404,6 +405,16 @@ export function openSessionWs(
           wsState: "disconnected",
         }),
       }));
+      // Reload history to recover events that may have been missed during the
+      // WS gap (e.g. queue overflow on the backend).  Fire-and-forget; only
+      // bother if this session is still the active one.
+      if (get().activeSessionId === sessionId) {
+        void fetchSessionHistory(sessionId)
+          .then((history) => {
+            useMessageStore.getState().loadHistoryFromEvents(sessionId, history.events);
+          })
+          .catch(() => {});
+      }
     },
     onErrorFrame: (errorFrame) => {
       handleWsError(errorFrame, sessionId, set);

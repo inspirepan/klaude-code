@@ -208,6 +208,8 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
 
     if (sameActiveSession && isStreamingSession) {
       if (!reusableConnection) {
+        // Reload history to recover any events missed during the WS gap, then reconnect.
+        await loadSessionHistory(sessionId).catch(() => {});
         openSessionWs(sessionId, get, set);
       }
       pushSessionUrl(sessionId);
