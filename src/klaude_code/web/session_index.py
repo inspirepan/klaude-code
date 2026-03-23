@@ -325,6 +325,39 @@ def read_session_titles(home: Path, session_ids: set[str]) -> dict[str, str | No
     return result
 
 
+def search_sessions(home: Path, query: str) -> list[SessionSummary]:
+    """Search sessions by title, user messages, and work_dir.
+
+    Returns matching sessions sorted by updated_at descending.
+    """
+    query_lower = query.strip().lower()
+    if not query_lower:
+        return []
+
+    results: list[SessionSummary] = []
+    for meta_path in _iter_meta_files(home):
+        data = _read_json_dict(meta_path)
+        if data is None:
+            continue
+        summary = load_session_summary_from_meta(data, fallback_session_id=meta_path.parent.name)
+        if summary is None:
+            continue
+
+        if _session_matches_query(summary, query_lower):
+            results.append(summary)
+
+    results.sort(key=lambda item: item.updated_at, reverse=True)
+    return results
+
+
+def _session_matches_query(summary: SessionSummary, query_lower: str) -> bool:
+    if summary.title and query_lower in summary.title.lower():
+        return True
+    if query_lower in summary.work_dir.lower():
+        return True
+    return any(query_lower in msg.lower() for msg in summary.user_messages)
+
+
 def resolve_session_work_dir(home: Path, session_id: str) -> Path | None:
     for meta_path in _iter_meta_files(home):
         data = _read_json_dict(meta_path)

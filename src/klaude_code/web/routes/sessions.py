@@ -24,6 +24,7 @@ from klaude_code.web.session_index import (
     read_session_titles,
     read_session_user_messages,
     resolve_session_work_dir,
+    search_sessions,
     soft_delete_session,
 )
 from klaude_code.web.session_live import format_sse_message
@@ -88,6 +89,29 @@ async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[di
         raise RuntimeError("session live state is not initialized")
     state.session_live.index.reload()
     return {"groups": state.session_live.list_groups()}
+
+
+@router.get("/search")
+async def search_sessions_endpoint(
+    q: str = "",
+    state: WebAppState = WEB_STATE_DEP,
+) -> dict[str, list[dict[str, Any]]]:
+    """Search sessions by title, user messages, and workspace path."""
+    results = search_sessions(state.home_dir, q)
+    return {
+        "results": [
+            {
+                "id": s.id,
+                "created_at": s.created_at,
+                "updated_at": s.updated_at,
+                "work_dir": s.work_dir,
+                "title": s.title,
+                "user_messages": s.user_messages,
+                "archived": s.archived,
+            }
+            for s in results
+        ]
+    }
 
 
 @router.get("/stream")
