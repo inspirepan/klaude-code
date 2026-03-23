@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useMountEffect } from "@/hooks/useMountEffect";
 import { SessionTitleText } from "@/components/SessionTitleText";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/i18n";
 
 interface SessionCardProps {
   session: SessionSummary;
@@ -19,12 +20,12 @@ interface SessionCardProps {
 function UnreadCompletionDot(): JSX.Element {
   return (
     <span className="flex h-3 w-3 shrink-0 items-center justify-center">
-      <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
     </span>
   );
 }
 
-function getSessionTitle(session: SessionSummary): string {
+function getSessionTitle(session: SessionSummary): string | null {
   const generatedTitle = session.title?.trim();
   if (generatedTitle !== undefined && generatedTitle.length > 0) {
     return generatedTitle;
@@ -33,7 +34,7 @@ function getSessionTitle(session: SessionSummary): string {
   if (firstMessage !== undefined && firstMessage.length > 0) {
     return firstMessage;
   }
-  return "New session";
+  return null;
 }
 
 function formatRelativeTime(timestampSeconds: number): string {
@@ -67,14 +68,24 @@ function shortenFileRefs(text: string): string {
   return text.replace(/@[\w./\\-]+\/([^/\s]+)/g, "@$1");
 }
 
-function DiffStats({ added, removed }: { added: number; removed: number }): JSX.Element | null {
+function DiffStats({
+  added,
+  removed,
+  className,
+}: {
+  added: number;
+  removed: number;
+  className?: string;
+}): JSX.Element | null {
   if (added <= 0 && removed <= 0) {
     return null;
   }
   return (
-    <span className="inline-flex shrink-0 gap-1 whitespace-nowrap text-xs leading-4">
+    <span
+      className={cn("inline-flex shrink-0 gap-1 whitespace-nowrap text-xs leading-4", className)}
+    >
       {added > 0 ? <span className="text-emerald-600">+{added}</span> : null}
-      {removed > 0 ? <span className="text-rose-600">-{removed}</span> : null}
+      {removed > 0 ? <span className="text-red-600">-{removed}</span> : null}
     </span>
   );
 }
@@ -88,10 +99,11 @@ export function SessionCard({
   onClick,
   onToggleArchive,
 }: SessionCardProps): JSX.Element {
+  const t = useT();
   const [showSuccessState, setShowSuccessState] = useState(false);
   const successAnimationFrameRef = useRef<number | null>(null);
   const successTimeoutRef = useRef<number | null>(null);
-  const title = shortenFileRefs(getSessionTitle(session));
+  const title = shortenFileRefs(getSessionTitle(session) ?? t("sidebar.newSession"));
   const updatedAtDetailed = formatDetailedTime(session.updated_at);
   const relativeTime = formatRelativeTime(session.updated_at);
   const diffSummary = session.file_change_summary;
@@ -139,61 +151,68 @@ export function SessionCard({
   });
 
   return (
-    <div className="group flex items-center gap-0.5">
-      <div
-        className={cn(
-          "relative flex min-w-0 flex-1 items-center gap-1 rounded-md py-1 pl-1.5 pr-1.5 text-left transition-colors",
-          showSuccessState
-            ? active
-              ? "status-success-card-settle-active"
-              : "status-success-card-settle"
-            : active
-              ? "bg-neutral-200/60"
-              : "hover:bg-muted/80",
-        )}
-        role="button"
-        tabIndex={0}
-        onClick={onClick}
-        onKeyDown={(event) => {
-          if (event.target !== event.currentTarget) return;
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          onClick();
-        }}
-        title={title}
-      >
-        {runtime.sessionState !== "idle" ? (
-          <span className="flex h-3 w-3 shrink-0 items-center justify-center">
-            {runtime.sessionState === "running" ? (
-              <Loader className="h-3 w-3 animate-spin text-neutral-500" />
-            ) : (
-              <CirclePause className="h-3 w-3 text-amber-500" />
-            )}
-          </span>
-        ) : hasUnreadCompletion ? (
-          <UnreadCompletionDot />
-        ) : null}
-        <SessionTitleText
-          title={title}
-          as="div"
-          className="flex min-w-0 flex-1 items-baseline text-sm leading-5"
-          secondaryClassName="shrink truncate"
-        />
-        <DiffStats added={diffSummary.diff_lines_added} removed={diffSummary.diff_lines_removed} />
-        <span
-          className="w-7 shrink-0 text-right text-xs leading-4 text-neutral-400"
-          title={updatedAtDetailed}
-        >
-          {relativeTime}
+    <div
+      className={cn(
+        "group relative flex min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-2 pr-2 text-left transition-colors",
+        showSuccessState
+          ? active
+            ? "status-success-card-settle-active"
+            : "status-success-card-settle"
+          : active
+            ? "bg-neutral-200/60"
+            : "hover:bg-muted/80",
+      )}
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onClick();
+      }}
+      title={title}
+    >
+      {runtime.sessionState !== "idle" ? (
+        <span className="flex h-3 w-3 shrink-0 items-center justify-center">
+          {runtime.sessionState === "running" ? (
+            <Loader className="h-3 w-3 animate-spin text-neutral-500" />
+          ) : (
+            <CirclePause className="h-3 w-3 text-amber-500" />
+          )}
         </span>
-      </div>
+      ) : hasUnreadCompletion ? (
+        <UnreadCompletionDot />
+      ) : null}
+      <SessionTitleText
+        title={title}
+        as="div"
+        className="flex min-w-0 flex-1 items-baseline text-sm leading-5"
+        secondaryClassName="shrink truncate"
+      />
+      {/* Meta info: visible by default, hidden on hover */}
+      <DiffStats
+        added={diffSummary.diff_lines_added}
+        removed={diffSummary.diff_lines_removed}
+        className="group-hover:hidden"
+      />
+      <span
+        className="w-7 shrink-0 text-right text-xs leading-4 text-neutral-500 group-hover:hidden"
+        title={updatedAtDetailed}
+      >
+        {relativeTime}
+      </span>
+      {/* Archive button: hidden by default, shown on hover */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-400 opacity-0 transition-opacity hover:text-neutral-700 focus:outline-none focus-visible:opacity-100 group-hover:opacity-100"
-            aria-label={session.archived ? "Unarchive session" : "Archive session"}
-            onClick={() => {
+            className="hidden h-5 w-5 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:text-neutral-700 focus:outline-none focus-visible:inline-flex group-hover:inline-flex"
+            aria-label={
+              session.archived ? t("sidebar.unarchiveSession") : t("sidebar.archiveSession")
+            }
+            onClick={(e) => {
+              e.stopPropagation();
               onToggleArchive(session.id, !session.archived);
             }}
           >
@@ -205,7 +224,7 @@ export function SessionCard({
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          {session.archived ? "Unarchive session" : "Archive session"}
+          {session.archived ? t("sidebar.unarchiveSession") : t("sidebar.archiveSession")}
         </TooltipContent>
       </Tooltip>
     </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useT } from "@/i18n";
 import type {
   DeveloperMessageItem,
   AtFileOp,
@@ -25,10 +26,6 @@ function PathPill({ path }: { path: string }): JSX.Element {
       <FilePath path={path} />
     </span>
   );
-}
-
-function plural(n: number, word: string): string {
-  return n === 1 ? word : `${word}s`;
 }
 
 function groupAtFileOps(
@@ -64,7 +61,10 @@ function collectImages(items: DeveloperUIItem[]): string[] {
   return paths;
 }
 
-function buildAttachedSummary(devItems: DeveloperMessageItem[]): string {
+function buildAttachedSummary(
+  devItems: DeveloperMessageItem[],
+  t: ReturnType<typeof useT>,
+): string {
   let memoryCount = 0;
   const skillNames: string[] = [];
   let fileCount = 0;
@@ -103,13 +103,12 @@ function buildAttachedSummary(devItems: DeveloperMessageItem[]): string {
   }
 
   const parts: string[] = [];
-  if (memoryCount > 0) parts.push(`${memoryCount} ${memoryCount === 1 ? "memory" : "memories"}`);
-  for (const name of skillNames) parts.push(`skill:${name}`);
-  if (fileCount > 0) parts.push(`${fileCount} ${plural(fileCount, "file")}`);
-  if (folderListCount > 0)
-    parts.push(`${folderListCount} folder ${plural(folderListCount, "list")}`);
-  if (rereadCount > 0) parts.push(`${rereadCount} re-read ${plural(rereadCount, "file")}`);
-  if (imageCount > 0) parts.push(`${imageCount} ${plural(imageCount, "image")}`);
+  if (memoryCount > 0) parts.push(t("plural.memory")(memoryCount));
+  for (const name of skillNames) parts.push(t("developer.summarySkill")(name));
+  if (fileCount > 0) parts.push(t("plural.file")(fileCount));
+  if (folderListCount > 0) parts.push(t("developer.summaryFolderList")(folderListCount));
+  if (rereadCount > 0) parts.push(t("developer.summaryReread")(rereadCount));
+  if (imageCount > 0) parts.push(t("plural.image")(imageCount));
   return parts.join(", ");
 }
 
@@ -134,7 +133,7 @@ function CollapsibleRow({
     >
       <CollapseRailMarker open={open} expandable={expandable} inactiveMode="hidden" />
       <span
-        className={`min-w-0 whitespace-nowrap font-mono font-normal text-neutral-500 ${labelClassName ?? ""}`}
+        className={`min-w-0 whitespace-nowrap font-mono font-normal text-neutral-600 ${labelClassName ?? ""}`}
       >
         {label}
       </span>
@@ -155,7 +154,7 @@ function CollapsibleRow({
 
 function PathList({ paths }: { paths: string[] }): JSX.Element {
   return (
-    <ul className="list-disc space-y-1 pl-5 text-base leading-6 marker:text-neutral-500">
+    <ul className="list-disc space-y-1 pl-5 text-base leading-6 marker:text-neutral-600">
       {paths.map((p) => (
         <li key={p}>
           <PathPill path={p} />
@@ -172,6 +171,7 @@ function AttachDetail({
   devItems: DeveloperMessageItem[];
   images: string[];
 }): JSX.Element {
+  const t = useT();
   const allUIItems = devItems.flatMap((d) => d.items).filter((ui) => ui.type !== "todo_reminder");
   const sessionId = devItems[0]?.sessionId ?? null;
 
@@ -189,7 +189,7 @@ function AttachDetail({
                 <PathList paths={g.paths} />
                 {g.mentionedIn ? (
                   <div className="mt-0.5 text-base leading-6">
-                    <span className="mr-1 text-neutral-500">mentioned in</span>
+                    <span className="mr-1 text-neutral-600">{t("developer.mentionedIn")}</span>
                     <PathPill path={g.mentionedIn} />
                   </div>
                 ) : null}
@@ -208,7 +208,7 @@ function AttachDetail({
               key={p}
               src={buildFileApiUrl(p, sessionId)}
               alt={p}
-              className="block h-auto max-h-[220px] w-full rounded-md border border-neutral-200/70 bg-white object-contain"
+              className="block h-auto max-h-[220px] w-full rounded-md border border-border/70 bg-card object-contain"
               loading="lazy"
             />
           ))}
@@ -219,6 +219,7 @@ function AttachDetail({
 }
 
 export function DeveloperMessage({ items }: DeveloperMessageProps): JSX.Element {
+  const t = useT();
   const images = items.flatMap((d) => collectImages(d.items));
   const allUIItems = items.flatMap((d) => d.items);
   const todoItems = allUIItems.filter(
@@ -226,18 +227,17 @@ export function DeveloperMessage({ items }: DeveloperMessageProps): JSX.Element 
   );
   const attachItems = allUIItems.filter((ui) => ui.type !== "todo_reminder");
   const hasAttachments = attachItems.length > 0 || images.length > 0;
-  const summary = hasAttachments ? buildAttachedSummary(items) : "";
+  const summary = hasAttachments ? buildAttachedSummary(items, t) : "";
 
   return (
-    <div className="flex flex-col font-sans text-base text-neutral-500">
+    <div className="flex flex-col font-sans text-base text-neutral-600">
       {hasAttachments ? (
-        <CollapsibleRow label={`Attached ${summary}`}>
+        <CollapsibleRow label={`${t("developer.attached")} ${summary}`}>
           <AttachDetail devItems={items} images={images} />
         </CollapsibleRow>
       ) : null}
       {todoItems.map((todo, idx) => {
-        const text =
-          todo.reason === "empty" ? "Todo list is empty" : "Todo hasn't been updated recently";
+        const text = todo.reason === "empty" ? t("developer.todoEmpty") : t("developer.todoStale");
         const labelClassName = todo.reason === "empty" ? "text-emerald-700" : "text-blue-700";
         return (
           <CollapsibleRow key={`todo-${idx}`} label={text} labelClassName={labelClassName}>

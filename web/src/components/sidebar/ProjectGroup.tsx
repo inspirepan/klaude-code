@@ -4,6 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SessionCard } from "./SessionCard";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
+import { useT } from "@/i18n";
 
 interface ProjectGroupProps {
   workDir: string;
@@ -42,6 +43,7 @@ export function ProjectGroup({
   onSelectSession,
   onToggleArchive,
 }: ProjectGroupProps): JSX.Element {
+  const t = useT();
   const [showAll, setShowAll] = useState(false);
   const displaySessions = showAll ? sessions : sessions.slice(0, 5);
   const hasMore = sessions.length > 5;
@@ -56,10 +58,10 @@ export function ProjectGroup({
 
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-0.5">
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
-            <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-neutral-700 transition-colors hover:bg-muted/50 hover:text-neutral-900">
+            <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1.5 text-neutral-700 transition-colors hover:bg-muted/50 hover:text-neutral-900">
               {collapsed ? (
                 <Folder className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
               ) : (
@@ -67,15 +69,15 @@ export function ProjectGroup({
               )}
               <div className="min-w-0 flex-1 text-left">
                 <div className="flex min-w-0 items-center gap-1 text-sm font-normal leading-5 text-neutral-800">
-                  <span className="truncate font-medium text-neutral-500 [direction:rtl]">
+                  <span className="truncate font-normal text-neutral-500 [direction:rtl]">
                     {workDirLabel(workDir)}
                   </span>
-                  <span className="shrink-0 text-xs text-neutral-400">({sessions.length})</span>
+                  <span className="shrink-0 text-xs text-neutral-500">({sessions.length})</span>
                   {hasAnyRunning ? (
                     <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
                   ) : hasAnyUnread ? (
                     <span className="flex h-3 w-3 shrink-0 items-center justify-center">
-                      <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
                     </span>
                   ) : null}
                 </div>
@@ -89,22 +91,22 @@ export function ProjectGroup({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-700"
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                 onClick={() => {
                   onSelectDraft(workDir);
                 }}
-                aria-label={`New session in ${workDir}`}
+                aria-label={t("sidebar.newSessionIn")(workDir)}
               >
                 <SquarePen className="h-3 w-3" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>New session in {workDir}</TooltipContent>
+            <TooltipContent>{t("sidebar.newSessionIn")(workDir)}</TooltipContent>
           </Tooltip>
         )}
       </div>
 
-      <CollapsibleContent className="ml-3 border-l border-neutral-200 pl-1.5">
-        <div className="pb-0.5">
+      <CollapsibleContent className="ml-3 border-l border-border pl-1.5">
+        <div className="pb-1 pt-0.5">
           {displaySessions.map((session) => (
             <SessionCard
               key={session.id}
@@ -134,7 +136,9 @@ export function ProjectGroup({
                 setShowAll(true);
               }}
             >
-              <span className="flex-1 text-xs font-normal">Load more ({sessions.length - 5})</span>
+              <span className="flex-1 text-xs font-normal">
+                {t("sidebar.loadMore")(sessions.length - 5)}
+              </span>
             </button>
           )}
         </div>

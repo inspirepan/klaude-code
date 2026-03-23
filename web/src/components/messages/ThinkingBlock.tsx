@@ -1,7 +1,7 @@
-import { Loader } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 
+import { useT } from "@/i18n";
 import type { ThinkingBlockItem } from "../../types/message";
 import {
   CollapseRailConnector,
@@ -15,8 +15,6 @@ import { useSearch } from "./search-context";
 interface ThinkingBlockProps {
   item: ThinkingBlockItem;
 }
-
-const streamAnimation = { animation: "fadeIn" as const, duration: 120, sep: "char" as const };
 
 function Strong(props: React.ComponentPropsWithoutRef<"strong">): JSX.Element {
   return <strong className="font-normal text-neutral-700" {...props} />;
@@ -41,6 +39,7 @@ function Code({ children }: React.ComponentPropsWithoutRef<"code">): JSX.Element
 const thinkingComponents = { strong: Strong, pre: Pre, code: Code };
 
 export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
+  const t = useT();
   const { matchItemIds } = useSearch();
   const { collapseGen, expandGen } = useCollapseAll();
   const defaultExpanded = item.isStreaming;
@@ -80,18 +79,15 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
       onClick={() => setOpen((value) => !value)}
     >
       <CollapseRailMarker open={open} />
-      <div className="flex min-w-0 items-start gap-1.5">
-        <span className="whitespace-nowrap font-mono font-normal text-neutral-500">Thought</span>
-        {item.isStreaming ? (
-          <Loader className="mt-1 h-3 w-3 shrink-0 animate-spin text-neutral-500" />
-        ) : null}
-      </div>
+      <span className="whitespace-nowrap font-mono font-normal text-neutral-600">
+        {t("thinking.label")}
+      </span>
 
       <CollapseRailPanel open={open} className="col-span-2">
         <div className={`mt-2 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
           <CollapseRailConnector />
           <div
-            className="thinking-block min-w-0 font-sans text-base leading-relaxed text-neutral-500"
+            className="thinking-block min-w-0 font-sans text-base leading-relaxed text-neutral-600"
             onClick={(event) => {
               event.stopPropagation();
             }}
@@ -99,7 +95,6 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
             <Streamdown
               mode={item.isStreaming ? "static" : "streaming"}
               isAnimating={item.isStreaming}
-              animated={item.isStreaming ? streamAnimation : undefined}
               components={thinkingComponents}
             >
               {item.content}

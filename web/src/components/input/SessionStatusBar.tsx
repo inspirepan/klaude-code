@@ -1,5 +1,6 @@
 import { Loader } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useT } from "@/i18n";
 
 import type { SessionStatusState } from "../../stores/event-reducer";
 import type { SessionRuntimeState } from "../../types/session";
@@ -10,14 +11,18 @@ interface SessionStatusBarProps {
   runtime: SessionRuntimeState | null;
 }
 
-function getRuntimeStatusLabel(runtime: SessionRuntimeState | null): string | null {
+function getRuntimeStatusLabel(
+  runtime: SessionRuntimeState | null,
+  t: ReturnType<typeof useT>,
+): string | null {
   if (runtime === null) return null;
-  if (runtime.sessionState === "running") return "Running …";
-  if (runtime.sessionState === "waiting_user_input") return "Waiting for input …";
+  if (runtime.sessionState === "running") return t("status.running");
+  if (runtime.sessionState === "waiting_user_input") return t("status.waitingInput");
   return null;
 }
 
 export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JSX.Element | null {
+  const t = useT();
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const hasLiveStatus =
@@ -40,7 +45,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
   }, [hasLiveStatus]);
 
   const nowSeconds = nowMs / 1000;
-  const statusLabel = getSessionActivityText(status) ?? getRuntimeStatusLabel(runtime);
+  const statusLabel = getSessionActivityText(status) ?? getRuntimeStatusLabel(runtime, t);
   const elapsed =
     status?.taskStartedAt !== null &&
     status?.taskStartedAt !== undefined &&
@@ -53,7 +58,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
   }
 
   return (
-    <div className="flex items-center gap-2 pt-0.5 text-neutral-400">
+    <div className="flex items-center gap-2 pt-0.5 text-neutral-500">
       {statusLabel ? (
         <>
           {hasLiveStatus ? (
@@ -61,11 +66,11 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
           ) : (
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-300" />
           )}
-          <span className="truncate font-sans text-base">{statusLabel}</span>
+          <span className="truncate font-sans text-sm">{statusLabel}</span>
         </>
       ) : null}
       {elapsed ? (
-        <span className="font-sans text-base">
+        <span className="font-sans text-sm">
           {statusLabel ? <span className="mr-2 text-neutral-300">&middot;</span> : null}
           {elapsed}
         </span>

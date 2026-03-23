@@ -25,7 +25,7 @@ function FilePathContent({ display }: { display: string }): JSX.Element {
   return (
     <>
       {dir ? <span className="text-neutral-500">{dir}</span> : null}
-      <span className="text-neutral-600">{name}</span>
+      <span className="text-neutral-700">{name}</span>
     </>
   );
 }
@@ -43,7 +43,7 @@ export function FilePath({
   if (truncateFromStart) {
     return (
       <code
-        className={`inline-block max-w-full truncate rounded bg-surface px-1.5 py-0.5 text-left align-middle font-mono text-base leading-5 [direction:rtl] ${className ?? ""}`}
+        className={`inline-block max-w-full truncate rounded bg-surface px-1.5 py-0.5 text-left align-middle font-mono text-sm leading-5 [direction:rtl] ${className ?? ""}`}
         title={path}
       >
         {display}
@@ -53,7 +53,7 @@ export function FilePath({
 
   return (
     <code
-      className={`inline-block max-w-full truncate rounded bg-surface px-1.5 py-0.5 align-middle font-mono text-base leading-5 ${className ?? ""}`}
+      className={`inline-block max-w-full truncate rounded bg-surface px-1.5 py-0.5 align-middle font-mono text-sm leading-5 ${className ?? ""}`}
       title={path}
     >
       <FilePathContent display={display} />

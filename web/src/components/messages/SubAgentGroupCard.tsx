@@ -1,5 +1,6 @@
 import { CircleCheck, Loader } from "lucide-react";
 
+import { useT } from "@/i18n";
 import type { SessionStatusState } from "../../stores/event-reducer";
 import { formatElapsed, formatSubAgentTypeLabel, shortSessionId } from "./message-list-ui";
 
@@ -26,6 +27,7 @@ export function SubAgentGroupCard({
   nowSeconds,
   onClick,
 }: SubAgentGroupCardProps): JSX.Element {
+  const t = useT();
   const isActive =
     status != null && (status.taskActive || status.awaitingInput || status.compacting);
   const elapsedText =
@@ -39,7 +41,7 @@ export function SubAgentGroupCard({
     <button
       type="button"
       onClick={onClick}
-      className="group/subagent flex w-3/5 cursor-pointer items-center gap-2.5 rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2.5 text-left shadow-sm shadow-neutral-200/40 transition-colors hover:bg-neutral-50"
+      className="group/subagent flex w-3/5 cursor-pointer items-center gap-2.5 rounded-lg border border-border/80 bg-surface/50 px-3.5 py-2.5 text-left shadow-sm shadow-neutral-200/40 transition-colors hover:bg-neutral-50"
     >
       {/* Status icon */}
       {isActive ? (
@@ -51,31 +53,29 @@ export function SubAgentGroupCard({
       )}
 
       {/* Type label */}
-      <span className="shrink-0 text-base font-semibold text-neutral-800">
-        {formatSubAgentTypeLabel(sourceSessionType)}
+      <span className="shrink-0 text-base font-semibold text-neutral-700">
+        {t("subAgent.agent")} {formatSubAgentTypeLabel(sourceSessionType)}
       </span>
 
       {/* Description */}
       <span className="min-w-0 truncate text-base text-neutral-600">
-        {sourceSessionDesc ?? `Sub Agent ${shortSessionId(sourceSessionId)}`}
+        {sourceSessionDesc ?? t("subAgent.defaultDesc")(shortSessionId(sourceSessionId))}
       </span>
 
       {/* Fork badge */}
       {sourceSessionFork ? (
-        <span className="shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
-          fork
+        <span className="shrink-0 rounded-md border border-border bg-neutral-50 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+          {t("subAgent.fork")}
         </span>
       ) : null}
 
       {/* Elapsed + tool count (right-aligned) */}
-      <div className="ml-auto flex shrink-0 items-center gap-2 text-base text-neutral-500">
-        {elapsedText ? <span className="font-mono">{elapsedText}</span> : null}
+      <div className="ml-auto flex shrink-0 items-center gap-2 text-sm text-neutral-500">
+        {elapsedText ? <span className="font-sans">{elapsedText}</span> : null}
         {toolCount > 0 ? (
           <>
             {elapsedText ? <span className="text-neutral-300">&middot;</span> : null}
-            <span>
-              {toolCount} tool call{toolCount !== 1 ? "s" : ""}
-            </span>
+            <span>{t("subAgent.toolCall")(toolCount)}</span>
           </>
         ) : null}
       </div>

@@ -12,16 +12,25 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["IBM Plex Sans Variable", ...defaultTheme.fontFamily.sans],
-        mono: ["Lilex Variable", ...defaultTheme.fontFamily.mono],
+        sans: ["Geist Variable", ...defaultTheme.fontFamily.sans],
+        mono: ["TX-02", ...defaultTheme.fontFamily.mono],
       },
       fontSize: {
-        xs: ["0.6875rem", { lineHeight: "1rem" }], // 11px (was 2xs)
-        sm: ["0.75rem", { lineHeight: "1rem" }], // 12px (was xs)
-        base: ["0.875rem", { lineHeight: "1.25rem" }], // 14px (was sm)
+        xs: ["0.8125rem", { lineHeight: "1.125rem" }], // 13px
+        sm: ["0.875rem", { lineHeight: "1.25rem" }], // 14px
+        base: ["1rem", { lineHeight: "1.5rem" }], // 16px
+      },
+      transitionTimingFunction: {
+        "out-strong": "cubic-bezier(0.23, 1, 0.32, 1)",
       },
       animation: {
         "spin-slow": "spin 3s linear infinite",
+      },
+      boxShadow: {
+        float: "0 4px 16px rgba(0, 0, 0, 0.08)",
+        "float-lg": "0 8px 30px rgba(0, 0, 0, 0.08)",
+        toast: "0 8px 24px -16px rgba(15, 15, 15, 0.35)",
+        overlay: "0 24px 80px rgba(0, 0, 0, 0.14)",
       },
       borderRadius: {
         lg: "var(--radius)",

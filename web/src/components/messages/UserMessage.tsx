@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { useT } from "@/i18n";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { UserMessageItem } from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
@@ -31,6 +32,7 @@ interface UserMessageProps {
 }
 
 export function UserMessage({ item }: UserMessageProps): JSX.Element {
+  const t = useT();
   const normalizedContent = useMemo(
     () =>
       item.content
@@ -125,7 +127,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
               <img
                 src={src}
                 alt={alt}
-                className="block h-auto max-h-[180px] w-auto max-w-[min(260px,100%)] rounded-md border border-neutral-200/70 bg-white object-contain"
+                className="block h-auto max-h-[180px] w-auto max-w-[min(260px,100%)] rounded-md border border-border/70 bg-card object-contain"
                 loading="lazy"
               />
             </button>
@@ -158,7 +160,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
                 onClick={() => setShowMore(true)}
                 className={`mt-0 ${miniTextClass} cursor-pointer py-0 font-sans text-neutral-500 transition-colors hover:text-neutral-700`}
               >
-                Show more
+                {t("userMessage.showMore")}
               </button>
             ) : null}
           </div>
@@ -181,7 +183,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
               aria-modal="true"
             >
               <div
-                className="bg-white/72 absolute inset-0 backdrop-blur-[3px]"
+                className="bg-card/72 absolute inset-0 backdrop-blur-[3px]"
                 onClick={() => setShowMore(false)}
               />
               <div
@@ -206,7 +208,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
                     onClick={() => setShowMore(false)}
                     className={`${miniTextClass} cursor-pointer py-0 font-sans text-neutral-500 transition-colors hover:text-neutral-700`}
                   >
-                    Show less
+                    {t("userMessage.showLess")}
                   </button>
                 </div>
               </div>
@@ -227,7 +229,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
                 src={expandedImageSrc}
                 alt={expandedImageAlt}
                 onClick={(event) => event.stopPropagation()}
-                className="block h-auto max-h-[calc(100vh-2rem)] w-auto max-w-[calc(100vw-2rem)] rounded-lg bg-white shadow-2xl"
+                className="block h-auto max-h-[calc(100vh-2rem)] w-auto max-w-[calc(100vw-2rem)] rounded-lg bg-card shadow-2xl"
               />
             </div>,
             document.body,

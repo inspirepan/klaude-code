@@ -10,6 +10,7 @@ import {
 import { ArrowUp, Plus, Square, X } from "lucide-react";
 
 import { buildFileApiUrl, uploadImageAttachment, type ConfigModelSummary } from "../../api/client";
+import { useT } from "@/i18n";
 import type { MessageImageFilePart } from "../../types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { AtFileCompletionList } from "./AtFileCompletionList";
@@ -112,6 +113,7 @@ export function ComposerCard({
   modelDropUp = true,
   completionDropUp = true,
 }: ComposerCardProps): JSX.Element {
+  const t = useT();
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -136,7 +138,11 @@ export function ComposerCard({
 
   const attachmentsDisabled = disableAttachments || interruptible || uploadingCount > 0;
   const buttonDisabled = uploadingCount > 0 || (interruptible ? disableInterrupt : disableSubmit);
-  const buttonLabel = interruptible ? "Interrupt" : submitting ? "Sending" : "Send";
+  const buttonLabel = interruptible
+    ? t("composer.interrupt")
+    : submitting
+      ? t("composer.sending")
+      : t("composer.send");
   const anyCompletionOpen = fileComp.open || slashComp.open;
 
   const handleSubmitOrCompact = useCallback(() => {
@@ -202,7 +208,7 @@ export function ComposerCard({
     }
 
     if (files.some((file) => !SUPPORTED_IMAGE_MIME_TYPES.has(file.type))) {
-      setUploadError("Only PNG, JPEG, GIF, and WebP images are supported.");
+      setUploadError(t("composer.unsupportedImage"));
       return;
     }
 
@@ -232,7 +238,7 @@ export function ComposerCard({
   return (
     <div
       ref={rootRef}
-      className="rounded-lg bg-white px-4 py-2.5 shadow-sm ring-1 ring-black/[0.06]"
+      className="rounded-lg bg-card px-4 py-2.5 shadow-sm ring-1 ring-black/[0.06]"
     >
       <input
         ref={fileInputRef}
@@ -366,7 +372,7 @@ export function ComposerCard({
           {images.map((attachment) => (
             <div
               key={attachment.id}
-              className="group relative overflow-hidden rounded-md border border-neutral-200/80 bg-surface"
+              className="group relative overflow-hidden rounded-md border border-border/80 bg-surface"
             >
               <img
                 src={buildFileApiUrl(attachment.image.file_path)}
@@ -383,12 +389,12 @@ export function ComposerCard({
                       );
                     }}
                     className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition-opacity group-hover:opacity-100"
-                    aria-label="Remove image"
+                    aria-label={t("composer.removeImage")}
                   >
                     <X className="h-3 w-3" strokeWidth={2.5} />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>Remove image</TooltipContent>
+                <TooltipContent>{t("composer.removeImage")}</TooltipContent>
               </Tooltip>
             </div>
           ))}
@@ -396,7 +402,9 @@ export function ComposerCard({
       ) : null}
       {uploadingCount > 0 ? (
         <div className="mt-2 text-sm text-neutral-500">
-          Uploading {uploadingCount === 1 ? "image" : `${uploadingCount} images`}...
+          {uploadingCount === 1
+            ? t("composer.uploadingImage")
+            : t("composer.uploadingImages")(uploadingCount)}
         </div>
       ) : null}
       {uploadError ? <div className="mt-2 text-sm text-red-500">{uploadError}</div> : null}
@@ -407,7 +415,10 @@ export function ComposerCard({
           loading={modelLoading}
           disabled={modelDisabled}
           placeholder={modelPlaceholder}
-          onSelect={onModelSelect}
+          onSelect={(modelName) => {
+            onModelSelect(modelName);
+            requestAnimationFrame(() => ref.current?.focus());
+          }}
           dropUp={modelDropUp}
         />
         <div className="flex items-center gap-2">
@@ -419,13 +430,13 @@ export function ComposerCard({
                   fileInputRef.current?.click();
                 }}
                 disabled={attachmentsDisabled}
-                aria-label="Add image"
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-500 transition-colors hover:border-neutral-300 hover:text-neutral-700 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-300"
+                aria-label={t("composer.addImage")}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-neutral-500 transition-colors hover:border-neutral-300 hover:text-neutral-700 disabled:cursor-not-allowed disabled:border-border disabled:text-neutral-300"
               >
                 <Plus className="h-4 w-4" strokeWidth={2.2} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>Add image or paste from clipboard</TooltipContent>
+            <TooltipContent>{t("composer.addImageTooltip")}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -450,7 +461,7 @@ export function ComposerCard({
             <TooltipContent className="flex items-center gap-1.5">
               <span>{buttonLabel}</span>
               {interruptible ? (
-                <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+                <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                   <span className="inline-flex whitespace-pre text-[12px] leading-none">
                     <kbd className="inline-flex font-sans">
                       <span className="min-w-[1em] text-center">Esc</span>

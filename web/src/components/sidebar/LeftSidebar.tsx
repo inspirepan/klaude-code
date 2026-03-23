@@ -8,9 +8,10 @@ import { useAppStore } from "../../stores/app-store";
 import { useMountEffect } from "@/hooks/useMountEffect";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useT } from "@/i18n";
 
 const ARCHIVE_CLEANUP_AGE_SECONDS = 3 * 24 * 60 * 60;
-const DEFAULT_SIDEBAR_WIDTH = 304;
+const DEFAULT_SIDEBAR_WIDTH = 340;
 const SIDEBAR_WIDTH_STORAGE_KEY = "klaude:left-sidebar:width";
 const ARCHIVED_GROUP_COLLAPSE_STORAGE_KEY = "klaude:left-sidebar:archived-collapsed-groups";
 
@@ -103,6 +104,7 @@ export function LeftSidebar(): JSX.Element {
   const archiveUndoTimeoutRef = useRef<number | null>(null);
   const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
   const prevCompletionTimestampsRef = useRef(recentCompletionStartedAtBySessionId);
+  const t = useT();
 
   useMountEffect(() => {
     return () => {
@@ -269,13 +271,13 @@ export function LeftSidebar(): JSX.Element {
 
   const archiveCleanupTooltip = useMemo(() => {
     if (archiveCleanupPending) {
-      return "Archiving sessions older than 3 days or with no diff";
+      return t("archiveCleanup.archiving");
     }
     if (archiveCleanupEligibleCount === 0) {
-      return "No sessions older than 3 days or with no diff";
+      return t("archiveCleanup.noEligible");
     }
-    return `Archive ${archiveCleanupEligibleCount} sessions older than 3 days or with no diff`;
-  }, [archiveCleanupEligibleCount, archiveCleanupPending]);
+    return t("archiveCleanup.tooltip")(archiveCleanupEligibleCount);
+  }, [archiveCleanupEligibleCount, archiveCleanupPending, t]);
 
   const openNewSessionOverlay = (workDir?: string): void => {
     const normalizedWorkDir = workDir?.trim() ?? "";
@@ -334,7 +336,7 @@ export function LeftSidebar(): JSX.Element {
     })();
   };
 
-  const archiveCleanupButtonClassName = `inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors ${archiveCleanupEligibleCount === 0 || archiveCleanupPending ? "cursor-default opacity-50" : "cursor-pointer hover:bg-muted hover:text-neutral-600"}`;
+  const archiveCleanupButtonClassName = `inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition-colors ${archiveCleanupEligibleCount === 0 || archiveCleanupPending ? "cursor-default opacity-50" : "cursor-pointer hover:bg-muted hover:text-neutral-700"}`;
 
   return (
     // grid-template-columns trick (same as CollapseGroupBlock's grid-template-rows):
@@ -353,7 +355,7 @@ export function LeftSidebar(): JSX.Element {
         <aside
           ref={sidebarRef}
           data-sidebar="left"
-          className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-neutral-200 bg-sidebar ${archivedMenuOpen || archiveCleanupConfirmOpen ? "z-50" : ""}`}
+          className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-border bg-sidebar ${archivedMenuOpen || archiveCleanupConfirmOpen ? "z-50" : ""}`}
           style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
         >
           {/* header floats above scroll area */}
@@ -377,7 +379,7 @@ export function LeftSidebar(): JSX.Element {
                   type="button"
                   className={archiveCleanupButtonClassName}
                   onClick={handleArchiveCleanup}
-                  aria-label="Archive stale sessions"
+                  aria-label={t("sidebar.archiveStale")}
                   aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
                 >
                   {archiveCleanupPending ? (
@@ -394,7 +396,7 @@ export function LeftSidebar(): JSX.Element {
                       type="button"
                       className={archiveCleanupButtonClassName}
                       onClick={handleArchiveCleanup}
-                      aria-label="Archive stale sessions"
+                      aria-label={t("sidebar.archiveStale")}
                       aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
                     >
                       {archiveCleanupPending ? (
@@ -411,18 +413,18 @@ export function LeftSidebar(): JSX.Element {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                     onClick={() => {
                       setSidebarOpen(false);
                     }}
-                    aria-label="Collapse sidebar"
+                    aria-label={t("sidebar.collapseSidebar")}
                   >
                     <PanelLeftClose className="h-4 w-4" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent className="flex items-center gap-1.5">
-                  <span>Collapse sidebar</span>
-                  <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+                  <span>{t("sidebar.collapseSidebar")}</span>
+                  <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                     <span className="inline-flex whitespace-pre text-sm leading-none">
                       <kbd className="inline-flex font-sans">
                         <span className="min-w-[1em] text-center">⌘</span>
@@ -437,14 +439,14 @@ export function LeftSidebar(): JSX.Element {
               {archiveCleanupConfirmOpen ? (
                 <div
                   ref={archiveCleanupContentRef}
-                  className="absolute left-3 top-full z-40 mt-2 w-72 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 shadow-sm"
+                  className="absolute left-3 top-full z-40 mt-2 w-72 rounded-md border border-border bg-card px-3 py-2 text-sm text-neutral-700 shadow-sm"
                 >
                   <div className="space-y-2">
                     <div className="text-sm font-medium text-neutral-800">
-                      Archive {archiveCleanupEligibleCount} sessions?
+                      {t("archiveCleanup.confirmTitle")(archiveCleanupEligibleCount)}
                     </div>
                     <div className="text-sm text-neutral-500">
-                      Archive sessions older than 3 days or with no diff.
+                      {t("archiveCleanup.confirmDesc")}
                     </div>
                     <ScrollArea className="w-full" viewportClassName="max-h-40" type="auto">
                       <ul className="text-xs text-neutral-500">
@@ -452,7 +454,7 @@ export function LeftSidebar(): JSX.Element {
                           <li key={session.id} className="truncate py-0.5">
                             {session.title?.trim() ||
                               session.user_messages[0]?.trim() ||
-                              "New session"}
+                              t("sidebar.newSession")}
                           </li>
                         ))}
                       </ul>
@@ -465,14 +467,14 @@ export function LeftSidebar(): JSX.Element {
                           setArchiveCleanupConfirmOpen(false);
                         }}
                       >
-                        Cancel
+                        {t("archiveCleanup.cancel")}
                       </button>
                       <button
                         type="button"
-                        className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm font-medium text-neutral-700 transition-colors hover:bg-muted hover:text-neutral-900"
+                        className="rounded-md border border-border bg-card px-2 py-1 text-sm font-medium text-neutral-700 transition-colors hover:bg-muted hover:text-neutral-900"
                         onClick={handleConfirmArchiveCleanup}
                       >
-                        Archive
+                        {t("archiveCleanup.archive")}
                       </button>
                     </div>
                   </div>
@@ -485,17 +487,17 @@ export function LeftSidebar(): JSX.Element {
             {/* pt-14 reserves space so top content isn't hidden behind the floating header */}
             <div className="px-2.5 pb-14 pt-14">
               {loadError !== null ? (
-                <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3">
-                  <div className="mb-1 font-semibold">Load failed</div>
-                  <div className="break-words text-base text-neutral-500">{loadError}</div>
+                <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-card p-3">
+                  <div className="mb-1 font-semibold">{t("sidebar.loadFailed")}</div>
+                  <div className="break-words text-sm text-neutral-500">{loadError}</div>
                   <button
                     type="button"
-                    className="mt-2 cursor-pointer rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-base"
+                    className="mt-2 cursor-pointer rounded-md border border-neutral-300 bg-card px-2.5 py-1.5 text-sm"
                     onClick={() => {
                       void refreshSessions();
                     }}
                   >
-                    Click to retry
+                    {t("sidebar.clickToRetry")}
                   </button>
                 </div>
               ) : null}
@@ -503,18 +505,18 @@ export function LeftSidebar(): JSX.Element {
               {loadError === null && loading && groups.length === 0 ? (
                 <div className="flex items-center gap-2 px-2 py-2 text-neutral-500">
                   <Loader className="h-4 w-4 animate-spin text-neutral-500" />
-                  <span className="text-sm font-semibold">Loading…</span>
+                  <span className="text-sm font-semibold">{t("sidebar.loading")}</span>
                 </div>
               ) : null}
 
               {loadError === null && !loading && groups.length === 0 ? (
                 <div className="px-2 py-2 text-neutral-500">
-                  <div className="text-sm font-semibold">No sessions yet</div>
-                  <div className="mt-0.5 text-xs">Click "New Agent" above to start</div>
+                  <div className="text-sm font-semibold">{t("sidebar.noSessions")}</div>
+                  <div className="mt-0.5 text-xs">{t("sidebar.noSessionsHint")}</div>
                 </div>
               ) : null}
 
-              <div className="space-y-2 pt-1">
+              <div className="space-y-0.5 pt-1">
                 {activeGroups.map((group) => (
                   <ProjectGroup
                     key={group.work_dir}
@@ -555,23 +557,23 @@ export function LeftSidebar(): JSX.Element {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                     onClick={() => {
                       setArchivedMenuOpen((prev) => !prev);
                     }}
-                    aria-label="Archived sessions"
+                    aria-label={t("sidebar.archivedSessions")}
                   >
                     <Archive className="h-4 w-4" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>Archived sessions</TooltipContent>
+                <TooltipContent>{t("sidebar.archivedSessions")}</TooltipContent>
               </Tooltip>
 
               {archivedMenuOpen ? (
-                <div className="absolute bottom-full left-0 z-40 mb-2 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-neutral-200/80 bg-white p-1 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
+                <div className="absolute bottom-full left-0 z-40 mb-2 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border/80 bg-card p-1 shadow-float-lg">
                   <div className="flex items-center justify-between border-b border-neutral-100 px-2 py-1.5">
                     <span className="text-xs font-medium uppercase tracking-[0.08em] text-neutral-500">
-                      Archived
+                      {t("sidebar.archived")}
                     </span>
                     <span className="text-xs text-neutral-500">{archivedSessionCount}</span>
                   </div>
@@ -614,7 +616,9 @@ export function LeftSidebar(): JSX.Element {
                       </div>
                     </ScrollArea>
                   ) : (
-                    <div className="px-3 py-3 text-sm text-neutral-500">No archived sessions</div>
+                    <div className="px-3 py-3 text-sm text-neutral-500">
+                      {t("sidebar.noArchivedSessions")}
+                    </div>
                   )}
                 </div>
               ) : null}
@@ -623,8 +627,8 @@ export function LeftSidebar(): JSX.Element {
 
           {archiveUndoSessionId !== null ? (
             <div className="pointer-events-none absolute inset-x-2 bottom-2 z-40">
-              <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white/95 px-2.5 py-2 shadow-[0_8px_24px_-16px_rgba(15,15,15,0.35)] backdrop-blur">
-                <span className="text-sm text-neutral-700">Session archived</span>
+              <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-lg border border-border bg-card/95 px-2.5 py-2 shadow-toast backdrop-blur">
+                <span className="text-sm text-neutral-700">{t("sidebar.sessionArchived")}</span>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -638,10 +642,10 @@ export function LeftSidebar(): JSX.Element {
                         }
                       }}
                     >
-                      Undo
+                      {t("sidebar.undo")}
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent>Undo archive</TooltipContent>
+                  <TooltipContent>{t("sidebar.undoArchive")}</TooltipContent>
                 </Tooltip>
               </div>
             </div>
@@ -650,7 +654,7 @@ export function LeftSidebar(): JSX.Element {
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Resize left sidebar"
+            aria-label={t("sidebar.resizeSidebar")}
             className="absolute -right-1 top-0 z-30 flex h-full w-2 cursor-col-resize items-center justify-center"
             onPointerDown={(event) => {
               event.preventDefault();

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useT } from "@/i18n";
 import { useMountEffect } from "@/hooks/useMountEffect";
 import { fetchConfigModels, listDirs, type ConfigModelSummary } from "../../api/client";
 import { useSessionStore } from "../../stores/session-store";
@@ -19,6 +20,7 @@ export function NewSessionOverlay({
   onClose,
   showBackdrop = true,
 }: NewSessionOverlayProps): JSX.Element {
+  const t = useT();
   const draftWorkDir = useSessionStore((state) => state.draftWorkDir);
   const groups = useSessionStore((state) => state.groups);
   const setDraftWorkDir = useSessionStore((state) => state.setDraftWorkDir);
@@ -207,22 +209,20 @@ export function NewSessionOverlay({
     <div className="absolute inset-0 z-20 flex items-center justify-center px-4 py-6 sm:px-6">
       {showBackdrop ? (
         <div
-          className="bg-white/72 absolute inset-0 backdrop-blur-[3px]"
+          className="bg-card/72 absolute inset-0 backdrop-blur-[3px]"
           onClick={() => {
             onClose?.();
           }}
         />
       ) : null}
       <div
-        className={`relative w-full max-w-2xl -translate-y-[25vh] rounded-xl border border-neutral-200/90 bg-white p-3 ${
-          showBackdrop ? "shadow-[0_24px_80px_rgba(0,0,0,0.14)]" : ""
+        className={`relative w-full max-w-2xl -translate-y-[25vh] rounded-xl border border-border/90 bg-card p-3 ${
+          showBackdrop ? "shadow-overlay" : ""
         } sm:p-4`}
       >
         <div className="mb-3 space-y-0.5">
-          <div className="text-base font-semibold text-neutral-800">Start a new session</div>
-          <div className="text-base leading-6 text-neutral-500">
-            Choose a workspace, then send your first message.
-          </div>
+          <div className="text-base font-semibold text-neutral-800">{t("newSession.title")}</div>
+          <div className="text-base leading-6 text-neutral-500">{t("newSession.subtitle")}</div>
         </div>
 
         <div className="space-y-3">
@@ -245,7 +245,9 @@ export function NewSessionOverlay({
           {normalizedDraftWorkDir.length > 0 ? (
             <>
               {modelError ? (
-                <div className="px-1 text-sm text-red-500">Load models failed: {modelError}</div>
+                <div className="px-1 text-sm text-red-500">
+                  {t("newSession.loadModelsFailed")(modelError)}
+                </div>
               ) : null}
 
               <ComposerCard
@@ -262,12 +264,12 @@ export function NewSessionOverlay({
                 submitting={submitting}
                 disableSubmit={disableSubmit}
                 disableAttachments={submitting}
-                placeholder="What should we do?"
+                placeholder={t("composer.draftPlaceholder")}
                 modelOptions={modelOptions}
                 modelValue={selectedModel}
                 modelLoading={modelLoading}
                 modelDisabled={submitting || modelOptions.length === 0}
-                modelPlaceholder="Default model"
+                modelPlaceholder={t("model.defaultModel")}
                 onModelSelect={setSelectedModel}
                 modelDropUp={false}
                 completionDropUp={false}

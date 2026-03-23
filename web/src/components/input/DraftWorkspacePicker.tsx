@@ -8,7 +8,8 @@ import {
 } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, CornerDownLeft, Folder } from "lucide-react";
 
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { CommandListItem, CommandListPanel, CommandListScroll } from "@/components/ui/command-list";
+import { useT } from "@/i18n";
 
 interface DraftWorkspacePickerProps {
   draftWorkDir: string;
@@ -41,6 +42,7 @@ export function DraftWorkspacePicker({
   setWorkspaceMenuOpen,
   onSelect,
 }: DraftWorkspacePickerProps): JSX.Element {
+  const t = useT();
   const [highlightedWorkspace, setHighlightedWorkspace] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -103,18 +105,18 @@ export function DraftWorkspacePicker({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
         <label htmlFor="draft-workspace" className="text-sm font-semibold text-neutral-600">
-          Workspace
+          {t("workspace.label")}
         </label>
-        <span className="text-xs text-neutral-500">Choose or type a local path</span>
+        <span className="text-xs text-neutral-500">{t("workspace.hint")}</span>
       </div>
       <div ref={workspacePickerRef} className="relative">
         <div
           className={[
-            "flex items-center rounded-lg bg-white shadow-sm ring-1 ring-black/5 transition-colors",
-            workspaceMenuOpen ? "bg-white" : "hover:bg-white",
+            "flex items-center rounded-lg bg-card shadow-sm ring-1 ring-black/5 transition-colors",
+            workspaceMenuOpen ? "bg-card" : "hover:bg-card",
           ].join(" ")}
         >
-          <div className="pl-3 text-neutral-400">
+          <div className="pl-3 text-neutral-500">
             <Folder className="h-4 w-4" />
           </div>
           <input
@@ -130,16 +132,16 @@ export function DraftWorkspacePicker({
               setHighlightedWorkspace(null);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="/path/to/workspace"
+            placeholder={t("workspace.placeholder")}
             className="w-full flex-1 border-0 bg-transparent px-2 py-2 text-base text-neutral-700 outline-none placeholder:text-neutral-400"
           />
           <button
             type="button"
-            className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-700"
+            className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
             onClick={() => {
               setWorkspaceMenuOpen((prev) => !prev);
             }}
-            aria-label="Toggle workspace suggestions"
+            aria-label={t("workspace.toggle")}
           >
             <ChevronDown
               className={[
@@ -151,32 +153,18 @@ export function DraftWorkspacePicker({
         </div>
 
         {workspaceMenuOpen ? (
-          <div className="absolute left-0 right-0 z-20 mt-1.5 overflow-hidden rounded-lg border border-neutral-200/80 bg-white pb-1.5 pt-2 shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
+          <CommandListPanel className="absolute left-0 right-0 z-20 mt-1.5 shadow-float">
             {filteredWorkspaceOptions.length > 0 ? (
-              <ScrollArea
-                ref={listRef}
-                className="w-full"
-                viewportClassName="max-h-64"
-                type="hover"
-              >
+              <CommandListScroll ref={listRef} maxHeight="max-h-64">
                 {filteredWorkspaceOptions.map((workspace) => {
                   const isHighlighted = workspace === filteredWorkspaceOptions[highlightIndex];
                   const isSelected = workspace === normalizedDraftWorkDir;
                   const { name, parent } = workDirDisplay(workspace);
                   return (
-                    <button
+                    <CommandListItem
                       key={workspace}
                       data-workspace={workspace}
-                      type="button"
-                      className={[
-                        "ml-2 mr-2.5 flex w-[calc(100%-1.125rem)] items-center gap-2 rounded-md px-2 py-1 text-left transition-colors",
-                        isHighlighted || isSelected
-                          ? "bg-muted text-neutral-900"
-                          : "text-neutral-600 hover:bg-surface",
-                      ].join(" ")}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                      }}
+                      highlighted={isHighlighted || isSelected}
                       onPointerEnter={() => {
                         setHighlightedWorkspace(workspace);
                       }}
@@ -186,50 +174,48 @@ export function DraftWorkspacePicker({
                         onSelect?.();
                       }}
                     >
-                      <Folder className="h-4 w-4 shrink-0 text-neutral-400" />
-                      <span className="min-w-0 flex-1 truncate text-base leading-6">
+                      <Folder className="h-4 w-4 shrink-0 text-neutral-500" />
+                      <span className="min-w-0 flex-1 truncate">
                         <span className="text-neutral-500">{parent ?? ""}</span>
                         <span className="text-neutral-700">{name}</span>
                       </span>
-                    </button>
+                    </CommandListItem>
                   );
                 })}
-              </ScrollArea>
+              </CommandListScroll>
             ) : (
-              <div className="px-2.5 py-1.5 text-base text-neutral-500">
-                No matching directory found. Press Enter to use this path.
-              </div>
+              <div className="px-3 py-2 text-sm text-neutral-500">{t("workspace.noMatch")}</div>
             )}
             {filteredWorkspaceOptions.length > 0 ? (
               <div className="flex items-center gap-2 border-t border-neutral-100 px-2.5 py-1.5">
-                <span className="inline-flex items-center gap-1.5 text-neutral-400">
+                <span className="inline-flex items-center gap-1.5 text-neutral-500">
                   <span className="inline-flex items-center gap-0.5">
-                    <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                    <kbd className="inline-flex items-center justify-center rounded border border-border bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                       <ArrowUp className="h-2.5 w-2.5" />
                     </kbd>
-                    <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                    <kbd className="inline-flex items-center justify-center rounded border border-border bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                       <ArrowDown className="h-2.5 w-2.5" />
                     </kbd>
                   </span>
-                  <span className="text-sm">navigate</span>
+                  <span className="text-sm">{t("workspace.navigate")}</span>
                 </span>
                 <span className="text-neutral-300">·</span>
-                <span className="inline-flex items-center gap-1.5 text-neutral-400">
-                  <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface px-1 text-[11px] font-medium leading-[18px] text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                <span className="inline-flex items-center gap-1.5 text-neutral-500">
+                  <kbd className="inline-flex items-center justify-center rounded border border-border bg-surface px-1 text-[11px] font-medium leading-[18px] text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                     Tab
                   </kbd>
-                  <span className="text-sm">fill</span>
+                  <span className="text-sm">{t("workspace.fill")}</span>
                 </span>
                 <span className="text-neutral-300">·</span>
-                <span className="inline-flex items-center gap-1.5 text-neutral-400">
-                  <kbd className="inline-flex items-center justify-center rounded border border-neutral-200 bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                <span className="inline-flex items-center gap-1.5 text-neutral-500">
+                  <kbd className="inline-flex items-center justify-center rounded border border-border bg-surface p-px text-neutral-500 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                     <CornerDownLeft className="h-2.5 w-2.5" />
                   </kbd>
-                  <span className="text-sm">select</span>
+                  <span className="text-sm">{t("workspace.select")}</span>
                 </span>
               </div>
             ) : null}
-          </div>
+          </CommandListPanel>
         ) : null}
       </div>
     </div>

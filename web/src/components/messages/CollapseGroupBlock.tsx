@@ -1,5 +1,7 @@
+import { parse as shellParse } from "shell-quote";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useT } from "@/i18n";
 import type { MessageItem as MessageItemType, DeveloperMessageItem } from "../../types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { CollapseRailConnector, CollapseRailMarker, CollapseRailPanel } from "./CollapseRail";
@@ -19,36 +21,71 @@ interface CollapseGroupBlockProps {
 
 // Commands that take a meaningful subcommand as their second token
 const SUBCOMMAND_COMMANDS = new Set([
+  // Version control
   "git",
   "jj",
   "hg",
   "svn",
+  // Containers & orchestration
   "docker",
   "docker-compose",
   "podman",
   "kubectl",
   "helm",
+  "minikube",
+  // JS package managers
   "npm",
   "yarn",
   "pnpm",
+  "bun",
+  "deno",
+  // Rust
   "cargo",
+  "rustup",
+  // Python
   "uv",
   "pip",
+  "pipx",
   "poetry",
+  "conda",
+  "python",
+  // Ruby
+  "ruby",
+  "gem",
+  "bundle",
+  // Other languages
+  "go",
+  "dotnet",
+  "swift",
+  "mix",
+  "gradle",
+  // System package managers
   "brew",
   "apt",
   "apt-get",
   "dnf",
   "yum",
   "pacman",
+  // Cloud & infra
   "aws",
   "gcloud",
   "az",
-  "go",
-  "rustup",
-  "python",
-  "ruby",
+  "terraform",
+  "pulumi",
+  "fly",
+  "vercel",
+  "netlify",
+  "heroku",
+  "wrangler",
+  // Build tools
+  "make",
+  "just",
+  "nx",
+  "turbo",
+  "bazel",
+  // CLI tools
   "gh",
+  // Service managers
   "systemctl",
   "launchctl",
   "supervisorctl",
@@ -75,126 +112,46 @@ function basename(path: string): string {
 const IGNORED_COMMANDS = new Set(["cd"]);
 const COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME = "grid-cols-[28px_1fr]";
 
-type ShellQuote = "none" | "single" | "double";
-
-/** Split a shell command into statement segments, respecting quoting and escapes. */
-function splitShellStatements(command: string): string[] {
-  const statements: string[] = [];
-  let current = "";
-  let quote: ShellQuote = "none";
-
-  for (let i = 0; i < command.length; i++) {
-    const ch = command[i]!;
-
-    if (quote === "single") {
-      if (ch === "'") quote = "none";
-      else current += ch;
-      continue;
-    }
-
-    if (quote === "double") {
-      if (ch === '"') {
-        quote = "none";
-      } else if (ch === "\\" && i + 1 < command.length) {
-        current += command[++i]!;
-      } else {
-        current += ch;
-      }
-      continue;
-    }
-
-    // Unquoted
-    if (ch === "'") {
-      quote = "single";
-    } else if (ch === '"') {
-      quote = "double";
-    } else if (ch === ";" || ch === "\n") {
-      statements.push(current);
-      current = "";
-    } else if (ch === "&" && command[i + 1] === "&") {
-      statements.push(current);
-      current = "";
-      i++;
-    } else if (ch === "|" && command[i + 1] === "|") {
-      statements.push(current);
-      current = "";
-      i++;
-    } else {
-      current += ch;
-    }
-  }
-
-  if (current.trim()) statements.push(current);
-  return statements;
-}
-
-/** Tokenize a single shell statement, respecting quoting. Returns unquoted token values. */
-function tokenizeShellStatement(stmt: string): string[] {
-  const tokens: string[] = [];
-  let current = "";
-  let quote: ShellQuote = "none";
-
-  for (let i = 0; i < stmt.length; i++) {
-    const ch = stmt[i]!;
-
-    if (quote === "single") {
-      if (ch === "'") quote = "none";
-      else current += ch;
-      continue;
-    }
-
-    if (quote === "double") {
-      if (ch === '"') {
-        quote = "none";
-      } else if (ch === "\\" && i + 1 < stmt.length) {
-        current += stmt[++i]!;
-      } else {
-        current += ch;
-      }
-      continue;
-    }
-
-    // Unquoted
-    if (ch === "'") {
-      quote = "single";
-    } else if (ch === '"') {
-      quote = "double";
-    } else if (ch === " " || ch === "\t") {
-      if (current) {
-        tokens.push(current);
-        current = "";
-      }
-    } else {
-      current += ch;
-    }
-  }
-
-  if (current) tokens.push(current);
-  return tokens;
-}
-
-function extractCommandFromStatement(stmt: string): string | null {
-  const tokens = tokenizeShellStatement(stmt);
-  if (tokens.length === 0) return null;
-  const cmd = tokens[0]!;
-  if (IGNORED_COMMANDS.has(cmd)) return null;
-  if (SUBCOMMAND_COMMANDS.has(cmd)) {
-    for (let i = 1; i < tokens.length; i++) {
-      if (!tokens[i]!.startsWith("-")) {
-        return `${cmd} ${tokens[i]}`;
-      }
-    }
-  }
-  return cmd;
-}
+// Operators that separate independent statements (we extract a command from each)
+const STATEMENT_SEPARATORS = new Set(["&&", "||", ";", "\n"]);
 
 function extractBashSummaries(command: string): string[] {
-  // Pipe | is not a separator (it chains, not sequences); only || is
-  const statements = splitShellStatements(command);
+  const tokens = shellParse(command);
+
+  // Split token stream into statements on control operators
+  const statements: string[][] = [];
+  let current: string[] = [];
+
+  for (const tok of tokens) {
+    if (typeof tok === "object" && "op" in tok) {
+      if (STATEMENT_SEPARATORS.has(tok.op)) {
+        if (current.length > 0) statements.push(current);
+        current = [];
+        continue;
+      }
+      // Pipe | and redirections are part of the same statement; skip the operator
+      continue;
+    }
+    if (typeof tok === "string") {
+      current.push(tok);
+    }
+  }
+  if (current.length > 0) statements.push(current);
+
+  // Extract command name from each statement
   const summaries: string[] = [];
-  for (const stmt of statements) {
-    const result = extractCommandFromStatement(stmt);
-    if (result !== null) summaries.push(result);
+  for (const words of statements) {
+    if (words.length === 0) continue;
+    const cmd = words[0]!;
+    if (IGNORED_COMMANDS.has(cmd)) continue;
+    if (SUBCOMMAND_COMMANDS.has(cmd)) {
+      const sub = words.slice(1).find((w) => !w.startsWith("-"));
+      if (sub) {
+        summaries.push(`${cmd} ${sub}`);
+        continue;
+      }
+    }
+    summaries.push(cmd);
   }
   return summaries;
 }
@@ -253,7 +210,10 @@ function extractApplyPatchFileStats(patch: string): FileStat[] {
   return fileStats;
 }
 
-function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
+function summarizeCollapseItems(
+  items: MessageItemType[],
+  t: ReturnType<typeof useT>,
+): SummaryPart[] {
   const grouped = new Map<string, string[]>();
   // Parallel stats for file-editing tools: [{ del, add }] per invocation
   const editStats = new Map<string, Array<{ del: number; add: number }>>();
@@ -339,15 +299,28 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
     }
   }
 
+  // Stable ordering: edits first, then execution, then reads, then web
+  const TOOL_ORDER: Record<string, number> = {
+    Edit: 0,
+    Write: 1,
+    apply_patch: 2,
+    Bash: 3,
+    Read: 4,
+    WebFetch: 5,
+    WebSearch: 6,
+  };
+  const sortedEntries = [...grouped.entries()]
+    .filter(([, values]) => values.length > 0)
+    .sort(([a], [b]) => (TOOL_ORDER[a] ?? 99) - (TOOL_ORDER[b] ?? 99));
+
   const parts: SummaryPart[] = [];
-  for (const [name, values] of grouped) {
-    if (values.length === 0) continue;
+  for (const [name, values] of sortedEntries) {
     const unique = [...new Set(values)];
     switch (name) {
       case "Read": {
         const shown = unique.slice(0, 3).join(", ");
         const value = unique.length > 3 ? `${shown} +${unique.length - 3}` : shown;
-        parts.push({ label: "Read", value });
+        parts.push({ label: t("collapse.read"), value });
         break;
       }
       case "Edit": {
@@ -367,7 +340,7 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
           del: s.del,
           add: s.add,
         }));
-        parts.push({ label: "Edited", value: "", fileStats });
+        parts.push({ label: t("collapse.edited"), value: "", fileStats });
         break;
       }
       case "Write": {
@@ -382,7 +355,7 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
           } else merged.set(fname, { add: s.add });
         }
         const fileStats = [...merged.entries()].map(([name, s]) => ({ name, add: s.add }));
-        parts.push({ label: "Wrote", value: "", fileStats });
+        parts.push({ label: t("collapse.wrote"), value: "", fileStats });
         break;
       }
       case "apply_patch": {
@@ -402,12 +375,12 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
           del: s.del,
           add: s.add,
         }));
-        parts.push({ label: "Patched", value: "", fileStats });
+        parts.push({ label: t("collapse.patched"), value: "", fileStats });
         break;
       }
       case "Bash":
         parts.push({
-          label: "Ran",
+          label: t("collapse.ran"),
           value:
             unique.length > 5
               ? `${unique.slice(0, 5).join(", ")} +${unique.length - 5}`
@@ -415,11 +388,14 @@ function summarizeCollapseItems(items: MessageItemType[]): SummaryPart[] {
         });
         break;
       case "WebFetch":
-        parts.push({ label: "Fetch", value: unique[0]! });
+        parts.push({ label: t("collapse.fetch"), value: unique[0]! });
         break;
       case "WebSearch": {
         const q = unique[0]!;
-        parts.push({ label: "Search", value: q.length > 30 ? q.slice(0, 30) + "…" : q });
+        parts.push({
+          label: t("collapse.search"),
+          value: q.length > 30 ? q.slice(0, 30) + "…" : q,
+        });
         break;
       }
     }
@@ -442,7 +418,7 @@ function summaryToText(summary: SummaryPart[]): string {
       }
       return `${part.label} ${part.value}`;
     })
-    .join(", ");
+    .join(" \u00b7 ");
 }
 
 function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
@@ -450,17 +426,17 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
     <>
       {summary.map((part, partIdx) => (
         <span key={partIdx}>
-          {partIdx > 0 ? ", " : null}
+          {partIdx > 0 ? <span className="mx-1.5 text-neutral-400">{"\u00b7"}</span> : null}
           {part.fileStats ? (
             <>
-              {part.label}{" "}
+              <span className="font-normal text-neutral-700">{part.label}</span>{" "}
               {part.fileStats.map((fs, fsIdx) => (
                 <span key={fsIdx}>
                   {fsIdx > 0 ? ", " : null}
                   {fs.name}
                   {" ("}
                   {fs.del !== undefined && fs.del > 0 ? (
-                    <span className="text-rose-600">-{fs.del}</span>
+                    <span className="text-red-600">-{fs.del}</span>
                   ) : null}
                   {fs.del !== undefined && fs.del > 0 && fs.add > 0 ? " " : null}
                   {fs.add > 0 ? <span className="text-emerald-600">+{fs.add}</span> : null}
@@ -470,7 +446,7 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
             </>
           ) : (
             <>
-              {part.label} {part.value}
+              <span className="font-normal text-neutral-700">{part.label}</span> {part.value}
             </>
           )}
         </span>
@@ -489,10 +465,10 @@ export function CollapseGroupBlock({
   onCopy,
   setItemRef,
 }: CollapseGroupBlockProps): JSX.Element {
+  const t = useT();
   const toolCount = items.filter((item) => item.type === "tool_block").length;
-  const stepLabel =
-    toolCount > 0 ? `${toolCount} tool${toolCount === 1 ? "" : "s"} used` : "Thoughts";
-  const summary = useMemo(() => summarizeCollapseItems(items), [items]);
+  const stepLabel = toolCount > 0 ? t("collapse.toolsUsed")(toolCount) : t("collapse.thoughts");
+  const summary = useMemo(() => summarizeCollapseItems(items, t), [items, t]);
   const summaryText = useMemo(() => summaryToText(summary), [summary]);
   const summarySpanRef = useRef<HTMLSpanElement>(null);
   const [isTruncated, setIsTruncated] = useState(false);
@@ -538,20 +514,15 @@ export function CollapseGroupBlock({
             onClick={onToggle}
             className={`grid w-full min-w-0 ${COLLAPSE_GROUP_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-base text-neutral-500 transition-colors hover:text-neutral-600`}
           >
-            <CollapseRailMarker open={!collapsed} className="pt-0.5" indicatorClassName="mt-0" />
+            <CollapseRailMarker open={!collapsed} />
             <span className="flex min-w-0 items-center gap-1.5 pl-1">
-              <span className="shrink-0 font-mono">
-                {stepLabel}
-                {summary.length > 0 ? <span className="text-neutral-500">,</span> : null}
-              </span>
-              {summary.length > 0 ? (
-                <span
-                  ref={summarySpanRef}
-                  className="min-w-0 truncate pl-1 font-mono text-neutral-500"
-                >
+              {summary.length === 0 ? (
+                <span className="shrink-0 font-mono">{stepLabel}</span>
+              ) : (
+                <span ref={summarySpanRef} className="min-w-0 truncate font-mono text-neutral-500">
                   <SummaryDisplay summary={summary} />
                 </span>
-              ) : null}
+              )}
             </span>
           </button>
         </TooltipTrigger>

@@ -16,8 +16,8 @@ export function MarkdownDocView({ uiExtra }: MarkdownDocViewProps): JSX.Element 
   const { entries, body } = useParsedFrontmatter(uiExtra.content);
 
   return (
-    <div className="mt-1 overflow-hidden rounded-lg border border-neutral-200/80 font-sans">
-      <div className="truncate border-b border-neutral-200/80 bg-surface px-3 py-1.5 font-mono text-sm text-neutral-500">
+    <div className="mt-1 overflow-hidden rounded-lg border border-border/80 font-sans">
+      <div className="truncate border-b border-border/80 bg-surface px-3 py-1.5 font-mono text-sm text-neutral-600">
         {uiExtra.file_path}
       </div>
       <div className="markdown-doc-view px-4 py-3 text-base">

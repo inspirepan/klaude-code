@@ -2,6 +2,7 @@ import { useMemo, useRef, useEffect, useState } from "react";
 import { PatchDiff } from "@pierre/diffs/react";
 import { DEFAULT_THEMES, preloadHighlighter } from "@pierre/diffs";
 
+import { useT } from "@/i18n";
 import type { ToolBlockItem } from "../../types/message";
 import { isDiffUIExtra, type DiffUIExtra } from "./message-ui-extra";
 
@@ -9,12 +10,12 @@ const SHADOW_ICON_CSS = `
 [data-diffs-header],
 [data-header-content],
 [data-diffs-header] [data-metadata] {
-  font-family: var(--diffs-font-family, "Lilex Variable", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace) !important;
+  font-family: var(--diffs-font-family, "TX-02", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace) !important;
 }
 
 [data-header-content] [data-prev-name],
 [data-header-content] [data-title] {
-  font-family: var(--diffs-header-font-family, "IBM Plex Sans Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif) !important;
+  font-family: var(--diffs-header-font-family, "Geist Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif) !important;
 }
 
 [data-diffs-header] {
@@ -86,9 +87,10 @@ interface DiffViewProps {
 const COLLAPSED_DIFF_MAX_HEIGHT = 420;
 const DIFF_BACKGROUND = "hsl(var(--surface))";
 const DIFF_HEADER_SANS =
-  '"IBM Plex Sans Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif';
+  '"Geist Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif';
 
 export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
+  const t = useT();
   const extra = uiExtra ?? (item.uiExtra && isDiffUIExtra(item.uiExtra) ? item.uiExtra : null);
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -197,10 +199,10 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
           <div className="bg-surface pt-1">
             <button
               type="button"
-              className="self-start pb-1 pl-2 text-sm text-neutral-400 transition-colors hover:text-neutral-600"
+              className="self-start pb-1 pl-2 text-sm text-neutral-500 transition-colors hover:text-neutral-700"
               onClick={() => setExpanded((value) => !value)}
             >
-              {expanded ? "Show less" : "Show more"}
+              {expanded ? t("diff.showLess") : t("diff.showMore")}
             </button>
           </div>
         ) : null}

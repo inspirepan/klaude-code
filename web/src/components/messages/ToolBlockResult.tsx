@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import type { ToolBlockItem } from "../../types/message";
 import {
   CollapseRailConnector,
@@ -35,6 +36,7 @@ export function ToolBlockResult({
   showMore,
   onToggleShowMore,
 }: ToolBlockResultProps): JSX.Element | null {
+  const t = useT();
   const subTextClass = "text-base";
   const miniTextClass = "text-sm";
   const resultLineClass = "block max-w-full overflow-hidden text-ellipsis whitespace-pre";
@@ -74,9 +76,9 @@ export function ToolBlockResult({
                           </div>
                         ))}
                         <div
-                          className={`my-0.5 ${miniTextClass} cursor-default font-sans text-neutral-400`}
+                          className={`my-0.5 ${miniTextClass} cursor-default font-sans text-neutral-500`}
                         >
-                          {`··· ${hiddenCount} lines hidden ···`}
+                          {t("toolResult.linesHidden")(hiddenCount)}
                         </div>
                         {tailLines.map((line, index) => (
                           <div key={`tail-${index}`} className={lineClass}>
@@ -122,8 +124,8 @@ export function ToolBlockResult({
                         className={`mt-0.5 ${miniTextClass} cursor-pointer font-sans text-neutral-500 transition-colors hover:text-neutral-700`}
                       >
                         {showMore
-                          ? "Show less"
-                          : `Show more (${lines.length - RESULT_LINE_LIMIT} lines)`}
+                          ? t("toolResult.showLess")
+                          : t("toolResult.showMore")(lines.length - RESULT_LINE_LIMIT)}
                       </button>
                     ) : null}
                   </>
@@ -131,7 +133,9 @@ export function ToolBlockResult({
               })()}
             </div>
           ) : isEmptyResult ? (
-            <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-500`}>(no content)</div>
+            <div className={`mt-0.5 ${subTextClass} font-mono text-neutral-500`}>
+              {t("toolResult.noContent")}
+            </div>
           ) : null}
         </div>
       </div>

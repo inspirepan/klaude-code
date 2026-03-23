@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronRight, Search } from "lucide-react";
 
 import type { ConfigModelSummary } from "../../api/client";
+import { useT } from "@/i18n";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { CommandListItem } from "@/components/ui/command-list";
 
 interface ModelSelectorProps {
   options: ConfigModelSummary[];
@@ -27,12 +29,13 @@ export function ModelSelector({
   value,
   loading = false,
   disabled = false,
-  placeholder = "Select model",
+  placeholder,
   onSelect,
   triggerClassName,
   panelClassName,
   dropUp = true,
 }: ModelSelectorProps): JSX.Element {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -112,7 +115,11 @@ export function ModelSelector({
 
   const triggerLabel =
     current?.model_id ??
-    (value.trim().length > 0 ? value : loading ? "Loading models..." : placeholder);
+    (value.trim().length > 0
+      ? value
+      : loading
+        ? t("model.loading")
+        : (placeholder ?? t("model.selectModel")));
 
   return (
     <div ref={rootRef} className="relative">
@@ -132,7 +139,7 @@ export function ModelSelector({
       >
         <span className="max-w-44 truncate">{triggerLabel}</span>
         <ChevronDown
-          className={`h-3.5 w-3.5 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`mt-px h-3.5 w-3.5 text-neutral-500 transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
 
@@ -140,11 +147,11 @@ export function ModelSelector({
         <div
           className={
             panelClassName ??
-            `absolute left-0 z-30 w-[360px] overflow-hidden rounded-lg border border-neutral-200/80 bg-white pb-1.5 pt-1 shadow-[0_8px_30px_rgba(0,0,0,0.08)] ${dropUp ? "bottom-full mb-2" : "top-full mt-2"}`
+            `absolute left-0 z-30 w-[360px] overflow-hidden rounded-xl border border-border/80 bg-card pt-1 shadow-float-lg ${dropUp ? "bottom-full mb-2" : "top-full mt-2"}`
           }
         >
           <div className="flex items-center gap-1.5 border-b border-neutral-100 px-2 pb-1.5 pt-1">
-            <Search className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+            <Search className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
             <input
               ref={searchRef}
               type="text"
@@ -170,18 +177,23 @@ export function ModelSelector({
                   }
                 }
               }}
-              placeholder="Filter models..."
-              className="h-6 w-full bg-transparent text-base text-neutral-700 outline-none placeholder:text-neutral-400"
+              placeholder={t("model.filterPlaceholder")}
+              className="h-6 w-full bg-transparent text-sm text-neutral-700 outline-none placeholder:text-neutral-400"
             />
           </div>
-          <ScrollArea ref={listRef} className="w-full" viewportClassName="max-h-96" type="hover">
+          <ScrollArea
+            ref={listRef}
+            className="w-full py-1"
+            viewportClassName="max-h-96"
+            type="auto"
+          >
             {groups.map((group) => {
               const collapsed = collapsedProviders[group.provider] === true;
               return (
                 <div key={group.provider}>
                   <button
                     type="button"
-                    className="ml-2 mr-2.5 flex w-[calc(100%-1.125rem)] items-center gap-1 rounded-md px-1.5 pb-0.5 pt-1.5 text-xs uppercase tracking-wide text-emerald-700 transition-colors hover:bg-surface"
+                    className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-1 rounded-lg px-2 pb-0.5 pt-1.5 text-xs uppercase tracking-wide text-emerald-700 transition-colors hover:bg-surface"
                     onMouseDown={(event) => {
                       event.preventDefault();
                     }}
@@ -217,21 +229,11 @@ export function ModelSelector({
                           ? rawParam.slice("reasoning ".length)
                           : rawParam;
                         return (
-                          <button
+                          <CommandListItem
                             key={model.name}
                             data-model-name={model.name}
-                            type="button"
-                            className={[
-                              "ml-2 mr-2.5 flex w-[calc(100%-1.125rem)] items-center justify-between gap-2 rounded-md py-[5px] pl-[22px] pr-2 text-left transition-colors",
-                              highlighted
-                                ? "bg-muted text-neutral-900"
-                                : selected
-                                  ? "bg-surface text-neutral-900"
-                                  : "text-neutral-600",
-                            ].join(" ")}
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                            }}
+                            highlighted={highlighted || selected}
+                            className={`justify-between pl-6 ${!highlighted && selected ? "bg-surface" : ""}`}
                             onPointerEnter={() => {
                               const idx = visibleModels.indexOf(model.name);
                               if (idx >= 0) setHighlightIndex(idx);
@@ -242,7 +244,7 @@ export function ModelSelector({
                               setQuery("");
                             }}
                           >
-                            <span className="min-w-0 flex-1 truncate text-base">
+                            <span className="min-w-0 flex-1 truncate">
                               {model.model_id}
                               {reasoningParam ? (
                                 <span className="text-neutral-500">
@@ -252,10 +254,10 @@ export function ModelSelector({
                               ) : null}
                             </span>
                             <span className="inline-flex shrink-0 items-center gap-1 text-xs text-neutral-500">
-                              {model.is_default ? "default" : null}
+                              {model.is_default ? t("model.default") : null}
                               {selected ? <Check className="h-3 w-3" /> : null}
                             </span>
-                          </button>
+                          </CommandListItem>
                         );
                       })}
                 </div>

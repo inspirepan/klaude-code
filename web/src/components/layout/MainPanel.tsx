@@ -1,6 +1,4 @@
 import { PanelLeftOpen } from "lucide-react";
-import { useRef } from "react";
-import { useMountEffect } from "@/hooks/useMountEffect";
 import { useAppStore } from "../../stores/app-store";
 import { useSessionStore } from "../../stores/session-store";
 import { MessageComposer } from "../input/MessageComposer";
@@ -15,24 +13,9 @@ export function MainPanel(): JSX.Element {
   const newSessionOverlayOpen = useAppStore((state) => state.newSessionOverlayOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
-  const mainRef = useRef<HTMLElement>(null);
-  const composerRef = useRef<HTMLDivElement>(null);
-
-  useMountEffect(() => {
-    const el = composerRef.current;
-    const root = mainRef.current;
-    if (!el || !root) return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry) {
-        root.style.setProperty("--composer-h", `${entry.contentRect.height}px`);
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  });
 
   return (
-    <main ref={mainRef} className="main-panel relative">
+    <main className="main-panel relative">
       {isDraft ? (
         <div className="relative min-h-0 flex-1 bg-surface/45">
           {!sidebarOpen ? (
@@ -41,7 +24,7 @@ export function MainPanel(): JSX.Element {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-muted hover:text-neutral-600"
+                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
                     onClick={() => {
                       setSidebarOpen(true);
                     }}
@@ -52,7 +35,7 @@ export function MainPanel(): JSX.Element {
                 </TooltipTrigger>
                 <TooltipContent className="flex items-center gap-1.5">
                   <span>Expand sidebar</span>
-                  <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
+                  <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                     <span className="inline-flex whitespace-pre text-sm leading-none">
                       <kbd className="inline-flex font-sans">
                         <span className="min-w-[1em] text-center">⌘</span>
@@ -71,7 +54,7 @@ export function MainPanel(): JSX.Element {
       ) : (
         <>
           <MessageList sessionId={activeSessionId} />
-          <div ref={composerRef} className="absolute bottom-0 left-0 right-0 z-30">
+          <div className="relative z-30 shrink-0">
             <MessageComposer key={activeSessionId} />
           </div>
           {newSessionOverlayOpen ? (

@@ -1,6 +1,7 @@
 import { Loader } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
+import { useT } from "@/i18n";
 import type { ToolBlockItem } from "../../types/message";
 import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
 import { useCollapseAll } from "./collapse-all-context";
@@ -73,13 +74,13 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="w-fit rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2.5 text-base">
+    <div className="w-fit rounded-lg border border-border/80 bg-surface/50 px-3.5 py-2.5 text-base">
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 font-sans text-base text-neutral-500">
+        <div className="flex items-center gap-1.5 font-sans text-base text-neutral-600">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
-          <span>Planning…</span>
+          <span>{t("tool.planning")}</span>
         </div>
       ) : null}
     </div>
@@ -87,17 +88,18 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
 }
 
 function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
+  const t = useT();
   const questionExtra =
     item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg border border-neutral-200/80 bg-surface/50 px-3.5 py-2.5 text-base">
+    <div className="rounded-lg border border-border/80 bg-surface/50 px-3.5 py-2.5 text-base">
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 font-sans text-base text-neutral-500">
+        <div className="flex items-center gap-1.5 font-sans text-base text-neutral-600">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
-          <span>Asking user question…</span>
+          <span>{t("tool.askingQuestion")}</span>
         </div>
       ) : null}
     </div>
@@ -108,7 +110,7 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
   const { matchItemIds } = useSearch();
   const { collapseGen, expandGen } = useCollapseAll();
   const bodyTextClass = "text-base";
-  const headerDetailTextClass = "!text-base";
+  const headerDetailTextClass = "!text-sm";
   const detailChipClass = "rounded bg-surface px-1.5 py-0.5 align-middle leading-5";
 
   const defaultExpanded = shouldExpandResult(item);
@@ -170,8 +172,8 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
   const detailColor = isError
     ? "text-red-700"
     : item.resultStatus === "aborted"
-      ? "text-neutral-500"
-      : "text-neutral-500";
+      ? "text-neutral-600"
+      : "text-neutral-600";
 
   return (
     <div

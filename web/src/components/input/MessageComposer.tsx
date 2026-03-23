@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useT } from "@/i18n";
 import { useMountEffect } from "@/hooks/useMountEffect";
 import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
 import { useMessageStore } from "../../stores/message-store";
@@ -14,6 +15,7 @@ import { UserInteractionCard } from "./UserInteractionCard";
 const EMPTY_PENDING_INTERACTIONS: PendingUserInteractionRequest[] = [];
 
 export function MessageComposer(): JSX.Element {
+  const t = useT();
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const groups = useSessionStore((state) => state.groups);
   const runtimeBySessionId = useSessionStore((state) => state.runtimeBySessionId);
@@ -232,8 +234,8 @@ export function MessageComposer(): JSX.Element {
         ];
 
   return (
-    <div className="relative shrink-0 px-4 pb-4 sm:px-6">
-      <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-t from-white/95 via-white/80 to-transparent [-webkit-mask-image:linear-gradient(to_bottom,transparent,black_3rem)] [mask-image:linear-gradient(to_bottom,transparent,black_3rem)]" />
+    <div className="relative shrink-0 overflow-visible px-4 pb-4 sm:px-6">
+      <div className="pointer-events-none absolute -top-12 bottom-0 left-0 right-0 z-0 bg-gradient-to-t from-white/95 via-white/80 via-[30%] to-transparent [backface-visibility:hidden]" />
       <div className="relative z-10 mx-auto max-w-4xl space-y-3">
         {activeInteraction ? (
           <UserInteractionCard
@@ -252,7 +254,9 @@ export function MessageComposer(): JSX.Element {
           />
         ) : null}
         {modelError ? (
-          <div className="px-1 text-sm text-red-500">Model switch failed: {modelError}</div>
+          <div className="px-1 text-sm text-red-500">
+            {t("newSession.modelSwitchFailed")(modelError)}
+          </div>
         ) : null}
         <ComposerCard
           sessionId={activeSessionId}
@@ -277,7 +281,7 @@ export function MessageComposer(): JSX.Element {
           disableAttachments={
             sessionBusy || sessionReadOnly || activeInteraction !== null || submitting
           }
-          placeholder="Send a follow-up..."
+          placeholder={t("composer.followUpPlaceholder")}
           modelOptions={resolvedModelOptions}
           modelValue={currentModelName}
           modelLoading={modelLoading}

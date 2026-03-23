@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { MainPanel } from "./components/layout/MainPanel";
 import { LeftSidebar } from "./components/sidebar/LeftSidebar";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { I18nProvider } from "./i18n/I18nProvider";
 import { useMountEffect } from "@/hooks/useMountEffect";
 import { useAppStore } from "./stores/app-store";
 import { useSessionStore } from "./stores/session-store";
@@ -82,11 +83,13 @@ export default function App(): JSX.Element {
   }, [activeSessionId, setDraftWorkDir, setNewSessionOverlayOpen, toggleSidebar]);
 
   return (
-    <TooltipProvider delayDuration={150}>
-      <div className="app-shell">
-        <LeftSidebar />
-        <MainPanel />
-      </div>
-    </TooltipProvider>
+    <I18nProvider>
+      <TooltipProvider delayDuration={150}>
+        <div className="app-shell">
+          <LeftSidebar />
+          <MainPanel />
+        </div>
+      </TooltipProvider>
+    </I18nProvider>
   );
 }

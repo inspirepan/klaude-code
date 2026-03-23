@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import { type ReactNode, useLayoutEffect, useRef } from "react";
 
 import { cn } from "../../lib/utils";
@@ -21,18 +22,25 @@ export function CollapseRailMarker({
   indicatorClassName,
   connectorClassName,
 }: CollapseRailMarkerProps): JSX.Element {
-  const indicator = expandable ? (open ? "[-]" : "[+]") : "[·]";
-
   return (
     <div className={cn("flex flex-col items-center self-stretch", className)}>
       <span
         className={cn(
-          "mt-0.5 font-mono text-sm text-neutral-500",
+          "flex h-[1lh] items-center justify-center",
           !expandable && inactiveMode === "hidden" && "opacity-0",
           indicatorClassName,
         )}
       >
-        {indicator}
+        {expandable ? (
+          <ChevronRight
+            className={cn(
+              "h-3.5 w-3.5 shrink-0 text-neutral-400 transition-transform duration-150 ease-out-strong",
+              open && "rotate-90",
+            )}
+          />
+        ) : (
+          <span className="h-1 w-1 rounded-full bg-neutral-300" />
+        )}
       </span>
       {expandable ? (
         <div
@@ -110,7 +118,7 @@ export function CollapseRailPanel({
   return (
     <div
       ref={ref}
-      className={cn("overflow-hidden transition-[height] duration-200 ease-out", className)}
+      className={cn("overflow-hidden transition-[height] duration-200 ease-out-strong", className)}
     >
       <div style={{ backfaceVisibility: "hidden" }}>{children}</div>
     </div>
