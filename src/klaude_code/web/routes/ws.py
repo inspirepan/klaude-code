@@ -592,7 +592,7 @@ async def session_list_websocket(websocket: WebSocket) -> None:
         forward_task = asyncio.create_task(_forward_session_list_events(websocket))
         disconnect_task = asyncio.create_task(_wait_for_ws_disconnect(websocket))
         try:
-            _done, pending = await asyncio.wait(
+            _done, _pending = await asyncio.wait(
                 {forward_task, disconnect_task}, return_when=asyncio.FIRST_COMPLETED
             )
         finally:
