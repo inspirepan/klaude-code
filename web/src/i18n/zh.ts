@@ -154,6 +154,8 @@ const zh: Translations = {
   "collapse.wrote": "写入",
   "collapse.patched": "补丁",
   "collapse.ran": "执行",
+  "collapse.list": "列出",
+  "collapse.bashSearch": "搜索",
   "collapse.fetch": "获取网页",
   "collapse.search": "搜索网页",
   "collapse.thoughts": "思考",

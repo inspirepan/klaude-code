@@ -154,6 +154,8 @@ const en = {
   "collapse.wrote": "Wrote",
   "collapse.patched": "Patched",
   "collapse.ran": "Ran",
+  "collapse.list": "List",
+  "collapse.bashSearch": "Search",
   "collapse.fetch": "Fetch",
   "collapse.search": "Search",
   "collapse.thoughts": "Thoughts",

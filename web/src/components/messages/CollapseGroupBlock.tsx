@@ -1,4 +1,3 @@
-import { parse as shellParse } from "shell-quote";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useT } from "@/i18n";
@@ -13,6 +12,7 @@ import {
 import { isDiffUIExtra, type DiffUIExtra } from "./message-ui-extra";
 import { MessageRow } from "./MessageRow";
 import { DeveloperMessage } from "./DeveloperMessage";
+import { parseBashCommand } from "./parse-bash-command";
 
 interface CollapseGroupBlockProps {
   items: MessageItemType[];
@@ -24,78 +24,6 @@ interface CollapseGroupBlockProps {
   onCopy: (item: MessageItemType) => void | Promise<void>;
   setItemRef: (id: string, el: HTMLDivElement | null) => void;
 }
-
-// Commands that take a meaningful subcommand as their second token
-const SUBCOMMAND_COMMANDS = new Set([
-  // Version control
-  "git",
-  "jj",
-  "hg",
-  "svn",
-  // Containers & orchestration
-  "docker",
-  "docker-compose",
-  "podman",
-  "kubectl",
-  "helm",
-  "minikube",
-  // JS package managers
-  "npm",
-  "yarn",
-  "pnpm",
-  "bun",
-  "deno",
-  // Rust
-  "cargo",
-  "rustup",
-  // Python
-  "uv",
-  "pip",
-  "pipx",
-  "poetry",
-  "conda",
-  "python",
-  // Ruby
-  "ruby",
-  "gem",
-  "bundle",
-  // Other languages
-  "go",
-  "dotnet",
-  "swift",
-  "mix",
-  "gradle",
-  // System package managers
-  "brew",
-  "apt",
-  "apt-get",
-  "dnf",
-  "yum",
-  "pacman",
-  // Cloud & infra
-  "aws",
-  "gcloud",
-  "az",
-  "terraform",
-  "pulumi",
-  "fly",
-  "vercel",
-  "netlify",
-  "heroku",
-  "wrangler",
-  // Build tools
-  "make",
-  "just",
-  "nx",
-  "turbo",
-  "bazel",
-  // CLI tools
-  "gh",
-  // Service managers
-  "systemctl",
-  "launchctl",
-  "supervisorctl",
-]);
 
 interface FileStat {
   name: string;
@@ -113,52 +41,6 @@ interface SummaryPart {
 
 function basename(path: string): string {
   return path.split("/").pop() ?? path;
-}
-
-const IGNORED_COMMANDS = new Set(["cd"]);
-
-// Operators that separate independent statements (we extract a command from each)
-const STATEMENT_SEPARATORS = new Set(["&&", "||", ";", "\n"]);
-
-function extractBashSummaries(command: string): string[] {
-  const tokens = shellParse(command);
-
-  // Split token stream into statements on control operators
-  const statements: string[][] = [];
-  let current: string[] = [];
-
-  for (const tok of tokens) {
-    if (typeof tok === "object" && "op" in tok) {
-      if (STATEMENT_SEPARATORS.has(tok.op)) {
-        if (current.length > 0) statements.push(current);
-        current = [];
-        continue;
-      }
-      // Pipe | and redirections are part of the same statement; skip the operator
-      continue;
-    }
-    if (typeof tok === "string") {
-      current.push(tok);
-    }
-  }
-  if (current.length > 0) statements.push(current);
-
-  // Extract command name from each statement
-  const summaries: string[] = [];
-  for (const words of statements) {
-    if (words.length === 0) continue;
-    const cmd = words[0];
-    if (IGNORED_COMMANDS.has(cmd)) continue;
-    if (SUBCOMMAND_COMMANDS.has(cmd)) {
-      const sub = words.slice(1).find((w) => !w.startsWith("-"));
-      if (sub) {
-        summaries.push(`${cmd} ${sub}`);
-        continue;
-      }
-    }
-    summaries.push(cmd);
-  }
-  return summaries;
 }
 
 function extractApplyPatchFileStats(patch: string): FileStat[] {
@@ -236,13 +118,36 @@ function extractDiffStats(
   return { del, add };
 }
 
+function mergeFileStats(
+  files: Array<{ name: string; del: number; add: number }>,
+): Array<{ name: string; del: number; add: number }> {
+  const merged = new Map<string, { del: number; add: number }>();
+  for (const f of files) {
+    const existing = merged.get(f.name);
+    if (existing) {
+      existing.del += f.del;
+      existing.add += f.add;
+    } else {
+      merged.set(f.name, { del: f.del, add: f.add });
+    }
+  }
+  return [...merged.entries()].map(([name, s]) => ({ name, del: s.del, add: s.add }));
+}
+
 function summarizeCollapseItems(
   items: MessageItemType[],
   t: ReturnType<typeof useT>,
 ): SummaryPart[] {
-  const grouped = new Map<string, string[]>();
-  // Parallel stats for file-editing tools: [{ del, add }] per invocation
-  const editStats = new Map<string, Array<{ del: number; add: number }>>();
+  // --- Collection phase ---
+  const readFiles: string[] = [];
+  const editFiles: Array<{ name: string; del: number; add: number }> = [];
+  const writeFiles: Array<{ name: string; del: number; add: number }> = [];
+  const patchFiles: Array<{ name: string; del: number; add: number }> = [];
+  const bashLists: Array<string | null> = [];
+  const bashSearches: Array<{ query: string | null; path: string | null }> = [];
+  const bashRuns: string[] = [];
+  const webFetches: string[] = [];
+  const webSearches: string[] = [];
 
   for (const item of items) {
     if (item.type !== "tool_block") continue;
@@ -253,88 +158,81 @@ function summarizeCollapseItems(
       continue;
     }
 
-    const name = item.toolName;
-    let bucket = grouped.get(name);
-    if (!bucket) {
-      bucket = [];
-      grouped.set(name, bucket);
-    }
-
-    switch (name) {
+    switch (item.toolName) {
       case "Read": {
         const p = typeof args.file_path === "string" ? basename(args.file_path) : null;
-        if (p) bucket.push(p);
+        if (p) readFiles.push(p);
         break;
       }
       case "Edit": {
         const p = typeof args.file_path === "string" ? basename(args.file_path) : null;
         if (!p) break;
         const diffStats = extractDiffStats(item.uiExtra);
-        const del =
-          diffStats?.del ??
-          (typeof args.old_string === "string" ? args.old_string.split("\n").length : 0);
-        const add =
-          diffStats?.add ??
-          (typeof args.new_string === "string" ? args.new_string.split("\n").length : 0);
-        bucket.push(p);
-        let editBucket = editStats.get(name);
-        if (!editBucket) {
-          editBucket = [];
-          editStats.set(name, editBucket);
-        }
-        editBucket.push({ del, add });
+        editFiles.push({
+          name: p,
+          del:
+            diffStats?.del ??
+            (typeof args.old_string === "string" ? args.old_string.split("\n").length : 0),
+          add:
+            diffStats?.add ??
+            (typeof args.new_string === "string" ? args.new_string.split("\n").length : 0),
+        });
         break;
       }
       case "Write": {
         const p = typeof args.file_path === "string" ? basename(args.file_path) : null;
         if (!p) break;
         const diffStats = extractDiffStats(item.uiExtra);
-        const add =
-          diffStats?.add ??
-          (typeof args.content === "string" ? args.content.split("\n").length : 0);
-        bucket.push(p);
-        let writeBucket = editStats.get(name);
-        if (!writeBucket) {
-          writeBucket = [];
-          editStats.set(name, writeBucket);
-        }
-        writeBucket.push({ del: diffStats?.del ?? 0, add });
+        writeFiles.push({
+          name: p,
+          del: diffStats?.del ?? 0,
+          add:
+            diffStats?.add ??
+            (typeof args.content === "string" ? args.content.split("\n").length : 0),
+        });
         break;
       }
       case "apply_patch": {
         const patch = typeof args.patch === "string" ? args.patch : null;
         if (!patch) break;
         const fileStats = extractApplyPatchFileStats(patch);
-        let patchBucket = editStats.get(name);
-        if (!patchBucket) {
-          patchBucket = [];
-          editStats.set(name, patchBucket);
-        }
         if (fileStats.length === 0) {
           const lines = patch.split("\n");
-          bucket.push("patch");
-          patchBucket.push({
+          patchFiles.push({
+            name: "patch",
             del: lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length,
             add: lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length,
           });
-          break;
-        }
-        for (const fileStat of fileStats) {
-          bucket.push(fileStat.name);
-          patchBucket.push({ del: fileStat.del ?? 0, add: fileStat.add });
+        } else {
+          for (const fs of fileStats)
+            patchFiles.push({ name: fs.name, del: fs.del ?? 0, add: fs.add });
         }
         break;
       }
       case "Bash": {
-        const summaries =
-          typeof args.command === "string" ? extractBashSummaries(args.command) : [];
-        bucket.push(...summaries);
+        const parsed = typeof args.command === "string" ? parseBashCommand(args.command) : [];
+        for (const cmd of parsed) {
+          switch (cmd.type) {
+            case "read":
+              readFiles.push(cmd.name);
+              break;
+            case "list":
+              bashLists.push(cmd.path);
+              break;
+            case "search":
+              bashSearches.push({ query: cmd.query, path: cmd.path });
+              break;
+            case "run":
+              bashRuns.push(cmd.cmd);
+              break;
+          }
+        }
         break;
       }
       case "WebFetch": {
         try {
           const host = typeof args.url === "string" ? new URL(args.url).hostname : null;
-          if (host) bucket.push(host);
+          if (host) webFetches.push(host);
         } catch {
           /* ignore invalid URLs */
         }
@@ -342,112 +240,91 @@ function summarizeCollapseItems(
       }
       case "WebSearch": {
         const q = typeof args.query === "string" ? args.query : null;
-        if (q) bucket.push(q);
+        if (q) webSearches.push(q);
         break;
       }
     }
   }
 
-  // Stable ordering: edits first, then execution, then reads, then web
-  const TOOL_ORDER: Record<string, number> = {
-    Edit: 0,
-    Write: 1,
-    apply_patch: 2,
-    Bash: 3,
-    Read: 4,
-    WebFetch: 5,
-    WebSearch: 6,
-  };
-  const sortedEntries = [...grouped.entries()]
-    .filter(([, values]) => values.length > 0)
-    .sort(([a], [b]) => (TOOL_ORDER[a] ?? 99) - (TOOL_ORDER[b] ?? 99));
-
+  // --- Build summary parts in display order ---
   const parts: SummaryPart[] = [];
-  for (const [name, values] of sortedEntries) {
-    const unique = [...new Set(values)];
-    switch (name) {
-      case "Read": {
-        const shown = unique.slice(0, 3).join(", ");
-        const value = unique.length > 3 ? `${shown} +${unique.length - 3}` : shown;
-        parts.push({ label: t("collapse.read"), value });
-        break;
-      }
-      case "Edit": {
-        const stats = editStats.get(name) ?? [];
-        const merged = new Map<string, { del: number; add: number }>();
-        for (let i = 0; i < values.length; i++) {
-          const fname = values[i];
-          const s = stats[i] ?? { del: 0, add: 0 };
-          const existing = merged.get(fname);
-          if (existing) {
-            existing.del += s.del;
-            existing.add += s.add;
-          } else merged.set(fname, { del: s.del, add: s.add });
-        }
-        const fileStats = [...merged.entries()].map(([name, s]) => ({
-          name,
-          del: s.del,
-          add: s.add,
-        }));
-        parts.push({ label: t("collapse.edited"), value: "", fileStats });
-        break;
-      }
-      case "Write": {
-        const stats = editStats.get(name) ?? [];
-        const merged = new Map<string, { add: number }>();
-        for (let i = 0; i < values.length; i++) {
-          const fname = values[i];
-          const s = stats[i] ?? { add: 0 };
-          const existing = merged.get(fname);
-          if (existing) {
-            existing.add += s.add;
-          } else merged.set(fname, { add: s.add });
-        }
-        const fileStats = [...merged.entries()].map(([name, s]) => ({ name, add: s.add }));
-        parts.push({ label: t("collapse.wrote"), value: "", fileStats });
-        break;
-      }
-      case "apply_patch": {
-        const stats = editStats.get(name) ?? [];
-        const merged = new Map<string, { del: number; add: number }>();
-        for (let i = 0; i < values.length; i++) {
-          const fname = values[i];
-          const s = stats[i] ?? { del: 0, add: 0 };
-          const existing = merged.get(fname);
-          if (existing) {
-            existing.del += s.del;
-            existing.add += s.add;
-          } else merged.set(fname, { del: s.del, add: s.add });
-        }
-        const fileStats = [...merged.entries()].map(([name, s]) => ({
-          name,
-          del: s.del,
-          add: s.add,
-        }));
-        parts.push({ label: t("collapse.patched"), value: "", fileStats });
-        break;
-      }
-      case "Bash":
-        parts.push({
-          label: t("collapse.ran"),
-          value:
-            unique.length > 5
-              ? `${unique.slice(0, 5).join(", ")} +${unique.length - 5}`
-              : unique.slice(0, 5).join(", "),
-        });
-        break;
-      case "WebFetch":
-        parts.push({ label: t("collapse.fetch"), value: unique[0] });
-        break;
-      case "WebSearch": {
-        const q = unique[0];
-        parts.push({
-          label: t("collapse.search"),
-          value: q.length > 30 ? q.slice(0, 30) + "…" : q,
-        });
-        break;
-      }
+
+  // 1. Edits
+  if (editFiles.length > 0) {
+    parts.push({ label: t("collapse.edited"), value: "", fileStats: mergeFileStats(editFiles) });
+  }
+
+  // 2. Writes
+  if (writeFiles.length > 0) {
+    const merged = mergeFileStats(writeFiles);
+    parts.push({
+      label: t("collapse.wrote"),
+      value: "",
+      fileStats: merged.map((f) => ({ name: f.name, add: f.add })),
+    });
+  }
+
+  // 3. Patches
+  if (patchFiles.length > 0) {
+    parts.push({ label: t("collapse.patched"), value: "", fileStats: mergeFileStats(patchFiles) });
+  }
+
+  // 4. Reads (tool Read + bash read commands like cat/head/tail)
+  if (readFiles.length > 0) {
+    const unique = [...new Set(readFiles)];
+    const shown = unique.slice(0, 3).join(", ");
+    const value = unique.length > 3 ? `${shown} +${unique.length - 3}` : shown;
+    parts.push({ label: t("collapse.read"), value });
+  }
+
+  // 5. Bash list (ls/tree/rg --files/fd/find)
+  if (bashLists.length > 0) {
+    const uniquePaths = [...new Set(bashLists.filter(Boolean) as string[])];
+    const value =
+      uniquePaths.length > 3
+        ? `${uniquePaths.slice(0, 3).join(", ")} +${uniquePaths.length - 3}`
+        : uniquePaths.join(", ");
+    parts.push({ label: t("collapse.list"), value });
+  }
+
+  // 6. Bash search (rg/grep/ag/ack/fd/find with query)
+  if (bashSearches.length > 0) {
+    const first = bashSearches[0];
+    let value = "";
+    if (first.query) {
+      value = first.query;
+      if (first.path) value += ` in ${first.path}`;
+    } else if (first.path) {
+      value = `in ${first.path}`;
     }
+    if (bashSearches.length > 1) value += ` +${bashSearches.length - 1}`;
+    parts.push({ label: t("collapse.bashSearch"), value });
+  }
+
+  // 7. Bash run (unknown commands: git commit, npm build, etc.)
+  if (bashRuns.length > 0) {
+    const unique = [...new Set(bashRuns)];
+    parts.push({
+      label: t("collapse.ran"),
+      value:
+        unique.length > 5
+          ? `${unique.slice(0, 5).join(", ")} +${unique.length - 5}`
+          : unique.join(", "),
+    });
+  }
+
+  // 8. WebFetch
+  if (webFetches.length > 0) {
+    parts.push({ label: t("collapse.fetch"), value: [...new Set(webFetches)][0] });
+  }
+
+  // 9. WebSearch
+  if (webSearches.length > 0) {
+    const q = webSearches[0];
+    parts.push({
+      label: t("collapse.search"),
+      value: q,
+    });
   }
 
   return parts;
@@ -495,8 +372,7 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
             </>
           ) : (
             <>
-              <span className="font-normal text-neutral-500">{part.label}</span>{" "}
-              {part.value}
+              <span className="font-normal text-neutral-500">{part.label}</span> {part.value}
             </>
           )}
         </span>
@@ -586,7 +462,7 @@ export function CollapseGroupBlock({
           </TooltipContent>
         ) : null}
       </Tooltip>
-      {/* grid-template-rows trick: 0fr→1fr gives smooth height transition without JS height measurement */}
+      {/* grid-template-rows trick: 0fr->1fr gives smooth height transition without JS height measurement */}
       <CollapseRailPanel open={!collapsed}>
         <div className={`mt-1.5 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
           <CollapseRailConnector lineClassName="-mt-1.5" />
