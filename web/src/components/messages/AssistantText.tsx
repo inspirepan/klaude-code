@@ -71,7 +71,9 @@ export function AssistantText({ item }: AssistantTextProps): JSX.Element {
     <div className="assistant-text relative">
       {entries ? <FrontmatterTable entries={entries} /> : null}
       <Streamdown
-        mode={item.isStreaming ? "streaming" : "static"}
+        // Use "static" during streaming to bypass Streamdown's useTransition,
+        // which gets starved by frequent Zustand store updates.
+        mode={item.isStreaming ? "static" : "streaming"}
         isAnimating={item.isStreaming}
         plugins={plugins}
         urlTransform={urlTransform}
