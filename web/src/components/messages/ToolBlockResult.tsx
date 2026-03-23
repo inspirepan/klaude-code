@@ -39,7 +39,7 @@ export function ToolBlockResult({
 
   return (
     <CollapseRailPanel open={open}>
-      <div className="mt-0.5 min-w-0">
+      <div className="mt-0.5 min-w-0 pl-10">
         {hasRich ? (
           <div
             onClick={(event) => {
