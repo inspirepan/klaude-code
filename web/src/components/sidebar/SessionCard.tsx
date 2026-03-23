@@ -190,6 +190,7 @@ export function SessionCard({
         title={title}
         as="div"
         className="flex min-w-0 flex-1 items-baseline text-sm leading-5"
+        primaryClassName={runtime.sessionState === "running" ? "session-running-shimmer" : undefined}
         secondaryClassName="shrink truncate"
       />
       {/* Meta info: visible by default, hidden on hover */}
