@@ -702,34 +702,52 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                       const isFinished =
                                         subAgentFinishedBySessionId[inner.sourceSessionId];
                                       return (
-                                        <SubAgentGroupCard
+                                        <div
                                           key={inner.groupId}
-                                          sourceSessionId={inner.sourceSessionId}
-                                          sourceSessionType={inner.sourceSessionType}
-                                          sourceSessionDesc={inner.sourceSessionDesc}
-                                          sourceSessionFork={inner.sourceSessionFork}
-                                          toolCount={inner.toolCount}
-                                          status={statusBySessionId[inner.sourceSessionId] ?? null}
-                                          isFinished={isFinished}
-                                          nowSeconds={nowSeconds}
-                                          onClick={() => {
-                                            handleEnterSubAgent(inner.sourceSessionId);
-                                          }}
-                                        />
+                                          className={RAIL_CONTENT_OFFSET}
+                                        >
+                                          <SubAgentGroupCard
+                                            sourceSessionId={inner.sourceSessionId}
+                                            sourceSessionType={inner.sourceSessionType}
+                                            sourceSessionDesc={inner.sourceSessionDesc}
+                                            sourceSessionFork={inner.sourceSessionFork}
+                                            toolCount={inner.toolCount}
+                                            status={statusBySessionId[inner.sourceSessionId] ?? null}
+                                            isFinished={isFinished}
+                                            nowSeconds={nowSeconds}
+                                            onClick={() => {
+                                              handleEnterSubAgent(inner.sourceSessionId);
+                                            }}
+                                          />
+                                        </div>
                                       );
                                     }
+                                    const innerItem = inner.item;
+                                    const innerHasRailGrid =
+                                      GRID_ITEM_TYPES.has(innerItem.type) &&
+                                      !(
+                                        innerItem.type === "tool_block" &&
+                                        CARD_TOOL_NAMES.has(innerItem.toolName)
+                                      );
+                                    const innerOffset = !innerHasRailGrid
+                                      ? RAIL_CONTENT_OFFSET
+                                      : "";
                                     return (
-                                      <MessageRow
-                                        key={inner.item.id}
-                                        item={inner.item}
-                                        workDir={workspacePath}
-                                        isActive={inner.item.id === activeItemId}
-                                        copied={copiedItemId === inner.item.id}
-                                        onCopy={handleCopy}
-                                        itemRef={(el) => {
-                                          setItemRef(inner.item.id, el);
-                                        }}
-                                      />
+                                      <div
+                                        key={innerItem.id}
+                                        className={innerOffset}
+                                      >
+                                        <MessageRow
+                                          item={innerItem}
+                                          workDir={workspacePath}
+                                          isActive={innerItem.id === activeItemId}
+                                          copied={copiedItemId === innerItem.id}
+                                          onCopy={handleCopy}
+                                          itemRef={(el) => {
+                                            setItemRef(innerItem.id, el);
+                                          }}
+                                        />
+                                      </div>
                                     );
                                   })}
                                 </PlannedGroupBlock>

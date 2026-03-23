@@ -1,7 +1,6 @@
 import { CheckCircle2, CircleDashed } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { cn } from "../../lib/utils";
 import {
   COLLAPSE_RAIL_GRID_CLASS_NAME,
   CollapseRailConnector,
@@ -65,10 +64,7 @@ export function PlannedGroupBlock({
               <TodoIcon completed={firstCompleted} />
               <span
                 ref={summaryRef}
-                className={cn(
-                  "min-w-0 truncate",
-                  firstCompleted ? "text-emerald-700" : "text-blue-600",
-                )}
+                className="min-w-0 truncate text-neutral-500"
               >
                 {summaryText}
               </span>
@@ -84,7 +80,7 @@ export function PlannedGroupBlock({
       <CollapseRailPanel open={open}>
         <div className={`mt-3 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
           <CollapseRailConnector lineClassName="-mt-3" />
-          <div className="min-w-0 space-y-3 pb-1">{children}</div>
+          <div className="planned-group-content min-w-0 space-y-3 pb-1">{children}</div>
         </div>
       </CollapseRailPanel>
     </div>
