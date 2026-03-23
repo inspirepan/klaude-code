@@ -37,6 +37,16 @@ let sessionStreamReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingMessageEvents: MessageStoreEvent[] = [];
 let pendingMessageEventsFrame = 0;
 
+// Tracks sessions where the first user message was optimistically pre-populated
+// into the message store before the WebSocket connection was established.  When
+// the server echoes the `user.message` event back we skip forwarding it to the
+// message store so the message is not duplicated.
+const optimisticUserMessageSessionIds = new Set<string>();
+
+export function markOptimisticUserMessage(sessionId: string): void {
+  optimisticUserMessageSessionIds.add(sessionId);
+}
+
 function flushPendingMessageEvents(): void {
   const queuedEvents = pendingMessageEvents;
   if (queuedEvents.length === 0) {
@@ -319,6 +329,12 @@ function handleWsEvent(
     };
   });
 
+  // Skip forwarding the server echo of a user.message that was already
+  // optimistically injected into the message store during session creation.
+  const skipMessageStore =
+    eventEnvelope.event_type === "user.message" &&
+    optimisticUserMessageSessionIds.delete(rootSessionId);
+
   const wsTimestamp = typeof eventEnvelope.timestamp === "number" ? eventEnvelope.timestamp : null;
   const queuedEvents: MessageStoreEvent[] = [
     {
@@ -336,7 +352,9 @@ function handleWsEvent(
       timestamp: wsTimestamp,
     });
   }
-  queueMessageEvents(queuedEvents);
+  if (!skipMessageStore) {
+    queueMessageEvents(queuedEvents);
+  }
 
   if (eventEnvelope.event_type !== "task.finish") {
     return;
