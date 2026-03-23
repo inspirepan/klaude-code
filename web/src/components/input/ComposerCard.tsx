@@ -116,7 +116,7 @@ export function ComposerCard({
   const t = useT();
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLFormElement>(null);
   const ref = externalRef ?? internalRef;
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadingCount, setUploadingCount] = useState(0);
@@ -236,8 +236,10 @@ export function ComposerCard({
   };
 
   return (
-    <div
+    <form
       ref={rootRef}
+      autoComplete="off"
+      onSubmit={(event) => { event.preventDefault(); }}
       className="rounded-lg bg-card px-4 py-2.5 shadow-sm ring-1 ring-black/[0.06]"
     >
       <input
@@ -341,6 +343,7 @@ export function ComposerCard({
             handleSubmitOrCompact();
           }}
           rows={1}
+          autoComplete="off"
           disabled={disableInput}
           placeholder={placeholder}
           className="min-h-[2rem] w-full resize-none overflow-y-hidden border-0 bg-transparent px-0 py-0.5 text-base leading-7 text-neutral-800 outline-none placeholder:text-neutral-400 disabled:cursor-not-allowed disabled:opacity-40"
@@ -471,6 +474,6 @@ export function ComposerCard({
           </Tooltip>
         </div>
       </div>
-    </div>
+    </form>
   );
 }
