@@ -1,5 +1,7 @@
 """
-Use OSC 9;4;… to control progress bar in terminal like Ghostty
+Use OSC 9;4;… to report progress to the terminal emulator.
+Supported by Ghostty, iTerm2, WezTerm, Windows Terminal, Kitty, ConEmu, etc.
+Terminals that do not recognise the sequence silently ignore it.
 States:
   0/hidden
   1/normal
@@ -8,13 +10,10 @@ States:
   4/warning
 """
 
-import os
 import sys
 import time
 from enum import Enum
 from typing import TextIO, cast
-
-is_ghostty = os.environ.get("TERM") == "xterm-ghostty" or "GHOSTTY_RESOURCES_DIR" in os.environ
 
 ST = "\033\\"  # ESC \
 BEL = "\a"  # Some terminals also accept BEL as terminator
@@ -49,7 +48,8 @@ def emit_osc94(
     use_bel: bool = False,
     stream: TextIO | None = None,
 ):
-    if not is_ghostty:
+    output = resolve_stream(stream)
+    if not hasattr(output, "isatty") or not output.isatty():
         return
 
     seq = f"\033]9;4;{state.value}"
@@ -58,7 +58,6 @@ def emit_osc94(
             progress = 0
         seq += f";{int(progress)}"
     terminator = BEL if use_bel else ST
-    output = resolve_stream(stream)
     output.write(seq + terminator)
     output.flush()
 
