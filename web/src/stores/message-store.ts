@@ -13,7 +13,7 @@ export interface MessageStoreEvent {
 
 interface MessageStoreState {
   messagesBySessionId: Record<string, MessageItem[]>;
-  reducerStateBySessionId: Record<string, ReducerState>;
+  reducerStateBySessionId: Partial<Record<string, ReducerState>>;
   loadHistoryFromEvents: (sessionId: string, events: ReplayEventEnvelope[]) => void;
   handleEvents: (events: MessageStoreEvent[]) => void;
   handleEvent: (

@@ -1,4 +1,5 @@
 export type SessionId = string;
+// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- "draft" documents the sentinel value checked via === "draft" at runtime
 export type ActiveSessionId = SessionId | "draft";
 export type ApiSessionState = "idle" | "running" | "waiting_user_input";
 

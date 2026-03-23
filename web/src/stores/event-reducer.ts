@@ -20,7 +20,7 @@ export interface ReducerState {
   subAgentTypeBySessionId: Record<string, string>;
   subAgentForkBySessionId: Record<string, boolean>;
   subAgentFinishedBySessionId: Record<string, boolean>;
-  statusBySessionId: Record<string, SessionStatusState>;
+  statusBySessionId: Partial<Record<string, SessionStatusState>>;
 }
 
 export function createInitialState(): ReducerState {
@@ -88,14 +88,14 @@ function findAssistantTextIndex(
   if (responseId !== null) {
     for (let i = state.items.length - 1; i >= 0; i -= 1) {
       const item = state.items[i];
-      if (item?.type !== "assistant_text") continue;
+      if (item.type !== "assistant_text") continue;
       if (item.sessionId === sessionId && item.responseId === responseId) {
         return i;
       }
     }
   }
 
-  const activeItem = state.items[state.activeTextIndex];
+  const activeItem = state.items[state.activeTextIndex] as MessageItem | undefined;
   if (
     activeItem !== undefined &&
     activeItem.type === "assistant_text" &&
@@ -108,17 +108,18 @@ function findAssistantTextIndex(
 }
 
 function stopStreamingItems(state: ReducerState): ReducerState {
-  let changed = false;
-  const nextItems = state.items.map((item) => {
-    if ("isStreaming" in item && item.isStreaming) {
-      changed = true;
-      return { ...item, isStreaming: false };
-    }
-    return item;
-  });
-  if (!changed && state.activeTextIndex === -1 && state.activeThinkingIndex === -1) {
+  const hasStreaming = state.items.some((item) => "isStreaming" in item && item.isStreaming);
+  if (!hasStreaming && state.activeTextIndex === -1 && state.activeThinkingIndex === -1) {
     return state;
   }
+  const nextItems = hasStreaming
+    ? state.items.map((item) => {
+        if ("isStreaming" in item && item.isStreaming) {
+          return { ...item, isStreaming: false };
+        }
+        return item;
+      })
+    : state.items;
   return {
     ...state,
     items: nextItems,
@@ -173,7 +174,7 @@ export function reduceEvent(
       let nextForkBySessionId = currentState.subAgentForkBySessionId;
       let nextFinishedBySessionId = currentState.subAgentFinishedBySessionId;
 
-      if (sessionId !== null && currentState.subAgentFinishedBySessionId[sessionId] !== false) {
+      if (sessionId !== null && currentState.subAgentFinishedBySessionId[sessionId]) {
         nextFinishedBySessionId = {
           ...currentState.subAgentFinishedBySessionId,
           [sessionId]: false,
@@ -234,7 +235,7 @@ export function reduceEvent(
 
     case "task.finish": {
       if (sourceSessionId === null) return currentState;
-      if (currentState.subAgentFinishedBySessionId[sourceSessionId] === true) return currentState;
+      if (currentState.subAgentFinishedBySessionId[sourceSessionId]) return currentState;
       return {
         ...currentState,
         subAgentFinishedBySessionId: {
@@ -277,7 +278,7 @@ export function reduceEvent(
       if (mainAgent === null || typeof mainAgent !== "object") return currentState;
 
       const mainAgentRec = mainAgent as Record<string, unknown>;
-      const isPartial = (event as Record<string, unknown>).is_partial === true;
+      const isPartial = (event).is_partial === true;
 
       const id = makeId(currentState);
       return {

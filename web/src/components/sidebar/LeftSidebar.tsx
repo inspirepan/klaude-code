@@ -19,7 +19,7 @@ function clampSidebarWidth(width: number): number {
   const minWidth = 256;
   const hardMaxWidth = 512;
   const rightSidebarWidth =
-    (document.querySelector('[data-sidebar="right"]') as HTMLElement | null)?.offsetWidth ?? 0;
+    document.querySelector<HTMLElement>('[data-sidebar="right"]')?.offsetWidth ?? 0;
   const minMainWidth = 320;
   const availableMaxWidth = window.innerWidth - rightSidebarWidth - minMainWidth;
   const maxWidth = Math.max(minWidth, Math.min(hardMaxWidth, availableMaxWidth));
@@ -51,13 +51,13 @@ function readStoredCollapsedByWorkDir(storageKey: string): Record<string, boolea
   }
 
   try {
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
       return {};
     }
 
     return Object.fromEntries(
-      Object.entries(parsed).filter(
+      Object.entries(parsed as Record<string, unknown>).filter(
         (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
       ),
     );
@@ -249,8 +249,10 @@ export function LeftSidebar(): JSX.Element {
       if (!(collapsedByWorkDir[group.work_dir] ?? false)) continue;
 
       for (const session of group.sessions) {
-        const ts = recentCompletionStartedAtBySessionId[session.id];
-        if (ts !== undefined && prev[session.id] !== ts) {
+        if (
+          session.id in recentCompletionStartedAtBySessionId &&
+          prev[session.id] !== recentCompletionStartedAtBySessionId[session.id]
+        ) {
           toggleGroup(group.work_dir);
           break;
         }
@@ -637,9 +639,7 @@ export function LeftSidebar(): JSX.Element {
                       onClick={() => {
                         const sessionId = archiveUndoSessionId;
                         dismissArchiveUndoToast();
-                        if (sessionId !== null) {
-                          void setSessionArchived(sessionId, false);
-                        }
+                        void setSessionArchived(sessionId, false);
                       }}
                     >
                       {t("sidebar.undo")}

@@ -18,7 +18,7 @@ const DEFAULT_EXPANDED_TOOLS = new Set(["apply_patch", "Edit", "Write"]);
 
 function extractHeaderDetail(toolName: string, args: string): string {
   try {
-    const parsed = JSON.parse(args);
+    const parsed = JSON.parse(args) as Record<string, unknown>;
     switch (toolName) {
       case "Bash":
         return typeof parsed.command === "string" ? parsed.command : "";
@@ -178,7 +178,9 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
   return (
     <div
       className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} ${bodyTextClass} ${expandable ? "cursor-pointer" : "cursor-default"}`}
-      onClick={() => expandable && setOpen((v) => !v)}
+      onClick={() => {
+        if (expandable) setOpen((v) => !v);
+      }}
     >
       <CollapseRailMarker
         open={open}
@@ -203,7 +205,9 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
         isEmptyResult={isEmptyResult}
         isError={isError}
         showMore={showMore}
-        onToggleShowMore={() => setShowMore((value) => !value)}
+        onToggleShowMore={() => {
+          setShowMore((value) => !value);
+        }}
       />
     </div>
   );

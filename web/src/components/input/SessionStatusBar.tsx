@@ -49,7 +49,7 @@ export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JS
   const elapsed =
     status?.taskStartedAt !== null &&
     status?.taskStartedAt !== undefined &&
-    (status?.taskActive || status?.awaitingInput || status?.compacting)
+    (status.taskActive || status.awaitingInput || status.compacting)
       ? formatElapsed(nowSeconds - status.taskStartedAt)
       : null;
 

@@ -11,8 +11,9 @@ interface ProjectGroupProps {
   sessions: SessionSummary[];
   collapsed: boolean;
   hideNewSessionButton?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- documents "draft" as a special sentinel value
   activeSessionId: string | "draft";
-  runtimeBySessionId: Record<string, SessionRuntimeState>;
+  runtimeBySessionId: Partial<Record<string, SessionRuntimeState>>;
   recentCompletionStartedAtBySessionId: Record<string, number>;
   completedUnreadBySessionId: Record<string, boolean>;
   onToggle: () => void;
@@ -54,7 +55,7 @@ export function ProjectGroup({
       return state !== "idle";
     });
   const hasAnyUnread =
-    !hasAnyRunning && collapsed && sessions.some((s) => completedUnreadBySessionId[s.id] === true);
+    !hasAnyRunning && collapsed && sessions.some((s) => completedUnreadBySessionId[s.id]);
 
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-0.5">
@@ -119,7 +120,7 @@ export function ProjectGroup({
                   lastError: null,
                 }
               }
-              hasUnreadCompletion={completedUnreadBySessionId[session.id] === true}
+              hasUnreadCompletion={completedUnreadBySessionId[session.id]}
               completionAnimationStartedAt={recentCompletionStartedAtBySessionId[session.id]}
               onClick={() => {
                 onSelectSession(session.id);

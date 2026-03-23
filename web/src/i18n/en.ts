@@ -205,5 +205,9 @@ const en = {
 } as const;
 
 export type TranslationKey = keyof typeof en;
-export type Translations = typeof en;
+export type Translations = {
+  [K in TranslationKey]: (typeof en)[K] extends (...args: infer A) => string
+    ? (...args: A) => string
+    : string;
+};
 export default en;

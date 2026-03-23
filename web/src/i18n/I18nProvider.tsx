@@ -13,7 +13,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }): JSX.E
       }
     };
     window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
+    return () => { window.removeEventListener("storage", handler); };
   });
 
   // Expose a global function for switching locale programmatically

@@ -42,7 +42,7 @@ export function MessageRow({
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  onClick={() => onCopy(item)}
+                  onClick={() => void onCopy(item)}
                   className="cursor-pointer font-mono text-sm leading-none text-neutral-500 opacity-0 transition-opacity duration-150 hover:text-neutral-700 group-hover/row:opacity-100"
                   aria-label={copied ? t("copy.copied") : t("copy.copy")}
                 >

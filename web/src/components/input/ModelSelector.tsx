@@ -188,7 +188,7 @@ export function ModelSelector({
             type="auto"
           >
             {groups.map((group) => {
-              const collapsed = collapsedProviders[group.provider] === true;
+              const collapsed = collapsedProviders[group.provider];
               return (
                 <div key={group.provider}>
                   <button

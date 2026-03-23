@@ -49,7 +49,7 @@ function normalizeFileChangeSummary(
 export function normalizeSessionSummary(session: SessionSummary): SessionSummary {
   return {
     ...session,
-    read_only: session.read_only === true,
+    read_only: session.read_only,
     todos: Array.isArray(session.todos) ? session.todos : [],
     file_change_summary: normalizeFileChangeSummary(session.file_change_summary),
   };

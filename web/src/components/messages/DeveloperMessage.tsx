@@ -40,7 +40,7 @@ function groupAtFileOps(
       idxByKey.set(key, ordered.length);
       ordered.push({ operation: op.operation, mentionedIn: op.mentioned_in, paths: [op.path] });
     } else {
-      ordered[existingIdx]!.paths.push(op.path);
+      ordered[existingIdx].paths.push(op.path);
     }
   }
   return ordered;
@@ -83,7 +83,7 @@ function buildAttachedSummary(
         case "at_file_ops":
           for (const op of ui.ops) {
             if (op.operation === "Read") fileCount++;
-            else if (op.operation === "List") folderListCount++;
+            else folderListCount++;
           }
           break;
         case "external_file_changes":
@@ -128,7 +128,9 @@ function CollapsibleRow({
   return (
     <div
       className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} text-base ${expandable ? "cursor-pointer" : "cursor-default"}`}
-      onClick={() => expandable && setOpen((v) => !v)}
+      onClick={() => {
+        if (expandable) setOpen((v) => !v);
+      }}
     >
       <CollapseRailMarker
         open={open}
@@ -142,7 +144,12 @@ function CollapsibleRow({
 
       {expandable ? (
         <CollapseRailPanel open={open}>
-          <div className="mt-1 min-w-0 pb-1.5" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="mt-1 min-w-0 pb-1.5"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
             {children}
           </div>
         </CollapseRailPanel>

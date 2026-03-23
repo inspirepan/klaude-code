@@ -32,7 +32,7 @@ export function SlashCompletionList({
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const item = items[highlightIndex];
+    const item = items.at(highlightIndex);
     if (!item || !listRef.current) {
       return;
     }
@@ -52,8 +52,8 @@ export function SlashCompletionList({
             key={item.insertText}
             data-slash-completion={item.insertText}
             highlighted={index === highlightIndex}
-            onPointerEnter={() => onHighlightIndexChange(index)}
-            onClick={() => onSelect(item)}
+            onPointerEnter={() => { onHighlightIndexChange(index); }}
+            onClick={() => { onSelect(item); }}
           >
             <span className="min-w-0 flex-1 truncate">
               <span className="font-medium text-neutral-800">

@@ -10,7 +10,7 @@ import {
   CollapseRailMarker,
   CollapseRailPanel,
 } from "./CollapseRail";
-import { isDiffUIExtra } from "./message-ui-extra";
+import { isDiffUIExtra, type DiffUIExtra } from "./message-ui-extra";
 import { MessageRow } from "./MessageRow";
 import { DeveloperMessage } from "./DeveloperMessage";
 
@@ -147,7 +147,7 @@ function extractBashSummaries(command: string): string[] {
   const summaries: string[] = [];
   for (const words of statements) {
     if (words.length === 0) continue;
-    const cmd = words[0]!;
+    const cmd = words[0];
     if (IGNORED_COMMANDS.has(cmd)) continue;
     if (SUBCOMMAND_COMMANDS.has(cmd)) {
       const sub = words.slice(1).find((w) => !w.startsWith("-"));
@@ -198,7 +198,7 @@ function extractApplyPatchFileStats(patch: string): FileStat[] {
   for (const line of patch.split("\n")) {
     const fileMatch = line.match(/^\+\+\+ b\/(.+)$/) ?? line.match(/^--- a\/(.+)$/);
     if (fileMatch) {
-      const name = basename(fileMatch[1]!);
+      const name = basename(fileMatch[1]);
       if (unifiedCurrent === null || unifiedCurrent.name !== name) {
         if (unifiedCurrent !== null) fileStats.push(unifiedCurrent);
         unifiedCurrent = { name, del: 0, add: 0 };
@@ -219,10 +219,10 @@ function extractDiffStats(
   uiExtra: Record<string, unknown> | null,
 ): { del: number; add: number } | null {
   if (!uiExtra) return null;
-  const extras = isDiffUIExtra(uiExtra)
+  const extras: DiffUIExtra[] = isDiffUIExtra(uiExtra)
     ? [uiExtra]
     : uiExtra.type === "multi" && Array.isArray(uiExtra.items)
-      ? (uiExtra.items as Record<string, unknown>[]).filter(isDiffUIExtra)
+      ? (uiExtra.items as unknown[]).filter(isDiffUIExtra)
       : [];
   if (extras.length === 0) return null;
   let del = 0;
@@ -254,8 +254,11 @@ function summarizeCollapseItems(
     }
 
     const name = item.toolName;
-    if (!grouped.has(name)) grouped.set(name, []);
-    const bucket = grouped.get(name)!;
+    let bucket = grouped.get(name);
+    if (!bucket) {
+      bucket = [];
+      grouped.set(name, bucket);
+    }
 
     switch (name) {
       case "Read": {
@@ -274,8 +277,12 @@ function summarizeCollapseItems(
           diffStats?.add ??
           (typeof args.new_string === "string" ? args.new_string.split("\n").length : 0);
         bucket.push(p);
-        if (!editStats.has(name)) editStats.set(name, []);
-        editStats.get(name)!.push({ del, add });
+        let editBucket = editStats.get(name);
+        if (!editBucket) {
+          editBucket = [];
+          editStats.set(name, editBucket);
+        }
+        editBucket.push({ del, add });
         break;
       }
       case "Write": {
@@ -286,19 +293,27 @@ function summarizeCollapseItems(
           diffStats?.add ??
           (typeof args.content === "string" ? args.content.split("\n").length : 0);
         bucket.push(p);
-        if (!editStats.has(name)) editStats.set(name, []);
-        editStats.get(name)!.push({ del: diffStats?.del ?? 0, add });
+        let writeBucket = editStats.get(name);
+        if (!writeBucket) {
+          writeBucket = [];
+          editStats.set(name, writeBucket);
+        }
+        writeBucket.push({ del: diffStats?.del ?? 0, add });
         break;
       }
       case "apply_patch": {
         const patch = typeof args.patch === "string" ? args.patch : null;
         if (!patch) break;
         const fileStats = extractApplyPatchFileStats(patch);
-        if (!editStats.has(name)) editStats.set(name, []);
+        let patchBucket = editStats.get(name);
+        if (!patchBucket) {
+          patchBucket = [];
+          editStats.set(name, patchBucket);
+        }
         if (fileStats.length === 0) {
           const lines = patch.split("\n");
           bucket.push("patch");
-          editStats.get(name)!.push({
+          patchBucket.push({
             del: lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length,
             add: lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length,
           });
@@ -306,7 +321,7 @@ function summarizeCollapseItems(
         }
         for (const fileStat of fileStats) {
           bucket.push(fileStat.name);
-          editStats.get(name)!.push({ del: fileStat.del ?? 0, add: fileStat.add });
+          patchBucket.push({ del: fileStat.del ?? 0, add: fileStat.add });
         }
         break;
       }
@@ -361,7 +376,7 @@ function summarizeCollapseItems(
         const stats = editStats.get(name) ?? [];
         const merged = new Map<string, { del: number; add: number }>();
         for (let i = 0; i < values.length; i++) {
-          const fname = values[i]!;
+          const fname = values[i];
           const s = stats[i] ?? { del: 0, add: 0 };
           const existing = merged.get(fname);
           if (existing) {
@@ -381,7 +396,7 @@ function summarizeCollapseItems(
         const stats = editStats.get(name) ?? [];
         const merged = new Map<string, { add: number }>();
         for (let i = 0; i < values.length; i++) {
-          const fname = values[i]!;
+          const fname = values[i];
           const s = stats[i] ?? { add: 0 };
           const existing = merged.get(fname);
           if (existing) {
@@ -396,7 +411,7 @@ function summarizeCollapseItems(
         const stats = editStats.get(name) ?? [];
         const merged = new Map<string, { del: number; add: number }>();
         for (let i = 0; i < values.length; i++) {
-          const fname = values[i]!;
+          const fname = values[i];
           const s = stats[i] ?? { del: 0, add: 0 };
           const existing = merged.get(fname);
           if (existing) {
@@ -422,10 +437,10 @@ function summarizeCollapseItems(
         });
         break;
       case "WebFetch":
-        parts.push({ label: t("collapse.fetch"), value: unique[0]! });
+        parts.push({ label: t("collapse.fetch"), value: unique[0] });
         break;
       case "WebSearch": {
-        const q = unique[0]!;
+        const q = unique[0];
         parts.push({
           label: t("collapse.search"),
           value: q.length > 30 ? q.slice(0, 30) + "…" : q,
@@ -511,11 +526,15 @@ export function CollapseGroupBlock({
   useEffect(() => {
     const el = summarySpanRef.current;
     if (!el) return;
-    const check = () => setIsTruncated(el.scrollWidth > el.clientWidth);
+    const check = () => {
+      setIsTruncated(el.scrollWidth > el.clientWidth);
+    };
     check();
     const observer = new ResizeObserver(check);
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+    };
   }, [summaryText]);
 
   // Group consecutive developer_message items so they render as one merged row
@@ -527,7 +546,7 @@ export function CollapseGroupBlock({
     const result: RenderBlock[] = [];
     for (const item of items) {
       if (item.type === "developer_message") {
-        const last = result[result.length - 1];
+        const last = result.at(-1);
         if (last?.kind === "dev") {
           last.items.push(item);
         } else {
@@ -584,7 +603,9 @@ export function CollapseGroupBlock({
                   isActive={block.item.id === activeItemId}
                   copied={copiedItemId === block.item.id}
                   onCopy={onCopy}
-                  itemRef={(el: HTMLDivElement | null) => setItemRef(block.item.id, el)}
+                  itemRef={(el: HTMLDivElement | null) => {
+                    setItemRef(block.item.id, el);
+                  }}
                 />
               );
             })}

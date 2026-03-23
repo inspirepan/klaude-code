@@ -53,7 +53,7 @@ export function PlannedGroupBlock({
                   firstCompleted ? "text-emerald-700" : "text-amber-600",
                 )}
               >
-                {todos[0]!.content}
+                {todos[0].content}
               </span>
             </>
           ) : (

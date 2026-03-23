@@ -10,14 +10,15 @@ export const mermaid = {
   language: "mermaid",
   getMermaid: () => ({
     initialize: () => {},
-    render: async (_id: string, source: string) => ({
-      svg: renderMermaidSVG(source, {
-        bg: "#ffffff",
-        fg: "#262626",
-        transparent: true,
-        font: "Lilex Variable, ui-monospace, monospace",
-        padding: 24,
+    render: (_id: string, source: string) =>
+      Promise.resolve({
+        svg: renderMermaidSVG(source, {
+          bg: "#ffffff",
+          fg: "#262626",
+          transparent: true,
+          font: "Lilex Variable, ui-monospace, monospace",
+          padding: 24,
+        }),
       }),
-    }),
   }),
 };

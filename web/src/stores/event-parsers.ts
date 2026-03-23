@@ -39,7 +39,7 @@ export function parseTaskMetadataUsage(raw: unknown): TaskMetadataUsage | null {
   const inputCost = parseFiniteNumber(u.input_cost);
   const outputCost = parseFiniteNumber(u.output_cost);
   const cacheReadCost = parseFiniteNumber(u.cache_read_cost);
-  const costs = [inputCost, outputCost, cacheReadCost].filter((c) => c !== null) as number[];
+  const costs = [inputCost, outputCost, cacheReadCost].filter((c) => c !== null);
   const totalCost = costs.length > 0 ? costs.reduce((a, b) => a + b, 0) : null;
   const contextLimit = parseFiniteNumber(u.context_limit);
   const maxTokens = parseFiniteNumber(u.max_tokens) ?? DEFAULT_MAX_TOKENS;
@@ -172,7 +172,7 @@ export function parseCompactionSummary(raw: unknown): string | null {
   if (text.length === 0) return null;
   const match = text.match(/<summary>([\s\S]*?)<\/summary>/);
   if (!match) return text;
-  const inner = match[1]?.trim() ?? "";
+  const inner = match[1].trim();
   return inner.length > 0 ? inner : text;
 }
 

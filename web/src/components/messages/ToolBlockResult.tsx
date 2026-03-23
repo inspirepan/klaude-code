@@ -97,7 +97,7 @@ export function ToolBlockResult({
             }}
           >
             {(() => {
-              const lines = item.result!.split("\n");
+              const lines = (item.result ?? "").split("\n");
               const truncated = !showMore && lines.length > RESULT_LINE_LIMIT;
               const displayedLines = truncated ? lines.slice(0, RESULT_LINE_LIMIT) : lines;
               return (

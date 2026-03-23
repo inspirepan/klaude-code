@@ -143,7 +143,9 @@ export function TaskMetadata({ item }: TaskMetadataProps): JSX.Element {
     >
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v);
+        }}
         className={`grid w-full cursor-pointer ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start text-left text-sm leading-relaxed text-neutral-500 transition-colors hover:text-neutral-600`}
       >
         <CollapseRailMarker open={open} />

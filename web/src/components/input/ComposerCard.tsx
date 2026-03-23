@@ -70,7 +70,7 @@ interface ComposerCardProps {
 function parseCompactCommand(text: string): { focus: string | null } | null {
   const match = COMPACT_COMMAND_PATTERN.exec(text.trim());
   if (!match) return null;
-  return { focus: match.groups?.focus?.trim() || null };
+  return { focus: match.groups?.focus.trim() || null };
 }
 
 function getAttachmentName(file: File, image: MessageImageFilePart): string {
@@ -321,9 +321,7 @@ export function ComposerCard({
               if ((event.key === "Enter" || event.key === "Tab") && slashComp.items.length > 0) {
                 event.preventDefault();
                 const item = slashComp.items[slashComp.highlightIndex];
-                if (item) {
-                  slashComp.apply(item);
-                }
+                slashComp.apply(item);
                 return;
               }
               if (event.key === "Escape") {

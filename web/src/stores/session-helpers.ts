@@ -11,10 +11,10 @@ export const defaultRuntimeState: SessionRuntimeState = {
 };
 
 export function updateRuntimeState(
-  current: Record<string, SessionRuntimeState>,
+  current: Partial<Record<string, SessionRuntimeState>>,
   sessionId: string,
   patch: Partial<SessionRuntimeState>,
-): Record<string, SessionRuntimeState> {
+): Partial<Record<string, SessionRuntimeState>> {
   const previous = current[sessionId] ?? defaultRuntimeState;
   const next = {
     ...previous,
@@ -73,7 +73,7 @@ export function mergeCollapseState(
 ): Record<string, boolean> {
   const next: Record<string, boolean> = { ...collapsedByWorkDir };
   for (const group of groups) {
-    if (next[group.work_dir] === undefined) {
+    if (!(group.work_dir in next)) {
       next[group.work_dir] = false;
     }
   }
@@ -91,10 +91,10 @@ export function findSession(groups: SessionGroup[], sessionId: string): SessionS
 }
 
 export function patchRuntimeByEvent(
-  current: Record<string, SessionRuntimeState>,
+  current: Partial<Record<string, SessionRuntimeState>>,
   sessionId: string,
   eventType: string,
-): Record<string, SessionRuntimeState> {
+): Partial<Record<string, SessionRuntimeState>> {
   if (eventType === "task.start") {
     return updateRuntimeState(current, sessionId, { sessionState: "running" });
   }
@@ -180,7 +180,7 @@ export function patchPendingInteractionsByEvent(
   return current;
 }
 
-export function pushSessionUrl(sessionId: string | "draft"): void {
+export function pushSessionUrl(sessionId: string): void {
   if (sessionId === "draft") {
     if (window.location.pathname !== "/") {
       history.pushState(null, "", "/");
@@ -205,13 +205,13 @@ export function loadCollapsedByWorkDir(): Record<string, boolean> {
   }
 
   try {
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
       return {};
     }
 
     return Object.fromEntries(
-      Object.entries(parsed).filter(
+      Object.entries(parsed as Record<string, unknown>).filter(
         (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
       ),
     );

@@ -151,7 +151,7 @@ export function useFileCompletion({
           setItems(completionItems);
           setHighlightIndex(0);
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           if (error instanceof DOMException && error.name === "AbortError") {
             return;
           }

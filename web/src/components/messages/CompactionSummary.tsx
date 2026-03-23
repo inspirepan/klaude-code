@@ -22,7 +22,9 @@ const plugins = { code, mermaid };
 function isTaskCheckboxNode(
   node: ReactNode,
 ): node is ReactElement<{ type?: string; checked?: boolean }> {
-  return isValidElement(node) && node.type === "input" && node.props.type === "checkbox";
+  if (!isValidElement(node) || node.type !== "input") return false;
+  const props = node.props as Record<string, unknown>;
+  return props.type === "checkbox";
 }
 
 function CompactionListItem(props: ComponentPropsWithoutRef<"li">): JSX.Element {
