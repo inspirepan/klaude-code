@@ -146,6 +146,7 @@ const zh: Translations = {
 
   // Tool block
   "tool.planning": "规划中\u2026",
+  "tool.todoTitle": "计划清单",
   "tool.askingQuestion": "等待用户回答\u2026",
 
   // Collapse group

@@ -74,7 +74,7 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="w-fit rounded-lg border border-border/80 bg-surface/50 px-3.5 py-2.5 text-base">
+    <div className="w-fit rounded-lg border border-border/80 bg-surface/50 px-3 py-1.5 text-base">
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} />
       ) : item.isStreaming ? (

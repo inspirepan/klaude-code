@@ -146,6 +146,7 @@ const en = {
 
   // Tool block
   "tool.planning": "Planning\u2026",
+  "tool.todoTitle": "Update To-Do",
   "tool.askingQuestion": "Asking user question\u2026",
 
   // Collapse group
