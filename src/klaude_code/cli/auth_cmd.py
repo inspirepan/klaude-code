@@ -1,22 +1,37 @@
 """Authentication commands for CLI."""
 
+from typing import Any, cast
+
 import typer
 
-from klaude_code.app.auth_flow import execute_login, execute_logout
-from klaude_code.tui.command.auth_selector import select_provider
 
+class _LazyProviderHelp:
+    _value: str | None = None
 
-def _build_provider_help() -> str:
-    from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
+    def _resolve(self) -> str:
+        if self._value is None:
+            from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
 
-    names = ["codex", "claude", "github-copilot", "copilot"] + [k.name.split()[0].lower() for k in SUPPORTED_API_KEYS]
-    return f"Provider name ({', '.join(names)})"
+            names = ["codex", "claude", "github-copilot", "copilot"] + [
+                k.name.split()[0].lower() for k in SUPPORTED_API_KEYS
+            ]
+            self._value = f"Provider name ({', '.join(names)})"
+        return self._value
+
+    def __str__(self) -> str:
+        return self._resolve()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._resolve(), name)
 
 
 def login_command(
-    provider: str | None = typer.Argument(None, help=_build_provider_help()),
+    provider: str | None = typer.Argument(None, help=cast(str, _LazyProviderHelp())),
 ) -> None:
     """Login to a provider or configure API keys."""
+    from klaude_code.app.auth_flow import execute_login
+    from klaude_code.tui.command.auth_selector import select_provider
+
     if provider is None:
         provider = select_provider()
         if provider is None:
@@ -29,6 +44,9 @@ def logout_command(
     provider: str | None = typer.Argument(None, help="Provider to logout (codex|claude|github-copilot|copilot)"),
 ) -> None:
     """Logout from a provider."""
+    from klaude_code.app.auth_flow import execute_logout
+    from klaude_code.tui.command.auth_selector import select_provider
+
     if provider is None:
         provider = select_provider(include_api_keys=False, prompt="Select provider to logout:")
         if provider is None:

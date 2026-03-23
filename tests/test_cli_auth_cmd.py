@@ -18,8 +18,8 @@ def test_cli_logout_without_provider_uses_selector(monkeypatch: pytest.MonkeyPat
     def _execute_logout(provider: str) -> None:
         logout_calls.append(provider)
 
-    monkeypatch.setattr(auth_cmd, "select_provider", _select_provider)
-    monkeypatch.setattr(auth_cmd, "execute_logout", _execute_logout)
+    monkeypatch.setattr("klaude_code.tui.command.auth_selector.select_provider", _select_provider)
+    monkeypatch.setattr("klaude_code.app.auth_flow.execute_logout", _execute_logout)
 
     app = typer.Typer()
     auth_cmd.register_auth_commands(app)
@@ -40,8 +40,8 @@ def test_cli_logout_cancelled_when_selector_returns_none(monkeypatch: pytest.Mon
     def _execute_logout(provider: str) -> None:
         logout_calls.append(provider)
 
-    monkeypatch.setattr(auth_cmd, "select_provider", _select_provider)
-    monkeypatch.setattr(auth_cmd, "execute_logout", _execute_logout)
+    monkeypatch.setattr("klaude_code.tui.command.auth_selector.select_provider", _select_provider)
+    monkeypatch.setattr("klaude_code.app.auth_flow.execute_logout", _execute_logout)
 
     app = typer.Typer()
     auth_cmd.register_auth_commands(app)

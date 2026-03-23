@@ -6,7 +6,7 @@ import pytest
 
 from klaude_code.protocol import events
 from klaude_code.protocol.llm_param import LLMClientProtocol, LLMConfigParameter
-from klaude_code.tui.commands import UpdateTerminalTitlePrefix
+from klaude_code.tui.commands import StartTitleBlink, UpdateTerminalTitlePrefix
 from klaude_code.tui.machine import DisplayStateMachine
 from klaude_code.tui.terminal import title as terminal_title
 
@@ -57,13 +57,14 @@ def test_title_change_preserves_active_terminal_prefix() -> None:
     )
 
     start_cmds = machine.transition(events.TaskStartEvent(session_id="s1", model_id="gpt-5"))
-    start_title_cmd = _last_title_cmd(start_cmds)
-    assert start_title_cmd.prefix == "⚬"
-    assert start_title_cmd.session_title == "Old title"
+    blink_cmds = [cmd for cmd in start_cmds if isinstance(cmd, StartTitleBlink)]
+    assert len(blink_cmds) == 1
+    assert blink_cmds[0].model_name == "gpt-5"
+    assert blink_cmds[0].session_title == "Old title"
 
     update_cmds = machine.transition(events.SessionTitleChangedEvent(session_id="s1", title="New title"))
     update_title_cmd = _last_title_cmd(update_cmds)
-    assert update_title_cmd.prefix == "⚬"
+    assert update_title_cmd.prefix == "\u26ac"
     assert update_title_cmd.session_title == "New title"
 
 

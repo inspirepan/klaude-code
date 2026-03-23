@@ -207,3 +207,14 @@ class UpdateTerminalTitlePrefix(RenderCommand):
     prefix: str | None
     model_name: str | None
     session_title: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class StartTitleBlink(RenderCommand):
+    model_name: str | None
+    session_title: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class StopTitleBlink(RenderCommand):
+    pass

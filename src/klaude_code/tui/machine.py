@@ -52,6 +52,8 @@ from klaude_code.tui.commands import (
     SpinnerUpdate,
     StartAssistantStream,
     StartThinkingStream,
+    StartTitleBlink,
+    StopTitleBlink,
     TaskClockClear,
     TaskClockStart,
     UpdateTerminalTitlePrefix,
@@ -783,8 +785,7 @@ class DisplayStateMachine:
                         cmds.append(TaskClockStart())
                         self._terminal_title_prefix = "\u26ac"
                         cmds.append(
-                            UpdateTerminalTitlePrefix(
-                                prefix=self._terminal_title_prefix,
+                            StartTitleBlink(
                                 model_name=self._model_name,
                                 session_title=self._session_title,
                             )
@@ -1245,6 +1246,7 @@ class DisplayStateMachine:
                     self._spinner.clear_task_state()
                     cmds.append(SpinnerStop())
                     cmds.append(EmitTmuxSignal())
+                    cmds.append(StopTitleBlink())
                     self._terminal_title_prefix = "\u2714"
                     cmds.append(
                         UpdateTerminalTitlePrefix(
@@ -1271,6 +1273,7 @@ class DisplayStateMachine:
                 if not is_replay:
                     cmds.append(TaskClockClear())
                     if not s.is_sub_agent:
+                        cmds.append(StopTitleBlink())
                         cmds.append(
                             UpdateTerminalTitlePrefix(
                                 prefix=self._terminal_title_prefix,
@@ -1305,6 +1308,7 @@ class DisplayStateMachine:
                     self._spinner.reset()
                     cmds.append(SpinnerStop())
                     cmds.append(TaskClockClear())
+                    cmds.append(StopTitleBlink())
                     self._terminal_title_prefix = None
                     cmds.append(
                         UpdateTerminalTitlePrefix(

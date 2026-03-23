@@ -61,6 +61,8 @@ from klaude_code.tui.commands import (
     SpinnerUpdate,
     StartAssistantStream,
     StartThinkingStream,
+    StartTitleBlink,
+    StopTitleBlink,
     TaskClockClear,
     TaskClockStart,
     UpdateTerminalTitlePrefix,
@@ -89,7 +91,13 @@ from klaude_code.tui.terminal.notifier import (
     emit_tmux_signal,
 )
 from klaude_code.tui.terminal.progress_bar import OSC94States, emit_osc94
-from klaude_code.tui.terminal.title import update_terminal_title
+from klaude_code.tui.terminal.title import (
+    is_title_blinking,
+    start_terminal_title_blink,
+    stop_terminal_title_blink,
+    update_blink_params,
+    update_terminal_title,
+)
 
 BASH_LIVE_TAIL_MAX_LINES = 5
 
@@ -995,12 +1003,20 @@ class TUICommandRenderer:
                 case TaskClockClear():
                     r_status.clear_task_start()
                 case UpdateTerminalTitlePrefix(prefix=prefix, model_name=model_name, session_title=session_title):
-                    update_terminal_title(model_name, prefix=prefix, session_title=session_title)
+                    if is_title_blinking():
+                        update_blink_params(model_name=model_name, session_title=session_title)
+                    else:
+                        update_terminal_title(model_name, prefix=prefix, session_title=session_title)
+                case StartTitleBlink(model_name=model_name, session_title=session_title):
+                    start_terminal_title_blink(model_name, session_title)
+                case StopTitleBlink():
+                    stop_terminal_title_blink()
                 case _:
                     continue
 
     async def stop(self) -> None:
         self._flush_assistant()
         self._flush_thinking()
+        stop_terminal_title_blink()
         with contextlib.suppress(Exception):
             self.spinner_stop()
