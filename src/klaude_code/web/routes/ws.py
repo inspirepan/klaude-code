@@ -576,11 +576,30 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
         log_debug(f"[web/ws:{session_id[:8]}] finally done", debug_type=DebugType.EXECUTION)
 
 
+async def _wait_for_ws_disconnect(websocket: WebSocket) -> None:
+    """Block until the client disconnects or sends any message (ignored)."""
+    try:
+        while True:
+            await websocket.receive()
+    except (WebSocketDisconnect, anyio.ClosedResourceError, asyncio.CancelledError, FutureCancelledError):
+        return
+
+
 @router.websocket("/api/sessions/ws")
 async def session_list_websocket(websocket: WebSocket) -> None:
     try:
         await websocket.accept()
-        await _forward_session_list_events(websocket)
+        forward_task = asyncio.create_task(_forward_session_list_events(websocket))
+        disconnect_task = asyncio.create_task(_wait_for_ws_disconnect(websocket))
+        try:
+            _done, pending = await asyncio.wait(
+                {forward_task, disconnect_task}, return_when=asyncio.FIRST_COMPLETED
+            )
+        finally:
+            for task in (forward_task, disconnect_task):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(forward_task, disconnect_task, return_exceptions=True)
     except (WebSocketDisconnect, asyncio.CancelledError, FutureCancelledError):
         return
     finally:
