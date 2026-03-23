@@ -56,7 +56,7 @@ export function CommandListItem({
     <button
       type="button"
       className={cn(
-        "mx-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-base transition-colors",
+        "mx-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors",
         highlighted ? "bg-muted text-neutral-900" : "text-neutral-600 hover:bg-surface",
         className,
       )}

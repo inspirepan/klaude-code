@@ -461,19 +461,20 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
                 <span key={fsIdx}>
                   {fsIdx > 0 ? ", " : null}
                   {fs.name}
-                  {" ("}
+                  {" ( "}
                   {fs.del !== undefined && fs.del > 0 ? (
                     <span className="text-red-600">-{fs.del}</span>
                   ) : null}
                   {fs.del !== undefined && fs.del > 0 && fs.add > 0 ? " " : null}
                   {fs.add > 0 ? <span className="text-emerald-600">+{fs.add}</span> : null}
-                  {")"}
+                  {" )"}
                 </span>
               ))}
             </>
           ) : (
             <>
-              <span className="font-normal text-neutral-700">{part.label}</span> {part.value}
+              <span className="font-normal text-neutral-700">{part.label}</span>{" "}
+              <span className="font-mono" style={{ fontSize: "0.95em" }}>{part.value}</span>
             </>
           )}
         </span>
@@ -542,17 +543,15 @@ export function CollapseGroupBlock({
             className={`grid w-full min-w-0 ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-base text-neutral-500 transition-colors hover:text-neutral-600`}
           >
             <CollapseRailMarker open={!collapsed} />
-            <div className="flex min-w-0 flex-col">
-              <span className="flex min-w-0 items-center gap-1.5">
-                {summary.length === 0 ? (
-                  <span className="shrink-0 font-mono">{stepLabel}</span>
-                ) : (
-                  <span ref={summarySpanRef} className="min-w-0 truncate font-mono text-neutral-500">
-                    <SummaryDisplay summary={summary} />
-                  </span>
-                )}
-              </span>
-            </div>
+            <span className="flex min-w-0 items-center">
+              {summary.length === 0 ? (
+                <span className="min-w-0 truncate">{stepLabel}</span>
+              ) : (
+                <span ref={summarySpanRef} className="min-w-0 truncate text-neutral-500">
+                  <SummaryDisplay summary={summary} />
+                </span>
+              )}
+            </span>
           </button>
         </TooltipTrigger>
         {isTruncated ? (
@@ -563,9 +562,9 @@ export function CollapseGroupBlock({
       </Tooltip>
       {/* grid-template-rows trick: 0fr→1fr gives smooth height transition without JS height measurement */}
       <CollapseRailPanel open={!collapsed}>
-        <div className={`mt-3 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
-          <CollapseRailConnector lineClassName="-mt-3" />
-          <div className="min-w-0 space-y-5 pb-1">
+        <div className={`mt-1.5 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
+          <CollapseRailConnector lineClassName="-mt-1.5" />
+          <div className="min-w-0 space-y-3 pb-1">
             {renderBlocks.map((block, idx) => {
               if (block.kind === "dev") {
                 return <DeveloperMessage key={`dev-${idx}`} items={block.items} />;

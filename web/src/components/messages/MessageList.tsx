@@ -33,11 +33,21 @@ import { SearchProvider, type SearchState } from "./search-context";
 import { SessionStatusBar } from "../input/SessionStatusBar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
+// Item types whose components include the rail grid internally (grid-cols-[16px_1fr] gap-x-1.5).
+// All other item types need RAIL_CONTENT_OFFSET to align with the grid's right column.
+const GRID_ITEM_TYPES = new Set(["thinking", "tool_block", "developer_message", "task_metadata"]);
+
+// Tool blocks that render as cards (no rail grid) and need the content offset.
+const CARD_TOOL_NAMES = new Set(["TodoWrite", "AskUserQuestion"]);
+
+// Left offset matching the rail grid: 16px column + 6px gap = 22px.
+const RAIL_CONTENT_OFFSET = "pl-[22px]";
+
 function blockSpacingClass(block: SectionBlock, isFirst: boolean): string {
   if (isFirst) return "";
   if (block.type === "planned_group" || block.type === "collapse_group") return "mt-3";
   if (block.type === "item" && block.item.type === "tool_block") return "mt-3";
-  return "mt-5";
+  return "mt-3";
 }
 
 const EMPTY_ITEMS: MessageItemType[] = [];
@@ -698,7 +708,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                             const isFinished =
                               subAgentFinishedBySessionId[block.sourceSessionId] === true;
                             return (
-                              <div key={block.groupId} className={spacing}>
+                              <div key={block.groupId} className={`${spacing} ${RAIL_CONTENT_OFFSET}`}>
                                 <SubAgentGroupCard
                                   sourceSessionId={block.sourceSessionId}
                                   sourceSessionType={block.sourceSessionType}
@@ -715,8 +725,15 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                           }
 
                           const item = block.item;
+                          const hasRailGrid =
+                            GRID_ITEM_TYPES.has(item.type) &&
+                            !(item.type === "tool_block" && CARD_TOOL_NAMES.has(item.toolName));
+                          const itemOffset =
+                            item.type !== "user_message" && !hasRailGrid
+                              ? RAIL_CONTENT_OFFSET
+                              : "";
                           return (
-                            <div key={item.id} className={spacing}>
+                            <div key={item.id} className={`${spacing} ${itemOffset}`}>
                               <MessageRow
                                 item={item}
                                 workDir={workspacePath}

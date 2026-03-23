@@ -127,12 +127,12 @@ function CollapsibleRow({
 
   return (
     <div
-      className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} font-mono text-base leading-5 ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} text-base ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
       <CollapseRailMarker open={open} expandable={expandable} inactiveMode="hidden" className={expandable ? "row-span-2" : undefined} />
       <span
-        className={`min-w-0 whitespace-nowrap font-mono font-normal text-neutral-600 ${labelClassName ?? ""}`}
+        className={`min-w-0 truncate font-normal text-neutral-600 ${labelClassName ?? ""}`}
       >
         {label}
       </span>

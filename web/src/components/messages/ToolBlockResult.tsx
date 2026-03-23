@@ -33,8 +33,8 @@ export function ToolBlockResult({
   onToggleShowMore,
 }: ToolBlockResultProps): JSX.Element | null {
   const t = useT();
-  const subTextClass = "text-base";
-  const miniTextClass = "text-sm";
+  const subTextClass = "text-sm";
+  const miniTextClass = "text-xs";
   const resultLineClass = "block max-w-full overflow-hidden text-ellipsis whitespace-pre";
 
   return (

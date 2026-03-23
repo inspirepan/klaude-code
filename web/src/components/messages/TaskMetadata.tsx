@@ -1,9 +1,12 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
 import { useT } from "@/i18n";
 import type { TaskMetadataAgent, TaskMetadataItem } from "../../types/message";
-import { CollapseRailPanel } from "./CollapseRail";
+import {
+  COLLAPSE_RAIL_GRID_CLASS_NAME,
+  CollapseRailMarker,
+  CollapseRailPanel,
+} from "./CollapseRail";
 import { formatCompactNumber, formatElapsed } from "./message-list-ui";
 
 interface TaskMetadataProps {
@@ -137,26 +140,22 @@ export function TaskMetadata({ item }: TaskMetadataProps): JSX.Element {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex w-full cursor-pointer items-center gap-1 text-left text-sm leading-relaxed transition-colors ${
+        className={`grid w-full cursor-pointer ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start text-left text-sm leading-relaxed transition-colors ${
           item.isPartial
             ? "text-amber-600 hover:text-amber-700"
             : "text-emerald-700 hover:text-emerald-800"
         }`}
       >
+        <CollapseRailMarker open={open} />
         <span className="min-w-0 truncate">
-          <span className="font-mono">{modelLabel}</span>
+          {modelLabel}
           {agent.durationSeconds !== null && (
             <>
               <span className="mx-1.5 text-neutral-400">{"\u00b7"}</span>
-              <span className="font-mono">{formatElapsed(agent.durationSeconds)}</span>
+              {formatElapsed(agent.durationSeconds)}
             </>
           )}
         </span>
-        {open ? (
-          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-        )}
       </button>
       <CollapseRailPanel open={open}>
         <DetailTable rows={buildDetailRows(item.mainAgent, t)} />

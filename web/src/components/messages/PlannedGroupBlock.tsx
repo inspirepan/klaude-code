@@ -1,10 +1,11 @@
-import { CheckCircle2, ChevronRight, CircleDashed } from "lucide-react";
+import { CheckCircle2, CircleDashed } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
 import {
   COLLAPSE_RAIL_GRID_CLASS_NAME,
   CollapseRailConnector,
+  CollapseRailMarker,
   CollapseRailPanel,
 } from "./CollapseRail";
 import type { PlannedTodoItem } from "./message-sections";
@@ -41,29 +42,22 @@ export function PlannedGroupBlock({
         onClick={onToggle}
         className={`grid w-full min-w-0 ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start text-left text-base transition-colors hover:text-neutral-600`}
       >
-        <div className="flex flex-col items-center self-stretch">
-          <span className="flex h-[1lh] items-center justify-center">
-            <TodoIcon completed={firstCompleted} />
-          </span>
-          <div
-            className={cn(
-              "mt-1 w-px flex-1 bg-neutral-200 transition-opacity duration-200",
-              !open && "opacity-0",
-            )}
-          />
-        </div>
-        <span className="flex min-w-0 items-center gap-1">
+        <CollapseRailMarker open={open} />
+        <span className="flex min-w-0 items-center gap-1.5">
           {todos.length === 1 ? (
-            <span
-              className={cn(
-                "min-w-0 truncate font-mono",
-                firstCompleted ? "text-emerald-700" : "text-amber-600",
-              )}
-            >
-              {todos[0]!.content}
-            </span>
+            <>
+              <TodoIcon completed={firstCompleted} />
+              <span
+                className={cn(
+                  "min-w-0 truncate",
+                  firstCompleted ? "text-emerald-700" : "text-amber-600",
+                )}
+              >
+                {todos[0]!.content}
+              </span>
+            </>
           ) : (
-            <span className="flex min-w-0 items-center gap-1.5 truncate font-mono">
+            <span className="flex min-w-0 items-center gap-1.5 truncate">
               {todos.map((t, i) => (
                 <span key={i} className="flex items-center gap-0.5">
                   {i > 0 ? <span className="text-neutral-300">/</span> : null}
@@ -75,12 +69,6 @@ export function PlannedGroupBlock({
               ))}
             </span>
           )}
-          <ChevronRight
-            className={cn(
-              "h-3.5 w-3.5 shrink-0 text-neutral-400 transition-transform duration-150 ease-out-strong",
-              open && "rotate-90",
-            )}
-          />
         </span>
       </button>
       <CollapseRailPanel open={open}>

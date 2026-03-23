@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 
 import { useT } from "@/i18n";
 import type { ToolBlockItem } from "../../types/message";
-import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
+import { COLLAPSE_RAIL_GRID_CLASS_NAME, CollapseRailMarker } from "./CollapseRail";
 import { useCollapseAll } from "./collapse-all-context";
 import { useSearch } from "./search-context";
 import { TodoListView } from "./TodoListView";
@@ -177,13 +177,12 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
 
   return (
     <div
-      className={`-my-1 grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} ${bodyTextClass} font-mono ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} ${bodyTextClass} ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
+      <CollapseRailMarker open={open} expandable={expandable} className={expandable ? "row-span-2" : undefined} />
       <ToolBlockHeader
         item={item}
-        expandable={expandable}
-        open={open}
         detail={detail}
         detailColor={detailColor}
         workDir={workDir}

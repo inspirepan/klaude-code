@@ -74,11 +74,11 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
 
   return (
     <div
-      className={`-my-1 grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} cursor-pointer font-mono text-base`}
+      className={`grid cursor-pointer items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} text-base`}
       onClick={() => setOpen((value) => !value)}
     >
       <CollapseRailMarker open={open} className="row-span-2" />
-      <span className="whitespace-nowrap font-mono font-normal text-neutral-600">
+      <span className="whitespace-nowrap font-normal text-neutral-600">
         {t("thinking.label")}
       </span>
 
