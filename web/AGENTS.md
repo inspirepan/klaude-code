@@ -2,59 +2,38 @@
 
 Run `pnpm lint` and `pnpm format:check` before committing. Fix all errors; warnings are acceptable.
 
-## Architecture docs
+## Required reading by task
 
-- [Session 事件链路总览](docs/session-event-pipeline.md) -- Web 端会话加载、history 存量、WebSocket 增量、子 agent 续联、只读判定的完整链路说明
+Before making changes, read the relevant docs:
 
-## Tooltip and shortcut hint rules
+| If you are working on...                                       | MUST read first                                              |
+| -------------------------------------------------------------- | ------------------------------------------------------------ |
+| Styles, colors, typography, spacing, shadows, animation, layout | [DESIGN.md](DESIGN.md) -- full design system spec           |
+| Session loading, WebSocket, history, sub-agent, read-only logic | [Session event pipeline](docs/session-event-pipeline.md)    |
 
-- Every `<button>` in the web frontend must use the shared tooltip style from `src/components/ui/tooltip.tsx` (`Tooltip`, `TooltipTrigger`, `TooltipContent`). Do not rely on native `title` tooltips for button hints.
-- If a button has a keyboard shortcut, show it in the tooltip using the existing `kbd` visual style:
+## Component rules (always apply)
 
-```tsx
-<TooltipContent className="flex items-center gap-1.5">
-  <span>Action label</span>
-  <span className="inline-flex items-center text-neutral-400" aria-hidden="true">
-    <span className="inline-flex whitespace-pre text-[12px] leading-none">
-      <kbd className="inline-flex font-sans">
-        <span className="min-w-[1em] text-center">⌘</span>
-      </kbd>
-      <kbd className="inline-flex font-sans">
-        <span className="min-w-[1em] text-center">B</span>
-      </kbd>
-    </span>
-  </span>
-</TooltipContent>
-```
+These prevent common visual bugs. Violating them causes hard-to-debug layout/animation issues.
 
-## Collapse / expand animation rules
+### Buttons & tooltips
 
-- Use `height` transition with imperative DOM (`useLayoutEffect` + snapshot height + force reflow) instead of `grid-template-rows: 1fr / 0fr`. The grid approach causes sub-pixel jitter in nested grids.
-- Wrap animated content in a GPU-composited layer (`backface-visibility: hidden`) to prevent the browser from re-rasterizing content on every frame of the height transition.
-- Never conditionally render (`{open && <El/>}`) elements near animated containers. Use `opacity` transitions instead, so the DOM stays stable and no layout recalc is triggered mid-animation.
+- Every `<button>` MUST use the shared `Tooltip` / `TooltipTrigger` / `TooltipContent` from `src/components/ui/tooltip.tsx`. No native `title` attribute.
+- Keyboard shortcuts in tooltips use the `kbd` pattern -- see existing tooltip usages for the markup.
 
-## Icon and text vertical alignment rules
+### Scroll areas
 
-Icons (Lucide SVGs) and text use different positioning systems (box model vs text baseline). Follow these rules to prevent misalignment:
+- Never `overflow-y-auto`. Use `ScrollArea` from `src/components/ui/scroll-area.tsx`.
+- Control scrollable height via `viewportClassName` prop, not on the `ScrollArea` root.
 
-- **Single-line icon + text:** Use `flex items-center gap-*`. Add `min-h-*` matching the tallest child if elements appear/disappear conditionally (e.g., a spinner during streaming), to prevent the row height from changing and causing a vertical jump.
-- **Multi-line text + icon pinned to first line:** Use `flex items-start gap-*` with `mt-*` on the icon to nudge it to the first line's vertical center.
-- **Never use `items-baseline` when icons are in the same flex row.** Icons have no text baseline; flex falls back to bottom-edge alignment, causing them to sink below the text.
-- **`items-baseline` is fine** when the flex row contains only text elements (different sizes/fonts).
-- Lucide icons: use `h-* w-* shrink-0`. Do not use `translate-y-*` pixel hacks to fix alignment; fix the flex container alignment instead.
-- Do not use `inline` + `vertical-align` to align icons with text; use flex.
+### Icon + text alignment
 
-## Scroll area rules
+- Single-line: `flex items-center gap-*`. Add `min-h-*` if children appear/disappear conditionally.
+- Multi-line: `flex items-start gap-*` + `mt-*` on the icon.
+- Never `items-baseline` with icons (icons have no text baseline -- they sink).
+- Lucide icons: always `h-* w-* shrink-0`. No `translate-y-*` hacks, no `inline` + `vertical-align`.
 
-- Never use native `overflow-y-auto` for scrollable containers. Use the shared `ScrollArea` component from `src/components/ui/scroll-area.tsx` (wraps `@radix-ui/react-scroll-area`).
-- Control the scrollable height via the `viewportClassName` prop, not on the `ScrollArea` root:
+### Collapse / expand animation
 
-```tsx
-<ScrollArea className="w-full" viewportClassName="max-h-40" type="auto">
-  <ul>
-    {items.map((item) => (
-      <li key={item.id}>{item.label}</li>
-    ))}
-  </ul>
-</ScrollArea>
-```
+- Use `height` transition with imperative DOM (`useLayoutEffect` + snapshot height + force reflow). Not `grid-template-rows`.
+- Wrap animated content in GPU layer (`backface-visibility: hidden`).
+- Never conditionally render (`{open && <El/>}`) near animated containers. Use `opacity` transitions to keep DOM stable.
