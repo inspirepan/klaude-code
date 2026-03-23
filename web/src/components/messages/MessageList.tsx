@@ -134,6 +134,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   });
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const wasAtBottomRef = useRef(true);
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
   const previousLastVisibleItemIdRef = useRef<string | null>(null);
   const mainScrollTopRef = useRef<number | null>(null);
@@ -367,6 +368,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       const container = scrollRef.current;
       if (!container) return;
       container.scrollTo({ top: container.scrollHeight, behavior });
+      wasAtBottomRef.current = true;
       setShowScrollToBottom(false);
       sessionStorage.setItem(
         `scroll-${sessionId}`,
@@ -391,6 +393,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     } else {
       container.scrollTop = container.scrollHeight;
     }
+    wasAtBottomRef.current = isNearBottom(container);
     updateScrollButtonVisibility();
   }, [hasItems, sessionId, updateScrollButtonVisibility]);
 
@@ -412,8 +415,12 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   useEffect(() => {
     const content = contentRef.current;
-    if (!content) return;
+    const container = scrollRef.current;
+    if (!content || !container) return;
     const observer = new ResizeObserver(() => {
+      if (wasAtBottomRef.current) {
+        container.scrollTop = container.scrollHeight;
+      }
       updateScrollButtonVisibility();
     });
     observer.observe(content);
@@ -425,7 +432,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const handleScroll = useCallback(() => {
     const container = scrollRef.current;
     if (!container) return;
-    setShowScrollToBottom(!isNearBottom(container));
+    const atBottom = isNearBottom(container);
+    wasAtBottomRef.current = atBottom;
+    setShowScrollToBottom(!atBottom);
     sessionStorage.setItem(`scroll-${sessionId}`, String(container.scrollTop));
   }, [sessionId]);
 
