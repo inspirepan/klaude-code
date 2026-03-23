@@ -2,6 +2,7 @@ import { TriangleAlert } from "lucide-react";
 
 import { useT } from "@/i18n";
 import type { ErrorItem } from "../../types/message";
+import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
 
 interface ErrorMessageProps {
   item: ErrorItem;
@@ -10,8 +11,10 @@ interface ErrorMessageProps {
 export function ErrorMessage({ item }: ErrorMessageProps): JSX.Element {
   const t = useT();
   return (
-    <div className="flex items-start gap-1.5 text-base text-red-700">
-      <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+    <div className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} py-1 text-base text-red-700`}>
+      <span className="flex h-[1lh] items-center justify-center">
+        <TriangleAlert className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+      </span>
       <div className="min-w-0">
         <div className="break-words">{item.message}</div>
         {item.canRetry ? <div className="text-red-500/80">{t("error.retryAvailable")}</div> : null}

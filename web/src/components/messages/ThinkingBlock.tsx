@@ -16,12 +16,12 @@ interface ThinkingBlockProps {
 }
 
 function Strong(props: React.ComponentPropsWithoutRef<"strong">): JSX.Element {
-  return <strong className="font-normal text-neutral-700" {...props} />;
+  return <strong className="font-normal text-neutral-500" {...props} />;
 }
 
 function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): JSX.Element {
   return (
-    <span className="block font-mono" style={{ fontSize: "0.95em" }}>
+    <span className="block font-mono" style={{ fontSize: "0.9em" }}>
       {children}
     </span>
   );
@@ -29,7 +29,7 @@ function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): JSX.Element {
 
 function Code({ children }: React.ComponentPropsWithoutRef<"code">): JSX.Element {
   return (
-    <span className="font-mono" style={{ fontSize: "0.95em" }}>
+    <span className="font-mono" style={{ fontSize: "0.9em" }}>
       {children}
     </span>
   );
@@ -78,13 +78,13 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
       onClick={() => setOpen((value) => !value)}
     >
       <CollapseRailMarker open={open} className="row-span-2" />
-      <span className="whitespace-nowrap font-normal text-neutral-600">
+      <span className="whitespace-nowrap font-normal text-neutral-500">
         {t("thinking.label")}
       </span>
 
       <CollapseRailPanel open={open}>
         <div
-          className="mt-2 thinking-block min-w-0 font-sans text-base leading-relaxed text-neutral-600"
+          className="mt-2 thinking-block min-w-0 font-sans text-base leading-relaxed text-neutral-500"
           onClick={(event) => {
             event.stopPropagation();
           }}

@@ -53,7 +53,7 @@ export function SubAgentGroupCard({
       )}
 
       {/* Type label */}
-      <span className="shrink-0 text-base font-semibold text-neutral-700">
+      <span className="shrink-0 text-base font-medium text-neutral-700">
         {t("subAgent.agent")} {formatSubAgentTypeLabel(sourceSessionType)}
       </span>
 

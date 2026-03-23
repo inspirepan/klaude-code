@@ -35,7 +35,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 // Item types whose components include the rail grid internally (grid-cols-[16px_1fr] gap-x-1.5).
 // All other item types need RAIL_CONTENT_OFFSET to align with the grid's right column.
-const GRID_ITEM_TYPES = new Set(["thinking", "tool_block", "developer_message", "task_metadata"]);
+const GRID_ITEM_TYPES = new Set(["thinking", "tool_block", "developer_message", "task_metadata", "interrupt", "error"]);
 
 // Tool blocks that render as cards (no rail grid) and need the content offset.
 const CARD_TOOL_NAMES = new Set(["TodoWrite", "AskUserQuestion"]);
@@ -609,7 +609,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 {hasItems ? (
                   <>
                     {sections.map((section, sectionIndex) => (
-                      <div key={section[0].id}>
+                      <div key={section[0].id} className="group/section">
                         {sectionBlocks[sectionIndex]?.map((block, blockIdx) => {
                           const spacing = blockSpacingClass(block, blockIdx === 0);
 

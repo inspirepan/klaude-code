@@ -132,7 +132,7 @@ function CollapsibleRow({
     >
       <CollapseRailMarker open={open} expandable={expandable} inactiveMode="hidden" className={expandable ? "row-span-2" : undefined} />
       <span
-        className={`min-w-0 truncate font-normal text-neutral-600 ${labelClassName ?? ""}`}
+        className={`min-w-0 truncate font-normal text-neutral-500 ${labelClassName ?? ""}`}
       >
         {label}
       </span>
@@ -150,7 +150,7 @@ function CollapsibleRow({
 
 function PathList({ paths }: { paths: string[] }): JSX.Element {
   return (
-    <ul className="list-disc space-y-1 pl-5 text-base leading-6 marker:text-neutral-600">
+    <ul className="list-disc space-y-1 pl-5 text-base leading-6 marker:text-neutral-500">
       {paths.map((p) => (
         <li key={p}>
           <PathPill path={p} />
@@ -185,7 +185,7 @@ function AttachDetail({
                 <PathList paths={g.paths} />
                 {g.mentionedIn ? (
                   <div className="mt-0.5 text-base leading-6">
-                    <span className="mr-1 text-neutral-600">{t("developer.mentionedIn")}</span>
+                    <span className="mr-1 text-neutral-500">{t("developer.mentionedIn")}</span>
                     <PathPill path={g.mentionedIn} />
                   </div>
                 ) : null}
@@ -226,7 +226,7 @@ export function DeveloperMessage({ items }: DeveloperMessageProps): JSX.Element 
   const summary = hasAttachments ? buildAttachedSummary(items, t) : "";
 
   return (
-    <div className="flex flex-col font-sans text-base text-neutral-600">
+    <div className="flex flex-col font-sans text-base text-neutral-500">
       {hasAttachments ? (
         <CollapsibleRow label={`${t("developer.attached")} ${summary}`}>
           <AttachDetail devItems={items} images={images} />

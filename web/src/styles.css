@@ -2,42 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-@font-face {
-  font-family: "TX-02";
-  src: url("./assets/fonts/tx-02.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "TX-02";
-  src: url("./assets/fonts/tx-02-bold.otf") format("opentype");
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "TX-02";
-  src: url("./assets/fonts/tx-02-italic.otf") format("opentype");
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "TX-02";
-  src: url("./assets/fonts/tx-02-bold-italic.otf") format("opentype");
-  font-style: italic;
-  font-weight: 700;
-  font-display: swap;
-}
-
 :root {
   color-scheme: light dark;
   font-family:
-    "Geist Variable",
+    "Geist",
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
@@ -54,7 +22,7 @@ pre,
 kbd,
 samp {
   font-family:
-    "TX-02", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
 }
 
@@ -205,7 +173,7 @@ body {
   background-color: hsl(var(--surface));
   padding: 0.15em 0.4em;
   border-radius: 0.25rem;
-  font-size: 0.95em;
+  font-size: 0.9em;
 }
 
 /* ── Assistant markdown (Streamdown handles element styles) ── */
@@ -213,27 +181,37 @@ body {
   @apply text-base;
   line-height: 1.6;
   color: hsl(var(--foreground));
+  padding-bottom: 0.25em;
 }
 /* Tailwind preflight resets many element styles; restore them for Streamdown */
 .assistant-text hr {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
+  margin-top: 1.75em;
+  margin-bottom: 1.75em;
   border-top: 1px solid hsl(var(--border));
 }
 .assistant-text ul {
   list-style-type: disc;
-  padding-left: 1.5em;
-  margin-top: 0.1em !important;
-  margin-bottom: 0.15em;
+  padding-left: 1.625em;
+  margin-top: 0.25em !important;
+  margin-bottom: 0;
 }
 .assistant-text ol {
   list-style-type: decimal;
-  padding-left: 1.5em;
-  margin-top: 0.1em !important;
-  margin-bottom: 0.15em;
+  padding-left: 1.625em;
+  margin-top: 0.25em !important;
+  margin-bottom: 0;
 }
 .assistant-text li {
-  margin-bottom: 0.02em;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  list-style-position: outside;
+}
+.assistant-text li > p {
+  display: inline !important;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 .assistant-text ul ul {
   list-style-type: circle;
@@ -241,41 +219,61 @@ body {
 .assistant-text ul ul ul {
   list-style-type: square;
 }
-.assistant-text h1,
-.assistant-text h2,
-.assistant-text h3,
+.assistant-text h1 {
+  margin-top: 0;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+}
+.assistant-text h2 {
+  margin-top: 1em;
+  margin-bottom: 0.25em;
+  font-weight: 600;
+}
+.assistant-text h3 {
+  margin-top: 1em;
+  margin-bottom: 0.25em;
+  font-weight: 600;
+}
 .assistant-text h4,
 .assistant-text h5,
 .assistant-text h6 {
-  margin-top: 0.5em;
-  margin-bottom: 0.15em;
+  margin-top: 1em;
+  margin-bottom: 0;
+  font-weight: 600;
 }
 .assistant-text > :first-child {
   margin-top: 0;
 }
 .assistant-text p {
-  margin-top: 0;
-  margin-bottom: 0.15em;
+  margin-top: 0.5em;
+  margin-bottom: 0.25em;
+}
+.assistant-text p + p {
+  margin-top: 1em;
 }
 .assistant-text p:last-child {
   margin-bottom: 0;
 }
+.assistant-text p + ul,
+.assistant-text p + ol {
+  margin-top: 0.25em !important;
+}
 .assistant-text blockquote {
-  margin-top: 0.25em;
-  margin-bottom: 0.25em;
-  padding-left: 1em;
+  margin-top: 0;
+  margin-bottom: 0.5em;
+  padding-left: 1.5em;
 }
 .assistant-text > pre {
-  margin-top: 0.3em;
-  margin-bottom: 0.3em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 /* Streamdown code block: single container look */
 .assistant-text [data-streamdown="code-block"] {
   position: relative;
   gap: 0;
   padding: 0;
-  margin-top: 0.35em;
-  margin-bottom: 0.35em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
   background: hsl(var(--surface));
   border-color: hsl(var(--border) / 0.5);
   border-radius: 0.375rem;
@@ -300,8 +298,8 @@ body {
   margin: 0;
 }
 .assistant-text table {
-  margin-top: 0.3em;
-  margin-bottom: 0.3em;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 /* Streamdown table: strip all wrapper chrome */
 .assistant-text [data-streamdown="table-wrapper"] {
@@ -331,7 +329,7 @@ body {
   background-color: hsl(var(--surface));
   padding: 0.15em 0.4em;
   border-radius: 0.25rem;
-  font-size: 0.95em;
+  font-size: 0.9em;
 }
 
 /* ── Compaction summary markdown ── */
@@ -407,7 +405,7 @@ body {
   color: hsl(var(--muted-foreground));
   background: hsl(var(--muted));
   width: 1%;
-  font-family: "TX-02", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.9em;
 }
 .frontmatter-table .frontmatter-value {
@@ -451,10 +449,10 @@ body {
 /* Override @pierre/diffs font with project mono font */
 .diff-view {
   --diffs-font-family:
-    "TX-02", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace !important;
   --diffs-font-fallback:
-    "TX-02", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace !important;
 }
 /* @pierre/diffs icon override is injected into Shadow DOM via DiffView.tsx */

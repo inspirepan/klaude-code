@@ -456,7 +456,7 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
           {partIdx > 0 ? <span className="mx-1.5 text-neutral-400">{"\u00b7"}</span> : null}
           {part.fileStats ? (
             <>
-              <span className="font-normal text-neutral-700">{part.label}</span>{" "}
+              <span className="font-normal text-neutral-500">{part.label}</span>{" "}
               {part.fileStats.map((fs, fsIdx) => (
                 <span key={fsIdx}>
                   {fsIdx > 0 ? ", " : null}
@@ -473,8 +473,8 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
             </>
           ) : (
             <>
-              <span className="font-normal text-neutral-700">{part.label}</span>{" "}
-              <span className="font-mono" style={{ fontSize: "0.95em" }}>{part.value}</span>
+              <span className="font-normal text-neutral-500">{part.label}</span>{" "}
+              <span style={{ fontSize: "0.9em" }}>{part.value}</span>
             </>
           )}
         </span>

@@ -10,12 +10,12 @@ const SHADOW_ICON_CSS = `
 [data-diffs-header],
 [data-header-content],
 [data-diffs-header] [data-metadata] {
-  font-family: var(--diffs-font-family, "TX-02", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace) !important;
+  font-family: var(--diffs-font-family, "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace) !important;
 }
 
 [data-header-content] [data-prev-name],
 [data-header-content] [data-title] {
-  font-family: var(--diffs-header-font-family, "Geist Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif) !important;
+  font-family: var(--diffs-header-font-family, "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif) !important;
 }
 
 [data-diffs-header] {
@@ -87,7 +87,7 @@ interface DiffViewProps {
 const COLLAPSED_DIFF_MAX_HEIGHT = 420;
 const DIFF_BACKGROUND = "hsl(var(--surface))";
 const DIFF_HEADER_SANS =
-  '"Geist Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif';
+  '"Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif';
 
 export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
   const t = useT();
