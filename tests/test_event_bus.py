@@ -27,11 +27,16 @@ def test_event_bus_disconnects_slow_subscriber_on_overflow() -> None:
         await bus.publish(_event("s1", "first"))
         await bus.publish(_event("s1", "second"))
 
+        # After overflow, already-queued events are preserved and delivered
+        # before the disconnect sentinel.  "first" was queued successfully;
+        # "second" triggered the overflow and was dropped.
         collected: list[events.Event] = []
         async for evt in subscription.iter_events():
             collected.append(evt)
 
-        assert collected == []
+        assert len(collected) == 1
+        assert isinstance(collected[0], events.UserMessageEvent)
+        assert collected[0].content == "first"
 
     arun(_test())
 

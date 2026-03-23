@@ -87,7 +87,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
   const expandedImageAlt = expandedImage
     ? expandedImage.type === "image_file"
       ? expandedImage.file_path
-      : `image-${expandedImageIndex! + 1}`
+      : `image-${(expandedImageIndex ?? 0) + 1}`
     : null;
 
   useEffect(() => {
@@ -103,7 +103,9 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [showMore, expandedImageIndex]);
 
   const renderImages = (): JSX.Element | null => {
@@ -121,7 +123,9 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
             <button
               key={`${image.type}-${idx}`}
               type="button"
-              onClick={() => setExpandedImageIndex(idx)}
+              onClick={() => {
+                setExpandedImageIndex(idx);
+              }}
               className="block w-fit max-w-full cursor-zoom-in rounded-md border-0 bg-transparent p-0"
             >
               <img
@@ -157,7 +161,9 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
             {canExpandText ? (
               <button
                 type="button"
-                onClick={() => setShowMore(true)}
+                onClick={() => {
+                  setShowMore(true);
+                }}
                 className={`mt-0 ${miniTextClass} cursor-pointer py-0 font-sans text-neutral-500 transition-colors hover:text-neutral-700`}
               >
                 {t("userMessage.showMore")}
@@ -184,11 +190,15 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
             >
               <div
                 className="bg-card/72 absolute inset-0 backdrop-blur-[3px]"
-                onClick={() => setShowMore(false)}
+                onClick={() => {
+                  setShowMore(false);
+                }}
               />
               <div
                 className="relative w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200/50 bg-slate-100 dark:border-slate-700/50 dark:bg-slate-800"
-                onClick={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                }}
               >
                 <ScrollArea
                   className="w-full"
@@ -205,7 +215,9 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
                 <div className="border-t border-slate-200/50 px-4 py-2.5 dark:border-slate-700/50">
                   <button
                     type="button"
-                    onClick={() => setShowMore(false)}
+                    onClick={() => {
+                      setShowMore(false);
+                    }}
                     className={`${miniTextClass} cursor-pointer py-0 font-sans text-neutral-500 transition-colors hover:text-neutral-700`}
                   >
                     {t("userMessage.showLess")}
@@ -221,14 +233,18 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
         ? createPortal(
             <div
               className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/75 p-4"
-              onClick={() => setExpandedImageIndex(null)}
+              onClick={() => {
+                setExpandedImageIndex(null);
+              }}
               role="dialog"
               aria-modal="true"
             >
               <img
                 src={expandedImageSrc}
                 alt={expandedImageAlt}
-                onClick={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                }}
                 className="block h-auto max-h-[calc(100vh-2rem)] w-auto max-w-[calc(100vw-2rem)] rounded-lg bg-card shadow-2xl"
               />
             </div>,

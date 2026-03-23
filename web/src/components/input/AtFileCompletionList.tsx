@@ -16,7 +16,7 @@ import { CommandListPanel, CommandListScroll, CommandListItem } from "@/componen
 import { useT } from "@/i18n";
 
 // File extension -> icon + color mapping (muted brand colors)
-const EXT_ICONS: Record<string, { icon: LucideIcon; color: string }> = {
+const EXT_ICONS: Partial<Record<string, { icon: LucideIcon; color: string }>> = {
   ts: { icon: FileCode, color: "#3178c6" },
   tsx: { icon: FileCode, color: "#3178c6" },
   mts: { icon: FileCode, color: "#3178c6" },
@@ -88,7 +88,7 @@ const EXT_ICONS: Record<string, { icon: LucideIcon; color: string }> = {
   proto: { icon: FileCode, color: "#6d8086" },
 };
 
-const NAME_ICONS: Record<string, { icon: LucideIcon; color: string }> = {
+const NAME_ICONS: Partial<Record<string, { icon: LucideIcon; color: string }>> = {
   dockerfile: { icon: FileCog, color: "#2496ed" },
   makefile: { icon: FileCog, color: "#6d8086" },
   justfile: { icon: FileCog, color: "#6d8086" },
@@ -172,8 +172,12 @@ export function AtFileCompletionList({
               key={path}
               data-file-completion={path}
               highlighted={index === highlightIndex}
-              onPointerEnter={() => onHighlightIndexChange(index)}
-              onClick={() => onSelect(path)}
+              onPointerEnter={() => {
+                onHighlightIndexChange(index);
+              }}
+              onClick={() => {
+                onSelect(path);
+              }}
             >
               <FileIcon
                 className="h-4 w-4 shrink-0"

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Folder, FolderOpen, Loader, SquarePen } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SessionCard } from "./SessionCard";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
@@ -11,8 +12,9 @@ interface ProjectGroupProps {
   sessions: SessionSummary[];
   collapsed: boolean;
   hideNewSessionButton?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- documents "draft" as a special sentinel value
   activeSessionId: string | "draft";
-  runtimeBySessionId: Record<string, SessionRuntimeState>;
+  runtimeBySessionId: Partial<Record<string, SessionRuntimeState>>;
   recentCompletionStartedAtBySessionId: Record<string, number>;
   completedUnreadBySessionId: Record<string, boolean>;
   onToggle: () => void;
@@ -45,6 +47,16 @@ export function ProjectGroup({
 }: ProjectGroupProps): JSX.Element {
   const t = useT();
   const [showAll, setShowAll] = useState(false);
+
+  // Auto-expand when the active session is beyond the first 5
+  useEffect(() => {
+    if (showAll || activeSessionId === "draft") return;
+    const idx = sessions.findIndex((s) => s.id === activeSessionId);
+    if (idx >= 5) {
+      setShowAll(true);
+    }
+  }, [activeSessionId, sessions, showAll]);
+
   const displaySessions = showAll ? sessions : sessions.slice(0, 5);
   const hasMore = sessions.length > 5;
   const hasAnyRunning =
@@ -54,7 +66,7 @@ export function ProjectGroup({
       return state !== "idle";
     });
   const hasAnyUnread =
-    !hasAnyRunning && collapsed && sessions.some((s) => completedUnreadBySessionId[s.id] === true);
+    !hasAnyRunning && collapsed && sessions.some((s) => completedUnreadBySessionId[s.id]);
 
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-0.5">
@@ -69,7 +81,12 @@ export function ProjectGroup({
               )}
               <div className="min-w-0 flex-1 text-left">
                 <div className="flex min-w-0 items-center gap-1 text-sm font-normal leading-5 text-neutral-800">
-                  <span className="truncate font-normal text-neutral-500 [direction:rtl]">
+                  <span
+                    className={cn(
+                      "truncate font-normal text-neutral-500 [direction:rtl]",
+                      hasAnyRunning && "session-running-shimmer session-running-shimmer-muted",
+                    )}
+                  >
                     {workDirLabel(workDir)}
                   </span>
                   <span className="shrink-0 text-xs text-neutral-500">({sessions.length})</span>
@@ -119,7 +136,7 @@ export function ProjectGroup({
                   lastError: null,
                 }
               }
-              hasUnreadCompletion={completedUnreadBySessionId[session.id] === true}
+              hasUnreadCompletion={completedUnreadBySessionId[session.id]}
               completionAnimationStartedAt={recentCompletionStartedAtBySessionId[session.id]}
               onClick={() => {
                 onSelectSession(session.id);
@@ -127,17 +144,17 @@ export function ProjectGroup({
               onToggleArchive={onToggleArchive}
             />
           ))}
-          {hasMore && !showAll && (
+          {hasMore && (
             <button
               type="button"
               className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-neutral-500 transition-colors hover:bg-muted/80 hover:text-neutral-700"
               onClick={(e) => {
                 e.stopPropagation();
-                setShowAll(true);
+                setShowAll((prev) => !prev);
               }}
             >
               <span className="flex-1 text-xs font-normal">
-                {t("sidebar.loadMore")(sessions.length - 5)}
+                {showAll ? t("sidebar.showLess") : t("sidebar.loadMore")(sessions.length - 5)}
               </span>
             </button>
           )}

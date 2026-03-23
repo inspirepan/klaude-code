@@ -10,7 +10,7 @@ function detectLocale(): Locale {
   const stored = localStorage.getItem("klaude:locale");
   if (stored === "en" || stored === "zh") return stored;
 
-  const nav = navigator.language ?? navigator.languages?.[0] ?? "en";
+  const nav = navigator.language;
   if (nav.startsWith("zh")) return "zh";
   return "en";
 }

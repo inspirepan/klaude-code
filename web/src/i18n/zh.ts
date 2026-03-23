@@ -23,13 +23,17 @@ const zh: Translations = {
   "sidebar.newSession": "新会话",
   "sidebar.newSessionIn": (workDir: string) => `在 ${workDir} 中新建会话`,
   "sidebar.loadMore": (count: number) => `加载更多 (${count})`,
+  "sidebar.showLess": "收起",
+  "sidebar.searchSessions": "搜索会话",
+  "sidebar.searchPlaceholder": "搜索会话...",
+  "sidebar.noSearchResults": "没有匹配的会话",
 
   // Archive cleanup
   "archiveCleanup.confirmTitle": (count: number) => `归档 ${count} 个会话？`,
-  "archiveCleanup.confirmDesc": "归档超过 3 天或没有变更的会话。",
-  "archiveCleanup.archiving": "正在归档超过 3 天或没有变更的会话",
-  "archiveCleanup.noEligible": "没有超过 3 天或没有变更的会话",
-  "archiveCleanup.tooltip": (count: number) => `归档 ${count} 个超过 3 天或没有变更的会话`,
+  "archiveCleanup.confirmDesc": "归档超过 1 天或没有变更的会话。",
+  "archiveCleanup.archiving": "正在归档超过 1 天或没有变更的会话",
+  "archiveCleanup.noEligible": "没有超过 1 天或没有变更的会话",
+  "archiveCleanup.tooltip": (count: number) => `归档 ${count} 个超过 1 天或没有变更的会话`,
   "archiveCleanup.cancel": "取消",
   "archiveCleanup.archive": "归档",
 
@@ -112,7 +116,6 @@ const zh: Translations = {
     `\u00b7\u00b7\u00b7 隐藏了 ${count} 行 \u00b7\u00b7\u00b7`,
 
   // Sub agent
-  "subAgent.agent": "Agent",
   "subAgent.defaultDesc": (id: string) => `Sub Agent ${id}`,
   "subAgent.fork": "分支",
   "subAgent.toolCall": (count: number) => `${count} 次工具调用`,
@@ -155,6 +158,8 @@ const zh: Translations = {
   "collapse.wrote": "写入",
   "collapse.patched": "补丁",
   "collapse.ran": "执行",
+  "collapse.list": "列出",
+  "collapse.bashSearch": "搜索",
   "collapse.fetch": "获取网页",
   "collapse.search": "搜索网页",
   "collapse.thoughts": "思考",

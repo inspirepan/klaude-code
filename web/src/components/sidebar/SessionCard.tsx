@@ -30,9 +30,11 @@ function getSessionTitle(session: SessionSummary): string | null {
   if (generatedTitle !== undefined && generatedTitle.length > 0) {
     return generatedTitle;
   }
-  const firstMessage = session.user_messages[0]?.trim();
-  if (firstMessage !== undefined && firstMessage.length > 0) {
-    return firstMessage;
+  if (session.user_messages.length > 0) {
+    const firstMessage = session.user_messages[0].trim();
+    if (firstMessage.length > 0) {
+      return firstMessage;
+    }
   }
   return null;
 }
@@ -188,6 +190,9 @@ export function SessionCard({
         title={title}
         as="div"
         className="flex min-w-0 flex-1 items-baseline text-sm leading-5"
+        primaryClassName={
+          runtime.sessionState === "running" ? "session-running-shimmer" : undefined
+        }
         secondaryClassName="shrink truncate"
       />
       {/* Meta info: visible by default, hidden on hover */}

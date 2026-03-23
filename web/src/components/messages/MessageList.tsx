@@ -6,9 +6,9 @@ import { useMountEffect } from "@/hooks/useMountEffect";
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
 import { useSessionStore } from "../../stores/session-store";
-import type { SessionStatusState } from "../../stores/event-reducer";
+import type { ReducerState, SessionStatusState } from "../../stores/event-reducer";
 import type { MessageItem as MessageItemType } from "../../types/message";
-import type { SessionSummary } from "../../types/session";
+import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { splitSessionTitle } from "@/components/session-title";
 import { CollapseGroupBlock } from "./CollapseGroupBlock";
 import { CollapseAllContext } from "./collapse-all-context";
@@ -63,6 +63,12 @@ const EMPTY_SUB_AGENT_TYPE_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_FORK_MAP: Record<string, boolean> = {};
 const EMPTY_SUB_AGENT_FINISHED_MAP: Record<string, boolean> = {};
 const EMPTY_STATUS_MAP: Record<string, SessionStatusState> = {};
+
+/** Index a record safely, returning undefined for absent keys at runtime. */
+function recordGet<T>(record: Record<string, T>, key: string): T | undefined {
+  return record[key];
+}
+
 const BOTTOM_THRESHOLD_PX = 120;
 
 const AGENT_URL_RE = /^\/session\/[a-f0-9]+\/agent\/([a-f0-9]+)$/;
@@ -97,30 +103,35 @@ function getSessionTitle(session: SessionSummary | null): string | null {
 export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const t = useT();
   const groups = useSessionStore((state) => state.groups);
-  const runtime = useSessionStore((state) => state.runtimeBySessionId[sessionId] ?? null);
+  const runtime = useSessionStore((state) => {
+    const rt: SessionRuntimeState | undefined = state.runtimeBySessionId[sessionId];
+    return rt ?? null;
+  });
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
-  const items = useMessageStore((state) => state.messagesBySessionId[sessionId] ?? EMPTY_ITEMS);
-  const subAgentDescBySessionId = useMessageStore(
-    (state) =>
-      state.reducerStateBySessionId[sessionId]?.subAgentDescBySessionId ?? EMPTY_SUB_AGENT_DESC_MAP,
+  const items = useMessageStore(
+    (state) => recordGet(state.messagesBySessionId, sessionId) ?? EMPTY_ITEMS,
   );
-  const subAgentTypeBySessionId = useMessageStore(
-    (state) =>
-      state.reducerStateBySessionId[sessionId]?.subAgentTypeBySessionId ?? EMPTY_SUB_AGENT_TYPE_MAP,
-  );
-  const subAgentForkBySessionId = useMessageStore(
-    (state) =>
-      state.reducerStateBySessionId[sessionId]?.subAgentForkBySessionId ?? EMPTY_SUB_AGENT_FORK_MAP,
-  );
-  const subAgentFinishedBySessionId = useMessageStore(
-    (state) =>
-      state.reducerStateBySessionId[sessionId]?.subAgentFinishedBySessionId ??
-      EMPTY_SUB_AGENT_FINISHED_MAP,
-  );
-  const statusBySessionId = useMessageStore(
-    (state) => state.reducerStateBySessionId[sessionId]?.statusBySessionId ?? EMPTY_STATUS_MAP,
-  );
+  const subAgentDescBySessionId = useMessageStore((state) => {
+    const rs: ReducerState | undefined = state.reducerStateBySessionId[sessionId];
+    return rs?.subAgentDescBySessionId ?? EMPTY_SUB_AGENT_DESC_MAP;
+  });
+  const subAgentTypeBySessionId = useMessageStore((state) => {
+    const rs: ReducerState | undefined = state.reducerStateBySessionId[sessionId];
+    return rs?.subAgentTypeBySessionId ?? EMPTY_SUB_AGENT_TYPE_MAP;
+  });
+  const subAgentForkBySessionId = useMessageStore((state) => {
+    const rs: ReducerState | undefined = state.reducerStateBySessionId[sessionId];
+    return rs?.subAgentForkBySessionId ?? EMPTY_SUB_AGENT_FORK_MAP;
+  });
+  const subAgentFinishedBySessionId = useMessageStore((state) => {
+    const rs: ReducerState | undefined = state.reducerStateBySessionId[sessionId];
+    return rs?.subAgentFinishedBySessionId ?? EMPTY_SUB_AGENT_FINISHED_MAP;
+  });
+  const statusBySessionId = useMessageStore((state) => {
+    const rs: ReducerState | undefined = state.reducerStateBySessionId[sessionId];
+    return rs?.statusBySessionId ?? EMPTY_STATUS_MAP;
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -204,7 +215,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   const activeItemId = useMemo(() => {
     if (searchMatchItemIds.length === 0) return null;
-    return searchMatchItemIds[searchActiveIndex] ?? searchMatchItemIds[0] ?? null;
+    return searchActiveIndex >= 0 && searchActiveIndex < searchMatchItemIds.length
+      ? searchMatchItemIds[searchActiveIndex]
+      : searchMatchItemIds[0];
   }, [searchActiveIndex, searchMatchItemIds]);
 
   const resolvedSearchActiveIndex =
@@ -227,7 +240,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       }
     };
     document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    return () => {
+      document.removeEventListener("keydown", handler);
+    };
   });
 
   // Scroll to active search match
@@ -261,24 +276,28 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     setSearchActiveIndex(-1);
   }, []);
 
-  useMountEffect(() => () => window.clearTimeout(copyTimerRef.current));
+  useMountEffect(() => () => {
+    window.clearTimeout(copyTimerRef.current);
+  });
 
-  const mainSessionStatus = statusBySessionId[sessionId] ?? null;
-  const effectiveStatus = statusBySessionId[effectiveSessionId] ?? null;
+  const mainSS: SessionStatusState | undefined = statusBySessionId[sessionId];
+  const mainSessionStatus = mainSS ?? null;
+  const effectiveSS: SessionStatusState | undefined = statusBySessionId[effectiveSessionId];
+  const effectiveStatus = effectiveSS ?? null;
   const isMainSessionRunning =
     runtime?.sessionState === "running" ||
     (((mainSessionStatus?.taskActive ?? false) ||
       (mainSessionStatus?.thinkingActive ?? false) ||
       (mainSessionStatus?.compacting ?? false) ||
       (mainSessionStatus?.isComposing ?? false)) &&
-      mainSessionStatus?.awaitingInput !== true);
+      !mainSessionStatus?.awaitingInput);
 
   const isEffectiveRunning = viewingSubAgentSessionId
     ? ((effectiveStatus?.taskActive ?? false) ||
         (effectiveStatus?.thinkingActive ?? false) ||
         (effectiveStatus?.compacting ?? false) ||
         (effectiveStatus?.isComposing ?? false)) &&
-      effectiveStatus?.awaitingInput !== true
+      !effectiveStatus?.awaitingInput
     : isMainSessionRunning;
 
   const [prevRunning, setPrevRunning] = useState(isEffectiveRunning);
@@ -299,7 +318,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const hasActiveStatus = useMemo(
     () =>
       Object.values(statusBySessionId).some(
-        (status) => status.taskActive || status.awaitingInput || status.compacting,
+        (status) => status?.taskActive || status?.awaitingInput || status?.compacting,
       ) ||
       runtime?.sessionState === "running" ||
       runtime?.sessionState === "waiting_user_input",
@@ -326,7 +345,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       await navigator.clipboard.writeText(item.content);
       setCopiedItemId(item.id);
       window.clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = window.setTimeout(() => setCopiedItemId(null), 2000);
+      copyTimerRef.current = window.setTimeout(() => {
+        setCopiedItemId(null);
+      }, 2000);
     } catch {
       // ignore
     }
@@ -374,7 +395,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   }, [hasItems, sessionId, updateScrollButtonVisibility]);
 
   useLayoutEffect(() => {
-    const lastItem = visibleItems[visibleItems.length - 1];
+    const lastItem = visibleItems.at(-1);
     const previousLastItemId = previousLastVisibleItemIdRef.current;
     previousLastVisibleItemIdRef.current = lastItem?.id ?? null;
     if (!lastItem || previousLastItemId === null || previousLastItemId === lastItem.id) {
@@ -446,7 +467,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       setViewingSubAgentSessionId(getSubAgentIdFromUrl());
     };
     window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
   }, []);
 
   const sections = useMemo(
@@ -491,7 +514,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   }, [sectionBlocks]);
 
   const lastSectionCollapseGroupIds = useMemo(() => {
-    const lastSection = sectionBlocks[sectionBlocks.length - 1];
+    const lastSection = sectionBlocks.at(-1);
     if (!lastSection) return new Set<string>();
     const ids = new Set<string>();
     for (const block of lastSection) {
@@ -537,7 +560,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       }
     };
     document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    return () => {
+      document.removeEventListener("keydown", handler);
+    };
   }, [handleCollapseAll, handleExpandAll]);
 
   const isCollapseGroupCollapsed = useCallback(
@@ -599,7 +624,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             sessionReadOnly={sessionReadOnly}
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
-            onSearchOpen={() => setSearchOpen(true)}
+            onSearchOpen={() => {
+              setSearchOpen(true);
+            }}
             onCollapseAll={handleCollapseAll}
             onExpandAll={handleExpandAll}
             onBack={viewingSubAgentSessionId ? handleExitSubAgent : undefined}
@@ -673,32 +700,50 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                     }
                                     if (inner.type === "sub_agent_group") {
                                       const isFinished =
-                                        subAgentFinishedBySessionId[inner.sourceSessionId] === true;
+                                        subAgentFinishedBySessionId[inner.sourceSessionId];
                                       return (
-                                        <SubAgentGroupCard
-                                          key={inner.groupId}
-                                          sourceSessionId={inner.sourceSessionId}
-                                          sourceSessionType={inner.sourceSessionType}
-                                          sourceSessionDesc={inner.sourceSessionDesc}
-                                          sourceSessionFork={inner.sourceSessionFork}
-                                          toolCount={inner.toolCount}
-                                          status={statusBySessionId[inner.sourceSessionId] ?? null}
-                                          isFinished={isFinished}
-                                          nowSeconds={nowSeconds}
-                                          onClick={() => handleEnterSubAgent(inner.sourceSessionId)}
-                                        />
+                                        <div key={inner.groupId} className={RAIL_CONTENT_OFFSET}>
+                                          <SubAgentGroupCard
+                                            sourceSessionId={inner.sourceSessionId}
+                                            sourceSessionType={inner.sourceSessionType}
+                                            sourceSessionDesc={inner.sourceSessionDesc}
+                                            sourceSessionFork={inner.sourceSessionFork}
+                                            toolCount={inner.toolCount}
+                                            status={
+                                              statusBySessionId[inner.sourceSessionId] ?? null
+                                            }
+                                            isFinished={isFinished}
+                                            nowSeconds={nowSeconds}
+                                            onClick={() => {
+                                              handleEnterSubAgent(inner.sourceSessionId);
+                                            }}
+                                          />
+                                        </div>
                                       );
                                     }
+                                    const innerItem = inner.item;
+                                    const innerHasRailGrid =
+                                      GRID_ITEM_TYPES.has(innerItem.type) &&
+                                      !(
+                                        innerItem.type === "tool_block" &&
+                                        CARD_TOOL_NAMES.has(innerItem.toolName)
+                                      );
+                                    const innerOffset = !innerHasRailGrid
+                                      ? RAIL_CONTENT_OFFSET
+                                      : "";
                                     return (
-                                      <MessageRow
-                                        key={inner.item.id}
-                                        item={inner.item}
-                                        workDir={workspacePath}
-                                        isActive={inner.item.id === activeItemId}
-                                        copied={copiedItemId === inner.item.id}
-                                        onCopy={handleCopy}
-                                        itemRef={(el) => setItemRef(inner.item.id, el)}
-                                      />
+                                      <div key={innerItem.id} className={innerOffset}>
+                                        <MessageRow
+                                          item={innerItem}
+                                          workDir={workspacePath}
+                                          isActive={innerItem.id === activeItemId}
+                                          copied={copiedItemId === innerItem.id}
+                                          onCopy={handleCopy}
+                                          itemRef={(el) => {
+                                            setItemRef(innerItem.id, el);
+                                          }}
+                                        />
+                                      </div>
                                     );
                                   })}
                                 </PlannedGroupBlock>
@@ -707,8 +752,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                           }
 
                           if (block.type === "sub_agent_group") {
-                            const isFinished =
-                              subAgentFinishedBySessionId[block.sourceSessionId] === true;
+                            const isFinished = subAgentFinishedBySessionId[block.sourceSessionId];
                             return (
                               <div
                                 key={block.groupId}
@@ -723,7 +767,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                   status={statusBySessionId[block.sourceSessionId] ?? null}
                                   isFinished={isFinished}
                                   nowSeconds={nowSeconds}
-                                  onClick={() => handleEnterSubAgent(block.sourceSessionId)}
+                                  onClick={() => {
+                                    handleEnterSubAgent(block.sourceSessionId);
+                                  }}
                                 />
                               </div>
                             );
@@ -777,7 +823,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    onClick={() => scrollToBottom()}
+                    onClick={() => {
+                      scrollToBottom();
+                    }}
                     className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card/95 text-neutral-700 shadow-sm ring-1 ring-black/[0.06] backdrop-blur transition-colors hover:bg-card hover:text-neutral-900"
                     aria-label={t("messageList.scrollToBottom")}
                   >

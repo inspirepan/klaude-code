@@ -101,10 +101,11 @@ export function NewSessionOverlay({
           return;
         }
         setModelOptions(models);
-        const defaultModel = models.find((item) => item.is_default)?.name ?? models[0]?.name ?? "";
+        const defaultModel =
+          models.find((item) => item.is_default)?.name ?? models.at(0)?.name ?? "";
         setSelectedModel(defaultModel);
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         if (cancelled) {
           return;
         }

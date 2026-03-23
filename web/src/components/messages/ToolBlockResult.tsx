@@ -39,7 +39,7 @@ export function ToolBlockResult({
 
   return (
     <CollapseRailPanel open={open}>
-      <div className="mt-0.5 min-w-0">
+      <div className="mt-0.5 min-w-0 pl-10">
         {hasRich ? (
           <div
             onClick={(event) => {
@@ -97,7 +97,7 @@ export function ToolBlockResult({
             }}
           >
             {(() => {
-              const lines = item.result!.split("\n");
+              const lines = (item.result ?? "").split("\n");
               const truncated = !showMore && lines.length > RESULT_LINE_LIMIT;
               const displayedLines = truncated ? lines.slice(0, RESULT_LINE_LIMIT) : lines;
               return (

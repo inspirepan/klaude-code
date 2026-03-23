@@ -156,9 +156,11 @@ export function reduceStatusEvent(
         return nextState;
       }
       let changed = false;
-      const nextStatuses: Record<string, SessionStatusState> = { ...nextState.statusBySessionId };
+      const nextStatuses: Partial<Record<string, SessionStatusState>> = {
+        ...nextState.statusBySessionId,
+      };
       for (const [childSessionId, status] of Object.entries(nextState.statusBySessionId)) {
-        if (!status.isSubAgent || !status.taskActive) continue;
+        if (!status || !status.isSubAgent || !status.taskActive) continue;
         nextStatuses[childSessionId] = clearTaskScopedStatus(status, timestamp);
         changed = true;
       }
@@ -172,8 +174,9 @@ export function reduceStatusEvent(
     case "end": {
       const nowSec = Date.now() / 1000;
       let changed = false;
-      const nextStatuses: Record<string, SessionStatusState> = {};
+      const nextStatuses: Partial<Record<string, SessionStatusState>> = {};
       for (const [existingSessionId, status] of Object.entries(state.statusBySessionId)) {
+        if (!status) continue;
         if (
           !status.taskActive &&
           !status.awaitingInput &&

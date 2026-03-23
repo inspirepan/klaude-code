@@ -42,7 +42,7 @@ export interface SessionStoreState {
   loading: boolean;
   loadError: string | null;
   collapsedByWorkDir: Record<string, boolean>;
-  runtimeBySessionId: Record<string, SessionRuntimeState>;
+  runtimeBySessionId: Partial<Record<string, SessionRuntimeState>>;
   recentCompletionStartedAtBySessionId: Record<string, number>;
   completedUnreadBySessionId: Record<string, boolean>;
   pendingInteractionsBySessionId: Record<string, PendingUserInteractionRequest[]>;
@@ -208,6 +208,8 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
 
     if (sameActiveSession && isStreamingSession) {
       if (!reusableConnection) {
+        // Reload history to recover any events missed during the WS gap, then reconnect.
+        await loadSessionHistory(sessionId).catch(() => {});
         openSessionWs(sessionId, get, set);
       }
       pushSessionUrl(sessionId);
@@ -337,10 +339,10 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     });
     return sessionId;
   },
-  requestModel: async (sessionId: string, preferred: string, saveAsDefault = false) => {
+  requestModel: (sessionId: string, preferred: string, saveAsDefault = false): Promise<void> => {
     const normalizedPreferred = preferred.trim();
     if (normalizedPreferred.length === 0) {
-      return;
+      return Promise.resolve();
     }
     if (getActiveConnection()?.sessionId !== sessionId) {
       openSessionWs(sessionId, get, set);
@@ -350,12 +352,13 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       preferred: normalizedPreferred,
       save_as_default: saveAsDefault,
     });
+    return Promise.resolve();
   },
-  sendMessage: async (sessionId: string, text: string, images?: MessageImagePart[]) => {
+  sendMessage: (sessionId: string, text: string, images?: MessageImagePart[]): Promise<void> => {
     const normalizedText = text.trim();
     const normalizedImages = images?.length ? images : undefined;
     if (normalizedText.length === 0 && normalizedImages === undefined) {
-      return;
+      return Promise.resolve();
     }
     if (getActiveConnection()?.sessionId !== sessionId) {
       openSessionWs(sessionId, get, set);
@@ -365,8 +368,9 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       text: normalizedText,
       images: normalizedImages,
     });
+    return Promise.resolve();
   },
-  compactSession: async (sessionId: string, focus: string | null) => {
+  compactSession: (sessionId: string, focus: string | null): Promise<void> => {
     if (getActiveConnection()?.sessionId !== sessionId) {
       openSessionWs(sessionId, get, set);
     }
@@ -374,18 +378,20 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       type: "compact",
       focus: focus ?? undefined,
     });
+    return Promise.resolve();
   },
-  interruptSession: async (sessionId: string) => {
+  interruptSession: (sessionId: string): Promise<void> => {
     if (getActiveConnection()?.sessionId !== sessionId) {
       openSessionWs(sessionId, get, set);
     }
     getActiveConnection()?.connection.send({ type: "interrupt" });
+    return Promise.resolve();
   },
-  respondInteraction: async (
+  respondInteraction: (
     sessionId: string,
     requestId: string,
     response: UserInteractionResponse,
-  ) => {
+  ): Promise<void> => {
     if (getActiveConnection()?.sessionId !== sessionId) {
       openSessionWs(sessionId, get, set);
     }
@@ -395,5 +401,6 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       status: response.status,
       payload: response.payload,
     });
+    return Promise.resolve();
   },
 }));

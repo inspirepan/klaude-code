@@ -36,7 +36,9 @@ export default function App(): JSX.Element {
       }
     };
     window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
   });
 
   // Auto-collapse sidebar when window becomes narrow
@@ -49,7 +51,9 @@ export default function App(): JSX.Element {
     };
     handleChange(mq);
     mq.addEventListener("change", handleChange);
-    return () => mq.removeEventListener("change", handleChange);
+    return () => {
+      mq.removeEventListener("change", handleChange);
+    };
   });
 
   useEffect(() => {

@@ -5,7 +5,7 @@ interface FilePathProps {
   truncateFromStart?: boolean;
 }
 
-function toDisplayPath(path: string, workDir?: string): string {
+export function toDisplayPath(path: string, workDir?: string): string {
   if (!workDir) return path;
   const normalized = workDir.endsWith("/") ? workDir : workDir + "/";
   if (path.startsWith(normalized)) {
@@ -20,7 +20,7 @@ function splitPath(display: string): { dir: string; name: string } {
   return { dir: display.slice(0, idx + 1), name: display.slice(idx + 1) };
 }
 
-function FilePathContent({ display }: { display: string }): JSX.Element {
+export function FilePathContent({ display }: { display: string }): JSX.Element {
   const { dir, name } = splitPath(display);
   return (
     <>

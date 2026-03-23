@@ -1,5 +1,6 @@
 import {
   fetchRunningSessions,
+  fetchSessionHistory,
   normalizeSessionSummary,
   type RunningSessionState,
 } from "../api/client";
@@ -72,14 +73,14 @@ export async function pollRuntimeStates(
       let completedUnreadChanged = false;
       for (const group of state.groups) {
         for (const session of group.sessions) {
-          const running: RunningSessionState | undefined = states[session.id];
+          const running = states[session.id] as RunningSessionState | undefined;
           const apiState = (running?.session_state ??
             session.session_state) as SessionRuntimeState["sessionState"];
           const prev = nextRuntime[session.id] ?? {
             ...defaultRuntimeState,
             sessionState: session.session_state,
           };
-          if (nextRuntime[session.id] === undefined) {
+          if (!(session.id in nextRuntime)) {
             nextRuntime[session.id] = prev;
             runtimeChanged = true;
           }
@@ -90,7 +91,7 @@ export async function pollRuntimeStates(
             if (prev.sessionState !== apiState) {
               nextRuntime[session.id] = {
                 ...prev,
-                sessionState: apiState as SessionRuntimeState["sessionState"],
+                sessionState: apiState,
               };
               runtimeChanged = true;
             }
@@ -98,7 +99,7 @@ export async function pollRuntimeStates(
           if (shouldClearStaleRunning) {
             nextRecentCompletionStartedAt[session.id] = Date.now();
             recentCompletionChanged = true;
-            if (state.activeSessionId !== session.id && nextCompletedUnread[session.id] !== true) {
+            if (state.activeSessionId !== session.id && !nextCompletedUnread[session.id]) {
               nextCompletedUnread[session.id] = true;
               completedUnreadChanged = true;
             }
@@ -250,8 +251,9 @@ function handleWsError(errorFrame: WsErrorFrame, sessionId: string, set: SetStat
   const fatal =
     errorFrame.code === "session_not_found" || errorFrame.code === "session_init_failed";
   set((state) => {
+    const currentRuntime = state.runtimeBySessionId[sessionId];
     const nextRuntimeBySessionId = updateRuntimeState(state.runtimeBySessionId, sessionId, {
-      wsState: fatal ? "disconnected" : (state.runtimeBySessionId[sessionId]?.wsState ?? "idle"),
+      wsState: fatal ? "disconnected" : (currentRuntime?.wsState ?? "idle"),
       lastError: `${errorFrame.code}: ${errorFrame.message}`,
     });
     if (nextRuntimeBySessionId === state.runtimeBySessionId) {
@@ -286,7 +288,7 @@ function handleWsEvent(
     const shouldMarkCompletedUnread =
       eventEnvelope.event_type === "task.finish" &&
       state.activeSessionId !== targetSessionId &&
-      state.completedUnreadBySessionId[targetSessionId] !== true;
+      !state.completedUnreadBySessionId[targetSessionId];
     const shouldRecordRecentCompletion =
       eventEnvelope.event_type === "task.finish" && currentRuntime.sessionState === "running";
 
@@ -403,6 +405,16 @@ export function openSessionWs(
           wsState: "disconnected",
         }),
       }));
+      // Reload history to recover events that may have been missed during the
+      // WS gap (e.g. queue overflow on the backend).  Fire-and-forget; only
+      // bother if this session is still the active one.
+      if (get().activeSessionId === sessionId) {
+        void fetchSessionHistory(sessionId)
+          .then((history) => {
+            useMessageStore.getState().loadHistoryFromEvents(sessionId, history.events);
+          })
+          .catch(() => {});
+      }
     },
     onErrorFrame: (errorFrame) => {
       handleWsError(errorFrame, sessionId, set);

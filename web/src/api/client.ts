@@ -49,7 +49,7 @@ function normalizeFileChangeSummary(
 export function normalizeSessionSummary(session: SessionSummary): SessionSummary {
   return {
     ...session,
-    read_only: session.read_only === true,
+    read_only: session.read_only,
     todos: Array.isArray(session.todos) ? session.todos : [],
     file_change_summary: normalizeFileChangeSummary(session.file_change_summary),
   };
@@ -133,6 +133,32 @@ interface SearchFileCompletionsOptions {
   workDir?: string;
   query: string;
   signal?: AbortSignal;
+}
+
+export interface SessionSearchResult {
+  id: string;
+  created_at: number;
+  updated_at: number;
+  work_dir: string;
+  title: string | null;
+  user_messages: string[];
+  archived: boolean;
+}
+
+interface SearchSessionsResponse {
+  results: SessionSearchResult[];
+}
+
+export async function searchSessions(
+  query: string,
+  signal?: AbortSignal,
+): Promise<SessionSearchResult[]> {
+  const params = new URLSearchParams({ q: query });
+  const result = await requestJson<SearchSessionsResponse>(
+    `/api/sessions/search?${params.toString()}`,
+    { signal },
+  );
+  return result.results;
 }
 
 export async function archiveSession(sessionId: string): Promise<boolean> {

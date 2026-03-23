@@ -130,6 +130,36 @@ body {
   animation: todo-in-progress-shimmer 3.6s linear infinite;
 }
 
+/* Running session title shimmer */
+@keyframes session-running-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.session-running-shimmer {
+  --_shimmer-rgb: 64, 64, 64;
+  color: transparent;
+  background-image: linear-gradient(
+    100deg,
+    rgb(var(--_shimmer-rgb)) 35%,
+    rgba(var(--_shimmer-rgb), 0.15) 50%,
+    rgb(var(--_shimmer-rgb)) 65%
+  );
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: session-running-shimmer 3s linear infinite;
+}
+
+.session-running-shimmer-muted {
+  --_shimmer-rgb: 115, 115, 115;
+}
+
 .app-shell {
   display: flex;
   width: 100%;
@@ -182,6 +212,9 @@ body {
   line-height: 1.6;
   color: hsl(var(--foreground));
   padding-bottom: 0.25em;
+}
+.planned-group-content .assistant-text {
+  @apply text-sm;
 }
 /* Tailwind preflight resets many element styles; restore them for Streamdown */
 .assistant-text hr {

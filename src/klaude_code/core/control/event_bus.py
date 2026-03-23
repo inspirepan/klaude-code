@@ -104,10 +104,10 @@ class EnvelopeBus:
         for subscriber_id, subscriber in list(self._subscribers.items()):
             if subscriber.session_id is not None and subscriber.session_id != envelope.session_id:
                 continue
-            try:
-                subscriber.queue.put_nowait(envelope)
-            except asyncio.QueueFull:
+            if subscriber.queue.qsize() >= self._subscriber_queue_maxsize:
                 overflowed_ids.append(subscriber_id)
+            else:
+                subscriber.queue.put_nowait(envelope)
 
         if overflowed_ids:
             log_debug(
@@ -119,8 +119,10 @@ class EnvelopeBus:
 
     def subscribe(self, session_id: str | None) -> EventSubscription:
         subscriber_id = uuid4().hex
+        # Reserve one extra slot so _disconnect_subscriber can always enqueue the
+        # sentinel without draining already-queued events.
         queue: asyncio.Queue[events.EventEnvelope | _DisconnectSentinel] = asyncio.Queue(
-            maxsize=self._subscriber_queue_maxsize
+            maxsize=self._subscriber_queue_maxsize + 1
         )
         self._subscribers[subscriber_id] = _Subscriber(
             subscriber_id=subscriber_id,
@@ -147,13 +149,9 @@ class EnvelopeBus:
         if not notify:
             return
 
-        while True:
-            try:
-                _ = subscriber.queue.get_nowait()
-                subscriber.queue.task_done()
-            except asyncio.QueueEmpty:
-                break
-
+        # Don't drain the queue: let the consumer process already-queued events
+        # (e.g. task.finish) before seeing the sentinel.  The queue was created
+        # with one extra slot reserved for this put.
         subscriber.queue.put_nowait(_DISCONNECT_SENTINEL)
 
 

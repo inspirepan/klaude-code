@@ -173,13 +173,13 @@ function mergeCollapsibleBlocks(
     if (hasToolBlock) {
       blocks.push({
         type: "collapse_group",
-        id: `cg-${effectiveSessionId}-${pending[0]!.id}`,
+        id: `cg-${effectiveSessionId}-${pending[0].id}`,
         items: pending,
       });
     } else {
       for (const item of pending) {
         if (item.type === "developer_message") {
-          const last = blocks[blocks.length - 1];
+          const last = blocks.at(-1);
           if (last?.type === "dev_group") {
             last.items.push(item);
           } else {
@@ -213,9 +213,9 @@ function buildPlannedInnerBlocks(
 ): PlannedInnerBlock[] {
   const inner: PlannedInnerBlock[] = [];
   for (let j = start; j < end; j++) {
-    const b = rawBlocks[j]!;
+    const b = rawBlocks[j];
     if (b.type === "item" && b.item.type === "developer_message") {
-      const last = inner[inner.length - 1];
+      const last = inner.at(-1);
       if (last?.type === "dev_group") {
         last.items.push(b.item);
       } else {
@@ -253,7 +253,7 @@ export function buildSectionBlocks(
 
       const existingBlockIndex = subAgentBlockIndexBySessionId.get(sourceSessionId);
       if (existingBlockIndex !== undefined) {
-        const existingBlock = rawBlocks[existingBlockIndex];
+        const existingBlock = rawBlocks.at(existingBlockIndex);
         if (existingBlock?.type === "sub_agent_group" && item.type === "tool_block") {
           existingBlock.toolCount += 1;
         }
@@ -268,7 +268,7 @@ export function buildSectionBlocks(
         sourceSessionId,
         sourceSessionType: subAgentTypeBySessionId[sourceSessionId] ?? null,
         sourceSessionDesc: subAgentDescBySessionId[sourceSessionId] ?? null,
-        sourceSessionFork: subAgentForkBySessionId[sourceSessionId] === true,
+        sourceSessionFork: subAgentForkBySessionId[sourceSessionId],
         toolCount: isToolBlock(item) ? 1 : 0,
       });
       subAgentBlockIndexBySessionId.set(sourceSessionId, blockIndex);
@@ -280,7 +280,7 @@ export function buildSectionBlocks(
     // Find TodoWrite block indices
     const todoWriteIndices: number[] = [];
     for (let k = 0; k < rawBlocks.length; k++) {
-      if (isTodoWriteBlock(rawBlocks[k]!)) todoWriteIndices.push(k);
+      if (isTodoWriteBlock(rawBlocks[k])) todoWriteIndices.push(k);
     }
 
     // Identify planned intervals: [in_progress TodoWrite, next TodoWrite)
@@ -291,17 +291,17 @@ export function buildSectionBlocks(
     }
     const plannedIntervals: PlannedInterval[] = [];
     for (let t = 0; t < todoWriteIndices.length; t++) {
-      const idx = todoWriteIndices[t]!;
-      const block = rawBlocks[idx]! as SectionItemBlock;
+      const idx = todoWriteIndices[t];
+      const block = rawBlocks[idx] as SectionItemBlock;
       if (todoWriteHasInProgress(block.item)) {
         const hasNext = t + 1 < todoWriteIndices.length;
-        const end = hasNext ? todoWriteIndices[t + 1]! : rawBlocks.length;
+        const end = hasNext ? todoWriteIndices[t + 1] : rawBlocks.length;
         // Only create planned group if there are inner blocks after the TodoWrite
         if (end > idx + 1) {
           plannedIntervals.push({
             start: idx,
             end,
-            nextTodoWriteIdx: hasNext ? todoWriteIndices[t + 1]! : null,
+            nextTodoWriteIdx: hasNext ? todoWriteIndices[t + 1] : null,
           });
         }
       }
@@ -317,10 +317,10 @@ export function buildSectionBlocks(
           ...mergeCollapsibleBlocks(rawBlocks.slice(cursor, interval.start), effectiveSessionId),
         );
       }
-      const startItem = (rawBlocks[interval.start]! as SectionItemBlock).item;
+      const startItem = (rawBlocks[interval.start] as SectionItemBlock).item;
       const nextItem =
         interval.nextTodoWriteIdx !== null
-          ? (rawBlocks[interval.nextTodoWriteIdx]! as SectionItemBlock).item
+          ? (rawBlocks[interval.nextTodoWriteIdx] as SectionItemBlock).item
           : null;
       blocks.push({
         type: "planned_group",

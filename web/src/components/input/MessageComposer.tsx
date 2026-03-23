@@ -55,7 +55,7 @@ export function MessageComposer(): JSX.Element {
       runtime.wsState === "disconnected");
   const sessionReadOnly = activeSession?.read_only === true;
   const mainSessionStatus = statusBySessionId?.[activeSessionId] ?? null;
-  const activeInteraction = pendingInteractions[0] ?? null;
+  const activeInteraction = pendingInteractions.at(0) ?? null;
   const sessionInterruptible =
     runtime?.sessionState === "running" ||
     (mainSessionStatus !== null &&
@@ -99,7 +99,7 @@ export function MessageComposer(): JSX.Element {
         }
         setModelOptions(models);
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         if (cancelled) {
           return;
         }

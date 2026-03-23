@@ -21,14 +21,18 @@ const en = {
   "sidebar.newSession": "New session",
   "sidebar.newSessionIn": (workDir: string) => `New session in ${workDir}`,
   "sidebar.loadMore": (count: number) => `Load more (${count})`,
+  "sidebar.showLess": "Show less",
+  "sidebar.searchSessions": "Search sessions",
+  "sidebar.searchPlaceholder": "Search sessions...",
+  "sidebar.noSearchResults": "No matching sessions",
 
   // Archive cleanup
   "archiveCleanup.confirmTitle": (count: number) => `Archive ${count} sessions?`,
-  "archiveCleanup.confirmDesc": "Archive sessions older than 3 days or with no diff.",
-  "archiveCleanup.archiving": "Archiving sessions older than 3 days or with no diff",
-  "archiveCleanup.noEligible": "No sessions older than 3 days or with no diff",
+  "archiveCleanup.confirmDesc": "Archive sessions older than 1 day or with no diff.",
+  "archiveCleanup.archiving": "Archiving sessions older than 1 day or with no diff",
+  "archiveCleanup.noEligible": "No sessions older than 1 day or with no diff",
   "archiveCleanup.tooltip": (count: number) =>
-    `Archive ${count} sessions older than 3 days or with no diff`,
+    `Archive ${count} sessions older than 1 day or with no diff`,
   "archiveCleanup.cancel": "Cancel",
   "archiveCleanup.archive": "Archive",
 
@@ -111,7 +115,6 @@ const en = {
     `\u00b7\u00b7\u00b7 ${count} lines hidden \u00b7\u00b7\u00b7`,
 
   // Sub agent
-  "subAgent.agent": "Agent",
   "subAgent.defaultDesc": (id: string) => `Sub Agent ${id}`,
   "subAgent.fork": "fork",
   "subAgent.toolCall": (count: number) => `${count} tool call${count !== 1 ? "s" : ""}`,
@@ -155,6 +158,8 @@ const en = {
   "collapse.wrote": "Wrote",
   "collapse.patched": "Patched",
   "collapse.ran": "Ran",
+  "collapse.list": "List",
+  "collapse.bashSearch": "Search",
   "collapse.fetch": "Fetch",
   "collapse.search": "Search",
   "collapse.thoughts": "Thoughts",
@@ -205,5 +210,9 @@ const en = {
 } as const;
 
 export type TranslationKey = keyof typeof en;
-export type Translations = typeof en;
+export type Translations = {
+  [K in TranslationKey]: (typeof en)[K] extends (...args: infer A) => string
+    ? (...args: A) => string
+    : string;
+};
 export default en;

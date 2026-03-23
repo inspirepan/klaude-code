@@ -49,7 +49,7 @@ const SHADOW_ICON_CSS = `
 `;
 
 // Eagerly start loading the highlighter
-preloadHighlighter({
+void preloadHighlighter({
   themes: [DEFAULT_THEMES.light, DEFAULT_THEMES.dark],
   langs: ["text", "ansi"],
 });
@@ -163,13 +163,18 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
     updateOverflow();
     const observer = new ResizeObserver(updateOverflow);
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+    };
   }, [patches]);
 
   if (!extra || patches === null) return null;
 
   return (
-    <div className="diff-view rounded-lg bg-surface" ref={containerRef}>
+    <div
+      className="diff-view rounded-lg bg-surface [--diffs-font-size:0.875rem]"
+      ref={containerRef}
+    >
       <div className="flex flex-col">
         <div
           className={`relative ${!expanded && isOverflowing ? "max-h-[420px] overflow-hidden" : ""}`}
@@ -200,7 +205,9 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
             <button
               type="button"
               className="self-start pb-1 pl-2 text-sm text-neutral-500 transition-colors hover:text-neutral-700"
-              onClick={() => setExpanded((value) => !value)}
+              onClick={() => {
+                setExpanded((value) => !value);
+              }}
             >
               {expanded ? t("diff.showLess") : t("diff.showMore")}
             </button>
