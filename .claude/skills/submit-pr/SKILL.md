@@ -10,7 +10,7 @@ description: >
 
 Push changes and create a GitHub PR via two bundled scripts. Both scripts auto-detect jj/git mode and print actionable error messages on failure -- follow their guidance to resolve issues.
 
-**Only run the 3 steps below. Do not run any extra commands between steps (no `jj log`, `git log`, `jj status`, `gh pr list`, etc.). The scripts handle all checks internally and report errors with fix instructions.**
+**Only run the 4 steps below. Do not run any extra commands between steps (no `jj log`, `git log`, `jj status`, `gh pr list`, etc.). The scripts handle all checks internally and report errors with fix instructions.**
 
 ## Workflow
 
@@ -67,3 +67,20 @@ EOF
 `--head` is required in jj mode, auto-detected in git mode.
 
 Report the PR URL from script output to the user.
+
+### 4. Fix until CI passes
+
+Loop until all CI checks pass:
+
+```bash
+gh pr checks --watch
+```
+
+If all checks pass, report success to the user and stop.
+
+If any check fails:
+1. Read the failed check's logs to identify the root cause.
+2. Fix the issue, commit, and push the fix.
+3. Run `gh pr checks --watch` again.
+
+Repeat until all checks are green. Do not stop or ask the user for help unless you are stuck after multiple attempts on the same failure.
