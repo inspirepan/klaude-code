@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Archive, BrushCleaning, Loader, PanelLeftClose } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
+import { SessionSearch } from "./SessionSearch";
 import { useSessionStore } from "../../stores/session-store";
 import type { SessionSummary } from "../../types/session";
 import { useAppStore } from "../../stores/app-store";
@@ -10,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
 
-const ARCHIVE_CLEANUP_AGE_SECONDS = 3 * 24 * 60 * 60;
+const ARCHIVE_CLEANUP_AGE_SECONDS = 1 * 24 * 60 * 60;
 const DEFAULT_SIDEBAR_WIDTH = 340;
 const SIDEBAR_WIDTH_STORAGE_KEY = "klaude:left-sidebar:width";
 const ARCHIVED_GROUP_COLLAPSE_STORAGE_KEY = "klaude:left-sidebar:archived-collapsed-groups";
@@ -94,6 +95,7 @@ export function LeftSidebar(): JSX.Element {
   const [archiveUndoSessionId, setArchiveUndoSessionId] = useState<string | null>(null);
   const [archiveCleanupConfirmOpen, setArchiveCleanupConfirmOpen] = useState(false);
   const [archiveCleanupPending, setArchiveCleanupPending] = useState(false);
+  const [searchPopupOpen, setSearchPopupOpen] = useState(false);
   const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
     Record<string, boolean>
   >(() => readStoredCollapsedByWorkDir(ARCHIVED_GROUP_COLLAPSE_STORAGE_KEY));
@@ -338,6 +340,24 @@ export function LeftSidebar(): JSX.Element {
     })();
   };
 
+  const handleSearchSelect = useCallback(
+    (sessionId: string, archived: boolean, workDir: string) => {
+      if (archived) {
+        // Open archive popup and expand the group containing this session
+        setArchivedMenuOpen(true);
+        setArchivedCollapsedByWorkDir((prev) => ({ ...prev, [workDir]: false }));
+      } else {
+        // Expand the group if collapsed
+        if (collapsedByWorkDir[workDir]) {
+          toggleGroup(workDir);
+        }
+      }
+      setNewSessionOverlayOpen(false);
+      void selectSession(sessionId);
+    },
+    [collapsedByWorkDir, toggleGroup, selectSession, setNewSessionOverlayOpen],
+  );
+
   const archiveCleanupButtonClassName = `inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition-colors ${archiveCleanupEligibleCount === 0 || archiveCleanupPending ? "cursor-default opacity-50" : "cursor-pointer hover:bg-muted hover:text-neutral-700"}`;
 
   return (
@@ -352,12 +372,12 @@ export function LeftSidebar(): JSX.Element {
       }}
     >
       <div
-        className={`h-full min-h-0 ${archivedMenuOpen || archiveCleanupConfirmOpen ? "overflow-visible" : "overflow-hidden"}`}
+        className={`h-full min-h-0 ${archivedMenuOpen || archiveCleanupConfirmOpen || searchPopupOpen ? "overflow-visible" : "overflow-hidden"}`}
       >
         <aside
           ref={sidebarRef}
           data-sidebar="left"
-          className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-border bg-sidebar ${archivedMenuOpen || archiveCleanupConfirmOpen ? "z-50" : ""}`}
+          className={`relative flex h-full min-h-0 shrink-0 flex-col border-r border-border bg-sidebar ${archivedMenuOpen || archiveCleanupConfirmOpen || searchPopupOpen ? "z-50" : ""}`}
           style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
         >
           {/* header floats above scroll area */}
@@ -375,42 +395,6 @@ export function LeftSidebar(): JSX.Element {
                   }}
                 />
               </div>
-              {archiveCleanupConfirmOpen ? (
-                <button
-                  ref={archiveCleanupButtonRef}
-                  type="button"
-                  className={archiveCleanupButtonClassName}
-                  onClick={handleArchiveCleanup}
-                  aria-label={t("sidebar.archiveStale")}
-                  aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
-                >
-                  {archiveCleanupPending ? (
-                    <Loader className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <BrushCleaning className="h-4 w-4" />
-                  )}
-                </button>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      ref={archiveCleanupButtonRef}
-                      type="button"
-                      className={archiveCleanupButtonClassName}
-                      onClick={handleArchiveCleanup}
-                      aria-label={t("sidebar.archiveStale")}
-                      aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
-                    >
-                      {archiveCleanupPending ? (
-                        <Loader className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <BrushCleaning className="h-4 w-4" />
-                      )}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>{archiveCleanupTooltip}</TooltipContent>
-                </Tooltip>
-              )}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -438,50 +422,6 @@ export function LeftSidebar(): JSX.Element {
                   </span>
                 </TooltipContent>
               </Tooltip>
-              {archiveCleanupConfirmOpen ? (
-                <div
-                  ref={archiveCleanupContentRef}
-                  className="absolute left-3 top-full z-40 mt-2 w-72 rounded-md border border-border bg-card px-3 py-2 text-sm text-neutral-700 shadow-sm"
-                >
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium text-neutral-800">
-                      {t("archiveCleanup.confirmTitle")(archiveCleanupEligibleCount)}
-                    </div>
-                    <div className="text-sm text-neutral-500">
-                      {t("archiveCleanup.confirmDesc")}
-                    </div>
-                    <ScrollArea className="w-full" viewportClassName="max-h-40" type="auto">
-                      <ul className="text-xs text-neutral-500">
-                        {archiveCleanupEligibleSessions.map((session) => (
-                          <li key={session.id} className="truncate py-0.5">
-                            {session.title?.trim() ||
-                              session.user_messages[0]?.trim() ||
-                              t("sidebar.newSession")}
-                          </li>
-                        ))}
-                      </ul>
-                    </ScrollArea>
-                    <div className="flex justify-end gap-1.5">
-                      <button
-                        type="button"
-                        className="rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
-                        onClick={() => {
-                          setArchiveCleanupConfirmOpen(false);
-                        }}
-                      >
-                        {t("archiveCleanup.cancel")}
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-md border border-border bg-card px-2 py-1 text-sm font-medium text-neutral-700 transition-colors hover:bg-muted hover:text-neutral-900"
-                        onClick={handleConfirmArchiveCleanup}
-                      >
-                        {t("archiveCleanup.archive")}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
             </div>
           </div>
 
@@ -554,7 +494,48 @@ export function LeftSidebar(): JSX.Element {
               aria-hidden="true"
               className="pointer-events-none absolute inset-x-0 bottom-0 h-[3.75rem] bg-[hsl(var(--sidebar))]/80 backdrop-blur-sm [-webkit-mask-image:linear-gradient(to_top,black_0,black_3rem,transparent_3.75rem)] [mask-image:linear-gradient(to_top,black_0,black_3rem,transparent_3.75rem)]"
             />
-            <div ref={archivedMenuRef} className="relative px-3 py-2">
+            <div ref={archivedMenuRef} className="relative flex items-center gap-1 px-3 py-2">
+              <SessionSearch
+                onSelectSession={handleSearchSelect}
+                onOpenChange={setSearchPopupOpen}
+                onBeforeOpen={() => { setArchivedMenuOpen(false); }}
+              />
+              {archiveCleanupConfirmOpen ? (
+                <button
+                  ref={archiveCleanupButtonRef}
+                  type="button"
+                  className={archiveCleanupButtonClassName}
+                  onClick={handleArchiveCleanup}
+                  aria-label={t("sidebar.archiveStale")}
+                  aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
+                >
+                  {archiveCleanupPending ? (
+                    <Loader className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <BrushCleaning className="h-4 w-4" />
+                  )}
+                </button>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      ref={archiveCleanupButtonRef}
+                      type="button"
+                      className={archiveCleanupButtonClassName}
+                      onClick={handleArchiveCleanup}
+                      aria-label={t("sidebar.archiveStale")}
+                      aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
+                    >
+                      {archiveCleanupPending ? (
+                        <Loader className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <BrushCleaning className="h-4 w-4" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>{archiveCleanupTooltip}</TooltipContent>
+                </Tooltip>
+              )}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -580,7 +561,7 @@ export function LeftSidebar(): JSX.Element {
                     <span className="text-xs text-neutral-500">{archivedSessionCount}</span>
                   </div>
                   {archivedGroups.length > 0 ? (
-                    <ScrollArea className="w-full" viewportClassName="max-h-80" type="auto">
+                    <ScrollArea className="w-full" viewportClassName="max-h-[40rem]" type="auto">
                       <div className="pt-1">
                         {archivedGroups.map((group) => (
                           <ProjectGroup
@@ -622,6 +603,50 @@ export function LeftSidebar(): JSX.Element {
                       {t("sidebar.noArchivedSessions")}
                     </div>
                   )}
+                </div>
+              ) : null}
+              {archiveCleanupConfirmOpen ? (
+                <div
+                  ref={archiveCleanupContentRef}
+                  className="absolute bottom-full left-3 z-40 mb-2 w-72 rounded-md border border-border bg-card px-3 py-2 text-sm text-neutral-700 shadow-sm"
+                >
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-neutral-800">
+                      {t("archiveCleanup.confirmTitle")(archiveCleanupEligibleCount)}
+                    </div>
+                    <div className="text-sm text-neutral-500">
+                      {t("archiveCleanup.confirmDesc")}
+                    </div>
+                    <ScrollArea className="w-full" viewportClassName="max-h-40" type="auto">
+                      <ul className="text-xs text-neutral-500">
+                        {archiveCleanupEligibleSessions.map((session) => (
+                          <li key={session.id} className="truncate py-0.5">
+                            {session.title?.trim() ||
+                              session.user_messages[0]?.trim() ||
+                              t("sidebar.newSession")}
+                          </li>
+                        ))}
+                      </ul>
+                    </ScrollArea>
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        type="button"
+                        className="rounded-md px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
+                        onClick={() => {
+                          setArchiveCleanupConfirmOpen(false);
+                        }}
+                      >
+                        {t("archiveCleanup.cancel")}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-border bg-card px-2 py-1 text-sm font-medium text-neutral-700 transition-colors hover:bg-muted hover:text-neutral-900"
+                        onClick={handleConfirmArchiveCleanup}
+                      >
+                        {t("archiveCleanup.archive")}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : null}
             </div>

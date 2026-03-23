@@ -10,6 +10,7 @@ import {
 } from "./CollapseRail";
 import { useCollapseAll } from "./collapse-all-context";
 import { useSearch } from "./search-context";
+import { useSearchHighlight } from "./useSearchHighlight";
 
 interface ThinkingBlockProps {
   item: ThinkingBlockItem;
@@ -45,6 +46,8 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
   const [open, setOpen] = useState(defaultExpanded);
   const isSearchMatch = matchItemIds.includes(item.id);
   const wasAutoExpanded = useRef(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  useSearchHighlight(contentRef, item.content);
 
   useEffect(() => {
     if (isSearchMatch && !open) {
@@ -75,13 +78,16 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
   return (
     <div
       className={`grid cursor-pointer items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} text-sm`}
-      onClick={() => { setOpen((value) => !value); }}
+      onClick={() => {
+        setOpen((value) => !value);
+      }}
     >
       <CollapseRailMarker open={open} className="row-span-2" />
       <span className="whitespace-nowrap font-normal text-neutral-500">{t("thinking.label")}</span>
 
       <CollapseRailPanel open={open}>
         <div
+          ref={contentRef}
           className="thinking-block mt-2 min-w-0 font-sans text-sm leading-relaxed text-neutral-500"
           onClick={(event) => {
             event.stopPropagation();

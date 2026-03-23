@@ -21,14 +21,18 @@ const en = {
   "sidebar.newSession": "New session",
   "sidebar.newSessionIn": (workDir: string) => `New session in ${workDir}`,
   "sidebar.loadMore": (count: number) => `Load more (${count})`,
+  "sidebar.showLess": "Show less",
+  "sidebar.searchSessions": "Search sessions",
+  "sidebar.searchPlaceholder": "Search sessions...",
+  "sidebar.noSearchResults": "No matching sessions",
 
   // Archive cleanup
   "archiveCleanup.confirmTitle": (count: number) => `Archive ${count} sessions?`,
-  "archiveCleanup.confirmDesc": "Archive sessions older than 3 days or with no diff.",
-  "archiveCleanup.archiving": "Archiving sessions older than 3 days or with no diff",
-  "archiveCleanup.noEligible": "No sessions older than 3 days or with no diff",
+  "archiveCleanup.confirmDesc": "Archive sessions older than 1 day or with no diff.",
+  "archiveCleanup.archiving": "Archiving sessions older than 1 day or with no diff",
+  "archiveCleanup.noEligible": "No sessions older than 1 day or with no diff",
   "archiveCleanup.tooltip": (count: number) =>
-    `Archive ${count} sessions older than 3 days or with no diff`,
+    `Archive ${count} sessions older than 1 day or with no diff`,
   "archiveCleanup.cancel": "Cancel",
   "archiveCleanup.archive": "Archive",
 

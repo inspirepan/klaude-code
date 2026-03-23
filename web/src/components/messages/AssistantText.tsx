@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { UrlTransform } from "streamdown";
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
@@ -8,6 +9,7 @@ import type { AssistantTextItem } from "../../types/message";
 import { mermaid } from "../../lib/mermaid-plugin";
 import { FrontmatterTable } from "./FrontmatterTable";
 import { useParsedFrontmatter } from "./frontmatter";
+import { useSearchHighlight } from "./useSearchHighlight";
 
 interface AssistantTextProps {
   item: AssistantTextItem;
@@ -60,6 +62,8 @@ function transformImageUrl(url: string, sessionId: string | null): string {
 
 export function AssistantText({ item }: AssistantTextProps): JSX.Element {
   const { entries, body } = useParsedFrontmatter(item.content);
+  const containerRef = useRef<HTMLDivElement>(null);
+  useSearchHighlight(containerRef, item.content);
   const urlTransform: UrlTransform = (url, key, node) => {
     if (key !== "src" || node.tagName !== "img") {
       return url;
@@ -68,7 +72,7 @@ export function AssistantText({ item }: AssistantTextProps): JSX.Element {
   };
 
   return (
-    <div className="assistant-text relative">
+    <div ref={containerRef} className="assistant-text relative">
       {entries ? <FrontmatterTable entries={entries} /> : null}
       <Streamdown
         // Use "static" during streaming to bypass Streamdown's useTransition,

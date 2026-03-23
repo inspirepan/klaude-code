@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Folder, FolderOpen, Loader, SquarePen } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -46,6 +46,16 @@ export function ProjectGroup({
 }: ProjectGroupProps): JSX.Element {
   const t = useT();
   const [showAll, setShowAll] = useState(false);
+
+  // Auto-expand when the active session is beyond the first 5
+  useEffect(() => {
+    if (showAll || activeSessionId === "draft") return;
+    const idx = sessions.findIndex((s) => s.id === activeSessionId);
+    if (idx >= 5) {
+      setShowAll(true);
+    }
+  }, [activeSessionId, sessions, showAll]);
+
   const displaySessions = showAll ? sessions : sessions.slice(0, 5);
   const hasMore = sessions.length > 5;
   const hasAnyRunning =
@@ -128,17 +138,17 @@ export function ProjectGroup({
               onToggleArchive={onToggleArchive}
             />
           ))}
-          {hasMore && !showAll && (
+          {hasMore && (
             <button
               type="button"
               className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-neutral-500 transition-colors hover:bg-muted/80 hover:text-neutral-700"
               onClick={(e) => {
                 e.stopPropagation();
-                setShowAll(true);
+                setShowAll((prev) => !prev);
               }}
             >
               <span className="flex-1 text-xs font-normal">
-                {t("sidebar.loadMore")(sessions.length - 5)}
+                {showAll ? t("sidebar.showLess") : t("sidebar.loadMore")(sessions.length - 5)}
               </span>
             </button>
           )}

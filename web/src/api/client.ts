@@ -135,6 +135,32 @@ interface SearchFileCompletionsOptions {
   signal?: AbortSignal;
 }
 
+export interface SessionSearchResult {
+  id: string;
+  created_at: number;
+  updated_at: number;
+  work_dir: string;
+  title: string | null;
+  user_messages: string[];
+  archived: boolean;
+}
+
+interface SearchSessionsResponse {
+  results: SessionSearchResult[];
+}
+
+export async function searchSessions(
+  query: string,
+  signal?: AbortSignal,
+): Promise<SessionSearchResult[]> {
+  const params = new URLSearchParams({ q: query });
+  const result = await requestJson<SearchSessionsResponse>(
+    `/api/sessions/search?${params.toString()}`,
+    { signal },
+  );
+  return result.results;
+}
+
 export async function archiveSession(sessionId: string): Promise<boolean> {
   const result = await requestJson<ArchiveSessionResponse>(
     `/api/sessions/${encodeURIComponent(sessionId)}/archive`,
