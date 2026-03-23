@@ -3,7 +3,7 @@ import { type ReactNode, useLayoutEffect, useRef } from "react";
 
 import { cn } from "../../lib/utils";
 
-export const COLLAPSE_RAIL_GRID_CLASS_NAME = "grid-cols-[3ch_1fr] gap-x-1.5";
+export const COLLAPSE_RAIL_GRID_CLASS_NAME = "grid-cols-[16px_1fr] gap-x-1.5";
 
 interface CollapseRailMarkerProps {
   open: boolean;

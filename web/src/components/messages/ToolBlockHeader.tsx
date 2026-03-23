@@ -51,7 +51,7 @@ export function ToolBlockHeader({
 
   return (
     <>
-      <CollapseRailMarker open={open} expandable={expandable} />
+      <CollapseRailMarker open={open} expandable={expandable} className={expandable ? "row-span-2" : undefined} />
 
       {/* Col 2: tool name + detail */}
       <div className="flex min-h-6 min-w-0 items-center gap-1.5">

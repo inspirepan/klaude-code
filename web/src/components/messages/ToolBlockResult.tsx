@@ -1,10 +1,6 @@
 import { useT } from "@/i18n";
 import type { ToolBlockItem } from "../../types/message";
-import {
-  CollapseRailConnector,
-  COLLAPSE_RAIL_GRID_CLASS_NAME,
-  CollapseRailPanel,
-} from "./CollapseRail";
+import { CollapseRailPanel } from "./CollapseRail";
 import { HighlightText } from "./HighlightText";
 import { ToolRichResult } from "./ToolRichResult";
 
@@ -42,10 +38,8 @@ export function ToolBlockResult({
   const resultLineClass = "block max-w-full overflow-hidden text-ellipsis whitespace-pre";
 
   return (
-    <CollapseRailPanel open={open} className="col-span-2">
-      <div className={`mt-0.5 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
-        <CollapseRailConnector />
-        <div className="min-w-0">
+    <CollapseRailPanel open={open}>
+      <div className="mt-0.5 min-w-0">
           {hasRich ? (
             <div
               onClick={(event) => {
@@ -137,7 +131,6 @@ export function ToolBlockResult({
               {t("toolResult.noContent")}
             </div>
           ) : null}
-        </div>
       </div>
     </CollapseRailPanel>
   );

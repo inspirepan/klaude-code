@@ -14,7 +14,6 @@ import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra"
 import { hasRichUIExtra } from "./tool-rich-result-ui";
 import { useStreamThrottle } from "./useStreamThrottle";
 
-const PLAN_TOOLS = new Set(["TodoWrite"]);
 const DEFAULT_EXPANDED_TOOLS = new Set(["apply_patch", "Edit", "Write"]);
 
 function extractHeaderDetail(toolName: string, args: string): string {
@@ -71,6 +70,7 @@ interface ToolBlockProps {
 }
 
 function PlanBlock({ item }: ToolBlockProps): JSX.Element {
+  const t = useT();
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
@@ -155,7 +155,7 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
     }
   }, [hasStreamingContent, open]);
 
-  if (PLAN_TOOLS.has(item.toolName)) {
+  if (item.toolName === "TodoWrite") {
     return <PlanBlock item={item} />;
   }
   if (item.toolName === "AskUserQuestion") {

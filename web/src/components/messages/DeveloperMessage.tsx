@@ -9,7 +9,6 @@ import type {
 } from "../../types/message";
 import { buildFileApiUrl } from "../../api/client";
 import {
-  CollapseRailConnector,
   COLLAPSE_RAIL_GRID_CLASS_NAME,
   CollapseRailMarker,
   CollapseRailPanel,
@@ -131,7 +130,7 @@ function CollapsibleRow({
       className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} font-mono text-base leading-5 ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
-      <CollapseRailMarker open={open} expandable={expandable} inactiveMode="hidden" />
+      <CollapseRailMarker open={open} expandable={expandable} inactiveMode="hidden" className={expandable ? "row-span-2" : undefined} />
       <span
         className={`min-w-0 whitespace-nowrap font-mono font-normal text-neutral-600 ${labelClassName ?? ""}`}
       >
@@ -139,12 +138,9 @@ function CollapsibleRow({
       </span>
 
       {expandable ? (
-        <CollapseRailPanel open={open} className="col-span-2">
-          <div className={`mt-1 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
-            <CollapseRailConnector />
-            <div className="min-w-0 pb-1.5" onClick={(e) => e.stopPropagation()}>
-              {children}
-            </div>
+        <CollapseRailPanel open={open}>
+          <div className="mt-1 min-w-0 pb-1.5" onClick={(e) => e.stopPropagation()}>
+            {children}
           </div>
         </CollapseRailPanel>
       ) : null}

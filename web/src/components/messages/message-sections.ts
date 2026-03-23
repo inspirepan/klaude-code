@@ -1,5 +1,5 @@
 import type { MessageItem, DeveloperMessageItem } from "../../types/message";
-import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra";
+import { isQuestionSummaryUIExtra } from "./message-ui-extra";
 import { isToolBlock } from "./message-list-ui";
 
 export interface SectionItemBlock {
@@ -35,9 +35,11 @@ export type SectionBlock =
   | SectionCollapseGroupBlock
   | SectionDevGroupBlock;
 
+const NON_COLLAPSIBLE_TOOLS = new Set(["TodoWrite"]);
+
 function isCollapsibleItem(item: MessageItem): boolean {
   if (item.type === "tool_block") {
-    return !isTodoListUIExtra(item.uiExtra) && !isQuestionSummaryUIExtra(item.uiExtra);
+    return !isQuestionSummaryUIExtra(item.uiExtra) && !NON_COLLAPSIBLE_TOOLS.has(item.toolName);
   }
   return item.type === "thinking" || item.type === "developer_message";
 }

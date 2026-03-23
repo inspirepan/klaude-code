@@ -157,6 +157,7 @@ const en = {
   "collapse.fetch": "Fetch",
   "collapse.search": "Search",
   "collapse.thoughts": "Thoughts",
+  "collapse.completed": "Completed",
   "collapse.toolsUsed": (count: number) => `${count} tool${count === 1 ? "" : "s"} used`,
 
   // User message

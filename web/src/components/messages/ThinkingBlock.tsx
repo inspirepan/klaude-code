@@ -4,7 +4,6 @@ import { Streamdown } from "streamdown";
 import { useT } from "@/i18n";
 import type { ThinkingBlockItem } from "../../types/message";
 import {
-  CollapseRailConnector,
   COLLAPSE_RAIL_GRID_CLASS_NAME,
   CollapseRailMarker,
   CollapseRailPanel,
@@ -78,28 +77,25 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
       className={`-my-1 grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} cursor-pointer font-mono text-base`}
       onClick={() => setOpen((value) => !value)}
     >
-      <CollapseRailMarker open={open} />
+      <CollapseRailMarker open={open} className="row-span-2" />
       <span className="whitespace-nowrap font-mono font-normal text-neutral-600">
         {t("thinking.label")}
       </span>
 
-      <CollapseRailPanel open={open} className="col-span-2">
-        <div className={`mt-2 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
-          <CollapseRailConnector />
-          <div
-            className="thinking-block min-w-0 font-sans text-base leading-relaxed text-neutral-600"
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
+      <CollapseRailPanel open={open}>
+        <div
+          className="mt-2 thinking-block min-w-0 font-sans text-base leading-relaxed text-neutral-600"
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <Streamdown
+            mode={item.isStreaming ? "static" : "streaming"}
+            isAnimating={item.isStreaming}
+            components={thinkingComponents}
           >
-            <Streamdown
-              mode={item.isStreaming ? "static" : "streaming"}
-              isAnimating={item.isStreaming}
-              components={thinkingComponents}
-            >
-              {item.content}
-            </Streamdown>
-          </div>
+            {item.content}
+          </Streamdown>
         </div>
       </CollapseRailPanel>
     </div>
