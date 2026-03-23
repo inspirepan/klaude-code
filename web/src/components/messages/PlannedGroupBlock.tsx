@@ -21,7 +21,7 @@ function TodoIcon({ completed }: { completed: boolean }): JSX.Element {
   return completed ? (
     <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
   ) : (
-    <CircleDashed className="h-3.5 w-3.5 shrink-0 text-amber-500 animate-spin-slow" />
+    <CircleDashed className="h-3.5 w-3.5 shrink-0 animate-spin-slow text-amber-500" />
   );
 }
 

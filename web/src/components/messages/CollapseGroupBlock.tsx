@@ -117,7 +117,6 @@ function basename(path: string): string {
 
 const IGNORED_COMMANDS = new Set(["cd"]);
 
-
 // Operators that separate independent statements (we extract a command from each)
 const STATEMENT_SEPARATORS = new Set(["&&", "||", ";", "\n"]);
 
@@ -216,7 +215,9 @@ function extractApplyPatchFileStats(patch: string): FileStat[] {
   return fileStats;
 }
 
-function extractDiffStats(uiExtra: Record<string, unknown> | null): { del: number; add: number } | null {
+function extractDiffStats(
+  uiExtra: Record<string, unknown> | null,
+): { del: number; add: number } | null {
   if (!uiExtra) return null;
   const extras = isDiffUIExtra(uiExtra)
     ? [uiExtra]
@@ -266,8 +267,12 @@ function summarizeCollapseItems(
         const p = typeof args.file_path === "string" ? basename(args.file_path) : null;
         if (!p) break;
         const diffStats = extractDiffStats(item.uiExtra);
-        const del = diffStats?.del ?? (typeof args.old_string === "string" ? args.old_string.split("\n").length : 0);
-        const add = diffStats?.add ?? (typeof args.new_string === "string" ? args.new_string.split("\n").length : 0);
+        const del =
+          diffStats?.del ??
+          (typeof args.old_string === "string" ? args.old_string.split("\n").length : 0);
+        const add =
+          diffStats?.add ??
+          (typeof args.new_string === "string" ? args.new_string.split("\n").length : 0);
         bucket.push(p);
         if (!editStats.has(name)) editStats.set(name, []);
         editStats.get(name)!.push({ del, add });
@@ -277,7 +282,9 @@ function summarizeCollapseItems(
         const p = typeof args.file_path === "string" ? basename(args.file_path) : null;
         if (!p) break;
         const diffStats = extractDiffStats(item.uiExtra);
-        const add = diffStats?.add ?? (typeof args.content === "string" ? args.content.split("\n").length : 0);
+        const add =
+          diffStats?.add ??
+          (typeof args.content === "string" ? args.content.split("\n").length : 0);
         bucket.push(p);
         if (!editStats.has(name)) editStats.set(name, []);
         editStats.get(name)!.push({ del: diffStats?.del ?? 0, add });

@@ -133,14 +133,18 @@ export function TaskMetadata({ item }: TaskMetadataProps): JSX.Element {
   const t = useT();
   const [open, setOpen] = useState(false);
   const agent = item.mainAgent;
-  const modelLabel = agent.subAgentName ? `${agent.subAgentName} ${agent.modelName}` : agent.modelName;
+  const modelLabel = agent.subAgentName
+    ? `${agent.subAgentName} ${agent.modelName}`
+    : agent.modelName;
 
   return (
-    <div className={`transition-opacity duration-200 ${open ? "opacity-100" : "opacity-0 group-hover/section:opacity-100"}`}>
+    <div
+      className={`transition-opacity duration-200 ${open ? "opacity-100" : "opacity-0 group-hover/section:opacity-100"}`}
+    >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`grid w-full cursor-pointer ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start text-left text-sm leading-relaxed transition-colors text-neutral-500 hover:text-neutral-600`}
+        className={`grid w-full cursor-pointer ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start text-left text-sm leading-relaxed text-neutral-500 transition-colors hover:text-neutral-600`}
       >
         <CollapseRailMarker open={open} />
         <span className="min-w-0 truncate">

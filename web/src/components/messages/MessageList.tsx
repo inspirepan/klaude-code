@@ -35,7 +35,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 // Item types whose components include the rail grid internally (grid-cols-[16px_1fr] gap-x-1.5).
 // All other item types need RAIL_CONTENT_OFFSET to align with the grid's right column.
-const GRID_ITEM_TYPES = new Set(["thinking", "tool_block", "developer_message", "task_metadata", "interrupt", "error"]);
+const GRID_ITEM_TYPES = new Set([
+  "thinking",
+  "tool_block",
+  "developer_message",
+  "task_metadata",
+  "interrupt",
+  "error",
+]);
 
 // Tool blocks that render as cards (no rail grid) and need the content offset.
 const CARD_TOOL_NAMES = new Set(["TodoWrite", "AskUserQuestion"]);
@@ -666,8 +673,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                     }
                                     if (inner.type === "sub_agent_group") {
                                       const isFinished =
-                                        subAgentFinishedBySessionId[inner.sourceSessionId] ===
-                                        true;
+                                        subAgentFinishedBySessionId[inner.sourceSessionId] === true;
                                       return (
                                         <SubAgentGroupCard
                                           key={inner.groupId}
@@ -676,14 +682,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                           sourceSessionDesc={inner.sourceSessionDesc}
                                           sourceSessionFork={inner.sourceSessionFork}
                                           toolCount={inner.toolCount}
-                                          status={
-                                            statusBySessionId[inner.sourceSessionId] ?? null
-                                          }
+                                          status={statusBySessionId[inner.sourceSessionId] ?? null}
                                           isFinished={isFinished}
                                           nowSeconds={nowSeconds}
-                                          onClick={() =>
-                                            handleEnterSubAgent(inner.sourceSessionId)
-                                          }
+                                          onClick={() => handleEnterSubAgent(inner.sourceSessionId)}
                                         />
                                       );
                                     }
@@ -708,7 +710,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                             const isFinished =
                               subAgentFinishedBySessionId[block.sourceSessionId] === true;
                             return (
-                              <div key={block.groupId} className={`${spacing} ${RAIL_CONTENT_OFFSET}`}>
+                              <div
+                                key={block.groupId}
+                                className={`${spacing} ${RAIL_CONTENT_OFFSET}`}
+                              >
                                 <SubAgentGroupCard
                                   sourceSessionId={block.sourceSessionId}
                                   sourceSessionType={block.sourceSessionType}
@@ -729,9 +734,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                             GRID_ITEM_TYPES.has(item.type) &&
                             !(item.type === "tool_block" && CARD_TOOL_NAMES.has(item.toolName));
                           const itemOffset =
-                            item.type !== "user_message" && !hasRailGrid
-                              ? RAIL_CONTENT_OFFSET
-                              : "";
+                            item.type !== "user_message" && !hasRailGrid ? RAIL_CONTENT_OFFSET : "";
                           return (
                             <div key={item.id} className={`${spacing} ${itemOffset}`}>
                               <MessageRow

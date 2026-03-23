@@ -64,10 +64,10 @@ Dark mode inverts the neutral scale but keeps the same semantic color mapping. `
 
 ### Font Stack
 
-| Role                 | Family           | Source                                               | Fallback Chain                                                                                                  |
-| -------------------- | ---------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| **UI / Body**        | SF Pro (system)   | System font via `-apple-system`                      | BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif |
-| **Code / Monospace** | `JetBrains Mono`  | Local @font-face (variable, normal/italic, woff2)    | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace                                                |
+| Role                 | Family           | Source                                            | Fallback Chain                                                                                                 |
+| -------------------- | ---------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **UI / Body**        | SF Pro (system)  | System font via `-apple-system`                   | BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif |
+| **Code / Monospace** | `JetBrains Mono` | Local @font-face (variable, normal/italic, woff2) | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace                                               |
 
 ### Scale & Font Size Zones
 

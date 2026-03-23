@@ -46,9 +46,7 @@ export function ToolBlockHeader({
 
   return (
     <div className="flex min-h-6 min-w-0 items-center gap-1.5">
-      <span className="whitespace-nowrap font-medium text-neutral-700">
-        {item.toolName}
-      </span>
+      <span className="whitespace-nowrap font-medium text-neutral-700">{item.toolName}</span>
       {detailChip ? (
         <Tooltip>
           <TooltipTrigger asChild>

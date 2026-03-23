@@ -78,13 +78,11 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
       onClick={() => setOpen((value) => !value)}
     >
       <CollapseRailMarker open={open} className="row-span-2" />
-      <span className="whitespace-nowrap font-normal text-neutral-500">
-        {t("thinking.label")}
-      </span>
+      <span className="whitespace-nowrap font-normal text-neutral-500">{t("thinking.label")}</span>
 
       <CollapseRailPanel open={open}>
         <div
-          className="mt-2 thinking-block min-w-0 font-sans text-base leading-relaxed text-neutral-500"
+          className="thinking-block mt-2 min-w-0 font-sans text-base leading-relaxed text-neutral-500"
           onClick={(event) => {
             event.stopPropagation();
           }}

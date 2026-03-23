@@ -180,7 +180,11 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
       className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} ${bodyTextClass} ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => expandable && setOpen((v) => !v)}
     >
-      <CollapseRailMarker open={open} expandable={expandable} className={expandable ? "row-span-2" : undefined} />
+      <CollapseRailMarker
+        open={open}
+        expandable={expandable}
+        className={expandable ? "row-span-2" : undefined}
+      />
       <ToolBlockHeader
         item={item}
         detail={detail}

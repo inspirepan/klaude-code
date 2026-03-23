@@ -116,9 +116,7 @@ export function buildSections(
 
 function isTodoWriteBlock(block: SectionBlock): block is SectionItemBlock {
   return (
-    block.type === "item" &&
-    block.item.type === "tool_block" &&
-    block.item.toolName === "TodoWrite"
+    block.type === "item" && block.item.type === "tool_block" && block.item.toolName === "TodoWrite"
   );
 }
 
@@ -208,7 +206,11 @@ function mergeCollapsibleBlocks(
 }
 
 /** Collect raw blocks into planned-group inner blocks (flat, merging consecutive dev messages). */
-function buildPlannedInnerBlocks(rawBlocks: SectionBlock[], start: number, end: number): PlannedInnerBlock[] {
+function buildPlannedInnerBlocks(
+  rawBlocks: SectionBlock[],
+  start: number,
+  end: number,
+): PlannedInnerBlock[] {
   const inner: PlannedInnerBlock[] = [];
   for (let j = start; j < end; j++) {
     const b = rawBlocks[j]!;
@@ -282,7 +284,11 @@ export function buildSectionBlocks(
     }
 
     // Identify planned intervals: [in_progress TodoWrite, next TodoWrite)
-    interface PlannedInterval { start: number; end: number; nextTodoWriteIdx: number | null }
+    interface PlannedInterval {
+      start: number;
+      end: number;
+      nextTodoWriteIdx: number | null;
+    }
     const plannedIntervals: PlannedInterval[] = [];
     for (let t = 0; t < todoWriteIndices.length; t++) {
       const idx = todoWriteIndices[t]!;
@@ -307,12 +313,15 @@ export function buildSectionBlocks(
 
     for (const interval of plannedIntervals) {
       if (cursor < interval.start) {
-        blocks.push(...mergeCollapsibleBlocks(rawBlocks.slice(cursor, interval.start), effectiveSessionId));
+        blocks.push(
+          ...mergeCollapsibleBlocks(rawBlocks.slice(cursor, interval.start), effectiveSessionId),
+        );
       }
       const startItem = (rawBlocks[interval.start]! as SectionItemBlock).item;
-      const nextItem = interval.nextTodoWriteIdx !== null
-        ? (rawBlocks[interval.nextTodoWriteIdx]! as SectionItemBlock).item
-        : null;
+      const nextItem =
+        interval.nextTodoWriteIdx !== null
+          ? (rawBlocks[interval.nextTodoWriteIdx]! as SectionItemBlock).item
+          : null;
       blocks.push({
         type: "planned_group",
         id: `pg-${effectiveSessionId}-${startItem.id}`,
