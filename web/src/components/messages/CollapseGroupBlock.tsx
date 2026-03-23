@@ -496,7 +496,7 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
           ) : (
             <>
               <span className="font-normal text-neutral-500">{part.label}</span>{" "}
-              <span style={{ fontSize: "0.9em" }}>{part.value}</span>
+              {part.value}
             </>
           )}
         </span>
@@ -566,7 +566,7 @@ export function CollapseGroupBlock({
           <button
             type="button"
             onClick={onToggle}
-            className={`grid w-full min-w-0 ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-base text-neutral-500 transition-colors hover:text-neutral-600`}
+            className={`grid w-full min-w-0 ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start py-1 text-left text-sm text-neutral-500 transition-colors hover:text-neutral-600`}
           >
             <CollapseRailMarker open={!collapsed} />
             <span className="flex min-w-0 items-center">

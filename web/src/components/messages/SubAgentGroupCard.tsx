@@ -53,12 +53,12 @@ export function SubAgentGroupCard({
       )}
 
       {/* Type label */}
-      <span className="shrink-0 text-base font-medium text-neutral-700">
-        {t("subAgent.agent")} {formatSubAgentTypeLabel(sourceSessionType)}
+      <span className="shrink-0 text-sm font-medium text-neutral-700">
+        {formatSubAgentTypeLabel(sourceSessionType)}
       </span>
 
       {/* Description */}
-      <span className="min-w-0 truncate text-base text-neutral-600">
+      <span className="min-w-0 truncate text-sm text-neutral-600">
         {sourceSessionDesc ?? t("subAgent.defaultDesc")(shortSessionId(sourceSessionId))}
       </span>
 

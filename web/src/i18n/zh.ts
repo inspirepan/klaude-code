@@ -112,7 +112,6 @@ const zh: Translations = {
     `\u00b7\u00b7\u00b7 隐藏了 ${count} 行 \u00b7\u00b7\u00b7`,
 
   // Sub agent
-  "subAgent.agent": "Agent",
   "subAgent.defaultDesc": (id: string) => `Sub Agent ${id}`,
   "subAgent.fork": "分支",
   "subAgent.toolCall": (count: number) => `${count} 次工具调用`,

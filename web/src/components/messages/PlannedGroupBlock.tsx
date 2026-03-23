@@ -1,5 +1,5 @@
 import { CheckCircle2, CircleDashed } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { cn } from "../../lib/utils";
 import {
@@ -9,6 +9,7 @@ import {
   CollapseRailPanel,
 } from "./CollapseRail";
 import type { PlannedTodoItem } from "./message-sections";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 interface PlannedGroupBlockProps {
   todos: PlannedTodoItem[];
@@ -21,7 +22,7 @@ function TodoIcon({ completed }: { completed: boolean }): JSX.Element {
   return completed ? (
     <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
   ) : (
-    <CircleDashed className="h-3.5 w-3.5 shrink-0 animate-spin-slow text-amber-500" />
+    <CircleDashed className="h-3.5 w-3.5 shrink-0 animate-spin-slow text-blue-500" />
   );
 }
 
@@ -32,45 +33,54 @@ export function PlannedGroupBlock({
   children,
 }: PlannedGroupBlockProps): JSX.Element {
   const open = !collapsed;
-  // Use the first todo's status for the rail icon (common case: single todo)
   const firstCompleted = todos[0]?.completed ?? false;
+  // Single line for the summary row; tooltip shows each todo on its own line
+  const summaryText = todos.map((t) => t.content).join(" / ");
+  const tooltipText = todos.map((t) => t.content).join("\n\n");
+
+  const summaryRef = useRef<HTMLSpanElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+
+  useEffect(() => {
+    const el = summaryRef.current;
+    if (!el) return;
+    const check = () => { setIsTruncated(el.scrollWidth > el.clientWidth); };
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => { observer.disconnect(); };
+  }, [summaryText]);
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={onToggle}
-        className={`grid w-full min-w-0 ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start text-left text-base transition-colors hover:text-neutral-600`}
-      >
-        <CollapseRailMarker open={open} />
-        <span className="flex min-w-0 items-center gap-1.5">
-          {todos.length === 1 ? (
-            <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onToggle}
+            className={`grid w-full min-w-0 ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start text-left text-sm transition-colors hover:text-neutral-600`}
+          >
+            <CollapseRailMarker open={open} />
+            <span className="flex min-w-0 items-center gap-1.5">
               <TodoIcon completed={firstCompleted} />
               <span
+                ref={summaryRef}
                 className={cn(
                   "min-w-0 truncate",
-                  firstCompleted ? "text-emerald-700" : "text-amber-600",
+                  firstCompleted ? "text-emerald-700" : "text-blue-600",
                 )}
               >
-                {todos[0].content}
+                {summaryText}
               </span>
-            </>
-          ) : (
-            <span className="flex min-w-0 items-center gap-1.5 truncate">
-              {todos.map((t, i) => (
-                <span key={i} className="flex items-center gap-0.5">
-                  {i > 0 ? <span className="text-neutral-300">/</span> : null}
-                  <TodoIcon completed={t.completed} />
-                  <span className={t.completed ? "text-emerald-700" : "text-amber-600"}>
-                    {t.content}
-                  </span>
-                </span>
-              ))}
             </span>
-          )}
-        </span>
-      </button>
+          </button>
+        </TooltipTrigger>
+        {isTruncated ? (
+          <TooltipContent side="bottom" align="start" className="max-w-sm whitespace-pre-wrap break-words">
+            {tooltipText}
+          </TooltipContent>
+        ) : null}
+      </Tooltip>
       <CollapseRailPanel open={open}>
         <div className={`mt-3 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
           <CollapseRailConnector lineClassName="-mt-3" />

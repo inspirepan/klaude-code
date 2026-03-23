@@ -111,7 +111,6 @@ const en = {
     `\u00b7\u00b7\u00b7 ${count} lines hidden \u00b7\u00b7\u00b7`,
 
   // Sub agent
-  "subAgent.agent": "Agent",
   "subAgent.defaultDesc": (id: string) => `Sub Agent ${id}`,
   "subAgent.fork": "fork",
   "subAgent.toolCall": (count: number) => `${count} tool call${count !== 1 ? "s" : ""}`,

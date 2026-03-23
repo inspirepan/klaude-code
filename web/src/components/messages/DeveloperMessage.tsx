@@ -127,7 +127,7 @@ function CollapsibleRow({
 
   return (
     <div
-      className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} text-base ${expandable ? "cursor-pointer" : "cursor-default"}`}
+      className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} text-sm ${expandable ? "cursor-pointer" : "cursor-default"}`}
       onClick={() => {
         if (expandable) setOpen((v) => !v);
       }}
@@ -160,7 +160,7 @@ function CollapsibleRow({
 
 function PathList({ paths }: { paths: string[] }): JSX.Element {
   return (
-    <ul className="list-disc space-y-1 pl-5 text-base leading-6 marker:text-neutral-500">
+    <ul className="list-disc space-y-1 pl-5 text-sm leading-6 marker:text-neutral-500">
       {paths.map((p) => (
         <li key={p}>
           <PathPill path={p} />
@@ -194,7 +194,7 @@ function AttachDetail({
               <div key={`${g.operation}-${g.mentionedIn ?? ""}-${g.paths.join(",")}`}>
                 <PathList paths={g.paths} />
                 {g.mentionedIn ? (
-                  <div className="mt-0.5 text-base leading-6">
+                  <div className="mt-0.5 text-sm leading-6">
                     <span className="mr-1 text-neutral-500">{t("developer.mentionedIn")}</span>
                     <PathPill path={g.mentionedIn} />
                   </div>
@@ -236,7 +236,7 @@ export function DeveloperMessage({ items }: DeveloperMessageProps): JSX.Element 
   const summary = hasAttachments ? buildAttachedSummary(items, t) : "";
 
   return (
-    <div className="flex flex-col font-sans text-base text-neutral-500">
+    <div className="flex flex-col font-sans text-sm text-neutral-500">
       {hasAttachments ? (
         <CollapsibleRow label={`${t("developer.attached")} ${summary}`}>
           <AttachDetail devItems={items} images={images} />
