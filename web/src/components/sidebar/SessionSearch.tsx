@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, MessageSquare, Search } from "lucide-react";
 import { searchSessions, type SessionSearchResult } from "@/api/client";
-import {
-  CommandListItem,
-  CommandListPanel,
-  CommandListScroll,
-} from "@/components/ui/command-list";
+import { CommandListItem, CommandListPanel, CommandListScroll } from "@/components/ui/command-list";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
 
@@ -102,10 +98,7 @@ function SnippetText({
 }
 
 /** Find the first user message containing the query (case-insensitive). */
-function findMatchedUserMessage(
-  result: SessionSearchResult,
-  queryLower: string,
-): string | null {
+function findMatchedUserMessage(result: SessionSearchResult, queryLower: string): string | null {
   for (const msg of result.user_messages) {
     if (msg.toLowerCase().includes(queryLower)) {
       return msg;
@@ -124,7 +117,11 @@ interface SessionSearchProps {
   onBeforeOpen?: () => void;
 }
 
-export function SessionSearch({ onSelectSession, onOpenChange, onBeforeOpen }: SessionSearchProps): JSX.Element {
+export function SessionSearch({
+  onSelectSession,
+  onOpenChange,
+  onBeforeOpen,
+}: SessionSearchProps): JSX.Element {
   const t = useT();
   const [open, setOpenRaw] = useState(false);
   const setOpen = useCallback(
@@ -272,9 +269,7 @@ export function SessionSearch({ onSelectSession, onOpenChange, onBeforeOpen }: S
             </div>
           </div>
           {searched && results.length === 0 ? (
-            <div className="px-3 py-3 text-sm text-neutral-500">
-              {t("sidebar.noSearchResults")}
-            </div>
+            <div className="px-3 py-3 text-sm text-neutral-500">{t("sidebar.noSearchResults")}</div>
           ) : null}
           {results.length > 0 ? (
             <CommandListScroll maxHeight="max-h-80">
@@ -329,11 +324,7 @@ function SearchResultItem({
   const snippets = showMatchedMsg ? extractSnippets(matchedUserMsg, query) : [];
 
   return (
-    <CommandListItem
-      highlighted={highlighted}
-      onClick={onClick}
-      onPointerMove={onPointerMove}
-    >
+    <CommandListItem highlighted={highlighted} onClick={onClick} onPointerMove={onPointerMove}>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <HighlightedText
@@ -341,17 +332,12 @@ function SearchResultItem({
             query={query}
             className="truncate text-sm"
           />
-          {result.archived ? (
-            <Archive className="h-3 w-3 shrink-0 text-neutral-400" />
-          ) : null}
+          {result.archived ? <Archive className="h-3 w-3 shrink-0 text-neutral-400" /> : null}
         </div>
         {snippets.length > 0 ? (
           <div className="mt-0.5 flex items-start gap-1">
             <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-neutral-400" />
-            <SnippetText
-              snippets={snippets}
-              className="line-clamp-2 text-xs text-neutral-500"
-            />
+            <SnippetText snippets={snippets} className="line-clamp-2 text-xs text-neutral-500" />
           </div>
         ) : null}
         <HighlightedText

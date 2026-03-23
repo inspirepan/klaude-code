@@ -104,7 +104,9 @@ export function CollapseRailPanel({
       const timer = setTimeout(() => {
         el.style.height = "auto";
       }, COLLAPSE_RAIL_DURATION_MS + 10);
-      return () => { clearTimeout(timer); };
+      return () => {
+        clearTimeout(timer);
+      };
     } else {
       // Collapsing: snapshot current height, force reflow, then animate to 0
       el.style.transition = "none";

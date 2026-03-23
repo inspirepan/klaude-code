@@ -43,11 +43,15 @@ export function PlannedGroupBlock({
   useEffect(() => {
     const el = summaryRef.current;
     if (!el) return;
-    const check = () => { setIsTruncated(el.scrollWidth > el.clientWidth); };
+    const check = () => {
+      setIsTruncated(el.scrollWidth > el.clientWidth);
+    };
     check();
     const observer = new ResizeObserver(check);
     observer.observe(el);
-    return () => { observer.disconnect(); };
+    return () => {
+      observer.disconnect();
+    };
   }, [summaryText]);
 
   return (
@@ -62,17 +66,18 @@ export function PlannedGroupBlock({
             <CollapseRailMarker open={open} />
             <span className="flex min-w-0 items-center gap-1.5">
               <TodoIcon completed={firstCompleted} />
-              <span
-                ref={summaryRef}
-                className="min-w-0 truncate text-neutral-500"
-              >
+              <span ref={summaryRef} className="min-w-0 truncate text-neutral-500">
                 {summaryText}
               </span>
             </span>
           </button>
         </TooltipTrigger>
         {isTruncated ? (
-          <TooltipContent side="bottom" align="start" className="max-w-sm whitespace-pre-wrap break-words">
+          <TooltipContent
+            side="bottom"
+            align="start"
+            className="max-w-sm whitespace-pre-wrap break-words"
+          >
             {tooltipText}
           </TooltipContent>
         ) : null}

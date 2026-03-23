@@ -29,14 +29,14 @@ All colors are delivered via HSL CSS custom properties in `:root` / `.dark`, con
 
 Unified color families: **emerald** for success, **red** for error, **amber** for warning/interrupt, **blue** for interactive and active/running state.
 
-| Name                | Value                             | Role                                                                           |
-| ------------------- | --------------------------------- | ------------------------------------------------------------------------------ |
-| Emerald-500/600/700 | `#10b981` / `#059669` / `#047857` | Success states, completion indicators, unread dots                             |
-| Red-500/700         | `#ef4444` / `#b91c1c`             | Error text, destructive actions, error tool results                            |
-| Amber-500/600       | `#f59e0b` / `#d97706`             | Interrupt button, active ring, validation hints                                |
+| Name                | Value                             | Role                                                                                                                       |
+| ------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Emerald-500/600/700 | `#10b981` / `#059669` / `#047857` | Success states, completion indicators, unread dots                                                                         |
+| Red-500/700         | `#ef4444` / `#b91c1c`             | Error text, destructive actions, error tool results                                                                        |
+| Amber-500/600       | `#f59e0b` / `#d97706`             | Interrupt button, active ring, validation hints                                                                            |
 | Blue-500/600        | `#3b82f6` / `#2563eb`             | Primary interactive accent and active/running state -- submit buttons, selected options, focused inputs, in-progress todos |
-| Blue-50/80          | `#eff6ff`                         | Selected pill backgrounds, focus rings                                         |
-| Neutral-800         | `#262626`                         | Default send button, primary dark elements                                     |
+| Blue-50/80          | `#eff6ff`                         | Selected pill backgrounds, focus rings                                                                                     |
+| Neutral-800         | `#262626`                         | Default send button, primary dark elements                                                                                 |
 
 ### Fixed-Purpose Colors
 

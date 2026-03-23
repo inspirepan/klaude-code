@@ -702,17 +702,16 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                       const isFinished =
                                         subAgentFinishedBySessionId[inner.sourceSessionId];
                                       return (
-                                        <div
-                                          key={inner.groupId}
-                                          className={RAIL_CONTENT_OFFSET}
-                                        >
+                                        <div key={inner.groupId} className={RAIL_CONTENT_OFFSET}>
                                           <SubAgentGroupCard
                                             sourceSessionId={inner.sourceSessionId}
                                             sourceSessionType={inner.sourceSessionType}
                                             sourceSessionDesc={inner.sourceSessionDesc}
                                             sourceSessionFork={inner.sourceSessionFork}
                                             toolCount={inner.toolCount}
-                                            status={statusBySessionId[inner.sourceSessionId] ?? null}
+                                            status={
+                                              statusBySessionId[inner.sourceSessionId] ?? null
+                                            }
                                             isFinished={isFinished}
                                             nowSeconds={nowSeconds}
                                             onClick={() => {
@@ -733,10 +732,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                       ? RAIL_CONTENT_OFFSET
                                       : "";
                                     return (
-                                      <div
-                                        key={innerItem.id}
-                                        className={innerOffset}
-                                      >
+                                      <div key={innerItem.id} className={innerOffset}>
                                         <MessageRow
                                           item={innerItem}
                                           workDir={workspacePath}

@@ -6,10 +6,10 @@ Run `pnpm lint` and `pnpm format:check` before committing. Fix all errors; warni
 
 Before making changes, read the relevant docs:
 
-| If you are working on...                                       | MUST read first                                              |
-| -------------------------------------------------------------- | ------------------------------------------------------------ |
-| Styles, colors, typography, spacing, shadows, animation, layout | [DESIGN.md](DESIGN.md) -- full design system spec           |
-| Session loading, WebSocket, history, sub-agent, read-only logic | [Session event pipeline](docs/session-event-pipeline.md)    |
+| If you are working on...                                        | MUST read first                                          |
+| --------------------------------------------------------------- | -------------------------------------------------------- |
+| Styles, colors, typography, spacing, shadows, animation, layout | [DESIGN.md](DESIGN.md) -- full design system spec        |
+| Session loading, WebSocket, history, sub-agent, read-only logic | [Session event pipeline](docs/session-event-pipeline.md) |
 
 ## Component rules (always apply)
 

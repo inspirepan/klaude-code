@@ -39,17 +39,23 @@ function TodoItem({ content, iconClass, textClass, Icon }: TodoItemProps): JSX.E
   useEffect(() => {
     const el = spanRef.current;
     if (!el) return;
-    const check = () => { setIsTruncated(el.scrollWidth > el.clientWidth); };
+    const check = () => {
+      setIsTruncated(el.scrollWidth > el.clientWidth);
+    };
     check();
     const observer = new ResizeObserver(check);
     observer.observe(el);
-    return () => { observer.disconnect(); };
+    return () => {
+      observer.disconnect();
+    };
   }, [content]);
 
   const row = (
     <div className="flex min-w-0 cursor-default items-center gap-2 leading-relaxed">
       <Icon className={iconClass} />
-      <span ref={spanRef} className={`${textClass} truncate`}>{content}</span>
+      <span ref={spanRef} className={`${textClass} truncate`}>
+        {content}
+      </span>
     </div>
   );
 
@@ -85,7 +91,13 @@ export function TodoListView({ uiExtra }: TodoListViewProps): JSX.Element {
         const textClass = isNewCompleted ? "text-emerald-700" : config.textClass;
 
         return (
-          <TodoItem key={i} content={todo.content} iconClass={iconClass} textClass={textClass} Icon={Icon} />
+          <TodoItem
+            key={i}
+            content={todo.content}
+            iconClass={iconClass}
+            textClass={textClass}
+            Icon={Icon}
+          />
         );
       })}
       {explanation && <p className="mt-1 text-sm italic text-neutral-400">{explanation}</p>}

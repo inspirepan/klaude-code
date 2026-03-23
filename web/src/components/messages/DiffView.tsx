@@ -171,7 +171,10 @@ export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
   if (!extra || patches === null) return null;
 
   return (
-    <div className="diff-view rounded-lg bg-surface [--diffs-font-size:0.875rem]" ref={containerRef}>
+    <div
+      className="diff-view rounded-lg bg-surface [--diffs-font-size:0.875rem]"
+      ref={containerRef}
+    >
       <div className="flex flex-col">
         <div
           className={`relative ${!expanded && isOverflowing ? "max-h-[420px] overflow-hidden" : ""}`}

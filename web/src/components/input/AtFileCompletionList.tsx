@@ -172,8 +172,12 @@ export function AtFileCompletionList({
               key={path}
               data-file-completion={path}
               highlighted={index === highlightIndex}
-              onPointerEnter={() => { onHighlightIndexChange(index); }}
-              onClick={() => { onSelect(path); }}
+              onPointerEnter={() => {
+                onHighlightIndexChange(index);
+              }}
+              onClick={() => {
+                onSelect(path);
+              }}
             >
               <FileIcon
                 className="h-4 w-4 shrink-0"

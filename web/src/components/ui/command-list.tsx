@@ -60,7 +60,9 @@ export function CommandListItem({
         highlighted ? "bg-muted text-neutral-900" : "text-neutral-600 hover:bg-surface",
         className,
       )}
-      onMouseDown={(e) => { e.preventDefault(); }}
+      onMouseDown={(e) => {
+        e.preventDefault();
+      }}
       {...buttonProps}
     >
       {children}

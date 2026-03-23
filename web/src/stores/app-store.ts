@@ -11,7 +11,13 @@ interface AppStoreState {
 export const useAppStore = create<AppStoreState>((set) => ({
   sidebarOpen: true,
   newSessionOverlayOpen: false,
-  setSidebarOpen: (open: boolean) => { set({ sidebarOpen: open }); },
-  setNewSessionOverlayOpen: (open: boolean) => { set({ newSessionOverlayOpen: open }); },
-  toggleSidebar: () => { set((state) => ({ sidebarOpen: !state.sidebarOpen })); },
+  setSidebarOpen: (open: boolean) => {
+    set({ sidebarOpen: open });
+  },
+  setNewSessionOverlayOpen: (open: boolean) => {
+    set({ newSessionOverlayOpen: open });
+  },
+  toggleSidebar: () => {
+    set((state) => ({ sidebarOpen: !state.sidebarOpen }));
+  },
 }));

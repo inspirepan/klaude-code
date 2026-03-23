@@ -498,7 +498,9 @@ export function LeftSidebar(): JSX.Element {
               <SessionSearch
                 onSelectSession={handleSearchSelect}
                 onOpenChange={setSearchPopupOpen}
-                onBeforeOpen={() => { setArchivedMenuOpen(false); }}
+                onBeforeOpen={() => {
+                  setArchivedMenuOpen(false);
+                }}
               />
               {archiveCleanupConfirmOpen ? (
                 <button

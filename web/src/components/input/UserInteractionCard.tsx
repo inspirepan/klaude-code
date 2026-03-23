@@ -173,7 +173,9 @@ function QuestionPanel({
             disabled={actionDisabled}
             label={option.label}
             description={option.description}
-            onClick={() => { onToggleOption(option.id); }}
+            onClick={() => {
+              onToggleOption(option.id);
+            }}
           />
         ))}
       </div>
@@ -184,7 +186,9 @@ function QuestionPanel({
           type="text"
           disabled={actionDisabled}
           value={note}
-          onChange={(e) => { onNoteChange(e.target.value); }}
+          onChange={(e) => {
+            onNoteChange(e.target.value);
+          }}
           placeholder={`Other: ${question.input_placeholder ?? "Type something."}`}
           className="h-9 w-full rounded-lg border border-border bg-surface/50 px-3 text-base text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-blue-300 focus:bg-card focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
         />
@@ -321,7 +325,9 @@ export function UserInteractionCard({
                     <button
                       key={q.id}
                       type="button"
-                      onClick={() => { setActiveTab(i); }}
+                      onClick={() => {
+                        setActiveTab(i);
+                      }}
                       className={`flex items-center gap-1.5 rounded-[22px] px-3 py-1.5 text-sm font-medium transition ${
                         isActive
                           ? "bg-blue-50/55 text-blue-600"

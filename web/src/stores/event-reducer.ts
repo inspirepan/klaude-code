@@ -278,7 +278,7 @@ export function reduceEvent(
       if (mainAgent === null || typeof mainAgent !== "object") return currentState;
 
       const mainAgentRec = mainAgent as Record<string, unknown>;
-      const isPartial = (event).is_partial === true;
+      const isPartial = event.is_partial === true;
 
       const id = makeId(currentState);
       return {
