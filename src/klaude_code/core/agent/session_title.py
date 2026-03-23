@@ -14,7 +14,7 @@ _SESSION_TITLE_SYSTEM_PROMPT = (
     "Reply with only the title, no quotes, no markdown, no explanation."
 )
 
-_SESSION_TITLE_MAX_TOKENS = 256
+_SESSION_TITLE_MAX_TOKENS = 4096
 
 
 def _build_session_title_input(user_messages: list[str], *, previous_title: str | None = None) -> list[message.Message]:
@@ -37,6 +37,7 @@ def _build_session_title_input(user_messages: list[str], *, previous_title: str 
                         "- be specific: name the concrete thing being done, not the broad area (BAD: 'TUI 开发', GOOD: '修复终端标题截断问题')\n"
                         "- reflect user intent, not tool usage or internal operations\n"
                         "- use the same language as the user's messages; do not translate\n"
+                        "- maximum 80 characters; prefer concise phrasing\n"
                         "- single line, imperative or noun phrase, no filler words\n"
                         "- if a previous title exists and the topic hasn't changed, refine it rather than replace it\n\n"
                         f"{previous_title_block}"
