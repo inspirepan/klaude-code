@@ -61,6 +61,11 @@ class MetadataAccumulator:
         self.last_turn_cached_tokens: int = 0
         self.last_turn_prev_input_tokens: int = 0
 
+    @property
+    def prev_turn_input_tokens(self) -> int:
+        """Input token count from the most recent successful turn."""
+        return self._prev_turn_input_tokens
+
     def add(self, turn_usage: model.Usage) -> None:
         """Merge a turn's usage into the accumulated state."""
         self._turn_count += 1
@@ -393,6 +398,7 @@ class TaskExecutor:
                 tool_registry=ctx.tool_registry,
                 sub_agent_state=ctx.sub_agent_state,
                 rewind_manager=self._rewind_manager,
+                prev_turn_input_tokens=metadata_accumulator.prev_turn_input_tokens,
             )
 
             turn: TurnExecutor | None = None

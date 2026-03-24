@@ -5,7 +5,11 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from klaude_code.const import LLM_FIRST_TOKEN_TIMEOUT_S, RETRY_PRESERVE_PARTIAL_MESSAGE
+from klaude_code.const import (
+    FIRST_TOKEN_TIMEOUT_NO_RETRY_INPUT_TOKENS,
+    LLM_FIRST_TOKEN_TIMEOUT_S,
+    RETRY_PRESERVE_PARTIAL_MESSAGE,
+)
 from klaude_code.core.rewind import RewindManager
 from klaude_code.core.tool import ToolABC
 from klaude_code.core.tool.context import ToolContext
@@ -45,6 +49,7 @@ class TurnExecutionContext:
     tool_registry: dict[str, type[ToolABC]]
     sub_agent_state: model.SubAgentState | None = None
     rewind_manager: RewindManager | None = None
+    prev_turn_input_tokens: int = 0
 
 
 @dataclass
@@ -278,6 +283,9 @@ class TurnExecutor:
             while True:
                 try:
                     if first_effective_token_received:
+                        delta = await anext(stream_iter)
+                    elif ctx.prev_turn_input_tokens >= FIRST_TOKEN_TIMEOUT_NO_RETRY_INPUT_TOKENS:
+                        # Large context: skip first-token timeout since slow processing is expected
                         delta = await anext(stream_iter)
                     else:
                         delta = await asyncio.wait_for(anext(stream_iter), timeout=LLM_FIRST_TOKEN_TIMEOUT_S)
