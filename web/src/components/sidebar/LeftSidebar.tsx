@@ -467,7 +467,6 @@ export function LeftSidebar(): JSX.Element {
                     collapsed={collapsedByWorkDir[group.work_dir] ?? false}
                     activeSessionId={activeSessionId}
                     runtimeBySessionId={runtimeBySessionId}
-                    recentCompletionStartedAtBySessionId={recentCompletionStartedAtBySessionId}
                     completedUnreadBySessionId={completedUnreadBySessionId}
                     onToggle={() => {
                       toggleGroup(group.work_dir);
@@ -574,9 +573,6 @@ export function LeftSidebar(): JSX.Element {
                             hideNewSessionButton
                             activeSessionId={activeSessionId}
                             runtimeBySessionId={runtimeBySessionId}
-                            recentCompletionStartedAtBySessionId={
-                              recentCompletionStartedAtBySessionId
-                            }
                             completedUnreadBySessionId={completedUnreadBySessionId}
                             onToggle={() => {
                               setArchivedCollapsedByWorkDir((prev) => ({

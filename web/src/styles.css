@@ -68,41 +68,6 @@ body {
   animation: status-success-settle 1.6s ease-out forwards;
 }
 
-@keyframes status-success-card-settle {
-  0% {
-    background-color: rgba(209, 250, 229, 0.96);
-  }
-
-  18% {
-    background-color: rgba(209, 250, 229, 0.88);
-  }
-
-  100% {
-    background-color: rgba(245, 245, 245, 0);
-  }
-}
-
-@keyframes status-success-card-settle-active {
-  0% {
-    background-color: rgba(209, 250, 229, 0.96);
-  }
-
-  18% {
-    background-color: rgba(209, 250, 229, 0.88);
-  }
-
-  100% {
-    background-color: rgba(229, 229, 229, 0.6);
-  }
-}
-
-.status-success-card-settle {
-  animation: status-success-card-settle 1.6s ease-out forwards;
-}
-
-.status-success-card-settle-active {
-  animation: status-success-card-settle-active 1.6s ease-out forwards;
-}
 
 @keyframes todo-in-progress-shimmer {
   0% {

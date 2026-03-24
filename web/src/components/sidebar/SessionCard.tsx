@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { Archive, ArchiveRestore, CirclePause, Loader } from "lucide-react";
+import { Archive, ArchiveRestore, CirclePause } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { cn } from "@/lib/utils";
-import { useMountEffect } from "@/hooks/useMountEffect";
 import { SessionTitleText } from "@/components/SessionTitleText";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
@@ -12,17 +10,8 @@ interface SessionCardProps {
   active: boolean;
   runtime: SessionRuntimeState;
   hasUnreadCompletion: boolean;
-  completionAnimationStartedAt?: number;
   onClick: () => void;
   onToggleArchive: (sessionId: string, archived: boolean) => void;
-}
-
-function UnreadCompletionDot(): JSX.Element {
-  return (
-    <span className="flex h-3 w-3 shrink-0 items-center justify-center">
-      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
-    </span>
-  );
 }
 
 function getSessionTitle(session: SessionSummary): string | null {
@@ -97,69 +86,21 @@ export function SessionCard({
   active,
   runtime,
   hasUnreadCompletion,
-  completionAnimationStartedAt,
   onClick,
   onToggleArchive,
 }: SessionCardProps): JSX.Element {
   const t = useT();
-  const [showSuccessState, setShowSuccessState] = useState(false);
-  const successAnimationFrameRef = useRef<number | null>(null);
-  const successTimeoutRef = useRef<number | null>(null);
   const title = shortenFileRefs(getSessionTitle(session) ?? t("sidebar.newSession"));
   const updatedAtDetailed = formatDetailedTime(session.updated_at);
   const relativeTime = formatRelativeTime(session.updated_at);
   const diffSummary = session.file_change_summary;
 
-  useEffect(() => {
-    if (completionAnimationStartedAt === undefined) {
-      return;
-    }
-
-    const elapsed = Date.now() - completionAnimationStartedAt;
-    const remaining = 1600 - elapsed;
-    if (remaining <= 0) {
-      return;
-    }
-
-    if (successAnimationFrameRef.current !== null) {
-      window.cancelAnimationFrame(successAnimationFrameRef.current);
-    }
-    if (successTimeoutRef.current !== null) {
-      window.clearTimeout(successTimeoutRef.current);
-    }
-
-    successAnimationFrameRef.current = window.requestAnimationFrame(() => {
-      setShowSuccessState(false);
-      successAnimationFrameRef.current = window.requestAnimationFrame(() => {
-        setShowSuccessState(true);
-        successAnimationFrameRef.current = null;
-        successTimeoutRef.current = window.setTimeout(() => {
-          setShowSuccessState(false);
-          successTimeoutRef.current = null;
-        }, remaining);
-      });
-    });
-  }, [completionAnimationStartedAt]);
-
-  useMountEffect(() => {
-    return () => {
-      if (successAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(successAnimationFrameRef.current);
-      }
-      if (successTimeoutRef.current !== null) {
-        window.clearTimeout(successTimeoutRef.current);
-      }
-    };
-  });
-
   return (
     <div
       className={cn(
         "group relative flex min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-2 pr-2 text-left transition-colors",
-        showSuccessState
-          ? active
-            ? "status-success-card-settle-active"
-            : "status-success-card-settle"
+        hasUnreadCompletion
+          ? "bg-emerald-100/60"
           : active
             ? "bg-neutral-200/60"
             : "hover:bg-muted/80",
@@ -175,16 +116,10 @@ export function SessionCard({
       }}
       title={title}
     >
-      {runtime.sessionState !== "idle" ? (
+      {runtime.sessionState === "waiting" ? (
         <span className="flex h-3 w-3 shrink-0 items-center justify-center">
-          {runtime.sessionState === "running" ? (
-            <Loader className="h-3 w-3 animate-spin text-neutral-500" />
-          ) : (
-            <CirclePause className="h-3 w-3 text-amber-500" />
-          )}
+          <CirclePause className="h-3 w-3 text-amber-500" />
         </span>
-      ) : hasUnreadCompletion ? (
-        <UnreadCompletionDot />
       ) : null}
       <SessionTitleText
         title={title}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Folder, FolderOpen, Loader, SquarePen } from "lucide-react";
+import { Folder, FolderOpen, SquarePen } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,7 +15,6 @@ interface ProjectGroupProps {
   // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- documents "draft" as a special sentinel value
   activeSessionId: string | "draft";
   runtimeBySessionId: Partial<Record<string, SessionRuntimeState>>;
-  recentCompletionStartedAtBySessionId: Record<string, number>;
   completedUnreadBySessionId: Record<string, boolean>;
   onToggle: () => void;
   onSelectDraft: (workDir: string) => void;
@@ -38,7 +37,6 @@ export function ProjectGroup({
   hideNewSessionButton = false,
   activeSessionId,
   runtimeBySessionId,
-  recentCompletionStartedAtBySessionId,
   completedUnreadBySessionId,
   onToggle,
   onSelectDraft,
@@ -65,8 +63,7 @@ export function ProjectGroup({
       const state = runtimeBySessionId[s.id]?.sessionState ?? s.session_state;
       return state !== "idle";
     });
-  const hasAnyUnread =
-    !hasAnyRunning && collapsed && sessions.some((s) => completedUnreadBySessionId[s.id]);
+
 
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-0.5">
@@ -90,13 +87,7 @@ export function ProjectGroup({
                     {workDirLabel(workDir)}
                   </span>
                   <span className="shrink-0 text-xs text-neutral-500">({sessions.length})</span>
-                  {hasAnyRunning ? (
-                    <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
-                  ) : hasAnyUnread ? (
-                    <span className="flex h-3 w-3 shrink-0 items-center justify-center">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
-                    </span>
-                  ) : null}
+
                 </div>
               </div>
             </CollapsibleTrigger>
@@ -137,7 +128,6 @@ export function ProjectGroup({
                 }
               }
               hasUnreadCompletion={completedUnreadBySessionId[session.id]}
-              completionAnimationStartedAt={recentCompletionStartedAtBySessionId[session.id]}
               onClick={() => {
                 onSelectSession(session.id);
               }}
