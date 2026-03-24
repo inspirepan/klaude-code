@@ -104,6 +104,11 @@ const en = {
   // Compaction
   "compaction.label": "Compacted",
 
+  // Rewind
+  "rewind.label": (checkpointId: number) => `Rewound to Checkpoint ${checkpointId}`,
+  "rewind.rationale": "Reason:",
+  "rewind.note": "Context:",
+
   // Question summary
   "question.label": "QUESTION",
   "question.noAnswer": "(No answer provided)",

@@ -81,6 +81,8 @@ export function extractSearchableText(item: MessageItem): string {
       return "Interrupted by user";
     case "compaction_summary":
       return item.content;
+    case "rewind_summary":
+      return `${item.rationale}\n${item.note}`;
     case "unknown_event":
       return `${item.eventType}\n${JSON.stringify(item.rawEvent)}`;
   }

@@ -182,6 +182,17 @@ export interface CompactionSummaryItem {
   content: string;
 }
 
+export interface RewindSummaryItem {
+  id: MessageItemId;
+  type: "rewind_summary";
+  timestamp: ItemTimestamp;
+  sessionId: string | null;
+  checkpointId: number;
+  note: string;
+  rationale: string;
+  originalUserMessage: string;
+}
+
 export interface UnknownEventItem {
   id: MessageItemId;
   type: "unknown_event";
@@ -200,5 +211,6 @@ export type MessageItem =
   | ErrorItem
   | InterruptItem
   | CompactionSummaryItem
+  | RewindSummaryItem
   | TaskMetadataItem
   | UnknownEventItem;

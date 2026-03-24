@@ -83,6 +83,10 @@ export default {
           label: "#5b6f92",
           text: "#2f3f5f",
         },
+        rewind: {
+          label: "#92725b",
+          text: "#5f3f2f",
+        },
         border: "hsl(var(--border) / <alpha-value>)",
         input: "hsl(var(--input) / <alpha-value>)",
         ring: "hsl(var(--ring) / <alpha-value>)",
