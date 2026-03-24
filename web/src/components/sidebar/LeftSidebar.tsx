@@ -266,11 +266,15 @@ export function LeftSidebar(): React.JSX.Element {
   const archiveCleanupEligibleSessions = useMemo(() => {
     const cutoff = Date.now() / 1000 - ARCHIVE_CLEANUP_AGE_SECONDS;
     return activeSessions.filter((session) => {
+      const runtime = runtimeBySessionId[session.id];
+      if (runtime !== undefined && runtime.sessionState !== "idle") {
+        return false;
+      }
       const diffSummary = session.file_change_summary;
       const hasNoDiff = diffSummary.diff_lines_added === 0 && diffSummary.diff_lines_removed === 0;
       return session.updated_at < cutoff || hasNoDiff;
     });
-  }, [activeSessions]);
+  }, [activeSessions, runtimeBySessionId]);
 
   const archiveCleanupEligibleCount = archiveCleanupEligibleSessions.length;
 
