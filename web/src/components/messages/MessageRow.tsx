@@ -1,4 +1,4 @@
-import type { RefCallback } from "react";
+import { memo, useCallback } from "react";
 
 import { useT } from "@/i18n";
 import type { MessageItem as MessageItemType } from "../../types/message";
@@ -12,24 +12,33 @@ interface MessageRowProps {
   isActive: boolean;
   copied: boolean;
   onCopy: (item: MessageItemType) => void | Promise<void>;
-  itemRef: RefCallback<HTMLDivElement>;
+  setItemRef: (id: string, el: HTMLDivElement | null) => void;
 }
 
-export function MessageRow({
+function MessageRowInner({
   item,
   workDir,
   isActive,
   copied,
   onCopy,
-  itemRef,
-}: MessageRowProps): JSX.Element {
+  setItemRef,
+}: MessageRowProps): React.JSX.Element {
   const t = useT();
   const canCopy = isCopyableAssistantText(item);
   const isUser = item.type === "user_message";
+  const handleItemRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      setItemRef(item.id, el);
+    },
+    [item.id, setItemRef],
+  );
+  const handleCopy = useCallback(() => {
+    void onCopy(item);
+  }, [item, onCopy]);
 
   return (
     <div
-      ref={itemRef}
+      ref={handleItemRef}
       className={`group/row min-w-0 ${isUser ? "-mx-4 -mt-2.5 px-4 pt-2.5 sm:-mx-6 sm:px-6" : ""}`}
     >
       <div
@@ -42,7 +51,7 @@ export function MessageRow({
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  onClick={() => void onCopy(item)}
+                  onClick={handleCopy}
                   className="cursor-pointer font-mono text-sm leading-none text-neutral-500 opacity-0 transition-opacity duration-150 hover:text-neutral-700 group-hover/row:opacity-100"
                   aria-label={copied ? t("copy.copied") : t("copy.copy")}
                 >
@@ -57,3 +66,14 @@ export function MessageRow({
     </div>
   );
 }
+
+export const MessageRow = memo(
+  MessageRowInner,
+  (prev, next) =>
+    prev.item === next.item &&
+    prev.workDir === next.workDir &&
+    prev.isActive === next.isActive &&
+    prev.copied === next.copied &&
+    prev.onCopy === next.onCopy &&
+    prev.setItemRef === next.setItemRef,
+);

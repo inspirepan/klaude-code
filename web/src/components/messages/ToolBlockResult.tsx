@@ -31,7 +31,7 @@ export function ToolBlockResult({
   isError,
   showMore,
   onToggleShowMore,
-}: ToolBlockResultProps): JSX.Element | null {
+}: ToolBlockResultProps): React.JSX.Element | null {
   const t = useT();
   const subTextClass = "text-sm";
   const miniTextClass = "text-xs";

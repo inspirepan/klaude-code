@@ -157,7 +157,7 @@ class AskUserQuestionTool(ToolABC):
                     question=question.question,
                     options=interaction_options,
                     multi_select=question.multi_select,
-                    input_placeholder="Type something.",
+                    input_placeholder=None,
                 )
             )
 

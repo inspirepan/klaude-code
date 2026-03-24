@@ -21,7 +21,10 @@ function getRuntimeStatusLabel(
   return null;
 }
 
-export function SessionStatusBar({ status, runtime }: SessionStatusBarProps): JSX.Element | null {
+export function SessionStatusBar({
+  status,
+  runtime,
+}: SessionStatusBarProps): React.JSX.Element | null {
   const t = useT();
   const [nowMs, setNowMs] = useState(() => Date.now());
 

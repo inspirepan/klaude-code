@@ -112,7 +112,7 @@ export function ComposerCard({
   textareaRef: externalRef,
   modelDropUp = true,
   completionDropUp = true,
-}: ComposerCardProps): JSX.Element {
+}: ComposerCardProps): React.JSX.Element {
   const t = useT();
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);

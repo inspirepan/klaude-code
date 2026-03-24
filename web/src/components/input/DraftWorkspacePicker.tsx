@@ -41,7 +41,7 @@ export function DraftWorkspacePicker({
   setDraftWorkDir,
   setWorkspaceMenuOpen,
   onSelect,
-}: DraftWorkspacePickerProps): JSX.Element {
+}: DraftWorkspacePickerProps): React.JSX.Element {
   const t = useT();
   const [highlightedWorkspace, setHighlightedWorkspace] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);

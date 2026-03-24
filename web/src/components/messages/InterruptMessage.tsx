@@ -8,7 +8,7 @@ interface InterruptMessageProps {
   item: InterruptItem;
 }
 
-export function InterruptMessage(props: InterruptMessageProps): JSX.Element {
+export function InterruptMessage(props: InterruptMessageProps): React.JSX.Element {
   const t = useT();
   void props;
   return (

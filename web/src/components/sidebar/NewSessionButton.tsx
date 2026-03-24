@@ -5,7 +5,7 @@ interface NewSessionButtonProps {
   onClick: () => void;
 }
 
-export function NewSessionButton({ onClick }: NewSessionButtonProps): JSX.Element {
+export function NewSessionButton({ onClick }: NewSessionButtonProps): React.JSX.Element {
   const t = useT();
   return (
     <Button

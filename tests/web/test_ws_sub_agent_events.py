@@ -320,7 +320,8 @@ def test_websocket_forwards_child_session_events_without_snapshot(
 
             # The event should be forwarded because the child session was
             # discovered from SpawnSubAgentEntry in the parent's history
-            child_event = websocket.receive_json()
+            raw: list[dict[str, Any]] | dict[str, Any] = websocket.receive_json()
+            child_event = raw[0] if isinstance(raw, list) else raw
             assert child_event["event_type"] == "assistant.text.delta"
             assert child_event["session_id"] == child_id
             assert child_event["event"]["content"] == "child-agent-output"

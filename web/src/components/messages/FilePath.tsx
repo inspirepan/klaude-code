@@ -1,17 +1,10 @@
+import { toDisplayPath } from "./file-path-utils";
+
 interface FilePathProps {
   path: string;
   workDir?: string;
   className?: string;
   truncateFromStart?: boolean;
-}
-
-export function toDisplayPath(path: string, workDir?: string): string {
-  if (!workDir) return path;
-  const normalized = workDir.endsWith("/") ? workDir : workDir + "/";
-  if (path.startsWith(normalized)) {
-    return path.slice(normalized.length);
-  }
-  return path;
 }
 
 function splitPath(display: string): { dir: string; name: string } {
@@ -20,7 +13,7 @@ function splitPath(display: string): { dir: string; name: string } {
   return { dir: display.slice(0, idx + 1), name: display.slice(idx + 1) };
 }
 
-export function FilePathContent({ display }: { display: string }): JSX.Element {
+export function FilePathContent({ display }: { display: string }): React.JSX.Element {
   const { dir, name } = splitPath(display);
   return (
     <>
@@ -37,7 +30,7 @@ export function FilePath({
   workDir,
   className,
   truncateFromStart = false,
-}: FilePathProps): JSX.Element {
+}: FilePathProps): React.JSX.Element {
   const display = toDisplayPath(path, workDir);
 
   if (truncateFromStart) {

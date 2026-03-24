@@ -19,7 +19,7 @@ export function SessionTitleText({
   primaryClassName,
   separatorClassName,
   secondaryClassName,
-}: SessionTitleTextProps): JSX.Element {
+}: SessionTitleTextProps): React.JSX.Element {
   const { primary, secondary } = splitSessionTitle(title);
   const Container = as;
 

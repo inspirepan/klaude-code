@@ -8,7 +8,7 @@ interface ErrorMessageProps {
   item: ErrorItem;
 }
 
-export function ErrorMessage({ item }: ErrorMessageProps): JSX.Element {
+export function ErrorMessage({ item }: ErrorMessageProps): React.JSX.Element {
   const t = useT();
   return (
     <div className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} py-1 text-sm text-red-700`}>

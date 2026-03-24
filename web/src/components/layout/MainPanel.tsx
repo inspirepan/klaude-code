@@ -6,7 +6,7 @@ import { NewSessionOverlay } from "../input/NewSessionOverlay";
 import { MessageList } from "../messages/MessageList";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
-export function MainPanel(): JSX.Element {
+export function MainPanel(): React.JSX.Element {
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const isDraft = activeSessionId === "draft";
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);

@@ -20,7 +20,7 @@ export function SearchBar({
   onNext,
   onPrev,
   onClose,
-}: SearchBarProps): JSX.Element {
+}: SearchBarProps): React.JSX.Element {
   const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");

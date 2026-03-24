@@ -28,7 +28,7 @@ export function SlashCompletionList({
   onHighlightIndexChange,
   onSelect,
   dropUp = true,
-}: SlashCompletionListProps): JSX.Element {
+}: SlashCompletionListProps): React.JSX.Element {
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

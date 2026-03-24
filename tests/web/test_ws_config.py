@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import pytest
 
-from .conftest import AppEnv, consume_ws_handshake, wait_for_event
+from .conftest import AppEnv, consume_ws_handshake, receive_events, wait_for_event
 
 
 def test_change_thinking_via_ws(app_env: AppEnv) -> None:
@@ -49,15 +49,17 @@ def test_request_model_via_ws(app_env: AppEnv) -> None:
 
         finished = None
         for _ in range(200):
-            frame = websocket.receive_json()
-            if frame.get("type") == "error":
-                pytest.fail(f"unexpected ws error frame: {frame}")
-            if frame.get("event_type") != "operation.finished":
-                continue
-            payload_obj = frame.get("event")
-            payload = cast(dict[str, Any], payload_obj) if isinstance(payload_obj, dict) else None
-            if payload is not None and payload.get("operation_type") == "request_model":
-                finished = frame
+            for frame in receive_events(websocket):
+                if frame.get("type") == "error":
+                    pytest.fail(f"unexpected ws error frame: {frame}")
+                if frame.get("event_type") != "operation.finished":
+                    continue
+                payload_obj = frame.get("event")
+                payload = cast(dict[str, Any], payload_obj) if isinstance(payload_obj, dict) else None
+                if payload is not None and payload.get("operation_type") == "request_model":
+                    finished = frame
+                    break
+            if finished is not None:
                 break
 
     assert finished is not None

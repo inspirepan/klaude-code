@@ -27,16 +27,16 @@ All colors are delivered via HSL CSS custom properties in `:root` / `.dark`, con
 
 ### Semantic Colors
 
-Unified color families: **emerald** for success, **red** for error, **amber** for warning/interrupt, **blue** for interactive and active/running state.
+Unified color families: **emerald** for success, **red** for error, **amber** for warning/interrupt, **sky** for interactive accent and active/running state.
 
-| Name                | Value                             | Role                                                                                                                       |
-| ------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Emerald-500/600/700 | `#10b981` / `#059669` / `#047857` | Success states, completion indicators, unread dots                                                                         |
-| Red-500/700         | `#ef4444` / `#b91c1c`             | Error text, destructive actions, error tool results                                                                        |
-| Amber-500/600       | `#f59e0b` / `#d97706`             | Interrupt button, active ring, validation hints                                                                            |
-| Blue-500/600        | `#3b82f6` / `#2563eb`             | Primary interactive accent and active/running state -- submit buttons, selected options, focused inputs, in-progress todos |
-| Blue-50/80          | `#eff6ff`                         | Selected pill backgrounds, focus rings                                                                                     |
-| Neutral-800         | `#262626`                         | Default send button, primary dark elements                                                                                 |
+| Name            | Value                             | Role                                                                                                          |
+| --------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Emerald-600/700 | `#059669` / `#047857`             | Success states, completion indicators (todo completed icons/text), unread dots                                |
+| Red-500/700     | `#ef4444` / `#b91c1c`             | Error text, destructive actions, error tool results                                                           |
+| Amber-500/600   | `#f59e0b` / `#d97706`             | Interrupt button, active ring, validation hints                                                               |
+| Sky-500/600/700 | `#0ea5e9` / `#0284c7` / `#0369a1` | Primary interactive accent -- submit buttons, selected options, focused inputs, in-progress todos, @ mentions |
+| Sky-50/100/200  | `#f0f9ff` / `#e0f2fe` / `#bae6fd` | Selected pill backgrounds, focus rings, active tab backgrounds                                                |
+| Neutral-800     | `#262626`                         | Default send button, primary dark elements                                                                    |
 
 ### Fixed-Purpose Colors
 
@@ -142,8 +142,8 @@ Anti-aliased rendering (`-webkit-font-smoothing: antialiased`). The assistant te
 ### Inputs & Forms
 
 - **Composer textarea**: Borderless, transparent background (`border-0 bg-transparent`). The card itself provides the visual container.
-- **Search/filter inputs**: `rounded-lg`, `border border-border`, `bg-surface/50`. On focus: `border-blue-300 bg-card ring-2 ring-blue-100`.
-- **Selection pills (radio/checkbox)**: `rounded-lg`, `border px-3 py-2`. Selected state uses `border-blue-200 bg-blue-50/80 ring-1 ring-blue-200/60`. Unselected: `border-border bg-card hover:border-neutral-300 hover:bg-surface`. The selection indicator is a small `rounded-full` circle with inner dot.
+- **Search/filter inputs**: `rounded-lg`, `border border-border`, `bg-surface/50`. On focus: `border-sky-300 bg-card ring-2 ring-sky-100`.
+- **Selection pills (radio/checkbox)**: `rounded-lg`, `border px-3 py-2`. Selected state uses `border-sky-200 bg-sky-50/80 ring-1 ring-sky-200/60`. Unselected: `border-border bg-card hover:border-neutral-300 hover:bg-surface`. The selection indicator is a small `rounded-full` circle with inner dot.
 
 ### Collapse & Expand Groups
 
@@ -257,7 +257,7 @@ No heavy drop shadows anywhere. The depth hierarchy is communicated primarily th
 
 ## 9. Dark Mode Strategy
 
-Dark mode uses a pure achromatic palette -- no blue, purple, or warm tint in backgrounds. The `--background` inverts to near-black (`0 0% 3.9%`), surfaces go to `0 0% 7%`. Semantic accent colors (blue, amber, emerald, red) retain their hue but may shift lightness for contrast.
+Dark mode uses a pure achromatic palette -- no blue, purple, or warm tint in backgrounds. The `--background` inverts to near-black (`0 0% 3.9%`), surfaces go to `0 0% 7%`. Semantic accent colors (sky, amber, emerald, red) retain their hue but may shift lightness for contrast.
 
 The `darkMode: ["class"]` approach means dark mode is toggled by adding `.dark` to the root element, not by `prefers-color-scheme`. This allows explicit user control.
 

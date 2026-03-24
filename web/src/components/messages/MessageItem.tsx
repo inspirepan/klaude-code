@@ -10,6 +10,7 @@ import { TaskMetadata } from "./TaskMetadata";
 import { ErrorMessage } from "./ErrorMessage";
 import { InterruptMessage } from "./InterruptMessage";
 import { CompactionSummary } from "./CompactionSummary";
+import { RewindSummary } from "./RewindSummary";
 import { UnknownEvent } from "./UnknownEvent";
 
 interface MessageItemProps {
@@ -17,7 +18,7 @@ interface MessageItemProps {
   workDir?: string;
 }
 
-function MessageItemInner({ item, workDir }: MessageItemProps): JSX.Element {
+function MessageItemInner({ item, workDir }: MessageItemProps): React.JSX.Element {
   switch (item.type) {
     case "user_message":
       return <UserMessage key={item.id} item={item} />;
@@ -37,6 +38,8 @@ function MessageItemInner({ item, workDir }: MessageItemProps): JSX.Element {
       return <InterruptMessage item={item} />;
     case "compaction_summary":
       return <CompactionSummary item={item} />;
+    case "rewind_summary":
+      return <RewindSummary item={item} />;
     case "unknown_event":
       return <UnknownEvent item={item} />;
   }

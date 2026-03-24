@@ -104,6 +104,11 @@ const en = {
   // Compaction
   "compaction.label": "Compacted",
 
+  // Rewind
+  "rewind.label": (checkpointId: number) => `Rewound to Checkpoint ${checkpointId}`,
+  "rewind.rationale": "Reason:",
+  "rewind.note": "Context:",
+
   // Question summary
   "question.label": "QUESTION",
   "question.noAnswer": "(No answer provided)",
@@ -138,6 +143,8 @@ const en = {
   "interaction.pending": (count: number) => `${count} pending`,
   "interaction.cancel": "Cancel",
   "interaction.submit": "Submit",
+  "interaction.next": "Next",
+  "interaction.otherPlaceholder": "Other: Type something.",
 
   // Copy
   "copy.copy": "Copy",
@@ -151,7 +158,7 @@ const en = {
   // Tool block
   "tool.planning": "Planning\u2026",
   "tool.todoTitle": "Update To-Do",
-  "tool.askingQuestion": "Asking user question\u2026",
+  "tool.askingQuestion": "Composing question\u2026",
 
   // Collapse group
   "collapse.read": "Read",

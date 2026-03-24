@@ -404,6 +404,8 @@ export function openSessionWs(
     }),
   }));
 
+  let shouldRecoverHistoryOnClose = runtime.sessionState !== "idle";
+
   const connection = connectSessionWs(sessionId, {
     onOpen: () => {
       set((state) => ({
@@ -425,8 +427,11 @@ export function openSessionWs(
       }));
       // Reload history to recover events that may have been missed during the
       // WS gap (e.g. queue overflow on the backend).  Fire-and-forget; only
-      // bother if this session is still the active one.
-      if (get().activeSessionId === sessionId) {
+      // bother if this session is still the active one and this connection
+      // actually carried message activity. Idle sessions can connect and close
+      // immediately, and replaying the full history in that case just forces
+      // a duplicate MessageList rebuild.
+      if (shouldRecoverHistoryOnClose && get().activeSessionId === sessionId) {
         void fetchSessionHistory(sessionId)
           .then((history) => {
             useMessageStore.getState().loadHistoryFromEvents(sessionId, history.events);
@@ -438,6 +443,12 @@ export function openSessionWs(
       handleWsError(errorFrame, sessionId, set);
     },
     onEvent: (eventEnvelope) => {
+      // Mark that this connection carried real message activity so we recover
+      // history on close. Exclude usage.snapshot since it doesn't produce
+      // message items. If new non-message event types are added, extend this.
+      if (eventEnvelope.event_type !== "usage.snapshot") {
+        shouldRecoverHistoryOnClose = true;
+      }
       handleWsEvent(sessionId, eventEnvelope, get, set);
     },
   });

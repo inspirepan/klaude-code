@@ -12,7 +12,7 @@ interface MarkdownDocViewProps {
   uiExtra: MarkdownDocUIExtra;
 }
 
-export function MarkdownDocView({ uiExtra }: MarkdownDocViewProps): JSX.Element {
+export function MarkdownDocView({ uiExtra }: MarkdownDocViewProps): React.JSX.Element {
   const { entries, body } = useParsedFrontmatter(uiExtra.content);
 
   return (

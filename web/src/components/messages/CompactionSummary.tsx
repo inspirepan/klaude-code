@@ -29,7 +29,7 @@ function isTaskCheckboxNode(
   return props.type === "checkbox";
 }
 
-function CompactionListItem(props: ComponentPropsWithoutRef<"li">): JSX.Element {
+function CompactionListItem(props: ComponentPropsWithoutRef<"li">): React.JSX.Element {
   const childNodes = Children.toArray(props.children);
   const checkboxIndex = childNodes.findIndex((node) => isTaskCheckboxNode(node));
   if (checkboxIndex < 0) {
@@ -57,14 +57,14 @@ function CompactionListItem(props: ComponentPropsWithoutRef<"li">): JSX.Element 
 
 const compactionComponents = { li: CompactionListItem };
 
-export function CompactionSummary({ item }: CompactionSummaryProps): JSX.Element {
+export function CompactionSummary({ item }: CompactionSummaryProps): React.JSX.Element {
   const t = useT();
   const contentRef = useRef<HTMLDivElement>(null);
   useSearchHighlight(contentRef, item.content);
   return (
     <div className="relative mt-4 pt-5">
       <div className="pointer-events-none absolute left-1/2 top-0 w-[200vw] -translate-x-1/2 border-t border-border/80" />
-      <div className="rounded-lg bg-blue-50/55 px-5 py-5">
+      <div className="rounded-lg bg-sky-50/55 px-5 py-5">
         <div className="mb-2 text-base font-semibold text-compaction-label">
           {t("compaction.label")}
         </div>

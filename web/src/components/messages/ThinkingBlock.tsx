@@ -11,16 +11,17 @@ import {
 import { useCollapseAll } from "./collapse-all-context";
 import { useSearch } from "./search-context";
 import { useSearchHighlight } from "./useSearchHighlight";
+import { useStreamThrottle } from "./useStreamThrottle";
 
 interface ThinkingBlockProps {
   item: ThinkingBlockItem;
 }
 
-function Strong(props: React.ComponentPropsWithoutRef<"strong">): JSX.Element {
+function Strong(props: React.ComponentPropsWithoutRef<"strong">): React.JSX.Element {
   return <strong className="font-normal text-neutral-500" {...props} />;
 }
 
-function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): JSX.Element {
+function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): React.JSX.Element {
   return (
     <span className="block font-mono" style={{ fontSize: "0.9em" }}>
       {children}
@@ -28,7 +29,7 @@ function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): JSX.Element {
   );
 }
 
-function Code({ children }: React.ComponentPropsWithoutRef<"code">): JSX.Element {
+function Code({ children }: React.ComponentPropsWithoutRef<"code">): React.JSX.Element {
   return (
     <span className="font-mono" style={{ fontSize: "0.9em" }}>
       {children}
@@ -38,16 +39,17 @@ function Code({ children }: React.ComponentPropsWithoutRef<"code">): JSX.Element
 
 const thinkingComponents = { strong: Strong, pre: Pre, code: Code };
 
-export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
+export function ThinkingBlock({ item }: ThinkingBlockProps): React.JSX.Element {
   const t = useT();
   const { matchItemIds } = useSearch();
   const { collapseGen, expandGen } = useCollapseAll();
+  const throttledContent = useStreamThrottle(item.content, item.isStreaming);
   const defaultExpanded = item.isStreaming;
   const [open, setOpen] = useState(defaultExpanded);
   const isSearchMatch = matchItemIds.includes(item.id);
   const wasAutoExpanded = useRef(false);
   const contentRef = useRef<HTMLDivElement>(null);
-  useSearchHighlight(contentRef, item.content);
+  useSearchHighlight(contentRef, throttledContent);
 
   useEffect(() => {
     if (isSearchMatch && !open) {
@@ -70,10 +72,10 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
   }, [expandGen]);
 
   useEffect(() => {
-    if (item.isStreaming && item.content.length > 0 && !open) {
+    if (item.isStreaming && throttledContent.length > 0 && !open) {
       setOpen(true);
     }
-  }, [item.isStreaming, item.content, open]);
+  }, [item.isStreaming, open, throttledContent]);
 
   return (
     <div
@@ -94,7 +96,7 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
           }}
         >
           <Streamdown mode="static" isAnimating={item.isStreaming} components={thinkingComponents}>
-            {item.content}
+            {throttledContent}
           </Streamdown>
         </div>
       </CollapseRailPanel>

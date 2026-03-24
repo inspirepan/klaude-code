@@ -46,7 +46,7 @@ const SKIP_EVENT_TYPES = new Set([
   "welcome",
   "replay.history",
   "compaction.start",
-  "rewind",
+
   "user.interaction.request",
   "user.interaction.resolved",
   "user.interaction.cancelled",
@@ -160,6 +160,32 @@ export function reduceEvent(
             timestamp: ts,
             sessionId: sourceSessionId,
             content: summary,
+          },
+        ],
+        nextId: currentState.nextId + 1,
+      };
+    }
+
+    case "rewind": {
+      const checkpointId = typeof event.checkpoint_id === "number" ? event.checkpoint_id : 0;
+      const note = typeof event.note === "string" ? event.note : "";
+      const rationale = typeof event.rationale === "string" ? event.rationale : "";
+      const originalUserMessage =
+        typeof event.original_user_message === "string" ? event.original_user_message : "";
+      const id = makeId(currentState);
+      return {
+        ...currentState,
+        items: [
+          ...currentState.items,
+          {
+            id,
+            type: "rewind_summary" as const,
+            timestamp: ts,
+            sessionId: sourceSessionId,
+            checkpointId,
+            note,
+            rationale,
+            originalUserMessage,
           },
         ],
         nextId: currentState.nextId + 1,

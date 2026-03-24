@@ -10,13 +10,13 @@ import { HighlightText } from "./HighlightText";
 const USER_MESSAGE_LINE_LIMIT = 4;
 const MENTION_PATTERN = /(@[\w./-]+)/;
 
-function ContentWithMentions({ children }: { children: string }): JSX.Element {
+function ContentWithMentions({ children }: { children: string }): React.JSX.Element {
   const parts = children.split(MENTION_PATTERN);
   return (
     <>
       {parts.map((part, i) =>
         part.startsWith("@") && MENTION_PATTERN.test(part) ? (
-          <span key={i} className="text-blue-500">
+          <span key={i} className="text-sky-500">
             <HighlightText>{part}</HighlightText>
           </span>
         ) : (
@@ -31,7 +31,7 @@ interface UserMessageProps {
   item: UserMessageItem;
 }
 
-export function UserMessage({ item }: UserMessageProps): JSX.Element {
+export function UserMessage({ item }: UserMessageProps): React.JSX.Element {
   const t = useT();
   const normalizedContent = useMemo(
     () =>
@@ -108,7 +108,7 @@ export function UserMessage({ item }: UserMessageProps): JSX.Element {
     };
   }, [showMore, expandedImageIndex]);
 
-  const renderImages = (): JSX.Element | null => {
+  const renderImages = (): React.JSX.Element | null => {
     if (item.images.length === 0) return null;
 
     return (

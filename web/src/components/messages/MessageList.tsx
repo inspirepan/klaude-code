@@ -1,6 +1,8 @@
 import { ArrowDown } from "lucide-react";
 import {
+  memo,
   type ReactNode,
+  type CSSProperties,
   useEffect,
   useRef,
   useState,
@@ -14,10 +16,11 @@ import { useMountEffect } from "@/hooks/useMountEffect";
 import { useMessageStore } from "../../stores/message-store";
 import { useAppStore } from "../../stores/app-store";
 import { useSessionStore } from "../../stores/session-store";
-import type { ReducerState, SessionStatusState } from "../../stores/event-reducer";
+import type { ReducerState } from "../../stores/event-reducer";
 import type { MessageItem as MessageItemType } from "../../types/message";
 import type { SessionRuntimeState, SessionSummary } from "../../types/session";
 import { splitSessionTitle } from "@/components/session-title";
+import { findSession } from "../../stores/session-helpers";
 import { CollapseGroupBlock } from "./CollapseGroupBlock";
 import { CollapseAllContext } from "./collapse-all-context";
 import { DeveloperMessage } from "./DeveloperMessage";
@@ -26,7 +29,7 @@ import { MessageRow } from "./MessageRow";
 import { PlannedGroupBlock } from "./PlannedGroupBlock";
 import {
   buildSections,
-  buildSectionBlocks,
+  buildSectionBlocksForSection,
   findMatchingItemIds,
   type SectionBlock,
 } from "./message-sections";
@@ -65,6 +68,13 @@ function blockSpacingClass(block: SectionBlock, isFirst: boolean): string {
   return "mt-3";
 }
 
+const OFFSCREEN_BLOCK_STYLE: CSSProperties = {
+  contentVisibility: "auto",
+  containIntrinsicSize: "auto 160px",
+};
+const EMPTY_GROUP_IDS = new Set<string>();
+const EMPTY_MATCH_ITEM_IDS: string[] = [];
+
 /**
  * Block wrapper that plays a mount animation (opacity + translateY) via the
  * Web Animations API. The animation only fires when the scroll container
@@ -73,11 +83,13 @@ function blockSpacingClass(block: SectionBlock, isFirst: boolean): string {
  */
 function AnimatedDiv({
   className,
+  style,
   children,
 }: {
   className: string;
+  style?: CSSProperties;
   children: ReactNode;
-}): JSX.Element {
+}): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -94,18 +106,205 @@ function AnimatedDiv({
     );
   }, []);
   return (
-    <div ref={ref} className={className}>
+    <div ref={ref} className={className} style={style}>
       {children}
     </div>
   );
 }
 
+function canReuseSectionItems(
+  prevSection: MessageItemType[] | undefined,
+  nextSection: MessageItemType[],
+): boolean {
+  if (!prevSection || prevSection.length !== nextSection.length) return false;
+  for (let i = 0; i < nextSection.length; i++) {
+    if (prevSection[i] !== nextSection[i]) return false;
+  }
+  return true;
+}
+
+interface SectionViewProps {
+  sessionId: string;
+  isHistorical: boolean;
+  isLastSection: boolean;
+  blocks: SectionBlock[];
+  activeItemId: string | null;
+  activeCollapseGroupId: string | null;
+  copiedItemId: string | null;
+  workspacePath: string;
+  collapsedCollapseGroups: Record<string, boolean>;
+  isEffectiveRunning: boolean;
+  lastSectionCollapseGroupIds: Set<string>;
+  onToggleCollapseGroup: (groupId: string, collapsed: boolean) => void;
+  onCopy: (item: MessageItemType) => void | Promise<void>;
+  setItemRef: (id: string, el: HTMLDivElement | null) => void;
+  onEnterSubAgent: (subAgentId: string) => void;
+}
+
+const SectionView = memo(function SectionView({
+  sessionId,
+  isHistorical,
+  isLastSection,
+  blocks,
+  activeItemId,
+  activeCollapseGroupId,
+  copiedItemId,
+  workspacePath,
+  collapsedCollapseGroups,
+  isEffectiveRunning,
+  lastSectionCollapseGroupIds,
+  onToggleCollapseGroup,
+  onCopy,
+  setItemRef,
+  onEnterSubAgent,
+}: SectionViewProps): React.JSX.Element {
+  const blockStyle = isHistorical ? OFFSCREEN_BLOCK_STYLE : undefined;
+
+  const isCollapseGroupCollapsed = (groupId: string): boolean => {
+    if (activeCollapseGroupId === groupId) return false;
+    if (groupId in collapsedCollapseGroups) return collapsedCollapseGroups[groupId];
+    if (isEffectiveRunning) {
+      return !(isLastSection && lastSectionCollapseGroupIds.has(groupId));
+    }
+    return true;
+  };
+
+  return (
+    <>
+      {blocks.map((block, blockIdx) => {
+        const spacing = blockSpacingClass(block, blockIdx === 0);
+
+        if (block.type === "dev_group") {
+          return (
+            <AnimatedDiv key={block.id} className={spacing} style={blockStyle}>
+              <DeveloperMessage items={block.items} />
+            </AnimatedDiv>
+          );
+        }
+
+        if (block.type === "collapse_group") {
+          const collapsed = isCollapseGroupCollapsed(block.id);
+          return (
+            <AnimatedDiv key={block.id} className={spacing} style={blockStyle}>
+              <CollapseGroupBlock
+                entries={block.entries}
+                collapsed={collapsed}
+                onToggle={() => {
+                  onToggleCollapseGroup(block.id, collapsed);
+                }}
+                activeItemId={activeItemId}
+                copiedItemId={copiedItemId}
+                workDir={workspacePath}
+                onCopy={onCopy}
+                setItemRef={setItemRef}
+                renderSubAgent={(entry) => (
+                  <SubAgentGroupCard
+                    parentSessionId={sessionId}
+                    key={entry.groupId}
+                    sourceSessionId={entry.sourceSessionId}
+                    sourceSessionType={entry.sourceSessionType}
+                    sourceSessionDesc={entry.sourceSessionDesc}
+                    toolCount={entry.toolCount}
+                    onEnterSubAgent={onEnterSubAgent}
+                  />
+                )}
+              />
+            </AnimatedDiv>
+          );
+        }
+
+        if (block.type === "planned_group") {
+          const pgCollapsed = isCollapseGroupCollapsed(block.id);
+          return (
+            <AnimatedDiv key={block.id} className={spacing} style={blockStyle}>
+              <PlannedGroupBlock
+                todos={block.todos}
+                collapsed={pgCollapsed}
+                onToggle={() => {
+                  onToggleCollapseGroup(block.id, pgCollapsed);
+                }}
+              >
+                {block.blocks.map((inner) => {
+                  if (inner.type === "dev_group") {
+                    return <DeveloperMessage key={inner.id} items={inner.items} />;
+                  }
+                  if (inner.type === "sub_agent_group") {
+                    return (
+                      <SubAgentGroupCard
+                        parentSessionId={sessionId}
+                        key={inner.groupId}
+                        sourceSessionId={inner.sourceSessionId}
+                        sourceSessionType={inner.sourceSessionType}
+                        sourceSessionDesc={inner.sourceSessionDesc}
+                        toolCount={inner.toolCount}
+                        onEnterSubAgent={onEnterSubAgent}
+                      />
+                    );
+                  }
+                  const innerItem = inner.item;
+                  const innerHasRailGrid =
+                    GRID_ITEM_TYPES.has(innerItem.type) &&
+                    !(innerItem.type === "tool_block" && CARD_TOOL_NAMES.has(innerItem.toolName));
+                  const innerOffset = !innerHasRailGrid ? RAIL_CONTENT_OFFSET : "";
+                  return (
+                    <div key={innerItem.id} className={innerOffset}>
+                      <MessageRow
+                        item={innerItem}
+                        workDir={workspacePath}
+                        isActive={innerItem.id === activeItemId}
+                        copied={copiedItemId === innerItem.id}
+                        onCopy={onCopy}
+                        setItemRef={setItemRef}
+                      />
+                    </div>
+                  );
+                })}
+              </PlannedGroupBlock>
+            </AnimatedDiv>
+          );
+        }
+
+        if (block.type === "sub_agent_group") {
+          return (
+            <AnimatedDiv key={block.groupId} className={spacing} style={blockStyle}>
+              <SubAgentGroupCard
+                parentSessionId={sessionId}
+                sourceSessionId={block.sourceSessionId}
+                sourceSessionType={block.sourceSessionType}
+                sourceSessionDesc={block.sourceSessionDesc}
+                toolCount={block.toolCount}
+                onEnterSubAgent={onEnterSubAgent}
+              />
+            </AnimatedDiv>
+          );
+        }
+
+        const item = block.item;
+        const hasRailGrid =
+          GRID_ITEM_TYPES.has(item.type) &&
+          !(item.type === "tool_block" && CARD_TOOL_NAMES.has(item.toolName));
+        const itemOffset = item.type !== "user_message" && !hasRailGrid ? RAIL_CONTENT_OFFSET : "";
+        return (
+          <AnimatedDiv key={item.id} className={`${spacing} ${itemOffset}`} style={blockStyle}>
+            <MessageRow
+              item={item}
+              workDir={workspacePath}
+              isActive={item.id === activeItemId}
+              copied={copiedItemId === item.id}
+              onCopy={onCopy}
+              setItemRef={setItemRef}
+            />
+          </AnimatedDiv>
+        );
+      })}
+    </>
+  );
+});
+
 const EMPTY_ITEMS: MessageItemType[] = [];
 const EMPTY_SUB_AGENT_DESC_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_TYPE_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_FORK_MAP: Record<string, boolean> = {};
-const EMPTY_SUB_AGENT_FINISHED_MAP: Record<string, boolean> = {};
-const EMPTY_STATUS_MAP: Record<string, SessionStatusState> = {};
 
 /** Index a record safely, returning undefined for absent keys at runtime. */
 function recordGet<T>(record: Record<string, T>, key: string): T | undefined {
@@ -113,6 +312,26 @@ function recordGet<T>(record: Record<string, T>, key: string): T | undefined {
 }
 
 const BOTTOM_THRESHOLD_PX = 120;
+
+interface SectionBlocksReuseCacheEntry {
+  sections: MessageItemType[][];
+  sectionBlocks: SectionBlock[][];
+  subAgentDescBySessionId: Record<string, string>;
+  subAgentTypeBySessionId: Record<string, string>;
+  subAgentForkBySessionId: Record<string, boolean>;
+}
+
+// Keyed by `${sessionId}:${effectiveSessionId}`. Only the current key is
+// relevant; stale entries are pruned on each write to prevent unbounded growth.
+const SECTION_REUSE_CACHE = new Map<string, MessageItemType[][]>();
+const SECTION_BLOCK_REUSE_CACHE = new Map<string, SectionBlocksReuseCacheEntry>();
+
+function pruneCacheExcept<V>(cache: Map<string, V>, keepKey: string): void {
+  if (cache.size <= 1) return;
+  for (const key of cache.keys()) {
+    if (key !== keepKey) cache.delete(key);
+  }
+}
 
 const AGENT_URL_RE = /^\/session\/[a-f0-9]+\/agent\/([a-f0-9]+)$/;
 
@@ -143,9 +362,30 @@ function getSessionTitle(session: SessionSummary | null): string | null {
   return null;
 }
 
-export function MessageList({ sessionId }: MessageListProps): JSX.Element {
+function ConnectedSessionStatusBar({
+  sessionId,
+  viewingSubAgentSessionId,
+  runtime,
+}: {
+  sessionId: string;
+  viewingSubAgentSessionId: string | null;
+  runtime: SessionRuntimeState | null;
+}): React.JSX.Element | null {
+  const targetSessionId = viewingSubAgentSessionId ?? sessionId;
+  const status = useMessageStore(
+    useCallback(
+      (state) =>
+        state.reducerStateBySessionId[sessionId]?.statusBySessionId[targetSessionId] ?? null,
+      [sessionId, targetSessionId],
+    ),
+  );
+
+  return <SessionStatusBar status={status} runtime={viewingSubAgentSessionId ? null : runtime} />;
+}
+
+function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
   const t = useT();
-  const groups = useSessionStore((state) => state.groups);
+  const session = useSessionStore((state) => findSession(state.groups, sessionId));
   const runtime = useSessionStore((state) => {
     const rt: SessionRuntimeState | undefined = state.runtimeBySessionId[sessionId];
     return rt ?? null;
@@ -166,14 +406,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const subAgentForkBySessionId = useMessageStore((state) => {
     const rs: ReducerState | undefined = state.reducerStateBySessionId[sessionId];
     return rs?.subAgentForkBySessionId ?? EMPTY_SUB_AGENT_FORK_MAP;
-  });
-  const subAgentFinishedBySessionId = useMessageStore((state) => {
-    const rs: ReducerState | undefined = state.reducerStateBySessionId[sessionId];
-    return rs?.subAgentFinishedBySessionId ?? EMPTY_SUB_AGENT_FINISHED_MAP;
-  });
-  const statusBySessionId = useMessageStore((state) => {
-    const rs: ReducerState | undefined = state.reducerStateBySessionId[sessionId];
-    return rs?.statusBySessionId ?? EMPTY_STATUS_MAP;
   });
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -208,10 +440,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   const effectiveSessionId = viewingSubAgentSessionId ?? sessionId;
 
-  const session = useMemo(
-    () => groups.flatMap((group) => group.sessions).find((item) => item.id === sessionId) ?? null,
-    [groups, sessionId],
-  );
   const sessionTitle = useMemo(
     () => getSessionTitle(session) ?? t("sidebar.newSession"),
     [session, t],
@@ -226,6 +454,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const visibleItems = useMemo(
     () =>
       items.filter((item) => {
+        if (item.type === "unknown_event") return false;
         if (item.type === "tool_block" && item.toolName === "Agent") return false;
         const sourceSessionId = item.sessionId ?? sessionId;
         if (viewingSubAgentSessionId) {
@@ -244,7 +473,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     [items, sessionId, viewingSubAgentSessionId],
   );
   const searchMatchItemIds = useMemo(
-    () => findMatchingItemIds(visibleItems, searchQuery),
+    () =>
+      searchQuery.trim() ? findMatchingItemIds(visibleItems, searchQuery) : EMPTY_MATCH_ITEM_IDS,
     [visibleItems, searchQuery],
   );
 
@@ -315,64 +545,64 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     window.clearTimeout(copyTimerRef.current);
   });
 
-  const mainSS: SessionStatusState | undefined = statusBySessionId[sessionId];
-  const mainSessionStatus = mainSS ?? null;
-  const effectiveSS: SessionStatusState | undefined = statusBySessionId[effectiveSessionId];
-  const effectiveStatus = effectiveSS ?? null;
-  const isMainSessionRunning =
-    runtime?.sessionState === "running" ||
-    (((mainSessionStatus?.taskActive ?? false) ||
-      (mainSessionStatus?.thinkingActive ?? false) ||
-      (mainSessionStatus?.compacting ?? false) ||
-      (mainSessionStatus?.isComposing ?? false)) &&
-      !mainSessionStatus?.awaitingInput);
+  const mainSessionRunningByStatus = useMessageStore(
+    useCallback(
+      (state) => {
+        const status = state.reducerStateBySessionId[sessionId]?.statusBySessionId[sessionId];
+        return (
+          ((status?.taskActive ?? false) ||
+            (status?.thinkingActive ?? false) ||
+            (status?.compacting ?? false) ||
+            (status?.isComposing ?? false)) &&
+          !status?.awaitingInput
+        );
+      },
+      [sessionId],
+    ),
+  );
+  const viewedSubAgentRunningByStatus = useMessageStore(
+    useCallback(
+      (state) => {
+        if (!viewingSubAgentSessionId) return false;
+        const status =
+          state.reducerStateBySessionId[sessionId]?.statusBySessionId[viewingSubAgentSessionId];
+        return (
+          ((status?.taskActive ?? false) ||
+            (status?.thinkingActive ?? false) ||
+            (status?.compacting ?? false) ||
+            (status?.isComposing ?? false)) &&
+          !status?.awaitingInput
+        );
+      },
+      [sessionId, viewingSubAgentSessionId],
+    ),
+  );
+  const isMainSessionRunning = runtime?.sessionState === "running" || mainSessionRunningByStatus;
 
   const isEffectiveRunning = viewingSubAgentSessionId
-    ? ((effectiveStatus?.taskActive ?? false) ||
-        (effectiveStatus?.thinkingActive ?? false) ||
-        (effectiveStatus?.compacting ?? false) ||
-        (effectiveStatus?.isComposing ?? false)) &&
-      !effectiveStatus?.awaitingInput
+    ? viewedSubAgentRunningByStatus
     : isMainSessionRunning;
 
-  const [prevRunning, setPrevRunning] = useState(isEffectiveRunning);
-  if (prevRunning !== isEffectiveRunning) {
-    setPrevRunning(isEffectiveRunning);
-    if (prevRunning && !isEffectiveRunning) {
+  // Reset collapse state on running->stopped transition: no event handler to
+  // hook into since isEffectiveRunning is derived from store selectors.
+  const prevRunningRef = useRef(isEffectiveRunning);
+  useEffect(() => {
+    if (prevRunningRef.current && !isEffectiveRunning) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state reset
       setCollapsedCollapseGroups({});
     }
-  }
+    prevRunningRef.current = isEffectiveRunning;
+  }, [isEffectiveRunning]);
 
   // Reset collapse state when switching between main and sub-agent views
-  const [prevEffectiveSessionId, setPrevEffectiveSessionId] = useState(effectiveSessionId);
-  if (prevEffectiveSessionId !== effectiveSessionId) {
-    setPrevEffectiveSessionId(effectiveSessionId);
-    setCollapsedCollapseGroups({});
-  }
-
-  const hasActiveStatus = useMemo(
-    () =>
-      Object.values(statusBySessionId).some(
-        (status) => status?.taskActive || status?.awaitingInput || status?.compacting,
-      ) ||
-      runtime?.sessionState === "running" ||
-      runtime?.sessionState === "waiting_user_input",
-    [runtime?.sessionState, statusBySessionId],
-  );
-
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const prevEffectiveSessionIdRef = useRef(effectiveSessionId);
   useEffect(() => {
-    if (!hasActiveStatus) return;
-    setNowMs(Date.now());
-    const timer = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, 1000);
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [hasActiveStatus]);
-
-  const nowSeconds = nowMs / 1000;
+    if (prevEffectiveSessionIdRef.current !== effectiveSessionId) {
+      prevEffectiveSessionIdRef.current = effectiveSessionId;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state reset
+      setCollapsedCollapseGroups({});
+    }
+  }, [effectiveSessionId]);
 
   const handleCopy = useCallback(async (item: MessageItemType) => {
     if (!isCopyableAssistantText(item)) return;
@@ -397,7 +627,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     setShowScrollToBottom(!isNearBottom(container));
   }, []);
 
-  const scrollToBottom = useCallback(
+  const performScrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
       const container = scrollRef.current;
       if (!container) return;
@@ -406,17 +636,23 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       const expectedTop = Math.max(0, container.scrollHeight - container.clientHeight);
       autoScrollRef.current = { top: expectedTop, time: Date.now() };
       wasAtBottomRef.current = true;
-      setShowScrollToBottom(false);
       sessionStorage.setItem(`scroll-${sessionId}`, String(expectedTop));
     },
     [sessionId],
+  );
+
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "smooth") => {
+      performScrollToBottom(behavior);
+      setShowScrollToBottom(false);
+    },
+    [performScrollToBottom],
   );
 
   // Restore scroll position when items first load for a session
   const hasItems = visibleItems.length > 0;
   useLayoutEffect(() => {
     if (!hasItems) {
-      setShowScrollToBottom(false);
       return;
     }
     const saved = sessionStorage.getItem(`scroll-${sessionId}`);
@@ -431,8 +667,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     autoScrollRef.current = { top: container.scrollTop, time: Date.now() };
     wasAtBottomRef.current = isNearBottom(container);
     container.style.overflowAnchor = wasAtBottomRef.current ? "none" : "auto";
-    updateScrollButtonVisibility();
-  }, [hasItems, sessionId, updateScrollButtonVisibility]);
+  }, [hasItems, sessionId]);
 
   useLayoutEffect(() => {
     const lastItem = visibleItems.at(-1);
@@ -447,8 +682,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       return;
     }
 
-    scrollToBottom("auto");
-  }, [scrollToBottom, sessionId, visibleItems]);
+    performScrollToBottom("auto");
+  }, [performScrollToBottom, sessionId, visibleItems]);
 
   useEffect(() => {
     const content = contentRef.current;
@@ -485,10 +720,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const handleScroll = useCallback(() => {
     const container = scrollRef.current;
     if (!container) return;
-    // Ignore scroll events caused by our own programmatic scrollTop changes
+    // Ignore scroll events caused by our own programmatic scrollTop changes,
+    // but always update button visibility.
     const auto = autoScrollRef.current;
-    if (auto && Date.now() - auto.time < 500 && Math.abs(container.scrollTop - auto.top) < 2) {
+    const isAutoScroll =
+      auto && Date.now() - auto.time < 500 && Math.abs(container.scrollTop - auto.top) < 2;
+    if (isAutoScroll) {
       autoScrollRef.current = null;
+      setShowScrollToBottom(!isNearBottom(container));
       return;
     }
     const atBottom = isNearBottom(container);
@@ -559,30 +798,62 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     };
   }, []);
 
-  const sections = useMemo(
-    () => buildSections(visibleItems, sessionId, effectiveSessionId),
-    [visibleItems, sessionId, effectiveSessionId],
-  );
+  const sectionCacheKey = `${sessionId}:${effectiveSessionId}`;
 
-  const sectionBlocks = useMemo(
-    () =>
-      buildSectionBlocks(
-        sections,
+  const sections = useMemo(() => {
+    const nextSections = buildSections(visibleItems, sessionId, effectiveSessionId);
+    const prevSections = SECTION_REUSE_CACHE.get(sectionCacheKey);
+    const reusedSections = prevSections
+      ? nextSections.map((section, index) =>
+          canReuseSectionItems(prevSections[index], section) ? prevSections[index] : section,
+        )
+      : nextSections;
+    SECTION_REUSE_CACHE.set(sectionCacheKey, reusedSections);
+    pruneCacheExcept(SECTION_REUSE_CACHE, sectionCacheKey);
+    return reusedSections;
+  }, [effectiveSessionId, sectionCacheKey, sessionId, visibleItems]);
+
+  const sectionBlocks = useMemo(() => {
+    const prev = SECTION_BLOCK_REUSE_CACHE.get(sectionCacheKey);
+    const canReuseCachedBlocks =
+      prev !== undefined &&
+      prev.subAgentDescBySessionId === subAgentDescBySessionId &&
+      prev.subAgentTypeBySessionId === subAgentTypeBySessionId &&
+      prev.subAgentForkBySessionId === subAgentForkBySessionId;
+
+    const nextSectionBlocks = sections.map((section, index) => {
+      if (canReuseCachedBlocks && prev.sections[index] === section) {
+        return prev.sectionBlocks[index];
+      }
+      return buildSectionBlocksForSection(
+        section,
         sessionId,
         effectiveSessionId,
         subAgentDescBySessionId,
         subAgentTypeBySessionId,
         subAgentForkBySessionId,
-      ),
-    [
+      );
+    });
+
+    SECTION_BLOCK_REUSE_CACHE.set(sectionCacheKey, {
       sections,
-      sessionId,
-      effectiveSessionId,
+      sectionBlocks: nextSectionBlocks,
       subAgentDescBySessionId,
-      subAgentForkBySessionId,
       subAgentTypeBySessionId,
-    ],
-  );
+      subAgentForkBySessionId,
+    });
+    pruneCacheExcept(SECTION_BLOCK_REUSE_CACHE, sectionCacheKey);
+
+    return nextSectionBlocks;
+  }, [
+    sectionCacheKey,
+    sections,
+    sessionId,
+    effectiveSessionId,
+    subAgentDescBySessionId,
+    subAgentForkBySessionId,
+    subAgentTypeBySessionId,
+  ]);
 
   const collapseGroupIdByItemId = useMemo(() => {
     const map = new Map<string, string>();
@@ -601,6 +872,11 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     }
     return map;
   }, [sectionBlocks]);
+
+  const activeCollapseGroupId = useMemo(
+    () => (activeItemId === null ? null : (collapseGroupIdByItemId.get(activeItemId) ?? null)),
+    [activeItemId, collapseGroupIdByItemId],
+  );
 
   const lastSectionCollapseGroupIds = useMemo(() => {
     const lastSection = sectionBlocks.at(-1);
@@ -636,6 +912,13 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     setExpandGen((v) => v + 1);
   }, [allCollapseGroupIds]);
 
+  const handleToggleCollapseGroup = useCallback((groupId: string, collapsed: boolean) => {
+    setCollapsedCollapseGroups((prev) => ({
+      ...prev,
+      [groupId]: !collapsed,
+    }));
+  }, []);
+
   // Cmd+Shift+, collapse all, Cmd+Shift+. expand all
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -653,30 +936,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       document.removeEventListener("keydown", handler);
     };
   }, [handleCollapseAll, handleExpandAll]);
-
-  const isCollapseGroupCollapsed = useCallback(
-    (groupId: string): boolean => {
-      // Force expand if the group contains the active search match
-      if (activeItemId !== null && collapseGroupIdByItemId.get(activeItemId) === groupId) {
-        return false;
-      }
-      if (groupId in collapsedCollapseGroups) {
-        return collapsedCollapseGroups[groupId];
-      }
-      // While running, expand all groups in the current turn (last section)
-      if (isEffectiveRunning) {
-        return !lastSectionCollapseGroupIds.has(groupId);
-      }
-      return true;
-    },
-    [
-      activeItemId,
-      collapseGroupIdByItemId,
-      collapsedCollapseGroups,
-      isEffectiveRunning,
-      lastSectionCollapseGroupIds,
-    ],
-  );
 
   const collapseAllValue = useMemo(() => ({ collapseGen, expandGen }), [collapseGen, expandGen]);
 
@@ -741,169 +1000,27 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                             : undefined
                         }
                       >
-                        {sectionBlocks[sectionIndex]?.map((block, blockIdx) => {
-                          const spacing = blockSpacingClass(block, blockIdx === 0);
-
-                          if (block.type === "dev_group") {
-                            return (
-                              <AnimatedDiv key={block.id} className={spacing}>
-                                <DeveloperMessage items={block.items} />
-                              </AnimatedDiv>
-                            );
+                        <SectionView
+                          sessionId={sessionId}
+                          isHistorical={sectionIndex < sections.length - 1}
+                          isLastSection={sectionIndex === sections.length - 1}
+                          blocks={sectionBlocks[sectionIndex] ?? []}
+                          activeItemId={activeItemId}
+                          activeCollapseGroupId={activeCollapseGroupId}
+                          copiedItemId={copiedItemId}
+                          workspacePath={workspacePath}
+                          collapsedCollapseGroups={collapsedCollapseGroups}
+                          isEffectiveRunning={isEffectiveRunning}
+                          lastSectionCollapseGroupIds={
+                            sectionIndex === sections.length - 1
+                              ? lastSectionCollapseGroupIds
+                              : EMPTY_GROUP_IDS
                           }
-
-                          if (block.type === "collapse_group") {
-                            const collapsed = isCollapseGroupCollapsed(block.id);
-                            return (
-                              <AnimatedDiv key={block.id} className={spacing}>
-                                <CollapseGroupBlock
-                                  entries={block.entries}
-                                  collapsed={collapsed}
-                                  onToggle={() => {
-                                    setCollapsedCollapseGroups((prev) => ({
-                                      ...prev,
-                                      [block.id]: !collapsed,
-                                    }));
-                                  }}
-                                  activeItemId={activeItemId}
-                                  copiedItemId={copiedItemId}
-                                  workDir={workspacePath}
-                                  onCopy={handleCopy}
-                                  setItemRef={setItemRef}
-                                  renderSubAgent={(entry) => {
-                                    const isFinished =
-                                      subAgentFinishedBySessionId[entry.sourceSessionId];
-                                    return (
-                                      <SubAgentGroupCard
-                                        key={entry.groupId}
-                                        sourceSessionId={entry.sourceSessionId}
-                                        sourceSessionType={entry.sourceSessionType}
-                                        sourceSessionDesc={entry.sourceSessionDesc}
-                                        toolCount={entry.toolCount}
-                                        status={statusBySessionId[entry.sourceSessionId] ?? null}
-                                        isFinished={isFinished}
-                                        nowSeconds={nowSeconds}
-                                        onClick={() => {
-                                          handleEnterSubAgent(entry.sourceSessionId);
-                                        }}
-                                      />
-                                    );
-                                  }}
-                                />
-                              </AnimatedDiv>
-                            );
-                          }
-
-                          if (block.type === "planned_group") {
-                            const pgCollapsed = isCollapseGroupCollapsed(block.id);
-                            return (
-                              <AnimatedDiv key={block.id} className={spacing}>
-                                <PlannedGroupBlock
-                                  todos={block.todos}
-                                  collapsed={pgCollapsed}
-                                  onToggle={() => {
-                                    setCollapsedCollapseGroups((prev) => ({
-                                      ...prev,
-                                      [block.id]: !pgCollapsed,
-                                    }));
-                                  }}
-                                >
-                                  {block.blocks.map((inner) => {
-                                    if (inner.type === "dev_group") {
-                                      return (
-                                        <DeveloperMessage key={inner.id} items={inner.items} />
-                                      );
-                                    }
-                                    if (inner.type === "sub_agent_group") {
-                                      const isFinished =
-                                        subAgentFinishedBySessionId[inner.sourceSessionId];
-                                      return (
-                                        <SubAgentGroupCard
-                                          key={inner.groupId}
-                                          sourceSessionId={inner.sourceSessionId}
-                                          sourceSessionType={inner.sourceSessionType}
-                                          sourceSessionDesc={inner.sourceSessionDesc}
-                                          toolCount={inner.toolCount}
-                                          status={statusBySessionId[inner.sourceSessionId] ?? null}
-                                          isFinished={isFinished}
-                                          nowSeconds={nowSeconds}
-                                          onClick={() => {
-                                            handleEnterSubAgent(inner.sourceSessionId);
-                                          }}
-                                        />
-                                      );
-                                    }
-                                    const innerItem = inner.item;
-                                    const innerHasRailGrid =
-                                      GRID_ITEM_TYPES.has(innerItem.type) &&
-                                      !(
-                                        innerItem.type === "tool_block" &&
-                                        CARD_TOOL_NAMES.has(innerItem.toolName)
-                                      );
-                                    const innerOffset = !innerHasRailGrid
-                                      ? RAIL_CONTENT_OFFSET
-                                      : "";
-                                    return (
-                                      <div key={innerItem.id} className={innerOffset}>
-                                        <MessageRow
-                                          item={innerItem}
-                                          workDir={workspacePath}
-                                          isActive={innerItem.id === activeItemId}
-                                          copied={copiedItemId === innerItem.id}
-                                          onCopy={handleCopy}
-                                          itemRef={(el) => {
-                                            setItemRef(innerItem.id, el);
-                                          }}
-                                        />
-                                      </div>
-                                    );
-                                  })}
-                                </PlannedGroupBlock>
-                              </AnimatedDiv>
-                            );
-                          }
-
-                          if (block.type === "sub_agent_group") {
-                            const isFinished = subAgentFinishedBySessionId[block.sourceSessionId];
-                            return (
-                              <AnimatedDiv key={block.groupId} className={spacing}>
-                                <SubAgentGroupCard
-                                  sourceSessionId={block.sourceSessionId}
-                                  sourceSessionType={block.sourceSessionType}
-                                  sourceSessionDesc={block.sourceSessionDesc}
-                                  toolCount={block.toolCount}
-                                  status={statusBySessionId[block.sourceSessionId] ?? null}
-                                  isFinished={isFinished}
-                                  nowSeconds={nowSeconds}
-                                  onClick={() => {
-                                    handleEnterSubAgent(block.sourceSessionId);
-                                  }}
-                                />
-                              </AnimatedDiv>
-                            );
-                          }
-
-                          const item = block.item;
-                          const hasRailGrid =
-                            GRID_ITEM_TYPES.has(item.type) &&
-                            !(item.type === "tool_block" && CARD_TOOL_NAMES.has(item.toolName));
-                          const itemOffset =
-                            item.type !== "user_message" && !hasRailGrid ? RAIL_CONTENT_OFFSET : "";
-                          return (
-                            <AnimatedDiv key={item.id} className={`${spacing} ${itemOffset}`}>
-                              <MessageRow
-                                item={item}
-                                workDir={workspacePath}
-                                isActive={item.id === activeItemId}
-                                copied={copiedItemId === item.id}
-                                onCopy={handleCopy}
-                                itemRef={(el) => {
-                                  setItemRef(item.id, el);
-                                }}
-                              />
-                            </AnimatedDiv>
-                          );
-                        })}
+                          onToggleCollapseGroup={handleToggleCollapseGroup}
+                          onCopy={handleCopy}
+                          setItemRef={setItemRef}
+                          onEnterSubAgent={handleEnterSubAgent}
+                        />
                       </div>
                     ))}
                     <div aria-hidden="true" className="h-12" />
@@ -915,14 +1032,15 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                 ) : null}
               </div>
               <div className="mx-auto max-w-4xl px-4 pb-4 sm:px-6">
-                <SessionStatusBar
-                  status={viewingSubAgentSessionId ? effectiveStatus : mainSessionStatus}
-                  runtime={viewingSubAgentSessionId ? null : runtime}
+                <ConnectedSessionStatusBar
+                  sessionId={sessionId}
+                  viewingSubAgentSessionId={viewingSubAgentSessionId}
+                  runtime={runtime}
                 />
               </div>
             </div>
           </div>
-          {showScrollToBottom ? (
+          {showScrollToBottom && hasItems ? (
             <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -946,3 +1064,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     </CollapseAllContext.Provider>
   );
 }
+
+export const MessageList = memo(
+  MessageListInner,
+  (prev, next) => prev.sessionId === next.sessionId,
+);

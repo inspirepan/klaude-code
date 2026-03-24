@@ -81,39 +81,53 @@ function toggleOption(
 function OptionPill({
   checked,
   disabled,
+  multiSelect,
   label,
   description,
   onClick,
 }: {
   checked: boolean;
   disabled: boolean;
+  multiSelect: boolean;
   label: string;
   description: string;
   onClick: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`group/pill inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-left transition-all ${
+      className={`group/pill inline-flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-all ${
         checked
-          ? "border-blue-200 bg-blue-50/80 ring-1 ring-blue-200/60"
+          ? "border-sky-200 bg-sky-50/80 ring-1 ring-sky-200/60"
           : "border-border bg-card hover:border-neutral-300 hover:bg-surface"
       } disabled:cursor-not-allowed disabled:opacity-50`}
     >
-      <span
-        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-all ${
-          checked
-            ? "border-blue-500 bg-blue-500 text-white"
-            : "border-neutral-300 bg-card group-hover/pill:border-neutral-400"
-        }`}
-      >
-        {checked && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
-      </span>
+      {multiSelect ? (
+        <span
+          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${
+            checked
+              ? "border-sky-500 bg-sky-500 text-white"
+              : "border-neutral-300 bg-card group-hover/pill:border-neutral-400"
+          }`}
+        >
+          {checked && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+        </span>
+      ) : (
+        <span
+          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-all ${
+            checked
+              ? "border-sky-500 bg-white"
+              : "border-neutral-300 bg-card group-hover/pill:border-neutral-400"
+          }`}
+        >
+          {checked && <span className="h-2 w-2 rounded-full bg-sky-500" />}
+        </span>
+      )}
       <span className="min-w-0">
         <span
-          className={`block text-base font-medium leading-tight ${checked ? "text-blue-700" : "text-neutral-700"}`}
+          className={`block text-base font-medium leading-tight ${checked ? "text-sky-700" : "text-neutral-700"}`}
         >
           {label}
         </span>
@@ -132,8 +146,6 @@ function QuestionPanel({
   questionIndex,
   selected,
   note,
-  answered,
-  showValidation,
   actionDisabled,
   onToggleOption,
   onNoteChange,
@@ -142,12 +154,10 @@ function QuestionPanel({
   questionIndex: number;
   selected: string[];
   note: string;
-  answered: boolean;
-  showValidation: boolean;
   actionDisabled: boolean;
   onToggleOption: (optionId: string) => void;
   onNoteChange: (value: string) => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const t = useT();
   return (
     <div>
@@ -171,6 +181,7 @@ function QuestionPanel({
             key={option.id}
             checked={selected.includes(option.id)}
             disabled={actionDisabled}
+            multiSelect={question.multi_select}
             label={option.label}
             description={option.description}
             onClick={() => {
@@ -189,15 +200,10 @@ function QuestionPanel({
           onChange={(e) => {
             onNoteChange(e.target.value);
           }}
-          placeholder={`Other: ${question.input_placeholder ?? "Type something."}`}
-          className="h-9 w-full rounded-lg border border-border bg-surface/50 px-3 text-base text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-blue-300 focus:bg-card focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+          placeholder={t("interaction.otherPlaceholder")}
+          className="h-9 w-full rounded-lg border border-border bg-surface/50 px-3 text-base text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 focus:bg-card focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
-
-      {/* Validation hint — only after attempted submit */}
-      {showValidation && !answered && (
-        <p className="mt-2 text-xs text-amber-600">{t("interaction.validationHint")}</p>
-      )}
     </div>
   );
 }
@@ -209,12 +215,11 @@ export function UserInteractionCard({
   pendingCount,
   disabled = false,
   onRespond,
-}: UserInteractionCardProps): JSX.Element {
+}: UserInteractionCardProps): React.JSX.Element {
   const t = useT();
   const [selectedByQuestion, setSelectedByQuestion] = useState<Record<string, string[]>>({});
   const [noteByQuestion, setNoteByQuestion] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [showValidation, setShowValidation] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
 
   const askPayload = request.payload.kind === "ask_user_question" ? request.payload : null;
@@ -236,21 +241,21 @@ export function UserInteractionCard({
   const actionDisabled = disabled || submitting;
   const multipleQuestions = askPayload !== null && askPayload.questions.length > 1;
 
-  // Find first unanswered question index (for validation jump).
-  const firstUnansweredIndex = useMemo(() => {
+  // Find the next unanswered question index after the active tab (wrapping around).
+  const nextUnansweredIndex = useMemo(() => {
     if (askPayload === null) return -1;
-    return askPayload.questions.findIndex(
-      (q) => !isQuestionAnswered(q, selectedByQuestion, noteByQuestion),
-    );
-  }, [askPayload, selectedByQuestion, noteByQuestion]);
+    const len = askPayload.questions.length;
+    for (let offset = 1; offset <= len; offset++) {
+      const idx = (activeTab + offset) % len;
+      if (!isQuestionAnswered(askPayload.questions[idx], selectedByQuestion, noteByQuestion)) {
+        return idx;
+      }
+    }
+    return -1;
+  }, [askPayload, activeTab, selectedByQuestion, noteByQuestion]);
 
   async function submitAskResponse(): Promise<void> {
-    if (askPayload === null || actionDisabled) return;
-    if (!canSubmit) {
-      setShowValidation(true);
-      if (firstUnansweredIndex >= 0) setActiveTab(firstUnansweredIndex);
-      return;
-    }
+    if (askPayload === null || actionDisabled || !canSubmit) return;
     setSubmitting(true);
     try {
       await onRespond({
@@ -263,11 +268,7 @@ export function UserInteractionCard({
   }
 
   async function submitOperationResponse(): Promise<void> {
-    if (operationPayload === null || actionDisabled) return;
-    if (!canSubmit) {
-      setShowValidation(true);
-      return;
-    }
+    if (operationPayload === null || actionDisabled || !canSubmit) return;
     const selectedOptionId = (selectedByQuestion["__operation_select__"] ?? [])[0];
     if (!selectedOptionId) return;
     const payload: OperationSelectResponsePayload = {
@@ -296,7 +297,7 @@ export function UserInteractionCard({
     <section className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm shadow-neutral-200/40">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-5 pb-1 pt-4">
-        <CircleHelp className="h-4 w-4 shrink-0 text-blue-500" />
+        <CircleHelp className="h-4 w-4 shrink-0 text-sky-500" />
         <div className="min-w-0 flex-1">
           <span className="text-base font-semibold text-neutral-800">
             {askPayload
@@ -330,7 +331,7 @@ export function UserInteractionCard({
                       }}
                       className={`flex items-center gap-1.5 rounded-[22px] px-3 py-1.5 text-sm font-medium transition ${
                         isActive
-                          ? "bg-blue-50/55 text-blue-600"
+                          ? "bg-sky-50/55 text-sky-600"
                           : "bg-surface text-neutral-500 hover:bg-muted hover:text-neutral-700"
                       }`}
                     >
@@ -352,7 +353,6 @@ export function UserInteractionCard({
               if (multipleQuestions && qi !== activeTab) return null;
               const selected = selectedByQuestion[question.id] ?? [];
               const note = noteByQuestion[question.id] ?? "";
-              const answered = isQuestionAnswered(question, selectedByQuestion, noteByQuestion);
               return (
                 <QuestionPanel
                   key={question.id}
@@ -360,8 +360,6 @@ export function UserInteractionCard({
                   questionIndex={qi}
                   selected={selected}
                   note={note}
-                  answered={answered}
-                  showValidation={showValidation}
                   actionDisabled={actionDisabled}
                   onToggleOption={(optionId) => {
                     setSelectedByQuestion((cur) =>
@@ -401,6 +399,7 @@ export function UserInteractionCard({
                   key={option.id}
                   checked={(selectedByQuestion["__operation_select__"] ?? []).includes(option.id)}
                   disabled={actionDisabled}
+                  multiSelect={false}
                   label={option.label}
                   description={option.description}
                   onClick={() => {
@@ -427,21 +426,42 @@ export function UserInteractionCard({
             <X className="h-3 w-3" />
             {t("interaction.cancel")}
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (askPayload !== null) {
-                void submitAskResponse();
-                return;
-              }
-              void submitOperationResponse();
-            }}
-            disabled={actionDisabled}
-            className="inline-flex h-7 items-center gap-1 rounded-lg bg-blue-500 px-3 text-sm text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Check className="h-3 w-3" />
-            {t("interaction.submit")}
-          </button>
+          {multipleQuestions && !canSubmit ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (nextUnansweredIndex >= 0) setActiveTab(nextUnansweredIndex);
+              }}
+              disabled={actionDisabled || nextUnansweredIndex < 0}
+              className={`inline-flex h-7 items-center gap-1 rounded-lg border px-3 text-sm shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                isQuestionAnswered(
+                  askPayload.questions[activeTab],
+                  selectedByQuestion,
+                  noteByQuestion,
+                )
+                  ? "border-transparent bg-sky-500 text-white hover:bg-sky-600"
+                  : "border-border bg-card text-neutral-500 hover:bg-surface hover:text-neutral-700"
+              }`}
+            >
+              {t("interaction.next")}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (askPayload !== null) {
+                  void submitAskResponse();
+                  return;
+                }
+                void submitOperationResponse();
+              }}
+              disabled={actionDisabled}
+              className="inline-flex h-7 items-center gap-1 rounded-lg bg-sky-500 px-3 text-sm text-white shadow-sm transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Check className="h-3 w-3" />
+              {t("interaction.submit")}
+            </button>
+          )}
         </div>
       </div>
     </section>

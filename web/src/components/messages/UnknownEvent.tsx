@@ -9,7 +9,7 @@ interface UnknownEventProps {
   item: UnknownEventItem;
 }
 
-export function UnknownEvent({ item }: UnknownEventProps): JSX.Element {
+export function UnknownEvent({ item }: UnknownEventProps): React.JSX.Element {
   const { matchItemIds } = useSearch();
   const [open, setOpen] = useState(false);
   const isSearchMatch = matchItemIds.includes(item.id);

@@ -105,6 +105,11 @@ const zh: Translations = {
   // Compaction
   "compaction.label": "已压缩",
 
+  // Rewind
+  "rewind.label": (checkpointId: number) => `已回退到检查点 ${checkpointId}`,
+  "rewind.rationale": "原因：",
+  "rewind.note": "上下文：",
+
   // Question summary
   "question.label": "问题",
   "question.noAnswer": "（未提供回答）",
@@ -138,6 +143,8 @@ const zh: Translations = {
   "interaction.pending": (count: number) => `${count} 个待处理`,
   "interaction.cancel": "取消",
   "interaction.submit": "提交",
+  "interaction.next": "下一个问题",
+  "interaction.otherPlaceholder": "其他：请输入内容。",
 
   // Copy
   "copy.copy": "复制",
@@ -151,7 +158,7 @@ const zh: Translations = {
   // Tool block
   "tool.planning": "规划中\u2026",
   "tool.todoTitle": "计划清单",
-  "tool.askingQuestion": "等待用户回答\u2026",
+  "tool.askingQuestion": "编写问题中\u2026",
 
   // Collapse group
   "collapse.read": "读取",

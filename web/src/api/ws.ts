@@ -146,6 +146,14 @@ export function connectSessionWs(
   socket.addEventListener("message", (messageEvent) => {
     try {
       const payload = JSON.parse(messageEvent.data as string) as unknown;
+      if (Array.isArray(payload)) {
+        for (const item of payload) {
+          if (isEventEnvelope(item)) {
+            handlers.onEvent?.(item);
+          }
+        }
+        return;
+      }
       if (isErrorFrame(payload)) {
         handlers.onErrorFrame?.(payload);
         return;

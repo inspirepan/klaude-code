@@ -34,7 +34,7 @@ export function ModelSelector({
   triggerClassName,
   panelClassName,
   dropUp = true,
-}: ModelSelectorProps): JSX.Element {
+}: ModelSelectorProps): React.JSX.Element {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");

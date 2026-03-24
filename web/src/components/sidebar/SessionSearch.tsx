@@ -19,7 +19,7 @@ function HighlightedText({
   text: string;
   query: string;
   className?: string;
-}): JSX.Element {
+}): React.JSX.Element {
   const idx = text.toLowerCase().indexOf(query.toLowerCase());
   if (idx === -1) return <span className={className}>{text}</span>;
   return (
@@ -80,7 +80,7 @@ function SnippetText({
 }: {
   snippets: MatchSnippet[];
   className?: string;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <span className={className}>
       {snippets.map((s, i) => (
@@ -121,7 +121,7 @@ export function SessionSearch({
   onSelectSession,
   onOpenChange,
   onBeforeOpen,
-}: SessionSearchProps): JSX.Element {
+}: SessionSearchProps): React.JSX.Element {
   const t = useT();
   const [open, setOpenRaw] = useState(false);
   const setOpen = useCallback(
@@ -142,17 +142,25 @@ export function SessionSearch({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  const handleClose = useCallback(() => {
+    setOpen(false);
+    setQuery("");
+    setResults([]);
+    setHighlightIndex(-1);
+    setSearched(false);
+  }, [setOpen]);
+
   // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handlePointerDown = (e: PointerEvent): void => {
       if (!containerRef.current?.contains(e.target as Node)) {
-        setOpen(false);
+        handleClose();
       }
     };
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === "Escape") {
-        setOpen(false);
+        handleClose();
       }
     };
     document.addEventListener("pointerdown", handlePointerDown);
@@ -161,30 +169,18 @@ export function SessionSearch({
       document.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open]);
+  }, [open, handleClose]);
 
   // Focus input when opened
   useEffect(() => {
-    if (open) {
-      inputRef.current?.focus();
-    } else {
-      setQuery("");
-      setResults([]);
-      setHighlightIndex(-1);
-      setSearched(false);
-    }
+    if (open) inputRef.current?.focus();
   }, [open]);
 
   // Debounced search
   useEffect(() => {
     if (!open) return;
     const trimmed = query.trim();
-    if (!trimmed) {
-      setResults([]);
-      setHighlightIndex(-1);
-      setSearched(false);
-      return;
-    }
+    if (!trimmed) return;
 
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -210,10 +206,10 @@ export function SessionSearch({
 
   const handleSelect = useCallback(
     (result: SessionSearchResult) => {
-      setOpen(false);
+      handleClose();
       onSelectSession(result.id, result.archived, result.work_dir);
     },
-    [setOpen, onSelectSession],
+    [handleClose, onSelectSession],
   );
 
   const handleInputKeyDown = (e: React.KeyboardEvent): void => {
@@ -230,6 +226,9 @@ export function SessionSearch({
   };
 
   const trimmedQuery = query.trim();
+  // Derive display values so we don't need to setState when query becomes empty
+  const visibleResults = trimmedQuery ? results : [];
+  const visibleSearched = trimmedQuery ? searched : false;
 
   return (
     <div ref={containerRef} className="relative">
@@ -239,8 +238,12 @@ export function SessionSearch({
             type="button"
             className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-muted hover:text-neutral-700"
             onClick={() => {
-              if (!open) onBeforeOpen?.();
-              setOpen((prev) => !prev);
+              if (open) {
+                handleClose();
+              } else {
+                onBeforeOpen?.();
+                setOpen(true);
+              }
             }}
             aria-label={t("sidebar.searchSessions")}
           >
@@ -268,12 +271,12 @@ export function SessionSearch({
               />
             </div>
           </div>
-          {searched && results.length === 0 ? (
+          {visibleSearched && visibleResults.length === 0 ? (
             <div className="px-3 py-3 text-sm text-neutral-500">{t("sidebar.noSearchResults")}</div>
           ) : null}
-          {results.length > 0 ? (
+          {visibleResults.length > 0 ? (
             <CommandListScroll maxHeight="max-h-80">
-              {results.map((result, index) => (
+              {visibleResults.map((result, index) => (
                 <SearchResultItem
                   key={result.id}
                   result={result}
@@ -310,7 +313,7 @@ function SearchResultItem({
   fallbackTitle: string;
   onClick: () => void;
   onPointerMove: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const queryLower = query.toLowerCase();
   const title = result.title?.trim();
   const displayTitle = title || result.user_messages[0]?.trim() || fallbackTitle;

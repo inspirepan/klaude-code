@@ -6,7 +6,7 @@ interface ImageResultViewProps {
   sessionId?: string | null;
 }
 
-export function ImageResultView({ uiExtra, sessionId }: ImageResultViewProps): JSX.Element {
+export function ImageResultView({ uiExtra, sessionId }: ImageResultViewProps): React.JSX.Element {
   return (
     <div className="mt-1 overflow-hidden rounded-lg border border-border/80 bg-card">
       <img

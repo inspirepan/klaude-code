@@ -106,7 +106,7 @@ function buildDetailRows(agent: TaskMetadataAgent, t: ReturnType<typeof useT>): 
 // Detail table
 // ------------------------------------------------------------------
 
-function DetailTable({ rows }: { rows: DetailRow[] }): JSX.Element {
+function DetailTable({ rows }: { rows: DetailRow[] }): React.JSX.Element {
   return (
     <div className="ml-5 mt-1">
       {rows.map((row, i) => (
@@ -129,7 +129,7 @@ function DetailTable({ rows }: { rows: DetailRow[] }): JSX.Element {
 // Export
 // ------------------------------------------------------------------
 
-export function TaskMetadata({ item }: TaskMetadataProps): JSX.Element {
+export function TaskMetadata({ item }: TaskMetadataProps): React.JSX.Element {
   const t = useT();
   const [open, setOpen] = useState(false);
   const agent = item.mainAgent;
