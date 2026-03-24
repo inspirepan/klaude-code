@@ -10,6 +10,7 @@ import { mermaid } from "../../lib/mermaid-plugin";
 import { FrontmatterTable } from "./FrontmatterTable";
 import { useParsedFrontmatter } from "./frontmatter";
 import { useSearchHighlight } from "./useSearchHighlight";
+import { useStreamThrottle } from "./useStreamThrottle";
 
 interface AssistantTextProps {
   item: AssistantTextItem;
@@ -61,9 +62,10 @@ function transformImageUrl(url: string, sessionId: string | null): string {
 }
 
 export function AssistantText({ item }: AssistantTextProps): React.JSX.Element {
-  const { entries, body } = useParsedFrontmatter(item.content);
+  const throttledContent = useStreamThrottle(item.content, item.isStreaming);
+  const { entries, body } = useParsedFrontmatter(throttledContent);
   const containerRef = useRef<HTMLDivElement>(null);
-  useSearchHighlight(containerRef, item.content);
+  useSearchHighlight(containerRef, throttledContent);
   const urlTransform: UrlTransform = (url, key, node) => {
     if (key !== "src" || node.tagName !== "img") {
       return url;

@@ -539,9 +539,7 @@ export function CollapseGroupBlock({
                   isActive={block.item.id === activeItemId}
                   copied={copiedItemId === block.item.id}
                   onCopy={onCopy}
-                  itemRef={(el: HTMLDivElement | null) => {
-                    setItemRef(block.item.id, el);
-                  }}
+                  setItemRef={setItemRef}
                 />
               );
             })}

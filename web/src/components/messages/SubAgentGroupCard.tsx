@@ -1,44 +1,75 @@
+import { memo, useCallback, useEffect, useState } from "react";
+
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
-import type { SessionStatusState } from "../../stores/event-reducer";
+import { useMessageStore } from "../../stores/message-store";
 import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
 import { formatElapsed, formatSubAgentTypeLabel, shortSessionId } from "./message-list-ui";
 
 interface SubAgentGroupCardProps {
+  parentSessionId: string;
   sourceSessionId: string;
   sourceSessionType: string | null;
   sourceSessionDesc: string | null;
   toolCount: number;
-  status: SessionStatusState | null;
-  isFinished: boolean;
-  nowSeconds: number;
-  onClick: () => void;
+  onEnterSubAgent: (subAgentId: string) => void;
 }
 
-export function SubAgentGroupCard({
+export const SubAgentGroupCard = memo(function SubAgentGroupCard({
+  parentSessionId,
   sourceSessionId,
   sourceSessionType,
   sourceSessionDesc,
   toolCount,
-  status,
-  isFinished,
-  nowSeconds,
-  onClick,
+  onEnterSubAgent,
 }: SubAgentGroupCardProps): React.JSX.Element {
   const t = useT();
+  const status = useMessageStore(
+    useCallback(
+      (state) =>
+        state.reducerStateBySessionId[parentSessionId]?.statusBySessionId[sourceSessionId] ?? null,
+      [parentSessionId, sourceSessionId],
+    ),
+  );
+  const isFinished = useMessageStore(
+    useCallback(
+      (state) =>
+        state.reducerStateBySessionId[parentSessionId]?.subAgentFinishedBySessionId[
+          sourceSessionId
+        ] ?? false,
+      [parentSessionId, sourceSessionId],
+    ),
+  );
   const isActive =
     status != null && (status.taskActive || status.awaitingInput || status.compacting);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const taskStartedAt = status?.taskStartedAt ?? null;
+
+  useEffect(() => {
+    if (!isActive || taskStartedAt == null) return;
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [isActive, taskStartedAt]);
+
+  const nowSeconds = nowMs / 1000;
   const elapsedText =
-    status?.taskStartedAt != null && isActive
-      ? formatElapsed(nowSeconds - status.taskStartedAt)
+    taskStartedAt != null && isActive
+      ? formatElapsed(nowSeconds - taskStartedAt)
       : status?.taskElapsedSeconds != null
         ? formatElapsed(status.taskElapsedSeconds)
         : null;
+  const handleClick = useCallback(() => {
+    onEnterSubAgent(sourceSessionId);
+  }, [onEnterSubAgent, sourceSessionId]);
 
   return (
     <div
       className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} cursor-pointer text-base`}
-      onClick={onClick}
+      onClick={handleClick}
     >
       {/* Dot marker */}
       <span className="flex h-[1lh] items-center justify-center">
@@ -63,4 +94,4 @@ export function SubAgentGroupCard({
       </div>
     </div>
   );
-}
+});

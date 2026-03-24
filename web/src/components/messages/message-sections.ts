@@ -129,7 +129,6 @@ function todoWriteHasInProgress(item: MessageItem): boolean {
   return item.uiExtra.todo_list.todos.some((t) => t.status === "in_progress");
 }
 
-
 function getInProgressTodoContents(item: MessageItem): string[] {
   if (item.type !== "tool_block" || !item.uiExtra || !isTodoListUIExtra(item.uiExtra)) return [];
   return item.uiExtra.todo_list.todos
@@ -168,12 +167,15 @@ function collapseEntryId(entry: CollapseGroupEntry): string {
   return entry.type === "sub_agent_group" ? entry.groupId : entry.id;
 }
 
-/** Apply the standard collapsible-merging pass to a slice of raw blocks. */
-function mergeCollapsibleBlocks(
-  rawBlocks: SectionBlock[],
+/** Append merged blocks for a raw block range. */
+function appendMergedBlocks(
+  sourceBlocks: SectionBlock[],
+  start: number,
+  end: number,
   effectiveSessionId: string,
-): SectionBlock[] {
-  const blocks: SectionBlock[] = [];
+  blocks: SectionBlock[],
+  skipTodoWrites = false,
+): void {
   let pending: CollapseGroupEntry[] = [];
 
   const flushPending = (): void => {
@@ -206,7 +208,9 @@ function mergeCollapsibleBlocks(
     pending = [];
   };
 
-  for (const block of rawBlocks) {
+  for (let i = start; i < end; i++) {
+    const block = sourceBlocks[i];
+    if (skipTodoWrites && isTodoWriteBlock(block)) continue;
     if (block.type === "item" && isCollapsibleItem(block.item)) {
       pending.push(block.item);
     } else if (block.type === "sub_agent_group") {
@@ -217,6 +221,14 @@ function mergeCollapsibleBlocks(
     }
   }
   flushPending();
+}
+
+function mergeCollapsibleBlocks(
+  rawBlocks: SectionBlock[],
+  effectiveSessionId: string,
+): SectionBlock[] {
+  const blocks: SectionBlock[] = [];
+  appendMergedBlocks(rawBlocks, 0, rawBlocks.length, effectiveSessionId, blocks);
   return blocks;
 }
 
@@ -243,6 +255,153 @@ function buildPlannedInnerBlocks(
   return inner;
 }
 
+/** Build blocks for a single section. */
+export function buildSectionBlocksForSection(
+  section: MessageItem[],
+  sessionId: string,
+  effectiveSessionId: string,
+  subAgentDescBySessionId: Record<string, string>,
+  subAgentTypeBySessionId: Record<string, string>,
+  subAgentForkBySessionId: Record<string, boolean>,
+): SectionBlock[] {
+  // First pass: group sub-agent items
+  const rawBlocks: SectionBlock[] = [];
+  const subAgentBlockIndexBySessionId = new Map<string, number>();
+  let i = 0;
+  while (i < section.length) {
+    const item = section[i];
+    const sourceSessionId = item.sessionId ?? sessionId;
+    if (sourceSessionId === effectiveSessionId) {
+      rawBlocks.push({ type: "item", item });
+      i += 1;
+      continue;
+    }
+
+    const existingBlockIndex = subAgentBlockIndexBySessionId.get(sourceSessionId);
+    if (existingBlockIndex !== undefined) {
+      const existingBlock = rawBlocks.at(existingBlockIndex);
+      if (existingBlock?.type === "sub_agent_group" && item.type === "tool_block") {
+        existingBlock.toolCount += 1;
+      }
+      i += 1;
+      continue;
+    }
+
+    const blockIndex = rawBlocks.length;
+    rawBlocks.push({
+      type: "sub_agent_group",
+      groupId: `${effectiveSessionId}-${section[0]?.id ?? sourceSessionId}-${sourceSessionId}`,
+      sourceSessionId,
+      sourceSessionType: subAgentTypeBySessionId[sourceSessionId] ?? null,
+      sourceSessionDesc: subAgentDescBySessionId[sourceSessionId] ?? null,
+      sourceSessionFork: subAgentForkBySessionId[sourceSessionId],
+      toolCount: isToolBlock(item) ? 1 : 0,
+    });
+    subAgentBlockIndexBySessionId.set(sourceSessionId, blockIndex);
+    i += 1;
+  }
+
+  // Second pass: identify planned intervals, then merge remaining collapsible items
+
+  // Find TodoWrite block indices
+  const todoWriteIndices: number[] = [];
+  for (let k = 0; k < rawBlocks.length; k++) {
+    if (isTodoWriteBlock(rawBlocks[k])) todoWriteIndices.push(k);
+  }
+
+  // Identify planned intervals: [in_progress TodoWrite, next TodoWrite)
+  interface PlannedInterval {
+    start: number;
+    end: number;
+    nextTodoWriteIdx: number | null;
+  }
+  const plannedIntervals: PlannedInterval[] = [];
+  for (let t = 0; t < todoWriteIndices.length; t++) {
+    const idx = todoWriteIndices[t];
+    const block = rawBlocks[idx] as SectionItemBlock;
+    if (todoWriteHasInProgress(block.item)) {
+      const hasNext = t + 1 < todoWriteIndices.length;
+      const end = hasNext ? todoWriteIndices[t + 1] : rawBlocks.length;
+      plannedIntervals.push({
+        start: idx,
+        end,
+        nextTodoWriteIdx: hasNext ? todoWriteIndices[t + 1] : null,
+      });
+    }
+  }
+
+  // All planned intervals within a section belong to a single chain.
+  // The chain gets one overview card (using the latest TodoWrite state)
+  // and all other TodoWrites in the section are suppressed.
+
+  // Build final blocks
+  const blocks: SectionBlock[] = [];
+
+  if (plannedIntervals.length === 0) {
+    // No planned intervals: normal merge for the whole section
+    blocks.push(...mergeCollapsibleBlocks(rawBlocks, effectiveSessionId));
+    return blocks;
+  }
+
+  const chainStart = plannedIntervals[0].start;
+  const lastPlannedInterval = plannedIntervals[plannedIntervals.length - 1];
+  const chainEnd = lastPlannedInterval.end;
+
+  // Determine the overview item: use the summary TodoWrite after the chain if
+  // available, otherwise fall back to the last interval's start item.
+  let overviewItem: MessageItem;
+  let summaryIdx: number | null = null;
+  const summaryBlock = chainEnd < rawBlocks.length ? rawBlocks[chainEnd] : null;
+  if (summaryBlock && isTodoWriteBlock(summaryBlock)) {
+    overviewItem = summaryBlock.item;
+    summaryIdx = chainEnd;
+  } else {
+    overviewItem = (rawBlocks[lastPlannedInterval.start] as SectionItemBlock).item;
+  }
+
+  // Process gap [0, chainStart): keep non-TodoWrite blocks, suppress TodoWrites
+  if (chainStart > 0) {
+    appendMergedBlocks(rawBlocks, 0, chainStart, effectiveSessionId, blocks, true);
+  }
+
+  // Emit a single overview card with the latest state
+  blocks.push({ type: "item", item: overviewItem });
+
+  // Emit planned_groups with inter-interval content between them
+  for (let ii = 0; ii < plannedIntervals.length; ii++) {
+    const interval = plannedIntervals[ii];
+
+    // Emit inter-interval content (between previous interval's end and this one's start)
+    if (ii > 0) {
+      const prevEnd = plannedIntervals[ii - 1].end;
+      if (prevEnd < interval.start) {
+        appendMergedBlocks(rawBlocks, prevEnd, interval.start, effectiveSessionId, blocks, true);
+      }
+    }
+
+    const startItem = (rawBlocks[interval.start] as SectionItemBlock).item;
+    const nextItem =
+      interval.nextTodoWriteIdx !== null
+        ? (rawBlocks[interval.nextTodoWriteIdx] as SectionItemBlock).item
+        : null;
+    blocks.push({
+      type: "planned_group",
+      id: `pg-${effectiveSessionId}-${startItem.id}`,
+      todos: buildPlannedTodos(startItem, nextItem),
+      blocks: buildPlannedInnerBlocks(rawBlocks, interval.start + 1, interval.end),
+    });
+  }
+
+  // Advance past the chain and its summary TodoWrite
+  const cursor = summaryIdx !== null ? summaryIdx + 1 : chainEnd;
+
+  if (cursor < rawBlocks.length) {
+    appendMergedBlocks(rawBlocks, cursor, rawBlocks.length, effectiveSessionId, blocks);
+  }
+
+  return blocks;
+}
+
 /** Build section blocks: group sub-agent items, then merge consecutive collapsible items. */
 export function buildSectionBlocks(
   sections: MessageItem[][],
@@ -252,150 +411,14 @@ export function buildSectionBlocks(
   subAgentTypeBySessionId: Record<string, string>,
   subAgentForkBySessionId: Record<string, boolean>,
 ): SectionBlock[][] {
-  return sections.map((section) => {
-    // First pass: group sub-agent items
-    const rawBlocks: SectionBlock[] = [];
-    const subAgentBlockIndexBySessionId = new Map<string, number>();
-    let i = 0;
-    while (i < section.length) {
-      const item = section[i];
-      const sourceSessionId = item.sessionId ?? sessionId;
-      if (sourceSessionId === effectiveSessionId) {
-        rawBlocks.push({ type: "item", item });
-        i += 1;
-        continue;
-      }
-
-      const existingBlockIndex = subAgentBlockIndexBySessionId.get(sourceSessionId);
-      if (existingBlockIndex !== undefined) {
-        const existingBlock = rawBlocks.at(existingBlockIndex);
-        if (existingBlock?.type === "sub_agent_group" && item.type === "tool_block") {
-          existingBlock.toolCount += 1;
-        }
-        i += 1;
-        continue;
-      }
-
-      const blockIndex = rawBlocks.length;
-      rawBlocks.push({
-        type: "sub_agent_group",
-        groupId: `${effectiveSessionId}-${section[0]?.id ?? sourceSessionId}-${sourceSessionId}`,
-        sourceSessionId,
-        sourceSessionType: subAgentTypeBySessionId[sourceSessionId] ?? null,
-        sourceSessionDesc: subAgentDescBySessionId[sourceSessionId] ?? null,
-        sourceSessionFork: subAgentForkBySessionId[sourceSessionId],
-        toolCount: isToolBlock(item) ? 1 : 0,
-      });
-      subAgentBlockIndexBySessionId.set(sourceSessionId, blockIndex);
-      i += 1;
-    }
-
-    // Second pass: identify planned intervals, then merge remaining collapsible items
-
-    // Find TodoWrite block indices
-    const todoWriteIndices: number[] = [];
-    for (let k = 0; k < rawBlocks.length; k++) {
-      if (isTodoWriteBlock(rawBlocks[k])) todoWriteIndices.push(k);
-    }
-
-    // Identify planned intervals: [in_progress TodoWrite, next TodoWrite)
-    interface PlannedInterval {
-      start: number;
-      end: number;
-      nextTodoWriteIdx: number | null;
-    }
-    const plannedIntervals: PlannedInterval[] = [];
-    for (let t = 0; t < todoWriteIndices.length; t++) {
-      const idx = todoWriteIndices[t];
-      const block = rawBlocks[idx] as SectionItemBlock;
-      if (todoWriteHasInProgress(block.item)) {
-        const hasNext = t + 1 < todoWriteIndices.length;
-        const end = hasNext ? todoWriteIndices[t + 1] : rawBlocks.length;
-        plannedIntervals.push({
-          start: idx,
-          end,
-          nextTodoWriteIdx: hasNext ? todoWriteIndices[t + 1] : null,
-        });
-      }
-    }
-
-    // All planned intervals within a section belong to a single chain.
-    // The chain gets one overview card (using the latest TodoWrite state)
-    // and all other TodoWrites in the section are suppressed.
-
-    // Build final blocks
-    const blocks: SectionBlock[] = [];
-
-    if (plannedIntervals.length === 0) {
-      // No planned intervals: normal merge for the whole section
-      blocks.push(...mergeCollapsibleBlocks(rawBlocks, effectiveSessionId));
-      return blocks;
-    }
-
-    const chainStart = plannedIntervals[0].start;
-    const lastPlannedInterval = plannedIntervals[plannedIntervals.length - 1];
-    const chainEnd = lastPlannedInterval.end;
-
-    // Determine the overview item: use the summary TodoWrite after the chain if
-    // available, otherwise fall back to the last interval's start item.
-    let overviewItem: MessageItem;
-    let summaryIdx: number | null = null;
-    const summaryBlock = chainEnd < rawBlocks.length ? rawBlocks[chainEnd] : null;
-    if (summaryBlock && isTodoWriteBlock(summaryBlock)) {
-      overviewItem = summaryBlock.item;
-      summaryIdx = chainEnd;
-    } else {
-      overviewItem = (rawBlocks[lastPlannedInterval.start] as SectionItemBlock).item;
-    }
-
-    // Process gap [0, chainStart): keep non-TodoWrite blocks, suppress TodoWrites
-    if (chainStart > 0) {
-      const gapBlocks = rawBlocks.slice(0, chainStart).filter((b) => !isTodoWriteBlock(b));
-      if (gapBlocks.length > 0) {
-        blocks.push(...mergeCollapsibleBlocks(gapBlocks, effectiveSessionId));
-      }
-    }
-
-    // Emit a single overview card with the latest state
-    blocks.push({ type: "item", item: overviewItem });
-
-    // Emit planned_groups with inter-interval content between them
-    for (let ii = 0; ii < plannedIntervals.length; ii++) {
-      const interval = plannedIntervals[ii];
-
-      // Emit inter-interval content (between previous interval's end and this one's start)
-      if (ii > 0) {
-        const prevEnd = plannedIntervals[ii - 1].end;
-        if (prevEnd < interval.start) {
-          const gapBlocks = rawBlocks
-            .slice(prevEnd, interval.start)
-            .filter((b) => !isTodoWriteBlock(b));
-          if (gapBlocks.length > 0) {
-            blocks.push(...mergeCollapsibleBlocks(gapBlocks, effectiveSessionId));
-          }
-        }
-      }
-
-      const startItem = (rawBlocks[interval.start] as SectionItemBlock).item;
-      const nextItem =
-        interval.nextTodoWriteIdx !== null
-          ? (rawBlocks[interval.nextTodoWriteIdx] as SectionItemBlock).item
-          : null;
-      blocks.push({
-        type: "planned_group",
-        id: `pg-${effectiveSessionId}-${startItem.id}`,
-        todos: buildPlannedTodos(startItem, nextItem),
-        blocks: buildPlannedInnerBlocks(rawBlocks, interval.start + 1, interval.end),
-      });
-    }
-
-    // Advance past the chain and its summary TodoWrite
-    const cursor = summaryIdx !== null ? summaryIdx + 1 : chainEnd;
-
-    if (cursor < rawBlocks.length) {
-      blocks.push(...mergeCollapsibleBlocks(rawBlocks.slice(cursor), effectiveSessionId));
-    }
-
-    return blocks;
-  });
+  return sections.map((section) =>
+    buildSectionBlocksForSection(
+      section,
+      sessionId,
+      effectiveSessionId,
+      subAgentDescBySessionId,
+      subAgentTypeBySessionId,
+      subAgentForkBySessionId,
+    ),
+  );
 }

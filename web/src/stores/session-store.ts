@@ -81,6 +81,8 @@ export type SetState = (
     | ((state: SessionStoreState) => SessionStoreState | Partial<SessionStoreState>),
 ) => void;
 
+let initPromise: Promise<void> | null = null;
+
 async function loadSessionHistory(sessionId: string): Promise<void> {
   const history = await fetchSessionHistory(sessionId);
   useMessageStore.getState().loadHistoryFromEvents(sessionId, history.events);
@@ -102,25 +104,40 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     if (get().initialized) {
       return;
     }
-    await get().refreshSessions();
-
-    // Default to ~/Desktop for first-time users with no session history
-    if (get().groups.length === 0 && get().draftWorkDir.length === 0) {
-      set({ draftWorkDir: "~/Desktop" });
+    if (initPromise) {
+      await initPromise;
+      return;
     }
 
-    const match = window.location.pathname.match(/^\/session\/([a-f0-9]+)(?:\/agent\/[a-f0-9]+)?$/);
-    if (match) {
-      const urlSessionId = match[1];
-      if (findSession(get().groups, urlSessionId)) {
-        await get().selectSession(urlSessionId);
-      } else {
-        history.replaceState(null, "", "/");
+    initPromise = (async () => {
+      await get().refreshSessions();
+
+      // Default to ~/Desktop for first-time users with no session history
+      if (get().groups.length === 0 && get().draftWorkDir.length === 0) {
+        set({ draftWorkDir: "~/Desktop" });
       }
-    }
 
-    set({ initialized: true });
-    connectSessionStream(set);
+      const match = window.location.pathname.match(
+        /^\/session\/([a-f0-9]+)(?:\/agent\/[a-f0-9]+)?$/,
+      );
+      if (match) {
+        const urlSessionId = match[1];
+        if (findSession(get().groups, urlSessionId)) {
+          await get().selectSession(urlSessionId);
+        } else {
+          history.replaceState(null, "", "/");
+        }
+      }
+
+      set({ initialized: true });
+      connectSessionStream(set);
+    })();
+
+    try {
+      await initPromise;
+    } finally {
+      initPromise = null;
+    }
   },
   refreshSessions: async () => {
     set({ loading: true, loadError: null });
