@@ -138,7 +138,7 @@ export function SessionCard({
         as="div"
         className="flex min-w-0 flex-1 items-baseline text-sm leading-5"
         primaryClassName={
-          runtime.sessionState === "running" ? "session-running-shimmer" : undefined
+          runtime.sessionState === "running" ? "text-shimmer" : undefined
         }
         secondaryClassName="shrink truncate"
       />

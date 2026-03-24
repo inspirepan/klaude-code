@@ -1,5 +1,5 @@
-import { Loader } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import type { ToolBlockItem } from "../../types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { FilePathContent, toDisplayPath } from "./FilePath";
@@ -42,7 +42,12 @@ export function ToolBlockHeader({
 
   return (
     <div className="flex min-h-6 min-w-0 items-center gap-1.5 font-mono text-sm leading-5">
-      <span className="shrink-0 whitespace-nowrap font-medium text-neutral-700">
+      <span
+        className={cn(
+          "shrink-0 whitespace-nowrap font-medium text-neutral-700",
+          item.isStreaming && "text-shimmer",
+        )}
+      >
         {item.toolName}
       </span>
       {detailContent ? (
@@ -58,9 +63,6 @@ export function ToolBlockHeader({
             </ScrollArea>
           </TooltipContent>
         </Tooltip>
-      ) : null}
-      {item.isStreaming ? (
-        <Loader className="h-3 w-3 shrink-0 animate-spin text-neutral-500" />
       ) : null}
     </div>
   );

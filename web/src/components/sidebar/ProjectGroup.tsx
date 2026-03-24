@@ -80,7 +80,7 @@ export function ProjectGroup({
                   <span
                     className={cn(
                       "truncate font-normal text-neutral-500 [direction:rtl]",
-                      hasAnyRunning && "session-running-shimmer session-running-shimmer-muted",
+                      hasAnyRunning && "text-shimmer text-shimmer-muted",
                     )}
                   >
                     {workDirLabel(workDir)}
