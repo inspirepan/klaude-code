@@ -40,6 +40,7 @@ interface SummaryPart {
   del?: number;
   add?: number;
   fileStats?: FileStat[];
+  mono?: boolean;
 }
 
 function basename(path: string): string {
@@ -151,11 +152,14 @@ function summarizeCollapseEntries(
   const bashRuns: string[] = [];
   const webFetches: string[] = [];
   const webSearches: string[] = [];
-  const agentTypes: string[] = [];
+  const agents: Array<{ type: string; desc: string | null }> = [];
 
   for (const entry of entries) {
     if (entry.type === "sub_agent_group") {
-      agentTypes.push(formatSubAgentTypeLabel(entry.sourceSessionType));
+      agents.push({
+        type: formatSubAgentTypeLabel(entry.sourceSessionType),
+        desc: entry.sourceSessionDesc,
+      });
       continue;
     }
     const item = entry;
@@ -278,7 +282,22 @@ function summarizeCollapseEntries(
     parts.push({ label: t("collapse.patched"), value: "", fileStats: mergeFileStats(patchFiles) });
   }
 
-  // 4. Reads (tool Read + bash read commands like cat/head/tail)
+  // 4. Sub-agents (significant delegated work -- show before reads)
+  if (agents.length > 0) {
+    if (agents.length === 1) {
+      const a = agents[0];
+      parts.push({ label: a.desc ? `${a.type}:` : a.type, value: a.desc ?? "", mono: false });
+    } else {
+      const byType = new Map<string, number>();
+      for (const a of agents) byType.set(a.type, (byType.get(a.type) ?? 0) + 1);
+      const value = [...byType.entries()]
+        .map(([type, count]) => (count > 1 ? `${type} x${count}` : type))
+        .join(", ");
+      parts.push({ label: value, value: "", mono: false });
+    }
+  }
+
+  // 5. Reads (tool Read + bash read commands like cat/head/tail)
   if (readFiles.length > 0) {
     const unique = [...new Set(readFiles)];
     const shown = unique.slice(0, 3).join(", ");
@@ -286,7 +305,7 @@ function summarizeCollapseEntries(
     parts.push({ label: t("collapse.read"), value });
   }
 
-  // 5. Bash list (ls/tree/rg --files/fd/find)
+  // 6. Bash list (ls/tree/rg --files/fd/find)
   if (bashLists.length > 0) {
     const uniquePaths = [...new Set(bashLists.filter(Boolean) as string[])];
     const value =
@@ -296,7 +315,7 @@ function summarizeCollapseEntries(
     parts.push({ label: t("collapse.list"), value });
   }
 
-  // 6. Bash search (rg/grep/ag/ack/fd/find with query)
+  // 7. Bash search (rg/grep/ag/ack/fd/find with query)
   if (bashSearches.length > 0) {
     const first = bashSearches[0];
     let value = "";
@@ -310,7 +329,7 @@ function summarizeCollapseEntries(
     parts.push({ label: t("collapse.bashSearch"), value });
   }
 
-  // 7. Bash run (unknown commands: git commit, npm build, etc.)
+  // 8. Bash run (unknown commands: git commit, npm build, etc.)
   if (bashRuns.length > 0) {
     const unique = [...new Set(bashRuns)];
     parts.push({
@@ -322,28 +341,18 @@ function summarizeCollapseEntries(
     });
   }
 
-  // 8. WebFetch
+  // 9. WebFetch
   if (webFetches.length > 0) {
     parts.push({ label: t("collapse.fetch"), value: [...new Set(webFetches)][0] });
   }
 
-  // 9. WebSearch
+  // 10. WebSearch
   if (webSearches.length > 0) {
     const q = webSearches[0];
     parts.push({
       label: t("collapse.search"),
       value: q,
     });
-  }
-
-  // 10. Sub-agent types
-  if (agentTypes.length > 0) {
-    const unique = [...new Set(agentTypes)];
-    const value =
-      unique.length > 2
-        ? `${unique.slice(0, 2).join(", ")} +${unique.length - 2}`
-        : unique.join(", ");
-    parts.push({ label: t("collapse.agent"), value });
   }
 
   return parts;
@@ -392,7 +401,9 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
           ) : (
             <>
               <span className="font-normal text-neutral-500">{part.label}</span>{" "}
-              <span className="font-mono text-[0.9em]">{part.value}</span>
+              <span className={part.mono === false ? "" : "font-mono text-[0.9em]"}>
+                {part.value}
+              </span>
             </>
           )}
         </span>
