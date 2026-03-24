@@ -10,6 +10,7 @@ States:
   4/warning
 """
 
+import os
 import sys
 import time
 from enum import Enum
@@ -41,6 +42,10 @@ def resolve_stream(stream: TextIO | None) -> TextIO:
     return sys.stdout
 
 
+def _osc94_disabled() -> bool:
+    return os.getenv("KLAUDE_OSC94", "").strip().lower() in {"0", "off", "false", "disable", "disabled"}
+
+
 def emit_osc94(
     state: OSC94States,
     progress: int | None = None,
@@ -48,6 +53,8 @@ def emit_osc94(
     use_bel: bool = False,
     stream: TextIO | None = None,
 ):
+    if _osc94_disabled():
+        return
     output = resolve_stream(stream)
     if not hasattr(output, "isatty") or not output.isatty():
         return
