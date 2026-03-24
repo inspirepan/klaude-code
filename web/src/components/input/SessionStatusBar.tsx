@@ -2,9 +2,9 @@ import { Loader } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useT } from "@/i18n";
 
-import type { SessionStatusState } from "../../stores/event-reducer";
-import type { SessionRuntimeState } from "../../types/session";
-import { getSessionActivityText, formatElapsed } from "../messages/message-list-ui";
+import type { SessionStatusState } from "@/stores/event-reducer";
+import type { SessionRuntimeState } from "@/types/session";
+import { getSessionActivityText, formatElapsed } from "@/components/messages/message-list-ui";
 
 interface SessionStatusBarProps {
   status: SessionStatusState | null;

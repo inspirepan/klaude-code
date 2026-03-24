@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useT } from "@/i18n";
 import { useMountEffect } from "@/hooks/useMountEffect";
-import { fetchConfigModels, listDirs, type ConfigModelSummary } from "../../api/client";
-import { useSessionStore } from "../../stores/session-store";
+import { fetchConfigModels, listDirs, type ConfigModelSummary } from "@/api/client";
+import { useSessionStore } from "@/stores/session-store";
 import { ComposerCard, type ComposerImageAttachment } from "./ComposerCard";
 import { DraftWorkspacePicker } from "./DraftWorkspacePicker";
 

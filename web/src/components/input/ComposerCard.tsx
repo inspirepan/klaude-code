@@ -9,10 +9,14 @@ import {
 } from "react";
 import { ArrowUp, Plus, Square, X } from "lucide-react";
 
-import { buildFileApiUrl, uploadImageAttachment, type ConfigModelSummary } from "../../api/client";
+import {
+  buildFileApiUrl,
+  uploadImageAttachment,
+  type ConfigModelSummary,
+} from "@/api/client";
 import { useT } from "@/i18n";
-import type { MessageImageFilePart } from "../../types/message";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import type { MessageImageFilePart } from "@/types/message";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AtFileCompletionList } from "./AtFileCompletionList";
 import { ModelSelector } from "./ModelSelector";
 import { SlashCompletionList } from "./SlashCompletionList";

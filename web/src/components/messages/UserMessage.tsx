@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 
 import { useT } from "@/i18n";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { UserMessageItem } from "../../types/message";
-import { buildFileApiUrl } from "../../api/client";
+import type { UserMessageItem } from "@/types/message";
+import { buildFileApiUrl } from "@/api/client";
 import { HighlightText } from "./HighlightText";
 
 const USER_MESSAGE_LINE_LIMIT = 4;
@@ -108,10 +108,8 @@ export function UserMessage({ item }: UserMessageProps): React.JSX.Element {
     };
   }, [showMore, expandedImageIndex]);
 
-  const renderImages = (): React.JSX.Element | null => {
-    if (item.images.length === 0) return null;
-
-    return (
+  const imageElements =
+    item.images.length > 0 ? (
       <div className="mb-2 space-y-2">
         {item.images.map((image, idx) => {
           const src =
@@ -138,13 +136,12 @@ export function UserMessage({ item }: UserMessageProps): React.JSX.Element {
           );
         })}
       </div>
-    );
-  };
+    ) : null;
 
   return (
     <>
       <div className="hover:bg-slate-150 dark:hover:bg-slate-750 ml-auto w-fit max-w-[50%] rounded-2xl border border-slate-200/50 bg-slate-100 px-2.5 py-1.5 transition-colors dark:border-slate-700/50 dark:bg-slate-800">
-        {renderImages()}
+        {imageElements}
         {hasText ? (
           <div>
             <p
@@ -206,7 +203,7 @@ export function UserMessage({ item }: UserMessageProps): React.JSX.Element {
                   type="auto"
                 >
                   <div className="px-4 py-3">
-                    {renderImages()}
+                    {imageElements}
                     <p className="m-0 whitespace-pre-wrap break-words text-base leading-relaxed text-foreground">
                       <ContentWithMentions>{normalizedContent}</ContentWithMentions>
                     </p>

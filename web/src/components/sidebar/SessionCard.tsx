@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Archive, ArchiveRestore, CirclePause } from "lucide-react";
-import type { SessionRuntimeState, SessionSummary } from "../../types/session";
+import type { SessionRuntimeState, SessionSummary } from "@/types/session";
 import { cn } from "@/lib/utils";
 import { SessionTitleText } from "@/components/SessionTitleText";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -130,7 +130,7 @@ export function SessionCard({
       }}
       title={title}
     >
-      {runtime.sessionState === "waiting" ? (
+      {runtime.sessionState === "waiting_user_input" ? (
         <span className="flex h-3 w-3 shrink-0 items-center justify-center">
           <CirclePause className="h-3 w-3 text-amber-500" />
         </span>

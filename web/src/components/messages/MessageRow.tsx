@@ -1,8 +1,8 @@
 import { memo, useCallback } from "react";
 
 import { useT } from "@/i18n";
-import type { MessageItem as MessageItemType } from "../../types/message";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import type { MessageItem as MessageItemType } from "@/types/message";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MessageItem } from "./MessageItem";
 import { isCopyableAssistantText } from "./message-list-ui";
 

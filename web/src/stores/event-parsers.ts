@@ -3,7 +3,7 @@ import type {
   MessageImagePart,
   TaskMetadataAgent,
   TaskMetadataUsage,
-} from "../types/message";
+} from "@/types/message";
 
 const DEFAULT_MAX_TOKENS = 32000;
 

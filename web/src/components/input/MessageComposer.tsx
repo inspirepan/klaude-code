@@ -2,13 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useT } from "@/i18n";
 import { useMountEffect } from "@/hooks/useMountEffect";
-import { fetchConfigModels, type ConfigModelSummary } from "../../api/client";
-import { useMessageStore } from "../../stores/message-store";
-import { useSessionStore } from "../../stores/session-store";
-import type {
-  PendingUserInteractionRequest,
-  UserInteractionResponse,
-} from "../../types/interaction";
+import { fetchConfigModels, type ConfigModelSummary } from "@/api/client";
+import { useMessageStore } from "@/stores/message-store";
+import { useSessionStore } from "@/stores/session-store";
+import type { PendingUserInteractionRequest, UserInteractionResponse } from "@/types/interaction";
 import { ComposerCard, type ComposerImageAttachment } from "./ComposerCard";
 import { UserInteractionCard } from "./UserInteractionCard";
 

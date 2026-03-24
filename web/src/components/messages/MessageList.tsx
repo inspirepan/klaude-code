@@ -13,14 +13,14 @@ import {
 
 import { useT } from "@/i18n";
 import { useMountEffect } from "@/hooks/useMountEffect";
-import { useMessageStore } from "../../stores/message-store";
-import { useAppStore } from "../../stores/app-store";
-import { useSessionStore } from "../../stores/session-store";
-import type { ReducerState } from "../../stores/event-reducer";
-import type { MessageItem as MessageItemType } from "../../types/message";
-import type { SessionRuntimeState, SessionSummary } from "../../types/session";
+import { useMessageStore } from "@/stores/message-store";
+import { useAppStore } from "@/stores/app-store";
+import { useSessionStore } from "@/stores/session-store";
+import type { ReducerState } from "@/stores/event-reducer";
+import type { MessageItem as MessageItemType } from "@/types/message";
+import type { SessionRuntimeState, SessionSummary } from "@/types/session";
 import { splitSessionTitle } from "@/components/session-title";
-import { findSession } from "../../stores/session-helpers";
+import { findSession } from "@/stores/session-helpers";
 import { CollapseGroupBlock } from "./CollapseGroupBlock";
 import { CollapseAllContext } from "./collapse-all-context";
 import { DeveloperMessage } from "./DeveloperMessage";
@@ -41,8 +41,8 @@ import {
   shortSessionId,
 } from "./message-list-ui";
 import { SearchProvider, type SearchState } from "./search-context";
-import { SessionStatusBar } from "../input/SessionStatusBar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { SessionStatusBar } from "@/components/input/SessionStatusBar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Item types whose components include the rail grid internally (grid-cols-[16px_1fr] gap-x-1.5).
 // All other item types need RAIL_CONTENT_OFFSET to align with the grid's right column.

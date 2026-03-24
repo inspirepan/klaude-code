@@ -6,8 +6,8 @@ import type {
   AtFileOp,
   DeveloperUIItem,
   TodoReminderUIItem,
-} from "../../types/message";
-import { buildFileApiUrl } from "../../api/client";
+} from "@/types/message";
+import { buildFileApiUrl } from "@/api/client";
 import {
   COLLAPSE_RAIL_GRID_CLASS_NAME,
   CollapseRailMarker,

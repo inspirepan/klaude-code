@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronRight, Search } from "lucide-react";
 
-import type { ConfigModelSummary } from "../../api/client";
+import type { ConfigModelSummary } from "@/api/client";
 import { useT } from "@/i18n";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CommandListItem } from "@/components/ui/command-list";

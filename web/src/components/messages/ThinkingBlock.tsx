@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 
 import { useT } from "@/i18n";
-import type { ThinkingBlockItem } from "../../types/message";
+import type { ThinkingBlockItem } from "@/types/message";
 import {
   COLLAPSE_RAIL_GRID_CLASS_NAME,
   CollapseRailMarker,

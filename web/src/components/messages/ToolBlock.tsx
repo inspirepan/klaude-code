@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 
 import { useT } from "@/i18n";
-import type { ToolBlockItem } from "../../types/message";
+import type { ToolBlockItem } from "@/types/message";
 import { COLLAPSE_RAIL_GRID_CLASS_NAME, CollapseRailMarker } from "./CollapseRail";
 import { useCollapseAll } from "./collapse-all-context";
 import { useSearch } from "./search-context";

@@ -13,8 +13,8 @@ import { code } from "@streamdown/code";
 import { CheckCircle2, Circle } from "lucide-react";
 
 import { useT } from "@/i18n";
-import type { CompactionSummaryItem } from "../../types/message";
-import { mermaid } from "../../lib/mermaid-plugin";
+import type { CompactionSummaryItem } from "@/types/message";
+import { mermaid } from "@/lib/mermaid-plugin";
 import { useSearchHighlight } from "./useSearchHighlight";
 
 interface CompactionSummaryProps {

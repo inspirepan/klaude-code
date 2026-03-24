@@ -3,12 +3,8 @@ import { Archive, MessageSquare, Search } from "lucide-react";
 import { searchSessions, type SessionSearchResult } from "@/api/client";
 import { CommandListItem, CommandListPanel, CommandListScroll } from "@/components/ui/command-list";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { workDirLabel } from "@/components/session-title";
 import { useT } from "@/i18n";
-
-function workDirLabel(workDir: string): string {
-  const parts = workDir.split("/").filter((s) => s.length > 0);
-  return parts[parts.length - 1] ?? workDir;
-}
 
 /** Render text with the first case-insensitive match of `query` highlighted. */
 function HighlightedText({

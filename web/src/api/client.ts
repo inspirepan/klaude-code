@@ -3,8 +3,8 @@ import type {
   SessionGroup,
   SessionHistoryResponse,
   SessionSummary,
-} from "../types/session";
-import type { MessageImageFilePart } from "../types/message";
+} from "@/types/session";
+import type { MessageImageFilePart } from "@/types/message";
 
 interface JsonRequestOptions {
   method?: "GET" | "POST" | "DELETE";

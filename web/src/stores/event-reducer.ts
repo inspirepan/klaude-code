@@ -1,4 +1,4 @@
-import type { MessageItem } from "../types/message";
+import type { MessageItem } from "@/types/message";
 import {
   parseCompactionSummary,
   parseDeveloperUIItems,

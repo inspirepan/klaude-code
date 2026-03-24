@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { SessionTitleText } from "@/components/SessionTitleText";
 import { useT } from "@/i18n";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface MessageListHeaderProps {
   primaryTitle: string;

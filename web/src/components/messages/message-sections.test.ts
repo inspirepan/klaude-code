@@ -8,7 +8,7 @@ import type {
   MessageItem,
   TaskMetadataItem,
   ToolBlockItem,
-} from "../../types/message";
+} from "@/types/message";
 import type { TodoItem, TodoListUIExtra } from "./message-ui-extra";
 import {
   buildSectionBlocks,
@@ -34,7 +34,7 @@ function makeToolBlock(
   return {
     id,
     type: "tool_block",
-    timestamp: { utc: "", local: "" },
+    timestamp: null,
     sessionId: null,
     toolCallId: `tc-${id}`,
     toolName,
@@ -51,7 +51,7 @@ function makeAssistantText(id: string, content = ""): AssistantTextItem {
   return {
     id,
     type: "assistant_text",
-    timestamp: { utc: "", local: "" },
+    timestamp: null,
     sessionId: null,
     responseId: null,
     content,
@@ -65,7 +65,14 @@ function makeTaskMetadata(id: string): TaskMetadataItem {
     type: "task_metadata",
     timestamp: null,
     sessionId: null,
-    mainAgent: { model: "test", durationMs: 0, inputTokens: 0, outputTokens: 0, turnCount: 0 },
+    mainAgent: {
+      modelName: "test",
+      provider: null,
+      subAgentName: null,
+      usage: null,
+      durationSeconds: null,
+      turnCount: 0,
+    },
     subAgents: [],
     isPartial: false,
   };

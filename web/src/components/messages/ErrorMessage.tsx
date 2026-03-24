@@ -1,7 +1,7 @@
 import { TriangleAlert } from "lucide-react";
 
 import { useT } from "@/i18n";
-import type { ErrorItem } from "../../types/message";
+import type { ErrorItem } from "@/types/message";
 import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
 
 interface ErrorMessageProps {

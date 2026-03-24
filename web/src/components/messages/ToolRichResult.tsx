@@ -1,4 +1,4 @@
-import type { ToolBlockItem } from "../../types/message";
+import type { ToolBlockItem } from "@/types/message";
 import { DiffView } from "./DiffView";
 import { ImageResultView } from "./ImageResultView";
 import { MarkdownDocView } from "./MarkdownDocView";

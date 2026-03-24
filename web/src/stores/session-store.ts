@@ -7,15 +7,15 @@ import {
   fetchSessionGroups,
   fetchSessionHistory,
   unarchiveSession,
-} from "../api/client";
-import type { PendingUserInteractionRequest, UserInteractionResponse } from "../types/interaction";
+} from "@/api/client";
+import type { PendingUserInteractionRequest, UserInteractionResponse } from "@/types/interaction";
 import type {
   ActiveSessionId,
   SessionGroup,
   SessionRuntimeState,
   SessionSummary,
-} from "../types/session";
-import type { MessageImagePart } from "../types/message";
+} from "@/types/session";
+import type { MessageImagePart } from "@/types/message";
 import { useMessageStore } from "./message-store";
 import {
   defaultRuntimeState,

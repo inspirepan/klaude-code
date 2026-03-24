@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type RefObject } from "react";
-import { fetchSkills, type SkillItem } from "../../api/client";
+import { fetchSkills, type SkillItem } from "@/api/client";
 import type { SlashCompletionItem } from "./SlashCompletionList";
 
 const SLASH_COMPLETION_PATTERN = /^(?<prefix>\/\/|\/)(?<frag>[^\s/]*)$/;

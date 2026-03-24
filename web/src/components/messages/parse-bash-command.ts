@@ -674,6 +674,8 @@ export function parseBashCommand(command: string): ParsedBashCommand[] {
   const statements: Array<Array<string | { op: string }>> = [];
   let current: Array<string | { op: string }> = [];
   for (const tok of tokens) {
+    // Skip shell comments
+    if (typeof tok === "object" && "comment" in tok) continue;
     if (typeof tok === "object" && "op" in tok && STATEMENT_SEPARATORS.has(tok.op)) {
       if (current.length > 0) {
         statements.push(current);
@@ -681,7 +683,7 @@ export function parseBashCommand(command: string): ParsedBashCommand[] {
       }
       continue;
     }
-    current.push(tok);
+    current.push(tok as string | { op: string });
   }
   if (current.length > 0) statements.push(current);
 

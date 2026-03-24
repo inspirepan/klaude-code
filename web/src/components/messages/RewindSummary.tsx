@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
 
 import { useT } from "@/i18n";
-import type { RewindSummaryItem } from "../../types/message";
+import type { RewindSummaryItem } from "@/types/message";
 import { useSearchHighlight } from "./useSearchHighlight";
 
 interface RewindSummaryProps {

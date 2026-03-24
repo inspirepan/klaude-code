@@ -1,4 +1,4 @@
-import type { MessageItem, DeveloperMessageItem } from "../../types/message";
+import type { MessageItem, DeveloperMessageItem } from "@/types/message";
 import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra";
 import { isToolBlock } from "./message-list-ui";
 

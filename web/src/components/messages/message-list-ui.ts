@@ -1,10 +1,10 @@
 import { t } from "@/i18n";
-import type { SessionStatusState } from "../../stores/event-reducer";
+import type { SessionStatusState } from "@/stores/event-reducer";
 import type {
   AssistantTextItem,
   MessageItem as MessageItemType,
   ToolBlockItem,
-} from "../../types/message";
+} from "@/types/message";
 
 const COMPACT_NUMBER_FORMATTER = new Intl.NumberFormat("en-US", {
   notation: "compact",
