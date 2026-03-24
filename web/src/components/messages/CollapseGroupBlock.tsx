@@ -503,7 +503,7 @@ export function CollapseGroupBlock({
           </button>
         </TooltipTrigger>
         {isTruncated ? (
-          <TooltipContent side="bottom" align="start">
+          <TooltipContent side="bottom" align="end">
             {summaryText}
           </TooltipContent>
         ) : null}

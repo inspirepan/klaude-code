@@ -77,9 +77,9 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
 
   return (
     <div
-      className={`grid cursor-pointer items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} text-sm`}
+      className={`grid items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME} text-sm ${item.isStreaming ? "" : "cursor-pointer"}`}
       onClick={() => {
-        setOpen((value) => !value);
+        if (!item.isStreaming) setOpen((value) => !value);
       }}
     >
       <CollapseRailMarker open={open} className="row-span-2" />

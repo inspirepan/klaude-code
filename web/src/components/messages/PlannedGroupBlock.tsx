@@ -89,7 +89,7 @@ export function PlannedGroupBlock({
         {isTruncated ? (
           <TooltipContent
             side="bottom"
-            align="start"
+            align="end"
             className="max-w-sm whitespace-pre-wrap break-words"
           >
             {tooltipText}
