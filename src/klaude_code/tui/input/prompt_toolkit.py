@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 from typing import override
@@ -53,6 +54,57 @@ COMPLETION_MENU = "ansibrightblack"
 INPUT_PROMPT_STYLE = "ansicyan bold"
 INPUT_PROMPT_BASH_STYLE = "ansigreen"
 COMPLETION_TRUNCATION_SYMBOL = "…"
+
+
+_REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
+
+
+def _get_git_info() -> tuple[str | None, str | None]:
+    """Return (repo_display, branch) by reading .git directly, no subprocess.
+
+    repo_display is "org/repo" parsed from the origin remote URL, or None.
+    branch is the current branch name, or None for detached HEAD / non-git.
+    """
+    cwd = Path.cwd()
+    for directory in [cwd, *cwd.parents]:
+        git_path = directory / ".git"
+        if not git_path.exists():
+            continue
+        try:
+            if git_path.is_file():
+                text = git_path.read_text().strip()
+                if text.startswith("gitdir: "):
+                    resolved = text[8:]
+                    git_path = Path(resolved) if Path(resolved).is_absolute() else (directory / resolved).resolve()
+
+            # Branch from HEAD
+            branch: str | None = None
+            head = (git_path / "HEAD").read_text().strip()
+            if head.startswith("ref: refs/heads/"):
+                branch = head[16:]
+
+            # Repo name from origin remote URL in config
+            repo_display: str | None = None
+            config_file = git_path / "config"
+            if config_file.is_file():
+                in_origin = False
+                for line in config_file.read_text().splitlines():
+                    stripped = line.strip()
+                    if stripped == '[remote "origin"]':
+                        in_origin = True
+                    elif stripped.startswith("["):
+                        in_origin = False
+                    elif in_origin and stripped.startswith("url = "):
+                        m = _REMOTE_URL_RE.match(stripped[6:].strip())
+                        if m:
+                            repo_display = f"{m.group(1)}/{m.group(2)}"
+                        break
+
+            return repo_display, branch
+        except Exception:
+            pass
+        return None, None
+    return None, None
 
 
 def _trim_formatted_text_with_ellipsis(
@@ -320,9 +372,11 @@ class PromptToolkitInput(InputProviderABC):
             erase_when_done=True,
             mouse_support=False,
             prompt_continuation="  ",
+            placeholder=self._build_placeholder,
             rprompt=self._get_rprompt_message,
             style=Style.from_dict(
                 {
+                    "placeholder": "fg:ansibrightblack italic",
                     "completion-menu": "bg:default",
                     "completion-menu.border": "bg:default",
                     "scrollbar.background": "bg:default",
@@ -347,6 +401,13 @@ class PromptToolkitInput(InputProviderABC):
                 }
             ),
         )
+
+    def _build_placeholder(self) -> FormattedText:
+        """Build placeholder showing repo/directory name and Git branch."""
+        repo_display, branch = _get_git_info()
+        dir_name = repo_display or Path.cwd().name or str(Path.cwd())
+        text = f"{dir_name} ({branch})" if branch else dir_name
+        return FormattedText([("class:placeholder", f"   {text}")])
 
     def _is_bash_mode_active(self) -> bool:
         try:
