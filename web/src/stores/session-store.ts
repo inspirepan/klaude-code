@@ -104,6 +104,11 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     }
     await get().refreshSessions();
 
+    // Default to ~/Desktop for first-time users with no session history
+    if (get().groups.length === 0 && get().draftWorkDir.length === 0) {
+      set({ draftWorkDir: "~/Desktop" });
+    }
+
     const match = window.location.pathname.match(/^\/session\/([a-f0-9]+)(?:\/agent\/[a-f0-9]+)?$/);
     if (match) {
       const urlSessionId = match[1];
