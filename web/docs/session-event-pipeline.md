@@ -166,6 +166,46 @@ sequenceDiagram
 3. 子 session 事件通过 `session_id` 匹配放行
 4. 放行时同时种入 `task_id`，使后续动态 spawn 的孙 agent 也能通过 `task_id` 机制转发
 
+## 用户交互（Interaction）的持久化现状
+
+AskUserQuestion 等用户交互在持久化层**没有被完整记录**，目前只存在于内存。
+
+### 已持久化的部分
+
+| 内容                             | 存储位置                       |
+| -------------------------------- | ------------------------------ |
+| `session_state=waiting_user_input` | `meta.json`（粗粒度状态标记） |
+| 用户回答后的 `ToolResultMessage` | `events.jsonl`                 |
+
+### 未持久化的部分
+
+| 内容                                               | 仅存在于         |
+| -------------------------------------------------- | ---------------- |
+| 请求 payload（问题内容、选项、request_id）         | `SessionActor.pending_requests`（内存） |
+| tool_call_id 与 interaction 的映射                 | `WebInteractionHandler._pending`（内存） |
+| interaction 的 future（等待用户回答的异步句柄）     | 内存中的 asyncio.Future |
+
+### 链路概览
+
+```
+LLM 返回 AskUserQuestion tool_call
+  → AskUserQuestionTool.call() 组装 AskUserQuestionRequestPayload
+  → runtime_agent_ops._request_user_interaction() 包装为 PendingUserInteractionRequest
+  → RuntimeFacade._request_user_interaction()
+    → open_pending_interaction() 注册内存 future
+    → 持久化 session_state = WAITING_USER_INPUT
+    → await future（阻塞等待用户回答）
+  → 前端收到 UserInteractionRequestEvent，展示问题
+  → 用户提交 → UserInteractionRespondOperation
+  → future 被 resolve → AskUserQuestionTool 返回 ToolResultMessage
+  → append_history() 落盘
+```
+
+### 恢复行为
+
+- **WebSocket 重连（runtime 存活）**：`pending_requests_snapshot()` 会重新推送当前挂起的 interaction，前端可以恢复显示
+- **进程重启 / session resume**：pending interaction 丢失。磁盘上只剩 `session_state=waiting_user_input` 标记，但没有足够信息重建问题内容和选项。中断时 `ToolExecutor.on_interrupt()` 会把未完成的 tool call 写成 `ToolResultMessage(status="aborted")`
+
 ## 只读判定
 
 Web 端通过 `load_session_read_only()` 判断会话是否只读：
