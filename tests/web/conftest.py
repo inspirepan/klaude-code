@@ -200,7 +200,7 @@ def usage(
 
 def receive_events(websocket: Any) -> list[dict[str, Any]]:
     """Receive a single WS frame and unwrap batched arrays into individual events."""
-    raw = websocket.receive_json()
+    raw: list[dict[str, Any]] | dict[str, Any] = websocket.receive_json()
     return raw if isinstance(raw, list) else [raw]
 
 

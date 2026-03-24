@@ -172,18 +172,18 @@ AskUserQuestion 等用户交互在持久化层**没有被完整记录**，目前
 
 ### 已持久化的部分
 
-| 内容                             | 存储位置                       |
-| -------------------------------- | ------------------------------ |
+| 内容                               | 存储位置                      |
+| ---------------------------------- | ----------------------------- |
 | `session_state=waiting_user_input` | `meta.json`（粗粒度状态标记） |
-| 用户回答后的 `ToolResultMessage` | `events.jsonl`                 |
+| 用户回答后的 `ToolResultMessage`   | `events.jsonl`                |
 
 ### 未持久化的部分
 
-| 内容                                               | 仅存在于         |
-| -------------------------------------------------- | ---------------- |
-| 请求 payload（问题内容、选项、request_id）         | `SessionActor.pending_requests`（内存） |
-| tool_call_id 与 interaction 的映射                 | `WebInteractionHandler._pending`（内存） |
-| interaction 的 future（等待用户回答的异步句柄）     | 内存中的 asyncio.Future |
+| 内容                                            | 仅存在于                                 |
+| ----------------------------------------------- | ---------------------------------------- |
+| 请求 payload（问题内容、选项、request_id）      | `SessionActor.pending_requests`（内存）  |
+| tool_call_id 与 interaction 的映射              | `WebInteractionHandler._pending`（内存） |
+| interaction 的 future（等待用户回答的异步句柄） | 内存中的 asyncio.Future                  |
 
 ### 链路概览
 

@@ -138,7 +138,9 @@ export function ProjectGroup({
               }}
             >
               <span className="flex-1 text-xs font-normal">
-                {effectiveShowAll ? t("sidebar.showLess") : t("sidebar.loadMore")(sessions.length - 5)}
+                {effectiveShowAll
+                  ? t("sidebar.showLess")
+                  : t("sidebar.loadMore")(sessions.length - 5)}
               </span>
             </button>
           )}

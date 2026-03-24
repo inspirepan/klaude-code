@@ -326,8 +326,11 @@ async def _forward_events(session_id: str, websocket: WebSocket) -> None:
                 serialized = envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True)
                 await send_queue.put(serialized)
         except (
-            WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError,
-            asyncio.CancelledError, FutureCancelledError,
+            WebSocketDisconnect,
+            RuntimeError,
+            anyio.ClosedResourceError,
+            asyncio.CancelledError,
+            FutureCancelledError,
         ):
             return
 
@@ -348,8 +351,11 @@ async def _forward_events(session_id: str, websocket: WebSocket) -> None:
                 else:
                     await websocket.send_json(batch)
         except (
-            WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError,
-            asyncio.CancelledError, FutureCancelledError,
+            WebSocketDisconnect,
+            RuntimeError,
+            anyio.ClosedResourceError,
+            asyncio.CancelledError,
+            FutureCancelledError,
         ):
             return
 

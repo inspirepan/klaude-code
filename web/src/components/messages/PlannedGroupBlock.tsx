@@ -58,7 +58,10 @@ export function PlannedGroupBlock({
   const headerRow = (
     <span className="flex min-w-0 items-center gap-1.5">
       <TodoIcon completed={firstCompleted} />
-      <span ref={summaryRef} className={`min-w-0 truncate ${firstCompleted ? "text-emerald-700" : "text-sky-600"}`}>
+      <span
+        ref={summaryRef}
+        className={`min-w-0 truncate ${firstCompleted ? "text-emerald-700" : "text-sky-600"}`}
+      >
         {summaryText}
       </span>
     </span>

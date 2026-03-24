@@ -434,7 +434,11 @@ export function UserInteractionCard({
               }}
               disabled={actionDisabled || nextUnansweredIndex < 0}
               className={`inline-flex h-7 items-center gap-1 rounded-lg border px-3 text-sm shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                isQuestionAnswered(askPayload.questions[activeTab], selectedByQuestion, noteByQuestion)
+                isQuestionAnswered(
+                  askPayload.questions[activeTab],
+                  selectedByQuestion,
+                  noteByQuestion,
+                )
                   ? "border-transparent bg-sky-500 text-white hover:bg-sky-600"
                   : "border-border bg-card text-neutral-500 hover:bg-surface hover:text-neutral-700"
               }`}

@@ -29,11 +29,13 @@ export function QuestionSummaryView({ uiExtra }: QuestionSummaryViewProps): Reac
             <div className="mt-0.5 flex flex-col gap-0.5 pl-3">
               {lines.map((line, li) => (
                 <div key={li} className="flex items-start gap-1.5">
-                  <span className={`mt-[0.1em] shrink-0 text-xs ${item.answered ? "text-neutral-400" : "text-amber-500"}`}>→</span>
                   <span
-                    className={
-                      item.answered ? "font-medium text-neutral-800" : "text-amber-600"
-                    }
+                    className={`mt-[0.1em] shrink-0 text-xs ${item.answered ? "text-neutral-400" : "text-amber-500"}`}
+                  >
+                    →
+                  </span>
+                  <span
+                    className={item.answered ? "font-medium text-neutral-800" : "text-amber-600"}
                   >
                     {line}
                   </span>

@@ -29,14 +29,14 @@ All colors are delivered via HSL CSS custom properties in `:root` / `.dark`, con
 
 Unified color families: **emerald** for success, **red** for error, **amber** for warning/interrupt, **sky** for interactive accent and active/running state.
 
-| Name                | Value                             | Role                                                                                     |
-| ------------------- | --------------------------------- | ---------------------------------------------------------------------------------------- |
-| Emerald-600/700     | `#059669` / `#047857`             | Success states, completion indicators (todo completed icons/text), unread dots            |
-| Red-500/700         | `#ef4444` / `#b91c1c`             | Error text, destructive actions, error tool results                                      |
-| Amber-500/600       | `#f59e0b` / `#d97706`             | Interrupt button, active ring, validation hints                                          |
-| Sky-500/600/700     | `#0ea5e9` / `#0284c7` / `#0369a1` | Primary interactive accent -- submit buttons, selected options, focused inputs, in-progress todos, @ mentions |
-| Sky-50/100/200      | `#f0f9ff` / `#e0f2fe` / `#bae6fd` | Selected pill backgrounds, focus rings, active tab backgrounds                           |
-| Neutral-800         | `#262626`                         | Default send button, primary dark elements                                               |
+| Name            | Value                             | Role                                                                                                          |
+| --------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Emerald-600/700 | `#059669` / `#047857`             | Success states, completion indicators (todo completed icons/text), unread dots                                |
+| Red-500/700     | `#ef4444` / `#b91c1c`             | Error text, destructive actions, error tool results                                                           |
+| Amber-500/600   | `#f59e0b` / `#d97706`             | Interrupt button, active ring, validation hints                                                               |
+| Sky-500/600/700 | `#0ea5e9` / `#0284c7` / `#0369a1` | Primary interactive accent -- submit buttons, selected options, focused inputs, in-progress todos, @ mentions |
+| Sky-50/100/200  | `#f0f9ff` / `#e0f2fe` / `#bae6fd` | Selected pill backgrounds, focus rings, active tab backgrounds                                                |
+| Neutral-800     | `#262626`                         | Default send button, primary dark elements                                                                    |
 
 ### Fixed-Purpose Colors
 
