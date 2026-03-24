@@ -127,6 +127,7 @@ function todoWriteHasInProgress(item: MessageItem): boolean {
   return item.uiExtra.todo_list.todos.some((t) => t.status === "in_progress");
 }
 
+
 function getInProgressTodoContents(item: MessageItem): string[] {
   if (item.type !== "tool_block" || !item.uiExtra || !isTodoListUIExtra(item.uiExtra)) return [];
   return item.uiExtra.todo_list.todos
@@ -316,28 +317,74 @@ export function buildSectionBlocks(
       }
     }
 
-    // Build final blocks: planned intervals become planned_groups, rest uses normal merging
+    // Group adjacent planned intervals into chains.
+    // Each chain gets a single overview card (using the latest TodoWrite state)
+    // and all TodoWrites before/after the chain that belong to the same plan are suppressed.
+    interface PlannedChain {
+      intervals: PlannedInterval[];
+    }
+    const chains: PlannedChain[] = [];
+    for (const interval of plannedIntervals) {
+      const lastChain = chains.at(-1);
+      const lastInterval = lastChain?.intervals.at(-1);
+      if (lastInterval && lastInterval.end === interval.start) {
+        lastChain.intervals.push(interval);
+      } else {
+        chains.push({ intervals: [interval] });
+      }
+    }
+
+    // Build final blocks
     const blocks: SectionBlock[] = [];
     let cursor = 0;
 
-    for (const interval of plannedIntervals) {
-      if (cursor < interval.start) {
-        blocks.push(
-          ...mergeCollapsibleBlocks(rawBlocks.slice(cursor, interval.start), effectiveSessionId),
-        );
+    for (const chain of chains) {
+      const chainStart = chain.intervals[0].start;
+      const lastInterval = chain.intervals[chain.intervals.length - 1];
+      const chainEnd = lastInterval.end;
+
+      // Determine the overview item: use the summary TodoWrite after the chain if
+      // available, otherwise fall back to the last interval's start item.
+      let overviewItem: MessageItem;
+      let summaryIdx: number | null = null;
+      const summaryBlock = chainEnd < rawBlocks.length ? rawBlocks[chainEnd] : null;
+      if (summaryBlock && isTodoWriteBlock(summaryBlock)) {
+        overviewItem = summaryBlock.item;
+        summaryIdx = chainEnd;
+      } else {
+        overviewItem = (rawBlocks[lastInterval.start] as SectionItemBlock).item;
       }
-      const startItem = (rawBlocks[interval.start] as SectionItemBlock).item;
-      const nextItem =
-        interval.nextTodoWriteIdx !== null
-          ? (rawBlocks[interval.nextTodoWriteIdx] as SectionItemBlock).item
-          : null;
-      blocks.push({
-        type: "planned_group",
-        id: `pg-${effectiveSessionId}-${startItem.id}`,
-        todos: buildPlannedTodos(startItem, nextItem),
-        blocks: buildPlannedInnerBlocks(rawBlocks, interval.start + 1, interval.end),
-      });
-      cursor = interval.end;
+
+      // Process gap [cursor, chainStart): keep non-TodoWrite blocks, suppress TodoWrites
+      if (cursor < chainStart) {
+        const gapBlocks = rawBlocks
+          .slice(cursor, chainStart)
+          .filter((b) => !isTodoWriteBlock(b));
+        if (gapBlocks.length > 0) {
+          blocks.push(...mergeCollapsibleBlocks(gapBlocks, effectiveSessionId));
+        }
+      }
+
+      // Emit a single overview card with the latest state
+      blocks.push({ type: "item", item: overviewItem });
+
+      // Emit planned_groups for each interval in the chain
+      for (const interval of chain.intervals) {
+        const startItem = (rawBlocks[interval.start] as SectionItemBlock).item;
+        const nextItem =
+          interval.nextTodoWriteIdx !== null
+            ? (rawBlocks[interval.nextTodoWriteIdx] as SectionItemBlock).item
+            : null;
+        blocks.push({
+          type: "planned_group",
+          id: `pg-${effectiveSessionId}-${startItem.id}`,
+          todos: buildPlannedTodos(startItem, nextItem),
+          blocks: buildPlannedInnerBlocks(rawBlocks, interval.start + 1, interval.end),
+        });
+      }
+
+      // Advance cursor past the chain and its summary TodoWrite (if suppressed)
+      cursor = summaryIdx !== null ? summaryIdx + 1 : chainEnd;
     }
 
     if (cursor < rawBlocks.length) {

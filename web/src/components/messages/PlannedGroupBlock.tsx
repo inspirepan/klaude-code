@@ -19,9 +19,9 @@ interface PlannedGroupBlockProps {
 
 function TodoIcon({ completed }: { completed: boolean }): React.JSX.Element {
   return completed ? (
-    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
+    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
   ) : (
-    <CircleDashed className="h-3.5 w-3.5 shrink-0 animate-spin-slow text-blue-500" />
+    <CircleDashed className="h-3.5 w-3.5 shrink-0 animate-spin-slow text-sky-600" />
   );
 }
 
@@ -58,7 +58,7 @@ export function PlannedGroupBlock({
   const headerRow = (
     <span className="flex min-w-0 items-center gap-1.5">
       <TodoIcon completed={firstCompleted} />
-      <span ref={summaryRef} className="min-w-0 truncate text-neutral-500">
+      <span ref={summaryRef} className={`min-w-0 truncate ${firstCompleted ? "text-emerald-700" : "text-sky-600"}`}>
         {summaryText}
       </span>
     </span>

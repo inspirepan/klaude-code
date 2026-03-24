@@ -10,12 +10,12 @@ const iconSize = "h-3.5 w-3.5 shrink-0";
 const statusConfig = {
   pending: { iconClass: `${iconSize} text-neutral-300`, textClass: "text-neutral-500" },
   in_progress: {
-    iconClass: `${iconSize} text-blue-500 animate-spin-slow`,
-    textClass: "text-blue-600",
+    iconClass: `${iconSize} text-sky-600 animate-spin-slow`,
+    textClass: "text-sky-600",
   },
   completed: {
-    iconClass: `${iconSize} text-emerald-500`,
-    textClass: "text-neutral-500 line-through decoration-neutral-400",
+    iconClass: `${iconSize} text-emerald-600`,
+    textClass: "text-emerald-700",
   },
 } as const;
 
@@ -77,25 +77,20 @@ interface TodoListViewProps {
 
 export function TodoListView({ uiExtra }: TodoListViewProps): React.JSX.Element {
   const t = useT();
-  const { todos, new_completed, explanation } = uiExtra.todo_list;
-  const newCompletedSet = new Set(new_completed);
+  const { todos, explanation } = uiExtra.todo_list;
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-0.5 py-1 text-sm">
       <span className="mb-0.5 font-semibold text-neutral-700">{t("tool.todoTitle")}</span>
       {todos.map((todo, i) => {
-        const isNewCompleted = todo.status === "completed" && newCompletedSet.has(todo.content);
         const config = statusConfig[todo.status];
         const Icon = statusIcon[todo.status];
-        const iconClass = isNewCompleted ? `${iconSize} text-emerald-600` : config.iconClass;
-        const textClass = isNewCompleted ? "text-emerald-700" : config.textClass;
-
         return (
           <TodoItem
             key={i}
             content={todo.content}
-            iconClass={iconClass}
-            textClass={textClass}
+            iconClass={config.iconClass}
+            textClass={config.textClass}
             Icon={Icon}
           />
         );
