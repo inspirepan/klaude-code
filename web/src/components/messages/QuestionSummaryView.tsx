@@ -1,5 +1,3 @@
-import { Check } from "lucide-react";
-
 import { useT } from "@/i18n";
 import type { AskUserQuestionSummaryUIExtra } from "./message-ui-extra";
 
@@ -23,29 +21,28 @@ export function QuestionSummaryView({ uiExtra }: QuestionSummaryViewProps): Reac
   return (
     <div className="flex flex-col gap-2 py-1 text-sm leading-relaxed">
       {title}
-      {uiExtra.items.map((item, i) => (
-        <div key={i}>
-          <div className="text-neutral-700">{item.question}</div>
-          <div className="mt-0.5 flex items-start gap-1.5 pl-3">
-            {item.answered ? (
-              <Check className="mt-[0.35em] h-3 w-3 shrink-0 text-emerald-600" strokeWidth={2.5} />
-            ) : (
-              <span className="mt-[0.1em] shrink-0 text-sm text-amber-500">?</span>
-            )}
-            <span className={item.answered ? "text-neutral-700" : "text-amber-600"}>
-              {item.summary.includes("\n") ? (
-                <span className="flex flex-col">
-                  {item.summary.split("\n").map((line, li) => (
-                    <span key={li}>{line}</span>
-                  ))}
-                </span>
-              ) : (
-                item.summary
-              )}
-            </span>
+      {uiExtra.items.map((item, i) => {
+        const lines = item.summary.split("\n").map((l) => l.replace(/^[•-]\s*/, ""));
+        return (
+          <div key={i}>
+            <div className="text-neutral-500">{item.question}</div>
+            <div className="mt-0.5 flex flex-col gap-0.5 pl-3">
+              {lines.map((line, li) => (
+                <div key={li} className="flex items-start gap-1.5">
+                  <span className={`mt-[0.1em] shrink-0 text-xs ${item.answered ? "text-neutral-400" : "text-amber-500"}`}>→</span>
+                  <span
+                    className={
+                      item.answered ? "font-medium text-neutral-800" : "text-amber-600"
+                    }
+                  >
+                    {line}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

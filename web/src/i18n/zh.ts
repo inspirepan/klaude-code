@@ -138,6 +138,8 @@ const zh: Translations = {
   "interaction.pending": (count: number) => `${count} 个待处理`,
   "interaction.cancel": "取消",
   "interaction.submit": "提交",
+  "interaction.next": "下一个问题",
+  "interaction.otherPlaceholder": "其他：请输入内容。",
 
   // Copy
   "copy.copy": "复制",
@@ -151,7 +153,7 @@ const zh: Translations = {
   // Tool block
   "tool.planning": "规划中\u2026",
   "tool.todoTitle": "计划清单",
-  "tool.askingQuestion": "等待用户回答\u2026",
+  "tool.askingQuestion": "编写问题中\u2026",
 
   // Collapse group
   "collapse.read": "读取",

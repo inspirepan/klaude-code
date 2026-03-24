@@ -226,6 +226,7 @@ export function MessageList({ sessionId }: MessageListProps): React.JSX.Element 
   const visibleItems = useMemo(
     () =>
       items.filter((item) => {
+        if (item.type === "unknown_event") return false;
         if (item.type === "tool_block" && item.toolName === "Agent") return false;
         const sourceSessionId = item.sessionId ?? sessionId;
         if (viewingSubAgentSessionId) {
