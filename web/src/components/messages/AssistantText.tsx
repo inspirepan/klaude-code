@@ -80,7 +80,6 @@ export function AssistantText({ item }: AssistantTextProps): JSX.Element {
         // "static" after streaming ends also avoids a full DOM tree rebuild
         // (Streamdown renders completely different JSX trees per mode).
         mode="static"
-        animated
         isAnimating={item.isStreaming}
         plugins={plugins}
         urlTransform={urlTransform}

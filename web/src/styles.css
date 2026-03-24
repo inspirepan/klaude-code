@@ -458,6 +458,30 @@ body {
   animation: stream-fade-in 0.12s ease-out both;
 }
 
+/* Message block entry animation -- only fires after initial render is committed.
+   The .message-list-ready class is added to the scroll container after a double-rAF
+   so history items painted on first frame are excluded. */
+@keyframes message-block-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-list-ready .message-block-enter {
+  animation: message-block-enter 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-list-ready .message-block-enter {
+    animation: none;
+  }
+}
+
 /* Thin scrollbar for message list */
 .scrollbar-thin {
   scrollbar-width: thin;
