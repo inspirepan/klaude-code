@@ -779,7 +779,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                         sourceSessionId={entry.sourceSessionId}
                                         sourceSessionType={entry.sourceSessionType}
                                         sourceSessionDesc={entry.sourceSessionDesc}
-                                        sourceSessionFork={entry.sourceSessionFork}
                                         toolCount={entry.toolCount}
                                         status={
                                           statusBySessionId[entry.sourceSessionId] ?? null
@@ -821,23 +820,21 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                       const isFinished =
                                         subAgentFinishedBySessionId[inner.sourceSessionId];
                                       return (
-                                        <div key={inner.groupId} className={RAIL_CONTENT_OFFSET}>
-                                          <SubAgentGroupCard
-                                            sourceSessionId={inner.sourceSessionId}
-                                            sourceSessionType={inner.sourceSessionType}
-                                            sourceSessionDesc={inner.sourceSessionDesc}
-                                            sourceSessionFork={inner.sourceSessionFork}
-                                            toolCount={inner.toolCount}
-                                            status={
-                                              statusBySessionId[inner.sourceSessionId] ?? null
-                                            }
-                                            isFinished={isFinished}
-                                            nowSeconds={nowSeconds}
-                                            onClick={() => {
-                                              handleEnterSubAgent(inner.sourceSessionId);
-                                            }}
-                                          />
-                                        </div>
+                                        <SubAgentGroupCard
+                                          key={inner.groupId}
+                                          sourceSessionId={inner.sourceSessionId}
+                                          sourceSessionType={inner.sourceSessionType}
+                                          sourceSessionDesc={inner.sourceSessionDesc}
+                                          toolCount={inner.toolCount}
+                                          status={
+                                            statusBySessionId[inner.sourceSessionId] ?? null
+                                          }
+                                          isFinished={isFinished}
+                                          nowSeconds={nowSeconds}
+                                          onClick={() => {
+                                            handleEnterSubAgent(inner.sourceSessionId);
+                                          }}
+                                        />
                                       );
                                     }
                                     const innerItem = inner.item;
@@ -873,15 +870,11 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                           if (block.type === "sub_agent_group") {
                             const isFinished = subAgentFinishedBySessionId[block.sourceSessionId];
                             return (
-                              <AnimatedDiv
-                                key={block.groupId}
-                                className={`${spacing} ${RAIL_CONTENT_OFFSET}`}
-                              >
+                              <AnimatedDiv key={block.groupId} className={spacing}>
                                 <SubAgentGroupCard
                                   sourceSessionId={block.sourceSessionId}
                                   sourceSessionType={block.sourceSessionType}
                                   sourceSessionDesc={block.sourceSessionDesc}
-                                  sourceSessionFork={block.sourceSessionFork}
                                   toolCount={block.toolCount}
                                   status={statusBySessionId[block.sourceSessionId] ?? null}
                                   isFinished={isFinished}
