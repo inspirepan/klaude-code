@@ -89,7 +89,7 @@ const DIFF_BACKGROUND = "hsl(var(--surface))";
 const DIFF_HEADER_SANS =
   '"Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif';
 
-export function DiffView({ item, uiExtra }: DiffViewProps): JSX.Element | null {
+export function DiffView({ item, uiExtra }: DiffViewProps): React.JSX.Element | null {
   const t = useT();
   const extra = uiExtra ?? (item.uiExtra && isDiffUIExtra(item.uiExtra) ? item.uiExtra : null);
   const containerRef = useRef<HTMLDivElement>(null);

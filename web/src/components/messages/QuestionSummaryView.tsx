@@ -7,7 +7,7 @@ interface QuestionSummaryViewProps {
   uiExtra: AskUserQuestionSummaryUIExtra;
 }
 
-export function QuestionSummaryView({ uiExtra }: QuestionSummaryViewProps): JSX.Element {
+export function QuestionSummaryView({ uiExtra }: QuestionSummaryViewProps): React.JSX.Element {
   const t = useT();
   const title = <div className="text-sm font-medium text-neutral-500">{t("question.label")}</div>;
 

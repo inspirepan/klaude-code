@@ -7,7 +7,7 @@ interface FrontmatterTableProps {
   entries: FrontmatterEntry[];
 }
 
-export function FrontmatterTable({ entries }: FrontmatterTableProps): JSX.Element {
+export function FrontmatterTable({ entries }: FrontmatterTableProps): React.JSX.Element {
   return (
     <table className="frontmatter-table">
       <tbody>

@@ -375,7 +375,7 @@ function summaryToText(summary: SummaryPart[]): string {
     .join(" \u00b7 ");
 }
 
-function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
+function SummaryDisplay({ summary }: { summary: SummaryPart[] }): React.JSX.Element {
   return (
     <>
       {summary.map((part, partIdx) => (
@@ -422,7 +422,7 @@ export function CollapseGroupBlock({
   onCopy,
   setItemRef,
   renderSubAgent,
-}: CollapseGroupBlockProps): JSX.Element {
+}: CollapseGroupBlockProps): React.JSX.Element {
   const t = useT();
   const items = useMemo(
     () => entries.filter((e): e is MessageItemType => e.type !== "sub_agent_group"),

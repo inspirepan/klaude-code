@@ -17,7 +17,7 @@ interface MessageItemProps {
   workDir?: string;
 }
 
-function MessageItemInner({ item, workDir }: MessageItemProps): JSX.Element {
+function MessageItemInner({ item, workDir }: MessageItemProps): React.JSX.Element {
   switch (item.type) {
     case "user_message":
       return <UserMessage key={item.id} item={item} />;

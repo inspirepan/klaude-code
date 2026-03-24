@@ -19,7 +19,7 @@ interface DeveloperMessageProps {
   items: DeveloperMessageItem[];
 }
 
-function PathPill({ path }: { path: string }): JSX.Element {
+function PathPill({ path }: { path: string }): React.JSX.Element {
   return (
     <span className="inline-flex origin-left scale-[0.92] align-middle">
       <FilePath path={path} />
@@ -121,7 +121,7 @@ function CollapsibleRow({
   children: React.ReactNode;
   defaultOpen?: boolean;
   labelClassName?: string;
-}): JSX.Element {
+}): React.JSX.Element {
   const [open, setOpen] = useState(defaultOpen);
   const expandable = children !== null && children !== undefined;
 
@@ -158,7 +158,7 @@ function CollapsibleRow({
   );
 }
 
-function PathList({ paths }: { paths: string[] }): JSX.Element {
+function PathList({ paths }: { paths: string[] }): React.JSX.Element {
   return (
     <ul className="list-disc space-y-1 pl-5 text-sm leading-6 marker:text-neutral-500">
       {paths.map((p) => (
@@ -176,7 +176,7 @@ function AttachDetail({
 }: {
   devItems: DeveloperMessageItem[];
   images: string[];
-}): JSX.Element {
+}): React.JSX.Element {
   const t = useT();
   const allUIItems = devItems.flatMap((d) => d.items).filter((ui) => ui.type !== "todo_reminder");
   const sessionId = devItems[0]?.sessionId ?? null;
@@ -224,7 +224,7 @@ function AttachDetail({
   );
 }
 
-export function DeveloperMessage({ items }: DeveloperMessageProps): JSX.Element {
+export function DeveloperMessage({ items }: DeveloperMessageProps): React.JSX.Element {
   const t = useT();
   const images = items.flatMap((d) => collectImages(d.items));
   const allUIItems = items.flatMap((d) => d.items);

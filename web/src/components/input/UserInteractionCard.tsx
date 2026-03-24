@@ -90,7 +90,7 @@ function OptionPill({
   label: string;
   description: string;
   onClick: () => void;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <button
       type="button"
@@ -147,7 +147,7 @@ function QuestionPanel({
   actionDisabled: boolean;
   onToggleOption: (optionId: string) => void;
   onNoteChange: (value: string) => void;
-}): JSX.Element {
+}): React.JSX.Element {
   const t = useT();
   return (
     <div>
@@ -209,7 +209,7 @@ export function UserInteractionCard({
   pendingCount,
   disabled = false,
   onRespond,
-}: UserInteractionCardProps): JSX.Element {
+}: UserInteractionCardProps): React.JSX.Element {
   const t = useT();
   const [selectedByQuestion, setSelectedByQuestion] = useState<Record<string, string[]>>({});
   const [noteByQuestion, setNoteByQuestion] = useState<Record<string, string>>({});

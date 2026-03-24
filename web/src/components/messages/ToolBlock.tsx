@@ -68,7 +68,7 @@ interface ToolBlockProps {
   workDir?: string;
 }
 
-function PlanBlock({ item }: ToolBlockProps): JSX.Element {
+function PlanBlock({ item }: ToolBlockProps): React.JSX.Element {
   const t = useT();
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
@@ -85,7 +85,7 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
   );
 }
 
-function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
+function QuestionBlock({ item }: ToolBlockProps): React.JSX.Element {
   const t = useT();
   const questionExtra =
     item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
@@ -103,7 +103,7 @@ function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
   );
 }
 
-export function ToolBlock({ item, workDir }: ToolBlockProps): JSX.Element {
+export function ToolBlock({ item, workDir }: ToolBlockProps): React.JSX.Element {
   const { matchItemIds } = useSearch();
   const { collapseGen, expandGen } = useCollapseAll();
   const bodyTextClass = "text-base";

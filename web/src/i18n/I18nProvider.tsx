@@ -2,7 +2,7 @@ import { useState } from "react";
 import { I18nContext, getLocale, setLocale, type Locale } from "./index";
 import { useMountEffect } from "@/hooks/useMountEffect";
 
-export function I18nProvider({ children }: { children: React.ReactNode }): JSX.Element {
+export function I18nProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [locale, setLocaleState] = useState<Locale>(getLocale);
 
   useMountEffect(() => {

@@ -29,7 +29,7 @@ function isTaskCheckboxNode(
   return props.type === "checkbox";
 }
 
-function CompactionListItem(props: ComponentPropsWithoutRef<"li">): JSX.Element {
+function CompactionListItem(props: ComponentPropsWithoutRef<"li">): React.JSX.Element {
   const childNodes = Children.toArray(props.children);
   const checkboxIndex = childNodes.findIndex((node) => isTaskCheckboxNode(node));
   if (checkboxIndex < 0) {
@@ -57,7 +57,7 @@ function CompactionListItem(props: ComponentPropsWithoutRef<"li">): JSX.Element 
 
 const compactionComponents = { li: CompactionListItem };
 
-export function CompactionSummary({ item }: CompactionSummaryProps): JSX.Element {
+export function CompactionSummary({ item }: CompactionSummaryProps): React.JSX.Element {
   const t = useT();
   const contentRef = useRef<HTMLDivElement>(null);
   useSearchHighlight(contentRef, item.content);

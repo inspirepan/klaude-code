@@ -68,7 +68,7 @@ function readStoredCollapsedByWorkDir(storageKey: string): Record<string, boolea
   }
 }
 
-export function LeftSidebar(): JSX.Element {
+export function LeftSidebar(): React.JSX.Element {
   const groups = useSessionStore((state) => state.groups);
   const collapsedByWorkDir = useSessionStore((state) => state.collapsedByWorkDir);
   const runtimeBySessionId = useSessionStore((state) => state.runtimeBySessionId);

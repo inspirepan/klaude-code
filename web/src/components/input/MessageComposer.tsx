@@ -14,7 +14,7 @@ import { UserInteractionCard } from "./UserInteractionCard";
 
 const EMPTY_PENDING_INTERACTIONS: PendingUserInteractionRequest[] = [];
 
-export function MessageComposer(): JSX.Element {
+export function MessageComposer(): React.JSX.Element {
   const t = useT();
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const groups = useSessionStore((state) => state.groups);

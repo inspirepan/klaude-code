@@ -22,7 +22,7 @@ function RichUIExtraBlock({
 }: {
   extra: Record<string, unknown>;
   item: ToolBlockItem;
-}): JSX.Element | null {
+}): React.JSX.Element | null {
   if (isDiffUIExtra(extra)) {
     return (
       <div className="my-1.5 overflow-hidden rounded-lg border border-border/80">
@@ -49,7 +49,7 @@ function RichUIExtraBlock({
   return null;
 }
 
-export function ToolRichResult({ item }: ToolRichResultProps): JSX.Element | null {
+export function ToolRichResult({ item }: ToolRichResultProps): React.JSX.Element | null {
   const extra = item.uiExtra;
   if (!extra) return null;
 

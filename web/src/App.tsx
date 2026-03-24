@@ -10,7 +10,7 @@ import { useSessionStore } from "./stores/session-store";
 
 const NARROW_BREAKPOINT = 768;
 
-export default function App(): JSX.Element {
+export default function App(): React.JSX.Element {
   const init = useSessionStore((state) => state.init);
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const setDraftWorkDir = useSessionStore((state) => state.setDraftWorkDir);

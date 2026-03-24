@@ -144,7 +144,7 @@ export function AtFileCompletionList({
   onHighlightIndexChange,
   onSelect,
   dropUp = true,
-}: AtFileCompletionListProps): JSX.Element {
+}: AtFileCompletionListProps): React.JSX.Element {
   const t = useT();
   const listRef = useRef<HTMLDivElement>(null);
 

@@ -24,7 +24,7 @@ export function SubAgentGroupCard({
   isFinished,
   nowSeconds,
   onClick,
-}: SubAgentGroupCardProps): JSX.Element {
+}: SubAgentGroupCardProps): React.JSX.Element {
   const t = useT();
   const isActive =
     status != null && (status.taskActive || status.awaitingInput || status.compacting);

@@ -37,7 +37,7 @@ export function MessageListHeader({
   onExpandAll,
   onBack,
   subAgentLabel,
-}: MessageListHeaderProps): JSX.Element {
+}: MessageListHeaderProps): React.JSX.Element {
   const t = useT();
   const isSubAgentView = onBack !== undefined;
 

@@ -32,7 +32,7 @@ interface TodoItemProps {
   Icon: typeof Circle;
 }
 
-function TodoItem({ content, iconClass, textClass, Icon }: TodoItemProps): JSX.Element {
+function TodoItem({ content, iconClass, textClass, Icon }: TodoItemProps): React.JSX.Element {
   const spanRef = useRef<HTMLSpanElement>(null);
   const [isTruncated, setIsTruncated] = useState(false);
 
@@ -75,7 +75,7 @@ interface TodoListViewProps {
   uiExtra: TodoListUIExtra;
 }
 
-export function TodoListView({ uiExtra }: TodoListViewProps): JSX.Element {
+export function TodoListView({ uiExtra }: TodoListViewProps): React.JSX.Element {
   const t = useT();
   const { todos, new_completed, explanation } = uiExtra.todo_list;
   const newCompletedSet = new Set(new_completed);

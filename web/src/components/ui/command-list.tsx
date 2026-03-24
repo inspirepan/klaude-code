@@ -14,7 +14,7 @@ export function CommandListPanel({
 }: {
   className?: string;
   children: React.ReactNode;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <div
       className={cn("overflow-hidden rounded-xl border border-border/80 bg-background", className)}
@@ -51,7 +51,7 @@ export function CommandListItem({
   highlighted: boolean;
   className?: string;
   children: React.ReactNode;
-} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type" | "className">): JSX.Element {
+} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type" | "className">): React.JSX.Element {
   return (
     <button
       type="button"

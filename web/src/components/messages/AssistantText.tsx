@@ -60,7 +60,7 @@ function transformImageUrl(url: string, sessionId: string | null): string {
   return buildFileApiUrl(url, sessionId);
 }
 
-export function AssistantText({ item }: AssistantTextProps): JSX.Element {
+export function AssistantText({ item }: AssistantTextProps): React.JSX.Element {
   const { entries, body } = useParsedFrontmatter(item.content);
   const containerRef = useRef<HTMLDivElement>(null);
   useSearchHighlight(containerRef, item.content);

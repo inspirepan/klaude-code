@@ -77,7 +77,7 @@ function AnimatedDiv({
 }: {
   className: string;
   children: ReactNode;
-}): JSX.Element {
+}): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -143,7 +143,7 @@ function getSessionTitle(session: SessionSummary | null): string | null {
   return null;
 }
 
-export function MessageList({ sessionId }: MessageListProps): JSX.Element {
+export function MessageList({ sessionId }: MessageListProps): React.JSX.Element {
   const t = useT();
   const groups = useSessionStore((state) => state.groups);
   const runtime = useSessionStore((state) => {
@@ -363,11 +363,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     if (!hasActiveStatus) return;
-    setNowMs(Date.now());
+    const immediate = window.setTimeout(() => {
+      setNowMs(Date.now());
+    }, 0);
     const timer = window.setInterval(() => {
       setNowMs(Date.now());
     }, 1000);
     return () => {
+      window.clearTimeout(immediate);
       window.clearInterval(timer);
     };
   }, [hasActiveStatus]);
@@ -397,7 +400,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     setShowScrollToBottom(!isNearBottom(container));
   }, []);
 
-  const scrollToBottom = useCallback(
+  const performScrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
       const container = scrollRef.current;
       if (!container) return;
@@ -406,17 +409,23 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       const expectedTop = Math.max(0, container.scrollHeight - container.clientHeight);
       autoScrollRef.current = { top: expectedTop, time: Date.now() };
       wasAtBottomRef.current = true;
-      setShowScrollToBottom(false);
       sessionStorage.setItem(`scroll-${sessionId}`, String(expectedTop));
     },
     [sessionId],
+  );
+
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "smooth") => {
+      performScrollToBottom(behavior);
+      setShowScrollToBottom(false);
+    },
+    [performScrollToBottom],
   );
 
   // Restore scroll position when items first load for a session
   const hasItems = visibleItems.length > 0;
   useLayoutEffect(() => {
     if (!hasItems) {
-      setShowScrollToBottom(false);
       return;
     }
     const saved = sessionStorage.getItem(`scroll-${sessionId}`);
@@ -431,8 +440,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     autoScrollRef.current = { top: container.scrollTop, time: Date.now() };
     wasAtBottomRef.current = isNearBottom(container);
     container.style.overflowAnchor = wasAtBottomRef.current ? "none" : "auto";
-    updateScrollButtonVisibility();
-  }, [hasItems, sessionId, updateScrollButtonVisibility]);
+  }, [hasItems, sessionId]);
 
   useLayoutEffect(() => {
     const lastItem = visibleItems.at(-1);
@@ -447,8 +455,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       return;
     }
 
-    scrollToBottom("auto");
-  }, [scrollToBottom, sessionId, visibleItems]);
+    performScrollToBottom("auto");
+  }, [performScrollToBottom, sessionId, visibleItems]);
 
   useEffect(() => {
     const content = contentRef.current;
@@ -485,10 +493,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const handleScroll = useCallback(() => {
     const container = scrollRef.current;
     if (!container) return;
-    // Ignore scroll events caused by our own programmatic scrollTop changes
+    // Ignore scroll events caused by our own programmatic scrollTop changes,
+    // but always update button visibility.
     const auto = autoScrollRef.current;
-    if (auto && Date.now() - auto.time < 500 && Math.abs(container.scrollTop - auto.top) < 2) {
+    const isAutoScroll =
+      auto && Date.now() - auto.time < 500 && Math.abs(container.scrollTop - auto.top) < 2;
+    if (isAutoScroll) {
       autoScrollRef.current = null;
+      setShowScrollToBottom(!isNearBottom(container));
       return;
     }
     const atBottom = isNearBottom(container);
@@ -922,7 +934,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
               </div>
             </div>
           </div>
-          {showScrollToBottom ? (
+          {showScrollToBottom && hasItems ? (
             <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2">
               <Tooltip>
                 <TooltipTrigger asChild>

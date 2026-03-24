@@ -17,7 +17,7 @@ interface PlannedGroupBlockProps {
   children: ReactNode;
 }
 
-function TodoIcon({ completed }: { completed: boolean }): JSX.Element {
+function TodoIcon({ completed }: { completed: boolean }): React.JSX.Element {
   return completed ? (
     <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
   ) : (
@@ -30,7 +30,7 @@ export function PlannedGroupBlock({
   collapsed,
   onToggle,
   children,
-}: PlannedGroupBlockProps): JSX.Element {
+}: PlannedGroupBlockProps): React.JSX.Element {
   const hasContent = Children.count(children) > 0;
   const open = !collapsed;
   const firstCompleted = todos[0]?.completed ?? false;

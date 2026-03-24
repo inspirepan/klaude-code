@@ -19,7 +19,7 @@ function uniqueWorkspaces(workspaces: string[]): string[] {
 export function NewSessionOverlay({
   onClose,
   showBackdrop = true,
-}: NewSessionOverlayProps): JSX.Element {
+}: NewSessionOverlayProps): React.JSX.Element {
   const t = useT();
   const draftWorkDir = useSessionStore((state) => state.draftWorkDir);
   const groups = useSessionStore((state) => state.groups);

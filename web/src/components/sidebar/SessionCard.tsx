@@ -68,7 +68,7 @@ function DiffStats({
   added: number;
   removed: number;
   className?: string;
-}): JSX.Element | null {
+}): React.JSX.Element | null {
   if (added <= 0 && removed <= 0) {
     return null;
   }
@@ -89,21 +89,23 @@ export function SessionCard({
   hasUnreadCompletion,
   onClick,
   onToggleArchive,
-}: SessionCardProps): JSX.Element {
+}: SessionCardProps): React.JSX.Element {
   const t = useT();
-  const [showHighlight, setShowHighlight] = useState(hasUnreadCompletion);
+  const [showHighlight, setShowHighlight] = useState(false);
+  const [prevHasUnread, setPrevHasUnread] = useState(hasUnreadCompletion);
+  if (prevHasUnread !== hasUnreadCompletion) {
+    setPrevHasUnread(hasUnreadCompletion);
+    setShowHighlight(hasUnreadCompletion);
+  }
 
   useEffect(() => {
-    if (hasUnreadCompletion) {
-      setShowHighlight(true);
-      const timer = setTimeout(() => {
-        setShowHighlight(false);
-      }, 5000);
-      return () => {
-        clearTimeout(timer);
-      };
-    }
-    setShowHighlight(false);
+    if (!hasUnreadCompletion) return;
+    const timer = setTimeout(() => {
+      setShowHighlight(false);
+    }, 5000);
+    return () => {
+      clearTimeout(timer);
+    };
   }, [hasUnreadCompletion]);
 
   const title = shortenFileRefs(getSessionTitle(session) ?? t("sidebar.newSession"));

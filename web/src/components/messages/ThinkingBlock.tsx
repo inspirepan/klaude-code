@@ -16,11 +16,11 @@ interface ThinkingBlockProps {
   item: ThinkingBlockItem;
 }
 
-function Strong(props: React.ComponentPropsWithoutRef<"strong">): JSX.Element {
+function Strong(props: React.ComponentPropsWithoutRef<"strong">): React.JSX.Element {
   return <strong className="font-normal text-neutral-500" {...props} />;
 }
 
-function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): JSX.Element {
+function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): React.JSX.Element {
   return (
     <span className="block font-mono" style={{ fontSize: "0.9em" }}>
       {children}
@@ -28,7 +28,7 @@ function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): JSX.Element {
   );
 }
 
-function Code({ children }: React.ComponentPropsWithoutRef<"code">): JSX.Element {
+function Code({ children }: React.ComponentPropsWithoutRef<"code">): React.JSX.Element {
   return (
     <span className="font-mono" style={{ fontSize: "0.9em" }}>
       {children}
@@ -38,7 +38,7 @@ function Code({ children }: React.ComponentPropsWithoutRef<"code">): JSX.Element
 
 const thinkingComponents = { strong: Strong, pre: Pre, code: Code };
 
-export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
+export function ThinkingBlock({ item }: ThinkingBlockProps): React.JSX.Element {
   const t = useT();
   const { matchItemIds } = useSearch();
   const { collapseGen, expandGen } = useCollapseAll();

@@ -22,7 +22,7 @@ export function MessageRow({
   copied,
   onCopy,
   itemRef,
-}: MessageRowProps): JSX.Element {
+}: MessageRowProps): React.JSX.Element {
   const t = useT();
   const canCopy = isCopyableAssistantText(item);
   const isUser = item.type === "user_message";

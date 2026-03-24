@@ -21,7 +21,7 @@ export function CollapseRailMarker({
   className,
   indicatorClassName,
   connectorClassName,
-}: CollapseRailMarkerProps): JSX.Element {
+}: CollapseRailMarkerProps): React.JSX.Element {
   return (
     <div className={cn("flex flex-col items-center self-stretch", className)}>
       <span
@@ -63,7 +63,7 @@ interface CollapseRailConnectorProps {
 export function CollapseRailConnector({
   className,
   lineClassName,
-}: CollapseRailConnectorProps): JSX.Element {
+}: CollapseRailConnectorProps): React.JSX.Element {
   return (
     <div className={cn("flex justify-center self-stretch", className)}>
       <div className={cn("w-px self-stretch bg-neutral-200", lineClassName)} />
@@ -83,7 +83,7 @@ export function CollapseRailPanel({
   open,
   className,
   children,
-}: CollapseRailPanelProps): JSX.Element {
+}: CollapseRailPanelProps): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
 

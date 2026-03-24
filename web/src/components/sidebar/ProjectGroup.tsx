@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Folder, FolderOpen, SquarePen } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
@@ -42,20 +42,16 @@ export function ProjectGroup({
   onSelectDraft,
   onSelectSession,
   onToggleArchive,
-}: ProjectGroupProps): JSX.Element {
+}: ProjectGroupProps): React.JSX.Element {
   const t = useT();
   const [showAll, setShowAll] = useState(false);
 
   // Auto-expand when the active session is beyond the first 5
-  useEffect(() => {
-    if (showAll || activeSessionId === "draft") return;
-    const idx = sessions.findIndex((s) => s.id === activeSessionId);
-    if (idx >= 5) {
-      setShowAll(true);
-    }
-  }, [activeSessionId, sessions, showAll]);
+  const activeIdx =
+    activeSessionId === "draft" ? -1 : sessions.findIndex((s) => s.id === activeSessionId);
+  const effectiveShowAll = showAll || activeIdx >= 5;
 
-  const displaySessions = showAll ? sessions : sessions.slice(0, 5);
+  const displaySessions = effectiveShowAll ? sessions : sessions.slice(0, 5);
   const hasMore = sessions.length > 5;
   const hasAnyRunning =
     collapsed &&
@@ -142,7 +138,7 @@ export function ProjectGroup({
               }}
             >
               <span className="flex-1 text-xs font-normal">
-                {showAll ? t("sidebar.showLess") : t("sidebar.loadMore")(sessions.length - 5)}
+                {effectiveShowAll ? t("sidebar.showLess") : t("sidebar.loadMore")(sessions.length - 5)}
               </span>
             </button>
           )}

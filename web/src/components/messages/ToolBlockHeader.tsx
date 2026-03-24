@@ -2,7 +2,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { ToolBlockItem } from "../../types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { FilePathContent, toDisplayPath } from "./FilePath";
+import { FilePathContent } from "./FilePath";
+import { toDisplayPath } from "./file-path-utils";
 import { HighlightText } from "./HighlightText";
 
 const FILE_PATH_TOOLS = new Set(["Read", "Edit", "Write"]);
@@ -23,10 +24,10 @@ export function ToolBlockHeader({
   workDir,
   headerDetailTextClass,
   detailChipClass,
-}: ToolBlockHeaderProps): JSX.Element {
+}: ToolBlockHeaderProps): React.JSX.Element {
   const isFilePath = FILE_PATH_TOOLS.has(item.toolName);
 
-  let detailContent: JSX.Element | null = null;
+  let detailContent: React.JSX.Element | null = null;
   let detailClass = "";
 
   if (detail) {

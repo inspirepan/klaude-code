@@ -6,7 +6,7 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function HighlightText({ children }: { children: string }): JSX.Element {
+export function HighlightText({ children }: { children: string }): React.JSX.Element {
   const { query } = useSearch();
 
   const parts = useMemo(() => {
