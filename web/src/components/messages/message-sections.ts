@@ -296,14 +296,11 @@ export function buildSectionBlocks(
       if (todoWriteHasInProgress(block.item)) {
         const hasNext = t + 1 < todoWriteIndices.length;
         const end = hasNext ? todoWriteIndices[t + 1] : rawBlocks.length;
-        // Only create planned group if there are inner blocks after the TodoWrite
-        if (end > idx + 1) {
-          plannedIntervals.push({
-            start: idx,
-            end,
-            nextTodoWriteIdx: hasNext ? todoWriteIndices[t + 1] : null,
-          });
-        }
+        plannedIntervals.push({
+          start: idx,
+          end,
+          nextTodoWriteIdx: hasNext ? todoWriteIndices[t + 1] : null,
+        });
       }
     }
 
