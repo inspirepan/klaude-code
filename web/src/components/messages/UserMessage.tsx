@@ -16,7 +16,7 @@ function ContentWithMentions({ children }: { children: string }): React.JSX.Elem
     <>
       {parts.map((part, i) =>
         part.startsWith("@") && MENTION_PATTERN.test(part) ? (
-          <span key={i} className="text-blue-500">
+          <span key={i} className="text-sky-500">
             <HighlightText>{part}</HighlightText>
           </span>
         ) : (

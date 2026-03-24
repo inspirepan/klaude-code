@@ -244,7 +244,7 @@ export function DeveloperMessage({ items }: DeveloperMessageProps): React.JSX.El
       ) : null}
       {todoItems.map((todo, idx) => {
         const text = todo.reason === "empty" ? t("developer.todoEmpty") : t("developer.todoStale");
-        const labelClassName = todo.reason === "empty" ? "text-emerald-700" : "text-blue-700";
+        const labelClassName = todo.reason === "empty" ? "text-emerald-700" : "text-sky-700";
         return (
           <CollapsibleRow key={`todo-${idx}`} label={text} labelClassName={labelClassName}>
             {null}

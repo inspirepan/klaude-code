@@ -98,14 +98,14 @@ function OptionPill({
       onClick={onClick}
       className={`group/pill inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-left transition-all ${
         checked
-          ? "border-blue-200 bg-blue-50/80 ring-1 ring-blue-200/60"
+          ? "border-sky-200 bg-sky-50/80 ring-1 ring-sky-200/60"
           : "border-border bg-card hover:border-neutral-300 hover:bg-surface"
       } disabled:cursor-not-allowed disabled:opacity-50`}
     >
       <span
         className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-all ${
           checked
-            ? "border-blue-500 bg-blue-500 text-white"
+            ? "border-sky-500 bg-sky-500 text-white"
             : "border-neutral-300 bg-card group-hover/pill:border-neutral-400"
         }`}
       >
@@ -113,7 +113,7 @@ function OptionPill({
       </span>
       <span className="min-w-0">
         <span
-          className={`block text-base font-medium leading-tight ${checked ? "text-blue-700" : "text-neutral-700"}`}
+          className={`block text-base font-medium leading-tight ${checked ? "text-sky-700" : "text-neutral-700"}`}
         >
           {label}
         </span>
@@ -190,7 +190,7 @@ function QuestionPanel({
             onNoteChange(e.target.value);
           }}
           placeholder={`Other: ${question.input_placeholder ?? "Type something."}`}
-          className="h-9 w-full rounded-lg border border-border bg-surface/50 px-3 text-base text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-blue-300 focus:bg-card focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-9 w-full rounded-lg border border-border bg-surface/50 px-3 text-base text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 focus:bg-card focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
 
@@ -296,7 +296,7 @@ export function UserInteractionCard({
     <section className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm shadow-neutral-200/40">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-5 pb-1 pt-4">
-        <CircleHelp className="h-4 w-4 shrink-0 text-blue-500" />
+        <CircleHelp className="h-4 w-4 shrink-0 text-sky-500" />
         <div className="min-w-0 flex-1">
           <span className="text-base font-semibold text-neutral-800">
             {askPayload
@@ -330,7 +330,7 @@ export function UserInteractionCard({
                       }}
                       className={`flex items-center gap-1.5 rounded-[22px] px-3 py-1.5 text-sm font-medium transition ${
                         isActive
-                          ? "bg-blue-50/55 text-blue-600"
+                          ? "bg-sky-50/55 text-sky-600"
                           : "bg-surface text-neutral-500 hover:bg-muted hover:text-neutral-700"
                       }`}
                     >
@@ -437,7 +437,7 @@ export function UserInteractionCard({
               void submitOperationResponse();
             }}
             disabled={actionDisabled}
-            className="inline-flex h-7 items-center gap-1 rounded-lg bg-blue-500 px-3 text-sm text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-7 items-center gap-1 rounded-lg bg-sky-500 px-3 text-sm text-white shadow-sm transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Check className="h-3 w-3" />
             {t("interaction.submit")}
