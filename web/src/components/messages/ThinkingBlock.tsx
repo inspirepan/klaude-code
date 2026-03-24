@@ -93,11 +93,7 @@ export function ThinkingBlock({ item }: ThinkingBlockProps): JSX.Element {
             event.stopPropagation();
           }}
         >
-          <Streamdown
-            mode="static"
-            isAnimating={item.isStreaming}
-            components={thinkingComponents}
-          >
+          <Streamdown mode="static" isAnimating={item.isStreaming} components={thinkingComponents}>
             {item.content}
           </Streamdown>
         </div>

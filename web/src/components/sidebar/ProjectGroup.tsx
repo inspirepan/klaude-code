@@ -64,7 +64,6 @@ export function ProjectGroup({
       return state !== "idle";
     });
 
-
   return (
     <Collapsible open={!collapsed} onOpenChange={onToggle} className="mb-0.5">
       <div className="flex items-center gap-1">
@@ -87,7 +86,6 @@ export function ProjectGroup({
                     {workDirLabel(workDir)}
                   </span>
                   <span className="shrink-0 text-xs text-neutral-500">({sessions.length})</span>
-
                 </div>
               </div>
             </CollapsibleTrigger>

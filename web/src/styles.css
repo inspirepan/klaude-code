@@ -195,7 +195,6 @@ body {
   animation: status-success-settle 1.6s ease-out forwards;
 }
 
-
 @keyframes todo-in-progress-shimmer {
   0% {
     background-position: 220% 0;
