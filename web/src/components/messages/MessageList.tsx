@@ -417,9 +417,17 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     const content = contentRef.current;
     const container = scrollRef.current;
     if (!content || !container) return;
+    let prevScrollHeight = container.scrollHeight;
     const observer = new ResizeObserver(() => {
-      if (wasAtBottomRef.current) {
-        container.scrollTop = container.scrollHeight;
+      const newScrollHeight = container.scrollHeight;
+      const grew = newScrollHeight > prevScrollHeight;
+      prevScrollHeight = newScrollHeight;
+      // Only auto-scroll when content grows (streaming text, new items).
+      // When content shrinks (collapse, spacer removal) the browser naturally
+      // clamps scrollTop to the new max, keeping the bottom anchored without
+      // the jarring snap that used to cause visible jitter.
+      if (wasAtBottomRef.current && grew) {
+        container.scrollTop = newScrollHeight;
       }
       updateScrollButtonVisibility();
     });
@@ -809,7 +817,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                     ))}
                     <div
                       aria-hidden="true"
-                      className={`transition-[height] duration-300 ease-out ${hasStreamingAssistantText ? "h-12" : "h-0"}`}
+                      className={hasStreamingAssistantText ? "h-12" : "h-0"}
                     />
                   </>
                 ) : runtime?.wsState === "connecting" ? (
