@@ -109,7 +109,7 @@ describe("buildSectionBlocks planned overview", () => {
     expect(overviewItemId(blocks)).toEqual(["tw2"]);
   });
 
-  it("two tasks in series — each chain gets one overview card", () => {
+  it("two tasks in same section — single overview with latest state", () => {
     const items: MessageItem[] = [
       // Task 1: normal flow
       makeTodoWrite("tw1", [pending("A"), pending("B")]),
@@ -122,15 +122,9 @@ describe("buildSectionBlocks planned overview", () => {
       makeTodoWrite("tw5", [completed("X"), completed("Y")]),
     ];
     const blocks = run(items);
-    // Task 1: overview(tw3) + pg(tw2)
-    // Task 2: overview(tw5) + pg(tw4)
-    expect(flatBlockTypes(blocks)).toEqual([
-      "todo_card",
-      "planned_group",
-      "todo_card",
-      "planned_group",
-    ]);
-    expect(overviewItemId(blocks)).toEqual(["tw3", "tw5"]);
+    // All in one section → single chain, single overview (tw5 = latest)
+    expect(flatBlockTypes(blocks)).toEqual(["todo_card", "planned_group", "planned_group"]);
+    expect(overviewItemId(blocks)).toEqual(["tw5"]);
   });
 
   it("chained in_progress intervals — single overview with latest state", () => {
@@ -191,6 +185,22 @@ describe("buildSectionBlocks planned overview", () => {
     // No planned chain; TodoWrite rendered as regular card
     expect(flatBlockTypes(blocks)).toEqual(["todo_card"]);
     expect(overviewItemId(blocks)).toEqual(["tw1"]);
+  });
+
+  it("non-in_progress TodoWrite between intervals does not split the chain", () => {
+    const items: MessageItem[] = [
+      makeTodoWrite("tw1", [inProgress("A"), pending("B"), pending("C")]),
+      makeToolBlock("t1", "Bash"),
+      // Intermediate: marks A complete but no in_progress yet
+      makeTodoWrite("tw2", [completed("A"), pending("B"), pending("C")]),
+      makeTodoWrite("tw3", [completed("A"), inProgress("B"), pending("C")]),
+      makeToolBlock("t2", "Bash"),
+      makeTodoWrite("tw4", [completed("A"), completed("B"), completed("C")]),
+    ];
+    const blocks = run(items);
+    // Single chain: overview(tw4) + pg(tw1) + pg(tw3), tw2 suppressed
+    expect(flatBlockTypes(blocks)).toEqual(["todo_card", "planned_group", "planned_group"]);
+    expect(overviewItemId(blocks)).toEqual(["tw4"]);
   });
 
   it("all-completed standalone TodoWrite between chains belongs to preceding gap", () => {
