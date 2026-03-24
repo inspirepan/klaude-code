@@ -317,11 +317,16 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     // BEFORE switching activeSessionId so that MessageList renders it
     // immediately instead of showing an empty loading state.
     if (normalizedMessage.length > 0 || normalizedImages) {
-      useMessageStore.getState().handleEvent(sessionId, "user.message", {
-        content: normalizedMessage,
-        images: normalizedImages,
-        session_id: sessionId,
-      }, nowSeconds);
+      useMessageStore.getState().handleEvent(
+        sessionId,
+        "user.message",
+        {
+          content: normalizedMessage,
+          images: normalizedImages,
+          session_id: sessionId,
+        },
+        nowSeconds,
+      );
       markOptimisticUserMessage(sessionId);
     }
 

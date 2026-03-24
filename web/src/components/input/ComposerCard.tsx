@@ -239,7 +239,9 @@ export function ComposerCard({
     <form
       ref={rootRef}
       autoComplete="off"
-      onSubmit={(event) => { event.preventDefault(); }}
+      onSubmit={(event) => {
+        event.preventDefault();
+      }}
       className="rounded-lg bg-card px-4 py-2.5 shadow-sm ring-1 ring-black/[0.06]"
     >
       <input
