@@ -70,6 +70,7 @@ export function MessageComposer(): JSX.Element {
     sessionBusy ||
     sessionReadOnly ||
     activeInteraction !== null;
+
   const effectivePendingModelName =
     pendingModelName !== null && pendingModelName !== activeSession?.model_name
       ? pendingModelName
@@ -278,10 +279,13 @@ export function MessageComposer(): JSX.Element {
           disableSubmit={disableSubmit}
           interruptible={sessionInterruptible}
           disableInterrupt={interrupting || sessionReadOnly}
+          disableInput={sessionReadOnly}
           disableAttachments={
             sessionBusy || sessionReadOnly || activeInteraction !== null || submitting
           }
-          placeholder={t("composer.followUpPlaceholder")}
+          placeholder={
+            sessionReadOnly ? t("composer.readOnlyPlaceholder") : t("composer.followUpPlaceholder")
+          }
           modelOptions={resolvedModelOptions}
           modelValue={currentModelName}
           modelLoading={modelLoading}
