@@ -17,10 +17,12 @@ export interface SectionSubAgentBlock {
   toolCount: number;
 }
 
+export type CollapseGroupEntry = MessageItem | SectionSubAgentBlock;
+
 export interface SectionCollapseGroupBlock {
   type: "collapse_group";
   id: string;
-  items: MessageItem[];
+  entries: CollapseGroupEntry[];
 }
 
 export interface SectionDevGroupBlock {
@@ -159,25 +161,33 @@ function buildPlannedTodos(
   }));
 }
 
+function collapseEntryId(entry: CollapseGroupEntry): string {
+  return entry.type === "sub_agent_group" ? entry.groupId : entry.id;
+}
+
 /** Apply the standard collapsible-merging pass to a slice of raw blocks. */
 function mergeCollapsibleBlocks(
   rawBlocks: SectionBlock[],
   effectiveSessionId: string,
 ): SectionBlock[] {
   const blocks: SectionBlock[] = [];
-  let pending: MessageItem[] = [];
+  let pending: CollapseGroupEntry[] = [];
 
   const flushPending = (): void => {
     if (pending.length === 0) return;
-    const hasToolBlock = pending.some((item) => item.type === "tool_block");
-    if (hasToolBlock) {
+    const hasToolOrSubAgent = pending.some(
+      (e) => e.type === "tool_block" || e.type === "sub_agent_group",
+    );
+    if (hasToolOrSubAgent) {
       blocks.push({
         type: "collapse_group",
-        id: `cg-${effectiveSessionId}-${pending[0].id}`,
-        items: pending,
+        id: `cg-${effectiveSessionId}-${collapseEntryId(pending[0])}`,
+        entries: pending,
       });
     } else {
-      for (const item of pending) {
+      // Only thinking / developer_message items remain
+      for (const entry of pending) {
+        const item = entry as MessageItem;
         if (item.type === "developer_message") {
           const last = blocks.at(-1);
           if (last?.type === "dev_group") {
@@ -196,6 +206,8 @@ function mergeCollapsibleBlocks(
   for (const block of rawBlocks) {
     if (block.type === "item" && isCollapsibleItem(block.item)) {
       pending.push(block.item);
+    } else if (block.type === "sub_agent_group") {
+      pending.push(block);
     } else {
       flushPending();
       blocks.push(block);

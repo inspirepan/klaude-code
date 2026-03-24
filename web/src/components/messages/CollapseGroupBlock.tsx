@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { useT } from "@/i18n";
 import type { MessageItem as MessageItemType, DeveloperMessageItem } from "../../types/message";
+import type { CollapseGroupEntry, SectionSubAgentBlock } from "./message-sections";
+import { formatSubAgentTypeLabel } from "./message-list-ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import {
   COLLAPSE_RAIL_GRID_CLASS_NAME,
@@ -15,7 +17,7 @@ import { DeveloperMessage } from "./DeveloperMessage";
 import { parseBashCommand } from "./parse-bash-command";
 
 interface CollapseGroupBlockProps {
-  items: MessageItemType[];
+  entries: CollapseGroupEntry[];
   collapsed: boolean;
   onToggle: () => void;
   activeItemId: string | null;
@@ -23,6 +25,7 @@ interface CollapseGroupBlockProps {
   workDir: string;
   onCopy: (item: MessageItemType) => void | Promise<void>;
   setItemRef: (id: string, el: HTMLDivElement | null) => void;
+  renderSubAgent?: (entry: SectionSubAgentBlock) => ReactNode;
 }
 
 interface FileStat {
@@ -134,8 +137,8 @@ function mergeFileStats(
   return [...merged.entries()].map(([name, s]) => ({ name, del: s.del, add: s.add }));
 }
 
-function summarizeCollapseItems(
-  items: MessageItemType[],
+function summarizeCollapseEntries(
+  entries: CollapseGroupEntry[],
   t: ReturnType<typeof useT>,
 ): SummaryPart[] {
   // --- Collection phase ---
@@ -148,8 +151,14 @@ function summarizeCollapseItems(
   const bashRuns: string[] = [];
   const webFetches: string[] = [];
   const webSearches: string[] = [];
+  const agentTypes: string[] = [];
 
-  for (const item of items) {
+  for (const entry of entries) {
+    if (entry.type === "sub_agent_group") {
+      agentTypes.push(formatSubAgentTypeLabel(entry.sourceSessionType));
+      continue;
+    }
+    const item = entry;
     if (item.type !== "tool_block") continue;
     let args: Record<string, unknown>;
     try {
@@ -327,6 +336,16 @@ function summarizeCollapseItems(
     });
   }
 
+  // 10. Sub-agent types
+  if (agentTypes.length > 0) {
+    const unique = [...new Set(agentTypes)];
+    const value =
+      unique.length > 2
+        ? `${unique.slice(0, 2).join(", ")} +${unique.length - 2}`
+        : unique.join(", ");
+    parts.push({ label: t("collapse.agent"), value });
+  }
+
   return parts;
 }
 
@@ -383,7 +402,7 @@ function SummaryDisplay({ summary }: { summary: SummaryPart[] }): JSX.Element {
 }
 
 export function CollapseGroupBlock({
-  items,
+  entries,
   collapsed,
   onToggle,
   activeItemId,
@@ -391,11 +410,32 @@ export function CollapseGroupBlock({
   workDir,
   onCopy,
   setItemRef,
+  renderSubAgent,
 }: CollapseGroupBlockProps): JSX.Element {
   const t = useT();
-  const toolCount = items.filter((item) => item.type === "tool_block").length;
-  const stepLabel = toolCount > 0 ? t("collapse.toolsUsed")(toolCount) : t("collapse.thoughts");
-  const summary = useMemo(() => summarizeCollapseItems(items, t), [items, t]);
+  const items = useMemo(
+    () => entries.filter((e): e is MessageItemType => e.type !== "sub_agent_group"),
+    [entries],
+  );
+  const summary = useMemo(() => summarizeCollapseEntries(entries, t), [entries, t]);
+  // When detailed summary is empty (e.g. args not yet arrived during streaming),
+  // show tool names as a stable fallback instead of the generic "Used N tools"
+  // count, which causes a flash when the real summary appears.
+  const fallbackLabel = useMemo(() => {
+    const toolNames = items
+      .filter((item) => item.type === "tool_block")
+      .map((item) => item.toolName);
+    const agentLabels = entries
+      .filter((e): e is SectionSubAgentBlock => e.type === "sub_agent_group")
+      .map((e) => formatSubAgentTypeLabel(e.sourceSessionType));
+    const allNames = [...toolNames, ...agentLabels];
+    if (allNames.length === 0) return t("collapse.thoughts");
+    const counts = new Map<string, number>();
+    for (const name of allNames) counts.set(name, (counts.get(name) ?? 0) + 1);
+    return [...counts.entries()]
+      .map(([name, count]) => (count > 1 ? `${name} x${count}` : name))
+      .join(", ");
+  }, [items, entries, t]);
   const summaryText = useMemo(() => summaryToText(summary), [summary]);
   const summarySpanRef = useRef<HTMLSpanElement>(null);
   const [isTruncated, setIsTruncated] = useState(false);
@@ -414,27 +454,32 @@ export function CollapseGroupBlock({
     };
   }, [summaryText]);
 
-  // Group consecutive developer_message items so they render as one merged row
+  // Group consecutive entries for rendering: dev messages merge, sub-agents render via callback
   type RenderBlock =
     | { kind: "dev"; items: DeveloperMessageItem[] }
-    | { kind: "other"; item: MessageItemType };
+    | { kind: "other"; item: MessageItemType }
+    | { kind: "sub_agent"; entry: SectionSubAgentBlock };
 
   const renderBlocks = useMemo((): RenderBlock[] => {
     const result: RenderBlock[] = [];
-    for (const item of items) {
-      if (item.type === "developer_message") {
+    for (const entry of entries) {
+      if (entry.type === "sub_agent_group") {
+        result.push({ kind: "sub_agent", entry });
+        continue;
+      }
+      if (entry.type === "developer_message") {
         const last = result.at(-1);
         if (last?.kind === "dev") {
-          last.items.push(item);
+          last.items.push(entry);
         } else {
-          result.push({ kind: "dev", items: [item] });
+          result.push({ kind: "dev", items: [entry] });
         }
       } else {
-        result.push({ kind: "other", item });
+        result.push({ kind: "other", item: entry });
       }
     }
     return result;
-  }, [items]);
+  }, [entries]);
 
   return (
     <div>
@@ -448,7 +493,7 @@ export function CollapseGroupBlock({
             <CollapseRailMarker open={!collapsed} />
             <span className="flex min-w-0 items-center">
               {summary.length === 0 ? (
-                <span className="min-w-0 truncate">{stepLabel}</span>
+                <span className="min-w-0 truncate">{fallbackLabel}</span>
               ) : (
                 <span ref={summarySpanRef} className="min-w-0 truncate text-neutral-500">
                   <SummaryDisplay summary={summary} />
@@ -471,6 +516,9 @@ export function CollapseGroupBlock({
             {renderBlocks.map((block, idx) => {
               if (block.kind === "dev") {
                 return <DeveloperMessage key={`dev-${idx}`} items={block.items} />;
+              }
+              if (block.kind === "sub_agent") {
+                return renderSubAgent ? renderSubAgent(block.entry) : null;
               }
               return (
                 <MessageRow

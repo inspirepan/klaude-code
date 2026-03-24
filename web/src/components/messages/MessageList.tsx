@@ -589,7 +589,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     for (const blocks of sectionBlocks) {
       for (const block of blocks) {
         if (block.type === "collapse_group") {
-          for (const item of block.items) map.set(item.id, block.id);
+          for (const entry of block.entries) {
+            if (entry.type !== "sub_agent_group") map.set(entry.id, block.id);
+          }
         } else if (block.type === "planned_group") {
           for (const inner of block.blocks) {
             if (inner.type === "item") map.set(inner.item.id, block.id);
@@ -755,7 +757,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                             return (
                               <AnimatedDiv key={block.id} className={spacing}>
                                 <CollapseGroupBlock
-                                  items={block.items}
+                                  entries={block.entries}
                                   collapsed={collapsed}
                                   onToggle={() => {
                                     setCollapsedCollapseGroups((prev) => ({
@@ -768,6 +770,28 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                   workDir={workspacePath}
                                   onCopy={handleCopy}
                                   setItemRef={setItemRef}
+                                  renderSubAgent={(entry) => {
+                                    const isFinished =
+                                      subAgentFinishedBySessionId[entry.sourceSessionId];
+                                    return (
+                                      <SubAgentGroupCard
+                                        key={entry.groupId}
+                                        sourceSessionId={entry.sourceSessionId}
+                                        sourceSessionType={entry.sourceSessionType}
+                                        sourceSessionDesc={entry.sourceSessionDesc}
+                                        sourceSessionFork={entry.sourceSessionFork}
+                                        toolCount={entry.toolCount}
+                                        status={
+                                          statusBySessionId[entry.sourceSessionId] ?? null
+                                        }
+                                        isFinished={isFinished}
+                                        nowSeconds={nowSeconds}
+                                        onClick={() => {
+                                          handleEnterSubAgent(entry.sourceSessionId);
+                                        }}
+                                      />
+                                    );
+                                  }}
                                 />
                               </AnimatedDiv>
                             );

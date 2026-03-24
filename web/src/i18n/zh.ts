@@ -165,6 +165,7 @@ const zh: Translations = {
   "collapse.search": "搜索网页",
   "collapse.thoughts": "思考",
   "collapse.completed": "完成",
+  "collapse.agent": "Agent",
   "collapse.toolsUsed": (count: number) => `使用了 ${count} 个工具`,
 
   // User message
