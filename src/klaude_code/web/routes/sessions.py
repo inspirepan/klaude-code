@@ -280,9 +280,17 @@ async def unarchive_session(session_id: str, state: WebAppState = WEB_STATE_DEP)
     return {"ok": True}
 
 
+class ArchiveCleanupRequest(BaseModel):
+    cutoff_seconds: int = 24 * 60 * 60
+
+
 @router.post("/archive/cleanup")
-async def cleanup_archived_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, bool | int]:
-    cutoff = time.time() - (3 * 24 * 60 * 60)
+async def cleanup_archived_sessions(
+    payload: ArchiveCleanupRequest | None = None,
+    state: WebAppState = WEB_STATE_DEP,
+) -> dict[str, bool | int]:
+    cutoff_seconds = payload.cutoff_seconds if payload is not None else 24 * 60 * 60
+    cutoff = time.time() - cutoff_seconds
     archived_count = 0
 
     for summary in list_main_sessions(state.home_dir):

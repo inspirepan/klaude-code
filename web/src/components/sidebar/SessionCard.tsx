@@ -96,8 +96,12 @@ export function SessionCard({
   useEffect(() => {
     if (hasUnreadCompletion) {
       setShowHighlight(true);
-      const timer = setTimeout(() => setShowHighlight(false), 5000);
-      return () => clearTimeout(timer);
+      const timer = setTimeout(() => {
+        setShowHighlight(false);
+      }, 5000);
+      return () => {
+        clearTimeout(timer);
+      };
     }
     setShowHighlight(false);
   }, [hasUnreadCompletion]);
@@ -111,11 +115,7 @@ export function SessionCard({
     <div
       className={cn(
         "group relative flex min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-2 pr-2 text-left transition-colors",
-        showHighlight
-          ? "bg-emerald-100/60"
-          : active
-            ? "bg-neutral-200/60"
-            : "hover:bg-muted/80",
+        showHighlight ? "bg-emerald-100/60" : active ? "bg-neutral-200/60" : "hover:bg-muted/80",
       )}
       role="button"
       tabIndex={0}
@@ -137,9 +137,7 @@ export function SessionCard({
         title={title}
         as="div"
         className="flex min-w-0 flex-1 items-baseline text-sm leading-5"
-        primaryClassName={
-          runtime.sessionState === "running" ? "text-shimmer" : undefined
-        }
+        primaryClassName={runtime.sessionState === "running" ? "text-shimmer" : undefined}
         secondaryClassName="shrink truncate"
       />
       {/* Meta info: visible by default, hidden on hover */}

@@ -780,9 +780,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                         sourceSessionType={entry.sourceSessionType}
                                         sourceSessionDesc={entry.sourceSessionDesc}
                                         toolCount={entry.toolCount}
-                                        status={
-                                          statusBySessionId[entry.sourceSessionId] ?? null
-                                        }
+                                        status={statusBySessionId[entry.sourceSessionId] ?? null}
                                         isFinished={isFinished}
                                         nowSeconds={nowSeconds}
                                         onClick={() => {
@@ -826,9 +824,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                           sourceSessionType={inner.sourceSessionType}
                                           sourceSessionDesc={inner.sourceSessionDesc}
                                           toolCount={inner.toolCount}
-                                          status={
-                                            statusBySessionId[inner.sourceSessionId] ?? null
-                                          }
+                                          status={statusBySessionId[inner.sourceSessionId] ?? null}
                                           isFinished={isFinished}
                                           nowSeconds={nowSeconds}
                                           onClick={() => {

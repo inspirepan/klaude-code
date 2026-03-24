@@ -183,10 +183,10 @@ export async function unarchiveSession(sessionId: string): Promise<boolean> {
   return result.ok;
 }
 
-export async function archiveCleanupSessions(): Promise<number> {
+export async function archiveCleanupSessions(cutoffSeconds: number): Promise<number> {
   const result = await requestJson<ArchiveCleanupResponse>("/api/sessions/archive/cleanup", {
     method: "POST",
-    body: {},
+    body: { cutoff_seconds: cutoffSeconds },
   });
   return result.archived_count;
 }

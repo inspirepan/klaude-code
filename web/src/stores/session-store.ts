@@ -52,7 +52,7 @@ export interface SessionStoreState {
   refreshSessions: () => Promise<void>;
   toggleGroup: (workDir: string) => void;
   setSessionArchived: (sessionId: string, archived: boolean) => Promise<void>;
-  archiveCleanupSessions: () => Promise<number>;
+  archiveCleanupSessions: (cutoffSeconds: number) => Promise<number>;
   selectDraft: (workDir?: string) => void;
   setDraftWorkDir: (workDir: string) => void;
   selectSession: (sessionId: string) => Promise<void>;
@@ -179,8 +179,8 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         .filter((group) => group.sessions.length > 0),
     }));
   },
-  archiveCleanupSessions: async () => {
-    const archivedCount = await archiveCleanupSessionsRequest();
+  archiveCleanupSessions: async (cutoffSeconds: number) => {
+    const archivedCount = await archiveCleanupSessionsRequest(cutoffSeconds);
     await get().refreshSessions();
     return archivedCount;
   },
