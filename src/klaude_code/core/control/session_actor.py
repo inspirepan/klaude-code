@@ -258,6 +258,9 @@ class SessionActor:
 
         if not pending.future.done():
             pending.future.set_result(response)
+        # Eagerly finalize so the snapshot is immediately up-to-date.
+        # The future's done callback (_on_done) is idempotent and will no-op.
+        self._finalize_pending_request(request_id)
 
     def cancel_pending_interactions(self) -> list[PendingUserInteractionRequest]:
         cancelled: list[PendingUserInteractionRequest] = []
