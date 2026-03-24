@@ -405,8 +405,17 @@ class PromptToolkitInput(InputProviderABC):
     def _build_placeholder(self) -> FormattedText:
         """Build placeholder showing repo/directory name and Git branch."""
         repo_display, branch = _get_git_info()
-        dir_name = repo_display or Path.cwd().name or str(Path.cwd())
-        text = f"{dir_name} ({branch})" if branch else dir_name
+        cwd_name = Path.cwd().name or str(Path.cwd())
+        dir_name = repo_display or cwd_name
+
+        parts = [dir_name]
+        # Show cwd in brackets when it differs from the repo name
+        if repo_display and cwd_name != repo_display.rsplit("/", 1)[-1]:
+            parts.append(f"[{cwd_name}]")
+        if branch:
+            parts.append(f"({branch})")
+
+        text = " ".join(parts)
         return FormattedText([("class:placeholder", f"   {text}")])
 
     def _is_bash_mode_active(self) -> bool:
