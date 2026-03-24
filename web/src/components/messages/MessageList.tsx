@@ -1,4 +1,4 @@
-import { ArrowDown, Loader } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 import {
   type ReactNode,
   useEffect,
@@ -897,7 +897,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                   </>
                 ) : runtime?.wsState === "connecting" ? (
                   <div className="flex min-h-[240px] items-center justify-center">
-                    <Loader className="h-5 w-5 animate-spin text-neutral-500" />
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-neutral-400" />
                   </div>
                 ) : null}
               </div>

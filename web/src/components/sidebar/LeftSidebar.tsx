@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, BrushCleaning, Loader, PanelLeftClose } from "lucide-react";
+import { Archive, BrushCleaning, PanelLeftClose } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
 import { SessionSearch } from "./SessionSearch";
@@ -445,9 +445,8 @@ export function LeftSidebar(): JSX.Element {
               ) : null}
 
               {loadError === null && loading && groups.length === 0 ? (
-                <div className="flex items-center gap-2 px-2 py-2 text-neutral-500">
-                  <Loader className="h-4 w-4 animate-spin text-neutral-500" />
-                  <span className="text-sm font-semibold">{t("sidebar.loading")}</span>
+                <div className="px-2 py-2">
+                  <span className="text-shimmer text-sm font-semibold">{t("sidebar.loading")}</span>
                 </div>
               ) : null}
 
@@ -510,11 +509,9 @@ export function LeftSidebar(): JSX.Element {
                   aria-label={t("sidebar.archiveStale")}
                   aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
                 >
-                  {archiveCleanupPending ? (
-                    <Loader className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <BrushCleaning className="h-4 w-4" />
-                  )}
+                  <BrushCleaning
+                    className={`h-4 w-4${archiveCleanupPending ? " animate-pulse" : ""}`}
+                  />
                 </button>
               ) : (
                 <Tooltip>
@@ -527,11 +524,9 @@ export function LeftSidebar(): JSX.Element {
                       aria-label={t("sidebar.archiveStale")}
                       aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
                     >
-                      {archiveCleanupPending ? (
-                        <Loader className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <BrushCleaning className="h-4 w-4" />
-                      )}
+                      <BrushCleaning
+                        className={`h-4 w-4${archiveCleanupPending ? " animate-pulse" : ""}`}
+                      />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>{archiveCleanupTooltip}</TooltipContent>

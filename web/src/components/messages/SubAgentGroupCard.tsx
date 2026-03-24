@@ -1,5 +1,6 @@
-import { CircleCheck, Loader } from "lucide-react";
+import { CircleCheck } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
 import type { SessionStatusState } from "../../stores/event-reducer";
 import { formatElapsed, formatSubAgentTypeLabel, shortSessionId } from "./message-list-ui";
@@ -44,16 +45,19 @@ export function SubAgentGroupCard({
       className="group/subagent flex w-3/5 cursor-pointer items-center gap-2.5 rounded-lg border border-border/80 bg-surface/50 px-3.5 py-2.5 text-left shadow-sm shadow-neutral-200/40 transition-colors hover:bg-neutral-50"
     >
       {/* Status icon */}
-      {isActive ? (
-        <Loader className="h-3.5 w-3.5 shrink-0 animate-spin text-amber-500" />
-      ) : isFinished ? (
+      {isFinished ? (
         <CircleCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-      ) : (
+      ) : !isActive ? (
         <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-300" />
-      )}
+      ) : null}
 
       {/* Type label */}
-      <span className="shrink-0 text-sm font-medium text-neutral-700">
+      <span
+        className={cn(
+          "shrink-0 text-sm font-medium text-neutral-700",
+          isActive && "text-shimmer",
+        )}
+      >
         {formatSubAgentTypeLabel(sourceSessionType)}
       </span>
 

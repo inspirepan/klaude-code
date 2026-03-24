@@ -1,4 +1,3 @@
-import { Loader } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
 import { useT } from "@/i18n";
@@ -78,9 +77,8 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-600">
-          <Loader className="h-3 w-3 animate-spin text-neutral-500" />
-          <span>{t("tool.planning")}</span>
+        <div className="font-sans text-sm">
+          <span className="text-shimmer">{t("tool.planning")}</span>
         </div>
       ) : null}
     </div>
@@ -97,9 +95,8 @@ function QuestionBlock({ item }: ToolBlockProps): JSX.Element {
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 font-sans text-base text-neutral-600">
-          <Loader className="h-3 w-3 animate-spin text-neutral-500" />
-          <span>{t("tool.askingQuestion")}</span>
+        <div className="font-sans text-base">
+          <span className="text-shimmer">{t("tool.askingQuestion")}</span>
         </div>
       ) : null}
     </div>
