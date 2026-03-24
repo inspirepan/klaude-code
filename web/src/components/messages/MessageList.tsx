@@ -1,5 +1,13 @@
 import { ArrowDown, Loader } from "lucide-react";
-import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+  useLayoutEffect,
+} from "react";
 
 import { useT } from "@/i18n";
 import { useMountEffect } from "@/hooks/useMountEffect";
@@ -51,11 +59,45 @@ const CARD_TOOL_NAMES = new Set(["TodoWrite", "AskUserQuestion"]);
 const RAIL_CONTENT_OFFSET = "pl-[22px]";
 
 function blockSpacingClass(block: SectionBlock, isFirst: boolean): string {
-  if (isFirst) return "message-block-enter";
-  if (block.type === "planned_group" || block.type === "collapse_group")
-    return "mt-3 message-block-enter";
-  if (block.type === "item" && block.item.type === "tool_block") return "mt-3 message-block-enter";
-  return "mt-3 message-block-enter";
+  if (isFirst) return "";
+  if (block.type === "planned_group" || block.type === "collapse_group") return "mt-3";
+  if (block.type === "item" && block.item.type === "tool_block") return "mt-3";
+  return "mt-3";
+}
+
+/**
+ * Block wrapper that plays a mount animation (opacity + translateY) via the
+ * Web Animations API. The animation only fires when the scroll container
+ * already has the `message-list-ready` class, which is added after a
+ * double-rAF so history items rendered on the first frame are excluded.
+ */
+function AnimatedDiv({
+  className,
+  children,
+}: {
+  className: string;
+  children: ReactNode;
+}): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const container = el.closest("[data-message-scroll-container]");
+    if (!container?.classList.contains("message-list-ready")) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    el.animate(
+      [
+        { opacity: 0, transform: "translateY(4px)" },
+        { opacity: 1, transform: "translateY(0)" },
+      ],
+      { duration: 200, easing: "cubic-bezier(0.23, 1, 0.32, 1)" },
+    );
+  }, []);
+  return (
+    <div ref={ref} className={className}>
+      {children}
+    </div>
+  );
 }
 
 const EMPTY_ITEMS: MessageItemType[] = [];
@@ -702,16 +744,16 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
                           if (block.type === "dev_group") {
                             return (
-                              <div key={block.id} className={spacing}>
+                              <AnimatedDiv key={block.id} className={spacing}>
                                 <DeveloperMessage items={block.items} />
-                              </div>
+                              </AnimatedDiv>
                             );
                           }
 
                           if (block.type === "collapse_group") {
                             const collapsed = isCollapseGroupCollapsed(block.id);
                             return (
-                              <div key={block.id} className={spacing}>
+                              <AnimatedDiv key={block.id} className={spacing}>
                                 <CollapseGroupBlock
                                   items={block.items}
                                   collapsed={collapsed}
@@ -727,14 +769,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                   onCopy={handleCopy}
                                   setItemRef={setItemRef}
                                 />
-                              </div>
+                              </AnimatedDiv>
                             );
                           }
 
                           if (block.type === "planned_group") {
                             const pgCollapsed = isCollapseGroupCollapsed(block.id);
                             return (
-                              <div key={block.id} className={spacing}>
+                              <AnimatedDiv key={block.id} className={spacing}>
                                 <PlannedGroupBlock
                                   todos={block.todos}
                                   collapsed={pgCollapsed}
@@ -800,14 +842,14 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                     );
                                   })}
                                 </PlannedGroupBlock>
-                              </div>
+                              </AnimatedDiv>
                             );
                           }
 
                           if (block.type === "sub_agent_group") {
                             const isFinished = subAgentFinishedBySessionId[block.sourceSessionId];
                             return (
-                              <div
+                              <AnimatedDiv
                                 key={block.groupId}
                                 className={`${spacing} ${RAIL_CONTENT_OFFSET}`}
                               >
@@ -824,7 +866,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                     handleEnterSubAgent(block.sourceSessionId);
                                   }}
                                 />
-                              </div>
+                              </AnimatedDiv>
                             );
                           }
 
@@ -835,7 +877,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                           const itemOffset =
                             item.type !== "user_message" && !hasRailGrid ? RAIL_CONTENT_OFFSET : "";
                           return (
-                            <div key={item.id} className={`${spacing} ${itemOffset}`}>
+                            <AnimatedDiv key={item.id} className={`${spacing} ${itemOffset}`}>
                               <MessageRow
                                 item={item}
                                 workDir={workspacePath}
@@ -846,7 +888,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                   setItemRef(item.id, el);
                                 }}
                               />
-                            </div>
+                            </AnimatedDiv>
                           );
                         })}
                       </div>
