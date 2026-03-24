@@ -51,6 +51,7 @@ const zh: Translations = {
   "composer.uploadingImage": "正在上传图片...",
   "composer.uploadingImages": (count: number) => `正在上传 ${count} 张图片...`,
   "composer.compactDesc": "清除上下文，保留摘要",
+  "composer.readOnlyPlaceholder": "只读 \u2014 此会话由另一个运行时拥有",
 
   // New session overlay
   "newSession.title": "开始新会话",
@@ -164,6 +165,7 @@ const zh: Translations = {
   "collapse.search": "搜索网页",
   "collapse.thoughts": "思考",
   "collapse.completed": "完成",
+  "collapse.agent": "Agent",
   "collapse.toolsUsed": (count: number) => `使用了 ${count} 个工具`,
 
   // User message

@@ -1,5 +1,13 @@
-import { ArrowDown, Loader } from "lucide-react";
-import { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react";
+import { ArrowDown } from "lucide-react";
+import {
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+  useLayoutEffect,
+} from "react";
 
 import { useT } from "@/i18n";
 import { useMountEffect } from "@/hooks/useMountEffect";
@@ -57,6 +65,41 @@ function blockSpacingClass(block: SectionBlock, isFirst: boolean): string {
   return "mt-3";
 }
 
+/**
+ * Block wrapper that plays a mount animation (opacity + translateY) via the
+ * Web Animations API. The animation only fires when the scroll container
+ * already has the `message-list-ready` class, which is added after a
+ * double-rAF so history items rendered on the first frame are excluded.
+ */
+function AnimatedDiv({
+  className,
+  children,
+}: {
+  className: string;
+  children: ReactNode;
+}): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const container = el.closest("[data-message-scroll-container]");
+    if (!container?.classList.contains("message-list-ready")) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    el.animate(
+      [
+        { opacity: 0, transform: "translateY(4px)" },
+        { opacity: 1, transform: "translateY(0)" },
+      ],
+      { duration: 200, easing: "cubic-bezier(0.23, 1, 0.32, 1)" },
+    );
+  }, []);
+  return (
+    <div ref={ref} className={className}>
+      {children}
+    </div>
+  );
+}
+
 const EMPTY_ITEMS: MessageItemType[] = [];
 const EMPTY_SUB_AGENT_DESC_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_TYPE_MAP: Record<string, string> = {};
@@ -95,7 +138,7 @@ function getSessionTitle(session: SessionSummary | null): string | null {
   }
   const firstMessage = session?.user_messages[0]?.trim();
   if (firstMessage !== undefined && firstMessage.length > 0) {
-    return firstMessage;
+    return firstMessage.length > 40 ? `${firstMessage.slice(0, 40)}...` : firstMessage;
   }
   return null;
 }
@@ -138,6 +181,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
   const previousLastVisibleItemIdRef = useRef<string | null>(null);
   const mainScrollTopRef = useRef<number | null>(null);
+  // Tracks programmatic scroll target so handleScroll can ignore the resulting event.
+  const autoScrollRef = useRef<{ top: number; time: number } | null>(null);
   const [viewingSubAgentSessionId, setViewingSubAgentSessionId] = useState<string | null>(
     getSubAgentIdFromUrl,
   );
@@ -198,17 +243,6 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       }),
     [items, sessionId, viewingSubAgentSessionId],
   );
-  const hasStreamingAssistantText = useMemo(
-    () =>
-      visibleItems.some(
-        (item) =>
-          item.type === "assistant_text" &&
-          (item.sessionId ?? sessionId) === effectiveSessionId &&
-          item.isStreaming,
-      ),
-    [effectiveSessionId, sessionId, visibleItems],
-  );
-
   const searchMatchItemIds = useMemo(
     () => findMatchingItemIds(visibleItems, searchQuery),
     [visibleItems, searchQuery],
@@ -367,13 +401,13 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     (behavior: ScrollBehavior = "smooth") => {
       const container = scrollRef.current;
       if (!container) return;
+      container.style.overflowAnchor = "none";
       container.scrollTo({ top: container.scrollHeight, behavior });
+      const expectedTop = Math.max(0, container.scrollHeight - container.clientHeight);
+      autoScrollRef.current = { top: expectedTop, time: Date.now() };
       wasAtBottomRef.current = true;
       setShowScrollToBottom(false);
-      sessionStorage.setItem(
-        `scroll-${sessionId}`,
-        String(Math.max(0, container.scrollHeight - container.clientHeight)),
-      );
+      sessionStorage.setItem(`scroll-${sessionId}`, String(expectedTop));
     },
     [sessionId],
   );
@@ -393,7 +427,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     } else {
       container.scrollTop = container.scrollHeight;
     }
+    // Mark as programmatic so the resulting scroll event is ignored
+    autoScrollRef.current = { top: container.scrollTop, time: Date.now() };
     wasAtBottomRef.current = isNearBottom(container);
+    container.style.overflowAnchor = wasAtBottomRef.current ? "none" : "auto";
     updateScrollButtonVisibility();
   }, [hasItems, sessionId, updateScrollButtonVisibility]);
 
@@ -417,6 +454,8 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     const content = contentRef.current;
     const container = scrollRef.current;
     if (!content || !container) return;
+    // Start with overflow-anchor matching the current scroll intent
+    container.style.overflowAnchor = wasAtBottomRef.current ? "none" : "auto";
     let prevScrollHeight = container.scrollHeight;
     const observer = new ResizeObserver(() => {
       const newScrollHeight = container.scrollHeight;
@@ -427,7 +466,13 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       // clamps scrollTop to the new max, keeping the bottom anchored without
       // the jarring snap that used to cause visible jitter.
       if (wasAtBottomRef.current && grew) {
+        // Disable browser scroll anchoring so it doesn't fight our scrollTop
+        container.style.overflowAnchor = "none";
         container.scrollTop = newScrollHeight;
+        autoScrollRef.current = {
+          top: Math.max(0, newScrollHeight - container.clientHeight),
+          time: Date.now(),
+        };
       }
       updateScrollButtonVisibility();
     });
@@ -440,8 +485,17 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const handleScroll = useCallback(() => {
     const container = scrollRef.current;
     if (!container) return;
+    // Ignore scroll events caused by our own programmatic scrollTop changes
+    const auto = autoScrollRef.current;
+    if (auto && Date.now() - auto.time < 500 && Math.abs(container.scrollTop - auto.top) < 2) {
+      autoScrollRef.current = null;
+      return;
+    }
     const atBottom = isNearBottom(container);
     wasAtBottomRef.current = atBottom;
+    // Auto-scroll mode: disable browser anchoring (we control scrollTop).
+    // User-scroll mode: enable anchoring so content above stays stable.
+    container.style.overflowAnchor = atBottom ? "none" : "auto";
     setShowScrollToBottom(!atBottom);
     sessionStorage.setItem(`scroll-${sessionId}`, String(container.scrollTop));
   }, [sessionId]);
@@ -454,6 +508,19 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     }
   }, []);
 
+  // Enable entry animations only after the initial paint is committed.
+  // Double-rAF ensures history items rendered on the first frame are excluded.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.classList.remove("message-list-ready");
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.classList.add("message-list-ready");
+      });
+    });
+  }, [effectiveSessionId]);
+
   // Sub-agent navigation
   const handleEnterSubAgent = useCallback(
     (subAgentId: string) => {
@@ -461,7 +528,10 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       setViewingSubAgentSessionId(subAgentId);
       history.pushState(null, "", `/session/${sessionId}/agent/${subAgentId}`);
       requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({ top: 0 });
+        if (scrollRef.current) {
+          scrollRef.current.style.overflowAnchor = "none";
+          scrollRef.current.scrollTo({ top: 0 });
+        }
       });
     },
     [sessionId],
@@ -519,7 +589,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     for (const blocks of sectionBlocks) {
       for (const block of blocks) {
         if (block.type === "collapse_group") {
-          for (const item of block.items) map.set(item.id, block.id);
+          for (const entry of block.entries) {
+            if (entry.type !== "sub_agent_group") map.set(entry.id, block.id);
+          }
         } else if (block.type === "planned_group") {
           for (const inner of block.blocks) {
             if (inner.type === "item") map.set(inner.item.id, block.id);
@@ -653,31 +725,39 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             ref={scrollRef}
             onScroll={handleScroll}
             data-message-scroll-container="true"
-            className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-none"
+            className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-none [scrollbar-gutter:stable]"
           >
             <div ref={contentRef}>
               <div className="mx-auto max-w-4xl space-y-5 px-4 pb-2 pt-8 sm:px-6">
                 {hasItems ? (
                   <>
                     {sections.map((section, sectionIndex) => (
-                      <div key={section[0].id} className="group/section">
+                      <div
+                        key={section[0].id}
+                        className="group/section"
+                        style={
+                          sectionIndex < sections.length - 1
+                            ? { contentVisibility: "auto", containIntrinsicSize: "auto 200px" }
+                            : undefined
+                        }
+                      >
                         {sectionBlocks[sectionIndex]?.map((block, blockIdx) => {
                           const spacing = blockSpacingClass(block, blockIdx === 0);
 
                           if (block.type === "dev_group") {
                             return (
-                              <div key={block.id} className={spacing}>
+                              <AnimatedDiv key={block.id} className={spacing}>
                                 <DeveloperMessage items={block.items} />
-                              </div>
+                              </AnimatedDiv>
                             );
                           }
 
                           if (block.type === "collapse_group") {
                             const collapsed = isCollapseGroupCollapsed(block.id);
                             return (
-                              <div key={block.id} className={spacing}>
+                              <AnimatedDiv key={block.id} className={spacing}>
                                 <CollapseGroupBlock
-                                  items={block.items}
+                                  entries={block.entries}
                                   collapsed={collapsed}
                                   onToggle={() => {
                                     setCollapsedCollapseGroups((prev) => ({
@@ -690,15 +770,34 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                   workDir={workspacePath}
                                   onCopy={handleCopy}
                                   setItemRef={setItemRef}
+                                  renderSubAgent={(entry) => {
+                                    const isFinished =
+                                      subAgentFinishedBySessionId[entry.sourceSessionId];
+                                    return (
+                                      <SubAgentGroupCard
+                                        key={entry.groupId}
+                                        sourceSessionId={entry.sourceSessionId}
+                                        sourceSessionType={entry.sourceSessionType}
+                                        sourceSessionDesc={entry.sourceSessionDesc}
+                                        toolCount={entry.toolCount}
+                                        status={statusBySessionId[entry.sourceSessionId] ?? null}
+                                        isFinished={isFinished}
+                                        nowSeconds={nowSeconds}
+                                        onClick={() => {
+                                          handleEnterSubAgent(entry.sourceSessionId);
+                                        }}
+                                      />
+                                    );
+                                  }}
                                 />
-                              </div>
+                              </AnimatedDiv>
                             );
                           }
 
                           if (block.type === "planned_group") {
                             const pgCollapsed = isCollapseGroupCollapsed(block.id);
                             return (
-                              <div key={block.id} className={spacing}>
+                              <AnimatedDiv key={block.id} className={spacing}>
                                 <PlannedGroupBlock
                                   todos={block.todos}
                                   collapsed={pgCollapsed}
@@ -719,23 +818,19 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                       const isFinished =
                                         subAgentFinishedBySessionId[inner.sourceSessionId];
                                       return (
-                                        <div key={inner.groupId} className={RAIL_CONTENT_OFFSET}>
-                                          <SubAgentGroupCard
-                                            sourceSessionId={inner.sourceSessionId}
-                                            sourceSessionType={inner.sourceSessionType}
-                                            sourceSessionDesc={inner.sourceSessionDesc}
-                                            sourceSessionFork={inner.sourceSessionFork}
-                                            toolCount={inner.toolCount}
-                                            status={
-                                              statusBySessionId[inner.sourceSessionId] ?? null
-                                            }
-                                            isFinished={isFinished}
-                                            nowSeconds={nowSeconds}
-                                            onClick={() => {
-                                              handleEnterSubAgent(inner.sourceSessionId);
-                                            }}
-                                          />
-                                        </div>
+                                        <SubAgentGroupCard
+                                          key={inner.groupId}
+                                          sourceSessionId={inner.sourceSessionId}
+                                          sourceSessionType={inner.sourceSessionType}
+                                          sourceSessionDesc={inner.sourceSessionDesc}
+                                          toolCount={inner.toolCount}
+                                          status={statusBySessionId[inner.sourceSessionId] ?? null}
+                                          isFinished={isFinished}
+                                          nowSeconds={nowSeconds}
+                                          onClick={() => {
+                                            handleEnterSubAgent(inner.sourceSessionId);
+                                          }}
+                                        />
                                       );
                                     }
                                     const innerItem = inner.item;
@@ -764,22 +859,18 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                     );
                                   })}
                                 </PlannedGroupBlock>
-                              </div>
+                              </AnimatedDiv>
                             );
                           }
 
                           if (block.type === "sub_agent_group") {
                             const isFinished = subAgentFinishedBySessionId[block.sourceSessionId];
                             return (
-                              <div
-                                key={block.groupId}
-                                className={`${spacing} ${RAIL_CONTENT_OFFSET}`}
-                              >
+                              <AnimatedDiv key={block.groupId} className={spacing}>
                                 <SubAgentGroupCard
                                   sourceSessionId={block.sourceSessionId}
                                   sourceSessionType={block.sourceSessionType}
                                   sourceSessionDesc={block.sourceSessionDesc}
-                                  sourceSessionFork={block.sourceSessionFork}
                                   toolCount={block.toolCount}
                                   status={statusBySessionId[block.sourceSessionId] ?? null}
                                   isFinished={isFinished}
@@ -788,7 +879,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                     handleEnterSubAgent(block.sourceSessionId);
                                   }}
                                 />
-                              </div>
+                              </AnimatedDiv>
                             );
                           }
 
@@ -799,7 +890,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                           const itemOffset =
                             item.type !== "user_message" && !hasRailGrid ? RAIL_CONTENT_OFFSET : "";
                           return (
-                            <div key={item.id} className={`${spacing} ${itemOffset}`}>
+                            <AnimatedDiv key={item.id} className={`${spacing} ${itemOffset}`}>
                               <MessageRow
                                 item={item}
                                 workDir={workspacePath}
@@ -810,19 +901,16 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                                   setItemRef(item.id, el);
                                 }}
                               />
-                            </div>
+                            </AnimatedDiv>
                           );
                         })}
                       </div>
                     ))}
-                    <div
-                      aria-hidden="true"
-                      className={hasStreamingAssistantText ? "h-12" : "h-0"}
-                    />
+                    <div aria-hidden="true" className="h-12" />
                   </>
                 ) : runtime?.wsState === "connecting" ? (
                   <div className="flex min-h-[240px] items-center justify-center">
-                    <Loader className="h-5 w-5 animate-spin text-neutral-500" />
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-neutral-400" />
                   </div>
                 ) : null}
               </div>

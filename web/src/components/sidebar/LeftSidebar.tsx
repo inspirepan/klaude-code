@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, BrushCleaning, Loader, PanelLeftClose } from "lucide-react";
+import { Archive, BrushCleaning, PanelLeftClose } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
 import { SessionSearch } from "./SessionSearch";
@@ -10,6 +10,7 @@ import { useMountEffect } from "@/hooks/useMountEffect";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
+import { cn } from "@/lib/utils";
 
 const ARCHIVE_CLEANUP_AGE_SECONDS = 1 * 24 * 60 * 60;
 const DEFAULT_SIDEBAR_WIDTH = 340;
@@ -333,7 +334,7 @@ export function LeftSidebar(): JSX.Element {
       setArchiveCleanupConfirmOpen(false);
       setArchiveCleanupPending(true);
       try {
-        await archiveCleanupSessions();
+        await archiveCleanupSessions(ARCHIVE_CLEANUP_AGE_SECONDS);
       } finally {
         setArchiveCleanupPending(false);
       }
@@ -445,9 +446,8 @@ export function LeftSidebar(): JSX.Element {
               ) : null}
 
               {loadError === null && loading && groups.length === 0 ? (
-                <div className="flex items-center gap-2 px-2 py-2 text-neutral-500">
-                  <Loader className="h-4 w-4 animate-spin text-neutral-500" />
-                  <span className="text-sm font-semibold">{t("sidebar.loading")}</span>
+                <div className="px-2 py-2">
+                  <span className="text-shimmer text-sm font-semibold">{t("sidebar.loading")}</span>
                 </div>
               ) : null}
 
@@ -467,7 +467,6 @@ export function LeftSidebar(): JSX.Element {
                     collapsed={collapsedByWorkDir[group.work_dir] ?? false}
                     activeSessionId={activeSessionId}
                     runtimeBySessionId={runtimeBySessionId}
-                    recentCompletionStartedAtBySessionId={recentCompletionStartedAtBySessionId}
                     completedUnreadBySessionId={completedUnreadBySessionId}
                     onToggle={() => {
                       toggleGroup(group.work_dir);
@@ -511,11 +510,9 @@ export function LeftSidebar(): JSX.Element {
                   aria-label={t("sidebar.archiveStale")}
                   aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
                 >
-                  {archiveCleanupPending ? (
-                    <Loader className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <BrushCleaning className="h-4 w-4" />
-                  )}
+                  <BrushCleaning
+                    className={cn("h-4 w-4", archiveCleanupPending && "animate-pulse")}
+                  />
                 </button>
               ) : (
                 <Tooltip>
@@ -528,11 +525,9 @@ export function LeftSidebar(): JSX.Element {
                       aria-label={t("sidebar.archiveStale")}
                       aria-disabled={archiveCleanupEligibleCount === 0 || archiveCleanupPending}
                     >
-                      {archiveCleanupPending ? (
-                        <Loader className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <BrushCleaning className="h-4 w-4" />
-                      )}
+                      <BrushCleaning
+                        className={cn("h-4 w-4", archiveCleanupPending && "animate-pulse")}
+                      />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>{archiveCleanupTooltip}</TooltipContent>
@@ -574,9 +569,6 @@ export function LeftSidebar(): JSX.Element {
                             hideNewSessionButton
                             activeSessionId={activeSessionId}
                             runtimeBySessionId={runtimeBySessionId}
-                            recentCompletionStartedAtBySessionId={
-                              recentCompletionStartedAtBySessionId
-                            }
                             completedUnreadBySessionId={completedUnreadBySessionId}
                             onToggle={() => {
                               setArchivedCollapsedByWorkDir((prev) => ({

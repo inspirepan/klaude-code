@@ -19,7 +19,7 @@ export function formatSubAgentTypeLabel(type: string | null): string {
   if (type === null || type.trim().length === 0) {
     return "Agent";
   }
-  return type.charAt(0).toUpperCase() + type.slice(1);
+  return type.charAt(0).toUpperCase() + type.slice(1) + " Agent";
 }
 
 export function formatCompactNumber(value: number): string {
