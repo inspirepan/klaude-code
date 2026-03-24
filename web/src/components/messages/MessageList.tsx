@@ -723,7 +723,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
             ref={scrollRef}
             onScroll={handleScroll}
             data-message-scroll-container="true"
-            className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-none"
+            className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-none [scrollbar-gutter:stable]"
           >
             <div ref={contentRef}>
               <div className="mx-auto max-w-4xl space-y-5 px-4 pb-2 pt-8 sm:px-6">
