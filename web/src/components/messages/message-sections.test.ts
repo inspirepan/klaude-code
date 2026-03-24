@@ -270,7 +270,12 @@ describe("buildSectionBlocks planned overview", () => {
     ];
     const blocks = run(items);
     // Both trailing items should stand alone after the planned group
-    expect(flatBlockTypes(blocks)).toEqual(["todo_card", "planned_group", "assistant_text", "item"]);
+    expect(flatBlockTypes(blocks)).toEqual([
+      "todo_card",
+      "planned_group",
+      "assistant_text",
+      "item",
+    ]);
     expect(overviewItemId(blocks)).toEqual(["tw1"]);
   });
 
