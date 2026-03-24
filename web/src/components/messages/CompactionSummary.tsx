@@ -1,7 +1,9 @@
 import {
   Children,
   isValidElement,
+  useEffect,
   useRef,
+  useState,
   type ComponentPropsWithoutRef,
   type ReactElement,
   type ReactNode,
@@ -57,10 +59,30 @@ function CompactionListItem(props: ComponentPropsWithoutRef<"li">): React.JSX.El
 
 const compactionComponents = { li: CompactionListItem };
 
+const COLLAPSED_MAX_HEIGHT = 320;
+
 export function CompactionSummary({ item }: CompactionSummaryProps): React.JSX.Element {
   const t = useT();
   const contentRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
   useSearchHighlight(contentRef, item.content);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const check = (): void => {
+      setIsOverflowing(el.scrollHeight > COLLAPSED_MAX_HEIGHT);
+    };
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+    };
+  }, [item.content]);
+
   return (
     <div className="relative mt-4 pt-5">
       <div className="pointer-events-none absolute left-1/2 top-0 w-[200vw] -translate-x-1/2 border-t border-border/80" />
@@ -68,11 +90,34 @@ export function CompactionSummary({ item }: CompactionSummaryProps): React.JSX.E
         <div className="mb-2 text-base font-semibold text-compaction-label">
           {t("compaction.label")}
         </div>
-        <div ref={contentRef} className="compaction-summary-md text-compaction-text">
-          <Streamdown plugins={plugins} components={compactionComponents}>
-            {item.content}
-          </Streamdown>
+        <div
+          className="relative"
+          style={
+            !expanded && isOverflowing
+              ? { maxHeight: COLLAPSED_MAX_HEIGHT, overflow: "hidden" }
+              : undefined
+          }
+        >
+          <div ref={contentRef} className="compaction-summary-md text-compaction-text">
+            <Streamdown plugins={plugins} components={compactionComponents}>
+              {item.content}
+            </Streamdown>
+          </div>
+          {!expanded && isOverflowing ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-sky-50/90 to-transparent" />
+          ) : null}
         </div>
+        {isOverflowing ? (
+          <button
+            type="button"
+            className="mt-2 text-sm text-neutral-500 transition-colors hover:text-neutral-700"
+            onClick={() => {
+              setExpanded((v) => !v);
+            }}
+          >
+            {expanded ? t("compaction.showLess") : t("compaction.showMore")}
+          </button>
+        ) : null}
       </div>
     </div>
   );

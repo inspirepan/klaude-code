@@ -321,7 +321,25 @@ export function buildSectionBlocksForSection(
     const block = rawBlocks[idx] as SectionItemBlock;
     if (todoWriteHasInProgress(block.item)) {
       const hasNext = t + 1 < todoWriteIndices.length;
-      const end = hasNext ? todoWriteIndices[t + 1] : rawBlocks.length;
+      let end = hasNext ? todoWriteIndices[t + 1] : rawBlocks.length;
+      if (!hasNext) {
+        // Exclude trailing non-tool items: the LLM may finish without
+        // a closing TodoWrite, and the final message should stand alone.
+        while (end > idx + 1) {
+          const tail = rawBlocks[end - 1];
+          if (
+            tail.type === "item" &&
+            (tail.item.type === "assistant_text" ||
+              tail.item.type === "task_metadata" ||
+              tail.item.type === "compaction_summary" ||
+              tail.item.type === "rewind_summary")
+          ) {
+            end--;
+          } else {
+            break;
+          }
+        }
+      }
       plannedIntervals.push({
         start: idx,
         end,

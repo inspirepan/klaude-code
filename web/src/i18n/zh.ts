@@ -104,11 +104,15 @@ const zh: Translations = {
 
   // Compaction
   "compaction.label": "已压缩",
+  "compaction.showMore": "展开更多",
+  "compaction.showLess": "收起",
 
   // Rewind
   "rewind.label": (checkpointId: number) => `已回退到检查点 ${checkpointId}`,
   "rewind.rationale": "原因：",
   "rewind.note": "上下文：",
+  "rewind.showMore": "展开更多",
+  "rewind.showLess": "收起",
 
   // Question summary
   "question.label": "问题",
