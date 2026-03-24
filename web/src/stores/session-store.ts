@@ -32,6 +32,7 @@ import {
   connectSessionStream,
   getActiveConnection,
   hasReusableConnection,
+  markOptimisticUserMessage,
   openSessionWs,
 } from "./session-ws";
 
@@ -311,6 +312,23 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         file_diffs: {},
       },
     };
+
+    // Optimistically inject the user's first message into the message store
+    // BEFORE switching activeSessionId so that MessageList renders it
+    // immediately instead of showing an empty loading state.
+    if (normalizedMessage.length > 0 || normalizedImages) {
+      useMessageStore.getState().handleEvent(
+        sessionId,
+        "user.message",
+        {
+          content: normalizedMessage,
+          images: normalizedImages,
+          session_id: sessionId,
+        },
+        nowSeconds,
+      );
+      markOptimisticUserMessage(sessionId);
+    }
 
     set((state) => ({
       groups: upsertSessionIntoGroups(state.groups, sessionSummary),

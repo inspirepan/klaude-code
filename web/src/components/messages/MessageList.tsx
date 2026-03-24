@@ -134,6 +134,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   });
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const wasAtBottomRef = useRef(true);
   const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
   const previousLastVisibleItemIdRef = useRef<string | null>(null);
   const mainScrollTopRef = useRef<number | null>(null);
@@ -367,6 +368,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
       const container = scrollRef.current;
       if (!container) return;
       container.scrollTo({ top: container.scrollHeight, behavior });
+      wasAtBottomRef.current = true;
       setShowScrollToBottom(false);
       sessionStorage.setItem(
         `scroll-${sessionId}`,
@@ -391,6 +393,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
     } else {
       container.scrollTop = container.scrollHeight;
     }
+    wasAtBottomRef.current = isNearBottom(container);
     updateScrollButtonVisibility();
   }, [hasItems, sessionId, updateScrollButtonVisibility]);
 
@@ -412,8 +415,20 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
 
   useEffect(() => {
     const content = contentRef.current;
-    if (!content) return;
+    const container = scrollRef.current;
+    if (!content || !container) return;
+    let prevScrollHeight = container.scrollHeight;
     const observer = new ResizeObserver(() => {
+      const newScrollHeight = container.scrollHeight;
+      const grew = newScrollHeight > prevScrollHeight;
+      prevScrollHeight = newScrollHeight;
+      // Only auto-scroll when content grows (streaming text, new items).
+      // When content shrinks (collapse, spacer removal) the browser naturally
+      // clamps scrollTop to the new max, keeping the bottom anchored without
+      // the jarring snap that used to cause visible jitter.
+      if (wasAtBottomRef.current && grew) {
+        container.scrollTop = newScrollHeight;
+      }
       updateScrollButtonVisibility();
     });
     observer.observe(content);
@@ -425,7 +440,9 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
   const handleScroll = useCallback(() => {
     const container = scrollRef.current;
     if (!container) return;
-    setShowScrollToBottom(!isNearBottom(container));
+    const atBottom = isNearBottom(container);
+    wasAtBottomRef.current = atBottom;
+    setShowScrollToBottom(!atBottom);
     sessionStorage.setItem(`scroll-${sessionId}`, String(container.scrollTop));
   }, [sessionId]);
 
@@ -800,7 +817,7 @@ export function MessageList({ sessionId }: MessageListProps): JSX.Element {
                     ))}
                     <div
                       aria-hidden="true"
-                      className={`transition-[height] duration-300 ease-out ${hasStreamingAssistantText ? "h-12" : "h-0"}`}
+                      className={hasStreamingAssistantText ? "h-12" : "h-0"}
                     />
                   </>
                 ) : runtime?.wsState === "connecting" ? (

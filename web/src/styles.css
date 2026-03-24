@@ -40,8 +40,6 @@ body,
 }
 
 body {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   background: hsl(var(--muted));
   color: hsl(var(--foreground));
 }

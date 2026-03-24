@@ -78,7 +78,7 @@ function PlanBlock({ item }: ToolBlockProps): JSX.Element {
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} />
       ) : item.isStreaming ? (
-        <div className="flex items-center gap-1.5 font-sans text-base text-neutral-600">
+        <div className="flex items-center gap-1.5 font-sans text-sm text-neutral-600">
           <Loader className="h-3 w-3 animate-spin text-neutral-500" />
           <span>{t("tool.planning")}</span>
         </div>
