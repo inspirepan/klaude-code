@@ -22,7 +22,7 @@ function getSessionTitle(session: SessionSummary): string | null {
   if (session.user_messages.length > 0) {
     const firstMessage = session.user_messages[0].trim();
     if (firstMessage.length > 0) {
-      return firstMessage;
+      return firstMessage.length > 40 ? `${firstMessage.slice(0, 40)}...` : firstMessage;
     }
   }
   return null;

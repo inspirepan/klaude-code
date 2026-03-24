@@ -96,7 +96,7 @@ function getSessionTitle(session: SessionSummary | null): string | null {
   }
   const firstMessage = session?.user_messages[0]?.trim();
   if (firstMessage !== undefined && firstMessage.length > 0) {
-    return firstMessage;
+    return firstMessage.length > 40 ? `${firstMessage.slice(0, 40)}...` : firstMessage;
   }
   return null;
 }
