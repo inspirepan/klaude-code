@@ -143,6 +143,10 @@ body {
 .thinking-block {
   font-style: italic;
 }
+/* Override Streamdown's space-y-4 inside thinking blocks */
+.thinking-block > div > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.15em !important;
+}
 .thinking-block p {
   margin: 0 0 0.15em !important;
 }
