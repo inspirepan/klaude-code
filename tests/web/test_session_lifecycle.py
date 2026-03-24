@@ -7,7 +7,7 @@ from typing import Any, cast
 
 from klaude_code.protocol import message
 
-from .conftest import AppEnv, collect_events_until, consume_ws_handshake, usage
+from .conftest import AppEnv, collect_events_until, consume_ws_handshake, receive_events, usage
 
 
 def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
@@ -194,13 +194,15 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
         websocket.send_json({"type": "interrupt"})
         interrupt_finished = None
         for _ in range(200):
-            event = websocket.receive_json()
-            if event.get("event_type") != "operation.finished":
-                continue
-            payload_obj = event.get("event")
-            payload = cast(dict[str, Any], payload_obj) if isinstance(payload_obj, dict) else None
-            if payload is not None and payload.get("operation_type") == "interrupt":
-                interrupt_finished = event
+            for event in receive_events(websocket):
+                if event.get("event_type") != "operation.finished":
+                    continue
+                payload_obj = event.get("event")
+                payload = cast(dict[str, Any], payload_obj) if isinstance(payload_obj, dict) else None
+                if payload is not None and payload.get("operation_type") == "interrupt":
+                    interrupt_finished = event
+                    break
+            if interrupt_finished is not None:
                 break
         assert interrupt_finished is not None
 
@@ -300,7 +302,7 @@ from typing import Any
 
 from klaude_code.protocol import message
 
-from .conftest import AppEnv, arun, collect_events_until, usage
+from .conftest import AppEnv, arun, collect_events_until, receive_events, usage
 
 
 def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
@@ -433,12 +435,14 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
         websocket.send_json({"type": "interrupt"})
         interrupt_finished = None
         for _ in range(200):
-            event = websocket.receive_json()
-            if event.get("event_type") != "operation.finished":
-                continue
-            payload = event.get("event")
-            if isinstance(payload, dict) and payload.get("operation_type") == "interrupt":
-                interrupt_finished = event
+            for event in receive_events(websocket):
+                if event.get("event_type") != "operation.finished":
+                    continue
+                payload = event.get("event")
+                if isinstance(payload, dict) and payload.get("operation_type") == "interrupt":
+                    interrupt_finished = event
+                    break
+            if interrupt_finished is not None:
                 break
         assert interrupt_finished is not None
 
@@ -496,7 +500,7 @@ from typing import Any
 
 from klaude_code.protocol import message
 
-from .conftest import AppEnv, collect_events_until, consume_ws_handshake, usage
+from .conftest import AppEnv, collect_events_until, consume_ws_handshake, receive_events, usage
 
 
 def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
@@ -629,12 +633,14 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
         websocket.send_json({"type": "interrupt"})
         interrupt_finished = None
         for _ in range(200):
-            event = websocket.receive_json()
-            if event.get("event_type") != "operation.finished":
-                continue
-            payload = event.get("event")
-            if isinstance(payload, dict) and payload.get("operation_type") == "interrupt":
-                interrupt_finished = event
+            for event in receive_events(websocket):
+                if event.get("event_type") != "operation.finished":
+                    continue
+                payload = event.get("event")
+                if isinstance(payload, dict) and payload.get("operation_type") == "interrupt":
+                    interrupt_finished = event
+                    break
+            if interrupt_finished is not None:
                 break
         assert interrupt_finished is not None
 

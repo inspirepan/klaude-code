@@ -198,21 +198,27 @@ def usage(
     )
 
 
+def receive_events(websocket: Any) -> list[dict[str, Any]]:
+    """Receive a single WS frame and unwrap batched arrays into individual events."""
+    raw = websocket.receive_json()
+    return raw if isinstance(raw, list) else [raw]
+
+
 def collect_events_until(websocket: Any, target_type: str, max_events: int = 200) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     for _ in range(max_events):
-        event = websocket.receive_json()
-        events.append(event)
-        if event.get("event_type") == target_type:
-            return events
+        for event in receive_events(websocket):
+            events.append(event)
+            if event.get("event_type") == target_type:
+                return events
     raise AssertionError(f"Did not receive event type: {target_type}")
 
 
 def wait_for_event(websocket: Any, event_type: str, max_events: int = 200) -> dict[str, Any]:
     for _ in range(max_events):
-        event = websocket.receive_json()
-        if event.get("event_type") == event_type:
-            return event
+        for event in receive_events(websocket):
+            if event.get("event_type") == event_type:
+                return event
     raise AssertionError(f"Did not receive event type: {event_type}")
 
 

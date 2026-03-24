@@ -98,7 +98,8 @@ def test_websocket_receives_cross_process_events(tmp_path: Path, monkeypatch: py
 
             _publish_remote_event(event_relay_socket_path(home_dir=home_dir), session_id)
 
-            remote_event = websocket.receive_json()
+            raw = websocket.receive_json()
+            remote_event = raw[0] if isinstance(raw, list) else raw
             assert remote_event["event_type"] == "assistant.text.delta"
             assert remote_event["session_id"] == session_id
             assert remote_event["event"]["content"] == "from-tui"

@@ -285,6 +285,10 @@ def _collect_descendant_session_ids(session_id: str, work_dir: Path) -> set[str]
     return result
 
 
+_BATCH_WINDOW_SECONDS = 0.005  # 5ms — imperceptible for text streaming, good batching during bursts
+_BATCH_MAX_SIZE = 50
+
+
 async def _forward_events(session_id: str, websocket: WebSocket) -> None:
     state = get_web_state_from_ws(websocket)
     subscription = state.subscribe_events(None)
@@ -308,22 +312,56 @@ async def _forward_events(session_id: str, websocket: WebSocket) -> None:
                     debug_type=DebugType.EXECUTION,
                 )
 
-    try:
-        async for envelope in subscription:
-            if envelope.session_id == session_id:
-                if envelope.task_id is not None:
-                    tracked_task_ids.add(envelope.task_id)
-            elif envelope.session_id in tracked_child_session_ids:
-                # Forward child/grandchild session events, and seed the task_id
-                # so that future descendants spawned dynamically also pass through.
-                if envelope.task_id is not None:
-                    tracked_task_ids.add(envelope.task_id)
-            elif envelope.task_id not in tracked_task_ids:
-                continue
+    send_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=512)
 
-            await websocket.send_json(envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True))
-    except (WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError, asyncio.CancelledError, FutureCancelledError):
-        return
+    async def _read_events() -> None:
+        try:
+            async for envelope in subscription:
+                if envelope.session_id == session_id or envelope.session_id in tracked_child_session_ids:
+                    if envelope.task_id is not None:
+                        tracked_task_ids.add(envelope.task_id)
+                elif envelope.task_id not in tracked_task_ids:
+                    continue
+
+                serialized = envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True)
+                await send_queue.put(serialized)
+        except (
+            WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError,
+            asyncio.CancelledError, FutureCancelledError,
+        ):
+            return
+
+    async def _send_batched() -> None:
+        try:
+            while True:
+                first = await send_queue.get()
+                batch = [first]
+                # Yield to let the reader enqueue more events that arrived in the same burst.
+                await asyncio.sleep(_BATCH_WINDOW_SECONDS)
+                while len(batch) < _BATCH_MAX_SIZE:
+                    try:
+                        batch.append(send_queue.get_nowait())
+                    except asyncio.QueueEmpty:
+                        break
+                if len(batch) == 1:
+                    await websocket.send_json(batch[0])
+                else:
+                    await websocket.send_json(batch)
+        except (
+            WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError,
+            asyncio.CancelledError, FutureCancelledError,
+        ):
+            return
+
+    read_task = asyncio.create_task(_read_events())
+    send_task = asyncio.create_task(_send_batched())
+    try:
+        await asyncio.wait({read_task, send_task}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for task in (read_task, send_task):
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(read_task, send_task, return_exceptions=True)
 
 
 async def _send_pending_interaction_snapshots(session_id: str, websocket: WebSocket) -> None:

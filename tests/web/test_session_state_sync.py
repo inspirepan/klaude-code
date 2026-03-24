@@ -17,7 +17,7 @@ from klaude_code.protocol import message, op
 from klaude_code.session.session import Session, close_default_store
 from klaude_code.session.store import JsonlSessionWriter
 
-from .conftest import AppEnv, FakeLLMClient, arun, collect_events_until, consume_ws_handshake, usage
+from .conftest import AppEnv, FakeLLMClient, arun, collect_events_until, consume_ws_handshake, receive_events, usage
 
 
 def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
@@ -198,9 +198,11 @@ def test_session_state_stays_waiting_during_user_interaction(app_env: AppEnv, sl
 
         request_event = None
         for _ in range(200):
-            event = websocket.receive_json()
-            if event.get("event_type") == "user.interaction.request":
-                request_event = event
+            for event in receive_events(websocket):
+                if event.get("event_type") == "user.interaction.request":
+                    request_event = event
+                    break
+            if request_event is not None:
                 break
         assert request_event is not None
         _wait_until_state(meta_path, "waiting_user_input")
