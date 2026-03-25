@@ -196,6 +196,15 @@ export async function fetchConfigModels(): Promise<ConfigModelSummary[]> {
   return result.models;
 }
 
+interface InputHistoryResponse {
+  entries: string[];
+}
+
+export async function fetchInputHistory(signal?: AbortSignal): Promise<string[]> {
+  const result = await requestJson<InputHistoryResponse>("/api/config/input-history", { signal });
+  return result.entries;
+}
+
 export async function searchFileCompletions({
   sessionId,
   workDir,

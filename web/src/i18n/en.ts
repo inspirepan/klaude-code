@@ -51,6 +51,7 @@ const en = {
   "composer.uploadingImages": (count: number) => `Uploading ${count} images...`,
   "composer.compactDesc": "Clear context, keep summary",
   "composer.readOnlyPlaceholder": "Read-only \u2014 this session is owned by another runtime",
+  "composer.inputHistory": "Input history",
 
   // New session overlay
   "newSession.title": "Start a new session",
