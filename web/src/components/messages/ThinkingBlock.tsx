@@ -23,7 +23,7 @@ function Strong(props: React.ComponentPropsWithoutRef<"strong">): React.JSX.Elem
 
 function Pre({ children }: React.ComponentPropsWithoutRef<"pre">): React.JSX.Element {
   return (
-    <span className="block font-mono" style={{ fontSize: "0.9em" }}>
+    <span className="block whitespace-pre-wrap font-mono" style={{ fontSize: "0.9em" }}>
       {children}
     </span>
   );
