@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useT } from "@/i18n";
 import { useMountEffect } from "@/hooks/useMountEffect";
-import { fetchConfigModels, listDirs, type ConfigModelSummary } from "../../api/client";
-import { useSessionStore } from "../../stores/session-store";
+import { fetchConfigModels, listDirs, type ConfigModelSummary } from "@/api/client";
+import { useSessionStore } from "@/stores/session-store";
 import { ComposerCard, type ComposerImageAttachment } from "./ComposerCard";
 import { DraftWorkspacePicker } from "./DraftWorkspacePicker";
 
@@ -207,7 +207,7 @@ export function NewSessionOverlay({
   ]);
 
   return (
-    <div className="absolute inset-0 z-20 flex items-center justify-center px-4 py-6 sm:px-6">
+    <div className="absolute inset-0 z-20 px-4 py-6 sm:px-6">
       {showBackdrop ? (
         <div
           className="bg-card/72 absolute inset-0 backdrop-blur-[3px]"
@@ -217,7 +217,7 @@ export function NewSessionOverlay({
         />
       ) : null}
       <div
-        className={`relative w-full max-w-2xl -translate-y-[25vh] rounded-xl border border-border/90 bg-card p-3 ${
+        className={`absolute left-1/2 top-[20%] w-full max-w-2xl -translate-x-1/2 rounded-xl border border-border/90 bg-card p-3 ${
           showBackdrop ? "shadow-overlay" : ""
         } sm:p-4`}
       >

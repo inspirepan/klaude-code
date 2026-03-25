@@ -8,7 +8,7 @@ import type {
   OperationSelectResponsePayload,
   PendingUserInteractionRequest,
   UserInteractionResponse,
-} from "../../types/interaction";
+} from "@/types/interaction";
 
 interface UserInteractionCardProps {
   request: PendingUserInteractionRequest;

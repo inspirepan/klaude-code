@@ -4,7 +4,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SessionCard } from "./SessionCard";
-import type { SessionRuntimeState, SessionSummary } from "../../types/session";
+import type { SessionRuntimeState, SessionSummary } from "@/types/session";
+import { workDirLabel } from "@/components/session-title";
 import { useT } from "@/i18n";
 
 interface ProjectGroupProps {
@@ -20,14 +21,6 @@ interface ProjectGroupProps {
   onSelectDraft: (workDir: string) => void;
   onSelectSession: (sessionId: string) => void;
   onToggleArchive: (sessionId: string, archived: boolean) => void;
-}
-
-function workDirLabel(workDir: string): string {
-  const parts = workDir.split("/").filter((segment) => segment.length > 0);
-  if (parts.length === 0) {
-    return workDir;
-  }
-  return parts[parts.length - 1] ?? workDir;
 }
 
 export function ProjectGroup({

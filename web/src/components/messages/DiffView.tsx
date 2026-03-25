@@ -3,7 +3,7 @@ import { PatchDiff } from "@pierre/diffs/react";
 import { DEFAULT_THEMES, preloadHighlighter } from "@pierre/diffs";
 
 import { useT } from "@/i18n";
-import type { ToolBlockItem } from "../../types/message";
+import type { ToolBlockItem } from "@/types/message";
 import { isDiffUIExtra, type DiffUIExtra } from "./message-ui-extra";
 
 const SHADOW_ICON_CSS = `

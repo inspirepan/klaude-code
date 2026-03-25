@@ -1,10 +1,10 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { useT } from "@/i18n";
-import type { MessageItem as MessageItemType, DeveloperMessageItem } from "../../types/message";
+import type { MessageItem as MessageItemType, DeveloperMessageItem } from "@/types/message";
 import type { CollapseGroupEntry, SectionSubAgentBlock } from "./message-sections";
 import { formatSubAgentTypeLabel } from "./message-list-ui";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   COLLAPSE_RAIL_GRID_CLASS_NAME,
   CollapseRailConnector,
@@ -519,7 +519,6 @@ export function CollapseGroupBlock({
           </TooltipContent>
         ) : null}
       </Tooltip>
-      {/* grid-template-rows trick: 0fr->1fr gives smooth height transition without JS height measurement */}
       <CollapseRailPanel open={!collapsed}>
         <div className={`mt-1.5 grid min-w-0 items-start ${COLLAPSE_RAIL_GRID_CLASS_NAME}`}>
           <CollapseRailConnector lineClassName="-mt-1.5" />

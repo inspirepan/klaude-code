@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { useT } from "@/i18n";
-import type { TaskMetadataAgent, TaskMetadataItem } from "../../types/message";
+import type { TaskMetadataAgent, TaskMetadataItem } from "@/types/message";
 import {
   COLLAPSE_RAIL_GRID_CLASS_NAME,
   CollapseRailMarker,

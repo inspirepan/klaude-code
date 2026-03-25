@@ -3,7 +3,7 @@ import {
   fetchSessionHistory,
   normalizeSessionSummary,
   type RunningSessionState,
-} from "../api/client";
+} from "@/api/client";
 import {
   connectSessionListWs,
   connectSessionWs,
@@ -11,8 +11,8 @@ import {
   type SessionListWsEvent,
   type WsErrorFrame,
   type WsEventEnvelope,
-} from "../api/ws";
-import type { SessionRuntimeState, SessionSummary } from "../types/session";
+} from "@/api/ws";
+import type { SessionRuntimeState, SessionSummary } from "@/types/session";
 import { useMessageStore, type MessageStoreEvent } from "./message-store";
 import {
   defaultRuntimeState,

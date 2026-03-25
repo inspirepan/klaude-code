@@ -1,4 +1,4 @@
-import { buildFileApiUrl } from "../../api/client";
+import { buildFileApiUrl } from "@/api/client";
 import type { ImageUIExtra } from "./message-ui-extra";
 
 interface ImageResultViewProps {

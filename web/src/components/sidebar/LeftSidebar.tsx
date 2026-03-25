@@ -3,60 +3,26 @@ import { Archive, BrushCleaning, PanelLeftClose } from "lucide-react";
 import { NewSessionButton } from "./NewSessionButton";
 import { ProjectGroup } from "./ProjectGroup";
 import { SessionSearch } from "./SessionSearch";
-import { useSessionStore } from "../../stores/session-store";
-import type { SessionSummary } from "../../types/session";
-import { useAppStore } from "../../stores/app-store";
+import { useSessionStore } from "@/stores/session-store";
+import type { SessionSummary } from "@/types/session";
+import { useAppStore } from "@/stores/app-store";
 import { useMountEffect } from "@/hooks/useMountEffect";
+import { useSidebarResize } from "@/hooks/useSidebarResize";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 const ARCHIVE_CLEANUP_AGE_SECONDS = 1 * 24 * 60 * 60;
-const DEFAULT_SIDEBAR_WIDTH = 340;
-const SIDEBAR_WIDTH_STORAGE_KEY = "klaude:left-sidebar:width";
 const ARCHIVED_GROUP_COLLAPSE_STORAGE_KEY = "klaude:left-sidebar:archived-collapsed-groups";
 
-function clampSidebarWidth(width: number): number {
-  const minWidth = 256;
-  const hardMaxWidth = 512;
-  const rightSidebarWidth =
-    document.querySelector<HTMLElement>('[data-sidebar="right"]')?.offsetWidth ?? 0;
-  const minMainWidth = 320;
-  const availableMaxWidth = window.innerWidth - rightSidebarWidth - minMainWidth;
-  const maxWidth = Math.max(minWidth, Math.min(hardMaxWidth, availableMaxWidth));
-  return Math.min(Math.max(width, minWidth), maxWidth);
-}
-
-function readStoredSidebarWidth(): number | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const raw = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
-  if (raw === null) {
-    return null;
-  }
-
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function readStoredCollapsedByWorkDir(storageKey: string): Record<string, boolean> {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
   const raw = window.localStorage.getItem(storageKey);
-  if (raw === null) {
-    return {};
-  }
+  if (raw === null) return {};
 
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
-    }
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return {};
 
     return Object.fromEntries(
       Object.entries(parsed as Record<string, unknown>).filter(
@@ -88,11 +54,8 @@ export function LeftSidebar(): React.JSX.Element {
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const setNewSessionOverlayOpen = useAppStore((state) => state.setNewSessionOverlayOpen);
+  const { sidebarWidth, isResizing, handleResizePointerDown } = useSidebarResize();
   const [archivedMenuOpen, setArchivedMenuOpen] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(
-    () => readStoredSidebarWidth() ?? DEFAULT_SIDEBAR_WIDTH,
-  );
-  const [isResizing, setIsResizing] = useState(false);
   const [archiveUndoSessionId, setArchiveUndoSessionId] = useState<string | null>(null);
   const [archiveCleanupConfirmOpen, setArchiveCleanupConfirmOpen] = useState(false);
   const [archiveCleanupPending, setArchiveCleanupPending] = useState(false);
@@ -105,7 +68,6 @@ export function LeftSidebar(): React.JSX.Element {
   const archiveCleanupContentRef = useRef<HTMLDivElement | null>(null);
   const archivedMenuRef = useRef<HTMLDivElement | null>(null);
   const archiveUndoTimeoutRef = useRef<number | null>(null);
-  const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
   const prevCompletionTimestampsRef = useRef(recentCompletionStartedAtBySessionId);
   const t = useT();
 
@@ -114,31 +76,8 @@ export function LeftSidebar(): React.JSX.Element {
       if (archiveUndoTimeoutRef.current !== null) {
         window.clearTimeout(archiveUndoTimeoutRef.current);
       }
-      if (sidebarResizeCleanupRef.current !== null) {
-        sidebarResizeCleanupRef.current();
-        sidebarResizeCleanupRef.current = null;
-      }
     };
   });
-
-  useMountEffect(() => {
-    const syncSidebarWidth = (): void => {
-      setSidebarWidth((current) => {
-        const next = clampSidebarWidth(current);
-        return next === current ? current : next;
-      });
-    };
-
-    syncSidebarWidth();
-    window.addEventListener("resize", syncSidebarWidth);
-    return () => {
-      window.removeEventListener("resize", syncSidebarWidth);
-    };
-  });
-
-  useEffect(() => {
-    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth));
-  }, [sidebarWidth]);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -366,9 +305,8 @@ export function LeftSidebar(): React.JSX.Element {
   const archiveCleanupButtonClassName = `inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition-colors ${archiveCleanupEligibleCount === 0 || archiveCleanupPending ? "cursor-default opacity-50" : "cursor-pointer hover:bg-muted hover:text-neutral-700"}`;
 
   return (
-    // grid-template-columns trick (same as CollapseGroupBlock's grid-template-rows):
-    // outer div controls the animated visible width; aside stays at fixed sidebarWidth
-    // so internal layout (justify-center etc.) is unaffected during the animation.
+    // Outer div controls the animated visible width; aside stays at fixed sidebarWidth
+    // so internal layout is unaffected during the animation.
     <div
       className={`grid h-full min-h-0 ${isResizing ? "transition-none" : "transition-[grid-template-columns,opacity] duration-200 ease-in-out"}`}
       style={{
@@ -482,9 +420,7 @@ export function LeftSidebar(): React.JSX.Element {
                       setNewSessionOverlayOpen(false);
                       void selectSession(sessionId);
                     }}
-                    onToggleArchive={(sessionId, archived) => {
-                      handleToggleArchive(sessionId, archived);
-                    }}
+                    onToggleArchive={handleToggleArchive}
                   />
                 ))}
               </div>
@@ -589,9 +525,7 @@ export function LeftSidebar(): React.JSX.Element {
                               setNewSessionOverlayOpen(false);
                               void selectSession(sessionId);
                             }}
-                            onToggleArchive={(sessionId, archived) => {
-                              handleToggleArchive(sessionId, archived);
-                            }}
+                            onToggleArchive={handleToggleArchive}
                           />
                         ))}
                       </div>
@@ -679,32 +613,7 @@ export function LeftSidebar(): React.JSX.Element {
             aria-orientation="vertical"
             aria-label={t("sidebar.resizeSidebar")}
             className="absolute -right-1 top-0 z-30 flex h-full w-2 cursor-col-resize items-center justify-center"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              setIsResizing(true);
-              const startX = event.clientX;
-              const startWidth = sidebarWidth;
-              const onPointerMove = (moveEvent: PointerEvent): void => {
-                const deltaX = moveEvent.clientX - startX;
-                setSidebarWidth(clampSidebarWidth(startWidth + deltaX));
-              };
-              const onPointerUp = (): void => {
-                setIsResizing(false);
-                cleanup();
-                sidebarResizeCleanupRef.current = null;
-              };
-              const cleanup = (): void => {
-                window.removeEventListener("pointermove", onPointerMove);
-                window.removeEventListener("pointerup", onPointerUp);
-              };
-
-              if (sidebarResizeCleanupRef.current !== null) {
-                sidebarResizeCleanupRef.current();
-              }
-              sidebarResizeCleanupRef.current = cleanup;
-              window.addEventListener("pointermove", onPointerMove);
-              window.addEventListener("pointerup", onPointerUp);
-            }}
+            onPointerDown={handleResizePointerDown}
           >
             <span className="h-full w-px bg-neutral-200/85" />
           </div>

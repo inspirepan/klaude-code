@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type RefObject } from "react";
-import { searchFileCompletions } from "../../api/client";
+import { searchFileCompletions } from "@/api/client";
 
 const AT_COMPLETION_PATTERN = /(^|\s)@(?<frag>"[^"]*"|[^\s]*)$/;
 const AT_COMPLETION_DEBOUNCE_MS = 120;

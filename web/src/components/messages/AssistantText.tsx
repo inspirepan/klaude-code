@@ -4,9 +4,9 @@ import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 import "streamdown/styles.css";
 
-import { buildFileApiUrl } from "../../api/client";
-import type { AssistantTextItem } from "../../types/message";
-import { mermaid } from "../../lib/mermaid-plugin";
+import { buildFileApiUrl } from "@/api/client";
+import type { AssistantTextItem } from "@/types/message";
+import { mermaid } from "@/lib/mermaid-plugin";
 import { FrontmatterTable } from "./FrontmatterTable";
 import { useParsedFrontmatter } from "./frontmatter";
 import { useSearchHighlight } from "./useSearchHighlight";

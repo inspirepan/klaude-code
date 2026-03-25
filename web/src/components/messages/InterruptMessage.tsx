@@ -1,7 +1,7 @@
 import { OctagonX } from "lucide-react";
 
 import { useT } from "@/i18n";
-import type { InterruptItem } from "../../types/message";
+import type { InterruptItem } from "@/types/message";
 import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
 
 interface InterruptMessageProps {

@@ -1,7 +1,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import type { ToolBlockItem } from "../../types/message";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import type { ToolBlockItem } from "@/types/message";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { FilePathContent } from "./FilePath";
 import { toDisplayPath } from "./file-path-utils";
 import { HighlightText } from "./HighlightText";

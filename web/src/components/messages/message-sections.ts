@@ -1,4 +1,4 @@
-import type { MessageItem, DeveloperMessageItem } from "../../types/message";
+import type { MessageItem, DeveloperMessageItem } from "@/types/message";
 import { isQuestionSummaryUIExtra, isTodoListUIExtra } from "./message-ui-extra";
 import { isToolBlock } from "./message-list-ui";
 
@@ -232,27 +232,40 @@ function mergeCollapsibleBlocks(
   return blocks;
 }
 
-/** Collect raw blocks into planned-group inner blocks (flat, merging consecutive dev messages). */
+/** Collect raw blocks into planned-group inner blocks (flat, merging consecutive dev messages).
+ *  Items that should stay visible when collapsed (interrupt, question summary) are separated
+ *  into `pinned` so they can be emitted as standalone top-level blocks. */
 function buildPlannedInnerBlocks(
   rawBlocks: SectionBlock[],
   start: number,
   end: number,
-): PlannedInnerBlock[] {
+): { inner: PlannedInnerBlock[]; pinned: SectionItemBlock[] } {
   const inner: PlannedInnerBlock[] = [];
+  const pinned: SectionItemBlock[] = [];
   for (let j = start; j < end; j++) {
     const b = rawBlocks[j];
-    if (b.type === "item" && b.item.type === "developer_message") {
-      const last = inner.at(-1);
-      if (last?.type === "dev_group") {
-        last.items.push(b.item);
+    if (b.type === "item") {
+      // Pinned: items that remain visible when the planned group is collapsed
+      if (
+        b.item.type === "interrupt" ||
+        (b.item.type === "tool_block" && isQuestionSummaryUIExtra(b.item.uiExtra))
+      ) {
+        pinned.push(b);
+      } else if (b.item.type === "developer_message") {
+        const last = inner.at(-1);
+        if (last?.type === "dev_group") {
+          last.items.push(b.item);
+        } else {
+          inner.push({ type: "dev_group", id: b.item.id, items: [b.item] });
+        }
       } else {
-        inner.push({ type: "dev_group", id: b.item.id, items: [b.item] });
+        inner.push(b);
       }
-    } else if (b.type === "item" || b.type === "sub_agent_group") {
+    } else if (b.type === "sub_agent_group") {
       inner.push(b);
     }
   }
-  return inner;
+  return { inner, pinned };
 }
 
 /** Build blocks for a single section. */
@@ -321,25 +334,7 @@ export function buildSectionBlocksForSection(
     const block = rawBlocks[idx] as SectionItemBlock;
     if (todoWriteHasInProgress(block.item)) {
       const hasNext = t + 1 < todoWriteIndices.length;
-      let end = hasNext ? todoWriteIndices[t + 1] : rawBlocks.length;
-      if (!hasNext) {
-        // Exclude trailing non-tool items: the LLM may finish without
-        // a closing TodoWrite, and the final message should stand alone.
-        while (end > idx + 1) {
-          const tail = rawBlocks[end - 1];
-          if (
-            tail.type === "item" &&
-            (tail.item.type === "assistant_text" ||
-              tail.item.type === "task_metadata" ||
-              tail.item.type === "compaction_summary" ||
-              tail.item.type === "rewind_summary")
-          ) {
-            end--;
-          } else {
-            break;
-          }
-        }
-      }
+      const end = hasNext ? todoWriteIndices[t + 1] : rawBlocks.length;
       plannedIntervals.push({
         start: idx,
         end,
@@ -402,12 +397,16 @@ export function buildSectionBlocksForSection(
       interval.nextTodoWriteIdx !== null
         ? (rawBlocks[interval.nextTodoWriteIdx] as SectionItemBlock).item
         : null;
+    const { inner, pinned } = buildPlannedInnerBlocks(rawBlocks, interval.start + 1, interval.end);
     blocks.push({
       type: "planned_group",
       id: `pg-${effectiveSessionId}-${startItem.id}`,
       todos: buildPlannedTodos(startItem, nextItem),
-      blocks: buildPlannedInnerBlocks(rawBlocks, interval.start + 1, interval.end),
+      blocks: inner,
     });
+    for (const pinnedBlock of pinned) {
+      blocks.push(pinnedBlock);
+    }
   }
 
   // Advance past the chain and its summary TodoWrite

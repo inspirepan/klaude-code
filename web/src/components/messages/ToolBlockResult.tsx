@@ -1,5 +1,5 @@
 import { useT } from "@/i18n";
-import type { ToolBlockItem } from "../../types/message";
+import type { ToolBlockItem } from "@/types/message";
 import { CollapseRailPanel } from "./CollapseRail";
 import { HighlightText } from "./HighlightText";
 import { ToolRichResult } from "./ToolRichResult";

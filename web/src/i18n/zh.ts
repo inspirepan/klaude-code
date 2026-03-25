@@ -52,6 +52,7 @@ const zh: Translations = {
   "composer.uploadingImages": (count: number) => `正在上传 ${count} 张图片...`,
   "composer.compactDesc": "清除上下文，保留摘要",
   "composer.readOnlyPlaceholder": "只读 \u2014 此会话由另一个运行时拥有",
+  "composer.inputHistory": "输入历史",
 
   // New session overlay
   "newSession.title": "开始新会话",

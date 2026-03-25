@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { ChevronRight } from "lucide-react";
 
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
-import type { UnknownEventItem } from "../../types/message";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import type { UnknownEventItem } from "@/types/message";
 import { useSearch } from "./search-context";
 
 interface UnknownEventProps {

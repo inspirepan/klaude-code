@@ -1,7 +1,7 @@
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 
-import { mermaid } from "../../lib/mermaid-plugin";
+import { mermaid } from "@/lib/mermaid-plugin";
 import { FrontmatterTable } from "./FrontmatterTable";
 import { useParsedFrontmatter } from "./frontmatter";
 import type { MarkdownDocUIExtra } from "./message-ui-extra";

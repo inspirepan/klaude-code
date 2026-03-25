@@ -1,6 +1,6 @@
 import { memo } from "react";
 
-import type { MessageItem as MessageItemType } from "../../types/message";
+import type { MessageItem as MessageItemType } from "@/types/message";
 import { UserMessage } from "./UserMessage";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { AssistantText } from "./AssistantText";

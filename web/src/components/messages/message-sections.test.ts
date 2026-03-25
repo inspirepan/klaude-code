@@ -8,7 +8,7 @@ import type {
   MessageItem,
   TaskMetadataItem,
   ToolBlockItem,
-} from "../../types/message";
+} from "@/types/message";
 import type { TodoItem, TodoListUIExtra } from "./message-ui-extra";
 import {
   buildSectionBlocks,
@@ -34,7 +34,7 @@ function makeToolBlock(
   return {
     id,
     type: "tool_block",
-    timestamp: { utc: "", local: "" },
+    timestamp: null,
     sessionId: null,
     toolCallId: `tc-${id}`,
     toolName,
@@ -51,7 +51,7 @@ function makeAssistantText(id: string, content = ""): AssistantTextItem {
   return {
     id,
     type: "assistant_text",
-    timestamp: { utc: "", local: "" },
+    timestamp: null,
     sessionId: null,
     responseId: null,
     content,
@@ -65,7 +65,14 @@ function makeTaskMetadata(id: string): TaskMetadataItem {
     type: "task_metadata",
     timestamp: null,
     sessionId: null,
-    mainAgent: { model: "test", durationMs: 0, inputTokens: 0, outputTokens: 0, turnCount: 0 },
+    mainAgent: {
+      modelName: "test",
+      provider: null,
+      subAgentName: null,
+      usage: null,
+      durationSeconds: null,
+      turnCount: 0,
+    },
     subAgents: [],
     isPartial: false,
   };
@@ -249,19 +256,20 @@ describe("buildSectionBlocks planned overview", () => {
     expect(overviewItemId(blocks)).toEqual(["tw3"]);
   });
 
-  it("trailing assistant_text without closing TodoWrite is excluded from planned group", () => {
+  it("trailing assistant_text without closing TodoWrite stays in planned group", () => {
     const items: MessageItem[] = [
       makeTodoWrite("tw1", [inProgress("A")]),
       makeToolBlock("t1", "Bash"),
       makeAssistantText("a1", "Done!"),
     ];
     const blocks = run(items);
-    // assistant_text should stand alone after the planned group
-    expect(flatBlockTypes(blocks)).toEqual(["todo_card", "planned_group", "assistant_text"]);
+    // Without a closing TodoWrite we cannot know if more tool calls follow
+    // (e.g. during streaming), so trailing items stay in the group.
+    expect(flatBlockTypes(blocks)).toEqual(["todo_card", "planned_group"]);
     expect(overviewItemId(blocks)).toEqual(["tw1"]);
   });
 
-  it("trailing assistant_text + task_metadata without closing TodoWrite are both excluded", () => {
+  it("trailing assistant_text + task_metadata without closing TodoWrite stay in planned group", () => {
     const items: MessageItem[] = [
       makeTodoWrite("tw1", [inProgress("A")]),
       makeToolBlock("t1", "Bash"),
@@ -269,13 +277,7 @@ describe("buildSectionBlocks planned overview", () => {
       makeTaskMetadata("tm1"),
     ];
     const blocks = run(items);
-    // Both trailing items should stand alone after the planned group
-    expect(flatBlockTypes(blocks)).toEqual([
-      "todo_card",
-      "planned_group",
-      "assistant_text",
-      "item",
-    ]);
+    expect(flatBlockTypes(blocks)).toEqual(["todo_card", "planned_group"]);
     expect(overviewItemId(blocks)).toEqual(["tw1"]);
   });
 

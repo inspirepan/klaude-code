@@ -1,4 +1,4 @@
-import type { SessionSummary } from "../types/session";
+import type { SessionSummary } from "@/types/session";
 
 export interface WsEventEnvelope {
   event_type: string;

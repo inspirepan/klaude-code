@@ -8,7 +8,7 @@ import {
   CollapseRailPanel,
 } from "./CollapseRail";
 import type { PlannedTodoItem } from "./message-sections";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PlannedGroupBlockProps {
   todos: PlannedTodoItem[];

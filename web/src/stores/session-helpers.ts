@@ -1,8 +1,8 @@
-import type { SessionRuntimeState, SessionGroup, SessionSummary } from "../types/session";
+import type { SessionRuntimeState, SessionGroup, SessionSummary } from "@/types/session";
 import {
   parsePendingUserInteractionRequest,
   type PendingUserInteractionRequest,
-} from "../types/interaction";
+} from "@/types/interaction";
 
 export const defaultRuntimeState: SessionRuntimeState = {
   sessionState: "idle",
@@ -195,20 +195,12 @@ export function pushSessionUrl(sessionId: string): void {
 }
 
 export function loadCollapsedByWorkDir(): Record<string, boolean> {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
   const raw = window.localStorage.getItem(SESSION_GROUP_COLLAPSE_STORAGE_KEY);
-  if (raw === null) {
-    return {};
-  }
+  if (raw === null) return {};
 
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
-    }
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return {};
 
     return Object.fromEntries(
       Object.entries(parsed as Record<string, unknown>).filter(
@@ -221,10 +213,6 @@ export function loadCollapsedByWorkDir(): Record<string, boolean> {
 }
 
 export function persistCollapsedByWorkDir(collapsedByWorkDir: Record<string, boolean>): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
   window.localStorage.setItem(
     SESSION_GROUP_COLLAPSE_STORAGE_KEY,
     JSON.stringify(collapsedByWorkDir),

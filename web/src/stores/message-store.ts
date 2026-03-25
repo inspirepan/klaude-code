@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
-import type { MessageItem } from "../types/message";
-import type { ReplayEventEnvelope } from "../types/session";
+import type { MessageItem } from "@/types/message";
+import type { ReplayEventEnvelope } from "@/types/session";
 import { createInitialState, reduceBatch, reduceEvent, type ReducerState } from "./event-reducer";
 
 export interface MessageStoreEvent {

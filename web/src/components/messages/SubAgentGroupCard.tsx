@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
-import { useMessageStore } from "../../stores/message-store";
+import { useMessageStore } from "@/stores/message-store";
 import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
 import { formatElapsed, formatSubAgentTypeLabel, shortSessionId } from "./message-list-ui";
 

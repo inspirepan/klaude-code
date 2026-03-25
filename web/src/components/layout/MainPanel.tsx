@@ -1,12 +1,14 @@
 import { PanelLeftOpen } from "lucide-react";
-import { useAppStore } from "../../stores/app-store";
-import { useSessionStore } from "../../stores/session-store";
-import { MessageComposer } from "../input/MessageComposer";
-import { NewSessionOverlay } from "../input/NewSessionOverlay";
-import { MessageList } from "../messages/MessageList";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { useT } from "@/i18n";
+import { useAppStore } from "@/stores/app-store";
+import { useSessionStore } from "@/stores/session-store";
+import { MessageComposer } from "@/components/input/MessageComposer";
+import { NewSessionOverlay } from "@/components/input/NewSessionOverlay";
+import { MessageList } from "@/components/messages/MessageList";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function MainPanel(): React.JSX.Element {
+  const t = useT();
   const activeSessionId = useSessionStore((state) => state.activeSessionId);
   const isDraft = activeSessionId === "draft";
   const sidebarOpen = useAppStore((state) => state.sidebarOpen);
@@ -28,13 +30,13 @@ export function MainPanel(): React.JSX.Element {
                     onClick={() => {
                       setSidebarOpen(true);
                     }}
-                    aria-label="Expand sidebar"
+                    aria-label={t("sidebar.expandSidebar")}
                   >
                     <PanelLeftOpen className="h-4 w-4" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent className="flex items-center gap-1.5">
-                  <span>Expand sidebar</span>
+                  <span>{t("sidebar.expandSidebar")}</span>
                   <span className="inline-flex items-center text-neutral-500" aria-hidden="true">
                     <span className="inline-flex whitespace-pre text-sm leading-none">
                       <kbd className="inline-flex font-sans">

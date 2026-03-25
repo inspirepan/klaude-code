@@ -3,8 +3,8 @@ import type {
   SessionGroup,
   SessionHistoryResponse,
   SessionSummary,
-} from "../types/session";
-import type { MessageImageFilePart } from "../types/message";
+} from "@/types/session";
+import type { MessageImageFilePart } from "@/types/message";
 
 interface JsonRequestOptions {
   method?: "GET" | "POST" | "DELETE";
@@ -194,6 +194,15 @@ export async function archiveCleanupSessions(cutoffSeconds: number): Promise<num
 export async function fetchConfigModels(): Promise<ConfigModelSummary[]> {
   const result = await requestJson<ConfigModelsResponse>("/api/config/models");
   return result.models;
+}
+
+interface InputHistoryResponse {
+  entries: string[];
+}
+
+export async function fetchInputHistory(signal?: AbortSignal): Promise<string[]> {
+  const result = await requestJson<InputHistoryResponse>("/api/config/input-history", { signal });
+  return result.entries;
 }
 
 export async function searchFileCompletions({

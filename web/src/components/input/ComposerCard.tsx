@@ -7,13 +7,19 @@ import {
   type RefObject,
   type SetStateAction,
 } from "react";
-import { ArrowUp, Plus, Square, X } from "lucide-react";
+import { ArrowUp, History, Plus, Square, X } from "lucide-react";
 
-import { buildFileApiUrl, uploadImageAttachment, type ConfigModelSummary } from "../../api/client";
+import {
+  buildFileApiUrl,
+  fetchInputHistory,
+  uploadImageAttachment,
+  type ConfigModelSummary,
+} from "@/api/client";
 import { useT } from "@/i18n";
-import type { MessageImageFilePart } from "../../types/message";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import type { MessageImageFilePart } from "@/types/message";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AtFileCompletionList } from "./AtFileCompletionList";
+import { InputHistoryList } from "./InputHistoryList";
 import { ModelSelector } from "./ModelSelector";
 import { SlashCompletionList } from "./SlashCompletionList";
 import { useFileCompletion } from "./useFileCompletion";
@@ -120,6 +126,52 @@ export function ComposerCard({
   const ref = externalRef ?? internalRef;
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadingCount, setUploadingCount] = useState(0);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyItems, setHistoryItems] = useState<string[]>([]);
+  const [historyHighlight, setHistoryHighlight] = useState(0);
+  // Raw entries from API (newest-first). Kept separate so we always reverse from source.
+  const historyRawRef = useRef<string[]>([]);
+  const historyLoadedRef = useRef(false);
+
+  const openHistory = useCallback(() => {
+    if (historyOpen) return;
+    const doOpen = (raw: string[]) => {
+      if (raw.length === 0) return;
+      // Display oldest-first so newest sits at the bottom, closest to the textarea.
+      const reversed = [...raw].reverse();
+      setHistoryItems(reversed);
+      setHistoryHighlight(reversed.length - 1);
+      setHistoryOpen(true);
+    };
+    if (historyLoadedRef.current) {
+      doOpen(historyRawRef.current);
+      return;
+    }
+    void fetchInputHistory().then((entries) => {
+      historyLoadedRef.current = true;
+      historyRawRef.current = entries;
+      doOpen(entries);
+    });
+  }, [historyOpen]);
+
+  const closeHistory = useCallback(() => {
+    setHistoryOpen(false);
+  }, []);
+
+  const selectHistory = useCallback(
+    (entry: string) => {
+      onTextChange(entry);
+      setHistoryOpen(false);
+      requestAnimationFrame(() => {
+        const ta = ref.current;
+        if (ta) {
+          ta.focus();
+          ta.setSelectionRange(entry.length, entry.length);
+        }
+      });
+    },
+    [onTextChange, ref],
+  );
 
   const fileComp = useFileCompletion({
     sessionId,
@@ -143,7 +195,7 @@ export function ComposerCard({
     : submitting
       ? t("composer.sending")
       : t("composer.send");
-  const anyCompletionOpen = fileComp.open || slashComp.open;
+  const anyCompletionOpen = fileComp.open || slashComp.open || historyOpen;
 
   const handleSubmitOrCompact = useCallback(() => {
     const compact = parseCompactCommand(text);
@@ -186,6 +238,7 @@ export function ComposerCard({
       if (!rootRef.current?.contains(event.target as Node)) {
         fileComp.close();
         slashComp.close();
+        closeHistory();
       }
     };
 
@@ -193,7 +246,7 @@ export function ComposerCard({
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
     };
-  }, [anyCompletionOpen, fileComp, slashComp]);
+  }, [anyCompletionOpen, fileComp, slashComp, closeHistory]);
 
   useEffect(() => {
     if (text.length === 0) {
@@ -264,6 +317,7 @@ export function ComposerCard({
             onTextChange(event.target.value);
             fileComp.update(event.target.value, event.target.selectionStart);
             slashComp.update(event.target.value, event.target.selectionStart);
+            closeHistory();
           }}
           onSelect={(event) => {
             fileComp.update(event.currentTarget.value, event.currentTarget.selectionStart);
@@ -281,6 +335,30 @@ export function ComposerCard({
             void handleFileBatch(files);
           }}
           onKeyDown={(event) => {
+            if (historyOpen) {
+              if (event.key === "ArrowDown" && historyItems.length > 0) {
+                event.preventDefault();
+                setHistoryHighlight(Math.min(historyHighlight + 1, historyItems.length - 1));
+                return;
+              }
+              if (event.key === "ArrowUp" && historyItems.length > 0) {
+                event.preventDefault();
+                setHistoryHighlight(Math.max(historyHighlight - 1, 0));
+                return;
+              }
+              if (event.key === "Enter" && historyItems.length > 0) {
+                event.preventDefault();
+                selectHistory(historyItems[historyHighlight]);
+                return;
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                closeHistory();
+                return;
+              }
+            }
+
             if (fileComp.open) {
               if (event.key === "ArrowDown" && fileComp.items.length > 0) {
                 event.preventDefault();
@@ -335,6 +413,18 @@ export function ComposerCard({
               }
             }
 
+            // ArrowUp on the first line with no other popups: open input history
+            if (event.key === "ArrowUp" && !fileComp.open && !slashComp.open && !historyOpen) {
+              const ta = event.currentTarget;
+              const before = ta.value.slice(0, ta.selectionStart);
+              const isFirstLine = !before.includes("\n");
+              if (isFirstLine) {
+                event.preventDefault();
+                openHistory();
+                return;
+              }
+            }
+
             if (event.nativeEvent.isComposing || event.key !== "Enter" || event.shiftKey) {
               return;
             }
@@ -367,6 +457,14 @@ export function ComposerCard({
             onHighlightIndexChange={slashComp.setHighlightIndex}
             onSelect={slashComp.apply}
             dropUp={completionDropUp}
+          />
+        ) : null}
+        {historyOpen && historyItems.length > 0 ? (
+          <InputHistoryList
+            items={historyItems}
+            highlightIndex={historyHighlight}
+            onHighlightIndexChange={setHistoryHighlight}
+            onSelect={selectHistory}
           />
         ) : null}
       </div>
@@ -440,6 +538,26 @@ export function ComposerCard({
               </button>
             </TooltipTrigger>
             <TooltipContent>{t("composer.addImageTooltip")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => {
+                  if (historyOpen) {
+                    closeHistory();
+                  } else {
+                    openHistory();
+                  }
+                }}
+                disabled={disableInput}
+                aria-label={t("composer.inputHistory")}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-neutral-500 transition-colors hover:border-neutral-300 hover:text-neutral-700 disabled:cursor-not-allowed disabled:border-border disabled:text-neutral-300"
+              >
+                <History className="h-4 w-4" strokeWidth={2.2} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("composer.inputHistory")}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
