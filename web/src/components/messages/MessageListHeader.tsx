@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   ArrowLeft,
   ChevronsDownUp,
@@ -10,6 +10,10 @@ import {
 import { SessionTitleText } from "@/components/SessionTitleText";
 import { useT } from "@/i18n";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+// Blink glyphs: small square toggle while task is active
+const BLINK_GLYPHS = ["\u25ab", "\u25aa"] as const; // ▫ ▪
+const BLINK_INTERVAL = 800; // ms
 
 interface MessageListHeaderProps {
   primaryTitle: string;
@@ -23,6 +27,7 @@ interface MessageListHeaderProps {
   onExpandAll: () => void;
   onBack?: () => void;
   subAgentLabel?: string | null;
+  isRunning?: boolean;
 }
 
 export function MessageListHeader({
@@ -37,18 +42,42 @@ export function MessageListHeader({
   onExpandAll,
   onBack,
   subAgentLabel,
+  isRunning = false,
 }: MessageListHeaderProps): React.JSX.Element {
   const t = useT();
   const isSubAgentView = onBack !== undefined;
 
+  const baseTitle = isSubAgentView
+    ? (subAgentLabel ?? t("header.subAgent"))
+    : secondaryTitle
+      ? `${primaryTitle} — ${secondaryTitle}`
+      : primaryTitle;
+  const formattedTitle = baseTitle ? `${baseTitle} — Klaude` : "Klaude";
+
+  // Static title when not running
   useEffect(() => {
-    const title = isSubAgentView
-      ? (subAgentLabel ?? t("header.subAgent"))
-      : secondaryTitle
-        ? `${primaryTitle} — ${secondaryTitle}`
-        : primaryTitle;
-    document.title = title ? `${title} — Klaude` : "Klaude";
-  }, [primaryTitle, secondaryTitle, subAgentLabel, isSubAgentView, t]);
+    if (!isRunning) {
+      document.title = formattedTitle;
+    }
+  }, [formattedTitle, isRunning]);
+
+  // Blink effect: alternate ○/● prefix while session is running
+  const blinkIndexRef = useRef(0);
+  useEffect(() => {
+    if (!isRunning) {
+      blinkIndexRef.current = 0;
+      return;
+    }
+    document.title = `${BLINK_GLYPHS[0]} ${formattedTitle}`;
+    const timer = setInterval(() => {
+      blinkIndexRef.current = 1 - blinkIndexRef.current;
+      document.title = `${BLINK_GLYPHS[blinkIndexRef.current]} ${formattedTitle}`;
+    }, BLINK_INTERVAL);
+    return () => {
+      clearInterval(timer);
+      document.title = formattedTitle;
+    };
+  }, [isRunning, formattedTitle]);
 
   return (
     <div className="relative z-20 shrink-0">

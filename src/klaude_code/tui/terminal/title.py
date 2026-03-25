@@ -7,8 +7,8 @@ import sys
 
 from klaude_code.log import DebugType, log_debug
 
-# Blink state: alternates terminal title prefix between hollow and solid circle
-_BLINK_GLYPHS = ("\u25cb", "\u25cf")  # ○ ●
+# Blink state: alternates terminal title prefix between small squares
+_BLINK_GLYPHS = ("\u25ab", "\u25aa")  # ▫ ▪
 _BLINK_INTERVAL = 0.8  # seconds
 
 _blink_task: asyncio.Task[None] | None = None
