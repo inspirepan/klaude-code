@@ -655,6 +655,38 @@ def test_runtime_hub_request_user_interaction_roundtrip() -> None:
     arun(_test())
 
 
+def test_runtime_hub_respond_immediately_clears_pending_count() -> None:
+    """pending_request_count must drop to 0 synchronously after respond, before yielding to the event loop."""
+
+    async def _test() -> None:
+        async def _handle(_operation: op.Operation) -> None:
+            return None
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("should not reject")
+
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
+        request = _pending_request("req1", "s1")
+
+        task = asyncio.create_task(hub.request_user_interaction(request))
+        await asyncio.sleep(0)
+        assert hub.pending_request_count("s1") == 1
+
+        # respond_user_interaction must eagerly finalize: count drops without yielding.
+        hub.respond_user_interaction(
+            request_id="req1",
+            session_id="s1",
+            response=user_interaction.UserInteractionResponse(status="cancelled", payload=None),
+        )
+        # No await / sleep here -- count should already be 0.
+        assert hub.pending_request_count("s1") == 0
+
+        await task
+        await hub.stop()
+
+    arun(_test())
+
+
 def test_runtime_hub_bind_root_task_updates_reject_active_task_id() -> None:
     async def _test() -> None:
         started = asyncio.Event()
