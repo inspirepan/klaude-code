@@ -10,6 +10,7 @@ import { ComposerCard, type ComposerImageAttachment } from "./ComposerCard";
 import { UserInteractionCard } from "./UserInteractionCard";
 
 const EMPTY_PENDING_INTERACTIONS: PendingUserInteractionRequest[] = [];
+const DRAFT_KEY_PREFIX = "klaude:composer-draft:";
 
 export function MessageComposer(): React.JSX.Element {
   const t = useT();
@@ -27,7 +28,9 @@ export function MessageComposer(): React.JSX.Element {
   const statusBySessionId = useMessageStore(
     (state) => state.reducerStateBySessionId[activeSessionId]?.statusBySessionId ?? null,
   );
-  const [text, setText] = useState("");
+  const [text, setText] = useState(
+    () => localStorage.getItem(`${DRAFT_KEY_PREFIX}${activeSessionId}`) ?? "",
+  );
   const [images, setImages] = useState<ComposerImageAttachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [modelOptions, setModelOptions] = useState<ConfigModelSummary[]>([]);
@@ -38,6 +41,7 @@ export function MessageComposer(): React.JSX.Element {
   const [respondingInteraction, setRespondingInteraction] = useState(false);
   const [interrupting, setInterrupting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const draftLoadedRef = useRef(false);
 
   const runtime = runtimeBySessionId[activeSessionId] ?? null;
   const activeSession =
@@ -86,6 +90,33 @@ export function MessageComposer(): React.JSX.Element {
     }
   }, [sessionInterruptible]);
 
+  // Restore draft from localStorage when switching sessions.
+  useEffect(() => {
+    const saved = localStorage.getItem(`${DRAFT_KEY_PREFIX}${activeSessionId}`);
+    draftLoadedRef.current = true;
+    setText(saved ?? "");
+  }, [activeSessionId]);
+
+  // Persist draft to localStorage (debounced). Skips the write triggered by
+  // the load effect above so we don't save stale text under a new session id.
+  useEffect(() => {
+    if (draftLoadedRef.current) {
+      draftLoadedRef.current = false;
+      return;
+    }
+    const key = `${DRAFT_KEY_PREFIX}${activeSessionId}`;
+    const timer = setTimeout(() => {
+      if (text.length > 0) {
+        localStorage.setItem(key, text);
+      } else {
+        localStorage.removeItem(key);
+      }
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [activeSessionId, text]);
+
   useMountEffect(() => {
     let cancelled = false;
     setModelLoading(true);
@@ -130,6 +161,7 @@ export function MessageComposer(): React.JSX.Element {
       );
       setText("");
       setImages([]);
+      localStorage.removeItem(`${DRAFT_KEY_PREFIX}${activeSessionId}`);
     } finally {
       setSubmitting(false);
     }
@@ -139,6 +171,7 @@ export function MessageComposer(): React.JSX.Element {
     async (focus: string | null) => {
       await compactSession(activeSessionId, focus);
       setText("");
+      localStorage.removeItem(`${DRAFT_KEY_PREFIX}${activeSessionId}`);
     },
     [activeSessionId, compactSession],
   );
