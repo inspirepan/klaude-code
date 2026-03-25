@@ -979,6 +979,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
             onExpandAll={handleExpandAll}
             onBack={viewingSubAgentSessionId ? handleExitSubAgent : undefined}
             subAgentLabel={subAgentLabel}
+            isRunning={isEffectiveRunning}
           />
           <div
             ref={scrollRef}
