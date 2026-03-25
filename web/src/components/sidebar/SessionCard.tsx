@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Archive, ArchiveRestore, CirclePause } from "lucide-react";
 import type { SessionRuntimeState, SessionSummary } from "@/types/session";
 import { cn } from "@/lib/utils";
@@ -91,22 +90,6 @@ export function SessionCard({
   onToggleArchive,
 }: SessionCardProps): React.JSX.Element {
   const t = useT();
-  const [showHighlight, setShowHighlight] = useState(false);
-  const [prevHasUnread, setPrevHasUnread] = useState(hasUnreadCompletion);
-  if (prevHasUnread !== hasUnreadCompletion) {
-    setPrevHasUnread(hasUnreadCompletion);
-    setShowHighlight(hasUnreadCompletion);
-  }
-
-  useEffect(() => {
-    if (!hasUnreadCompletion) return;
-    const timer = setTimeout(() => {
-      setShowHighlight(false);
-    }, 5000);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [hasUnreadCompletion]);
 
   const title = shortenFileRefs(getSessionTitle(session) ?? t("sidebar.newSession"));
   const updatedAtDetailed = formatDetailedTime(session.updated_at);
@@ -117,7 +100,7 @@ export function SessionCard({
     <div
       className={cn(
         "group relative flex min-w-0 items-center gap-1.5 rounded-md py-1.5 pl-2 pr-2 text-left transition-colors",
-        showHighlight ? "bg-emerald-100/60" : active ? "bg-neutral-200/60" : "hover:bg-muted/80",
+        active ? "bg-neutral-200/60" : "hover:bg-muted/80",
       )}
       role="button"
       tabIndex={0}
@@ -135,13 +118,18 @@ export function SessionCard({
           <CirclePause className="h-3 w-3 text-amber-500" />
         </span>
       ) : null}
-      <SessionTitleText
-        title={title}
-        as="div"
-        className="flex min-w-0 flex-1 items-baseline text-sm leading-5"
-        primaryClassName={runtime.sessionState === "running" ? "text-shimmer" : undefined}
-        secondaryClassName="shrink truncate"
-      />
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <SessionTitleText
+          title={title}
+          as="div"
+          className="flex min-w-0 items-baseline text-sm leading-5"
+          primaryClassName={runtime.sessionState === "running" ? "text-shimmer" : undefined}
+          secondaryClassName="shrink truncate"
+        />
+        {hasUnreadCompletion ? (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+        ) : null}
+      </div>
       {/* Meta info: visible by default, hidden on hover */}
       <DiffStats
         added={diffSummary.diff_lines_added}
