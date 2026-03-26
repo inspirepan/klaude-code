@@ -30,7 +30,6 @@ from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
     AppendThinking,
-    EmitOsc94Error,
     EmitTmuxSignal,
     EndAssistantStream,
     EndThinkingStream,
@@ -90,7 +89,6 @@ from klaude_code.tui.terminal.notifier import (
     TerminalNotifier,
     emit_tmux_signal,
 )
-from klaude_code.tui.terminal.progress_bar import OSC94States, emit_osc94
 from klaude_code.tui.terminal.title import (
     is_title_blinking,
     start_terminal_title_blink,
@@ -994,8 +992,6 @@ class TUICommandRenderer:
                     self.print()
                 case PrintRuleLine():
                     self.console.print(Rule(characters="─", style=ThemeKey.LINES_DIM))
-                case EmitOsc94Error():
-                    emit_osc94(OSC94States.ERROR)
                 case EmitTmuxSignal():
                     emit_tmux_signal()
                 case TaskClockStart():

@@ -23,7 +23,6 @@ from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
     AppendThinking,
-    EmitOsc94Error,
     EmitTmuxSignal,
     EndAssistantStream,
     EndThinkingStream,
@@ -1292,8 +1291,6 @@ class DisplayStateMachine:
                 if not e.can_retry:
                     s.task_active = False
                     s.clear_status_activity()
-                if not is_replay:
-                    cmds.append(EmitOsc94Error())
                 cmds.append(RenderError(e))
                 if not is_replay and not e.can_retry:
                     self._spinner.clear_task_state()

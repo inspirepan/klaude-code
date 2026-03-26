@@ -168,11 +168,6 @@ class PrintRuleLine(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
-class EmitOsc94Error(RenderCommand):
-    pass
-
-
-@dataclass(frozen=True, slots=True)
 class EmitTmuxSignal(RenderCommand):
     pass
 
