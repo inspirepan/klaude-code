@@ -66,7 +66,6 @@ export interface MemoryLoadedUIItem {
   type: "memory_loaded";
   files: Array<{
     path: string;
-    mentioned_patterns: string[];
   }>;
 }
 
@@ -83,7 +82,6 @@ export interface TodoReminderUIItem {
 export interface AtFileOp {
   operation: "Read" | "List";
   path: string;
-  mentioned_in: string | null;
 }
 
 export interface AtFileOpsUIItem {

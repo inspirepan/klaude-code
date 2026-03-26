@@ -132,7 +132,6 @@ const zh: Translations = {
   "subAgent.toolCall": (count: number) => `${count} 次工具调用`,
 
   // Developer message
-  "developer.mentionedIn": "引用自",
   "developer.attached": "已附加",
   "developer.todoEmpty": "待办列表为空",
   "developer.todoStale": "待办列表近期未更新",

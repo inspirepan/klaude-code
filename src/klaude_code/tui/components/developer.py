@@ -64,33 +64,21 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                     parts.append(grid)
                 case model.AtFileOpsUIItem() as item:
                     grid = create_grid()
-                    grouped: dict[tuple[str, str | None], list[str]] = {}
+                    grouped: dict[str, list[str]] = {}
                     for op in item.ops:
-                        key = (op.operation, op.mentioned_in)
-                        grouped.setdefault(key, []).append(op.path)
+                        grouped.setdefault(op.operation, []).append(op.path)
 
-                    for (operation, mentioned_in), paths in grouped.items():
+                    for operation, paths in grouped.items():
                         path_texts = Text(", ", ThemeKey.REMINDER).join(
                             render_path(p, ThemeKey.REMINDER_BOLD) for p in paths
                         )
-                        if mentioned_in:
-                            grid.add_row(
-                                Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
-                                Text.assemble(
-                                    (f"{operation} ", ThemeKey.REMINDER),
-                                    path_texts,
-                                    (" mentioned in ", ThemeKey.REMINDER),
-                                    render_path(mentioned_in, ThemeKey.REMINDER_BOLD),
-                                ),
-                            )
-                        else:
-                            grid.add_row(
-                                Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
-                                Text.assemble(
-                                    (f"{operation} ", ThemeKey.REMINDER),
-                                    path_texts,
-                                ),
-                            )
+                        grid.add_row(
+                            Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                            Text.assemble(
+                                (f"{operation} ", ThemeKey.REMINDER),
+                                path_texts,
+                            ),
+                        )
                     parts.append(grid)
                 case model.UserImagesUIItem() as item:
                     grid = create_grid()
