@@ -27,18 +27,15 @@ function PathPill({ path }: { path: string }): React.JSX.Element {
   );
 }
 
-function groupAtFileOps(
-  ops: AtFileOp[],
-): Array<{ operation: string; mentionedIn: string | null; paths: string[] }> {
-  const ordered: Array<{ operation: string; mentionedIn: string | null; paths: string[] }> = [];
+function groupAtFileOps(ops: AtFileOp[]): Array<{ operation: string; paths: string[] }> {
+  const ordered: Array<{ operation: string; paths: string[] }> = [];
   const idxByKey = new Map<string, number>();
 
   for (const op of ops) {
-    const key = `${op.operation}\n${op.mentioned_in ?? ""}`;
-    const existingIdx = idxByKey.get(key);
+    const existingIdx = idxByKey.get(op.operation);
     if (existingIdx === undefined) {
-      idxByKey.set(key, ordered.length);
-      ordered.push({ operation: op.operation, mentionedIn: op.mentioned_in, paths: [op.path] });
+      idxByKey.set(op.operation, ordered.length);
+      ordered.push({ operation: op.operation, paths: [op.path] });
     } else {
       ordered[existingIdx].paths.push(op.path);
     }
@@ -177,7 +174,6 @@ function AttachDetail({
   devItems: DeveloperMessageItem[];
   images: string[];
 }): React.JSX.Element {
-  const t = useT();
   const allUIItems = devItems.flatMap((d) => d.items).filter((ui) => ui.type !== "todo_reminder");
   const sessionId = devItems[0]?.sessionId ?? null;
 
@@ -191,15 +187,7 @@ function AttachDetail({
             return <PathList key={`external-${idx}`} paths={ui.paths} />;
           case "at_file_ops":
             return groupAtFileOps(ui.ops).map((g) => (
-              <div key={`${g.operation}-${g.mentionedIn ?? ""}-${g.paths.join(",")}`}>
-                <PathList paths={g.paths} />
-                {g.mentionedIn ? (
-                  <div className="mt-0.5 text-sm leading-6">
-                    <span className="mr-1 text-neutral-500">{t("developer.mentionedIn")}</span>
-                    <PathPill path={g.mentionedIn} />
-                  </div>
-                ) : null}
-              </div>
+              <PathList key={`${g.operation}-${g.paths.join(",")}`} paths={g.paths} />
             ));
           case "skill_activated":
           case "user_images":

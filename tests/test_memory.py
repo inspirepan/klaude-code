@@ -70,10 +70,10 @@ def test_get_existing_memory_files_includes_git_root_memories(monkeypatch: pytes
 
     assert set(result["project"]) == {
         str(root_agents),
+        str(root_claude),
         str(root_claude_dir_file),
         str(root_agents_dir_file),
     }
-    assert str(root_claude) not in result["project"]
     assert result["user"] == []
 
 

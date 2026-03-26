@@ -131,7 +131,6 @@ const en = {
   "subAgent.toolCall": (count: number) => `${count} tool call${count !== 1 ? "s" : ""}`,
 
   // Developer message
-  "developer.mentionedIn": "mentioned in",
   "developer.attached": "Attached",
   "developer.todoEmpty": "Todo list is empty",
   "developer.todoStale": "Todo hasn't been updated recently",

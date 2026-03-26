@@ -344,7 +344,6 @@ ToolResultUIExtra = Annotated[
 
 class MemoryFileLoaded(BaseModel):
     path: str
-    mentioned_patterns: list[str] = Field(default_factory=list)
 
 
 class MemoryLoadedUIItem(BaseModel):
@@ -365,7 +364,6 @@ class TodoReminderUIItem(BaseModel):
 class AtFileOp(BaseModel):
     operation: Literal["Read", "List"]
     path: str
-    mentioned_in: str | None = None
 
 
 class AtFileOpsUIItem(BaseModel):

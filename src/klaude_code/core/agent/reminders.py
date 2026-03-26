@@ -1,7 +1,6 @@
 import hashlib
 import re
 import shlex
-from dataclasses import dataclass
 from pathlib import Path
 
 from klaude_code.core.memory import (
@@ -29,47 +28,21 @@ AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P
 SLASH_SKILL_PATTERN = re.compile(r"(?:^|\s)(?://|/)skill:(?P<skill>[^\s/]+)(?=\s|$)")
 
 
-@dataclass
-class AtPatternSource:
-    """Represents an @ pattern with its source file (if from a memory file)."""
-
-    pattern: str
-    mentioned_in: str | None = None
-
-
-def _extract_at_patterns(content: str) -> list[str]:
-    """Extract @ patterns from content."""
-    patterns: list[str] = []
-    if "@" in content:
-        for match in AT_FILE_PATTERN.finditer(content):
-            path_str = match.group("quoted") or match.group("plain")
-            if path_str:
-                patterns.append(path_str)
-    return patterns
-
-
-def get_at_patterns_with_source(session: Session) -> list[AtPatternSource]:
-    """Get @ patterns from last user input and developer messages, preserving source info."""
-    patterns: list[AtPatternSource] = []
-
+def get_at_patterns(session: Session) -> list[str]:
+    """Get @ patterns from the last user message."""
     for item in reversed(session.conversation_history):
         if isinstance(item, message.ToolResultMessage):
             break
-
         if isinstance(item, message.UserMessage):
             content = message.join_text_parts(item.parts)
-            for path_str in _extract_at_patterns(content):
-                patterns.append(AtPatternSource(pattern=path_str, mentioned_in=None))
-            break
-
-        if isinstance(item, message.DeveloperMessage) and item.ui_extra:
-            for ui_item in item.ui_extra.items:
-                if not isinstance(ui_item, model.MemoryLoadedUIItem):
-                    continue
-                for mem in ui_item.files:
-                    for pattern in mem.mentioned_patterns:
-                        patterns.append(AtPatternSource(pattern=pattern, mentioned_in=mem.path))
-    return patterns
+            patterns: list[str] = []
+            if "@" in content:
+                for match in AT_FILE_PATTERN.finditer(content):
+                    path_str = match.group("quoted") or match.group("plain")
+                    if path_str:
+                        patterns.append(path_str)
+            return patterns
+    return []
 
 
 def get_skills_from_user_input(session: Session) -> list[str]:
@@ -107,25 +80,18 @@ def _is_tracked_file_unchanged(session: Session, path: str) -> bool:
     return current_sha256 is not None and current_sha256 == status.content_sha256
 
 
-async def _load_at_file_recursive(
+async def _load_at_file(
     session: Session,
     pattern: str,
     at_ops: list[model.AtFileOp],
     formatted_blocks: list[str],
     collected_images: list[message.ImageURLPart],
     collected_image_paths: list[str],
-    visited: set[str],
     discovered_memories: list[Memory],
-    base_dir: Path | None = None,
-    mentioned_in: str | None = None,
 ) -> None:
-    """Recursively load @ file references."""
-    path = (base_dir / pattern).resolve() if base_dir else Path(pattern).resolve()
+    """Load a single @ file or directory reference."""
+    path = Path(pattern).resolve()
     path_str = str(path)
-
-    if path_str in visited:
-        return
-    visited.add(path_str)
 
     tool_context = ToolContext(
         file_tracker=session.file_tracker,
@@ -148,29 +114,10 @@ Result of calling the {tools.READ} tool:
 {tool_result.output_text}
 """
         )
-        at_ops.append(model.AtFileOp(operation="Read", path=path_str, mentioned_in=mentioned_in))
+        at_ops.append(model.AtFileOp(operation="Read", path=path_str))
         if images:
             collected_images.extend(images)
             collected_image_paths.append(path_str)
-
-        # Recursively parse @ references from ReadTool output
-        output = tool_result.output_text
-        if "@" in output:
-            for match in AT_FILE_PATTERN.finditer(output):
-                nested = match.group("quoted") or match.group("plain")
-                if nested:
-                    await _load_at_file_recursive(
-                        session,
-                        nested,
-                        at_ops,
-                        formatted_blocks,
-                        collected_images,
-                        collected_image_paths,
-                        visited,
-                        discovered_memories,
-                        base_dir=path.parent,
-                        mentioned_in=path_str,
-                    )
     elif path.exists() and path.is_dir():
         quoted_path = shlex.quote(path_str)
         args = BashTool.BashArguments(command=f"ls {quoted_path}")
@@ -183,7 +130,7 @@ Result of calling the {tools.BASH} tool:
 {tool_result.output_text}
 """
         )
-        at_ops.append(model.AtFileOp(operation="List", path=path_str + "/", mentioned_in=mentioned_in))
+        at_ops.append(model.AtFileOp(operation="List", path=path_str + "/"))
 
         # Discover memory files (AGENTS.md/CLAUDE.md) along the path from work_dir to this directory
         new_memories = discover_memory_files_near_paths(
@@ -200,9 +147,9 @@ Result of calling the {tools.BASH} tool:
 async def at_file_reader_reminder(
     session: Session,
 ) -> message.DeveloperMessage | None:
-    """Parse @foo/bar to read, with recursive loading of nested @ references"""
-    at_pattern_sources = get_at_patterns_with_source(session)
-    if not at_pattern_sources:
+    """Parse @foo/bar references from the last user message and load them."""
+    patterns = get_at_patterns(session)
+    if not patterns:
         return None
 
     at_ops: list[model.AtFileOp] = []
@@ -210,19 +157,16 @@ async def at_file_reader_reminder(
     collected_images: list[message.ImageURLPart] = []
     collected_image_paths: list[str] = []
     discovered_memories: list[Memory] = []
-    visited: set[str] = set()
 
-    for source in at_pattern_sources:
-        await _load_at_file_recursive(
+    for pattern in patterns:
+        await _load_at_file(
             session,
-            source.pattern,
+            pattern,
             at_ops,
             formatted_blocks,
             collected_images,
             collected_image_paths,
-            visited,
             discovered_memories,
-            mentioned_in=source.mentioned_in,
         )
 
     if len(formatted_blocks) == 0:
@@ -233,10 +177,7 @@ async def at_file_reader_reminder(
     if collected_image_paths:
         ui_items.append(model.AtFileImagesUIItem(paths=collected_image_paths))
     if discovered_memories:
-        loaded_files = [
-            model.MemoryFileLoaded(path=m.path, mentioned_patterns=_extract_at_patterns(m.content))
-            for m in discovered_memories
-        ]
+        loaded_files = [model.MemoryFileLoaded(path=m.path) for m in discovered_memories]
         ui_items.append(model.MemoryLoadedUIItem(files=loaded_files))
     return message.DeveloperMessage(
         parts=message.parts_from_text_and_images(
@@ -431,17 +372,12 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
     """CLAUDE.md AGENTS.md and per-project MEMORY.md"""
     memory_paths = get_memory_paths(work_dir=session.work_dir)
     memories: list[Memory] = []
-    seen_dirs: set[Path] = set()
     for memory_path, instruction in memory_paths:
-        parent = memory_path.parent.resolve()
-        if parent in seen_dirs:
-            continue
         path_str = str(memory_path)
         if memory_path.exists() and memory_path.is_file() and not _is_memory_loaded(session, path_str):
             try:
                 text = memory_path.read_text(encoding="utf-8", errors="replace")
                 _mark_memory_loaded(session, path_str)
-                seen_dirs.add(parent)
                 memories.append(Memory(path=path_str, instruction=instruction, content=text))
             except (PermissionError, UnicodeDecodeError, OSError):
                 continue
@@ -460,10 +396,7 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
             auto_memory_hint = f"\n\nNo auto memory file yet for this project. Create {auto_memory_path} when you need to persist memories."
 
     if memories or auto_memory_hint:
-        loaded_files = [
-            model.MemoryFileLoaded(path=memory.path, mentioned_patterns=_extract_at_patterns(memory.content))
-            for memory in memories
-        ]
+        loaded_files = [model.MemoryFileLoaded(path=memory.path) for memory in memories]
         ui_items: list[model.DeveloperUIItem] = [model.MemoryLoadedUIItem(files=loaded_files)] if loaded_files else []
         reminder_text = format_memories_reminder(memories, include_header=True) if memories else ""
         if auto_memory_hint:
@@ -500,10 +433,7 @@ async def last_path_memory_reminder(
     )
 
     if len(memories) > 0:
-        loaded_files = [
-            model.MemoryFileLoaded(path=memory.path, mentioned_patterns=_extract_at_patterns(memory.content))
-            for memory in memories
-        ]
+        loaded_files = [model.MemoryFileLoaded(path=memory.path) for memory in memories]
         return message.DeveloperMessage(
             parts=message.text_parts_from_str(format_memories_reminder(memories, include_header=False)),
             attachment_position="prepend",

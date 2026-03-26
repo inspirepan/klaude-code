@@ -104,7 +104,6 @@ export function parseDeveloperUIItems(raw: unknown): DeveloperUIItem[] {
           .filter((f): f is Record<string, unknown> => f !== null && typeof f === "object")
           .map((f) => ({
             path: typeof f.path === "string" ? f.path : "",
-            mentioned_patterns: parseStringArray(f.mentioned_patterns),
           }))
           .filter((f) => f.path.length > 0);
         if (files.length === 0) break;
@@ -130,10 +129,9 @@ export function parseDeveloperUIItems(raw: unknown): DeveloperUIItem[] {
           .map((o) => ({
             operation: o.operation === "Read" || o.operation === "List" ? o.operation : null,
             path: typeof o.path === "string" ? o.path : "",
-            mentioned_in: typeof o.mentioned_in === "string" ? o.mentioned_in : null,
           }))
           .filter(
-            (o): o is { operation: "Read" | "List"; path: string; mentioned_in: string | null } =>
+            (o): o is { operation: "Read" | "List"; path: string } =>
               o.operation !== null && o.path.length > 0,
           );
         if (ops.length === 0) break;
