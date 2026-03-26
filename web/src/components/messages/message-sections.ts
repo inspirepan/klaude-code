@@ -136,7 +136,11 @@ function getInProgressTodoContents(item: MessageItem): string[] {
     .map((t) => t.content);
 }
 
-/** Build PlannedTodoItems by comparing in_progress items against the next TodoWrite's state. */
+/** Build PlannedTodoItems by comparing in_progress items against the next TodoWrite's state.
+ *
+ *  An item is considered completed when the next TodoWrite exists and the item's
+ *  exact content no longer appears as a non-completed entry.  This handles the
+ *  common case where the LLM tweaks the wording while marking an item done. */
 function buildPlannedTodos(
   startItem: MessageItem,
   nextTodoWriteItem: MessageItem | null,
@@ -144,22 +148,28 @@ function buildPlannedTodos(
   const contents = getInProgressTodoContents(startItem);
   if (contents.length === 0) return [];
 
-  // Build a set of completed contents from the next TodoWrite (if it exists)
-  const completedSet = new Set<string>();
   if (
-    nextTodoWriteItem &&
-    nextTodoWriteItem.type === "tool_block" &&
-    nextTodoWriteItem.uiExtra &&
-    isTodoListUIExtra(nextTodoWriteItem.uiExtra)
+    !nextTodoWriteItem ||
+    nextTodoWriteItem.type !== "tool_block" ||
+    !nextTodoWriteItem.uiExtra ||
+    !isTodoListUIExtra(nextTodoWriteItem.uiExtra)
   ) {
-    for (const t of nextTodoWriteItem.uiExtra.todo_list.todos) {
-      if (t.status === "completed") completedSet.add(t.content);
-    }
+    // No next TodoWrite yet — everything is still in progress
+    return contents.map((content) => ({ content, completed: false }));
+  }
+
+  // Collect content strings that are NOT completed in the next TodoWrite
+  const notCompletedSet = new Set<string>();
+  for (const t of nextTodoWriteItem.uiExtra.todo_list.todos) {
+    if (t.status !== "completed") notCompletedSet.add(t.content);
   }
 
   return contents.map((content) => ({
     content,
-    completed: completedSet.has(content),
+    // Completed when the exact content no longer appears as a non-completed item.
+    // This covers both exact-match completions and cases where the content was
+    // reworded during completion (the old wording simply disappears from the list).
+    completed: !notCompletedSet.has(content),
   }));
 }
 
