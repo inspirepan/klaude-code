@@ -134,10 +134,7 @@ class StreamStateManager:
         return True
 
     def get_partial_parts(self) -> list[message.Part]:
-        """Get accumulated parts excluding tool calls, with thinking degraded.
-
-        Filters out ToolCallPart and applies degrade_thinking_to_text.
-        """
+        """Get accumulated parts for error/interrupt recovery, excluding tool calls and thinking."""
         return build_partial_parts(self.assistant_parts)
 
     def get_partial_message(self) -> message.AssistantMessage | None:

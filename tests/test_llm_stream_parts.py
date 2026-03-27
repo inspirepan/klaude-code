@@ -67,16 +67,20 @@ def test_degrade_thinking_to_text_drops_signatures_and_wraps_thinking() -> None:
     assert degraded[1] == message.TextPart(text="answer")
 
 
-def test_build_partial_parts_filters_tool_calls_and_keeps_images() -> None:
+def test_build_partial_parts_filters_tool_calls_and_thinking() -> None:
     parts: list[message.Part] = [
         message.ThinkingTextPart(text="think", model_id="m"),
+        message.ThinkingSignaturePart(signature="sig", model_id="m", format="x"),
         message.ToolCallPart(call_id="c", tool_name="Bash", arguments_json="{}"),
         message.ImageFilePart(file_path="/tmp/x.png"),
         message.TextPart(text="ok"),
     ]
 
     partial = build_partial_parts(parts)
-    assert all(not isinstance(p, message.ToolCallPart) for p in partial)
+    assert all(
+        not isinstance(p, (message.ToolCallPart, message.ThinkingTextPart, message.ThinkingSignaturePart))
+        for p in partial
+    )
     assert any(isinstance(p, message.ImageFilePart) for p in partial)
     assert any(isinstance(p, message.TextPart) and p.text == "ok" for p in partial)
 
@@ -84,6 +88,15 @@ def test_build_partial_parts_filters_tool_calls_and_keeps_images() -> None:
 def test_build_partial_message_returns_none_when_only_tool_calls() -> None:
     parts: list[message.Part] = [
         message.ToolCallPart(call_id="c", tool_name="Bash", arguments_json="{}"),
+    ]
+
+    assert build_partial_message(parts, response_id="r") is None
+
+
+def test_build_partial_message_returns_none_when_only_thinking() -> None:
+    parts: list[message.Part] = [
+        message.ThinkingTextPart(text="deep thought", model_id="m"),
+        message.ThinkingSignaturePart(signature="sig", model_id="m", format="x"),
     ]
 
     assert build_partial_message(parts, response_id="r") is None
