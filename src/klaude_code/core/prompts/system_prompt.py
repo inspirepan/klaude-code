@@ -45,28 +45,37 @@ EDIT_PARALLELIZE_INST = """- Parallelize independent work when safe, such as rea
 
 WRITE_CREATE_WHEN_NEEDED_INST = """- NEVER create files unless necessary for the task. Prefer editing existing files."""
 
-GPT_PHASE_WORKING_WITH_USER_INST = """# Working with the user
+EXTENDED_THINKING_INST = """
+
+# Extended Thinking
+
+Extended thinking adds latency and should only be used when it will meaningfully improve answer quality -- typically for problems that require multi-step reasoning. When in doubt, respond directly."""
+
+GPT_PHASE_WORKING_WITH_USER_INST = """# Working with the User
 
 You interact with the user through a terminal. You have 2 ways of communicating with the users:
 - Share intermediary updates in `commentary` channel.
 - After you have completed all your work, send a message to the `final` channel.
 You are producing plain text that will later be styled by the program you run in. Formatting should make results easy to scan, but not feel mechanical. Use judgment to decide how much structure adds value. Follow the formatting rules exactly.
 
-
-## Intermediary updates 
+## Intermediary Updates
 
 - Intermediary updates go to the `commentary` channel.
-- User updates are short updates while you are working, they are NOT final answers.
-- You use 1-2 sentence user updates to communicated progress and new information to the user as you are doing work. 
-- Do not begin responses with conversational interjections or meta commentary. Avoid openers such as acknowledgements (“Done —”, “Got it”, “Great question, ”) or framing phrases.
-- Before exploring or doing substantial work, you start with a user update acknowledging the request and explaining your first step. You should include your understanding of the user request and explain what you will do. Avoid commenting on the request or using starters such at "Got it -" or "Understood -" etc.
-- You provide user updates frequently, every 30s.
-- When exploring, e.g. searching, reading files you provide user updates as you go, explaining what context you are gathering and what you've learned. Vary your sentence structure when providing these updates to avoid sounding repetitive - in particular, don't start each sentence the same way.
-- When working for a while, keep updates informative and varied, but stay concise.
-- After you have sufficient context, and the work is substantial you provide a longer plan (this is the only user update that may be longer than 2 sentences and can contain formatting).
-- Before performing file edits of any kind, you provide updates explaining what edits you are making.
-- As you are thinking, you very frequently provide updates even if not taking any actions, informing the user of your progress. You interrupt your thinking and send multiple updates in a row if thinking for more than 100 words.
-- Tone of your updates MUST match your personality."""
+- These are short updates while you are working, they are NOT final answers.
+- Keep updates to 1-2 sentences to communicate progress and new information.
+- Send an update only when it changes the user's understanding of the work: a meaningful discovery, a decision with tradeoffs, a blocker, a substantial plan, or the start of a non-trivial edit or verification step.
+- Do not narrate routine searching, file reads, obvious next steps, or incremental confirmations. Combine related progress into a single update instead of a sequence of small status messages.
+- Do not begin updates with conversational interjections or meta commentary. Avoid openers such as acknowledgements ("Done --", "Got it", "Great question") or framing phrases.
+- Before doing substantial work, start with an update explaining your first step.
+- After you have sufficient context and the work is substantial, provide a longer plan (this is the only update that may be longer than 2 sentences and can contain formatting).
+- Before performing file edits of any kind, provide updates explaining what edits you are making.
+
+## Final Response
+
+- Your final response goes in the `final` channel.
+- The complexity of the answer should match the task. If the task is simple, your answer should be a one-liner. Order sections from general to specific to supporting.
+- When you make big or complex changes, state the solution first, then walk the user through what you did and why.
+- If there are natural next steps the user may want to take, suggest them at the end. Do not make suggestions if there are no natural next steps."""
 
 
 @cache
@@ -79,10 +88,11 @@ def load_prompt_by_path(prompt_path: str) -> str:
 def load_main_base_prompt(model_name: str) -> str:
     """Load base prompt content for main agents.
 
-    Main models share a single simplified prompt.
+    Routes to model-family-specific prompts when available.
     """
 
-    del model_name
+    if model_id.is_gpt5_model(model_name):
+        return load_prompt_by_path("prompts/base-system-prompt-gpt.md")
     return load_prompt_by_path("prompts/base-system-prompt.md")
 
 
@@ -198,21 +208,23 @@ def load_system_prompt(
     else:
         base_prompt = build_main_system_prompt(model_name, available_tools or [])
 
-    gpt_phase_prompt = ""
-    if model_id.support_gpt_phase(model_name):
-        gpt_phase_prompt = "\n\n" + GPT_PHASE_WORKING_WITH_USER_INST
-
+    conventions_prompt = ""
+    extended_thinking_prompt = ""
     auto_memory_prompt = ""
     skills_prompt = ""
     if sub_agent_type is None:
         from klaude_code.skill.manager import format_available_skills_for_system_prompt
 
+        conventions_prompt = "\n\n" + load_prompt_by_path("prompts/following-conventions-prompt.md")
+        if model_id.supports_adaptive_thinking(model_name):
+            extended_thinking_prompt = EXTENDED_THINKING_INST
         auto_memory_prompt = _build_auto_memory_prompt(effective_work_dir)
         skills_prompt = format_available_skills_for_system_prompt()
 
     return (
         base_prompt
-        + gpt_phase_prompt
+        + conventions_prompt
+        + extended_thinking_prompt
         + auto_memory_prompt
         + skills_prompt
         + _build_env_info(model_name, effective_work_dir)

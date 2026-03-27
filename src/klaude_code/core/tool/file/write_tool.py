@@ -138,7 +138,7 @@ class WriteTool(ToolABC):
         # For markdown files, use MarkdownDocUIExtra to render content as markdown
         # Otherwise, build diff between previous and new content
         ui_extra: model.ToolResultUIExtra | None
-        if file_path.endswith(".md"):
+        if file_path.endswith(".md") and not exists:
             ui_extra = model.MarkdownDocUIExtra(file_path=file_path, content=args.content)
         else:
             ui_extra = build_structured_diff(before, args.content, file_path=file_path)
