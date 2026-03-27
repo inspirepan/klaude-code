@@ -15,6 +15,7 @@ import {
   buildSections,
   type SectionBlock,
   type SectionItemBlock,
+  type SectionPlannedGroupBlock,
 } from "./message-sections";
 
 const SESSION = "sess-1";
@@ -303,5 +304,28 @@ describe("buildSectionBlocks planned overview", () => {
     const blocks = run(items);
     // assistant_text is not trailing — it's followed by a tool call, stays in planned group
     expect(flatBlockTypes(blocks)).toEqual(["todo_card", "planned_group"]);
+  });
+
+  it("reworded todo content is still marked completed", () => {
+    const items: MessageItem[] = [
+      makeTodoWrite("tw1", [inProgress("refactor: remove setActive"), pending("B")]),
+      makeToolBlock("t1", "Bash"),
+      // LLM tweaked the wording when marking it complete
+      makeTodoWrite("tw2", [
+        completed("refactor: drop setActive/active, add get()"),
+        inProgress("B"),
+      ]),
+      makeToolBlock("t2", "Bash"),
+      makeTodoWrite("tw3", [
+        completed("refactor: drop setActive/active, add get()"),
+        completed("B"),
+      ]),
+    ];
+    const blocks = run(items);
+    expect(flatBlockTypes(blocks)).toEqual(["todo_card", "planned_group", "planned_group"]);
+    // First planned group: old wording no longer in tw2's non-completed set → completed
+    const pg1 = blocks.find((b): b is SectionPlannedGroupBlock => b.type === "planned_group");
+    expect(pg1).toBeDefined();
+    expect(pg1?.todos[0].completed).toBe(true);
   });
 });
