@@ -96,8 +96,8 @@ def render_sub_agent_result(
         lines = stripped_result.splitlines()
         if len(lines) > SUB_AGENT_RESULT_MAX_LINES:
             hidden_count = len(lines) - SUB_AGENT_RESULT_MAX_LINES
+            elements.append(Text("\n".join(lines[:SUB_AGENT_RESULT_MAX_LINES]), style=ThemeKey.TOOL_RESULT))
             elements.append(Text(f"( ... more {hidden_count} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED))
-            elements.append(Text("\n".join(lines[-SUB_AGENT_RESULT_MAX_LINES:]), style=ThemeKey.TOOL_RESULT))
         else:
             elements.append(Text(stripped_result, style=ThemeKey.TOOL_RESULT))
 

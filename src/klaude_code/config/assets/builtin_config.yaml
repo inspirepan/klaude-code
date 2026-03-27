@@ -43,7 +43,7 @@ provider_list:
     context_limit: 400000
     verbosity: low
     thinking:
-      reasoning_effort: high
+      reasoning_effort: none
       reasoning_summary: concise
     cost: { input: 0.75, output: 4.5, cache_read: 0.075 }
 
@@ -113,6 +113,13 @@ provider_list:
       reasoning_effort: medium
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
+  - model_name: gemini-flash-minimal
+    model_id: gemini-flash-latest
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: minimal
+    cost: { input: 0.5, output: 3, cache_read: 0.05 }
+
   - model_name: gemini-flash-lite
     model_id: gemini-3.1-flash-lite-preview
     context_limit: 1048576
@@ -139,6 +146,13 @@ provider_list:
     context_limit: 1048576
     thinking:
       reasoning_effort: medium
+    cost: { input: 0.5, output: 3, cache_read: 0.05 }
+
+  - model_name: gemini-flash-minimal
+    model_id: gemini-flash-latest
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: minimal
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
   - model_name: gemini-flash-lite
@@ -227,7 +241,7 @@ provider_list:
     context_limit: 400000
     verbosity: low
     thinking:
-      reasoning_effort: high
+      reasoning_effort: none
       reasoning_summary: concise
     cost: { input: 0.75, output: 4.5, cache_read: 0.075 }
 
@@ -288,7 +302,7 @@ provider_list:
     context_limit: 400000
     verbosity: low
     thinking:
-      reasoning_effort: high
+      reasoning_effort: none
       reasoning_summary: concise
     cost: { input: 0.75, output: 4.5, cache_read: 0.075 }
 
@@ -404,7 +418,7 @@ provider_list:
     context_limit: 400000
     verbosity: low
     thinking:
-      reasoning_effort: high
+      reasoning_effort: none
       reasoning_summary: concise
     cost: { input: 0.75, output: 4.5, cache_read: 0.075 }
 
@@ -507,6 +521,13 @@ provider_list:
       reasoning_effort: medium
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
+  - model_name: gemini-flash-minimal
+    model_id: gemini-flash-latest
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: minimal
+    cost: { input: 0.5, output: 3, cache_read: 0.05 }
+
   - model_name: gemini-flash-lite
     model_id: google/gemini-3.1-flash-lite-preview
     context_limit: 1048576
@@ -574,10 +595,9 @@ provider_list:
 
 sub_agent_models:
   explore:
+  - gemini-flash-minimal
   - gpt-5.4-mini
-  - gemini-flash
   - haiku
-  - sonnet-no-thinking
 
 compact_model:
 - gemini-flash

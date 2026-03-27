@@ -39,13 +39,16 @@ class SubAgentProfile:
     name: str  # e.g., "Task", "Explore"
 
     # Sub-agent run configuration
-    prompt_file: str = ""  # Resource file path relative to core package (e.g., "prompts/prompt-sub-agent.md")
+    prompt_file: str = ""  # Resource file path relative to core package (e.g., "prompts/prompt-sub-agent-explore.md")
     tool_set: tuple[str, ...] = ()  # Tools available to this sub agent
     prompt_builder: PromptBuilder = _default_prompt_builder  # Builds the sub agent prompt from tool arguments
 
     # Entry-point metadata for Agent tool (RunSubAgent)
     invoker_type: str | None = None  # Tool-level type mapping (e.g., "general-purpose", "explore")
     invoker_summary: str = ""  # Short description shown under Agent tool supported types
+
+    # When True, use the main agent's full system prompt instead of prompt_file
+    use_main_prompt: bool = False
 
     # UI display
     active_form: str = ""  # Active form for spinner status (e.g., "Tasking", "Exploring")
