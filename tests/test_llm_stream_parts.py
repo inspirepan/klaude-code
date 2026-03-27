@@ -77,7 +77,10 @@ def test_build_partial_parts_filters_tool_calls_and_thinking() -> None:
     ]
 
     partial = build_partial_parts(parts)
-    assert all(not isinstance(p, (message.ToolCallPart, message.ThinkingTextPart, message.ThinkingSignaturePart)) for p in partial)
+    assert all(
+        not isinstance(p, (message.ToolCallPart, message.ThinkingTextPart, message.ThinkingSignaturePart))
+        for p in partial
+    )
     assert any(isinstance(p, message.ImageFilePart) for p in partial)
     assert any(isinstance(p, message.TextPart) and p.text == "ok" for p in partial)
 
