@@ -38,12 +38,14 @@ _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
 )
 
 
-def _image_part_to_block(image: ImagePart) -> BetaImageBlockParam:
+def _image_part_to_block(image: ImagePart) -> BetaImageBlockParam | None:
     url = (
         image_file_to_data_url(image)
         if isinstance(image, message.ImageFilePart)
         else normalize_image_data_url(image.url)
     )
+    if url is None:
+        return None
     if url.startswith("data:"):
         media_type, base64_payload, _ = parse_data_url(url)
         if media_type not in _INLINE_IMAGE_MEDIA_TYPES:
@@ -72,12 +74,13 @@ def _user_message_to_message(
     for part in msg.parts:
         if isinstance(part, message.TextPart):
             blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": part.text}))
-        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
-            blocks.append(_image_part_to_block(part))
+        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)) and (block := _image_part_to_block(part)) is not None:
+            blocks.append(block)
     if attachment.text:
         blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": attachment.text}))
     for image in attachment.images:
-        blocks.append(_image_part_to_block(image))
+        if (block := _image_part_to_block(image)) is not None:
+            blocks.append(block)
     if not blocks:
         blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": ""}))
     return {"role": "user", "content": blocks}
@@ -96,9 +99,11 @@ def _tool_message_to_block(
     )
     tool_content.append(cast(BetaTextBlockParam, {"type": "text", "text": merged_text}))
     for image in [part for part in msg.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))]:
-        tool_content.append(_image_part_to_block(image))
+        if (block := _image_part_to_block(image)) is not None:
+            tool_content.append(block)
     for image in attachment.images:
-        tool_content.append(_image_part_to_block(image))
+        if (block := _image_part_to_block(image)) is not None:
+            tool_content.append(block)
     return {
         "type": "tool_result",
         "tool_use_id": msg.call_id,

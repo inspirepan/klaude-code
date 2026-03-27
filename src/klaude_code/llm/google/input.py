@@ -29,24 +29,28 @@ def _data_url_to_blob(url: str) -> types.Blob:
     return types.Blob(data=decoded, mime_type=media_type)
 
 
-def _image_part_to_part(image: ImagePart) -> types.Part:
+def _image_part_to_part(image: ImagePart) -> types.Part | None:
     url = (
         image_file_to_data_url(image)
         if isinstance(image, message.ImageFilePart)
         else normalize_image_data_url(image.url)
     )
+    if url is None:
+        return None
     if url.startswith("data:"):
         return types.Part(inline_data=_data_url_to_blob(url))
     # Best-effort: Gemini supports file URIs, and may accept public HTTPS URLs.
     return types.Part(file_data=types.FileData(file_uri=url))
 
 
-def _image_part_to_function_response_part(image: ImagePart) -> types.FunctionResponsePart:
+def _image_part_to_function_response_part(image: ImagePart) -> types.FunctionResponsePart | None:
     url = (
         image_file_to_data_url(image)
         if isinstance(image, message.ImageFilePart)
         else normalize_image_data_url(image.url)
     )
+    if url is None:
+        return None
     if url.startswith("data:"):
         media_type, _, decoded = parse_data_url(url)
         return types.FunctionResponsePart.from_bytes(data=decoded, mime_type=media_type)
@@ -60,12 +64,13 @@ def _user_message_to_content(msg: message.UserMessage, attachment: DeveloperAtta
     for part in msg.parts:
         if isinstance(part, message.TextPart):
             parts.append(types.Part(text=part.text))
-        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
-            parts.append(_image_part_to_part(part))
+        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)) and (img_part := _image_part_to_part(part)) is not None:
+            parts.append(img_part)
     if attachment.text:
         parts.append(types.Part(text=attachment.text))
     for image in attachment.images:
-        parts.append(_image_part_to_part(image))
+        if (img_part := _image_part_to_part(image)) is not None:
+            parts.append(img_part)
     if not parts:
         parts.append(types.Part(text=""))
     return types.Content(role="user", parts=parts)
@@ -96,8 +101,11 @@ def _tool_messages_to_contents(
 
         for image in images:
             try:
-                image_parts.append(_image_part_to_part(image))
-                function_response_parts.append(_image_part_to_function_response_part(image))
+                img_part = _image_part_to_part(image)
+                fn_part = _image_part_to_function_response_part(image)
+                if img_part is not None and fn_part is not None:
+                    image_parts.append(img_part)
+                    function_response_parts.append(fn_part)
             except ValueError:
                 continue
 

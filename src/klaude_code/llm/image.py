@@ -326,11 +326,17 @@ def normalize_image_data_url(url: str) -> str:
     return f"data:{mime_type};base64,{encoded}"
 
 
-def image_file_to_data_url(image: message.ImageFilePart) -> str:
-    """Load an image file from disk and encode it as a base64 data URL."""
+def image_file_to_data_url(image: message.ImageFilePart) -> str | None:
+    """Load an image file from disk and encode it as a base64 data URL.
+
+    Returns None if the file no longer exists on disk.
+    """
 
     file_path = Path(image.file_path)
-    decoded = file_path.read_bytes()
+    try:
+        decoded = file_path.read_bytes()
+    except FileNotFoundError:
+        return None
 
     mime_type = image.mime_type
     if not mime_type:
