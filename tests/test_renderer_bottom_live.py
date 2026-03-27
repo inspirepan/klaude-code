@@ -114,3 +114,25 @@ def test_bash_mode_delta_uses_live_tail_renderable() -> None:
 
     assert isinstance(renderer._stream_renderable, Text)
     assert renderer._stream_renderable.plain == "hello"
+
+
+def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer()
+    output = io.StringIO()
+    renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=10, force_terminal=False)
+    renderer.console.push_theme(renderer.themes.markdown_theme)
+
+    renderer.display_bash_command_start(events.BashCommandStartEvent(session_id="s", command="seq"))
+    renderer.display_bash_command_delta(
+        events.BashCommandOutputDeltaEvent(session_id="s", content=("12345678901234567890\n" * 5))
+    )
+
+    renderer.display_bash_command_delta(events.BashCommandOutputDeltaEvent(session_id="s", content=("x\n" * 5)))
+
+    renderable = renderer._bottom_renderable()
+    lines = renderer.console.render_lines(renderable, renderer.console.options, pad=False)
+    current_stream_lines = renderer.console.render_lines(renderer._stream_renderable, renderer.console.options, pad=False)
+
+    assert len(lines) == len(current_stream_lines)

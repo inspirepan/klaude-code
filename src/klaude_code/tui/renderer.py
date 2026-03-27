@@ -165,6 +165,7 @@ class TUICommandRenderer:
 
         self._bottom_live: CropAboveLive | None = None
         self._stream_renderable: RenderableType | None = None
+        self._stream_preserve_height: bool = True
         self._stream_max_height: int = 0
         self._stream_last_height: int = 0
         self._stream_last_width: int = 0
@@ -346,9 +347,10 @@ class TUICommandRenderer:
         # Fall back to a unique key so we never skip updates for dynamic renderables.
         return ("other", object())
 
-    def set_stream_renderable(self, renderable: RenderableType | None) -> None:
+    def set_stream_renderable(self, renderable: RenderableType | None, *, preserve_height: bool = True) -> None:
         if renderable is None:
             self._stream_renderable = None
+            self._stream_preserve_height = True
             self._stream_max_height = 0
             self._stream_last_height = 0
             self._stream_last_width = 0
@@ -357,12 +359,15 @@ class TUICommandRenderer:
 
         self._ensure_bottom_live_started()
         self._stream_renderable = renderable
+        self._stream_preserve_height = preserve_height
 
         height = len(self.console.render_lines(renderable, self.console.options, pad=False))
         self._stream_last_height = height
         self._stream_last_width = self.console.size.width
 
-        if self._stream_max_height - height > STREAM_MAX_HEIGHT_SHRINK_RESET_LINES:
+        if not self._stream_preserve_height:
+            self._stream_max_height = height
+        elif self._stream_max_height - height > STREAM_MAX_HEIGHT_SHRINK_RESET_LINES:
             self._stream_max_height = height
         else:
             self._stream_max_height = max(self._stream_max_height, height)
@@ -397,7 +402,9 @@ class TUICommandRenderer:
                     self._stream_last_height = height
                     self._stream_last_width = current_width
 
-                    if self._stream_max_height - height > STREAM_MAX_HEIGHT_SHRINK_RESET_LINES:
+                    if not self._stream_preserve_height:
+                        self._stream_max_height = height
+                    elif self._stream_max_height - height > STREAM_MAX_HEIGHT_SHRINK_RESET_LINES:
                         self._stream_max_height = height
                     else:
                         self._stream_max_height = max(self._stream_max_height, height)
@@ -603,7 +610,7 @@ class TUICommandRenderer:
                 rendered.append("\n")
 
         rendered.append("\n".join(lines))
-        self.set_stream_renderable(rendered)
+        self.set_stream_renderable(rendered, preserve_height=False)
 
     def display_bash_command_delta(self, e: events.BashCommandOutputDeltaEvent) -> None:
         if not self._bash_stream_active:
