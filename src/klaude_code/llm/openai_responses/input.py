@@ -17,7 +17,7 @@ from klaude_code.llm.input_common import (
 from klaude_code.protocol import llm_param, message
 
 
-def _image_to_url(image: message.ImageURLPart | message.ImageFilePart) -> str:
+def _image_to_url(image: message.ImageURLPart | message.ImageFilePart) -> str | None:
     if isinstance(image, message.ImageFilePart):
         return image_file_to_data_url(image)
     return normalize_image_data_url(image.url)
@@ -33,22 +33,25 @@ def _build_user_content_parts(
     for part in user.parts:
         if isinstance(part, message.TextPart):
             parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": part.text}))
-        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
+        elif (
+            isinstance(part, (message.ImageURLPart, message.ImageFilePart)) and (url := _image_to_url(part)) is not None
+        ):
             parts.append(
                 cast(
                     responses.ResponseInputContentParam,
-                    {"type": "input_image", "detail": "auto", "image_url": _image_to_url(part)},
+                    {"type": "input_image", "detail": "auto", "image_url": url},
                 )
             )
     if attachment.text:
         parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": attachment.text}))
     for image in attachment.images:
-        parts.append(
-            cast(
-                responses.ResponseInputContentParam,
-                {"type": "input_image", "detail": "auto", "image_url": _image_to_url(image)},
+        if (url := _image_to_url(image)) is not None:
+            parts.append(
+                cast(
+                    responses.ResponseInputContentParam,
+                    {"type": "input_image", "detail": "auto", "image_url": url},
+                )
             )
-        )
     if not parts:
         parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": ""}))
     return parts
@@ -82,12 +85,13 @@ def _build_tool_result_item(
     if text_output:
         content_parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": text_output}))
     for image in images:
-        content_parts.append(
-            cast(
-                responses.ResponseInputContentParam,
-                {"type": "input_image", "detail": "auto", "image_url": _image_to_url(image)},
+        if (url := _image_to_url(image)) is not None:
+            content_parts.append(
+                cast(
+                    responses.ResponseInputContentParam,
+                    {"type": "input_image", "detail": "auto", "image_url": url},
+                )
             )
-        )
     item["output"] = content_parts
     return cast(responses.ResponseInputItemParam, item)
 

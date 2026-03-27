@@ -98,14 +98,14 @@ def build_chat_content_parts(
             parts.append({"type": "text", "text": part.text})
         elif isinstance(part, message.ImageURLPart):
             parts.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(part.url)}})
-        elif isinstance(part, message.ImageFilePart):
-            parts.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(part)}})
+        elif isinstance(part, message.ImageFilePart) and (url := image_file_to_data_url(part)) is not None:
+            parts.append({"type": "image_url", "image_url": {"url": url}})
     if attachment.text:
         parts.append({"type": "text", "text": attachment.text})
     for image in attachment.images:
-        if isinstance(image, message.ImageFilePart):
-            parts.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(image)}})
-        else:
+        if isinstance(image, message.ImageFilePart) and (url := image_file_to_data_url(image)) is not None:
+            parts.append({"type": "image_url", "image_url": {"url": url}})
+        elif isinstance(image, message.ImageURLPart):
             parts.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(image.url)}})
     if not parts:
         parts.append({"type": "text", "text": ""})
@@ -127,12 +127,14 @@ def build_tool_message(
     content: list[dict[str, object]] = [{"type": "text", "text": merged_text}]
     for part in msg.parts:
         if isinstance(part, message.ImageFilePart):
-            content.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(part)}})
+            if (url := image_file_to_data_url(part)) is not None:
+                content.append({"type": "image_url", "image_url": {"url": url}})
         elif isinstance(part, message.ImageURLPart):
             content.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(part.url)}})
     for image in attachment.images:
         if isinstance(image, message.ImageFilePart):
-            content.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(image)}})
+            if (url := image_file_to_data_url(image)) is not None:
+                content.append({"type": "image_url", "image_url": {"url": url}})
         else:
             content.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(image.url)}})
     return {
@@ -165,12 +167,14 @@ def build_tool_message_for_chat_completions(
     image_urls: list[dict[str, object]] = []
     for part in msg.parts:
         if isinstance(part, message.ImageFilePart):
-            image_urls.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(part)}})
+            if (url := image_file_to_data_url(part)) is not None:
+                image_urls.append({"type": "image_url", "image_url": {"url": url}})
         elif isinstance(part, message.ImageURLPart):
             image_urls.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(part.url)}})
     for image in attachment.images:
         if isinstance(image, message.ImageFilePart):
-            image_urls.append({"type": "image_url", "image_url": {"url": image_file_to_data_url(image)}})
+            if (url := image_file_to_data_url(image)) is not None:
+                image_urls.append({"type": "image_url", "image_url": {"url": url}})
         else:
             image_urls.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(image.url)}})
 
