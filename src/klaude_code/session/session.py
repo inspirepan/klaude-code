@@ -36,6 +36,50 @@ def _read_json_dict(path: Path) -> dict[str, Any] | None:
     return cast(dict[str, Any], raw)
 
 
+def _find_checkpoint_index_in_history(history: Sequence[message.HistoryEvent], checkpoint_id: int) -> int | None:
+    target_text = f"<system-reminder>Checkpoint {checkpoint_id}</system-reminder>"
+    for i, item in enumerate(history):
+        if not isinstance(item, message.DeveloperMessage):
+            continue
+        text = message.join_text_parts(item.parts)
+        if target_text in text:
+            return i
+    return None
+
+
+def _apply_rewind_entry_to_history(
+    history: list[message.HistoryEvent],
+    entry: message.RewindEntry,
+) -> list[message.HistoryEvent]:
+    target_idx = _find_checkpoint_index_in_history(history, entry.checkpoint_id)
+    if target_idx is None:
+        return [*history, entry]
+    return [*history[: target_idx + 1], entry]
+
+
+def _rebuild_loaded_history(raw_history: Iterable[message.HistoryEvent]) -> list[message.HistoryEvent]:
+    active_history: list[message.HistoryEvent] = []
+    for item in raw_history:
+        if isinstance(item, message.RewindEntry):
+            active_history = _apply_rewind_entry_to_history(active_history, item)
+            continue
+        active_history.append(item)
+
+    last_compaction: message.CompactionEntry | None = None
+    for item in reversed(active_history):
+        if isinstance(item, message.CompactionEntry):
+            last_compaction = item
+            break
+
+    if last_compaction is None:
+        return active_history
+
+    cut_index = min(max(last_compaction.first_kept_index, 0), len(active_history))
+    kept = [item for item in active_history[cut_index:] if not isinstance(item, message.CompactionEntry)]
+    normalized_compaction = last_compaction.model_copy(update={"first_kept_index": 1})
+    return [normalized_compaction, *kept]
+
+
 def get_store_for_path(work_dir: Path) -> JsonlSessionStore:
     """Return a session store for the given work directory."""
     project_key = project_key_from_path(work_dir)
@@ -230,7 +274,7 @@ class Session(BaseModel):
     @classmethod
     def load(cls, id: str, work_dir: Path) -> Session:
         session = cls.load_meta(id, work_dir)
-        session.conversation_history = session._store.load_history(id)
+        session.conversation_history = _rebuild_loaded_history(session._store.iter_history(id))
         return session
 
     @classmethod
@@ -354,14 +398,7 @@ class Session(BaseModel):
         return checkpoint_id
 
     def find_checkpoint_index(self, checkpoint_id: int) -> int | None:
-        target_text = f"<system-reminder>Checkpoint {checkpoint_id}</system-reminder>"
-        for i, item in enumerate(self.conversation_history):
-            if not isinstance(item, message.DeveloperMessage):
-                continue
-            text = message.join_text_parts(item.parts)
-            if target_text in text:
-                return i
-        return None
+        return _find_checkpoint_index_in_history(self.conversation_history, checkpoint_id)
 
     def get_user_message_before_checkpoint(self, checkpoint_id: int) -> str | None:
         checkpoint_idx = self.find_checkpoint_index(checkpoint_id)
