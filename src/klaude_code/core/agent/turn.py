@@ -222,12 +222,8 @@ class TurnExecutor:
         if self._turn_result.stream_error is not None:
             # Save stream error and partial output for retry continuation.
             session_ctx.append_history([self._turn_result.stream_error])
-            if (
-                RETRY_PRESERVE_PARTIAL_MESSAGE
-                and self._turn_result.assistant_message is not None
-                and self._turn_result.assistant_message.parts
-            ):
-                partial_text = message.join_text_parts(self._turn_result.assistant_message.parts).strip()
+            if RETRY_PRESERVE_PARTIAL_MESSAGE:
+                partial_text = "".join(self._accumulated_assistant_text).strip()
                 if partial_text:
                     continuation_prompt = _build_continuation_prompt(partial_text)
                     session_ctx.append_history(
@@ -461,8 +457,7 @@ class TurnExecutor:
         """Persist user continuation prompt from accumulated assistant text.
 
         Uses text accumulated from AssistantTextDelta events, which excludes
-        thinking content. get_partial_message() degrades ThinkingTextPart to
-        TextPart, which would incorrectly include thinking in the prompt.
+        thinking content.
         """
         partial_text = "".join(self._accumulated_assistant_text).strip()
         if not partial_text:

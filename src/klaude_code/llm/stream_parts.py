@@ -89,8 +89,12 @@ def degrade_thinking_to_text(parts: list[message.Part]) -> list[message.Part]:
 
 
 def build_partial_parts(parts: list[message.Part]) -> list[message.Part]:
-    filtered_parts: list[message.Part] = [p for p in parts if not isinstance(p, message.ToolCallPart)]
-    return degrade_thinking_to_text(filtered_parts)
+    """Build parts for error/interrupt recovery, keeping only plain text content."""
+    return [
+        p
+        for p in parts
+        if not isinstance(p, (message.ToolCallPart, message.ThinkingTextPart, message.ThinkingSignaturePart))
+    ]
 
 
 def build_partial_message(
