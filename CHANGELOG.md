@@ -7,6 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.24.0] - 2026-03-27
+
+### Added
+
+- add copy buttons for user and assistant messages ([#215](https://github.com/inspirepan/klaude-code/pull/215) by [@inspirepan](https://github.com/inspirepan))
+- replace temporary green background with persistent unread dot ([#209](https://github.com/inspirepan/klaude-code/pull/209) by [@inspirepan](https://github.com/inspirepan))
+- blink browser and terminal title with ▫/▪ while task is running ([#208](https://github.com/inspirepan/klaude-code/pull/208) by [@inspirepan](https://github.com/inspirepan))
+- persist composer draft per session in localStorage ([#207](https://github.com/inspirepan/klaude-code/pull/207) by [@inspirepan](https://github.com/inspirepan))
+- code quality cleanup and restore lost changes ([#206](https://github.com/inspirepan/klaude-code/pull/206) by [@inspirepan](https://github.com/inspirepan))
+- skip first-token timeout for large context inputs ([#204](https://github.com/inspirepan/klaude-code/pull/204) by [@inspirepan](https://github.com/inspirepan))
+- exclude trailing messages from planned group and add expand/collapse to summaries ([#203](https://github.com/inspirepan/klaude-code/pull/203) by [@inspirepan](https://github.com/inspirepan))
+- UI improvements, perf optimizations, and new features ([#202](https://github.com/inspirepan/klaude-code/pull/202) by [@inspirepan](https://github.com/inspirepan))
+- add input placeholder and OSC94 env toggle ([#201](https://github.com/inspirepan/klaude-code/pull/201) by [@inspirepan](https://github.com/inspirepan))
+- batch UI polish — fonts, animations, sub-agents, scroll ([#200](https://github.com/inspirepan/klaude-code/pull/200) by [@inspirepan](https://github.com/inspirepan))
+- improve scroll behavior and fix UI transition glitches ([#199](https://github.com/inspirepan/klaude-code/pull/199) by [@inspirepan](https://github.com/inspirepan))
+- typography overhaul, task metadata redesign, and UI polish ([#196](https://github.com/inspirepan/klaude-code/pull/196) by [@inspirepan](https://github.com/inspirepan))
+- polish design system, add i18n, and improve UI components ([#194](https://github.com/inspirepan/klaude-code/pull/194) by [@inspirepan](https://github.com/inspirepan))
+- add filesystem directory completion to workspace picker ([#189](https://github.com/inspirepan/klaude-code/pull/189) by [@inspirepan](https://github.com/inspirepan))
+- forward sub-agent events through WebSocket ([#187](https://github.com/inspirepan/klaude-code/pull/187) by [@inspirepan](https://github.com/inspirepan))
+- UI polish, history API staleness fix, and session card flash fix ([#184](https://github.com/inspirepan/klaude-code/pull/184) by [@inspirepan](https://github.com/inspirepan))
+- improve session UI, task metadata display and sub-agent history replay ([#182](https://github.com/inspirepan/klaude-code/pull/182))
+- switch to forked session directly instead of showing resume command ([#179](https://github.com/inspirepan/klaude-code/pull/179))
+- increase first token timeout from 30s to 60s ([#170](https://github.com/inspirepan/klaude-code/pull/170))
+- support multiple skill references in a single user message ([#168](https://github.com/inspirepan/klaude-code/pull/168))
+- sticky status bar, header polish, and sidebar enhancements ([#167](https://github.com/inspirepan/klaude-code/pull/167))
+- refine sidebar and message metadata ([#165](https://github.com/inspirepan/klaude-code/pull/165))
+- support forked sub-agent context ([#164](https://github.com/inspirepan/klaude-code/pull/164))
+- improve scroll behavior and tool header collapse timing ([#163](https://github.com/inspirepan/klaude-code/pull/163))
+- add sidebar archive cleanup ([#160](https://github.com/inspirepan/klaude-code/pull/160))
+- add gpt-5.4-mini and isolate response streams ([#159](https://github.com/inspirepan/klaude-code/pull/159))
+- add sora video generation skill ([#157](https://github.com/inspirepan/klaude-code/pull/157))
+- add /web command for web mode ([#154](https://github.com/inspirepan/klaude-code/pull/154))
+- add fade-in animation for streaming tool result lines ([#150](https://github.com/inspirepan/klaude-code/pull/150))
+- add make install target and remap web font size scale ([#146](https://github.com/inspirepan/klaude-code/pull/146))
+- render colored file stats in tool summary ([#145](https://github.com/inspirepan/klaude-code/pull/145))
+- typography improvements, SubAgent UI redesign, and font update ([#141](https://github.com/inspirepan/klaude-code/pull/141))
+- add @file completion in composer ([#138](https://github.com/inspirepan/klaude-code/pull/138))
+- support local git self-upgrades ([#137](https://github.com/inspirepan/klaude-code/pull/137))
+- improve composer attachments and message UI ([#136](https://github.com/inspirepan/klaude-code/pull/136))
+
+### Changed
+
+- load all memory files per directory and remove recursive @ loading ([#212](https://github.com/inspirepan/klaude-code/pull/212) by [@inspirepan](https://github.com/inspirepan))
+- remove EmitOsc94Error command ([#211](https://github.com/inspirepan/klaude-code/pull/211) by [@inspirepan](https://github.com/inspirepan))
+- improve prompts, add CI watch loop, fix websocket hang ([#195](https://github.com/inspirepan/klaude-code/pull/195) by [@inspirepan](https://github.com/inspirepan))
+- unify update_plan into TodoWrite with explanation field ([#192](https://github.com/inspirepan/klaude-code/pull/192) by [@inspirepan](https://github.com/inspirepan))
+- make work_dir parameter required, remove implicit Path.cwd() fallbacks ([#185](https://github.com/inspirepan/klaude-code/pull/185) by [@inspirepan](https://github.com/inspirepan))
+- remove metadata from sub-agent status lines ([#180](https://github.com/inspirepan/klaude-code/pull/180))
+- reduce useEffect usage with useMountEffect hook and derived state ([#176](https://github.com/inspirepan/klaude-code/pull/176))
+- fall back to npm when pnpm is not available ([#175](https://github.com/inspirepan/klaude-code/pull/175))
+- improve collapse behavior, layout stability, and UI polish ([#174](https://github.com/inspirepan/klaude-code/pull/174))
+
+### Fixed
+
+- strip thinking content from error/interrupt recovery paths ([#214](https://github.com/inspirepan/klaude-code/pull/214) by [@inspirepan](https://github.com/inspirepan))
+- handle reworded todo content in planned group completion check ([#213](https://github.com/inspirepan/klaude-code/pull/213) by [@inspirepan](https://github.com/inspirepan))
+- preserve line breaks in ThinkingBlock code blocks ([#210](https://github.com/inspirepan/klaude-code/pull/210) by [@inspirepan](https://github.com/inspirepan))
+- eagerly finalize pending request on resolve to fix stale waiting_user_input state ([#205](https://github.com/inspirepan/klaude-code/pull/205) by [@inspirepan](https://github.com/inspirepan))
+- auto-discover AGENTS.md when @ referencing directories ([#190](https://github.com/inspirepan/klaude-code/pull/190) by [@inspirepan](https://github.com/inspirepan))
+- suppress false duplicate warnings for symlinked skills ([#191](https://github.com/inspirepan/klaude-code/pull/191) by [@ustc-taoyang](https://github.com/ustc-taoyang))
+- downgrade eslint to v9 and use global setTimeout ([#188](https://github.com/inspirepan/klaude-code/pull/188) by [@ustc-taoyang](https://github.com/ustc-taoyang))
+- improve session card archive button layout ([#186](https://github.com/inspirepan/klaude-code/pull/186) by [@inspirepan](https://github.com/inspirepan))
+- persist is_partial flag on TaskMetadataItem for replay ([#183](https://github.com/inspirepan/klaude-code/pull/183) by [@inspirepan](https://github.com/inspirepan))
+- suppress Ctrl+C traceback and fix pnpm v10 dev server startup ([#181](https://github.com/inspirepan/klaude-code/pull/181))
+- improve tool tooltip and archive cleanup UX ([#178](https://github.com/inspirepan/klaude-code/pull/178))
+- strip dangling tool calls from forked/interrupted history ([#173](https://github.com/inspirepan/klaude-code/pull/173))
+- pass work_dir as cwd to subprocess exec ([#172](https://github.com/inspirepan/klaude-code/pull/172))
+- detect actual image format from magic bytes to correct MIME type mismatch ([#169](https://github.com/inspirepan/klaude-code/pull/169))
+- resolve sub-agent model preference lists ([#162](https://github.com/inspirepan/klaude-code/pull/162))
+- support sub-agent model preference lists ([#161](https://github.com/inspirepan/klaude-code/pull/161))
+- correct sub-agent collapse overflow ([#158](https://github.com/inspirepan/klaude-code/pull/158))
+- only add cache_control to last user/tool message for Claude via OpenRouter ([#152](https://github.com/inspirepan/klaude-code/pull/152))
+- auto-install missing frontend deps ([#151](https://github.com/inspirepan/klaude-code/pull/151))
+- enforce base64 size limit when resizing inline images ([#149](https://github.com/inspirepan/klaude-code/pull/149))
+- restore pending interactions after websocket reconnect ([#148](https://github.com/inspirepan/klaude-code/pull/148))
+- improve browser impersonation, gzip support, readability extraction, and retry ([#140](https://github.com/inspirepan/klaude-code/pull/140))
+- keep tool_result adjacent to tool_use on interrupt ([#135](https://github.com/inspirepan/klaude-code/pull/135))
+
+### Other
+
+- Merge pull request #198 from inspirepan/feat/session-ux-reliability ([#198](https://github.com/inspirepan/klaude-code/pull/198) by [@inspirepan](https://github.com/inspirepan))
+- Merge pull request #197 from inspirepan/feat/title-blink-cli-lazy ([#197](https://github.com/inspirepan/klaude-code/pull/197) by [@inspirepan](https://github.com/inspirepan))
+- update skill assets submodule ([#177](https://github.com/inspirepan/klaude-code/pull/177))
+- add systematic web frontend build script and fix sdist packaging ([#171](https://github.com/inspirepan/klaude-code/pull/171))
+- Merge pull request #156 from inspirepan/codex/remove-resume-parameter-from-subagent ([#156](https://github.com/inspirepan/klaude-code/pull/156))
+- add pnpm install for web/ in make install ([#155](https://github.com/inspirepan/klaude-code/pull/155))
+- update skill assets submodule and exclude from linting ([#153](https://github.com/inspirepan/klaude-code/pull/153))
+- merge stacked PRs #142-#144 into main (`19aab215`)
+- Merge pull request #139 from inspirepan/feat/web-session-stream-and-ui-polish ([#139](https://github.com/inspirepan/klaude-code/pull/139))
+
 ## [2.23.0] - 2026-03-12
 
 ### Added
@@ -2076,7 +2166,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.23.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.24.0...HEAD
+[2.24.0]: https://github.com/inspirepan/klaude-code/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/inspirepan/klaude-code/compare/v2.22.0...v2.23.0
 [2.22.0]: https://github.com/inspirepan/klaude-code/compare/v2.21.0...v2.22.0
 [2.21.0]: https://github.com/inspirepan/klaude-code/compare/v2.20.0...v2.21.0
