@@ -47,9 +47,7 @@ def test_truncate_right_tiny_width_returns_ellipsis_only() -> None:
 
 def test_truncate_status_with_pipe_truncates_left_side() -> None:
     console = Console()
-    text = Text(
-        "Find model definitions (Usage, TaskMetadata) to understand existing fields | Finding esc to interrupt"
-    )
+    text = Text("Find model definitions (Usage, TaskMetadata) to understand existing fields | Finding esc to interrupt")
     result = truncate_status(text, 50, console=console)
     # The right part is " | Finding esc to interrupt" which is 27 chars
     # max width is 50. left_budget is 23. ellipsis takes 1. prefix takes 22.
