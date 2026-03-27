@@ -3,7 +3,7 @@ from __future__ import annotations
 from klaude_code.protocol import tools
 from klaude_code.protocol.sub_agent import SubAgentProfile, register_sub_agent
 
-EXPLORE_SUMMARY = (
+FINDER_SUMMARY = (
     "Intelligently search your codebase: use it for complex, multi-step search tasks where you\n"
     "need to find code based on functionality or concepts rather than exact matches. Anytime you\n"
     "want to chain multiple grep calls you should use this tool.\n"
@@ -16,11 +16,11 @@ EXPLORE_SUMMARY = (
 
 register_sub_agent(
     SubAgentProfile(
-        name="Explore",
-        prompt_file="prompts/prompt-sub-agent-explore.md",
+        name="Finder",
+        prompt_file="prompts/prompt-sub-agent-finder.md",
         tool_set=(tools.BASH, tools.READ),
-        invoker_type="explore",
-        invoker_summary=EXPLORE_SUMMARY,
-        active_form="Exploring",
+        invoker_type="finder",
+        invoker_summary=FINDER_SUMMARY,
+        active_form="Finding",
     )
 )

@@ -71,8 +71,8 @@ def get_agent_active_form(arguments: str) -> str:
         return "Tasking"
 
     match type_raw.strip():
-        case "explore":
-            return "Exploring"
+        case "finder":
+            return "Finding"
         case "web":
             return "Surfing"
         case _:

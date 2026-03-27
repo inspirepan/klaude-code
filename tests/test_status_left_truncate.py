@@ -48,13 +48,13 @@ def test_truncate_right_tiny_width_returns_ellipsis_only() -> None:
 def test_truncate_status_with_pipe_truncates_left_side() -> None:
     console = Console()
     text = Text(
-        "Explore model definitions (Usage, TaskMetadata) to understand existing fields | Exploring esc to interrupt"
+        "Find model definitions (Usage, TaskMetadata) to understand existing fields | Finding esc to interrupt"
     )
     result = truncate_status(text, 50, console=console)
-    # The right part is " | Exploring esc to interrupt" which is 29 chars
-    # max width is 50. left_budget is 21. ellipsis takes 1. prefix takes 19.
-    # prefix is "Explore model defini". Result: "Explore model defini… | Exploring esc to interrupt"
-    assert result.plain == "Explore model defini… | Exploring esc to interrupt"
+    # The right part is " | Finding esc to interrupt" which is 27 chars
+    # max width is 50. left_budget is 23. ellipsis takes 1. prefix takes 22.
+    # prefix is "Find model definitions". Result: "Find model definitions… | Finding esc to interrupt"
+    assert result.plain == "Find model definitions… | Finding esc to interrupt"
 
 
 def test_truncate_status_without_pipe_falls_back() -> None:
@@ -109,7 +109,7 @@ def test_stacked_status_adds_leading_blank_line_when_enabled() -> None:
     status = StackedStatusText(
         "",
         Text("95.1%", style=ThemeKey.METADATA_DIM),
-        (Text("Exploring searching", style=ThemeKey.STATUS_TEXT),),
+        (Text("Finding searching", style=ThemeKey.STATUS_TEXT),),
         leading_blank_line=True,
     )
     lines = console.render_lines(status, console.options.update(no_wrap=True, overflow="ellipsis"), pad=False)
@@ -119,7 +119,7 @@ def test_stacked_status_adds_leading_blank_line_when_enabled() -> None:
     second_line = "".join(segment.text for segment in lines[1] if segment.text)
     third_line = "".join(segment.text for segment in lines[2] if segment.text)
     assert first_line == ""
-    assert "Exploring searching" in second_line
+    assert "Finding searching" in second_line
     assert "95.1% · esc to interrupt" in third_line
 
 

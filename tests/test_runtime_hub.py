@@ -408,7 +408,7 @@ def test_runtime_hub_tracks_session_local_config_by_session() -> None:
         compact_op = op.ChangeCompactModelOperation(session_id="s2", model_name="compact-x")
         sub_model_op = op.ChangeSubAgentModelOperation(
             session_id="s2",
-            sub_agent_type="explore",
+            sub_agent_type="finder",
             model_name="model-sub",
         )
 
@@ -442,7 +442,7 @@ def test_runtime_hub_tracks_session_local_config_by_session() -> None:
         assert s1.thinking.budget_tokens == 99
 
         assert s2.compact_model == "compact-x"
-        assert s2.sub_agent_models == {"explore": "model-sub"}
+        assert s2.sub_agent_models == {"finder": "model-sub"}
 
         await hub.stop()
 

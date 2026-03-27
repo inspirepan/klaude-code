@@ -554,7 +554,7 @@ def get_example_config() -> UserConfig:
         main_model="opus",
         fast_model=["haiku", "gemini-flash", "gpt-5-nano"],
         compact_model=["gemini-flash", "haiku"],
-        sub_agent_models={"general-purpose": "sonnet", "explore": "haiku"},
+        sub_agent_models={"general-purpose": "sonnet", "finder": "haiku"},
         provider_list=[
             UserProviderConfig(
                 provider_name="my-provider",

@@ -26,7 +26,7 @@ def _tool_context() -> ToolContext:
 
 def test_sub_agent_tool_visibility() -> None:
     assert is_sub_agent_tool(tools.AGENT) is True
-    assert is_sub_agent_tool("Explore") is False
+    assert is_sub_agent_tool("Finder") is False
 
 
 def test_main_agent_tools_include_registered_sub_agents() -> None:
@@ -35,11 +35,11 @@ def test_main_agent_tools_include_registered_sub_agents() -> None:
     claude_tool_names = {schema.name for schema in load_agent_tools("claude-3")}
 
     assert tools.AGENT in gpt5_tool_names
-    assert "Explore" not in gpt5_tool_names
+    assert "Finder" not in gpt5_tool_names
     assert "Oracle" not in gpt5_tool_names
 
     assert tools.AGENT in claude_tool_names
-    assert "Explore" not in claude_tool_names
+    assert "Finder" not in claude_tool_names
     assert "Oracle" not in claude_tool_names
 
 
@@ -144,14 +144,14 @@ def test_sub_agent_tool_cancellation_propagates_cancelled_error() -> None:
 
         executor = ToolExecutor(
             context=_tool_context(),
-            registry={"Explore": _SlowSubAgentTool},
+            registry={"Finder": _SlowSubAgentTool},
             append_history=lambda items: None,  # type: ignore[arg-type]
         )
 
         tool_call = ToolCallRequest(
             response_id="resp1",
             call_id="tc1",
-            tool_name="Explore",
+            tool_name="Finder",
             arguments_json="{}",
         )
 
@@ -243,7 +243,7 @@ def test_agent_tool_concurrent_sub_agents_share_responses_client_safely() -> Non
                 response_id="resp-parent",
                 call_id="call-1",
                 tool_name=tools.AGENT,
-                arguments_json='{"type":"explore","description":"one","prompt":"first"}',
+                arguments_json='{"type":"finder","description":"one","prompt":"first"}',
             ),
             ToolCallRequest(
                 response_id="resp-parent",

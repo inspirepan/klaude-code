@@ -7,7 +7,7 @@ Minimal code agent CLI.
 - **Keep reasoning item in context**: Interleaved thinking support
 - **Model-aware tools**: Claude Code tool set for Opus, `apply_patch` for GPT-5/Codex
 - **Reminders**: Cooldown-based todo tracking, instruction reinforcement and external file change reminder
-- **Sub-agents**: Task, Explore
+- **Sub-agents**: Task, Finder
 - **Structured sub-agent output**: Main agent defines JSON schema and get schema-compliant responses via constrained decoding
 - **Recursive `@file` mentions**: Circular dependency protection, relative path resolution
 - **External file sync**: Monitoring for external edits (linter, manual)
@@ -235,14 +235,14 @@ provider_list:
 `sub_agent_models` only accepts sub-agent types. Current supported keys are:
 
 - `general-purpose` (Task sub-agent)
-- `explore` (Explore sub-agent)
+- `finder` (Finder sub-agent)
 
 If a sub-agent type is not configured, it falls back to the main agent model.
 
 ```yaml
 sub_agent_models:
   general-purpose: sonnet
-  explore: haiku
+  finder: haiku
 ```
 
 ##### Supported Protocols
@@ -318,5 +318,5 @@ The main agent can spawn specialized sub-agents for specific tasks:
 
 | Sub-Agent | Purpose |
 |-----------|---------|
-| **Explore** | Fast codebase exploration - find files, search code, answer questions about the codebase |
+| **Finder** | Fast codebase exploration - find files, search code, answer questions about the codebase |
 | **Task** | Handle complex multi-step tasks autonomously |

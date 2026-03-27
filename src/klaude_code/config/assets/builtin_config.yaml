@@ -594,7 +594,7 @@ provider_list:
     cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
 
 sub_agent_models:
-  explore:
+  finder:
   - gemini-flash-minimal
   - gpt-5.4-mini
   - haiku

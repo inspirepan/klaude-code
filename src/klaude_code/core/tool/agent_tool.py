@@ -14,7 +14,7 @@ from klaude_code.protocol.sub_agent import get_sub_agent_profile, iter_sub_agent
 
 AGENT_TYPE_TO_SUB_AGENT: dict[str, str] = {
     "general-purpose": "Task",
-    "explore": "Explore",
+    "finder": "Finder",
 }
 
 

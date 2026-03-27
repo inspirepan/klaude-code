@@ -36,22 +36,22 @@ class SubAgentProfile:
     """
 
     # Identity - single name used for type, config_key, and prompt_key
-    name: str  # e.g., "Task", "Explore"
+    name: str  # e.g., "Task", "Finder"
 
     # Sub-agent run configuration
-    prompt_file: str = ""  # Resource file path relative to core package (e.g., "prompts/prompt-sub-agent-explore.md")
+    prompt_file: str = ""  # Resource file path relative to core package (e.g., "prompts/prompt-sub-agent-finder.md")
     tool_set: tuple[str, ...] = ()  # Tools available to this sub agent
     prompt_builder: PromptBuilder = _default_prompt_builder  # Builds the sub agent prompt from tool arguments
 
     # Entry-point metadata for Agent tool (RunSubAgent)
-    invoker_type: str | None = None  # Tool-level type mapping (e.g., "general-purpose", "explore")
+    invoker_type: str | None = None  # Tool-level type mapping (e.g., "general-purpose", "finder")
     invoker_summary: str = ""  # Short description shown under Agent tool supported types
 
     # When True, use the main agent's full system prompt instead of prompt_file
     use_main_prompt: bool = False
 
     # UI display
-    active_form: str = ""  # Active form for spinner status (e.g., "Tasking", "Exploring")
+    active_form: str = ""  # Active form for spinner status (e.g., "Tasking", "Finding")
 
 
 _PROFILES: dict[str, SubAgentProfile] = {}
@@ -81,5 +81,5 @@ def is_sub_agent_tool(tool_name: str) -> bool:
 
 
 # Import sub-agent modules to trigger registration
-from klaude_code.protocol.sub_agent import explore as explore  # noqa: E402
+from klaude_code.protocol.sub_agent import finder as finder  # noqa: E402
 from klaude_code.protocol.sub_agent import general_purpose as general_purpose  # noqa: E402

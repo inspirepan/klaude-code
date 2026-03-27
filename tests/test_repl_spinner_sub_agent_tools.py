@@ -27,19 +27,19 @@ def test_sub_agent_tool_calls_persist_across_turn_start() -> None:
 
 def test_sub_agent_tool_calls_decrement_by_tool_call_id() -> None:
     state = SpinnerStatusState()
-    state.add_sub_agent_tool_call("tc_1", "Exploring")
-    state.add_sub_agent_tool_call("tc_2", "Exploring")
+    state.add_sub_agent_tool_call("tc_1", "Finding")
+    state.add_sub_agent_tool_call("tc_2", "Finding")
 
     activity = state.get_activity_text()
     assert activity is not None
-    assert "Exploring" in activity.plain
+    assert "Finding" in activity.plain
     assert "x 2" in activity.plain
 
-    state.finish_sub_agent_tool_call("tc_1", "Exploring")
+    state.finish_sub_agent_tool_call("tc_1", "Finding")
 
     activity = state.get_activity_text()
     assert activity is not None
-    assert "Exploring" in activity.plain
+    assert "Finding" in activity.plain
     assert "x 2" not in activity.plain
 
 
@@ -68,13 +68,13 @@ def test_custom_reasoning_is_shown_on_second_line_when_todo_present() -> None:
 def test_activity_moves_to_separate_status_line_when_base_present() -> None:
     state = SpinnerStatusState()
     state.set_todo_status("Implement feature")
-    state.add_tool_call("Exploring")
+    state.add_tool_call("Finding")
 
     todo_status = state.get_todo_status()
     status = state.get_status()
 
     assert todo_status.plain == "Implement feature"
-    assert status.plain.startswith("Exploring")
+    assert status.plain.startswith("Finding")
 
 
 def test_activity_is_shown_on_secondary_line_when_no_base_status() -> None:
@@ -134,7 +134,7 @@ def test_default_status_keeps_min_thinking_width() -> None:
 def test_toast_is_shown_on_secondary_line_with_highest_priority() -> None:
     state = SpinnerStatusState()
     state.set_todo_status("Implement feature")
-    state.add_tool_call("Exploring")
+    state.add_tool_call("Finding")
     state.set_toast_status("Press ctrl+c again to exit")
 
     todo_status = state.get_todo_status()
