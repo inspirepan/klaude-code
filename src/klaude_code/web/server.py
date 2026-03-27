@@ -307,6 +307,8 @@ async def start_web_server(
         host=host,
         port=port,
         log_level="debug" if debug else "info",
+        ws_ping_interval=None,
+        ws_ping_timeout=None,
     )
     server = _QuietServer(config)
     try:
