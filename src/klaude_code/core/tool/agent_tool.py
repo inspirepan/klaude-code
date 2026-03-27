@@ -14,7 +14,7 @@ from klaude_code.protocol.sub_agent import get_sub_agent_profile, iter_sub_agent
 
 AGENT_TYPE_TO_SUB_AGENT: dict[str, str] = {
     "general-purpose": "Task",
-    "explore": "Explore",
+    "finder": "Finder",
 }
 
 
@@ -28,7 +28,9 @@ def _agent_description() -> str:
     for invoker_type in AGENT_TYPE_TO_SUB_AGENT:
         summary = summaries.get(invoker_type, "")
         if summary:
-            type_lines.append(f"- {invoker_type}: {summary}")
+            lines = summary.split("\n")
+            indented = [f"- type:{invoker_type}: {lines[0]}"] + ["  " + line for line in lines[1:]]
+            type_lines.append("\n".join(indented))
         else:
             type_lines.append(f"- {invoker_type}")
 

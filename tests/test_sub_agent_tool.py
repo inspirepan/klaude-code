@@ -71,10 +71,10 @@ def test_agent_tool_call_includes_session_id() -> None:
 
         return _Result()
 
-    args = '{"type":"explore","description":"d","prompt":"p"}'
+    args = '{"type":"finder","description":"d","prompt":"p"}'
     result = arun(AgentTool.call(args, _tool_context(run_subtask=_runner)))
 
-    assert captured["sub_agent_type"] == "Explore"
+    assert captured["sub_agent_type"] == "Finder"
     assert result.status == "success"
     assert result.output_text == "hello"
     assert result.ui_extra is not None
@@ -119,7 +119,7 @@ class TestSubAgentRegistration:
         from klaude_code.protocol.sub_agent import is_sub_agent_tool
 
         assert is_sub_agent_tool(tools.AGENT) is True
-        assert is_sub_agent_tool("Explore") is False
+        assert is_sub_agent_tool("Finder") is False
 
     def test_get_sub_agent_profile(self) -> None:
         from klaude_code.protocol.sub_agent import get_sub_agent_profile
@@ -141,4 +141,4 @@ class TestSubAgentRegistration:
         profiles = iter_sub_agent_profiles()
         assert len(profiles) > 0
         names = {p.name for p in profiles}
-        assert {"Task", "Explore"}.issubset(names)
+        assert {"Task", "Finder"}.issubset(names)

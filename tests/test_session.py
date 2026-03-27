@@ -512,7 +512,7 @@ class TestSessionPersistence:
             # Create a sub-agent session with a completed task (has TaskMetadataItem)
             sub_session = Session.create(id="spawn-sub", work_dir=project_dir)
             sub_session.sub_agent_state = model.SubAgentState(
-                sub_agent_type="Explore", sub_agent_desc="search files", sub_agent_prompt="find foo"
+                sub_agent_type="Finder", sub_agent_desc="search files", sub_agent_prompt="find foo"
             )
             sub_session.append_history(
                 [
@@ -532,7 +532,7 @@ class TestSessionPersistence:
                     message.UserMessage(parts=message.text_parts_from_str("hello")),
                     message.SpawnSubAgentEntry(
                         session_id=sub_session.id,
-                        sub_agent_type="Explore",
+                        sub_agent_type="Finder",
                         sub_agent_desc="search files",
                     ),
                 ]
@@ -548,7 +548,7 @@ class TestSessionPersistence:
             sub_starts = [e for e in sub_events if isinstance(e, events.TaskStartEvent)]
             assert len(sub_starts) == 1
             assert sub_starts[0].sub_agent_state is not None
-            assert sub_starts[0].sub_agent_state.sub_agent_type == "Explore"
+            assert sub_starts[0].sub_agent_state.sub_agent_type == "Finder"
 
             # Completed sub-agent should have TaskFinishEvent
             sub_finishes = [e for e in sub_events if isinstance(e, events.TaskFinishEvent)]
@@ -682,7 +682,7 @@ class TestSessionPersistence:
             session = Session.create(id="codec-test", work_dir=project_dir)
             entry = message.SpawnSubAgentEntry(
                 session_id="child-abc",
-                sub_agent_type="Explore",
+                sub_agent_type="Finder",
                 sub_agent_desc="search stuff",
                 fork_context=True,
             )
@@ -694,7 +694,7 @@ class TestSessionPersistence:
             item = loaded.conversation_history[0]
             assert isinstance(item, message.SpawnSubAgentEntry)
             assert item.session_id == "child-abc"
-            assert item.sub_agent_type == "Explore"
+            assert item.sub_agent_type == "Finder"
             assert item.sub_agent_desc == "search stuff"
             assert item.fork_context is True
 

@@ -447,13 +447,13 @@ class TestConfig:
         config = Config(
             provider_list=[sample_provider],
             main_model="test-model",
-            sub_agent_models={"general-purpose": "model-a", "explore": "model-b"},
+            sub_agent_models={"general-purpose": "model-a", "finder": "model-b"},
         )
 
         assert "general-purpose" in config.sub_agent_models
-        assert "explore" in config.sub_agent_models
+        assert "finder" in config.sub_agent_models
         assert config.sub_agent_models["general-purpose"] == "model-a"
-        assert config.sub_agent_models["explore"] == "model-b"
+        assert config.sub_agent_models["finder"] == "model-b"
 
     def test_sub_agent_models_empty(self, sample_provider: ProviderConfig) -> None:
         """Test that empty sub_agent_models is handled correctly."""
@@ -468,20 +468,20 @@ class TestConfig:
         config = Config(
             provider_list=[sample_provider],
             main_model="test-model",
-            sub_agent_models={"explore": ["model-a", "model-b"]},
+            sub_agent_models={"finder": ["model-a", "model-b"]},
         )
 
-        assert config.sub_agent_models["explore"] == ["model-a", "model-b"]
+        assert config.sub_agent_models["finder"] == ["model-a", "model-b"]
 
     def test_sub_agent_models_ignore_unknown_key(self, sample_provider: ProviderConfig) -> None:
         config = Config(
             provider_list=[sample_provider],
             main_model="test-model",
-            sub_agent_models={"task": "model-a", "explore": "model-b"},
+            sub_agent_models={"task": "model-a", "finder": "model-b"},
         )
 
         assert "task" not in config.sub_agent_models
-        assert config.sub_agent_models.get("explore") == "model-b"
+        assert config.sub_agent_models.get("finder") == "model-b"
 
     def test_sub_agent_models_none(self, sample_provider: ProviderConfig) -> None:
         """Test that None sub_agent_models is handled correctly."""
@@ -557,13 +557,13 @@ class TestConfigSave:
 
         config = Config(
             main_model="test-model",
-            sub_agent_models={"explore": ["haiku", "gemini-flash"]},
+            sub_agent_models={"finder": ["haiku", "gemini-flash"]},
         )
 
         asyncio.run(config.save())
 
         saved_content = yaml.safe_load(test_config_path.read_text())
-        assert saved_content["sub_agent_models"]["explore"] == ["haiku", "gemini-flash"]
+        assert saved_content["sub_agent_models"]["finder"] == ["haiku", "gemini-flash"]
 
     def test_save_config_with_user_providers(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that save includes user-defined providers."""
@@ -1583,7 +1583,7 @@ class TestOutOfBoxExperience:
 
         user_config = {
             "sub_agent_models": {
-                "explore": "my-fast-model",
+                "finder": "my-fast-model",
                 "general-purpose": "my-task-model",
             }
         }
@@ -1593,7 +1593,7 @@ class TestOutOfBoxExperience:
         load_config.cache_clear()
         config = load_config()
 
-        assert config.sub_agent_models.get("explore") == "my-fast-model"
+        assert config.sub_agent_models.get("finder") == "my-fast-model"
         assert config.sub_agent_models.get("general-purpose") == "my-task-model"
 
     def test_commented_config_uses_builtin(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

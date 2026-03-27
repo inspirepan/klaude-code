@@ -5,6 +5,7 @@ import shutil
 from functools import cache
 from importlib.resources import files
 from pathlib import Path
+from string import Template
 
 from klaude_code.const import ProjectPaths, project_key_from_path
 from klaude_code.protocol import llm_param, model_id, tools
@@ -30,8 +31,8 @@ BASH_GIT_HISTORY_INST = (
 
 READ_BEFORE_EDIT_INST = """- NEVER propose changes to code you haven't read. Read a file before editing it."""
 
-AGENT_EXPLORE_INST = """- For broad codebase exploration, use `Agent` with `type="explore"`."""
-AGENT_EXPLORE_PARALLEL_INST = """- Launch multiple explore sub-agents in parallel when tasks are independent."""
+AGENT_FINDER_INST = """- For broad codebase exploration, use `Agent` with `type="finder"`."""
+AGENT_FINDER_PARALLEL_INST = """- Launch multiple finder sub-agents in parallel when tasks are independent."""
 
 TODO_FREQUENT_USAGE_INST = """- Use `TodoWrite` frequently for planning and tracking progress on multi-step tasks."""
 TODO_COMPLETE_IMMEDIATELY_INST = """- Mark todos completed immediately when finished. Do not batch-complete later."""
@@ -115,7 +116,7 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
         strategy_lines.append(READ_BEFORE_EDIT_INST)
 
     if tools.AGENT in tool_name_set:
-        strategy_lines.extend([AGENT_EXPLORE_INST, AGENT_EXPLORE_PARALLEL_INST])
+        strategy_lines.extend([AGENT_FINDER_INST, AGENT_FINDER_PARALLEL_INST])
 
     if tools.TODO_WRITE in tool_name_set:
         strategy_lines.extend([TODO_FREQUENT_USAGE_INST, TODO_COMPLETE_IMMEDIATELY_INST])
@@ -144,9 +145,11 @@ def build_main_system_prompt(model_name: str, available_tools: list[llm_param.To
 def _build_env_info(model_name: str, work_dir: Path) -> str:
     """Build environment info section with dynamic runtime values."""
 
+    from klaude_code.core.memory import find_git_repo_root
+
     cwd = work_dir
     today = datetime.datetime.now().strftime("%Y-%m-%d")
-    is_git_repo = (cwd / ".git").exists()
+    git_root = find_git_repo_root(work_dir=cwd)
     is_missing_dir = not cwd.exists()
     is_empty_dir = not is_missing_dir and not any(cwd.iterdir())
 
@@ -157,8 +160,8 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
 
     cwd_display = f"{cwd} (not found)" if is_missing_dir else f"{cwd} (empty)" if is_empty_dir else str(cwd)
     git_repo_line = (
-        "Current directory is a git repo"
-        if is_git_repo
+        f"Current directory is a git repo (root: {git_root})"
+        if git_root is not None
         else "Current directory is not a git repo (Exercise caution when modifying files; back up when necessary)"
     )
 
@@ -202,24 +205,27 @@ def load_system_prompt(
 
     effective_work_dir = work_dir
 
+    # Sub-agents with their own dedicated prompt get a minimal system prompt
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)
-        base_prompt = load_prompt_by_path(profile.prompt_file)
-    else:
-        base_prompt = build_main_system_prompt(model_name, available_tools or [])
+        if not profile.use_main_prompt:
+            from klaude_code.core.memory import find_git_repo_root
 
-    conventions_prompt = ""
-    extended_thinking_prompt = ""
-    auto_memory_prompt = ""
-    skills_prompt = ""
-    if sub_agent_type is None:
-        from klaude_code.skill.manager import format_available_skills_for_system_prompt
+            workspace_root = find_git_repo_root(work_dir=effective_work_dir) or effective_work_dir
+            base_prompt = Template(load_prompt_by_path(profile.prompt_file)).safe_substitute(
+                workingDirectory=effective_work_dir,
+                workspaceRoot=workspace_root,
+            )
+            return base_prompt
 
-        conventions_prompt = "\n\n" + load_prompt_by_path("prompts/following-conventions-prompt.md")
-        if model_id.supports_adaptive_thinking(model_name):
-            extended_thinking_prompt = EXTENDED_THINKING_INST
-        auto_memory_prompt = _build_auto_memory_prompt(effective_work_dir)
-        skills_prompt = format_available_skills_for_system_prompt()
+    # Main agent prompt path (also used by sub-agents with use_main_prompt=True)
+    from klaude_code.skill.manager import format_available_skills_for_system_prompt
+
+    base_prompt = build_main_system_prompt(model_name, available_tools or [])
+    conventions_prompt = "\n\n" + load_prompt_by_path("prompts/following-conventions-prompt.md")
+    extended_thinking_prompt = EXTENDED_THINKING_INST if model_id.supports_adaptive_thinking(model_name) else ""
+    auto_memory_prompt = _build_auto_memory_prompt(effective_work_dir)
+    skills_prompt = format_available_skills_for_system_prompt()
 
     return (
         base_prompt

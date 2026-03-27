@@ -200,20 +200,21 @@ class JsonlSessionStore:
             return True
 
     def load_history(self, session_id: str) -> list[message.HistoryEvent]:
+        return list(self.iter_history(session_id))
+
+    def iter_history(self, session_id: str) -> Iterable[message.HistoryEvent]:
         events_path = self._paths.events_file(session_id)
         if not events_path.exists():
-            return []
+            return
         try:
-            lines = events_path.read_text(encoding="utf-8").splitlines()
+            with events_path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    item = decode_jsonl_line(line)
+                    if item is None:
+                        continue
+                    yield item
         except OSError:
-            return []
-        items: list[message.HistoryEvent] = []
-        for line in lines:
-            item = decode_jsonl_line(line)
-            if item is None:
-                continue
-            items.append(item)
-        return items
+            return
 
     def append_and_flush(self, *, session_id: str, items: Sequence[message.HistoryEvent], meta: dict[str, Any]) -> None:
         if not items:

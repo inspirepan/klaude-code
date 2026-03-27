@@ -135,7 +135,8 @@ class SubAgentExecutor:
                                     "<system-reminder>You are the newly spawned agent. "
                                     "The prior conversation history was forked from your parent agent. "
                                     "Treat the next user message as your new task, "
-                                    "and use the forked history only as background context.</system-reminder>"
+                                    "and use the forked history only as background context. "
+                                    "Do NOT use the Agent tool to spawn sub-agents.</system-reminder>"
                                 )
                             )
                         ]

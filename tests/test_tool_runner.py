@@ -472,11 +472,11 @@ class TestToolExecutorPartition:
         """Test partitioning with only concurrent tools."""
         tool_calls = [
             ToolCallRequest(response_id=None, call_id="1", tool_name="Agent", arguments_json="{}"),
-            ToolCallRequest(response_id=None, call_id="2", tool_name="Explore", arguments_json="{}"),
+            ToolCallRequest(response_id=None, call_id="2", tool_name="Finder", arguments_json="{}"),
         ]
         executor = ToolExecutor(
             context=_tool_context(),
-            registry={"Agent": MockConcurrentTool, "Explore": MockConcurrentTool},
+            registry={"Agent": MockConcurrentTool, "Finder": MockConcurrentTool},
             append_history=lambda items: None,  # type: ignore[arg-type]
         )
         sequential, concurrent = executor._partition_tool_calls(tool_calls)

@@ -56,7 +56,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Explore",
+                sub_agent_type="Finder",
                 sub_agent_desc="searching xxxxx",
                 sub_agent_prompt="prompt",
             ),
@@ -69,7 +69,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     assert update.leading_blank_line is True
     assert update.status_lines[0].session_id == sub_session
     lines = [_line_plain(line) for line in update.status_lines]
-    assert lines == ["Exploring searching xxxxx | Running …"]
+    assert lines == ["Finding searching xxxxx | Running …"]
     first_line = update.status_lines[0].text
     assert isinstance(first_line, Text)
     assert any(
@@ -88,7 +88,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Explore",
+                sub_agent_type="Finder",
                 sub_agent_desc="searching yyyyy",
                 sub_agent_prompt="prompt",
             ),
@@ -105,7 +105,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     )
     update = _last_spinner_update(cmds)
     lines = [_line_plain(line) for line in update.status_lines]
-    assert lines == ["Exploring searching yyyyy | Bashing × 1"]
+    assert lines == ["Finding searching yyyyy | Bashing × 1"]
 
     cmds = machine.transition(
         events.ToolCallStartEvent(
@@ -116,7 +116,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     )
     update = _last_spinner_update(cmds)
     lines = [_line_plain(line) for line in update.status_lines]
-    assert lines == ["Exploring searching yyyyy | Bashing × 2"]
+    assert lines == ["Finding searching yyyyy | Bashing × 2"]
 
 
 def test_main_session_bash_tool_streams_append_only_and_keeps_success_result(
@@ -278,7 +278,7 @@ def test_sub_agent_bash_tool_output_delta_is_ignored() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Explore",
+                sub_agent_type="Finder",
                 sub_agent_desc="searching yyyyy",
                 sub_agent_prompt="prompt",
             ),
@@ -309,7 +309,7 @@ def test_sub_agent_status_lines_cap_with_more_indicator() -> None:
             events.TaskStartEvent(
                 session_id=f"sub-{idx}",
                 sub_agent_state=model.SubAgentState(
-                    sub_agent_type="Explore",
+                    sub_agent_type="Finder",
                     sub_agent_desc=f"searching {idx}",
                     sub_agent_prompt="prompt",
                 ),
@@ -321,8 +321,8 @@ def test_sub_agent_status_lines_cap_with_more_indicator() -> None:
     assert last_update is not None
     lines = [_line_plain(line) for line in last_update.status_lines]
     assert len(lines) == 6
-    assert lines[0] == "Exploring searching 0 | Running …"
-    assert lines[4] == "Exploring searching 4 | Running …"
+    assert lines[0] == "Finding searching 0 | Running …"
+    assert lines[4] == "Finding searching 4 | Running …"
     assert lines[5] == "+2 more..."
 
 
@@ -336,7 +336,7 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Explore",
+                sub_agent_type="Finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
             ),
@@ -386,7 +386,7 @@ def test_interrupt_clears_stale_sub_agent_status_lines() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Explore",
+                sub_agent_type="Finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
             ),
@@ -402,7 +402,7 @@ def test_interrupt_clears_stale_sub_agent_status_lines() -> None:
     assert update.leading_blank_line is False
     assert len(update.status_lines) == 1
     assert update.status_lines[0].session_id is None
-    assert "Exploring" not in _line_plain(update.status_lines[0])
+    assert "Finding" not in _line_plain(update.status_lines[0])
 
 
 def test_sub_agent_non_retry_error_clears_status_lines() -> None:
@@ -415,7 +415,7 @@ def test_sub_agent_non_retry_error_clears_status_lines() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Explore",
+                sub_agent_type="Finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
             ),
@@ -436,7 +436,7 @@ def test_sub_agent_non_retry_error_clears_status_lines() -> None:
     assert update.leading_blank_line is False
     assert len(update.status_lines) == 1
     assert update.status_lines[0].session_id is None
-    assert "Exploring" not in _line_plain(update.status_lines[0])
+    assert "Finding" not in _line_plain(update.status_lines[0])
 
 
 def test_failed_agent_tool_result_clears_sub_agent_status_line() -> None:
@@ -449,7 +449,7 @@ def test_failed_agent_tool_result_clears_sub_agent_status_line() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Explore",
+                sub_agent_type="Finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
             ),
@@ -480,7 +480,7 @@ def test_failed_agent_tool_result_clears_sub_agent_status_line() -> None:
     assert update.leading_blank_line is False
     assert len(update.status_lines) == 1
     assert update.status_lines[0].session_id is None
-    assert "Exploring" not in _line_plain(update.status_lines[0])
+    assert "Finding" not in _line_plain(update.status_lines[0])
 
 
 def test_main_session_tokens_accumulate_across_task_boundaries() -> None:

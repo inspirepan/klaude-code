@@ -16,21 +16,21 @@ class TestSubAgentModelHelper:
         assert result.description == "use default behavior: anthropic/test"
         assert result.resolved_model_name == "anthropic/test"
 
-    def test_explore_defaults_to_main_model(self) -> None:
+    def test_finder_defaults_to_main_model(self) -> None:
         config = Config(provider_list=[])
         helper = SubAgentModelHelper(config)
 
-        result = helper.describe_empty_model_config_behavior("Explore", main_model_name="anthropic/test")
+        result = helper.describe_empty_model_config_behavior("Finder", main_model_name="anthropic/test")
         assert result.description == "use default behavior: anthropic/test"
         assert result.resolved_model_name == "anthropic/test"
 
-    def test_available_sub_agents_only_task_and_explore(self) -> None:
+    def test_available_sub_agents_only_task_and_finder(self) -> None:
         config = Config(provider_list=[])
         helper = SubAgentModelHelper(config)
 
         sub_agents = helper.get_available_sub_agents()
         names = {sa.profile.name for sa in sub_agents}
-        assert names == {"Task", "Explore"}
+        assert names == {"Task", "Finder"}
 
     def test_selectable_models_returns_all_available_models(self) -> None:
         provider = ProviderConfig(
@@ -60,16 +60,16 @@ class TestSubAgentModelHelper:
             provider_list=[],
             sub_agent_models={
                 "general-purpose": "model-task",
-                "explore": "model-explore",
+                "finder": "model-finder",
             },
         )
         helper = SubAgentModelHelper(config)
 
         task_behavior = helper.describe_empty_model_config_behavior("Task", main_model_name="main")
-        explore_behavior = helper.describe_empty_model_config_behavior("Explore", main_model_name="main")
+        finder_behavior = helper.describe_empty_model_config_behavior("Finder", main_model_name="main")
 
         assert task_behavior.resolved_model_name == "model-task"
-        assert explore_behavior.resolved_model_name == "model-explore"
+        assert finder_behavior.resolved_model_name == "model-finder"
 
     def test_build_sub_agent_client_configs_only_for_explicit_roles(self) -> None:
         config = Config(provider_list=[], sub_agent_models={"general-purpose": "model-task"})

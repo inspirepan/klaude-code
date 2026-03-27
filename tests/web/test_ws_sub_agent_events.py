@@ -184,7 +184,7 @@ def test_collect_descendant_session_ids_nested(tmp_path: Path, isolated_home: Pa
         [
             message.SpawnSubAgentEntry(
                 session_id=grandchild_id,
-                sub_agent_type="explore",
+                sub_agent_type="finder",
                 sub_agent_desc="grandchild",
             )
         ],
