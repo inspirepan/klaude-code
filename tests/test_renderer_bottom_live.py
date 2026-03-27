@@ -133,6 +133,9 @@ def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
 
     renderable = renderer._bottom_renderable()
     lines = renderer.console.render_lines(renderable, renderer.console.options, pad=False)
-    current_stream_lines = renderer.console.render_lines(renderer._stream_renderable, renderer.console.options, pad=False)
+    assert renderer._stream_renderable is not None
+    current_stream_lines = renderer.console.render_lines(
+        renderer._stream_renderable, renderer.console.options, pad=False
+    )
 
     assert len(lines) == len(current_stream_lines)

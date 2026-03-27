@@ -365,9 +365,9 @@ class TUICommandRenderer:
         self._stream_last_height = height
         self._stream_last_width = self.console.size.width
 
-        if not self._stream_preserve_height:
-            self._stream_max_height = height
-        elif self._stream_max_height - height > STREAM_MAX_HEIGHT_SHRINK_RESET_LINES:
+        if (not self._stream_preserve_height) or (
+            self._stream_max_height - height > STREAM_MAX_HEIGHT_SHRINK_RESET_LINES
+        ):
             self._stream_max_height = height
         else:
             self._stream_max_height = max(self._stream_max_height, height)
@@ -402,9 +402,9 @@ class TUICommandRenderer:
                     self._stream_last_height = height
                     self._stream_last_width = current_width
 
-                    if not self._stream_preserve_height:
-                        self._stream_max_height = height
-                    elif self._stream_max_height - height > STREAM_MAX_HEIGHT_SHRINK_RESET_LINES:
+                    if (not self._stream_preserve_height) or (
+                        self._stream_max_height - height > STREAM_MAX_HEIGHT_SHRINK_RESET_LINES
+                    ):
                         self._stream_max_height = height
                     else:
                         self._stream_max_height = max(self._stream_max_height, height)
