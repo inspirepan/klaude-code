@@ -64,7 +64,10 @@ def _user_message_to_content(msg: message.UserMessage, attachment: DeveloperAtta
     for part in msg.parts:
         if isinstance(part, message.TextPart):
             parts.append(types.Part(text=part.text))
-        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)) and (img_part := _image_part_to_part(part)) is not None:
+        elif (
+            isinstance(part, (message.ImageURLPart, message.ImageFilePart))
+            and (img_part := _image_part_to_part(part)) is not None
+        ):
             parts.append(img_part)
     if attachment.text:
         parts.append(types.Part(text=attachment.text))

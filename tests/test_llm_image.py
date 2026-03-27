@@ -38,6 +38,7 @@ def test_image_file_to_data_url_resizes_when_size_exceeds_limit(
     result = image_module.image_file_to_data_url(
         message.ImageFilePart(file_path=str(path), mime_type="image/png"),
     )
+    assert result is not None
     assert _payload_from_data_url(result) == b"small"
 
 
@@ -62,6 +63,7 @@ def test_image_file_to_data_url_keeps_image_when_size_within_limit(
     result = image_module.image_file_to_data_url(
         message.ImageFilePart(file_path=str(path), mime_type="image/png"),
     )
+    assert result is not None
     assert _payload_from_data_url(result) == b"0123456789ABCDEF"
     assert called is False
 
@@ -183,5 +185,6 @@ def test_image_file_to_data_url_corrects_wrong_extension(
     result = image_module.image_file_to_data_url(
         message.ImageFilePart(file_path=str(path), mime_type="image/jpeg"),
     )
+    assert result is not None
     assert result.startswith("data:image/png;base64,")
     assert _payload_from_data_url(result) == png_bytes

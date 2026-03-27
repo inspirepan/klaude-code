@@ -74,7 +74,10 @@ def _user_message_to_message(
     for part in msg.parts:
         if isinstance(part, message.TextPart):
             blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": part.text}))
-        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)) and (block := _image_part_to_block(part)) is not None:
+        elif (
+            isinstance(part, (message.ImageURLPart, message.ImageFilePart))
+            and (block := _image_part_to_block(part)) is not None
+        ):
             blocks.append(block)
     if attachment.text:
         blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": attachment.text}))
