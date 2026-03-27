@@ -1,8 +1,10 @@
+import { Copy, Check } from "lucide-react";
 import { memo, useCallback } from "react";
 
 import { useT } from "@/i18n";
 import type { MessageItem as MessageItemType } from "@/types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { COLLAPSE_RAIL_GRID_CLASS_NAME } from "./CollapseRail";
 import { MessageItem } from "./MessageItem";
 import { isCopyableAssistantText } from "./message-list-ui";
 
@@ -26,6 +28,7 @@ function MessageRowInner({
   const t = useT();
   const canCopy = isCopyableAssistantText(item);
   const isUser = item.type === "user_message";
+  const isAssistantText = item.type === "assistant_text";
   const handleItemRef = useCallback(
     (el: HTMLDivElement | null) => {
       setItemRef(item.id, el);
@@ -36,6 +39,41 @@ function MessageRowInner({
     void onCopy(item);
   }, [item, onCopy]);
 
+  if (isAssistantText) {
+    return (
+      <div ref={handleItemRef} className="group/row min-w-0">
+        <div
+          className={`grid min-w-0 ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start rounded-lg transition-shadow duration-150 ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
+        >
+          <span className="flex h-[1lh] items-center justify-center">
+            {canCopy ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className={`cursor-pointer transition-opacity duration-150 ${copied ? "opacity-100" : "opacity-0 group-hover/row:opacity-100"}`}
+                    aria-label={copied ? t("copy.copied") : t("copy.copy")}
+                  >
+                    {copied ? (
+                      <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5 shrink-0 text-neutral-400 transition-colors hover:text-neutral-600" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{copied ? t("copy.copied") : t("copy.copy")}</TooltipContent>
+              </Tooltip>
+            ) : null}
+          </span>
+          <div className="min-w-0">
+            <MessageItem item={item} workDir={workDir} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={handleItemRef}
@@ -45,23 +83,6 @@ function MessageRowInner({
         className={`min-w-0 transition-shadow duration-150 ${isUser ? "" : "rounded-lg"} ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
       >
         <MessageItem item={item} workDir={workDir} />
-        {canCopy ? (
-          <div className="mt-2.5 flex justify-end">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="cursor-pointer font-mono text-sm leading-none text-neutral-500 opacity-0 transition-opacity duration-150 hover:text-neutral-700 group-hover/row:opacity-100"
-                  aria-label={copied ? t("copy.copied") : t("copy.copy")}
-                >
-                  {copied ? t("copy.copiedButton") : t("copy.copyButton")}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{copied ? t("copy.copied") : t("copy.copy")}</TooltipContent>
-            </Tooltip>
-          </div>
-        ) : null}
       </div>
     </div>
   );

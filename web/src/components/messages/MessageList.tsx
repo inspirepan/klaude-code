@@ -53,6 +53,7 @@ const GRID_ITEM_TYPES = new Set([
   "task_metadata",
   "interrupt",
   "error",
+  "assistant_text",
 ]);
 
 // Tool blocks that render as cards (no rail grid) and need the content offset.

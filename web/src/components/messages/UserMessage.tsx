@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Check, Copy } from "lucide-react";
 
 import { useT } from "@/i18n";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { UserMessageItem } from "@/types/message";
 import { buildFileApiUrl } from "@/api/client";
 import { HighlightText } from "./HighlightText";
@@ -48,6 +50,21 @@ export function UserMessage({ item }: UserMessageProps): React.JSX.Element {
   const [canExpandText, setCanExpandText] = useState(false);
   const [collapsedTextMaxHeight, setCollapsedTextMaxHeight] = useState<number | null>(null);
   const [expandedImageIndex, setExpandedImageIndex] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<number>(0);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(item.content);
+      setCopied(true);
+      window.clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = window.setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch {
+      // ignore
+    }
+  }, [item.content]);
 
   useEffect(() => {
     const node = textRef.current;
@@ -170,7 +187,24 @@ export function UserMessage({ item }: UserMessageProps): React.JSX.Element {
         ) : null}
       </div>
       {item.timestamp !== null ? (
-        <div className="mr-1 mt-1 text-right text-xs text-neutral-500">
+        <div className="group/ts mr-1 mt-1 flex items-center justify-end gap-2 text-xs text-neutral-500">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => void handleCopy()}
+                className={`cursor-pointer transition-opacity duration-150 ${copied ? "opacity-100" : "opacity-0 group-hover/ts:opacity-100"}`}
+                aria-label={copied ? t("copy.copied") : t("copy.copy")}
+              >
+                {copied ? (
+                  <Check className="h-3 w-3 shrink-0 text-emerald-500" />
+                ) : (
+                  <Copy className="h-3 w-3 shrink-0 text-neutral-400 transition-colors hover:text-neutral-600" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{copied ? t("copy.copied") : t("copy.copy")}</TooltipContent>
+          </Tooltip>
           {new Date(item.timestamp * 1000).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
