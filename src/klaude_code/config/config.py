@@ -501,18 +501,27 @@ class Config(BaseModel):
 
         Only saves user-specific settings like main_model and custom providers.
         Builtin providers are never written to the user config file.
+        Values that match builtin defaults are omitted to keep the file minimal.
         """
         # Get user config, creating one if needed
         user_config = self._user_config
         if user_config is None:
             user_config = UserConfig()
 
-        # Sync user-modifiable fields from merged config to user config
-        user_config.main_model = self.main_model
-        user_config.fast_model = self.fast_model
-        user_config.compact_model = self.compact_model
-        user_config.sub_agent_models = self.sub_agent_models
-        user_config.theme = self.theme
+        builtin = get_builtin_config()
+
+        # Only save values that differ from builtin defaults
+        user_config.main_model = self.main_model if self.main_model != builtin.main_model else None
+        user_config.fast_model = self.fast_model if self.fast_model != builtin.fast_model else None
+        user_config.compact_model = self.compact_model if self.compact_model != builtin.compact_model else None
+        user_config.theme = self.theme if self.theme != builtin.theme else None
+
+        # For sub_agent_models, only save entries that differ from builtin
+        user_sub_agent_models: dict[str, ModelPreference] = {}
+        for key, value in self.sub_agent_models.items():
+            if builtin.sub_agent_models.get(key) != value:
+                user_sub_agent_models[key] = value
+        user_config.sub_agent_models = user_sub_agent_models
         # Note: provider_list is NOT synced - user providers are already in user_config
 
         # Keep the saved file compact (exclude defaults), but preserve explicit
