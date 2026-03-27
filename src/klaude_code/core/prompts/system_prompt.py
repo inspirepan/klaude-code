@@ -40,6 +40,9 @@ ASK_USER_QUESTION_USAGE_INST = (
     """- Use the AskUserQuestion tool to ask questions, clarify and gather information as needed."""
 )
 
+EDIT_WRITE_PREFERENCE_INST = """- Prefer `edit` for existing files. Use `write` only for new files, or after reading an existing file and deciding to replace it end-to-end because most of it is changing."""
+EDIT_PARALLELIZE_INST = """- Parallelize independent work when safe, such as reads, searches, checks, or disjoint `edit` calls, including disjoint sections of the same file."""
+
 WRITE_CREATE_WHEN_NEEDED_INST = """- NEVER create files unless necessary for the task. Prefer editing existing files."""
 
 GPT_PHASE_WORKING_WITH_USER_INST = """# Working with the user
@@ -109,6 +112,9 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
 
     if tools.ASK_USER_QUESTION in tool_name_set:
         strategy_lines.append(ASK_USER_QUESTION_USAGE_INST)
+
+    if tools.EDIT in tool_name_set and tools.WRITE in tool_name_set:
+        strategy_lines.extend([EDIT_WRITE_PREFERENCE_INST, EDIT_PARALLELIZE_INST])
 
     if tools.WRITE in tool_name_set:
         strategy_lines.append(WRITE_CREATE_WHEN_NEEDED_INST)
