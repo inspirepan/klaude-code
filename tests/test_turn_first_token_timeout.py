@@ -51,6 +51,8 @@ class ErrorWithPartialTextStream(LLMStreamABC):
         return self._iterate()
 
     async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
+        # Simulate partial text received before stream error (matches real client behavior)
+        yield message.AssistantTextDelta(content="partial answer", response_id="r1")
         yield message.StreamErrorItem(error="network interrupted")
         yield message.AssistantMessage(
             parts=[message.TextPart(text="partial answer")],
