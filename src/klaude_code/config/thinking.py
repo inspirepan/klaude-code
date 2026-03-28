@@ -77,7 +77,7 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
             return f"reasoning_effort={thinking.reasoning_effort}"
         return "not set"
 
-    if protocol in (llm_param.LLMClientProtocol.ANTHROPIC, llm_param.LLMClientProtocol.CLAUDE_OAUTH):
+    if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
         if thinking.type == "disabled":
             return "off"
         if thinking.type == "adaptive":
@@ -237,7 +237,7 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
             current_value=_get_current_effort_value(thinking),
         )
 
-    if protocol in (llm_param.LLMClientProtocol.ANTHROPIC, llm_param.LLMClientProtocol.CLAUDE_OAUTH):
+    if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
         if supports_adaptive_thinking(model_name):
             return ThinkingPickerData(
                 options=_build_budget_with_adaptive_options(),

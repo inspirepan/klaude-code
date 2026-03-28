@@ -158,15 +158,6 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
             # Consider available if logged in. Token refresh happens on-demand.
             return state is None
 
-        if self.protocol == LLMClientProtocol.CLAUDE_OAUTH:
-            # Claude uses OAuth authentication, not API key
-            from klaude_code.auth.claude.token_manager import ClaudeTokenManager
-
-            token_manager = ClaudeTokenManager()
-            state = token_manager.get_state()
-            # Consider available if logged in. Token refresh happens on-demand.
-            return state is None
-
         if self.protocol == LLMClientProtocol.GITHUB_COPILOT_OAUTH:
             # GitHub Copilot uses OAuth authentication, not API key
             from klaude_code.auth.copilot.token_manager import CopilotTokenManager

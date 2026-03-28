@@ -334,36 +334,6 @@ class TestConfig:
         assert llm_config.protocol == llm_param.LLMClientProtocol.CODEX_OAUTH
         assert llm_config.api_key is None
 
-    def test_get_model_config_claude_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """CLAUDE protocol should not require api_key to resolve model config."""
-        from klaude_code.auth.claude.token_manager import ClaudeAuthState, ClaudeTokenManager
-
-        def _mock_get_state(_self: ClaudeTokenManager) -> ClaudeAuthState:
-            return ClaudeAuthState(
-                access_token="access",
-                refresh_token="refresh",
-                expires_at=4102444800,
-            )
-
-        monkeypatch.setattr(ClaudeTokenManager, "get_state", _mock_get_state)
-
-        provider = ProviderConfig(
-            provider_name="claude",
-            protocol=llm_param.LLMClientProtocol.CLAUDE_OAUTH,
-            api_key=None,
-            model_list=[
-                ModelConfig(
-                    model_name="sonnet",
-                    model_id="claude-sonnet-4-5-20250929",
-                )
-            ],
-        )
-        config = Config(provider_list=[provider], main_model="sonnet@claude")
-
-        llm_config = config.get_model_config("sonnet@claude")
-        assert llm_config.protocol == llm_param.LLMClientProtocol.CLAUDE_OAUTH
-        assert llm_config.api_key is None
-
     def test_get_model_config_github_copilot_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """GITHUB_COPILOT protocol should not require api_key to resolve model config."""
         from klaude_code.auth.copilot.token_manager import CopilotAuthState, CopilotTokenManager
@@ -1120,12 +1090,8 @@ class TestOutOfBoxExperience:
     @pytest.fixture(autouse=True)
     def _disable_local_oauth_state(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Keep out-of-box tests independent from developer-local OAuth login state."""
-        from klaude_code.auth.claude.token_manager import ClaudeTokenManager
         from klaude_code.auth.codex.token_manager import CodexTokenManager
         from klaude_code.auth.copilot.token_manager import CopilotTokenManager
-
-        def _no_claude_state(_self: ClaudeTokenManager) -> None:
-            return None
 
         def _no_codex_state(_self: CodexTokenManager) -> None:
             return None
@@ -1136,7 +1102,6 @@ class TestOutOfBoxExperience:
         def _no_auth_env(_key: str) -> None:
             return None
 
-        monkeypatch.setattr(ClaudeTokenManager, "get_state", _no_claude_state)
         monkeypatch.setattr(CodexTokenManager, "get_state", _no_codex_state)
         monkeypatch.setattr(CopilotTokenManager, "get_state", _no_github_copilot_state)
         monkeypatch.setattr(_config_module, "get_auth_env", _no_auth_env)
