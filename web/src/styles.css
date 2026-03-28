@@ -130,7 +130,7 @@
 
 :root {
   color-scheme: light dark;
-  font-feature-settings: "tnum", "ss05";
+  font-feature-settings: "tnum", "ss01", "ss03", "ss05", "ss06", "ss07";
   font-family:
     "Geist",
     -apple-system,
