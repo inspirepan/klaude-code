@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import cast
@@ -278,22 +277,6 @@ def _build_http_error(
     return f"HTTP {status_code}"
 
 
-def _extract_error_message(response: httpx.Response) -> str | None:
-    try:
-        body_obj: object = response.json()
-    except ValueError:
-        return None
-
-    body = _as_dict(body_obj)
-    if body is not None:
-        error = _as_dict(body.get("error"))
-        message = _as_str(error.get("message")) if error else None
-        if message:
-            return message
-        return _as_str(body.get("message"))
-    return None
-
-
 def _clamp_percent(value: float) -> float:
     if value < 0:
         return 0.0
@@ -346,13 +329,3 @@ def _hours_to_label(hours: int) -> str:
         days = round(hours / 24)
         return f"{days}d" if days > 1 else "Day"
     return f"{hours}h"
-
-
-def _parse_iso_datetime_to_ms(value: str | None) -> int | None:
-    if not value:
-        return None
-    try:
-        parsed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return int(parsed.timestamp() * 1000)

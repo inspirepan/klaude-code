@@ -12,9 +12,7 @@ class _LazyProviderHelp:
         if self._value is None:
             from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
 
-            names = ["codex", "github-copilot", "copilot"] + [
-                k.name.split()[0].lower() for k in SUPPORTED_API_KEYS
-            ]
+            names = ["codex", "github-copilot", "copilot"] + [k.name.split()[0].lower() for k in SUPPORTED_API_KEYS]
             self._value = f"Provider name ({', '.join(names)})"
         return self._value
 
