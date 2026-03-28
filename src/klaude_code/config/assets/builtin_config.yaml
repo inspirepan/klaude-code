@@ -354,9 +354,6 @@ provider_list:
   - model_name: haiku
     model_id: claude-haiku-4-5
     context_limit: 200000
-    thinking:
-      type: enabled
-      budget_tokens: 2048
     cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
 
   - model_name: opus
@@ -595,8 +592,8 @@ provider_list:
 
 sub_agent_models:
   finder:
-  - gemini-flash-minimal
   - gpt-5.4-mini
+  - gemini-flash-minimal
   - haiku
 
 compact_model:
@@ -605,6 +602,6 @@ compact_model:
 - sonnet-no-thinking
 fast_model:
 - gemini-flash-lite
+- haiku
 - gpt-5.4-mini
 - gemini-flash
-- haiku
