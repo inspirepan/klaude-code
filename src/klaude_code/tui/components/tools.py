@@ -179,16 +179,12 @@ def render_todo_write_tool_call(arguments: str) -> RenderableType:
 
     if arguments:
         try:
-            payload = json.loads(arguments)
+            json.loads(arguments)
         except json.JSONDecodeError:
             details = Text(
                 arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
                 style=ThemeKey.INVALID_TOOL_CALL_ARGS,
             )
-        else:
-            explanation = payload.get("explanation")
-            if isinstance(explanation, str) and explanation.strip():
-                details = Text(explanation.strip(), style=ThemeKey.TODO_EXPLANATION)
 
     return _render_tool_call_tree(mark=MARK_PLAN, tool_name=tool_name, details=details)
 
