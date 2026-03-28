@@ -434,6 +434,11 @@ body {
   font-size: 0.9em;
 }
 
+/* Rewind summary: inline code on amber background */
+.rewind-note .assistant-text code:not(pre code) {
+  background: rgba(255, 255, 255, 0.6);
+}
+
 /* ── Compaction summary markdown ── */
 .compaction-summary-md p {
   margin-top: 0;
