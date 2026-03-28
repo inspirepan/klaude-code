@@ -12,7 +12,7 @@ class _LazyProviderHelp:
         if self._value is None:
             from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
 
-            names = ["codex", "claude", "github-copilot", "copilot"] + [
+            names = ["codex", "github-copilot", "copilot"] + [
                 k.name.split()[0].lower() for k in SUPPORTED_API_KEYS
             ]
             self._value = f"Provider name ({', '.join(names)})"
@@ -41,7 +41,7 @@ def login_command(
 
 
 def logout_command(
-    provider: str | None = typer.Argument(None, help="Provider to logout (codex|claude|github-copilot|copilot)"),
+    provider: str | None = typer.Argument(None, help="Provider to logout (codex|github-copilot|copilot)"),
 ) -> None:
     """Logout from a provider."""
     from klaude_code.app.auth_flow import execute_logout

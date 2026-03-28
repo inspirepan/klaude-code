@@ -3,21 +3,17 @@
 from __future__ import annotations
 
 import datetime
-import os
-import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import cast
 
 import httpx
 
-from klaude_code.auth.claude.oauth import ClaudeOAuth
-from klaude_code.auth.claude.token_manager import ClaudeTokenManager
 from klaude_code.auth.codex.oauth import CodexOAuth
 from klaude_code.auth.codex.token_manager import CodexTokenManager
 from klaude_code.auth.copilot.oauth import COPILOT_STATIC_HEADERS
 from klaude_code.auth.copilot.token_manager import CopilotTokenManager
-from klaude_code.const import ANTHROPIC_BETA_OAUTH, CODEX_USER_AGENT
+from klaude_code.const import CODEX_USER_AGENT
 from klaude_code.protocol.llm_param import LLMClientProtocol
 
 
@@ -44,7 +40,6 @@ class _OAuthProviderAuth:
 
 
 _SUPPORTED_USAGE_PROTOCOLS = {
-    LLMClientProtocol.CLAUDE_OAUTH,
     LLMClientProtocol.CODEX_OAUTH,
     LLMClientProtocol.GITHUB_COPILOT_OAUTH,
 }
@@ -109,14 +104,6 @@ def format_oauth_usage_summary(snapshot: OAuthUsageSnapshot, *, max_windows: int
 def _resolve_provider_auths(protocols: set[LLMClientProtocol]) -> list[_OAuthProviderAuth]:
     auths: list[_OAuthProviderAuth] = []
 
-    if LLMClientProtocol.CLAUDE_OAUTH in protocols:
-        try:
-            token_manager = ClaudeTokenManager()
-            token = ClaudeOAuth(token_manager).ensure_valid_token()
-            auths.append(_OAuthProviderAuth(protocol=LLMClientProtocol.CLAUDE_OAUTH, token=token))
-        except Exception:
-            pass
-
     if LLMClientProtocol.CODEX_OAUTH in protocols:
         try:
             token_manager = CodexTokenManager()
@@ -151,8 +138,6 @@ def _resolve_provider_auths(protocols: set[LLMClientProtocol]) -> list[_OAuthPro
 
 def _fetch_usage_snapshot(*, auth: _OAuthProviderAuth, timeout_seconds: float) -> OAuthUsageSnapshot:
     match auth.protocol:
-        case LLMClientProtocol.CLAUDE_OAUTH:
-            return _fetch_claude_usage(token=auth.token, timeout_seconds=timeout_seconds)
         case LLMClientProtocol.CODEX_OAUTH:
             return _fetch_codex_usage(
                 token=auth.token,
@@ -163,36 +148,6 @@ def _fetch_usage_snapshot(*, auth: _OAuthProviderAuth, timeout_seconds: float) -
             return _fetch_github_copilot_usage(token=auth.token, timeout_seconds=timeout_seconds)
         case _:
             return OAuthUsageSnapshot(protocol=auth.protocol, windows=[], error="Unsupported provider")
-
-
-def _fetch_claude_usage(*, token: str, timeout_seconds: float) -> OAuthUsageSnapshot:
-    with httpx.Client(timeout=timeout_seconds) as client:
-        res = client.get(
-            "https://api.anthropic.com/api/oauth/usage",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/json",
-                "anthropic-version": "2023-06-01",
-                "anthropic-beta": ANTHROPIC_BETA_OAUTH,
-                "User-Agent": "klaude-code",
-            },
-        )
-
-        if res.status_code != 200:
-            message = _extract_error_message(res)
-            if res.status_code == 403 and message and "scope requirement user:profile" in message:
-                web_fallback = _fetch_claude_web_usage(client=client)
-                if web_fallback:
-                    return web_fallback
-            return OAuthUsageSnapshot(
-                protocol=LLMClientProtocol.CLAUDE_OAUTH,
-                windows=[],
-                error=_build_http_error(status_code=res.status_code, message=message),
-            )
-
-        data = _as_dict(res.json())
-        windows = _build_claude_windows(data)
-        return OAuthUsageSnapshot(protocol=LLMClientProtocol.CLAUDE_OAUTH, windows=windows)
 
 
 def _fetch_codex_usage(*, token: str, account_id: str | None, timeout_seconds: float) -> OAuthUsageSnapshot:
@@ -308,107 +263,6 @@ def _fetch_github_copilot_usage(*, token: str, timeout_seconds: float) -> OAuthU
             windows=windows,
             plan=_as_str(data.get("copilot_plan")) if data else None,
         )
-
-
-def _build_claude_windows(data: dict[str, object] | None) -> list[UsageWindowSnapshot]:
-    if not data:
-        return []
-
-    windows: list[UsageWindowSnapshot] = []
-
-    five_hour = _as_dict(data.get("five_hour"))
-    seven_day = _as_dict(data.get("seven_day"))
-    seven_day_sonnet = _as_dict(data.get("seven_day_sonnet"))
-    seven_day_opus = _as_dict(data.get("seven_day_opus"))
-
-    if five_hour:
-        utilization = _as_float(five_hour.get("utilization"))
-        if utilization is not None:
-            windows.append(
-                UsageWindowSnapshot(
-                    label="5h",
-                    used_percent=_clamp_percent(utilization),
-                    reset_at_epoch_ms=_parse_iso_datetime_to_ms(_as_str(five_hour.get("resets_at"))),
-                )
-            )
-
-    if seven_day:
-        utilization = _as_float(seven_day.get("utilization"))
-        if utilization is not None:
-            windows.append(
-                UsageWindowSnapshot(
-                    label="Week",
-                    used_percent=_clamp_percent(utilization),
-                    reset_at_epoch_ms=_parse_iso_datetime_to_ms(_as_str(seven_day.get("resets_at"))),
-                )
-            )
-
-    model_window = seven_day_sonnet or seven_day_opus
-    if model_window:
-        utilization = _as_float(model_window.get("utilization"))
-        if utilization is not None:
-            windows.append(
-                UsageWindowSnapshot(
-                    label="Sonnet" if seven_day_sonnet else "Opus",
-                    used_percent=_clamp_percent(utilization),
-                )
-            )
-
-    return windows
-
-
-def _fetch_claude_web_usage(*, client: httpx.Client) -> OAuthUsageSnapshot | None:
-    session_key = _resolve_claude_web_session_key()
-    if not session_key:
-        return None
-
-    headers = {
-        "Cookie": f"sessionKey={session_key}",
-        "Accept": "application/json",
-    }
-
-    org_res = client.get("https://claude.ai/api/organizations", headers=headers)
-    if org_res.status_code != 200:
-        return None
-
-    orgs: object = org_res.json()
-    org_id = None
-    if isinstance(orgs, list):
-        org_list = cast(list[object], orgs)
-        first_obj: object | None = org_list[0] if org_list else None
-        if first_obj is None:
-            return None
-        first = _as_dict(first_obj)
-        if first:
-            org_id = _as_str(first.get("uuid"))
-    if not org_id:
-        return None
-
-    usage_res = client.get(f"https://claude.ai/api/organizations/{org_id}/usage", headers=headers)
-    if usage_res.status_code != 200:
-        return None
-
-    windows = _build_claude_windows(_as_dict(usage_res.json()))
-    if not windows:
-        return None
-    return OAuthUsageSnapshot(protocol=LLMClientProtocol.CLAUDE_OAUTH, windows=windows)
-
-
-def _resolve_claude_web_session_key() -> str | None:
-    direct = (os.environ.get("CLAUDE_AI_SESSION_KEY") or os.environ.get("CLAUDE_WEB_SESSION_KEY") or "").strip()
-    if direct.startswith("sk-ant-"):
-        return direct
-
-    cookie_header = (os.environ.get("CLAUDE_WEB_COOKIE") or "").strip()
-    if not cookie_header:
-        return None
-
-    stripped = re.sub(r"^cookie:\\s*", "", cookie_header, flags=re.IGNORECASE)
-    match = re.search(r"(?:^|;\\s*)sessionKey=([^;\\s]+)", stripped, flags=re.IGNORECASE)
-    value = (match.group(1) if match else "").strip()
-    if value.startswith("sk-ant-"):
-        return value
-    return None
 
 
 def _build_http_error(

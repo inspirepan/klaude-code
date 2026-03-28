@@ -102,40 +102,6 @@ def execute_login(provider: str) -> None:
             except Exception as e:
                 log((f"Login failed: {e}", "red"))
                 raise typer.Exit(1) from None
-        case "claude":
-            from klaude_code.auth.claude.oauth import ClaudeOAuth
-            from klaude_code.auth.claude.token_manager import ClaudeTokenManager
-
-            token_manager = ClaudeTokenManager()
-
-            if token_manager.is_logged_in():
-                state = token_manager.get_state()
-                if state and not state.is_expired():
-                    log(("You are already logged in to Claude.", "green"))
-                    expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
-                    log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-                    if not typer.confirm("Do you want to re-login?"):
-                        return
-
-            log("Starting Claude OAuth login flow…")
-            log("A browser window will open for authentication.")
-            log("After login, paste the authorization code in the terminal.")
-
-            try:
-                oauth = ClaudeOAuth(token_manager)
-                state = oauth.login(
-                    on_auth_url=lambda url: (webbrowser.open(url), None)[1],
-                    on_prompt_code=lambda: typer.prompt(
-                        "Paste the authorization code (format: code#state)",
-                        prompt_suffix=": ",
-                    ),
-                )
-                log(("Login successful!", "green"))
-                expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
-                log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-            except Exception as e:
-                log((f"Login failed: {e}", "red"))
-                raise typer.Exit(1) from None
         case "github-copilot" | "copilot":
             from klaude_code.auth.copilot.oauth import CopilotOAuth
             from klaude_code.auth.copilot.token_manager import CopilotTokenManager
@@ -220,18 +186,6 @@ def execute_logout(provider: str) -> None:
             if typer.confirm("Are you sure you want to logout from Codex?"):
                 token_manager.delete()
                 log(("Logged out from Codex.", "green"))
-        case "claude":
-            from klaude_code.auth.claude.token_manager import ClaudeTokenManager
-
-            token_manager = ClaudeTokenManager()
-
-            if not token_manager.is_logged_in():
-                log("You are not logged in to Claude.")
-                return
-
-            if typer.confirm("Are you sure you want to logout from Claude?"):
-                token_manager.delete()
-                log(("Logged out from Claude.", "green"))
         case "github-copilot" | "copilot":
             from klaude_code.auth.copilot.token_manager import CopilotTokenManager
 
@@ -245,5 +199,5 @@ def execute_logout(provider: str) -> None:
                 token_manager.delete()
                 log(("Logged out from GitHub Copilot.", "green"))
         case _:
-            log((f"Error: Unknown provider '{provider}'. Supported: codex, claude, github-copilot", "red"))
+            log((f"Error: Unknown provider '{provider}'. Supported: codex, github-copilot", "red"))
             raise typer.Exit(1)

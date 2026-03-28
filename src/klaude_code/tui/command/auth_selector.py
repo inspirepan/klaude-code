@@ -13,10 +13,6 @@ def _get_oauth_auth_state(provider_name: str) -> tuple[bool, bool]:
     """Return (has_auth_state, is_expired)."""
     try:
         match provider_name:
-            case "claude":
-                from klaude_code.auth.claude.token_manager import ClaudeTokenManager
-
-                state = ClaudeTokenManager().get_state()
             case "codex":
                 from klaude_code.auth.codex.token_manager import CodexTokenManager
 
@@ -93,11 +89,6 @@ def _google_vertex_title() -> list[tuple[str, str]]:
 def select_provider(*, include_api_keys: bool = True, prompt: str = "Select provider to login:") -> str | None:
     """Display provider selection menu and return selected provider."""
     items: list[SelectItem[str]] = [
-        SelectItem(
-            title=_oauth_title("Claude Max/Pro Subscription (not recommended, use at your own risk)", "claude"),
-            value="claude",
-            search_text="claude",
-        ),
         SelectItem(
             title=_oauth_title("ChatGPT Codex Subscription", "codex"),
             value="codex",

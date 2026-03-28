@@ -14,7 +14,6 @@ _loaded_protocols: set[llm_param.LLMClientProtocol] = set()
 _REGISTRY: dict[llm_param.LLMClientProtocol, type["LLMClientABC"]] = {}
 _PROTOCOL_MODULES: dict[llm_param.LLMClientProtocol, str] = {
     llm_param.LLMClientProtocol.ANTHROPIC: "klaude_code.llm.anthropic",
-    llm_param.LLMClientProtocol.CLAUDE_OAUTH: "klaude_code.llm.claude",
     llm_param.LLMClientProtocol.BEDROCK: "klaude_code.llm.bedrock_anthropic",
     llm_param.LLMClientProtocol.CODEX_OAUTH: "klaude_code.llm.openai_codex",
     llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH: "klaude_code.llm.copilot",

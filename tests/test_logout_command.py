@@ -33,7 +33,7 @@ def test_logout_command_uses_selector_when_provider_missing(monkeypatch: pytest.
 
     def _select_provider(*, include_api_keys: bool = True, prompt: str = "") -> str | None:
         selector_calls.append((include_api_keys, prompt))
-        return "claude"
+        return "codex"
 
     def _execute_logout(provider: str) -> None:
         logout_calls.append(provider)
@@ -45,7 +45,7 @@ def test_logout_command_uses_selector_when_provider_missing(monkeypatch: pytest.
     result = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="")))
 
     assert selector_calls == [(False, "Select provider to logout:")]
-    assert logout_calls == ["claude"]
+    assert logout_calls == ["codex"]
     assert result.events is not None
     assert result.events[0].content == "Logout flow completed."
 

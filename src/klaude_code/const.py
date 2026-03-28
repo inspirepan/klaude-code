@@ -44,7 +44,6 @@ LLM_FIRST_TOKEN_TIMEOUT_S = 60.0  # Retry turn if no valid first token arrives w
 FIRST_TOKEN_TIMEOUT_NO_RETRY_INPUT_TOKENS = 150_000  # Skip first-token-timeout retry when input exceeds this
 
 ANTHROPIC_BETA_INTERLEAVED_THINKING = "interleaved-thinking-2025-05-14"  # Anthropic API beta flag
-ANTHROPIC_BETA_OAUTH = "oauth-2025-04-20"  # Anthropic OAuth beta flag
 ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING = "fine-grained-tool-streaming-2025-05-14"  # Anthropic streaming beta
 CLAUDE_CODE_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."  # Claude identity string
 
