@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
+import { Streamdown } from "streamdown";
+import { code } from "@streamdown/code";
 
 import { useT } from "@/i18n";
 import type { RewindSummaryItem } from "@/types/message";
 import { useSearchHighlight } from "./useSearchHighlight";
+
+const plugins = { code };
 
 interface RewindSummaryProps {
   item: RewindSummaryItem;
@@ -51,16 +55,20 @@ export function RewindSummary({ item }: RewindSummaryProps): React.JSX.Element {
         >
           <div ref={contentRef} className="space-y-2 text-sm text-rewind-text">
             {item.rationale && (
-              <p>
+              <div>
                 <span className="font-medium text-rewind-label">{t("rewind.rationale")}</span>{" "}
                 {item.rationale}
-              </p>
+              </div>
             )}
             {item.note && (
-              <p>
-                <span className="font-medium text-rewind-label">{t("rewind.note")}</span>{" "}
-                {item.note}
-              </p>
+              <div className="rewind-note">
+                <span className="mb-1 block font-medium text-rewind-label">{t("rewind.note")}</span>
+                <div className="assistant-text">
+                  <Streamdown mode="static" isAnimating={false} plugins={plugins}>
+                    {item.note}
+                  </Streamdown>
+                </div>
+              </div>
             )}
             {item.originalUserMessage && (
               <p className="rounded bg-white/60 px-3 py-2 text-xs italic text-rewind-label">
