@@ -5,7 +5,10 @@ vi.mock("@/i18n", () => ({ t: (k: string) => k }));
 
 import type {
   AssistantTextItem,
+  CompactionSummaryItem,
+  InterruptItem,
   MessageItem,
+  RewindSummaryItem,
   TaskMetadataItem,
   ToolBlockItem,
 } from "@/types/message";
@@ -79,6 +82,27 @@ function makeTaskMetadata(id: string): TaskMetadataItem {
   };
 }
 
+function makeCompaction(id: string): CompactionSummaryItem {
+  return { id, type: "compaction_summary", timestamp: null, sessionId: null, content: "summary" };
+}
+
+function makeRewind(id: string): RewindSummaryItem {
+  return {
+    id,
+    type: "rewind_summary",
+    timestamp: null,
+    sessionId: null,
+    checkpointId: 0,
+    note: "note",
+    rationale: "rationale",
+    originalUserMessage: "",
+  };
+}
+
+function makeInterrupt(id: string): InterruptItem {
+  return { id, type: "interrupt", timestamp: null, sessionId: null };
+}
+
 function makeTodoWrite(id: string, todos: TodoItem[]): ToolBlockItem {
   return makeToolBlock(
     id,
@@ -94,6 +118,9 @@ function flatBlockTypes(blocks: SectionBlock[]): string[] {
       return "todo_card";
     }
     if (b.type === "item" && b.item.type === "assistant_text") return "assistant_text";
+    if (b.type === "item" && b.item.type === "compaction_summary") return "compaction_summary";
+    if (b.type === "item" && b.item.type === "rewind_summary") return "rewind_summary";
+    if (b.type === "item" && b.item.type === "interrupt") return "interrupt";
     if (b.type === "planned_group") return "planned_group";
     if (b.type === "collapse_group") return "collapse_group";
     return b.type;
@@ -327,5 +354,80 @@ describe("buildSectionBlocks planned overview", () => {
     const pg1 = blocks.find((b): b is SectionPlannedGroupBlock => b.type === "planned_group");
     expect(pg1).toBeDefined();
     expect(pg1?.todos[0].completed).toBe(true);
+  });
+
+  it("compaction_summary breaks the planned interval", () => {
+    const items: MessageItem[] = [
+      makeTodoWrite("tw1", [inProgress("A")]),
+      makeToolBlock("t1", "Bash"),
+      makeCompaction("c1"),
+      makeToolBlock("t2", "Bash"),
+      makeTodoWrite("tw2", [completed("A")]),
+    ];
+    const blocks = run(items);
+    // Planned group ends before compaction; compaction + trailing content outside
+    expect(flatBlockTypes(blocks)).toEqual([
+      "todo_card",
+      "planned_group",
+      "compaction_summary",
+      "collapse_group",
+      "todo_card",
+    ]);
+  });
+
+  it("rewind_summary breaks the planned interval", () => {
+    const items: MessageItem[] = [
+      makeTodoWrite("tw1", [inProgress("A")]),
+      makeToolBlock("t1", "Bash"),
+      makeRewind("r1"),
+      makeToolBlock("t2", "Bash"),
+      makeTodoWrite("tw2", [completed("A")]),
+    ];
+    const blocks = run(items);
+    expect(flatBlockTypes(blocks)).toEqual([
+      "todo_card",
+      "planned_group",
+      "rewind_summary",
+      "collapse_group",
+      "todo_card",
+    ]);
+  });
+
+  it("interrupt breaks the planned interval", () => {
+    const items: MessageItem[] = [
+      makeTodoWrite("tw1", [inProgress("A")]),
+      makeToolBlock("t1", "Bash"),
+      makeInterrupt("i1"),
+      makeToolBlock("t2", "Bash"),
+      makeTodoWrite("tw2", [completed("A")]),
+    ];
+    const blocks = run(items);
+    expect(flatBlockTypes(blocks)).toEqual([
+      "todo_card",
+      "planned_group",
+      "interrupt",
+      "collapse_group",
+      "todo_card",
+    ]);
+  });
+
+  it("breaker between chained intervals splits them", () => {
+    const items: MessageItem[] = [
+      makeTodoWrite("tw1", [inProgress("A"), pending("B")]),
+      makeToolBlock("t1", "Bash"),
+      makeCompaction("c1"),
+      makeTodoWrite("tw2", [completed("A"), inProgress("B")]),
+      makeToolBlock("t2", "Bash"),
+      makeTodoWrite("tw3", [completed("A"), completed("B")]),
+    ];
+    const blocks = run(items);
+    // First interval capped at compaction. Second interval forms its own group.
+    // Compaction appears between the two planned groups.
+    expect(flatBlockTypes(blocks)).toEqual([
+      "todo_card",
+      "planned_group",
+      "compaction_summary",
+      "planned_group",
+    ]);
   });
 });

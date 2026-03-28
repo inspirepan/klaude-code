@@ -124,6 +124,13 @@ function isTodoWriteBlock(block: SectionBlock): block is SectionItemBlock {
   );
 }
 
+/** Items that must not be swallowed by a planned group — they break the interval. */
+function isGroupBreaker(block: SectionBlock): boolean {
+  if (block.type !== "item") return false;
+  const t = block.item.type;
+  return t === "compaction_summary" || t === "rewind_summary" || t === "interrupt";
+}
+
 function todoWriteHasInProgress(item: MessageItem): boolean {
   if (item.type !== "tool_block" || !item.uiExtra || !isTodoListUIExtra(item.uiExtra)) return false;
   return item.uiExtra.todo_list.todos.some((t) => t.status === "in_progress");
@@ -344,7 +351,14 @@ export function buildSectionBlocksForSection(
     const block = rawBlocks[idx] as SectionItemBlock;
     if (todoWriteHasInProgress(block.item)) {
       const hasNext = t + 1 < todoWriteIndices.length;
-      const end = hasNext ? todoWriteIndices[t + 1] : rawBlocks.length;
+      let end = hasNext ? todoWriteIndices[t + 1] : rawBlocks.length;
+      // Cap the interval at the first group-breaker (compaction/rewind/interrupt)
+      for (let k = idx + 1; k < end; k++) {
+        if (isGroupBreaker(rawBlocks[k])) {
+          end = k;
+          break;
+        }
+      }
       plannedIntervals.push({
         start: idx,
         end,
