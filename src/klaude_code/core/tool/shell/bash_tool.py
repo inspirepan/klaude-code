@@ -364,11 +364,28 @@ class BashTool(ToolABC):
                         stderr_chunks.append(stderr_chunk)
                         await _emit_output_delta(stderr_chunk)
                 except TimeoutError:
+                    # Read any remaining output before terminating.
+                    stdout_chunk, stdout_offset = _read_available_text(stdout_tmp, offset=stdout_offset)
+                    stderr_chunk, stderr_offset = _read_available_text(stderr_tmp, offset=stderr_offset)
+                    if stdout_chunk:
+                        stdout_chunks.append(stdout_chunk)
+                    if stderr_chunk:
+                        stderr_chunks.append(stderr_chunk)
+
                     with contextlib.suppress(Exception):
                         await _terminate_process(proc)
+
+                    timeout_header = f"Timeout after {args.timeout_ms} ms running: {args.command}"
+                    collected_stdout = "".join(stdout_chunks).rstrip("\n")
+                    collected_stderr = "".join(stderr_chunks).rstrip("\n")
+                    parts = [timeout_header]
+                    if collected_stdout:
+                        parts.append(f"[stdout before timeout]\n{collected_stdout}")
+                    if collected_stderr:
+                        parts.append(f"[stderr before timeout]\n{collected_stderr}")
                     return message.ToolResultMessage(
                         status="error",
-                        output_text=f"Timeout after {args.timeout_ms} ms running: {args.command}",
+                        output_text="\n".join(parts),
                     )
                 except asyncio.CancelledError:
                     # Ensure subprocess is stopped and propagate cancellation.

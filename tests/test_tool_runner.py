@@ -651,3 +651,20 @@ class TestBashToolStreaming:
 
         assert emitted
         assert "".join(emitted) == "short\ndone\n"
+
+    def test_bash_timeout_preserves_partial_output(self) -> None:
+        if os.name != "posix" or shutil.which("bash") is None:
+            pytest.skip("bash tool requires POSIX + bash")
+
+        async def _run() -> None:
+            # Print something, then sleep longer than the timeout.
+            args = BashTool.BashArguments(
+                command="echo partial_before_timeout; sleep 30",
+                timeout_ms=500,
+            )
+            result = await BashTool.call_with_args(args, _tool_context())
+            assert result.status == "error"
+            assert "Timeout after 500 ms" in result.output_text
+            assert "partial_before_timeout" in result.output_text
+
+        arun(_run())
