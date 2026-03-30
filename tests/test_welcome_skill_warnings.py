@@ -18,7 +18,7 @@ def test_render_welcome_shows_skill_warnings_section() -> None:
         session_id="s1",
         work_dir="/tmp",
         llm_config=llm_config,
-        loaded_skill_warnings={"project": ["name mismatch"]},
+        loaded_skill_warnings={"project": ["name mismatch", "another warning"]},
     )
 
     out = io.StringIO()
@@ -28,6 +28,9 @@ def test_render_welcome_shows_skill_warnings_section() -> None:
 
     assert "skill warnings" in output
     assert "name mismatch" in output
+    assert "another warning" in output
+    # Each warning should be on its own line, not joined with " | "
+    assert " | " not in output
 
 
 def test_render_welcome_shows_skills_as_tree_list() -> None:

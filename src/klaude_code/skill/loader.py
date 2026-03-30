@@ -163,7 +163,7 @@ class SkillLoader:
                 return None
 
             if name != parent_dir_name:
-                warning = f'{skill_path}: name "{name}" does not match parent directory "{parent_dir_name}"'
+                warning = f'{skill_path}: name "{name}" should match directory name'
                 self.skill_warnings_by_location.setdefault(location, []).append(warning)
 
             # Create Skill object

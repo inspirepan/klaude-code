@@ -85,35 +85,32 @@ If any check fails:
 
 Repeat until all checks are green. Do not stop or ask the user for help unless you are stuck after multiple attempts on the same failure.
 
-## Stacked PRs (multiple topics in one jj stack)
+## Multiple independent topics in one jj stack
 
-When the jj commit stack contains multiple independent topics, create one PR per topic instead of a single large PR.
-
-### How it works
-
-Each PR targets the previous PR's branch as its base, forming a chain:
-
-```
-main <-- PR1 branch <-- PR2 branch <-- PR3 branch
-```
-
-Use `--base` and `--jj-rev` to wire the chain:
+When the jj commit stack contains multiple independent topics, create one PR per topic. First rebase the commits into a parallel structure so each PR targets `main` directly:
 
 ```bash
-# PR 1: oldest commit, targets main
-submit_pr_after_review.sh --title "..." --body-file ... --head fix/topic-a --jj-rev <sha1>
+# Before: linear stack
+#   main <-- A <-- B <-- @ (empty working copy)
+#
+# Rebase B to also be a child of main (parallel to A):
+jj rebase -r <B-sha> -d main
 
-# PR 2: next commit, targets PR 1's branch
-submit_pr_after_review.sh --title "..." --body-file ... --head feat/topic-b --base fix/topic-a --jj-rev <sha2>
-
-# PR 3: newest commit, targets PR 2's branch
-submit_pr_after_review.sh --title "..." --body-file ... --head refactor/topic-c --base feat/topic-b --jj-rev <sha3>
+# After: parallel
+#   main <-- A
+#   main <-- B
+#   main <-- @ (empty working copy)
 ```
 
-### Merging order
+Then submit each PR independently with `--jj-rev`, all targeting `main`:
 
-Merge from bottom to top (#1 first, then #2, then #3). After merging each PR, **wait for GitHub to automatically update the next PR's base to `main`** before merging it. If you merge too fast, the upper PRs will merge into their base branches instead of `main`, requiring a cleanup PR to bring changes back.
+```bash
+submit_pr_after_review.sh --title "..." --body-file ... --head fix/topic-a --jj-rev <A-sha>
+submit_pr_after_review.sh --title "..." --body-file ... --head feat/topic-b --jj-rev <B-sha>
+```
 
-### When NOT to use stacked PRs
+PRs are independent and can be merged in any order.
+
+### When NOT to split
 
 If the user wants a single PR for everything in the stack, skip this section and submit normally (the default workflow already includes the full stack).

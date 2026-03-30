@@ -23,7 +23,7 @@ def test_discover_skills_records_name_folder_mismatch_warning(tmp_path: Path, mo
 
     warnings = loader.skill_warnings_by_location["user"]
     assert len(warnings) == 1
-    assert 'name "skill-name" does not match parent directory "folder-name"' in warnings[0]
+    assert 'name "skill-name" should match directory name' in warnings[0]
 
 
 def test_discover_skills_no_warning_when_name_matches_folder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
