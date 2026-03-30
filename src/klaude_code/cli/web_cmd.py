@@ -46,6 +46,13 @@ def run_web_server_command(*, host: str, port: int, no_open: bool, debug: bool) 
         )
     except web_server_already_running_error as exc:
         log((str(exc), "yellow"))
+        if not no_open:
+            import webbrowser
+
+            browser_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
+            url = f"http://{browser_host}:{port}/"
+            log(("Opening browser to existing web server...", "green"))
+            webbrowser.open(url)
         raise typer.Exit(0) from None
     except KeyboardInterrupt:
         log_debug(
