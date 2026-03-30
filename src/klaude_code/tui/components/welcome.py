@@ -37,6 +37,30 @@ def _format_memory_path(path: str, *, work_dir: Path) -> str:
         return path
 
 
+def _shorten_warning_path(warning: str, work_dir: Path) -> str:
+    """Shorten absolute paths in warning messages for display.
+
+    Extracts the path prefix (before first ': ') and shortens it:
+    - Strips everything up to and including '/skills/' to show just '<skill-dir>/SKILL.md'
+    - Falls back to relative path or ~ notation
+    """
+    sep = ": "
+    idx = warning.find(sep)
+    if idx < 0:
+        return warning
+    path_str, message = warning[:idx], warning[idx:]
+    # Try to extract just the skill directory name (e.g. "my-skill")
+    skills_marker = "/skills/"
+    marker_idx = path_str.rfind(skills_marker)
+    if marker_idx >= 0:
+        short = path_str[marker_idx + len(skills_marker) :]
+        # Strip trailing /SKILL.md since all skills use the same filename
+        if short.endswith("/SKILL.md"):
+            short = short[: -len("/SKILL.md")]
+        return short + message
+    return _format_memory_path(path_str, work_dir=work_dir) + message
+
+
 def _build_multi_column_tree(
     title: str,
     grouped_items: list[tuple[str, list[str]]],
@@ -147,23 +171,23 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
         renderables.append(_build_multi_column_tree("skills", grouped_skills))
 
     loaded_skill_warnings = e.loaded_skill_warnings or {}
-    warning_items: list[tuple[str, str]] = []
+    warning_items: list[tuple[str, list[str]]] = []
     for scope in ("user", "project", "system"):
         warnings = loaded_skill_warnings.get(scope) or []
         if warnings:
-            warning_items.append((f"[{scope}]", " | ".join(warnings)))
+            warning_items.append((f"[{scope}]", warnings))
     if warning_items:
-        label_width = max(len(label) for label, _ in warning_items)
         warning_tree = _RoundedTree(
             Text("skill warnings", style=ThemeKey.WARN_BOLD),
             guide_style=ThemeKey.LINES,
         )
-        for label, content in warning_items:
-            row = Text()
-            row.append(label, style=ThemeKey.WARN_SCOPE)
-            row.append(" " * (label_width - len(label)), style=ThemeKey.WARN)
-            row.append(f" {content}", style=ThemeKey.WARN)
-            warning_tree.add(row)
+        for label, warnings in warning_items:
+            scope_text = Text()
+            scope_text.append(label, style=ThemeKey.WARN_SCOPE)
+            for warning in warnings:
+                scope_text.append("\n")
+                scope_text.append(f"  {_shorten_warning_path(warning, work_dir)}", style=ThemeKey.WARN)
+            warning_tree.add(scope_text)
         renderables.append(Text())
         renderables.append(warning_tree)
 
