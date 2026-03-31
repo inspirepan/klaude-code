@@ -1295,7 +1295,6 @@ class DisplayStateMachine:
                 if not is_replay and not e.can_retry:
                     self._spinner.clear_task_state()
                     cmds.append(SpinnerStop())
-                cmds.append(PrintBlankLine())
                 if not is_replay:
                     cmds.extend(self._spinner_update_commands())
                 return cmds

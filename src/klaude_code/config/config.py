@@ -94,7 +94,7 @@ def format_model_preference(value: ModelPreference) -> str | None:
     choices = _iter_model_preference_values(value)
     if not choices:
         return None
-    return " -> ".join(choices)
+    return " > ".join(choices)
 
 
 config_path = Path.home() / ".klaude" / "klaude-config.yaml"

@@ -393,13 +393,13 @@ class ConfigHandler:
             target_options: list[user_interaction.OperationSelectOption] = [
                 user_interaction.OperationSelectOption(
                     id="__compact__",
-                    label="Compact",
+                    label="compact",
                     description=format_model_preference(config.compact_model)
                     or f"(inherit from main agent: {main_model_name})",
                 ),
                 user_interaction.OperationSelectOption(
                     id="__fast__",
-                    label="Fast",
+                    label="fast",
                     description=format_model_preference(config.fast_model)
                     or f"(inherit from main agent: {main_model_name})",
                 ),

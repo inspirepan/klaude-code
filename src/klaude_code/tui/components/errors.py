@@ -11,6 +11,8 @@ def render_error(error_msg: Text) -> RenderableType:
     error_msg.style = ThemeKey.ERROR
     error_msg.overflow = "fold"
     grid.add_row(Text("✘", style=ThemeKey.ERROR_BOLD), error_msg)
+    grid.add_row(Text(), Text("╌" * 10, style=ThemeKey.ERROR))
+
     return grid
 
 
