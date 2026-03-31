@@ -187,19 +187,19 @@ class WebSearchTool(ToolABC):
         max_results = min(max(args.max_results, 1), WEB_SEARCH_MAX_RESULTS_LIMIT)
 
         try:
-            brave_api_key = os.environ.get("BRAVE_API_KEY") or get_auth_env("BRAVE_API_KEY") or ""
-            provider = "brave"
-            provider_api_key = brave_api_key
+            exa_api_key = os.environ.get("EXA_API_KEY") or get_auth_env("EXA_API_KEY") or ""
+            provider = "exa"
+            provider_api_key = exa_api_key
 
             if not provider_api_key:
-                exa_api_key = os.environ.get("EXA_API_KEY") or get_auth_env("EXA_API_KEY") or ""
-                provider = "exa"
-                provider_api_key = exa_api_key
+                brave_api_key = os.environ.get("BRAVE_API_KEY") or get_auth_env("BRAVE_API_KEY") or ""
+                provider = "brave"
+                provider_api_key = brave_api_key
 
             if not provider_api_key:
                 return message.ToolResultMessage(
                     status="error",
-                    output_text="Search failed: missing BRAVE_API_KEY or EXA_API_KEY. Please set one and try again.",
+                    output_text="Search failed: missing EXA_API_KEY or BRAVE_API_KEY. Please set one and try again.",
                 )
 
             # Check cache
