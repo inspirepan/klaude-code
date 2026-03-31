@@ -23,7 +23,6 @@ from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
     AppendThinking,
-    EmitTmuxSignal,
     EndAssistantStream,
     EndThinkingStream,
     PrintBlankLine,
@@ -1248,7 +1247,6 @@ class DisplayStateMachine:
                     cmds.append(TaskClockClear())
                     self._spinner.clear_task_state()
                     cmds.append(SpinnerStop())
-                    cmds.append(EmitTmuxSignal())
                     cmds.append(StopTitleBlink())
                     self._terminal_title_prefix = "\u2714"
                     cmds.append(

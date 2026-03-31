@@ -30,7 +30,6 @@ from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
     AppendThinking,
-    EmitTmuxSignal,
     EndAssistantStream,
     EndThinkingStream,
     PrintBlankLine,
@@ -87,7 +86,6 @@ from klaude_code.tui.terminal.notifier import (
     Notification,
     NotificationType,
     TerminalNotifier,
-    emit_tmux_signal,
 )
 from klaude_code.tui.terminal.title import (
     is_title_blinking,
@@ -999,8 +997,6 @@ class TUICommandRenderer:
                     self.print()
                 case PrintRuleLine():
                     self.console.print(Rule(characters="─", style=ThemeKey.LINES_DIM))
-                case EmitTmuxSignal():
-                    emit_tmux_signal()
                 case TaskClockStart():
                     r_status.set_task_start()
                 case TaskClockClear():

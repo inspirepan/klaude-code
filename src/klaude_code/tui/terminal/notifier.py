@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from dataclasses import dataclass
 from enum import Enum
@@ -9,9 +8,6 @@ from typing import TextIO, cast
 
 from klaude_code.const import NOTIFY_COMPACT_LIMIT
 from klaude_code.log import DebugType, log_debug
-
-# Environment variable for tmux test signal channel
-TMUX_SIGNAL_ENV = "KLAUDE_TEST_SIGNAL"
 
 ST = "\033\\"
 BEL = "\a"
@@ -109,40 +105,3 @@ def _compact(text: str, limit: int = NOTIFY_COMPACT_LIMIT) -> str:
         return squashed[: limit - 3] + "…"
     return squashed
 
-
-def emit_tmux_signal(channel: str | None = None) -> bool:
-    """Send a tmux wait-for signal when a task completes.
-
-    This enables synchronous testing by allowing external scripts to block
-    until a task finishes, eliminating the need for polling or sleep.
-
-    Usage:
-        KLAUDE_TEST_SIGNAL=done klaude  # In tmux session
-        tmux wait-for done              # Blocks until task completes
-
-    Args:
-        channel: Signal channel name. If None, reads from KLAUDE_TEST_SIGNAL env var.
-
-    Returns:
-        True if signal was sent successfully, False otherwise.
-    """
-    channel = channel or os.getenv(TMUX_SIGNAL_ENV)
-    if not channel:
-        return False
-
-    # Check if we're in a tmux session
-    if not os.getenv("TMUX"):
-        log_debug("tmux signal skipped: not in tmux session", debug_type=DebugType.TERMINAL)
-        return False
-
-    try:
-        subprocess.run(
-            ["tmux", "wait-for", "-S", channel],
-            check=True,
-            capture_output=True,
-        )
-        log_debug(f"tmux signal sent: {channel}", debug_type=DebugType.TERMINAL)
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        log_debug(f"tmux signal failed: {e}", debug_type=DebugType.TERMINAL)
-        return False
