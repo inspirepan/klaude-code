@@ -1164,7 +1164,11 @@ class DisplayStateMachine:
                 elif pending is not None:
                     self._live_bash_tool_call_ids.discard(e.tool_call_id)
 
-                if s.is_sub_agent and not e.is_error:
+                if (
+                    s.is_sub_agent
+                    and not e.is_error
+                    and e.tool_name not in (tools.EDIT, tools.WRITE, tools.ASK_USER_QUESTION)
+                ):
                     return cmds
 
                 cmds.append(RenderToolResult(event=e, is_sub_agent_session=s.is_sub_agent))
