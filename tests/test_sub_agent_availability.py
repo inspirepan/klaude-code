@@ -30,7 +30,7 @@ class TestSubAgentModelHelper:
 
         sub_agents = helper.get_available_sub_agents()
         names = {sa.profile.name for sa in sub_agents}
-        assert names == {"general-purpose", "finder"}
+        assert names == {"general-purpose", "finder", "review"}
 
     def test_selectable_models_returns_all_available_models(self) -> None:
         provider = ProviderConfig(

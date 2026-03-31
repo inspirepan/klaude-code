@@ -76,3 +76,4 @@ def is_sub_agent_tool(tool_name: str) -> bool:
 # Import sub-agent modules to trigger registration
 from klaude_code.protocol.sub_agent import finder as finder  # noqa: E402
 from klaude_code.protocol.sub_agent import general_purpose as general_purpose  # noqa: E402
+from klaude_code.protocol.sub_agent import review as review  # noqa: E402
