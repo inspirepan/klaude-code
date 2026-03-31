@@ -142,6 +142,7 @@ class NoticeEvent(Event):
     content: str = ""
     ui_extra: model.ToolResultUIExtra | None = None
     is_error: bool = False
+    style: str | None = None
 
 
 class ModelChangedEvent(Event):

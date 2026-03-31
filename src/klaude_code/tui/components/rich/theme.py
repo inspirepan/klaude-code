@@ -185,6 +185,7 @@ class ThemeKey(str, Enum):
     TOOL_RESULT_TRUNCATED = "tool.result.truncated"
     TOOL_RESULT_BOLD = "tool.result.bold"
     COMMAND_OUTPUT = "command.output"
+    FORK_NOTICE = "fork.notice"
     SESSION_STATUS = "session.status"
     SESSION_STATUS_BOLD = "session.status.bold"
     TOOL_MARK = "tool.mark"
@@ -336,6 +337,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_RESULT_BOLD.value: "bold " + palette.grey_green,
                 ThemeKey.TOOL_RESULT_TRUNCATED.value: palette.grey1 + " dim",
                 ThemeKey.COMMAND_OUTPUT.value: palette.grey1,
+                ThemeKey.FORK_NOTICE.value: "bold " + palette.blue,
                 ThemeKey.SESSION_STATUS.value: palette.grey1,
                 ThemeKey.SESSION_STATUS_BOLD.value: "bold " + palette.grey1,
                 ThemeKey.TOOL_MARK.value: "bold",
