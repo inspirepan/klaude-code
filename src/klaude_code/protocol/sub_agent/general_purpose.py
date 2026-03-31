@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from klaude_code.protocol import tools
 from klaude_code.protocol.sub_agent import SubAgentProfile, register_sub_agent
 
 GENERAL_PURPOSE_SUMMARY = (
@@ -15,11 +14,28 @@ GENERAL_PURPOSE_SUMMARY = (
 
 register_sub_agent(
     SubAgentProfile(
-        name="Task",
-        tool_set=(tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.WEB_FETCH, tools.WEB_SEARCH),
-        invoker_type="general-purpose",
+        name="general-purpose",
         invoker_summary=GENERAL_PURPOSE_SUMMARY,
         use_main_prompt=True,
+        active_form="Tasking",
+    )
+)
+
+FORK_CONTEXT_SUMMARY = (
+    "Same as general-purpose but with full conversation history forked from the parent agent.\n"
+    "Use when the sub-agent needs awareness of what happened earlier in the session.\n"
+    "- Use for: Session-aware tasks like updating project docs, summarizing session learnings,\n"
+    "  or any task that requires the full conversation context to do well\n"
+    "- Don't use for: Standalone tasks that don't need session history (use general-purpose instead)\n"
+    "(Tools: inherited from parent)"
+)
+
+register_sub_agent(
+    SubAgentProfile(
+        name="general-purpose-fork-context",
+        invoker_summary=FORK_CONTEXT_SUMMARY,
+        use_main_prompt=True,
+        fork_context=True,
         active_form="Tasking",
     )
 )

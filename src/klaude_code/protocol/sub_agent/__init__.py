@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from klaude_code.protocol import tools
 
 if TYPE_CHECKING:
     from klaude_code.protocol import model
-
-PromptBuilder = Callable[[dict[str, Any]], str]
 
 
 @dataclass
@@ -20,11 +17,6 @@ class SubAgentResult:
     task_metadata: model.TaskMetadata | None = None
 
 
-def _default_prompt_builder(args: dict[str, Any]) -> str:
-    """Default prompt builder that just returns the 'prompt' field."""
-    return args.get("prompt", "")
-
-
 @dataclass(frozen=True)
 class SubAgentProfile:
     """Metadata describing a sub agent and how it integrates with the system.
@@ -32,23 +24,24 @@ class SubAgentProfile:
     This dataclass contains all the information needed to:
     1. Register the sub agent with the system
     2. Generate the tool schema for the main agent
-    3. Build the prompt for the sub agent
     """
 
     # Identity - single name used for type, config_key, and prompt_key
-    name: str  # e.g., "Task", "Finder"
+    name: str  # e.g., "general-purpose", "finder"
 
     # Sub-agent run configuration
     prompt_file: str = ""  # Resource file path relative to core package (e.g., "prompts/prompt-sub-agent-finder.md")
     tool_set: tuple[str, ...] = ()  # Tools available to this sub agent
-    prompt_builder: PromptBuilder = _default_prompt_builder  # Builds the sub agent prompt from tool arguments
 
     # Entry-point metadata for Agent tool (RunSubAgent)
-    invoker_type: str | None = None  # Tool-level type mapping (e.g., "general-purpose", "finder")
     invoker_summary: str = ""  # Short description shown under Agent tool supported types
 
     # When True, use the main agent's full system prompt instead of prompt_file
     use_main_prompt: bool = False
+
+    # Fork the parent agent's conversation history into the sub-agent session.
+    # When True, the sub-agent inherits the full thread context from the parent.
+    fork_context: bool = False
 
     # UI display
     active_form: str = ""  # Active form for spinner status (e.g., "Tasking", "Finding")
@@ -74,6 +67,10 @@ def iter_sub_agent_profiles() -> list[SubAgentProfile]:
     return list(_PROFILES.values())
 
 
+def get_all_names() -> list[str]:
+    return list(_PROFILES.keys())
+
+
 def is_sub_agent_tool(tool_name: str) -> bool:
     from klaude_code.protocol import tools
 
@@ -83,3 +80,5 @@ def is_sub_agent_tool(tool_name: str) -> bool:
 # Import sub-agent modules to trigger registration
 from klaude_code.protocol.sub_agent import finder as finder  # noqa: E402
 from klaude_code.protocol.sub_agent import general_purpose as general_purpose  # noqa: E402
+from klaude_code.protocol.sub_agent import memory as memory  # noqa: E402
+from klaude_code.protocol.sub_agent import review as review  # noqa: E402

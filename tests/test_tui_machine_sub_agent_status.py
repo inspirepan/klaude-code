@@ -56,7 +56,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Finder",
+                sub_agent_type="finder",
                 sub_agent_desc="searching xxxxx",
                 sub_agent_prompt="prompt",
             ),
@@ -88,7 +88,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Finder",
+                sub_agent_type="finder",
                 sub_agent_desc="searching yyyyy",
                 sub_agent_prompt="prompt",
             ),
@@ -278,7 +278,7 @@ def test_sub_agent_bash_tool_output_delta_is_ignored() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Finder",
+                sub_agent_type="finder",
                 sub_agent_desc="searching yyyyy",
                 sub_agent_prompt="prompt",
             ),
@@ -309,7 +309,7 @@ def test_sub_agent_status_lines_cap_with_more_indicator() -> None:
             events.TaskStartEvent(
                 session_id=f"sub-{idx}",
                 sub_agent_state=model.SubAgentState(
-                    sub_agent_type="Finder",
+                    sub_agent_type="finder",
                     sub_agent_desc=f"searching {idx}",
                     sub_agent_prompt="prompt",
                 ),
@@ -336,7 +336,7 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Finder",
+                sub_agent_type="finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
             ),
@@ -386,7 +386,7 @@ def test_interrupt_clears_stale_sub_agent_status_lines() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Finder",
+                sub_agent_type="finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
             ),
@@ -415,7 +415,7 @@ def test_sub_agent_non_retry_error_clears_status_lines() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Finder",
+                sub_agent_type="finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
             ),
@@ -449,7 +449,7 @@ def test_failed_agent_tool_result_clears_sub_agent_status_line() -> None:
         events.TaskStartEvent(
             session_id=sub_session,
             sub_agent_state=model.SubAgentState(
-                sub_agent_type="Finder",
+                sub_agent_type="finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
             ),

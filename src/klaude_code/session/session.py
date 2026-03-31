@@ -450,11 +450,12 @@ class Session(BaseModel):
 
     @staticmethod
     def _strip_dangling_tool_calls(items: list[message.HistoryEvent]) -> list[message.HistoryEvent]:
-        """Remove tool_call parts from AssistantMessages that have no matching ToolResultMessage.
+        """Patch dangling tool_call parts that have no matching ToolResultMessage.
 
-        This guards against forked/interrupted histories where an AssistantMessage
-        contains tool_use blocks whose tool_result was never appended.  All major LLM
-        APIs require every tool_use to have a paired tool_result.
+        For each dangling tool_call, a synthetic aborted ToolResultMessage is
+        appended right after the AssistantMessage so the LLM knows the call was
+        interrupted.  All major LLM APIs require every tool_use to have a paired
+        tool_result.
         """
         answered_call_ids: set[str] = {it.call_id for it in items if isinstance(it, message.ToolResultMessage)}
 
@@ -464,20 +465,18 @@ class Session(BaseModel):
                 result.append(item)
                 continue
 
-            has_dangling = any(
-                isinstance(p, message.ToolCallPart) and p.call_id not in answered_call_ids for p in item.parts
-            )
-            if not has_dangling:
-                result.append(item)
-                continue
+            result.append(item)
 
-            kept_parts = [
-                p for p in item.parts if not isinstance(p, message.ToolCallPart) or p.call_id in answered_call_ids
-            ]
-            # Drop the message entirely if nothing meaningful remains.
-            if not kept_parts:
-                continue
-            result.append(item.model_copy(update={"parts": kept_parts}))
+            for part in item.parts:
+                if isinstance(part, message.ToolCallPart) and part.call_id not in answered_call_ids:
+                    result.append(
+                        message.ToolResultMessage(
+                            call_id=part.call_id,
+                            tool_name=part.tool_name,
+                            output_text="Tool call was interrupted before completing (session was interrupted or restarted).",
+                            status="error",
+                        )
+                    )
 
         return result
 

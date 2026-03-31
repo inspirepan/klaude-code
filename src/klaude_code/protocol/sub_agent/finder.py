@@ -16,10 +16,9 @@ FINDER_SUMMARY = (
 
 register_sub_agent(
     SubAgentProfile(
-        name="Finder",
+        name="finder",
         prompt_file="prompts/prompt-sub-agent-finder.md",
         tool_set=(tools.BASH, tools.READ),
-        invoker_type="finder",
         invoker_summary=FINDER_SUMMARY,
         active_form="Finding",
     )

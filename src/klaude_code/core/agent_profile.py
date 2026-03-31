@@ -75,7 +75,9 @@ def load_agent_tools(
 
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)
-        return get_tool_schemas(list(profile.tool_set))
+        if profile.tool_set:
+            return get_tool_schemas(list(profile.tool_set))
+        # Empty tool_set means inherit main agent tools; fall through below
 
     # Main agent tools = common + model-specific diff + common
     model_diff_tools = MAIN_AGENT_GPT5_DIFF_TOOLS if is_gpt5_model(model_name) else MAIN_AGENT_NON_GPT5_DIFF_TOOLS
@@ -84,6 +86,10 @@ def load_agent_tools(
         *model_diff_tools,
         *MAIN_AGENT_COMMON_TOOLS,
     ]
+
+    # Sub-agents cannot use Rewind (no RewindManager in sub-agent sessions)
+    if sub_agent_type is not None:
+        tool_names = [t for t in tool_names if t != tools.REWIND]
 
     del config
 

@@ -1016,7 +1016,7 @@ class TestStripDanglingToolCalls:
         tool_calls = [p for p in result[1].parts if isinstance(p, message.ToolCallPart)]
         assert len(tool_calls) == 1
 
-    def test_trailing_assistant_with_only_dangling_calls_dropped(self):
+    def test_trailing_assistant_with_only_dangling_calls_gets_synthetic_result(self):
         items: list[message.HistoryEvent] = [
             message.UserMessage(parts=message.text_parts_from_str("hi")),
             message.AssistantMessage(
@@ -1026,11 +1026,16 @@ class TestStripDanglingToolCalls:
             ),
         ]
         result = Session._strip_dangling_tool_calls(items)
-        # AssistantMessage with only a dangling tool_call should be dropped entirely
-        assert len(result) == 1
+        # AssistantMessage kept, synthetic ToolResultMessage appended
+        assert len(result) == 3
         assert isinstance(result[0], message.UserMessage)
+        assert isinstance(result[1], message.AssistantMessage)
+        assert isinstance(result[2], message.ToolResultMessage)
+        assert result[2].call_id == "c1"
+        assert result[2].status == "error"
+        assert "interrupted" in result[2].output_text
 
-    def test_trailing_assistant_keeps_text_strips_dangling_calls(self):
+    def test_trailing_assistant_keeps_text_patches_dangling_calls(self):
         items: list[message.HistoryEvent] = [
             message.UserMessage(parts=message.text_parts_from_str("hi")),
             message.AssistantMessage(
@@ -1043,15 +1048,19 @@ class TestStripDanglingToolCalls:
             message.ToolResultMessage(call_id="c2", tool_name="Bash", status="success", output_text="ok"),
         ]
         result = Session._strip_dangling_tool_calls(items)
-        assert len(result) == 3
+        # AssistantMessage preserved intact; synthetic result for c1 inserted after it
+        assert len(result) == 4
         assistant = result[1]
         assert isinstance(assistant, message.AssistantMessage)
-        # Text part + matched tool call kept; dangling c1 stripped
-        assert len(assistant.parts) == 2
-        assert isinstance(assistant.parts[0], message.TextPart)
-        tc = assistant.parts[1]
-        assert isinstance(tc, message.ToolCallPart)
-        assert tc.call_id == "c2"
+        assert len(assistant.parts) == 3  # all parts preserved
+        # Synthetic result for dangling c1
+        synthetic = result[2]
+        assert isinstance(synthetic, message.ToolResultMessage)
+        assert synthetic.call_id == "c1"
+        assert synthetic.status == "error"
+        # Existing result for c2
+        assert isinstance(result[3], message.ToolResultMessage)
+        assert result[3].call_id == "c2"
 
     def test_concurrent_tools_partial_completion(self):
         """Simulate fork_context scenario: AssistantMessage with 4 tool calls,
@@ -1069,15 +1078,23 @@ class TestStripDanglingToolCalls:
             message.ToolResultMessage(call_id="bash1", tool_name="Bash", status="success", output_text="file1\nfile2"),
         ]
         result = Session._strip_dangling_tool_calls(items)
-        assert len(result) == 3
+        # AssistantMessage preserved; synthetic results for agent1 and agent2 added
+        assert len(result) == 5  # user + assistant + synthetic(agent1) + synthetic(agent2) + real(bash1)
         assistant = result[1]
         assert isinstance(assistant, message.AssistantMessage)
-        # text + bash1 kept; agent1 and agent2 stripped
-        tool_calls = [p for p in assistant.parts if isinstance(p, message.ToolCallPart)]
-        assert len(tool_calls) == 1
-        assert tool_calls[0].call_id == "bash1"
-        text_parts = [p for p in assistant.parts if isinstance(p, message.TextPart)]
-        assert len(text_parts) == 1
+        # All parts preserved (text + 3 tool calls)
+        assert len(assistant.parts) == 4
+        # Synthetic results for dangling calls
+        assert isinstance(result[2], message.ToolResultMessage)
+        assert result[2].call_id == "agent1"
+        assert result[2].status == "error"
+        assert isinstance(result[3], message.ToolResultMessage)
+        assert result[3].call_id == "agent2"
+        assert result[3].status == "error"
+        # Real result
+        assert isinstance(result[4], message.ToolResultMessage)
+        assert result[4].call_id == "bash1"
+        assert result[4].status == "success"
 
     def test_empty_history(self):
         result = Session._strip_dangling_tool_calls([])
@@ -1091,7 +1108,7 @@ class TestStripDanglingToolCalls:
         result = Session._strip_dangling_tool_calls(items)
         assert len(result) == 2
 
-    def test_thinking_parts_preserved_when_tool_calls_stripped(self):
+    def test_thinking_parts_preserved_with_synthetic_result(self):
         items: list[message.HistoryEvent] = [
             message.UserMessage(parts=message.text_parts_from_str("think")),
             message.AssistantMessage(
@@ -1103,18 +1120,25 @@ class TestStripDanglingToolCalls:
             ),
         ]
         result = Session._strip_dangling_tool_calls(items)
-        assert len(result) == 2
+        assert len(result) == 3
         assistant = result[1]
         assert isinstance(assistant, message.AssistantMessage)
-        assert len(assistant.parts) == 2
+        # All parts preserved including the dangling tool call
+        assert len(assistant.parts) == 3
         assert isinstance(assistant.parts[0], message.ThinkingTextPart)
         assert isinstance(assistant.parts[1], message.TextPart)
+        assert isinstance(assistant.parts[2], message.ToolCallPart)
+        # Synthetic result appended
+        synthetic = result[2]
+        assert isinstance(synthetic, message.ToolResultMessage)
+        assert synthetic.call_id == "c1"
+        assert synthetic.status == "error"
 
 
 class TestGetLlmHistoryDanglingToolCalls:
     """Integration tests: get_llm_history strips dangling tool calls."""
 
-    def test_get_llm_history_strips_trailing_dangling_calls(self, tmp_path: Path):
+    def test_get_llm_history_patches_trailing_dangling_calls(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
         session.conversation_history = [
             message.UserMessage(parts=message.text_parts_from_str("hello")),
@@ -1128,12 +1152,19 @@ class TestGetLlmHistoryDanglingToolCalls:
             message.ToolResultMessage(call_id="c2", tool_name="Bash", status="success", output_text="ok"),
         ]
         result = session.get_llm_history()
-        assert len(result) == 3
+        # AssistantMessage preserved; synthetic result for c1 inserted
+        assert len(result) == 4
         assistant = result[1]
         assert isinstance(assistant, message.AssistantMessage)
         tool_calls = [p for p in assistant.parts if isinstance(p, message.ToolCallPart)]
-        assert len(tool_calls) == 1
-        assert tool_calls[0].call_id == "c2"
+        assert len(tool_calls) == 2  # both preserved
+        # Synthetic result for dangling c1
+        assert isinstance(result[2], message.ToolResultMessage)
+        assert result[2].call_id == "c1"
+        assert result[2].status == "error"
+        # Real result for c2
+        assert isinstance(result[3], message.ToolResultMessage)
+        assert result[3].call_id == "c2"
 
     def test_get_llm_history_no_dangling_no_change(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)

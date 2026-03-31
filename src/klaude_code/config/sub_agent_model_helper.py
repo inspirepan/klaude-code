@@ -49,9 +49,9 @@ class SubAgentModelHelper:
         self._config = config
 
     @staticmethod
-    def _role_key_for_sub_agent_type(sub_agent_type: str) -> str | None:
+    def _role_key_for_sub_agent_type(sub_agent_type: str) -> str:
         profile = get_sub_agent_profile(sub_agent_type)
-        return profile.invoker_type
+        return profile.name
 
     def describe_empty_model_config_behavior(
         self,
@@ -65,7 +65,7 @@ class SubAgentModelHelper:
         """
 
         role_key = self._role_key_for_sub_agent_type(sub_agent_type)
-        role_model = self._config.sub_agent_models.get(role_key) if role_key else None
+        role_model = self._config.sub_agent_models.get(role_key)
         resolved = format_model_preference(role_model) or main_model_name
         return EmptySubAgentModelBehavior(
             description=f"use default behavior: {resolved}",
@@ -79,8 +79,8 @@ class SubAgentModelHelper:
         """
         result: list[SubAgentModelInfo] = []
         for profile in iter_sub_agent_profiles():
-            role_key = profile.invoker_type
-            configured_model = self._config.sub_agent_models.get(role_key) if role_key else None
+            role_key = profile.name
+            configured_model = self._config.sub_agent_models.get(role_key)
             effective_model = configured_model or self._config.main_model
             result.append(
                 SubAgentModelInfo(
@@ -104,8 +104,8 @@ class SubAgentModelHelper:
         """Return single model names for sub-agents that need dedicated clients."""
         result: dict[SubAgentType, str] = {}
         for profile in iter_sub_agent_profiles():
-            role_key = profile.invoker_type
-            model_pref = self._config.sub_agent_models.get(role_key) if role_key else None
+            role_key = profile.name
+            model_pref = self._config.sub_agent_models.get(role_key)
             if model_pref is None:
                 continue
             if isinstance(model_pref, str):

@@ -98,8 +98,8 @@ def build_llm_clients(
             sub_clients[sub_agent_type] = create_llm_client(sub_llm_config)
         except ValueError:
             profile = get_sub_agent_profile(sub_agent_type)
-            role_key = profile.invoker_type
-            if role_key is not None and role_key in user_sub_agent_models:
+            role_key = profile.name
+            if role_key in user_sub_agent_models:
                 raise
             log_debug(
                 f"Sub-agent '{sub_agent_type}' builtin model '{sub_model_name}' not available, falling back to main model",

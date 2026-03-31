@@ -94,7 +94,7 @@ def format_model_preference(value: ModelPreference) -> str | None:
     choices = _iter_model_preference_values(value)
     if not choices:
         return None
-    return " -> ".join(choices)
+    return " > ".join(choices)
 
 
 config_path = Path.home() / ".klaude" / "klaude-config.yaml"
@@ -258,8 +258,7 @@ class UserConfig(BaseModel):
         normalized: dict[str, ModelPreference] = {}
         key_map: dict[str, str] = {}
         for profile in iter_sub_agent_profiles():
-            if profile.invoker_type:
-                key_map[profile.invoker_type.lower()] = profile.invoker_type
+            key_map[profile.name.lower()] = profile.name
         for key, value in dict(raw_models).items():
             normalized_key = str(key).strip().lower()
             canonical = key_map.get(normalized_key)
@@ -296,8 +295,7 @@ class Config(BaseModel):
         normalized: dict[str, ModelPreference] = {}
         key_map: dict[str, str] = {}
         for profile in iter_sub_agent_profiles():
-            if profile.invoker_type:
-                key_map[profile.invoker_type.lower()] = profile.invoker_type
+            key_map[profile.name.lower()] = profile.name
         for key, value in dict(raw_models).items():
             normalized_key = str(key).strip().lower()
             canonical = key_map.get(normalized_key)

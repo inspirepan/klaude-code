@@ -56,27 +56,29 @@ def get_agent_active_form(arguments: str) -> str:
     """Return active form text for Agent tool based on its arguments."""
     import json
 
+    from klaude_code.protocol.sub_agent import get_sub_agent_profile
+
+    _DEFAULT = "Tasking"
+
     try:
         parsed = json.loads(arguments)
     except json.JSONDecodeError:
-        return "Tasking"
+        return _DEFAULT
 
     if not isinstance(parsed, dict):
-        return "Tasking"
+        return _DEFAULT
 
     args = cast(dict[str, Any], parsed)
 
     type_raw = args.get("type")
     if not isinstance(type_raw, str):
-        return "Tasking"
+        return _DEFAULT
 
-    match type_raw.strip():
-        case "finder":
-            return "Finding"
-        case "web":
-            return "Surfing"
-        case _:
-            return "Tasking"
+    try:
+        profile = get_sub_agent_profile(type_raw.strip())
+    except KeyError:
+        return _DEFAULT
+    return profile.active_form or _DEFAULT
 
 
 def render_path(path: str, style: str, is_directory: bool = False) -> Text:

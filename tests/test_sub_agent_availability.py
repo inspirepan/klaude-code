@@ -12,7 +12,7 @@ class TestSubAgentModelHelper:
         config = Config(provider_list=[])
         helper = SubAgentModelHelper(config)
 
-        result = helper.describe_empty_model_config_behavior("Task", main_model_name="anthropic/test")
+        result = helper.describe_empty_model_config_behavior("general-purpose", main_model_name="anthropic/test")
         assert result.description == "use default behavior: anthropic/test"
         assert result.resolved_model_name == "anthropic/test"
 
@@ -20,7 +20,7 @@ class TestSubAgentModelHelper:
         config = Config(provider_list=[])
         helper = SubAgentModelHelper(config)
 
-        result = helper.describe_empty_model_config_behavior("Finder", main_model_name="anthropic/test")
+        result = helper.describe_empty_model_config_behavior("finder", main_model_name="anthropic/test")
         assert result.description == "use default behavior: anthropic/test"
         assert result.resolved_model_name == "anthropic/test"
 
@@ -30,7 +30,7 @@ class TestSubAgentModelHelper:
 
         sub_agents = helper.get_available_sub_agents()
         names = {sa.profile.name for sa in sub_agents}
-        assert names == {"Task", "Finder"}
+        assert names == {"general-purpose", "general-purpose-fork-context", "finder", "memory", "review"}
 
     def test_selectable_models_returns_all_available_models(self) -> None:
         provider = ProviderConfig(
@@ -51,7 +51,7 @@ class TestSubAgentModelHelper:
         config = Config(provider_list=[provider])
         helper = SubAgentModelHelper(config)
 
-        models = helper.get_selectable_models("Task")
+        models = helper.get_selectable_models("general-purpose")
         names = [m.model_name for m in models]
         assert names == ["model-a", "model-b"]
 
@@ -65,8 +65,8 @@ class TestSubAgentModelHelper:
         )
         helper = SubAgentModelHelper(config)
 
-        task_behavior = helper.describe_empty_model_config_behavior("Task", main_model_name="main")
-        finder_behavior = helper.describe_empty_model_config_behavior("Finder", main_model_name="main")
+        task_behavior = helper.describe_empty_model_config_behavior("general-purpose", main_model_name="main")
+        finder_behavior = helper.describe_empty_model_config_behavior("finder", main_model_name="main")
 
         assert task_behavior.resolved_model_name == "model-task"
         assert finder_behavior.resolved_model_name == "model-finder"
@@ -76,7 +76,7 @@ class TestSubAgentModelHelper:
         helper = SubAgentModelHelper(config)
 
         result = helper.build_sub_agent_client_configs()
-        assert result == {"Task": "model-task"}
+        assert result == {"general-purpose": "model-task"}
 
     def test_build_sub_agent_client_configs_resolves_model_preference_lists(self) -> None:
         provider = ProviderConfig(
@@ -95,7 +95,7 @@ class TestSubAgentModelHelper:
 
         result = helper.build_sub_agent_client_configs()
         # model-task is not available, so it falls back to model-fallback
-        assert result == {"Task": "model-fallback"}
+        assert result == {"general-purpose": "model-fallback"}
 
     def test_build_sub_agent_client_configs_list_all_unavailable(self) -> None:
         config = Config(
