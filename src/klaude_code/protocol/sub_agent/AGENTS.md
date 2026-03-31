@@ -36,7 +36,7 @@ Fork-context sub-agents use an **identity switch** pattern rather than a separat
 <system-reminder>You are no longer the main coding agent. You are now acting as
 a specialized sub-agent. The conversation history above was forked from the parent
 session -- use it as background context only. Do NOT use the Agent tool to spawn
-sub-agents.
+sub-agents. Do NOT use the Rewind tool.
 
 [prompt_file content here, with $workingDirectory/$workspaceRoot substituted]
 </system-reminder>
@@ -48,7 +48,7 @@ sub-agents.
 <system-reminder>You are a newly spawned agent with the full conversation context
 from the parent session. Treat the next user message as your new task, and use
 the conversation history as background context. Do NOT use the Agent tool to spawn
-sub-agents.</system-reminder>
+sub-agents. Do NOT use the Rewind tool.</system-reminder>
 ```
 
 When writing prompt files for fork-context sub-agents, write them as if they are the agent's self-description, not as instructions addressed to a third party. The content will be read by the model immediately after "You are now acting as a specialized sub-agent."

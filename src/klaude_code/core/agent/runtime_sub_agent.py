@@ -9,6 +9,7 @@ from string import Template
 from klaude_code.core.agent.agent import Agent
 from klaude_code.core.agent.runtime_llm import LLMClients
 from klaude_code.core.agent_profile import ModelProfileProvider
+from klaude_code.core.memory import find_git_repo_root
 from klaude_code.core.prompts.system_prompt import load_prompt_by_path
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, model
@@ -135,16 +136,18 @@ class SubAgentExecutor:
             if state.fork_context:
                 profile = get_sub_agent_profile(state.sub_agent_type)
                 if profile.prompt_file:
+                    workspace_root = find_git_repo_root(work_dir=parent_session.work_dir) or parent_session.work_dir
                     role_prompt = Template(load_prompt_by_path(profile.prompt_file)).safe_substitute(
                         workingDirectory=parent_session.work_dir,
-                        workspaceRoot=parent_session.work_dir,
+                        workspaceRoot=workspace_root,
                     )
                     reminder_text = (
                         "You are no longer the main coding agent. "
                         "You are now acting as a specialized sub-agent. "
                         "The conversation history above was forked from the parent session "
                         "-- use it as background context only. "
-                        "Do NOT use the Agent tool to spawn sub-agents.\n\n"
+                        "Do NOT use the Agent tool to spawn sub-agents. "
+                        "Do NOT use the Rewind tool.\n\n"
                         + role_prompt
                     )
                 else:
@@ -152,7 +155,8 @@ class SubAgentExecutor:
                         "You are a newly spawned agent with the full conversation context "
                         "from the parent session. Treat the next user message as your new task, "
                         "and use the conversation history as background context. "
-                        "Do NOT use the Agent tool to spawn sub-agents."
+                        "Do NOT use the Agent tool to spawn sub-agents. "
+                        "Do NOT use the Rewind tool."
                     )
                 history_items.append(
                     message.UserMessage(
