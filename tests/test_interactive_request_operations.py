@@ -200,7 +200,7 @@ def test_request_model_operation_same_runtime_model_still_saves_default(
         assert fake_config.saved is True
         assert len(emitted) == 1
         assert isinstance(emitted[0], events.NoticeEvent)
-        assert emitted[0].content == "Default model: gpt@openai (saved in ~/.klaude/klaude-config.yaml)"
+        assert emitted[0].content == "Main model: gpt@openai (saved in ~/.klaude/klaude-config.yaml)"
 
     arun(_test())
 

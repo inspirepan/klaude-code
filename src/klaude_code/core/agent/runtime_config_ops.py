@@ -261,7 +261,7 @@ class ConfigHandler:
         await self._emit_event(
             events.NoticeEvent(
                 session_id=session_id,
-                content=f"Default model: {model_name} (saved in ~/.klaude/klaude-config.yaml)",
+                content=f"Main model: {model_name} (saved in ~/.klaude/klaude-config.yaml)",
             )
         )
         return True
