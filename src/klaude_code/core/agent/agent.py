@@ -36,7 +36,7 @@ class Agent:
         self.profile: AgentProfile = profile
         self.compact_llm_client: LLMClientABC | None = compact_llm_client
         self._current_task: TaskExecutor | None = None
-        self._request_user_interaction = request_user_interaction
+        self.request_user_interaction = request_user_interaction
         if not self.session.model_name:
             self.session.model_name = profile.llm_client.model_name
 
@@ -68,7 +68,7 @@ class Agent:
             file_change_summary=self.session.file_change_summary,
             todo_context=build_todo_context(self.session),
             run_subtask=run_subtask,
-            request_user_interaction=self._request_user_interaction,
+            request_user_interaction=self.request_user_interaction,
         )
         context = TaskExecutionContext(
             session=self.session,

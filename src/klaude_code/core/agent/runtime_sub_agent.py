@@ -89,7 +89,11 @@ class SubAgentExecutor:
                 work_dir=parent_session.work_dir,
             )
 
-        child_agent = Agent(session=child_session, profile=child_profile)
+        child_agent = Agent(
+            session=child_session,
+            profile=child_profile,
+            request_user_interaction=parent_agent.request_user_interaction,
+        )
 
         log_debug(
             f"Running sub-agent {state.sub_agent_type} in session {child_session.id}",
