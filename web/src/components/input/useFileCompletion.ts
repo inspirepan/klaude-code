@@ -41,11 +41,12 @@ function getFileCompletionContext(
   };
 }
 
-function formatFileCompletionText(path: string, isQuoted: boolean): string {
+function formatFileCompletionText(path: string, isQuoted: boolean, noTrailingSpace?: boolean): string {
+  const suffix = noTrailingSpace ? "" : " ";
   if (isQuoted || /\s/.test(path)) {
-    return `@"${path}" `;
+    return `@"${path}"${suffix}`;
   }
-  return `@${path} `;
+  return `@${path}${suffix}`;
 }
 
 interface UseFileCompletionOptions {
@@ -114,12 +115,23 @@ export function useFileCompletion({
         return;
       }
 
-      const insertedText = formatFileCompletionText(path, fileCompletion.isQuoted);
+      const isDirectory = path.endsWith("/");
+      const insertedText = formatFileCompletionText(path, fileCompletion.isQuoted, isDirectory);
       const nextText = `${text.slice(0, fileCompletion.tokenStart)}${insertedText}${text.slice(fileCompletion.tokenEnd)}`;
       const nextCursorPosition = fileCompletion.tokenStart + insertedText.length;
 
       onTextChange(nextText);
-      close();
+
+      if (isDirectory) {
+        // Keep completion open and trigger a new search for the directory contents
+        const nextContext = getFileCompletionContext(nextText, nextCursorPosition);
+        setFileCompletion(nextContext);
+        setItems([]);
+        setLoading(true);
+        setHighlightIndex(0);
+      } else {
+        close();
+      }
 
       requestAnimationFrame(() => {
         const textarea = textareaRef.current;

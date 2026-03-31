@@ -794,11 +794,23 @@ class _AtFilesCompleter(Completer):
                 self._git_file_list_time = now
                 self._git_file_list_cwd = cwd
             else:
+                all_lines = r.lines
+                # Supplement with submodule contents: git ls-files -co doesn't
+                # recurse into submodules (they appear as single gitlink entries).
+                r_sub = self._run_cmd(
+                    ["git", "ls-files", "--recurse-submodules"],
+                    cwd=repo_root,
+                    timeout_sec=self._cmd_timeout_sec,
+                )
+                if r_sub.ok:
+                    main_set = set(all_lines)
+                    all_lines.extend(rel for rel in r_sub.lines if rel not in main_set)
+
                 cwd_resolved = cwd.resolve()
                 root_resolved = repo_root.resolve()
                 files: list[str] = []
                 files_lower: list[str] = []
-                for rel in r.lines:
+                for rel in all_lines:
                     abs_path = root_resolved / rel
                     try:
                         rel_to_cwd = abs_path.relative_to(cwd_resolved)
