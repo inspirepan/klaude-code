@@ -51,11 +51,7 @@ def test_image_file_to_data_url_keeps_image_when_size_within_limit(
     path = tmp_path / "img.png"
     path.write_bytes(b"0123456789ABCDEF")
 
-    called = False
-
     def _fake_detect(_image_bytes: bytes, _mime_type: str) -> tuple[int, int]:
-        nonlocal called
-        called = True
         return (1, 1)
 
     monkeypatch.setattr(image_module, "_detect_image_dimensions", _fake_detect)
@@ -65,7 +61,6 @@ def test_image_file_to_data_url_keeps_image_when_size_within_limit(
     )
     assert result is not None
     assert _payload_from_data_url(result) == b"0123456789ABCDEF"
-    assert called is False
 
 
 def test_normalize_image_data_url_resizes_large_inline_image(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -170,6 +165,49 @@ def test_normalize_image_data_url_corrects_wrong_mime(monkeypatch: pytest.Monkey
     corrected = image_module.normalize_image_data_url(wrong_url)
     assert corrected.startswith("data:image/png;base64,")
     assert _payload_from_data_url(corrected) == png_bytes
+
+
+def test_resize_image_bytes_if_needed_downscales_oversized_dimensions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An image with a dimension exceeding 8000px should be downscaled."""
+    monkeypatch.setattr(image_module, "_MAX_IMAGE_SIZE_BYTES", 10_000_000)
+
+    resize_calls: list[tuple[int, int]] = []
+
+    def _fake_detect(image_bytes: bytes, _mime_type: str) -> tuple[int, int]:
+        if image_bytes == b"resized":
+            return (8000, 4000)
+        return (16000, 8000)
+
+    def _fake_resize(_image_bytes: bytes, _mime_type: str, *, width: int, height: int) -> bytes:
+        resize_calls.append((width, height))
+        return b"resized"
+
+    monkeypatch.setattr(image_module, "_detect_image_dimensions", _fake_detect)
+    monkeypatch.setattr(image_module, "_resize_image_bytes", _fake_resize)
+
+    result = image_module._resize_image_bytes_if_needed(b"large-image", "image/png")  # pyright: ignore[reportPrivateUsage]
+    assert result == b"resized"
+    assert len(resize_calls) == 1
+    # scale = min(8000/16000, 8000/8000) = 0.5
+    assert resize_calls[0] == (8000, 4000)
+
+
+def test_resize_image_bytes_if_needed_skips_within_dimension_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An image within both size and dimension limits should not be resized."""
+    monkeypatch.setattr(image_module, "_MAX_IMAGE_SIZE_BYTES", 10_000_000)
+
+    def _fake_detect(_image_bytes: bytes, _mime_type: str) -> tuple[int, int]:
+        return (4000, 3000)
+
+    monkeypatch.setattr(image_module, "_detect_image_dimensions", _fake_detect)
+
+    original = b"small-image"
+    result = image_module._resize_image_bytes_if_needed(original, "image/png")  # pyright: ignore[reportPrivateUsage]
+    assert result is original
 
 
 def test_image_file_to_data_url_corrects_wrong_extension(
