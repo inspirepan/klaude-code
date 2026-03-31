@@ -147,8 +147,7 @@ class SubAgentExecutor:
                         "The conversation history above was forked from the parent session "
                         "-- use it as background context only. "
                         "Do NOT use the Agent tool to spawn sub-agents. "
-                        "Do NOT use the Rewind tool.\n\n"
-                        + role_prompt
+                        "Do NOT use the Rewind tool.\n\n" + role_prompt
                     )
                 else:
                     reminder_text = (

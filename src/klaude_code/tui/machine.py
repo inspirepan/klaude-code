@@ -1167,8 +1167,7 @@ class DisplayStateMachine:
                 if (
                     s.is_sub_agent
                     and not e.is_error
-                    and e.tool_name
-                    not in (tools.EDIT, tools.WRITE, tools.APPLY_PATCH, tools.ASK_USER_QUESTION)
+                    and e.tool_name not in (tools.EDIT, tools.WRITE, tools.APPLY_PATCH, tools.ASK_USER_QUESTION)
                 ):
                     return cmds
 
