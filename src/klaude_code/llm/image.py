@@ -19,6 +19,7 @@ from klaude_code.protocol import message
 
 _MAX_IMAGE_SIZE_BYTES = 4_500_000
 _MAX_BASE64_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+_MAX_IMAGE_DIMENSION = 8000
 _JPEG_SOF_MARKERS = {
     0xC0,
     0xC1,
@@ -244,15 +245,32 @@ def _image_bytes_within_limits(image_bytes: bytes) -> bool:
     return size_bytes <= _MAX_IMAGE_SIZE_BYTES and _base64_size_bytes(size_bytes) <= _MAX_BASE64_IMAGE_SIZE_BYTES
 
 
-def _resize_image_bytes_if_needed(image_bytes: bytes, mime_type: str) -> bytes:
-    if _image_bytes_within_limits(image_bytes):
-        return image_bytes
+def _dimensions_within_limits(width: int, height: int) -> bool:
+    return width <= _MAX_IMAGE_DIMENSION and height <= _MAX_IMAGE_DIMENSION
 
+
+def _resize_image_bytes_if_needed(image_bytes: bytes, mime_type: str) -> bytes:
     media_type = mime_type.lower()
     if not media_type.startswith("image/"):
         return image_bytes
 
     dims = _detect_image_dimensions(image_bytes, media_type)
+
+    # Downscale if either dimension exceeds the pixel limit
+    if dims is not None:
+        width, height = dims
+        if not _dimensions_within_limits(width, height):
+            dim_scale = min(_MAX_IMAGE_DIMENSION / width, _MAX_IMAGE_DIMENSION / height)
+            target_width = max(1, int(width * dim_scale))
+            target_height = max(1, int(height * dim_scale))
+            resized = _resize_image_bytes(image_bytes, media_type, width=target_width, height=target_height)
+            if resized is not None:
+                image_bytes = resized
+                dims = _detect_image_dimensions(image_bytes, media_type)
+
+    if _image_bytes_within_limits(image_bytes):
+        return image_bytes
+
     if dims is None:
         return image_bytes
 
