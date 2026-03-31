@@ -10,29 +10,23 @@ from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
-from klaude_code.protocol.sub_agent import get_sub_agent_profile, iter_sub_agent_profiles
-
-AGENT_TYPE_TO_SUB_AGENT: dict[str, str] = {
-    "general-purpose": "Task",
-    "finder": "Finder",
-}
+from klaude_code.protocol.sub_agent import (
+    get_all_names,
+    get_sub_agent_profile,
+    iter_sub_agent_profiles,
+)
 
 
 def _agent_description() -> str:
-    summaries: dict[str, str] = {}
-    for profile in iter_sub_agent_profiles():
-        if profile.invoker_type:
-            summaries[profile.invoker_type] = profile.invoker_summary.strip()
-
     type_lines: list[str] = []
-    for invoker_type in AGENT_TYPE_TO_SUB_AGENT:
-        summary = summaries.get(invoker_type, "")
+    for profile in iter_sub_agent_profiles():
+        summary = profile.invoker_summary.strip()
         if summary:
             lines = summary.split("\n")
-            indented = [f"- type:{invoker_type}: {lines[0]}"] + ["  " + line for line in lines[1:]]
+            indented = [f"- type:{profile.name}: {lines[0]}"] + ["  " + line for line in lines[1:]]
             type_lines.append("\n".join(indented))
         else:
-            type_lines.append(f"- {invoker_type}")
+            type_lines.append(f"- {profile.name}")
 
     types_section = "\n".join(type_lines) if type_lines else "- general-purpose"
 
@@ -48,7 +42,7 @@ AGENT_SCHEMA = llm_param.ToolSchema(
         "properties": {
             "type": {
                 "type": "string",
-                "enum": list(AGENT_TYPE_TO_SUB_AGENT.keys()),
+                "enum": get_all_names(),
                 "description": "Sub-agent type selector.",
             },
             "description": {
@@ -111,19 +105,15 @@ class AgentTool(ToolABC):
 
         if not requested_type:
             requested_type = "general-purpose"
-        sub_agent_type = AGENT_TYPE_TO_SUB_AGENT.get(requested_type)
-        if sub_agent_type is None:
+        try:
+            profile = get_sub_agent_profile(requested_type)
+        except KeyError:
             return message.ToolResultMessage(
                 status="error",
                 output_text=f"Unknown Agent type '{requested_type}'.",
             )
 
-        try:
-            profile = get_sub_agent_profile(sub_agent_type)
-        except KeyError as exc:
-            return message.ToolResultMessage(status="error", output_text=str(exc))
-
-        sub_agent_prompt = profile.prompt_builder(typed_args)
+        sub_agent_prompt = str(typed_args.get("prompt", ""))
 
         output_schema_raw = typed_args.get("output_schema")
         output_schema = cast(dict[str, Any], output_schema_raw) if isinstance(output_schema_raw, dict) else None

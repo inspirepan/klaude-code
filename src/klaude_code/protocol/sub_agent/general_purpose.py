@@ -15,9 +15,8 @@ GENERAL_PURPOSE_SUMMARY = (
 
 register_sub_agent(
     SubAgentProfile(
-        name="Task",
+        name="general-purpose",
         tool_set=(tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.WEB_FETCH, tools.WEB_SEARCH),
-        invoker_type="general-purpose",
         invoker_summary=GENERAL_PURPOSE_SUMMARY,
         use_main_prompt=True,
         active_form="Tasking",

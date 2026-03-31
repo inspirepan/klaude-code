@@ -1,4 +1,3 @@
-# pyright: reportPrivateUsage=false
 """Tests for Agent tool plus sub-agent profile basics."""
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ import pytest
 from klaude_code.core.tool.agent_tool import AgentTool
 from klaude_code.core.tool.context import RunSubtask, TodoContext, ToolContext
 from klaude_code.protocol import tools
-from klaude_code.protocol.sub_agent import SubAgentProfile, _default_prompt_builder
+from klaude_code.protocol.sub_agent import SubAgentProfile
 
 
 def arun(coro: Any) -> Any:
@@ -74,7 +73,7 @@ def test_agent_tool_call_includes_session_id() -> None:
     args = '{"type":"finder","description":"d","prompt":"p"}'
     result = arun(AgentTool.call(args, _tool_context(run_subtask=_runner)))
 
-    assert captured["sub_agent_type"] == "Finder"
+    assert captured["sub_agent_type"] == "finder"
     assert result.status == "success"
     assert result.output_text == "hello"
     assert result.ui_extra is not None
@@ -88,30 +87,7 @@ class TestSubAgentProfile:
         assert profile.prompt_file == ""
         assert profile.tool_set == ()
         assert profile.active_form == ""
-        assert profile.invoker_type is None
         assert profile.invoker_summary == ""
-
-    def test_custom_prompt_builder(self) -> None:
-        def custom_builder(args: dict[str, Any]) -> str:
-            task = args.get("task", "")
-            context = args.get("context", "")
-            return f"Task: {task}\nContext: {context}"
-
-        profile = SubAgentProfile(name="CustomBuilder", prompt_builder=custom_builder)
-        result = profile.prompt_builder({"task": "Do something", "context": "Important"})
-
-        assert "Task: Do something" in result
-        assert "Context: Important" in result
-
-
-class TestPromptBuilder:
-    def test_default_prompt_builder(self) -> None:
-        result = _default_prompt_builder({"prompt": "Hello world"})
-        assert result == "Hello world"
-
-    def test_default_prompt_builder_missing_prompt(self) -> None:
-        result = _default_prompt_builder({})
-        assert result == ""
 
 
 class TestSubAgentRegistration:
@@ -124,8 +100,8 @@ class TestSubAgentRegistration:
     def test_get_sub_agent_profile(self) -> None:
         from klaude_code.protocol.sub_agent import get_sub_agent_profile
 
-        profile = get_sub_agent_profile("Task")
-        assert profile.name == "Task"
+        profile = get_sub_agent_profile("general-purpose")
+        assert profile.name == "general-purpose"
         assert profile.active_form == "Tasking"
 
     def test_get_sub_agent_profile_not_found(self) -> None:
@@ -141,4 +117,4 @@ class TestSubAgentRegistration:
         profiles = iter_sub_agent_profiles()
         assert len(profiles) > 0
         names = {p.name for p in profiles}
-        assert {"Task", "Finder"}.issubset(names)
+        assert {"general-purpose", "finder"}.issubset(names)

@@ -181,9 +181,7 @@ class ConfigHandler:
 
         if operation.save_as_default:
             profile = get_sub_agent_profile(sub_agent_type)
-            role_key = profile.invoker_type
-            if role_key is None:
-                raise ValueError(f"Sub-agent '{sub_agent_type}' cannot be configured via sub_agent_models")
+            role_key = profile.name
             if model_name is None:
                 config.sub_agent_models.pop(role_key, None)
             else:

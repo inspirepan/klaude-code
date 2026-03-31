@@ -14,5 +14,5 @@ The `protocol` layer cannot import from `config` or `core` (enforced by import-l
 ## Model Selection
 
 Sub-agent model priority is:
-1. Explicit config in `sub_agent_models` for invoker role (for example `general-purpose`, `finder`)
+1. Explicit config in `sub_agent_models` by profile name (e.g. `general-purpose`, `finder`)
 2. Otherwise inherit the main agent model
