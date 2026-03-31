@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from string import Template
 
 from klaude_code.core.agent.agent import Agent
 from klaude_code.core.agent.runtime_llm import LLMClients
 from klaude_code.core.agent_profile import ModelProfileProvider
+from klaude_code.core.prompts.system_prompt import load_prompt_by_path
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, model
-from klaude_code.protocol.sub_agent import SubAgentResult
+from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
 from klaude_code.session.session import Session
 
 
@@ -127,19 +129,30 @@ class SubAgentExecutor:
             sub_agent_input = message.UserInputPayload(text=state.sub_agent_prompt, images=None)
             history_items: list[message.HistoryEvent] = []
             if state.fork_context:
+                profile = get_sub_agent_profile(state.sub_agent_type)
+                if profile.prompt_file:
+                    role_prompt = Template(load_prompt_by_path(profile.prompt_file)).safe_substitute(
+                        workingDirectory=parent_session.work_dir,
+                        workspaceRoot=parent_session.work_dir,
+                    )
+                    reminder_text = (
+                        "You are no longer the main coding agent. "
+                        "You are now acting as a specialized sub-agent. "
+                        "The conversation history above was forked from the parent session "
+                        "-- use it as background context only. "
+                        "Do NOT use the Agent tool to spawn sub-agents.\n\n"
+                        + role_prompt
+                    )
+                else:
+                    reminder_text = (
+                        "You are a newly spawned agent with the full conversation context "
+                        "from the parent session. Treat the next user message as your new task, "
+                        "and use the conversation history as background context. "
+                        "Do NOT use the Agent tool to spawn sub-agents."
+                    )
                 history_items.append(
                     message.UserMessage(
-                        parts=[
-                            message.TextPart(
-                                text=(
-                                    "<system-reminder>You are the newly spawned agent. "
-                                    "The prior conversation history was forked from your parent agent. "
-                                    "Treat the next user message as your new task, "
-                                    "and use the forked history only as background context. "
-                                    "Do NOT use the Agent tool to spawn sub-agents.</system-reminder>"
-                                )
-                            )
-                        ]
+                        parts=[message.TextPart(text=f"<system-reminder>{reminder_text}</system-reminder>")]
                     )
                 )
             history_items.append(

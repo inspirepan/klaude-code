@@ -22,3 +22,22 @@ register_sub_agent(
         active_form="Tasking",
     )
 )
+
+FORK_CONTEXT_SUMMARY = (
+    "Same as general-purpose but with full conversation history forked from the parent agent.\n"
+    "Use when the sub-agent needs awareness of what happened earlier in the session.\n"
+    "- Use for: Session-aware tasks like updating project docs, summarizing session learnings,\n"
+    "  or any task that requires the full conversation context to do well\n"
+    "- Don't use for: Standalone tasks that don't need session history (use general-purpose instead)\n"
+    "(Tools: All Tools)"
+)
+
+register_sub_agent(
+    SubAgentProfile(
+        name="general-purpose-fork-context",
+        invoker_summary=FORK_CONTEXT_SUMMARY,
+        use_main_prompt=True,
+        fork_context=True,
+        active_form="Tasking",
+    )
+)

@@ -39,6 +39,10 @@ class SubAgentProfile:
     # When True, use the main agent's full system prompt instead of prompt_file
     use_main_prompt: bool = False
 
+    # Fork the parent agent's conversation history into the sub-agent session.
+    # When True, the sub-agent inherits the full thread context from the parent.
+    fork_context: bool = False
+
     # UI display
     active_form: str = ""  # Active form for spinner status (e.g., "Tasking", "Finding")
 
