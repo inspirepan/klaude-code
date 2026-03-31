@@ -157,6 +157,54 @@ def test_request_model_operation_cancelled_emits_no_change(monkeypatch: pytest.M
     arun(_test())
 
 
+def test_request_model_operation_same_runtime_model_still_saves_default(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    async def _test() -> None:
+        session = Session(work_dir=tmp_path)
+        session.model_config_name = "gpt@openai"
+        emitted: list[events.Event] = []
+        handler = _build_handler(
+            session=session,
+            emitted=emitted,
+            interaction_response=user_interaction.UserInteractionResponse(status="cancelled", payload=None),
+        )
+
+        def _match_model(_preferred: str | None) -> ModelMatchResult:
+            return ModelMatchResult(
+                matched_model="gpt@openai",
+                filtered_models=[],
+                filter_hint=None,
+            )
+
+        class _FakeConfig:
+            def __init__(self) -> None:
+                self.main_model = "opus@anthropic"
+                self.saved = False
+
+            async def save(self) -> None:
+                self.saved = True
+
+        fake_config = _FakeConfig()
+        monkeypatch.setattr(runtime_mod, "match_model_from_config", _match_model)
+        monkeypatch.setattr(runtime_mod, "load_config", lambda: cast(Any, fake_config))
+
+        async def _unexpected_change(_change_op: op.ChangeModelOperation) -> None:
+            raise AssertionError("should not reapply the current model when only saving default")
+
+        monkeypatch.setattr(handler, "handle_change_model", _unexpected_change)
+
+        await handler.handle_request_model(op.RequestModelOperation(session_id=session.id, preferred="gpt"))
+
+        assert fake_config.main_model == "gpt@openai"
+        assert fake_config.saved is True
+        assert len(emitted) == 1
+        assert isinstance(emitted[0], events.NoticeEvent)
+        assert emitted[0].content == "Main model: gpt@openai (saved in ~/.klaude/klaude-config.yaml)"
+
+    arun(_test())
+
+
 def test_request_sub_agent_model_operation_selects_fast_model(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     async def _test() -> None:
         session = Session(work_dir=tmp_path)

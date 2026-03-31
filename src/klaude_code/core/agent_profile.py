@@ -87,10 +87,6 @@ def load_agent_tools(
         *MAIN_AGENT_COMMON_TOOLS,
     ]
 
-    # Sub-agents cannot use Rewind (no RewindManager in sub-agent sessions)
-    if sub_agent_type is not None:
-        tool_names = [t for t in tool_names if t != tools.REWIND]
-
     del config
 
     return get_tool_schemas(tool_names)

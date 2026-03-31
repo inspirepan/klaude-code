@@ -251,6 +251,21 @@ class ConfigHandler:
             return None
         return response.payload.selected_option_id
 
+    async def _save_main_model_default_if_needed(self, *, session_id: str, model_name: str) -> bool:
+        config = load_config()
+        if config.main_model == model_name:
+            return False
+
+        config.main_model = model_name
+        await config.save()
+        await self._emit_event(
+            events.NoticeEvent(
+                session_id=session_id,
+                content=f"Main model: {model_name} (saved in ~/.klaude/klaude-config.yaml)",
+            )
+        )
+        return True
+
     async def handle_request_model(self, operation: op.RequestModelOperation) -> None:
         async def _runner() -> None:
             match = match_model_from_config(operation.preferred)
@@ -298,6 +313,13 @@ class ConfigHandler:
 
             agent = await self._agent_runner.ensure_agent(operation.session_id)
             if selected_model == agent.session.model_config_name:
+                if operation.save_as_default:
+                    saved = await self._save_main_model_default_if_needed(
+                        session_id=operation.session_id,
+                        model_name=selected_model,
+                    )
+                    if saved:
+                        return
                 await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
                 return
 
