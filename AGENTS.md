@@ -3,11 +3,18 @@
 ## Project Structure & Module Organization
 
 Python package with source code located in `src/klaude_code/`. Main modules include:
+- `src/klaude_code/app/`: Application entry point and server lifecycle
+- `src/klaude_code/auth/`: OAuth authentication providers (codex, github-copilot, etc.)
 - `src/klaude_code/cli/`: Command-line interface
-- `src/klaude_code/core/`: Core application logic
-- `src/klaude_code/llm/`: LLM integrations
-- `src/klaude_code/tui/`: User interface components
-- `src/klaude_code/protocol/`: Communication structures and event definitions
+- `src/klaude_code/config/`: Configuration loading, model config, builtin defaults
+- `src/klaude_code/core/`: Core application logic (agent, tools, prompts, compaction, memory)
+- `src/klaude_code/llm/`: LLM client implementations per protocol
+- `src/klaude_code/protocol/`: Communication structures, event definitions, sub-agent profiles
+- `src/klaude_code/session/`: Session persistence and history management
+- `src/klaude_code/skill/`: Skill loading, installation, and system skill management
+- `src/klaude_code/tui/`: Terminal UI components and state machine
+- `src/klaude_code/web/`: Web frontend backend (FastAPI routes, WebSocket)
+- `web/`: Web frontend (React + TypeScript)
 
 Python tests are located in the `tests/` directory. Web frontend tests are in `web/src/` alongside source files (`*.test.ts`).
 
@@ -17,8 +24,9 @@ Python tests are located in the `tests/` directory. Web frontend tests are in `w
 - `make format`: Auto-fix with ruff check --fix + ruff format + prettier
 - `make test`: Run all tests (vitest + pytest)
 - `make web-test`: Run web frontend tests only (vitest)
+- `uv run pytest tests/test_foo.py -x -q --tb=short`: Run a single test file quickly
 - `git submodule update --init --recursive`: Sync required submodule before build/test/release (`src/klaude_code/skill/assets`)
-- use `tmux-test` skill to test UI interactive features
+- Use `tmux-test` skill to test UI interactive features
 
 ## Coding Style & Naming Conventions
 
@@ -51,6 +59,12 @@ Python tests are located in the `tests/` directory. Web frontend tests are in `w
 - Prefer `list[str]` over `typing.List[str]`
 - For complex function inputs or outputs, define a Pydantic model rather than returning tuples
 
+## Architecture Constraints
+
+- `protocol` layer cannot import from `config` or `core` (enforced by import-linter)
+- Sub-agent profiles are registered in `protocol/sub_agent/`, runtime logic lives in `core/agent/`
+- Prompt files live in `core/prompts/`, loaded via `load_prompt_by_path()`
+
 ## Commit Message Convention
 
 Always use the [Conventional Commits](https://www.conventionalcommits.org/) specification:
@@ -58,3 +72,12 @@ Always use the [Conventional Commits](https://www.conventionalcommits.org/) spec
 ```
 <type>(<scope>): <description>
 ```
+
+## Module-Specific Docs
+
+- `src/klaude_code/auth/AGENTS.md` - Adding new OAuth authentication providers
+- `src/klaude_code/core/compaction/AGENTS.md` - Context window compaction logic and triggers
+- `src/klaude_code/protocol/sub_agent/AGENTS.md` - Sub-agent profiles, registration, fork context mode
+- `src/klaude_code/skill/AGENTS.md` - Skill submodule management and loading
+- `src/klaude_code/tui/input/AGENTS.md` - REPL input handling, markers, and special syntax
+- `web/AGENTS.md` - Web frontend component rules and design system

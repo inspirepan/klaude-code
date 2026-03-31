@@ -34,6 +34,7 @@ READ_BEFORE_EDIT_INST = """- NEVER propose changes to code you haven't read. Rea
 AGENT_FINDER_INST = """- For broad codebase exploration, use `Agent` with `type="finder"`."""
 AGENT_FINDER_PARALLEL_INST = """- Launch multiple finder sub-agents in parallel when tasks are independent."""
 AGENT_REVIEW_INST = """- After completing complex or large-scale changes, launch an `Agent` with `type="review"` to review your work before reporting back to the user."""
+AGENT_MEMORY_INST = """- After sessions with significant learnings (new commands, gotchas, architecture insights), launch an `Agent` with `type="memory"` to persist them into AGENTS.md files."""
 
 TODO_FREQUENT_USAGE_INST = """- Use `TodoWrite` frequently for planning and tracking progress on multi-step tasks."""
 TODO_COMPLETE_IMMEDIATELY_INST = """- Mark todos completed immediately when finished. Do not batch-complete later."""
@@ -117,7 +118,7 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
         strategy_lines.append(READ_BEFORE_EDIT_INST)
 
     if tools.AGENT in tool_name_set:
-        strategy_lines.extend([AGENT_FINDER_INST, AGENT_FINDER_PARALLEL_INST, AGENT_REVIEW_INST])
+        strategy_lines.extend([AGENT_FINDER_INST, AGENT_FINDER_PARALLEL_INST, AGENT_REVIEW_INST, AGENT_MEMORY_INST])
 
     if tools.TODO_WRITE in tool_name_set:
         strategy_lines.extend([TODO_FREQUENT_USAGE_INST, TODO_COMPLETE_IMMEDIATELY_INST])
