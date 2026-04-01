@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable, MutableMapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from klaude_code.core.handoff import HandoffManager
 from klaude_code.core.rewind import RewindManager
 from klaude_code.protocol import model, user_interaction
 from klaude_code.protocol.sub_agent import SubAgentResult
@@ -87,6 +88,7 @@ class ToolContext:
     register_sub_agent_metadata_getter: Callable[[GetMetadataFn], None] | None = None
     register_sub_agent_progress_getter: Callable[[GetProgressFn], None] | None = None
     rewind_manager: RewindManager | None = None
+    handoff_manager: HandoffManager | None = None
     request_user_interaction: RequestUserInteraction | None = None
     emit_tool_output_delta: EmitToolOutputDelta | None = None
 
@@ -101,6 +103,9 @@ class ToolContext:
 
     def with_rewind_manager(self, manager: RewindManager | None) -> ToolContext:
         return replace(self, rewind_manager=manager)
+
+    def with_handoff_manager(self, manager: HandoffManager | None) -> ToolContext:
+        return replace(self, handoff_manager=manager)
 
     def with_request_user_interaction(self, callback: RequestUserInteraction | None) -> ToolContext:
         return replace(self, request_user_interaction=callback)

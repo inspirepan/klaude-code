@@ -206,11 +206,13 @@ class FileStatus(BaseModel):
     Notes:
     - `mtime` is a cheap heuristic and may miss changes on some filesystems.
     - `content_sha256` provides an explicit content-based change detector.
+    - `read_complete` indicates the file was fully read by ReadTool (used for dedup).
     """
 
     mtime: float
     content_sha256: str | None = None
     is_memory: bool = False
+    read_complete: bool = False
 
 
 class TodoUIExtra(BaseModel):

@@ -629,6 +629,7 @@ class AgentOperationHandler:
             events.NoticeEvent(
                 session_id=new_agent.session.id,
                 content=f"Forked session active. To switch back: `klaude -r {original_session_short_id}`",
+                style="fork.notice",
             )
         )
 

@@ -22,13 +22,8 @@ def arun(coro: object) -> object:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
-    """Isolate user home to keep session persistence under tmp_path."""
-
-    fake_home = tmp_path / "home"
-    fake_home.mkdir(exist_ok=True)
-    monkeypatch.setenv("HOME", str(fake_home))
-    monkeypatch.setattr(Path, "home", lambda: fake_home)
+def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
+    return isolated_home
 
 
 class _StaticTextStream(LLMStreamABC):

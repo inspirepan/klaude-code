@@ -20,11 +20,8 @@ def arun[T](coro: Coroutine[Any, Any, T]) -> T:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
-    fake_home = tmp_path / "home"
-    fake_home.mkdir(exist_ok=True)
-    monkeypatch.setenv("HOME", str(fake_home))
-    monkeypatch.setattr(Path, "home", lambda: fake_home)
+def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
+    return isolated_home
 
 
 class _FakeAgentRunner:

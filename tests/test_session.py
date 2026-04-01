@@ -30,21 +30,8 @@ def arun(coro: object) -> object:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Isolate user home directory for session tests.
-
-    Session persistence uses `Path.home()` under `~/.klaude/projects`. Without
-    patching, tests would write into the real user home. This fixture redirects
-    `Path.home()` and `HOME` to a per-test temporary directory so that all
-    filesystem writes stay under pytest's temp area.
-    """
-
-    fake_home = tmp_path / "home"
-    fake_home.mkdir(exist_ok=True)
-
-    # Keep OS view and Path.home() consistent
-    monkeypatch.setenv("HOME", str(fake_home))
-    monkeypatch.setattr(Path, "home", lambda: fake_home)
+def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
+    return isolated_home
 
 
 # =====================
@@ -1274,34 +1261,44 @@ class TestCliResume:
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
 
+        import klaude_code.cli.main as _cli_main
         from klaude_code.cli.main import app
+
+        _orig_run = _cli_main.asyncio.run
 
         def _should_not_run(*_args: object, **_kwargs: object) -> None:
             raise AssertionError("interactive runtime should not start when --resume <id> is invalid")
 
-        monkeypatch.setattr("klaude_code.cli.main.asyncio.run", _should_not_run)
-
-        runner = CliRunner()
-        result = runner.invoke(app, ["--resume", "missing-session-id"])
-        assert result.exit_code == 2
-        assert "not found" in result.output
+        _cli_main.asyncio.run = _should_not_run  # type: ignore[assignment]
+        try:
+            runner = CliRunner()
+            result = runner.invoke(app, ["--resume", "missing-session-id"])
+            assert result.exit_code == 2
+            assert "not found" in result.output
+        finally:
+            _cli_main.asyncio.run = _orig_run  # type: ignore[assignment]
 
     def test_errors_on_conflicting_flags(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
 
+        import klaude_code.cli.main as _cli_main
         from klaude_code.cli.main import app
+
+        _orig_run = _cli_main.asyncio.run
 
         def _should_not_run(*_args: object, **_kwargs: object) -> None:
             raise AssertionError("interactive runtime should not start when flags conflict")
 
-        monkeypatch.setattr("klaude_code.cli.main.asyncio.run", _should_not_run)
-
-        runner = CliRunner()
-        result = runner.invoke(app, ["--resume", "any", "--continue"])
-        assert result.exit_code == 2
-        assert "cannot be combined" in result.output
+        _cli_main.asyncio.run = _should_not_run  # type: ignore[assignment]
+        try:
+            runner = CliRunner()
+            result = runner.invoke(app, ["--resume", "any", "--continue"])
+            assert result.exit_code == 2
+            assert "cannot be combined" in result.output
+        finally:
+            _cli_main.asyncio.run = _orig_run  # type: ignore[assignment]
 
 
 class TestFindSessionsByPrefix:

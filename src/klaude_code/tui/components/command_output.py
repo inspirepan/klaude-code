@@ -15,7 +15,7 @@ def render_notice(e: events.NoticeEvent) -> RenderableType:
     if isinstance(e.ui_extra, model.SessionIdUIExtra):
         return _render_fork_session_output(e)
     content = e.content or "(no content)"
-    style = ThemeKey.COMMAND_OUTPUT if not e.is_error else ThemeKey.ERROR
+    style: str = e.style if e.style else (ThemeKey.ERROR if e.is_error else ThemeKey.COMMAND_OUTPUT)
     return truncate_middle(content, base_style=style)
 
 

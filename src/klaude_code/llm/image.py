@@ -20,6 +20,7 @@ from klaude_code.protocol import message
 _MAX_IMAGE_SIZE_BYTES = 4_500_000
 _MAX_BASE64_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 _MAX_IMAGE_DIMENSION = 8000
+MAX_IMAGE_DIMENSION = _MAX_IMAGE_DIMENSION
 _JPEG_SOF_MARKERS = {
     0xC0,
     0xC1,
@@ -245,11 +246,9 @@ def _image_bytes_within_limits(image_bytes: bytes) -> bool:
     return size_bytes <= _MAX_IMAGE_SIZE_BYTES and _base64_size_bytes(size_bytes) <= _MAX_BASE64_IMAGE_SIZE_BYTES
 
 
-def _dimensions_within_limits(width: int, height: int) -> bool:
-    return width <= _MAX_IMAGE_DIMENSION and height <= _MAX_IMAGE_DIMENSION
-
-
-def _resize_image_bytes_if_needed(image_bytes: bytes, mime_type: str) -> bytes:
+def _resize_image_bytes_if_needed(
+    image_bytes: bytes, mime_type: str, *, max_dimension: int = _MAX_IMAGE_DIMENSION
+) -> bytes:
     media_type = mime_type.lower()
     if not media_type.startswith("image/"):
         return image_bytes
@@ -259,8 +258,8 @@ def _resize_image_bytes_if_needed(image_bytes: bytes, mime_type: str) -> bytes:
     # Downscale if either dimension exceeds the pixel limit
     if dims is not None:
         width, height = dims
-        if not _dimensions_within_limits(width, height):
-            dim_scale = min(_MAX_IMAGE_DIMENSION / width, _MAX_IMAGE_DIMENSION / height)
+        if width > max_dimension or height > max_dimension:
+            dim_scale = min(max_dimension / width, max_dimension / height)
             target_width = max(1, int(width * dim_scale))
             target_height = max(1, int(height * dim_scale))
             resized = _resize_image_bytes(image_bytes, media_type, width=target_width, height=target_height)
@@ -324,7 +323,7 @@ def parse_data_url(url: str) -> tuple[str, str, bytes]:
     return mime_type, base64_payload, decoded
 
 
-def normalize_image_data_url(url: str) -> str:
+def normalize_image_data_url(url: str, *, max_dimension: int = _MAX_IMAGE_DIMENSION) -> str:
     """Normalize a data URL image by resizing oversized inline images and correcting MIME types."""
 
     if not url.startswith("data:"):
@@ -337,14 +336,14 @@ def normalize_image_data_url(url: str) -> str:
     if detected:
         mime_type = detected
 
-    resized = _resize_image_bytes_if_needed(decoded, mime_type)
+    resized = _resize_image_bytes_if_needed(decoded, mime_type, max_dimension=max_dimension)
     if resized is decoded and detected is None:
         return url
     encoded = b64encode(resized).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
 
 
-def image_file_to_data_url(image: message.ImageFilePart) -> str | None:
+def image_file_to_data_url(image: message.ImageFilePart, *, max_dimension: int = _MAX_IMAGE_DIMENSION) -> str | None:
     """Load an image file from disk and encode it as a base64 data URL.
 
     Returns None if the file no longer exists on disk.
@@ -366,7 +365,7 @@ def image_file_to_data_url(image: message.ImageFilePart) -> str | None:
     if detected:
         mime_type = detected
 
-    decoded = _resize_image_bytes_if_needed(decoded, mime_type)
+    decoded = _resize_image_bytes_if_needed(decoded, mime_type, max_dimension=max_dimension)
 
     encoded = b64encode(decoded).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"

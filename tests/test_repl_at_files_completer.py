@@ -81,7 +81,7 @@ def test_at_files_completer_preserves_dotfile_prefix(monkeypatch: pytest.MonkeyP
 
 
 def test_at_files_completer_formats_display_labels() -> None:
-    """Display labels show basename (with trailing slash for directories), padded for alignment."""
+    """Display labels show full path with dim directory prefix and highlighted keyword."""
 
     completer = _AtFilesCompleter()  # pyright: ignore[reportPrivateUsage]
 
@@ -91,42 +91,39 @@ def test_at_files_completer_formats_display_labels() -> None:
         "pyproject.toml",
     ]
 
-    # Calculate align_width as the completer does
-    name_limit = completer._display_name_limit()  # pyright: ignore[reportPrivateUsage]
-    align_width = completer._display_align_width(suggestions, name_limit)  # pyright: ignore[reportPrivateUsage]
-
     labels = [
-        completer._format_display_label(suggestion, align_width, name_limit)  # pyright: ignore[reportPrivateUsage]
-        for suggestion in suggestions
+        completer._format_display_label(s, keyword="comp")  # pyright: ignore[reportPrivateUsage]
+        for s in suggestions
     ]
 
-    # Labels show basename (with trailing slash for directories), stripped of padding
-    assert labels[0].strip() == "completers.py"
-    assert labels[1].strip() == "docs/"
-    assert labels[2].strip() == "pyproject.toml"
+    def _plain(ft: object) -> str:
+        return "".join(seg[1] for seg in ft)  # type: ignore[index]
 
-    # All labels should have the same length (aligned)
-    assert len(labels[0]) == len(labels[1]) == len(labels[2])
+    # Each label is a FormattedText (list of (style, text[, handler]) tuples).
+    # The first suggestion should have a dim directory prefix and a basename segment.
+    assert _plain(labels[0]) == "src/klaude_code/ui/modes/repl/completers.py"
+
+    # Directory suggestion includes trailing slash
+    assert _plain(labels[1]) == "docs/"
+
+    # Root-level file has no directory prefix
+    assert _plain(labels[2]) == "pyproject.toml"
 
 
-def test_at_files_completer_truncates_long_display_name_and_reduces_gap(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_at_files_completer_display_label_highlights_keyword() -> None:
+    """Keyword match in the path is highlighted with a special style."""
     completer = _AtFilesCompleter()  # pyright: ignore[reportPrivateUsage]
 
-    monkeypatch.setattr(completer, "_display_name_limit", lambda: 10)  # pyright: ignore[reportUnknownLambdaType]
-    name_limit = completer._display_name_limit()  # pyright: ignore[reportPrivateUsage]
+    label = completer._format_display_label("src/very_long_tools_filename.py", keyword="tools")  # pyright: ignore[reportPrivateUsage]
 
-    suggestions = [
-        "src/very_very_long_tools_filename.py",
-        "src/x.py",
-    ]
-    align_width = completer._display_align_width(suggestions, name_limit)  # pyright: ignore[reportPrivateUsage]
+    # The label should contain a highlighted segment for "tools"
+    styles = [seg[0] for seg in label]  # type: ignore[index]
+    texts = [seg[1] for seg in label]  # type: ignore[index]
+    full_text = "".join(texts)
+    assert full_text == "src/very_long_tools_filename.py"
 
-    long_label = completer._format_display_label(suggestions[0], align_width, name_limit)  # pyright: ignore[reportPrivateUsage]
-    short_label = completer._format_display_label(suggestions[1], align_width, name_limit)  # pyright: ignore[reportPrivateUsage]
-
-    assert long_label.strip().endswith("…")
-    # With one aligned column, trailing pad is now just 2 spaces.
-    assert short_label.endswith("  ")
+    # At least one segment should have the highlight style
+    assert any("bg:" in s for s in styles), f"Expected highlight style in {styles}"
 
 
 def test_git_paths_for_keyword_includes_all_tools_dirs_even_when_many_files_match(

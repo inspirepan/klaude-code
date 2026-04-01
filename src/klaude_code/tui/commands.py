@@ -168,11 +168,6 @@ class PrintRuleLine(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
-class EmitTmuxSignal(RenderCommand):
-    pass
-
-
-@dataclass(frozen=True, slots=True)
 class TaskClockStart(RenderCommand):
     pass
 
@@ -186,6 +181,11 @@ class TaskClockClear(RenderCommand):
 class RenderCompactionSummary(RenderCommand):
     summary: str
     kept_items_brief: tuple[tuple[str, int, str], ...] = ()  # (item_type, count, preview)
+
+
+@dataclass(frozen=True, slots=True)
+class RenderHandoff(RenderCommand):
+    summary: str
 
 
 @dataclass(frozen=True, slots=True)

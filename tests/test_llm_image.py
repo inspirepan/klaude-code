@@ -194,6 +194,35 @@ def test_resize_image_bytes_if_needed_downscales_oversized_dimensions(
     assert resize_calls[0] == (8000, 4000)
 
 
+def test_resize_image_bytes_if_needed_uses_custom_max_dimension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """max_dimension=2000 should downscale a 4000x3000 image."""
+    monkeypatch.setattr(image_module, "_MAX_IMAGE_SIZE_BYTES", 10_000_000)
+
+    resize_calls: list[tuple[int, int]] = []
+
+    def _fake_detect(image_bytes: bytes, _mime_type: str) -> tuple[int, int]:
+        if image_bytes == b"resized":
+            return (2000, 1500)
+        return (4000, 3000)
+
+    def _fake_resize(_image_bytes: bytes, _mime_type: str, *, width: int, height: int) -> bytes:
+        resize_calls.append((width, height))
+        return b"resized"
+
+    monkeypatch.setattr(image_module, "_detect_image_dimensions", _fake_detect)
+    monkeypatch.setattr(image_module, "_resize_image_bytes", _fake_resize)
+
+    result = image_module._resize_image_bytes_if_needed(  # pyright: ignore[reportPrivateUsage]
+        b"large-image", "image/png", max_dimension=2000
+    )
+    assert result == b"resized"
+    assert len(resize_calls) == 1
+    # scale = min(2000/4000, 2000/3000) = 0.5
+    assert resize_calls[0] == (2000, 1500)
+
+
 def test_resize_image_bytes_if_needed_skips_within_dimension_limits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

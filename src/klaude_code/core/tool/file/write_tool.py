@@ -7,8 +7,16 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from klaude_code.const import EDIT_MAX_FILE_SIZE
 from klaude_code.core.tool.context import ToolContext
-from klaude_code.core.tool.file._utils import file_exists, hash_text_sha256, is_directory, read_text, write_text
+from klaude_code.core.tool.file._utils import (
+    detect_encoding,
+    file_exists,
+    hash_text_sha256,
+    is_directory,
+    read_text,
+    write_text,
+)
 from klaude_code.core.tool.file.diff_builder import build_structured_diff, build_structured_file_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
@@ -65,12 +73,28 @@ class WriteTool(ToolABC):
         tracked_status: model.FileStatus | None = None
 
         if exists:
+            # OOM guard: reject files larger than EDIT_MAX_FILE_SIZE
+            try:
+                file_size = Path(file_path).stat().st_size
+            except OSError:
+                file_size = 0
+            if file_size > EDIT_MAX_FILE_SIZE:
+                size_mb = file_size / (1024 * 1024)
+                limit_mb = EDIT_MAX_FILE_SIZE / (1024 * 1024)
+                return message.ToolResultMessage(
+                    status="error",
+                    output_text=f"<tool_use_error>File is too large to overwrite ({size_mb:.0f}MB). Maximum file size is {limit_mb:.0f}MB.</tool_use_error>",
+                )
+
             tracked_status = file_tracker.get(file_path)
             if tracked_status is None:
                 return message.ToolResultMessage(
                     status="error",
                     output_text=("File has not been read yet. Read it first before writing to it."),
                 )
+
+        # Detect encoding of existing file to preserve it on write
+        file_encoding = detect_encoding(file_path) if exists else "utf-8"
 
         # Capture previous content (if any) for diff generation and external-change detection.
         before = ""
@@ -110,7 +134,7 @@ class WriteTool(ToolABC):
                     )
 
         try:
-            await asyncio.to_thread(write_text, file_path, args.content)
+            await asyncio.to_thread(write_text, file_path, args.content, file_encoding)
         except (OSError, UnicodeError) as e:  # pragma: no cover
             return message.ToolResultMessage(status="error", output_text=f"<tool_use_error>{e}</tool_use_error>")
 

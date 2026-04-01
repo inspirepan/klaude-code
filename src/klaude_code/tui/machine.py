@@ -23,7 +23,6 @@ from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
     AppendThinking,
-    EmitTmuxSignal,
     EndAssistantStream,
     EndThinkingStream,
     PrintBlankLine,
@@ -33,6 +32,7 @@ from klaude_code.tui.commands import (
     RenderCompactionSummary,
     RenderDeveloperMessage,
     RenderError,
+    RenderHandoff,
     RenderInterrupt,
     RenderNotice,
     RenderRewind,
@@ -812,8 +812,11 @@ class DisplayStateMachine:
                         cmds.append(SpinnerStop())
                     cmds.extend(self._spinner_update_commands())
                 if e.summary and not e.aborted:
-                    kept_brief = tuple((item.item_type, item.count, item.preview) for item in e.kept_items_brief)
-                    cmds.append(RenderCompactionSummary(summary=e.summary, kept_items_brief=kept_brief))
+                    if e.reason == "handoff":
+                        cmds.append(RenderHandoff(summary=e.summary))
+                    else:
+                        kept_brief = tuple((item.item_type, item.count, item.preview) for item in e.kept_items_brief)
+                        cmds.append(RenderCompactionSummary(summary=e.summary, kept_items_brief=kept_brief))
                 return cmds
 
             case events.RewindEvent() as e:
@@ -1248,7 +1251,6 @@ class DisplayStateMachine:
                     cmds.append(TaskClockClear())
                     self._spinner.clear_task_state()
                     cmds.append(SpinnerStop())
-                    cmds.append(EmitTmuxSignal())
                     cmds.append(StopTitleBlink())
                     self._terminal_title_prefix = "\u2714"
                     cmds.append(

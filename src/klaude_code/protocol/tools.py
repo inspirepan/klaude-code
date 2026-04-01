@@ -10,6 +10,7 @@ WEB_SEARCH = "WebSearch"
 REPORT_BACK = "report_back"
 AGENT = "Agent"
 REWIND = "Rewind"
+HANDOFF = "Handoff"
 ASK_USER_QUESTION = "AskUserQuestion"
 
 # SubAgentType is just a string alias now; agent types are defined via SubAgentProfile

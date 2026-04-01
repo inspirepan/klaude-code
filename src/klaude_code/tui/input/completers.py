@@ -342,7 +342,6 @@ class _AtFilesCompleter(Completer):
     """
 
     _AT_TOKEN_RE = AT_TOKEN_PATTERN
-    _DISPLAY_META_GAP = 2
 
     def __init__(
         self,
@@ -407,15 +406,11 @@ class _AtFilesCompleter(Completer):
             if not suggestions:
                 return []  # type: ignore[reportUnknownVariableType]
             start_position = token_start_in_input - len(text_before)
-            suggestions_to_show = suggestions[: self._max_results]
-            name_limit = self._display_name_limit()
-            align_width = self._display_align_width(suggestions_to_show, name_limit)
-            for s in suggestions_to_show:
+            for s in suggestions[: self._max_results]:
                 yield Completion(
                     text=self._format_completion_text(s, is_quoted=is_quoted),
                     start_position=start_position,
-                    display=self._format_display_label(s, align_width, name_limit),
-                    display_meta=s,
+                    display=self._format_display_label(s, keyword=""),
                 )
             return []  # type: ignore[reportUnknownVariableType]
 
@@ -426,16 +421,12 @@ class _AtFilesCompleter(Completer):
 
         # Prepare Completion objects. Replace from the '@' character.
         start_position = token_start_in_input - len(text_before)  # negative
-        suggestions_to_show = suggestions[: self._max_results]
-        name_limit = self._display_name_limit()
-        align_width = self._display_align_width(suggestions_to_show, name_limit)
-        for s in suggestions_to_show:
-            # Insert formatted text (with quoting when needed) so that subsequent typing does not keep triggering
+        keyword_lower = search_frag.lower()
+        for s in suggestions[: self._max_results]:
             yield Completion(
                 text=self._format_completion_text(s, is_quoted=is_quoted),
                 start_position=start_position,
-                display=self._format_display_label(s, align_width, name_limit),
-                display_meta=s,
+                display=self._format_display_label(s, keyword=keyword_lower),
             )
 
     # ---- Core logic ----
@@ -640,54 +631,58 @@ class _AtFilesCompleter(Completer):
             return f'@"{suggestion}" '
         return f"@{suggestion} "
 
-    def _format_display_label(self, suggestion: str, align_width: int, max_name_len: int) -> str:
-        """Format visible label for a completion option.
+    def _format_display_label(self, suggestion: str, *, keyword: str) -> FormattedText:
+        """Format visible label showing the full path.
 
-        Keep this unstyled so that the completion menu's selection style can
-        fully override the selected row.
+        The filename is shown in default color, directory parts use a dim style,
+        and the keyword match is highlighted with a yellow background.
         """
-        name = self._display_name(suggestion, max_name_len=max_name_len)
-        # Pad to align_width + extra padding for visual separation from meta
-        return name.ljust(align_width + self._DISPLAY_META_GAP)
-
-    def _display_align_width(self, suggestions: list[str], max_name_len: int) -> int:
-        """Calculate alignment width for display labels."""
-
-        return max((len(self._display_name(s, max_name_len=max_name_len)) for s in suggestions), default=0)
-
-    def _display_name_limit(self) -> int:
-        """Return maximum visible width for left-column names."""
-
-        columns = shutil.get_terminal_size(fallback=(80, 24)).columns
-        return max(10, min(28, columns // 3))
-
-    def _display_name(self, suggestion: str, *, max_name_len: int) -> str:
-        """Return the basename (with trailing slash for directories) for display."""
-
-        if not suggestion:
-            return suggestion
-
         is_dir = suggestion.endswith("/")
         stripped = suggestion.rstrip("/")
-        base = stripped.split("/")[-1] if stripped else suggestion
-        if max_name_len < 1:
-            max_name_len = 1
-
+        basename = stripped.rsplit("/", 1)[-1]
         if is_dir:
-            name = f"{base}/"
-            if len(name) <= max_name_len:
-                return name
-            if max_name_len == 1:
-                return "…"
-            if max_name_len == 2:
-                return "…/"
-            return f"{name[: max_name_len - 2]}…/"
+            basename += "/"
+        dir_prefix = suggestion[: len(suggestion) - len(basename)]
 
-        if len(base) <= max_name_len:
-            return base
-        if max_name_len == 1:
-            return "…"
-        return f"{base[: max_name_len - 1]}…"
+        # Build segments: (style, text) pairs
+        segments: list[tuple[str, str]] = []
+        if dir_prefix:
+            segments.append(("ansibrightblack", dir_prefix))
+        segments.append(("", basename))
+
+        if not keyword:
+            return FormattedText(segments)
+
+        # Highlight the first keyword match across the full path
+        path_lower = suggestion.lower()
+        match_start = path_lower.find(keyword)
+        if match_start == -1:
+            return FormattedText(segments)
+
+        match_end = match_start + len(keyword)
+        result: list[tuple[str, str]] = []
+        pos = 0
+        dim = "ansibrightblack"
+        highlight = "bg:#d4a843 #1a1a1a"
+
+        for style, text in segments:
+            seg_start = pos
+            seg_end = pos + len(text)
+
+            if seg_end <= match_start or seg_start >= match_end:
+                result.append((style, text))
+            else:
+                before = max(match_start - seg_start, 0)
+                after = min(match_end - seg_start, len(text))
+                if before > 0:
+                    result.append((style, text[:before]))
+                result.append((highlight if style == dim else f"{highlight}", text[before:after]))
+                if after < len(text):
+                    result.append((style, text[after:]))
+
+            pos = seg_end
+
+        return FormattedText(result)
 
     def _same_scope(self, prev_key: str, cur_key: str) -> bool:
         # Consider same scope if they share the same base directory and one prefix startswith the other
@@ -794,11 +789,23 @@ class _AtFilesCompleter(Completer):
                 self._git_file_list_time = now
                 self._git_file_list_cwd = cwd
             else:
+                all_lines = r.lines
+                # Supplement with submodule contents: git ls-files -co doesn't
+                # recurse into submodules (they appear as single gitlink entries).
+                r_sub = self._run_cmd(
+                    ["git", "ls-files", "--recurse-submodules"],
+                    cwd=repo_root,
+                    timeout_sec=self._cmd_timeout_sec,
+                )
+                if r_sub.ok:
+                    main_set = set(all_lines)
+                    all_lines.extend(rel for rel in r_sub.lines if rel not in main_set)
+
                 cwd_resolved = cwd.resolve()
                 root_resolved = repo_root.resolve()
                 files: list[str] = []
                 files_lower: list[str] = []
-                for rel in r.lines:
+                for rel in all_lines:
                     abs_path = root_resolved / rel
                     try:
                         rel_to_cwd = abs_path.relative_to(cwd_resolved)

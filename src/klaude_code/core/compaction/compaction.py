@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
@@ -28,6 +29,7 @@ from .prompts import (
 _MAX_TOOL_OUTPUT_CHARS = 4000
 _MAX_TOOL_CALL_CHARS = 2000
 _DEFAULT_IMAGE_TOKENS = 1200
+_SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>", re.DOTALL)
 
 
 class CompactionReason(str, Enum):
@@ -99,13 +101,13 @@ def should_compact_threshold(
     if effective_context_limit <= 0:
         return False
 
-    tokens_before = _get_last_context_tokens(session)
+    tokens_before = get_last_context_tokens(session)
     if tokens_before is None:
-        tokens_before = _estimate_history_tokens(session.get_llm_history())
+        tokens_before = estimate_history_tokens(session.get_llm_history())
     elif _has_compaction_after_last_successful_usage(session):
         # After compaction, the last successful assistant usage reflects the pre-compaction
         # context window. For threshold checks we want the *current* LLM-facing view.
-        tokens_before = _estimate_history_tokens(session.get_llm_history())
+        tokens_before = estimate_history_tokens(session.get_llm_history())
     else:
         tokens_before += _estimate_tokens_after_last_successful_usage(session)
     return tokens_before >= effective_context_limit - compaction_config.reserve_tokens
@@ -183,17 +185,17 @@ async def run_compaction(
         raise ValueError("Nothing to compact (session too small)")
 
     previous_summary = last_compaction.summary if last_compaction else None
-    tokens_before = _get_last_context_tokens(session)
+    tokens_before = get_last_context_tokens(session)
     if tokens_before is None:
-        tokens_before = _estimate_history_tokens(history)
+        tokens_before = estimate_history_tokens(history)
 
     split_task = _is_split_task(history, base_start_index, cut_index)
     task_start_index = _find_task_start_index(history, base_start_index, cut_index) if split_task else -1
 
-    messages_to_summarize = _collect_messages(history, base_start_index, task_start_index if split_task else cut_index)
+    messages_to_summarize = collect_messages(history, base_start_index, task_start_index if split_task else cut_index)
     task_prefix_messages: list[message.Message] = []
     if split_task and task_start_index >= 0:
-        task_prefix_messages = _collect_messages(history, task_start_index, cut_index)
+        task_prefix_messages = collect_messages(history, task_start_index, cut_index)
 
     if not messages_to_summarize and not task_prefix_messages and not previous_summary:
         raise ValueError("Nothing to compact (no messages to summarize)")
@@ -211,15 +213,15 @@ async def run_compaction(
         cancel=cancel,
     )
 
-    file_ops = _collect_file_operations(
+    file_ops = collect_file_operations(
         session=session,
         summarized_messages=messages_to_summarize,
         task_prefix_messages=task_prefix_messages,
         previous_details=last_compaction.details if last_compaction else None,
     )
-    summary += _format_file_operations(file_ops.read_files, file_ops.modified_files)
+    summary += format_file_operations(file_ops.read_files, file_ops.modified_files)
 
-    kept_items_brief = _collect_kept_items_brief(history, cut_index)
+    kept_items_brief = collect_kept_items_brief(history, cut_index)
 
     return CompactionResult(
         summary=summary,
@@ -230,7 +232,7 @@ async def run_compaction(
     )
 
 
-def _collect_kept_items_brief(history: list[message.HistoryEvent], cut_index: int) -> list[message.KeptItemBrief]:
+def collect_kept_items_brief(history: list[message.HistoryEvent], cut_index: int) -> list[message.KeptItemBrief]:
     """Extract brief info about kept (non-compacted) messages."""
     items: list[message.KeptItemBrief] = []
     tool_counts: dict[str, int] = {}
@@ -301,7 +303,7 @@ def _call_args_probably_modify_file(args: dict[str, object]) -> bool:
     return bool(isinstance(edits, list))
 
 
-def _collect_file_operations(
+def collect_file_operations(
     *,
     session: Session,
     summarized_messages: list[message.Message],
@@ -373,7 +375,7 @@ def _extract_modified_files_from_tool_result(msg: message.ToolResultMessage, mod
             pass
 
 
-def _format_file_operations(read_files: list[str], modified_files: list[str]) -> str:
+def format_file_operations(read_files: list[str], modified_files: list[str]) -> str:
     sections: list[str] = []
     if read_files:
         sections.append("<read-files>\n" + "\n".join(read_files) + "\n</read-files>")
@@ -473,7 +475,7 @@ def _find_task_start_index(history: list[message.HistoryEvent], start_index: int
     return -1
 
 
-def _collect_messages(history: list[message.HistoryEvent], start_index: int, end_index: int) -> list[message.Message]:
+def collect_messages(history: list[message.HistoryEvent], start_index: int, end_index: int) -> list[message.Message]:
     if end_index < start_index:
         return []
     return [
@@ -531,7 +533,7 @@ async def _generate_summary(
     previous_summary: str | None,
     cancel: asyncio.Event | None,
 ) -> str:
-    serialized = _serialize_conversation(messages_to_summarize)
+    serialized = serialize_conversation(messages_to_summarize)
     parts: list[message.Part] = [
         message.TextPart(text=f"<conversation>\n{serialized}\n</conversation>"),
     ]
@@ -563,7 +565,7 @@ async def _generate_task_prefix_summary(
     config: CompactionConfig,
     cancel: asyncio.Event | None,
 ) -> str:
-    serialized = _serialize_conversation(messages)
+    serialized = serialize_conversation(messages)
     return await _call_summarizer(
         input=[
             message.UserMessage(
@@ -659,11 +661,11 @@ def _retry_delay_seconds(attempt: int) -> float:
     return min(delay, MAX_RETRY_DELAY_S)
 
 
-def _serialize_conversation(messages: list[message.Message]) -> str:
+def serialize_conversation(messages: list[message.Message]) -> str:
     parts: list[str] = []
     for msg in messages:
         if isinstance(msg, message.UserMessage):
-            text = _join_text_parts(msg.parts)
+            text = _strip_system_reminders(_join_text_parts(msg.parts))
             if not text:
                 text = _render_images(msg.parts)
             if text:
@@ -691,7 +693,7 @@ def _serialize_conversation(messages: list[message.Message]) -> str:
             if content:
                 parts.append(f"[Tool result]: {content}")
         elif isinstance(msg, message.DeveloperMessage):
-            text = _join_text_parts(msg.parts)
+            text = _strip_system_reminders(_join_text_parts(msg.parts))
             if text:
                 parts.append(f"[Developer]: {text}")
         else:  # SystemMessage
@@ -699,6 +701,11 @@ def _serialize_conversation(messages: list[message.Message]) -> str:
             if text:
                 parts.append(f"[System]: {text}")
     return "\n\n".join(parts)
+
+
+def _strip_system_reminders(text: str) -> str:
+    """Remove <system-reminder>...</system-reminder> blocks from text."""
+    return _SYSTEM_REMINDER_RE.sub("", text).strip()
 
 
 def _join_text_parts(parts: Sequence[message.Part]) -> str:
@@ -723,7 +730,7 @@ def _truncate_text(text: str, max_chars: int) -> str:
     return text[:max_chars] + "...(truncated)"
 
 
-def _estimate_history_tokens(history: list[message.HistoryEvent]) -> int:
+def estimate_history_tokens(history: list[message.HistoryEvent]) -> int:
     return sum(_estimate_tokens(item) for item in history if isinstance(item, message.Message))
 
 
@@ -751,7 +758,7 @@ def _count_image_tokens(parts: list[message.Part]) -> int:
     return count * _DEFAULT_IMAGE_TOKENS
 
 
-def _get_last_context_tokens(session: Session) -> int | None:
+def get_last_context_tokens(session: Session) -> int | None:
     for item in reversed(session.conversation_history):
         if not isinstance(item, message.AssistantMessage):
             continue
