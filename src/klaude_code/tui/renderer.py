@@ -40,6 +40,7 @@ from klaude_code.tui.commands import (
     RenderCompactionSummary,
     RenderDeveloperMessage,
     RenderError,
+    RenderHandoff,
     RenderInterrupt,
     RenderNotice,
     RenderRewind,
@@ -773,6 +774,41 @@ class TUICommandRenderer:
 
         self.print()
 
+    def display_handoff(self, summary: str) -> None:
+        self.console.print(
+            Rule(
+                Text("Context Handed Off", style=ThemeKey.HANDOFF),
+                characters="=",
+                style=ThemeKey.LINES,
+            )
+        )
+        self.print()
+
+        stripped = summary.strip()
+        stripped = (
+            stripped.replace("<summary>", "")
+            .replace("</summary>", "")
+            .replace("<read_files>", "")
+            .replace("</read_files>", "")
+            .replace("<modified-files>", "")
+            .replace("</modified-files>", "")
+        )
+
+        terminal_width = shutil.get_terminal_size().columns
+        panel_width = min(100, terminal_width) - 2
+
+        self.console.push_theme(self.themes.markdown_theme)
+        panel = Panel(
+            NoInsetMarkdown(stripped, code_theme=self.themes.code_theme, style=ThemeKey.HANDOFF_NOTE),
+            box=box.SIMPLE,
+            border_style=ThemeKey.LINES,
+            style=ThemeKey.COMPACTION_SUMMARY_PANEL,
+            width=panel_width,
+        )
+        self.print(Padding(panel, (0, 0, 0, MARKDOWN_LEFT_MARGIN)))
+        self.console.pop_theme()
+        self.print()
+
     def display_rewind(
         self,
         checkpoint_id: int,
@@ -967,6 +1003,8 @@ class TUICommandRenderer:
                     self.display_error(event)
                 case RenderCompactionSummary(summary=summary, kept_items_brief=kept_items_brief):
                     self.display_compaction_summary(summary, kept_items_brief)
+                case RenderHandoff(summary=summary):
+                    self.display_handoff(summary)
                 case RenderRewind(
                     checkpoint_id=checkpoint_id,
                     note=note,

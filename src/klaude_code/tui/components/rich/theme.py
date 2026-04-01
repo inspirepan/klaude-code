@@ -204,6 +204,10 @@ class ThemeKey(str, Enum):
     THINKING_BOLD = "thinking.bold"
     # COMPACTION
     COMPACTION_SUMMARY = "compaction.summary"
+    # HANDOFF
+    HANDOFF = "handoff"
+    HANDOFF_INFO = "handoff.info"
+    HANDOFF_NOTE = "handoff.note"
     # REWIND
     REWIND = "rewind"
     REWIND_INFO = "rewind.info"
@@ -356,6 +360,10 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.THINKING_BOLD.value: "italic " + palette.grey1,
                 # COMPACTION
                 ThemeKey.COMPACTION_SUMMARY.value: palette.grey1,
+                # HANDOFF
+                ThemeKey.HANDOFF.value: palette.blue,
+                ThemeKey.HANDOFF_INFO.value: "dim " + palette.grey2,
+                ThemeKey.HANDOFF_NOTE.value: palette.grey1,
                 # REWIND
                 ThemeKey.REWIND.value: palette.orange,
                 ThemeKey.REWIND_INFO.value: "dim " + palette.grey2,

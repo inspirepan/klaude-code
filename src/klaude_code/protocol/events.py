@@ -230,11 +230,11 @@ class TaskStartEvent(Event):
 
 
 class CompactionStartEvent(Event):
-    reason: Literal["threshold", "overflow", "manual"]
+    reason: Literal["threshold", "overflow", "manual", "handoff"]
 
 
 class CompactionEndEvent(Event):
-    reason: Literal["threshold", "overflow", "manual"]
+    reason: Literal["threshold", "overflow", "manual", "handoff"]
     aborted: bool = False
     will_retry: bool = False
     tokens_before: int | None = None

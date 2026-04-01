@@ -19,6 +19,7 @@ from klaude_code.core.compaction import (
     run_compaction,
     should_compact_threshold,
 )
+from klaude_code.core.handoff import HandoffManager, run_handoff
 from klaude_code.core.rewind import RewindManager
 from klaude_code.core.tool import FileTracker, TodoContext, ToolABC
 from klaude_code.core.tool.context import RunSubtask
@@ -240,6 +241,7 @@ class TaskExecutor:
         self._started_at: float = 0.0
         self._metadata_accumulator: MetadataAccumulator | None = None
         self._rewind_manager: RewindManager | None = None
+        self._handoff_manager: HandoffManager | None = None
 
     def get_partial_metadata(self) -> model.TaskMetadata | None:
         """Get the currently accumulated metadata without finalizing.
@@ -303,6 +305,7 @@ class TaskExecutor:
             self._rewind_manager = RewindManager()
             self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
             self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+            self._handoff_manager = HandoffManager()
 
         yield events.TaskStartEvent(
             session_id=session_ctx.session_id,
@@ -350,6 +353,7 @@ class TaskExecutor:
                     )
                     log_debug("[Compact] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
 
+                    _reset_memory_loaded_flags(ctx.session.file_tracker)
                     session_ctx.append_history([result.to_entry()])
                     if self._rewind_manager is not None:
                         self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
@@ -398,6 +402,7 @@ class TaskExecutor:
                 tool_registry=ctx.tool_registry,
                 sub_agent_state=ctx.sub_agent_state,
                 rewind_manager=self._rewind_manager,
+                handoff_manager=self._handoff_manager,
                 prev_turn_input_tokens=metadata_accumulator.prev_turn_input_tokens,
             )
 
@@ -460,6 +465,7 @@ class TaskExecutor:
                             log_debug(
                                 "[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE
                             )
+                            _reset_memory_loaded_flags(ctx.session.file_tracker)
                             session_ctx.append_history([result.to_entry()])
                             if self._rewind_manager is not None:
                                 self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
@@ -549,6 +555,70 @@ class TaskExecutor:
                         )
                         continue
 
+            if self._handoff_manager is not None:
+                pending_handoff = self._handoff_manager.fetch_pending()
+                if pending_handoff is not None:
+                    yield events.CompactionStartEvent(
+                        session_id=session_ctx.session_id,
+                        reason="handoff",
+                    )
+                    try:
+                        log_debug("[Handoff] start", debug_type=DebugType.RESPONSE)
+                        compact_client = ctx.compact_llm_client or profile.llm_client
+                        result = await run_handoff(
+                            session=ctx.session,
+                            goal=pending_handoff.goal,
+                            llm_client=compact_client,
+                            llm_config=compact_client.get_llm_config(),
+                        )
+                        log_debug("[Handoff] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
+                        _reset_memory_loaded_flags(ctx.session.file_tracker)
+                        session_ctx.append_history([result.to_entry()])
+                        if self._rewind_manager is not None:
+                            self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                            self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+                        yield events.CompactionEndEvent(
+                            session_id=session_ctx.session_id,
+                            reason="handoff",
+                            aborted=False,
+                            will_retry=False,
+                            tokens_before=result.tokens_before,
+                            kept_from_index=result.first_kept_index,
+                            summary=result.summary,
+                            kept_items_brief=result.kept_items_brief,
+                        )
+                        continue
+                    except asyncio.CancelledError:
+                        yield events.CompactionEndEvent(
+                            session_id=session_ctx.session_id,
+                            reason="handoff",
+                            aborted=True,
+                            will_retry=False,
+                        )
+                        raise
+                    except Exception as e:
+                        import traceback
+
+                        log_debug(
+                            "[Handoff] error",
+                            str(e.__class__.__name__),
+                            str(e),
+                            traceback.format_exc(),
+                            debug_type=DebugType.RESPONSE,
+                        )
+                        yield events.CompactionEndEvent(
+                            session_id=session_ctx.session_id,
+                            reason="handoff",
+                            aborted=True,
+                            will_retry=False,
+                        )
+                        yield events.ErrorEvent(
+                            error_message=f"Handoff failed: {e}",
+                            can_retry=False,
+                            session_id=session_ctx.session_id,
+                        )
+                        return
+
             if turn is None or turn.task_finished:
                 # Empty result should retry only for sub-agents
                 if turn is not None and not turn.task_result.strip() and ctx.sub_agent_state is not None:
@@ -580,6 +650,13 @@ class TaskExecutor:
             task_result=task_result,
             has_structured_output=has_structured_output,
         )
+
+
+def _reset_memory_loaded_flags(file_tracker: dict[str, model.FileStatus]) -> None:
+    """Remove memory-only entries from file_tracker so reminders re-inject them."""
+    memory_paths = [path for path, status in file_tracker.items() if status.is_memory]
+    for path in memory_paths:
+        del file_tracker[path]
 
 
 def _retry_delay_seconds(attempt: int) -> float:

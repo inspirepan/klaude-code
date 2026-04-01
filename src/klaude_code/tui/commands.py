@@ -185,6 +185,11 @@ class RenderCompactionSummary(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderHandoff(RenderCommand):
+    summary: str
+
+
+@dataclass(frozen=True, slots=True)
 class RenderRewind(RenderCommand):
     checkpoint_id: int
     note: str
