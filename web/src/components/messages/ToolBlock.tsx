@@ -179,11 +179,7 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): React.JSX.Element 
         if (expandable) setOpen((v) => !v);
       }}
     >
-      <CollapseRailMarker
-        open={open}
-        expandable={expandable}
-        className={expandable ? "row-span-2" : undefined}
-      />
+      <CollapseRailMarker open={open} expandable={expandable} className="row-span-2" />
       <ToolBlockHeader
         item={item}
         detail={detail}
