@@ -17,7 +17,7 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
     os.sys.path.insert(0, str(SRC_DIR))  # type: ignore
 
-from klaude_code.core.agent.reminders import at_file_reader_reminder  # noqa: E402
+from klaude_code.core.agent.attachments import at_file_reader_attachment  # noqa: E402
 from klaude_code.core.tool import (  # noqa: E402
     BashTool,
     EditTool,
@@ -36,10 +36,10 @@ def arun(coro) -> Any:  # type: ignore
     return asyncio.run(coro)  # type: ignore
 
 
-def _get_at_file_ops(reminder: message.DeveloperMessage) -> list[model.AtFileOp]:
-    if reminder.ui_extra is None:
+def _get_at_file_ops(attachment: message.DeveloperMessage) -> list[model.AtFileOp]:
+    if attachment.ui_extra is None:
         return []
-    for ui_item in reminder.ui_extra.items:
+    for ui_item in attachment.ui_extra.items:
         if isinstance(ui_item, model.AtFileOpsUIItem):
             return ui_item.ops
     return []
@@ -65,7 +65,7 @@ class BaseTempDirTest(unittest.TestCase):
 
 
 class TestReadTool(BaseTempDirTest):
-    def test_read_basic_and_reminder(self):
+    def test_read_basic_and_tracking(self):
         file_path = os.path.abspath("basic.txt")
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("line1\nline2\nline3\n")
@@ -204,8 +204,8 @@ class TestReadTool(BaseTempDirTest):
         self.assertIn("maximum supported size (64.00MB)", res.output_text or "")
 
 
-class TestReminders(BaseTempDirTest):
-    def test_at_file_reader_reminder_includes_images(self):
+class TestAttachments(BaseTempDirTest):
+    def test_at_file_reader_attachment_includes_images(self):
         file_path = os.path.abspath("tiny.png")
         with open(file_path, "wb") as image_file:
             image_file.write(base64.b64decode(_TINY_PNG_BASE64))
@@ -214,18 +214,18 @@ class TestReminders(BaseTempDirTest):
             message.UserMessage(parts=message.text_parts_from_str(f"Please review @{file_path}"))
         )
 
-        reminder = arun(at_file_reader_reminder(self.session))
-        self.assertIsNotNone(reminder)
-        assert reminder is not None
+        attachment = arun(at_file_reader_attachment(self.session))
+        self.assertIsNotNone(attachment)
+        assert attachment is not None
 
         # Images are now in parts
-        image_parts = [p for p in reminder.parts if isinstance(p, message.ImageURLPart)]
+        image_parts = [p for p in attachment.parts if isinstance(p, message.ImageURLPart)]
         self.assertTrue(len(image_parts) > 0)
         self.assertTrue(image_parts[0].url.startswith("data:image/png;base64,"))
 
-        self.assertEqual(len(_get_at_file_ops(reminder)), 1)
+        self.assertEqual(len(_get_at_file_ops(attachment)), 1)
 
-    def test_at_file_reader_reminder_supports_paths_with_spaces(self):
+    def test_at_file_reader_attachment_supports_paths_with_spaces(self):
         # Create a file whose directory and filename both contain spaces
         dir_path = Path("dir with spaces")
         dir_path.mkdir(parents=True, exist_ok=True)
@@ -238,15 +238,15 @@ class TestReminders(BaseTempDirTest):
             message.UserMessage(parts=message.text_parts_from_str(f'Please review @"{file_path}"'))
         )
 
-        reminder = arun(at_file_reader_reminder(self.session))
-        self.assertIsNotNone(reminder)
-        assert reminder is not None
-        ops = _get_at_file_ops(reminder)
+        attachment = arun(at_file_reader_attachment(self.session))
+        self.assertIsNotNone(attachment)
+        assert attachment is not None
+        ops = _get_at_file_ops(attachment)
         self.assertEqual(len(ops), 1)
         self.assertEqual(ops[0].path, str(file_path))
-        self.assertIn("hello world", message.join_text_parts(reminder.parts))
+        self.assertIn("hello world", message.join_text_parts(attachment.parts))
 
-    def test_at_file_reader_reminder_preserves_filename_case(self):
+    def test_at_file_reader_attachment_preserves_filename_case(self):
         # Create a file with uppercase letters in the name
         file_path = os.path.abspath("README.md")
         with open(file_path, "w", encoding="utf-8") as f:
@@ -257,18 +257,18 @@ class TestReminders(BaseTempDirTest):
             message.UserMessage(parts=message.text_parts_from_str(f"Please review @{file_path}"))
         )
 
-        reminder = arun(at_file_reader_reminder(self.session))
-        self.assertIsNotNone(reminder)
-        assert reminder is not None
+        attachment = arun(at_file_reader_attachment(self.session))
+        self.assertIsNotNone(attachment)
+        assert attachment is not None
 
-        ops = _get_at_file_ops(reminder)
+        ops = _get_at_file_ops(attachment)
         self.assertEqual(len(ops), 1)
         at_file = ops[0]
         # Path string should preserve the filename casing (e.g. README.md, not readme.md)
         self.assertTrue(at_file.path.endswith("README.md"))
-        self.assertIn("READ ME", message.join_text_parts(reminder.parts))
+        self.assertIn("READ ME", message.join_text_parts(attachment.parts))
 
-    def test_at_file_reader_reminder_skips_tracked_unchanged_file(self):
+    def test_at_file_reader_attachment_returns_lightweight_for_tracked_unchanged_file(self):
         file_path = os.path.abspath("tracked.txt")
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("hello\n")
@@ -279,10 +279,14 @@ class TestReminders(BaseTempDirTest):
             message.UserMessage(parts=message.text_parts_from_str(f"@{file_path}"))
         )
 
-        reminder = arun(at_file_reader_reminder(self.session))
-        self.assertIsNone(reminder)
+        attachment = arun(at_file_reader_attachment(self.session))
+        # Now returns a lightweight "already in context" message instead of None
+        self.assertIsNotNone(attachment)
+        text = message.join_text_parts(attachment.parts)
+        self.assertIn("already in context", text)
+        self.assertNotIn("hello", text)
 
-    def test_at_file_reader_reminder_skips_when_touched_but_hash_unchanged(self):
+    def test_at_file_reader_attachment_returns_lightweight_when_touched_but_hash_unchanged(self):
         file_path = os.path.abspath("touched.txt")
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("same content\n")
@@ -300,10 +304,13 @@ class TestReminders(BaseTempDirTest):
             message.UserMessage(parts=message.text_parts_from_str(f"@{file_path}"))
         )
 
-        reminder = arun(at_file_reader_reminder(self.session))
-        self.assertIsNone(reminder)
+        attachment = arun(at_file_reader_attachment(self.session))
+        # File content unchanged (same hash), so lightweight message
+        self.assertIsNotNone(attachment)
+        text = message.join_text_parts(attachment.parts)
+        self.assertIn("already in context", text)
 
-    def test_at_file_reader_reminder_ignores_mid_word_at_symbols(self):
+    def test_at_file_reader_attachment_ignores_mid_word_at_symbols(self):
         file_path = os.path.abspath("bar.com")
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("should not be read\n")
@@ -312,10 +319,10 @@ class TestReminders(BaseTempDirTest):
             message.UserMessage(parts=message.text_parts_from_str("Contact me via foo@bar.com for details."))
         )
 
-        reminder = arun(at_file_reader_reminder(self.session))
-        self.assertIsNone(reminder)
+        attachment = arun(at_file_reader_attachment(self.session))
+        self.assertIsNone(attachment)
 
-    def test_at_file_reader_reminder_discovers_memory_in_directory(self):
+    def test_at_file_reader_attachment_discovers_memory_in_directory(self):
         """When @dir is used, AGENTS.md in that directory should be auto-injected."""
         subdir = Path("subdir")
         subdir.mkdir(exist_ok=True)
@@ -326,23 +333,23 @@ class TestReminders(BaseTempDirTest):
         dir_path = str(subdir.resolve())
         self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{dir_path}")))
 
-        reminder = arun(at_file_reader_reminder(self.session))
-        self.assertIsNotNone(reminder)
-        assert reminder is not None
+        attachment = arun(at_file_reader_attachment(self.session))
+        self.assertIsNotNone(attachment)
+        assert attachment is not None
 
         # Should have the ls op for the directory
-        ops = _get_at_file_ops(reminder)
+        ops = _get_at_file_ops(attachment)
         self.assertEqual(len(ops), 1)
         self.assertEqual(ops[0].operation, "List")
 
         # Memory file should be discovered and included in text
-        text = message.join_text_parts(reminder.parts)
+        text = message.join_text_parts(attachment.parts)
         self.assertIn("Subdir Instructions", text)
         self.assertIn("Do something special", text)
 
         # Memory file should be reflected in UI
-        assert reminder.ui_extra is not None
-        memory_items = [i for i in reminder.ui_extra.items if isinstance(i, model.MemoryLoadedUIItem)]
+        assert attachment.ui_extra is not None
+        memory_items = [i for i in attachment.ui_extra.items if isinstance(i, model.MemoryLoadedUIItem)]
         self.assertEqual(len(memory_items), 1)
         self.assertEqual(len(memory_items[0].files), 1)
         self.assertTrue(memory_items[0].files[0].path.endswith("AGENTS.md"))
@@ -352,7 +359,7 @@ class TestReminders(BaseTempDirTest):
         status = self.session.file_tracker[str(agents_md.resolve())]
         self.assertTrue(status.is_memory)
 
-    def test_at_file_reader_reminder_discovers_memory_in_parent_dirs(self):
+    def test_at_file_reader_attachment_discovers_memory_in_parent_dirs(self):
         """When @deep/dir is used, AGENTS.md in intermediate dirs should also be injected."""
         parent = Path("parent")
         parent.mkdir(exist_ok=True)
@@ -365,23 +372,23 @@ class TestReminders(BaseTempDirTest):
         dir_path = str(child.resolve())
         self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{dir_path}")))
 
-        reminder = arun(at_file_reader_reminder(self.session))
-        self.assertIsNotNone(reminder)
-        assert reminder is not None
+        attachment = arun(at_file_reader_attachment(self.session))
+        self.assertIsNotNone(attachment)
+        assert attachment is not None
 
-        text = message.join_text_parts(reminder.parts)
+        text = message.join_text_parts(attachment.parts)
         self.assertIn("parent instructions", text)
         self.assertIn("child instructions", text)
 
-    def test_at_file_reader_reminder_no_duplicate_memory_if_already_loaded(self):
-        """Memory files already loaded by memory_reminder should not be loaded again."""
+    def test_at_file_reader_attachment_no_duplicate_memory_if_already_loaded(self):
+        """Memory files already loaded by memory_attachment should not be loaded again."""
         subdir = Path("subdir")
         subdir.mkdir(exist_ok=True)
         (subdir / "file.txt").write_text("hello\n")
         agents_md = subdir / "AGENTS.md"
         agents_md.write_text("subdir instructions\n")
 
-        # Pre-mark the memory as loaded (simulating memory_reminder having loaded it)
+        # Pre-mark the memory as loaded (simulating memory_attachment having loaded it)
         agents_path = str(agents_md.resolve())
         self.session.file_tracker[agents_path] = model.FileStatus(
             mtime=agents_md.stat().st_mtime,
@@ -392,17 +399,17 @@ class TestReminders(BaseTempDirTest):
         dir_path = str(subdir.resolve())
         self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{dir_path}")))
 
-        reminder = arun(at_file_reader_reminder(self.session))
-        self.assertIsNotNone(reminder)
-        assert reminder is not None
+        attachment = arun(at_file_reader_attachment(self.session))
+        self.assertIsNotNone(attachment)
+        assert attachment is not None
 
         # Should have the ls op but no memory content
-        text = message.join_text_parts(reminder.parts)
+        text = message.join_text_parts(attachment.parts)
         self.assertNotIn("subdir instructions", text)
 
         # No MemoryLoadedUIItem
-        assert reminder.ui_extra is not None
-        memory_items = [i for i in reminder.ui_extra.items if isinstance(i, model.MemoryLoadedUIItem)]
+        assert attachment.ui_extra is not None
+        memory_items = [i for i in attachment.ui_extra.items if isinstance(i, model.MemoryLoadedUIItem)]
         self.assertEqual(len(memory_items), 0)
 
 

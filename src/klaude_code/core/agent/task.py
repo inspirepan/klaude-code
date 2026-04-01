@@ -12,7 +12,7 @@ from klaude_code.const import (
     MAX_RETRY_DELAY_S,
 )
 from klaude_code.core.agent.turn import TurnError, TurnExecutionContext, TurnExecutor
-from klaude_code.core.agent_profile import AgentProfile, Reminder
+from klaude_code.core.agent_profile import AgentProfile
 from klaude_code.core.compaction import (
     CompactionReason,
     is_context_overflow,
@@ -222,8 +222,6 @@ class TaskExecutionContext:
     session_ctx: SessionContext
     profile: AgentProfile
     tool_registry: dict[str, type[ToolABC]]
-    # For reminder processing - needs access to session
-    process_reminder: Callable[[Reminder], AsyncGenerator[events.DeveloperMessageEvent]]
     sub_agent_state: model.SubAgentState | None
     # LLM client for compaction (uses main if not set)
     compact_llm_client: LLMClientABC | None = None
@@ -325,10 +323,13 @@ class TaskExecutor:
             self._rewind_manager.register_checkpoint(checkpoint_id, user_msg)
 
         while True:
-            # Process reminders at the start of each turn
-            for reminder in profile.reminders:
-                async for event in ctx.process_reminder(reminder):
-                    yield event
+            # Process attachments in parallel with error isolation
+            from klaude_code.core.agent.attachments import collect_attachments
+
+            attachment_results = await collect_attachments(ctx.session, profile.attachments)
+            for item in attachment_results:
+                ctx.session.append_history([item])
+                yield events.DeveloperMessageEvent(session_id=session_ctx.session_id, item=item)
 
             # Threshold-based compaction before starting a new turn.
             # This matters for multi-turn tool loops where no new user input occurs.
@@ -653,7 +654,7 @@ class TaskExecutor:
 
 
 def _reset_memory_loaded_flags(file_tracker: dict[str, model.FileStatus]) -> None:
-    """Remove memory-only entries from file_tracker so reminders re-inject them."""
+    """Remove memory-only entries from file_tracker so attachments re-inject them."""
     memory_paths = [path for path, status in file_tracker.items() if status.is_memory]
     for path in memory_paths:
         del file_tracker[path]

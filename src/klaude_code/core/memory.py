@@ -109,8 +109,8 @@ def format_memory_content(memory: Memory) -> str:
     return f"Contents of {memory.path} ({memory.instruction}):\n\n{memory.content}"
 
 
-def format_memories_reminder(memories: list[Memory], include_header: bool = True) -> str:
-    """Format memory files into a system reminder string."""
+def format_memories_attachment(memories: list[Memory], include_header: bool = True) -> str:
+    """Format memory files into a system-reminder attachment string."""
     memories_str = "\n\n".join(format_memory_content(m) for m in memories)
     if include_header:
         return f"""<system-reminder>

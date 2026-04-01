@@ -123,7 +123,7 @@ def test_at_files_completer_display_label_highlights_keyword() -> None:
     assert full_text == "src/very_long_tools_filename.py"
 
     # At least one segment should have the highlight style
-    assert any("bg:" in s for s in styles), f"Expected highlight style in {styles}"
+    assert any("underline" in s for s in styles), f"Expected highlight style in {styles}"
 
 
 def test_git_paths_for_keyword_includes_all_tools_dirs_even_when_many_files_match(

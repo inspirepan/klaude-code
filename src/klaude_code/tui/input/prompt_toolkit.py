@@ -194,6 +194,17 @@ def _patch_completion_menu_controls(container: Container) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _strip_dim_fg(fragments: StyleAndTextTuples) -> StyleAndTextTuples:
+    """Strip 'ansibrightblack' (dim directory color) so the selection foreground takes effect."""
+    result: StyleAndTextTuples = []
+    for item in fragments:
+        style = item[0]
+        if "ansibrightblack" in style:
+            style = style.replace("ansibrightblack", "").strip()
+        result.append((style, item[1], *item[2:]))  # type: ignore[arg-type]
+    return result
+
+
 class _KlaudeCompletionsMenuControl(pt_menus.CompletionsMenuControl):
     """CompletionsMenuControl with stable 2-char left prefix.
 
@@ -275,6 +286,9 @@ class _KlaudeCompletionsMenuControl(pt_menus.CompletionsMenuControl):
         max_text_width = width - self._PREFIX_WIDTH - (1 if space_after else 0)
         text, text_width = _trim_formatted_text_with_ellipsis(completion.display, max_text_width)
         padding = " " * (width - self._PREFIX_WIDTH - text_width)
+
+        if is_current_completion:
+            text = _strip_dim_fg(text)
 
         return to_formatted_text(
             [("", prefix), *text, ("", padding)],

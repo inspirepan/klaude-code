@@ -6,7 +6,7 @@ from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import render_path
 
-REMINDER_BULLET = "+"
+ATTACHMENT_BULLET = "+"
 
 
 def need_render_developer_message(e: events.DeveloperMessageEvent) -> bool:
@@ -18,7 +18,7 @@ def need_render_developer_message(e: events.DeveloperMessageEvent) -> bool:
 def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     """Render developer message details into a single group.
 
-    Includes: memory paths, external file changes, todo reminder, @file operations.
+    Includes: memory paths, external file changes, todo attachment, @file operations.
     Command output is excluded; render it separately via `render_command_output`.
     """
     parts: list[RenderableType] = []
@@ -29,11 +29,11 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                 case model.MemoryLoadedUIItem() as item:
                     grid = create_grid()
                     grid.add_row(
-                        Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
                         Text.assemble(
-                            ("Load memory ", ThemeKey.REMINDER),
-                            Text(", ", ThemeKey.REMINDER).join(
-                                render_path(mem.path, ThemeKey.REMINDER_BOLD) for mem in item.files
+                            ("Load memory ", ThemeKey.ATTACHMENT),
+                            Text(", ", ThemeKey.ATTACHMENT).join(
+                                render_path(mem.path, ThemeKey.ATTACHMENT_BOLD) for mem in item.files
                             ),
                         ),
                     )
@@ -42,15 +42,15 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                     grid = create_grid()
                     for file_path in item.paths:
                         grid.add_row(
-                            Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                            Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
                             Text.assemble(
-                                ("Read ", ThemeKey.REMINDER),
-                                render_path(file_path, ThemeKey.REMINDER_BOLD),
-                                (" after external changes", ThemeKey.REMINDER),
+                                ("Read ", ThemeKey.ATTACHMENT),
+                                render_path(file_path, ThemeKey.ATTACHMENT_BOLD),
+                                (" after external changes", ThemeKey.ATTACHMENT),
                             ),
                         )
                     parts.append(grid)
-                case model.TodoReminderUIItem() as item:
+                case model.TodoAttachmentUIItem() as item:
                     match item.reason:
                         case "not_used_recently":
                             text = "Todo hasn't been updated recently"
@@ -58,8 +58,8 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                             text = "Todo list is empty"
                     grid = create_grid()
                     grid.add_row(
-                        Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
-                        Text(text, ThemeKey.REMINDER),
+                        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+                        Text(text, ThemeKey.ATTACHMENT),
                     )
                     parts.append(grid)
                 case model.AtFileOpsUIItem() as item:
@@ -69,13 +69,13 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                         grouped.setdefault(op.operation, []).append(op.path)
 
                     for operation, paths in grouped.items():
-                        path_texts = Text(", ", ThemeKey.REMINDER).join(
-                            render_path(p, ThemeKey.REMINDER_BOLD) for p in paths
+                        path_texts = Text(", ", ThemeKey.ATTACHMENT).join(
+                            render_path(p, ThemeKey.ATTACHMENT_BOLD) for p in paths
                         )
                         grid.add_row(
-                            Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                            Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
                             Text.assemble(
-                                (f"{operation} ", ThemeKey.REMINDER),
+                                (f"{operation} ", ThemeKey.ATTACHMENT),
                                 path_texts,
                             ),
                         )
@@ -84,19 +84,19 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                     grid = create_grid()
                     count = item.count
                     grid.add_row(
-                        Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
                         Text(
                             f"Attached {count} image{'s' if count > 1 else ''}",
-                            style=ThemeKey.REMINDER,
+                            style=ThemeKey.ATTACHMENT,
                         ),
                     )
                     parts.append(grid)
                 case model.SkillActivatedUIItem() as item:
                     grid = create_grid()
                     grid.add_row(
-                        Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
                         Text.assemble(
-                            ("Activated skill ", ThemeKey.REMINDER),
+                            ("Activated skill ", ThemeKey.ATTACHMENT),
                             (item.name, ThemeKey.TOOL_PARAM_FILE_PATH_SKILL_NAME),
                         ),
                     )

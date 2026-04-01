@@ -358,8 +358,8 @@ class ExternalFileChangesUIItem(BaseModel):
     paths: list[str]
 
 
-class TodoReminderUIItem(BaseModel):
-    type: Literal["todo_reminder"] = "todo_reminder"
+class TodoAttachmentUIItem(BaseModel):
+    type: Literal["todo_attachment"] = "todo_attachment"
     reason: Literal["empty", "not_used_recently"]
 
 
@@ -392,7 +392,7 @@ class AtFileImagesUIItem(BaseModel):
 type DeveloperUIItem = (
     MemoryLoadedUIItem
     | ExternalFileChangesUIItem
-    | TodoReminderUIItem
+    | TodoAttachmentUIItem
     | AtFileOpsUIItem
     | UserImagesUIItem
     | SkillActivatedUIItem

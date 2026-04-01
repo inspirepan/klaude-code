@@ -11,7 +11,7 @@ from klaude_code.llm.image import image_file_to_data_url, normalize_image_data_u
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
     attach_developer_messages,
-    merge_reminder_text,
+    merge_attachment_text,
     split_thinking_parts,
 )
 from klaude_code.protocol import llm_param, message
@@ -64,7 +64,7 @@ def _build_tool_result_item(
     function_call_output_string: bool = False,
     include_input_status: bool = False,
 ) -> responses.ResponseInputItemParam:
-    text_output = merge_reminder_text(
+    text_output = merge_attachment_text(
         tool.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
         prefix_text=attachment.prefix_text,

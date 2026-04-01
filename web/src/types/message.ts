@@ -74,8 +74,8 @@ export interface ExternalFileChangesUIItem {
   paths: string[];
 }
 
-export interface TodoReminderUIItem {
-  type: "todo_reminder";
+export interface TodoAttachmentUIItem {
+  type: "todo_attachment";
   reason: "empty" | "not_used_recently";
 }
 
@@ -108,7 +108,7 @@ export interface AtFileImagesUIItem {
 export type DeveloperUIItem =
   | MemoryLoadedUIItem
   | ExternalFileChangesUIItem
-  | TodoReminderUIItem
+  | TodoAttachmentUIItem
   | AtFileOpsUIItem
   | UserImagesUIItem
   | SkillActivatedUIItem

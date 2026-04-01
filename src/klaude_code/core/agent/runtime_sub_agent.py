@@ -141,7 +141,7 @@ class SubAgentExecutor:
                         workingDirectory=parent_session.work_dir,
                         workspaceRoot=workspace_root,
                     )
-                    reminder_text = (
+                    context_text = (
                         "You are no longer the main coding agent. "
                         "You are now acting as a specialized sub-agent. "
                         "The conversation history above was forked from the parent session "
@@ -150,7 +150,7 @@ class SubAgentExecutor:
                         "Do NOT use the Rewind tool.\n\n" + role_prompt
                     )
                 else:
-                    reminder_text = (
+                    context_text = (
                         "You are a newly spawned agent with the full conversation context "
                         "from the parent session. Treat the next user message as your new task, "
                         "and use the conversation history as background context. "
@@ -159,7 +159,7 @@ class SubAgentExecutor:
                     )
                 history_items.append(
                     message.UserMessage(
-                        parts=[message.TextPart(text=f"<system-reminder>{reminder_text}</system-reminder>")]
+                        parts=[message.TextPart(text=f"<system-reminder>{context_text}</system-reminder>")]
                     )
                 )
             history_items.append(

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
 
 from klaude_code.core.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
-from klaude_code.core.agent_profile import AgentProfile, Reminder
+from klaude_code.core.agent_profile import AgentProfile
 from klaude_code.core.tool import build_todo_context, get_registry
 from klaude_code.core.tool.context import RunSubtask
 from klaude_code.llm import LLMClientABC
@@ -75,7 +75,6 @@ class Agent:
             session_ctx=session_ctx,
             profile=self.profile,
             tool_registry=get_registry(),
-            process_reminder=self._process_reminder,
             sub_agent_state=self.session.sub_agent_state,
             compact_llm_client=self.compact_llm_client,
         )
@@ -100,13 +99,6 @@ class Agent:
             updated_at=self.session.updated_at,
             session_id=self.session.id,
         )
-
-    async def _process_reminder(self, reminder: Reminder) -> AsyncGenerator[events.DeveloperMessageEvent]:
-        """Process a single reminder and yield events if it produces output."""
-        item = await reminder(self.session)
-        if item is not None:
-            self.session.append_history([item])
-            yield events.DeveloperMessageEvent(session_id=self.session.id, item=item)
 
     def set_model_profile(self, profile: AgentProfile) -> None:
         """Apply a fully constructed profile to the agent."""

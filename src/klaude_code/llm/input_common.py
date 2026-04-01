@@ -72,13 +72,13 @@ def attach_developer_messages(
     return result
 
 
-def merge_reminder_text(tool_output: str | None, reminder_text: str, *, prefix_text: str = "") -> str:
-    """Merge tool output with reminder text."""
+def merge_attachment_text(tool_output: str | None, attachment_text: str, *, prefix_text: str = "") -> str:
+    """Merge tool output with attachment text."""
     base = tool_output or ""
     if prefix_text:
         base = f"{prefix_text}\n{base}" if base else prefix_text
-    if reminder_text:
-        base = f"{base}\n{reminder_text}" if base else reminder_text
+    if attachment_text:
+        base = f"{base}\n{attachment_text}" if base else attachment_text
     return base
 
 
@@ -119,7 +119,7 @@ def build_tool_message(
     """Build a tool message. Note: image_url in tool message is not supported by
     OpenAI Chat Completions API. Use build_tool_message_for_chat_completions instead.
     """
-    merged_text = merge_reminder_text(
+    merged_text = merge_attachment_text(
         msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
         prefix_text=attachment.prefix_text,
@@ -157,7 +157,7 @@ def build_tool_message_for_chat_completions(
         A tuple of (tool_message, optional_user_message_with_images).
         The user_message is None if there are no images.
     """
-    merged_text = merge_reminder_text(
+    merged_text = merge_attachment_text(
         msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
         prefix_text=attachment.prefix_text,

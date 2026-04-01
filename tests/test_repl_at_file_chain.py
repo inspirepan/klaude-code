@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from prompt_toolkit.document import Document
 
-from klaude_code.core.agent.reminders import at_file_reader_reminder
+from klaude_code.core.agent.attachments import at_file_reader_attachment
 from klaude_code.protocol import events, message, model
 from klaude_code.session.session import Session
 from klaude_code.tui.components.developer import render_developer_message
@@ -64,12 +64,12 @@ def test_at_files_completer_quotes_paths_with_spaces(tmp_path: Path, monkeypatch
     assert any((t.startswith('@"') and t.endswith(' "')) or t.endswith('" ') for t in insert_texts), insert_texts
 
 
-def test_at_file_reader_reminder_and_developer_render_chain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """End-to-end: @ patterns in user input -> reminder -> developer message render.
+def test_at_file_reader_attachment_and_developer_render_chain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """End-to-end: @ patterns in user input -> attachment -> developer message render.
 
     The chain under test:
     - User types a message that references a file via @"..." syntax
-    - at_file_reader_reminder parses and reads the file, populating at_files
+    - at_file_reader_attachment parses and reads the file, populating at_files
     - render_developer_message renders a line mentioning the file path
     """
 
@@ -85,21 +85,21 @@ def test_at_file_reader_reminder_and_developer_render_chain(tmp_path: Path, monk
     user_message = message.UserMessage(parts=message.text_parts_from_str(f'Please review @"{file_path}"'))
     session.conversation_history.append(user_message)
 
-    # Run reminder to parse and read the file
-    reminder = _arun(at_file_reader_reminder(session))
-    assert reminder is not None
-    assert reminder.ui_extra is not None
+    # Run attachment to parse and read the file
+    attachment = _arun(at_file_reader_attachment(session))
+    assert attachment is not None
+    assert attachment.ui_extra is not None
 
-    at_file_items = [ui_item for ui_item in reminder.ui_extra.items if isinstance(ui_item, model.AtFileOpsUIItem)]
+    at_file_items = [ui_item for ui_item in attachment.ui_extra.items if isinstance(ui_item, model.AtFileOpsUIItem)]
     assert len(at_file_items) == 1
     assert len(at_file_items[0].ops) == 1
 
     at_file = at_file_items[0].ops[0]
     assert at_file.path.endswith("ReadMe File.txt")
-    assert "hello chain" in message.join_text_parts(reminder.parts)
+    assert "hello chain" in message.join_text_parts(attachment.parts)
 
     # Render developer message and ensure the path appears with the same casing
-    event = events.DeveloperMessageEvent(session_id="test-session", item=reminder)
+    event = events.DeveloperMessageEvent(session_id="test-session", item=attachment)
     rendered = render_developer_message(event)
     plain = _extract_plain_text(rendered)
 
