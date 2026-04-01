@@ -96,7 +96,7 @@ class EditTool(ToolABC):
         if (
             not replace_all
             and new_string == ""
-            and not old_string.endswith("\n")
+            and "\n" not in old_string
             and content.find(old_string + "\n") != -1
         ):
             return content.replace(old_string + "\n", new_string, 1)
