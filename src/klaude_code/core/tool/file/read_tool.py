@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hashlib
+import json
 import os
 from base64 import b64encode
 from dataclasses import dataclass
@@ -12,13 +13,14 @@ from pydantic import BaseModel, Field
 
 from klaude_code.const import (
     BINARY_CHECK_SIZE,
+    FILE_UNCHANGED_STUB,
     READ_CHAR_LIMIT_PER_LINE,
     READ_GLOBAL_LINE_CAP,
     READ_MAX_CHARS,
     READ_MAX_IMAGE_BYTES,
 )
 from klaude_code.core.tool.context import FileTracker, ToolContext
-from klaude_code.core.tool.file._utils import file_exists, is_directory
+from klaude_code.core.tool.file._utils import detect_encoding, file_exists, is_blocked_device_path, is_directory
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.llm.image import detect_mime_type_from_bytes
@@ -35,10 +37,16 @@ _IMAGE_MIME_TYPES: dict[str, str] = {
 
 
 def _is_binary_file(file_path: str) -> bool:
-    """Check if a file is binary by looking for null bytes in the first chunk."""
+    """Check if a file is binary by looking for null bytes in the first chunk.
+
+    Excludes files with a UTF-16LE BOM (FF FE) since they legitimately contain null bytes.
+    """
     try:
         with open(file_path, "rb") as f:
             chunk = f.read(BINARY_CHECK_SIZE)
+            # UTF-16LE BOM: legitimate text encoding that contains null bytes
+            if len(chunk) >= 2 and chunk[0] == 0xFF and chunk[1] == 0xFE:
+                return False
             return b"\x00" in chunk
     except OSError:
         return False
@@ -79,7 +87,8 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
     char_limit_reached = False
     hasher = hashlib.sha256()
 
-    with open(options.file_path, encoding="utf-8", errors="replace") as f:
+    encoding = detect_encoding(options.file_path)
+    with open(options.file_path, encoding=encoding, errors="replace") as f:
         for line_no, raw_line in enumerate(f, start=1):
             total_lines = line_no
             hasher.update(raw_line.encode("utf-8"))
@@ -129,6 +138,7 @@ def _track_file_access(
     *,
     content_sha256: str | None = None,
     is_memory: bool = False,
+    read_complete: bool = False,
 ) -> None:
     if file_tracker is None or not file_exists(file_path) or is_directory(file_path):
         return
@@ -139,6 +149,7 @@ def _track_file_access(
             mtime=Path(file_path).stat().st_mtime,
             content_sha256=content_sha256,
             is_memory=is_mem,
+            read_complete=read_complete,
         )
 
 
@@ -229,6 +240,13 @@ def _missing_file_error(file_path: str) -> str:
     return f"<tool_use_error>{'\n'.join(message_lines)}</tool_use_error>"
 
 
+def _truncate_content(content: str, max_chars: int | None) -> tuple[str, bool]:
+    """Truncate content to max_chars, returning (content, was_truncated)."""
+    if max_chars is None or len(content) <= max_chars:
+        return content, False
+    return content[:max_chars], True
+
+
 @register(tools.READ)
 class ReadTool(ToolABC):
     class ReadArguments(BaseModel):
@@ -296,32 +314,29 @@ class ReadTool(ToolABC):
                 status="error",
                 output_text="<tool_use_error>Illegal operation on a directory: read</tool_use_error>",
             )
+
+        # Block dangerous device paths that would hang the process
+        if is_blocked_device_path(file_path):
+            return message.ToolResultMessage(
+                status="error",
+                output_text=f"<tool_use_error>Cannot read '{file_path}': this device file would block or produce infinite output.</tool_use_error>",
+            )
+
         if not file_exists(file_path):
             return message.ToolResultMessage(
                 status="error",
                 output_text=_missing_file_error(file_path),
             )
 
-        # Check for PDF files
-        if Path(file_path).suffix.lower() == ".pdf":
-            return message.ToolResultMessage(
-                status="error",
-                output_text=(
-                    "<tool_use_error>PDF files are not supported by this tool.\n"
-                    "If there's an available skill for PDF, use it.\n"
-                    "Or use a Python script with `pdfplumber` to extract text/tables:\n\n"
-                    "```python\n"
-                    "# /// script\n"
-                    '# dependencies = ["pdfplumber"]\n'
-                    "# ///\n"
-                    "import pdfplumber\n\n"
-                    "with pdfplumber.open('file.pdf') as pdf:\n"
-                    "    for page in pdf.pages:\n"
-                    "        print(page.extract_text())\n"
-                    "```\n"
-                    "</tool_use_error>"
-                ),
-            )
+        suffix = Path(file_path).suffix.lower()
+
+        # --- PDF support ---
+        if suffix == ".pdf":
+            return await cls._read_pdf(file_path, context)
+
+        # --- Notebook (.ipynb) support ---
+        if suffix == ".ipynb":
+            return await cls._read_notebook(file_path, context)
 
         is_image_file = _is_supported_image_file(file_path)
         # Check for binary files (skip for images which are handled separately)
@@ -340,45 +355,29 @@ class ReadTool(ToolABC):
             size_bytes = 0
 
         if is_image_file:
-            if size_bytes > READ_MAX_IMAGE_BYTES:
-                size_mb = size_bytes / (1024 * 1024)
-                limit_mb = READ_MAX_IMAGE_BYTES / (1024 * 1024)
-                return message.ToolResultMessage(
-                    status="error",
-                    output_text=(
-                        f"<tool_use_error>Image size ({size_mb:.2f}MB) exceeds maximum supported size ({limit_mb:.2f}MB) for inline transfer.</tool_use_error>"
-                    ),
-                )
-            try:
-                mime_type = _image_mime_type(file_path)
-                with open(file_path, "rb") as image_file:
-                    image_bytes = image_file.read()
-                # Correct MIME type if magic bytes disagree with extension
-                detected = detect_mime_type_from_bytes(image_bytes)
-                if detected:
-                    mime_type = detected
-                data_url = f"data:{mime_type};base64,{b64encode(image_bytes).decode('ascii')}"
-            except Exception as exc:
-                return message.ToolResultMessage(
-                    status="error",
-                    output_text=f"<tool_use_error>Failed to read image file: {exc}</tool_use_error>",
-                )
+            return await cls._read_image(file_path, size_bytes, context)
 
-            _track_file_access(context.file_tracker, file_path, content_sha256=hashlib.sha256(image_bytes).hexdigest())
-            size_kb = size_bytes / 1024.0 if size_bytes else 0.0
-            output_text = f"[image] {Path(file_path).name} ({size_kb:.1f}KB)"
-            image_part = message.ImageURLPart(url=data_url, id=None)
-            return message.ToolResultMessage(
-                status="success",
-                output_text=output_text,
-                parts=[image_part],
-                ui_extra=ImageUIExtra(file_path=file_path),
-            )
-
+        # --- Read dedup: avoid resending unchanged content ---
         offset = 1 if args.offset is None or args.offset < 1 else int(args.offset)
         limit = None if args.limit is None else int(args.limit)
         if limit is not None and limit < 0:
             limit = 0
+
+        # Read dedup: only for files previously fully read by ReadTool (not just tracked by Edit/Write)
+        existing_status = context.file_tracker.get(file_path) if context.file_tracker else None
+        if (
+            existing_status is not None
+            and existing_status.read_complete
+            and existing_status.content_sha256 is not None
+            and offset == 1
+            and limit is None
+        ):
+            try:
+                current_mtime = Path(file_path).stat().st_mtime
+                if current_mtime == existing_status.mtime:
+                    return message.ToolResultMessage(status="success", output_text=FILE_UNCHANGED_STUB)
+            except OSError:
+                pass
 
         try:
             read_result = await asyncio.to_thread(
@@ -404,9 +403,10 @@ class ReadTool(ToolABC):
                 output_text="<tool_use_error>Illegal operation on a directory: read</tool_use_error>",
             )
 
+        is_full_read = offset == 1 and limit is None
         if offset > max(read_result.total_lines, 0):
             warn = f"<system-reminder>Warning: the file exists but is shorter than the provided offset ({offset}). The file has {read_result.total_lines} lines.</system-reminder>"
-            _track_file_access(context.file_tracker, file_path, content_sha256=read_result.content_sha256)
+            _track_file_access(context.file_tracker, file_path, content_sha256=read_result.content_sha256, read_complete=is_full_read)
             return message.ToolResultMessage(status="success", output_text=warn)
 
         lines_out: list[str] = [_format_numbered_line(no, content) for no, content in read_result.selected_lines]
@@ -424,7 +424,7 @@ class ReadTool(ToolABC):
             )
 
         read_result_str = "\n".join(lines_out)
-        _track_file_access(context.file_tracker, file_path, content_sha256=read_result.content_sha256)
+        _track_file_access(context.file_tracker, file_path, content_sha256=read_result.content_sha256, read_complete=is_full_read)
 
         # When offset > 1, show a preview of the first 5 lines in UI
         ui_extra = None
@@ -438,3 +438,139 @@ class ReadTool(ToolABC):
             ui_extra = ReadPreviewUIExtra(lines=preview_lines, remaining_lines=remaining)
 
         return message.ToolResultMessage(status="success", output_text=read_result_str, ui_extra=ui_extra)
+
+    @classmethod
+    async def _read_image(
+        cls, file_path: str, size_bytes: int, context: ToolContext
+    ) -> message.ToolResultMessage:
+        if size_bytes > READ_MAX_IMAGE_BYTES:
+            size_mb = size_bytes / (1024 * 1024)
+            limit_mb = READ_MAX_IMAGE_BYTES / (1024 * 1024)
+            return message.ToolResultMessage(
+                status="error",
+                output_text=(
+                    f"<tool_use_error>Image size ({size_mb:.2f}MB) exceeds maximum supported size ({limit_mb:.2f}MB) for inline transfer.</tool_use_error>"
+                ),
+            )
+        try:
+            mime_type = _image_mime_type(file_path)
+            with open(file_path, "rb") as image_file:
+                image_bytes = image_file.read()
+            # Correct MIME type if magic bytes disagree with extension
+            detected = detect_mime_type_from_bytes(image_bytes)
+            if detected:
+                mime_type = detected
+            # Note: downstream LLM input layer calls normalize_image_data_url()
+            # which handles resize/compression, so we don't resize here.
+            data_url = f"data:{mime_type};base64,{b64encode(image_bytes).decode('ascii')}"
+        except Exception as exc:
+            return message.ToolResultMessage(
+                status="error",
+                output_text=f"<tool_use_error>Failed to read image file: {exc}</tool_use_error>",
+            )
+
+        _track_file_access(context.file_tracker, file_path, content_sha256=hashlib.sha256(image_bytes).hexdigest())
+        size_kb = size_bytes / 1024.0 if size_bytes else 0.0
+        output_text = f"[image] {Path(file_path).name} ({size_kb:.1f}KB)"
+        image_part = message.ImageURLPart(url=data_url, id=None)
+        return message.ToolResultMessage(
+            status="success",
+            output_text=output_text,
+            parts=[image_part],
+            ui_extra=ImageUIExtra(file_path=file_path),
+        )
+
+    @classmethod
+    async def _read_pdf(cls, file_path: str, context: ToolContext) -> message.ToolResultMessage:
+        """Read PDF file using pdfplumber if available, otherwise return helpful error."""
+        try:
+            import pdfplumber  # type: ignore[import-untyped]
+        except ImportError:
+            return message.ToolResultMessage(
+                status="error",
+                output_text=(
+                    "<tool_use_error>PDF files require pdfplumber. Install with: uv add pdfplumber\n"
+                    "Or use a Python script:\n\n"
+                    "```python\n"
+                    "# /// script\n"
+                    '# dependencies = ["pdfplumber"]\n'
+                    "# ///\n"
+                    "import pdfplumber\n\n"
+                    f"with pdfplumber.open('{file_path}') as pdf:\n"
+                    "    for page in pdf.pages:\n"
+                    "        print(page.extract_text())\n"
+                    "```\n"
+                    "</tool_use_error>"
+                ),
+            )
+
+        def _extract() -> str:
+            pages_text: list[str] = []
+            with pdfplumber.open(file_path) as pdf:  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+                for i, page in enumerate(pdf.pages, 1):  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType,reportUnknownArgumentType]
+                    text: str = page.extract_text() or ""  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+                    pages_text.append(f"--- Page {i} ---\n{text}")
+            return "\n\n".join(pages_text)
+
+        try:
+            content = await asyncio.to_thread(_extract)
+        except Exception as exc:
+            return message.ToolResultMessage(
+                status="error",
+                output_text=f"<tool_use_error>Failed to read PDF: {exc}</tool_use_error>",
+            )
+
+        _, _, max_chars = cls._effective_limits()
+        content, truncated = _truncate_content(content, max_chars)
+
+        _track_file_access(context.file_tracker, file_path)
+        header = f"[PDF] {Path(file_path).name}"
+        suffix = "\n\n... (content truncated due to size limit)" if truncated else ""
+        return message.ToolResultMessage(
+            status="success",
+            output_text=f"{header}\n\n{content}{suffix}",
+        )
+
+    @classmethod
+    async def _read_notebook(cls, file_path: str, context: ToolContext) -> message.ToolResultMessage:
+        """Read Jupyter notebook (.ipynb) and return cells as structured text."""
+
+        def _parse() -> str:
+            with open(file_path, encoding="utf-8") as f:
+                nb = json.load(f)
+            cells = nb.get("cells", [])
+            parts: list[str] = []
+            for i, cell in enumerate(cells, 1):
+                cell_type = cell.get("cell_type", "unknown")
+                source = "".join(cell.get("source", []))
+                header = f"--- Cell {i} [{cell_type}] ---"
+                parts.append(f"{header}\n{source}")
+                # Include text outputs for code cells
+                outputs = cell.get("outputs", [])
+                for output in outputs:
+                    if "text" in output:
+                        text = "".join(output["text"])
+                        parts.append(f"[output]\n{text}")
+                    elif "data" in output and "text/plain" in output["data"]:
+                        text = "".join(output["data"]["text/plain"])
+                        parts.append(f"[output]\n{text}")
+            return "\n\n".join(parts)
+
+        try:
+            content = await asyncio.to_thread(_parse)
+        except Exception as exc:
+            return message.ToolResultMessage(
+                status="error",
+                output_text=f"<tool_use_error>Failed to read notebook: {exc}</tool_use_error>",
+            )
+
+        _, _, max_chars = cls._effective_limits()
+        content, truncated = _truncate_content(content, max_chars)
+
+        _track_file_access(context.file_tracker, file_path)
+        header = f"[Notebook] {Path(file_path).name}"
+        suffix = "\n\n... (content truncated due to size limit)" if truncated else ""
+        return message.ToolResultMessage(
+            status="success",
+            output_text=f"{header}\n\n{content}{suffix}",
+        )

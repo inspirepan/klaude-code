@@ -82,6 +82,28 @@ READ_GLOBAL_LINE_CAP = _get_int_env("KLAUDE_READ_GLOBAL_LINE_CAP", 2000)  # Maxi
 READ_MAX_CHARS = _get_int_env("KLAUDE_READ_MAX_CHARS", 50000)  # Maximum total characters to read
 READ_MAX_IMAGE_BYTES = _get_int_env("KLAUDE_READ_MAX_IMAGE_BYTES", 64 * 1024 * 1024)  # Max image size (64MB)
 BINARY_CHECK_SIZE = 8192  # Bytes to check for binary file detection
+EDIT_MAX_FILE_SIZE = 1024 * 1024 * 1024  # Maximum file size for edit/write operations (1 GiB, prevents OOM)
+
+# Device paths that would hang the process: infinite output or blocking input.
+BLOCKED_DEVICE_PATHS = frozenset({
+    "/dev/zero",
+    "/dev/random",
+    "/dev/urandom",
+    "/dev/full",
+    "/dev/stdin",
+    "/dev/tty",
+    "/dev/console",
+    "/dev/stdout",
+    "/dev/stderr",
+    "/dev/fd/0",
+    "/dev/fd/1",
+    "/dev/fd/2",
+})
+
+FILE_UNCHANGED_STUB = (
+    "File unchanged since last read. The content from the earlier Read tool_result "
+    "in this conversation is still current -- refer to that instead of re-reading."
+)
 
 
 # =============================================================================

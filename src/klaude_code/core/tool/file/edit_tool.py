@@ -8,9 +8,18 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from klaude_code.const import DIFF_DEFAULT_CONTEXT_LINES
+from klaude_code.const import DIFF_DEFAULT_CONTEXT_LINES, EDIT_MAX_FILE_SIZE
 from klaude_code.core.tool.context import ToolContext
-from klaude_code.core.tool.file._utils import file_exists, hash_text_sha256, is_directory, read_text, write_text
+from klaude_code.core.tool.file._utils import (
+    file_exists,
+    find_actual_string,
+    hash_text_sha256,
+    is_directory,
+    preserve_quote_style,
+    read_text_with_encoding,
+    strip_trailing_whitespace,
+    write_text,
+)
 from klaude_code.core.tool.file.diff_builder import build_structured_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
@@ -80,6 +89,18 @@ class EditTool(ToolABC):
         if old_string == "":
             # Creating new file content
             return new_string
+
+        # Smart deletion: when deleting a single occurrence (new_string is empty, not replace_all)
+        # and old_string doesn't end with a newline, also remove the trailing newline to avoid
+        # leaving blank lines. Only for single replacement to avoid miscount with replace_all.
+        if (
+            not replace_all
+            and new_string == ""
+            and not old_string.endswith("\n")
+            and content.find(old_string + "\n") != -1
+        ):
+            return content.replace(old_string + "\n", new_string, 1)
+
         if replace_all:
             return content.replace(old_string, new_string)
         # Replace one occurrence only (we already ensured uniqueness)
@@ -118,6 +139,20 @@ class EditTool(ToolABC):
                 status="error",
                 output_text=("File does not exist. If you want to create a file, use the Write tool instead."),
             )
+
+        # OOM guard: reject files larger than EDIT_MAX_FILE_SIZE
+        try:
+            file_size = Path(file_path).stat().st_size
+        except OSError:
+            file_size = 0
+        if file_size > EDIT_MAX_FILE_SIZE:
+            size_mb = file_size / (1024 * 1024)
+            limit_mb = EDIT_MAX_FILE_SIZE / (1024 * 1024)
+            return message.ToolResultMessage(
+                status="error",
+                output_text=f"<tool_use_error>File is too large to edit ({size_mb:.0f}MB). Maximum editable file size is {limit_mb:.0f}MB.</tool_use_error>",
+            )
+
         tracked_status = file_tracker.get(file_path)
         if tracked_status is None:
             return message.ToolResultMessage(
@@ -127,7 +162,7 @@ class EditTool(ToolABC):
 
         # Edit existing file: validate and apply
         try:
-            before = await asyncio.to_thread(read_text, file_path)
+            before, file_encoding = await asyncio.to_thread(read_text_with_encoding, file_path)
         except FileNotFoundError:
             return message.ToolResultMessage(
                 status="error",
@@ -158,10 +193,22 @@ class EditTool(ToolABC):
                     ),
                 )
 
+        # Quote normalization: find actual string in file (handles curly quotes)
+        actual_old_string = find_actual_string(before, args.old_string)
+        if actual_old_string is None:
+            actual_old_string = args.old_string  # fall through to valid() which will report not-found
+
+        # Strip trailing whitespace from new_string (except for markdown files)
+        is_markdown = file_path.lower().endswith((".md", ".mdx"))
+        new_string = args.new_string if is_markdown else strip_trailing_whitespace(args.new_string)
+
+        # Preserve curly quote style when old_string was matched via normalization
+        new_string = preserve_quote_style(args.old_string, actual_old_string, new_string)
+
         err = cls.valid(
             content=before,
-            old_string=args.old_string,
-            new_string=args.new_string,
+            old_string=actual_old_string,
+            new_string=new_string,
             replace_all=args.replace_all,
         )
         if err is not None:
@@ -169,8 +216,8 @@ class EditTool(ToolABC):
 
         after = cls.execute(
             content=before,
-            old_string=args.old_string,
-            new_string=args.new_string,
+            old_string=actual_old_string,
+            new_string=new_string,
             replace_all=args.replace_all,
         )
 
@@ -183,9 +230,9 @@ class EditTool(ToolABC):
                 ),
             )
 
-        # Write back
+        # Write back (preserve original encoding)
         try:
-            await asyncio.to_thread(write_text, file_path, after)
+            await asyncio.to_thread(write_text, file_path, after, file_encoding)
         except (OSError, UnicodeError) as e:  # pragma: no cover
             return message.ToolResultMessage(status="error", output_text=f"<tool_use_error>{e}</tool_use_error>")
 
@@ -220,7 +267,7 @@ class EditTool(ToolABC):
 
         # Build output message
         if args.replace_all:
-            msg = f"The file {file_path} has been updated. All occurrences of '{args.old_string}' were successfully replaced with '{args.new_string}'."
+            msg = f"The file {file_path} has been updated. All occurrences of '{args.old_string}' were successfully replaced with '{new_string}'."
             return message.ToolResultMessage(status="success", output_text=msg, ui_extra=ui_extra)
 
         # For single replacement, show a snippet consisting of context + added lines only

@@ -6,6 +6,8 @@ Usage:
 - The file_path parameter must be an absolute path, not a relative path
 - By default, it reads up to ${line_cap} lines starting from the beginning of the file
 - This tool allows you to read images (eg PNG, JPG, etc). When reading an image file the contents are presented visually as you are a multimodal LLM.
+- This tool can read Jupyter notebooks (.ipynb files) and returns all cells with their outputs, combining code, text, and visualizations.
+- This tool can read PDF files if pdfplumber is installed, extracting text from all pages.
 - You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
 - Any lines longer than ${char_limit_per_line} characters will be truncated
 - Total output is capped at ${max_chars} characters
