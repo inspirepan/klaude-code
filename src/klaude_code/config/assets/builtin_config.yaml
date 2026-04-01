@@ -14,7 +14,7 @@ provider_list:
       type: adaptive
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
-  - model_name: sonnet-no-thinking
+  - model_name: sonnet:no-thinking
     model_id: claude-sonnet-4-6
     context_limit: 1000000
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
@@ -26,6 +26,15 @@ provider_list:
     thinking:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: opus:fast
+    model_id: claude-opus-4-6
+    context_limit: 1000000
+    verbosity: high
+    fast_mode: true
+    thinking:
+      type: adaptive
+    cost: { input: 30, output: 150, cache_read: 3, cache_write: 37.5 }
 
   - model_name: haiku
     model_id: claude-haiku-4-5-20251001
@@ -57,6 +66,17 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 0.75, output: 4.5, cache_read: 0.075 }
 
+  - model_name: gpt-5.4-mini:fast
+    model_id: gpt-5.4-mini
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    fast_mode: true
+    thinking:
+      reasoning_effort: none
+      reasoning_summary: concise
+    cost: { input: 1.5, output: 9, cache_read: 0.15 }
+
   - model_name: gpt-5.4
     model_id: gpt-5.4
     max_tokens: 128000
@@ -67,7 +87,7 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
-  - model_name: gpt-5.4-xhigh
+  - model_name: gpt-5.4:xhigh
     model_id: gpt-5.4
     max_tokens: 128000
     context_limit: 400000
@@ -77,6 +97,28 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
+  - model_name: gpt-5.4:fast
+    model_id: gpt-5.4
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    fast_mode: true
+    thinking:
+      reasoning_effort: high
+      reasoning_summary: concise
+    cost: { input: 5, output: 30, cache_read: 0.5 }
+
+  - model_name: gpt-5.4:xhigh:fast
+    model_id: gpt-5.4
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    fast_mode: true
+    thinking:
+      reasoning_effort: xhigh
+      reasoning_summary: concise
+    cost: { input: 5, output: 30, cache_read: 0.5 }
+
   - model_id: gpt-5.3-codex
     thinking:
       reasoning_effort: high
@@ -85,7 +127,7 @@ provider_list:
     max_tokens: 128000
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
-  - model_name: gpt-5.3-codex-xhigh
+  - model_name: gpt-5.3-codex:xhigh
     model_id: gpt-5.3-codex
     thinking:
       reasoning_effort: xhigh
@@ -113,7 +155,7 @@ provider_list:
       reasoning_effort: medium
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
-  - model_name: gemini-flash-minimal
+  - model_name: gemini-flash:minimal
     model_id: gemini-flash-latest
     context_limit: 1048576
     thinking:
@@ -148,7 +190,7 @@ provider_list:
       reasoning_effort: medium
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
-  - model_name: gemini-flash-minimal
+  - model_name: gemini-flash:minimal
     model_id: gemini-flash-latest
     context_limit: 1048576
     thinking:
@@ -226,7 +268,7 @@ provider_list:
     max_tokens: 128000
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
-  - model_name: gpt-5.3-codex-xhigh
+  - model_name: gpt-5.3-codex:xhigh
     model_id: gpt-5.3-codex
     thinking:
       reasoning_effort: xhigh
@@ -265,7 +307,7 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
-  - model_name: gpt-5.4-xhigh
+  - model_name: gpt-5.4:xhigh
     model_id: gpt-5.4
     max_tokens: 128000
     context_limit: 400000
@@ -287,7 +329,7 @@ provider_list:
     max_tokens: 128000
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
-  - model_name: gpt-5.3-codex-xhigh
+  - model_name: gpt-5.3-codex:xhigh
     model_id: gpt-5.3-codex
     thinking:
       reasoning_effort: xhigh
@@ -326,7 +368,7 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
-  - model_name: gpt-5.4-xhigh
+  - model_name: gpt-5.4:xhigh
     model_id: gpt-5.4
     max_tokens: 128000
     context_limit: 400000
@@ -384,7 +426,7 @@ provider_list:
     max_tokens: 128000
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
-  - model_name: gpt-5.3-codex-xhigh
+  - model_name: gpt-5.3-codex:xhigh
     model_id: openai/gpt-5.3-codex
     thinking:
       reasoning_effort: xhigh
@@ -423,7 +465,7 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
-  - model_name: gpt-5.4-xhigh
+  - model_name: gpt-5.4:xhigh
     model_id: openai/gpt-5.4
     max_tokens: 128000
     context_limit: 400000
@@ -457,7 +499,7 @@ provider_list:
       type: adaptive
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
-  - model_name: sonnet-no-thinking
+  - model_name: sonnet:no-thinking
     model_id: anthropic/claude-sonnet-4.6
     context_limit: 1000000
     provider_routing:
@@ -486,7 +528,7 @@ provider_list:
       reasoning_effort: medium
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
-  - model_name: gemini-flash-minimal
+  - model_name: gemini-flash:minimal
     model_id: gemini-flash-latest
     context_limit: 1048576
     thinking:
@@ -520,7 +562,7 @@ provider_list:
 sub_agent_models:
   finder:
   - gpt-5.4-mini
-  - gemini-flash-minimal
+  - gemini-flash:minimal
   - haiku
   review:
   - gpt-5.4
@@ -528,11 +570,11 @@ sub_agent_models:
 
 compact_model:
 - gemini-flash
-- sonnet-no-thinking
+- sonnet:no-thinking
 - gpt-5.4-mini
 fast_model:
 - gpt-5.4-nano
 - gemini-flash-lite
 - gpt-5.4-mini
-- gemini-flash-minimal
+- gemini-flash:minimal
 - haiku

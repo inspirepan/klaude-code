@@ -140,6 +140,9 @@ class LLMConfigModelParameter(BaseModel):
     # OpenRouter Provider Routing Preferences
     provider_routing: OpenRouterProviderRouting | None = None
 
+    # Fast mode: Anthropic speed="fast", OpenAI service_tier="priority"
+    fast_mode: bool = False
+
     # Cost configuration (USD per million tokens)
     cost: Cost | None = None
 

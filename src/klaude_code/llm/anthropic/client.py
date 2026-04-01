@@ -231,6 +231,12 @@ def build_payload(
     if param.verbosity:
         payload["output_config"] = {"effort": param.verbosity}  # type: ignore[typeddict-item]
 
+    if param.fast_mode:
+        payload["speed"] = "fast"  # type: ignore[typeddict-item]
+        fast_beta = "fast-mode-2026-02-01"
+        if fast_beta not in (payload.get("betas") or []):
+            payload.setdefault("betas", []).append(fast_beta)  # type: ignore[union-attr]
+
     return payload
 
 

@@ -293,6 +293,7 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
                     model_name="GPT-5",
                     thinking=None,
                     verbosity=None,
+                    fast_mode=False,
                     provider_routing=None,
                 ),
                 SimpleNamespace(
@@ -302,6 +303,7 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
                     model_name="Claude Sonnet 4",
                     thinking=None,
                     verbosity=None,
+                    fast_mode=False,
                     provider_routing=None,
                 ),
             ]

@@ -81,7 +81,7 @@ def test_at_files_completer_preserves_dotfile_prefix(monkeypatch: pytest.MonkeyP
 
 
 def test_at_files_completer_formats_display_labels() -> None:
-    """Display labels show full path with dim directory prefix and highlighted keyword."""
+    """Display labels show full path with dim directory prefix."""
 
     completer = _AtFilesCompleter()  # pyright: ignore[reportPrivateUsage]
 
@@ -92,7 +92,7 @@ def test_at_files_completer_formats_display_labels() -> None:
     ]
 
     labels = [
-        completer._format_display_label(s, keyword="comp")  # pyright: ignore[reportPrivateUsage]
+        completer._format_display_label(s)  # pyright: ignore[reportPrivateUsage]
         for s in suggestions
     ]
 
@@ -108,22 +108,6 @@ def test_at_files_completer_formats_display_labels() -> None:
 
     # Root-level file has no directory prefix
     assert _plain(labels[2]) == "pyproject.toml"
-
-
-def test_at_files_completer_display_label_highlights_keyword() -> None:
-    """Keyword match in the path is highlighted with a special style."""
-    completer = _AtFilesCompleter()  # pyright: ignore[reportPrivateUsage]
-
-    label = completer._format_display_label("src/very_long_tools_filename.py", keyword="tools")  # pyright: ignore[reportPrivateUsage]
-
-    # The label should contain a highlighted segment for "tools"
-    styles = [seg[0] for seg in label]  # type: ignore[index]
-    texts = [seg[1] for seg in label]  # type: ignore[index]
-    full_text = "".join(texts)
-    assert full_text == "src/very_long_tools_filename.py"
-
-    # At least one segment should have the highlight style
-    assert any("underline" in s for s in styles), f"Expected highlight style in {styles}"
 
 
 def test_git_paths_for_keyword_includes_all_tools_dirs_even_when_many_files_match(

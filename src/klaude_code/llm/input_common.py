@@ -289,4 +289,6 @@ def apply_config_defaults(param: "LLMCallParameter", config: "LLMConfigParameter
         param.thinking = config.thinking
     if param.provider_routing is None:
         param.provider_routing = config.provider_routing
+    if not param.fast_mode:
+        param.fast_mode = config.fast_mode
     return param

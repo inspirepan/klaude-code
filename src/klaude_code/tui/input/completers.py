@@ -410,7 +410,7 @@ class _AtFilesCompleter(Completer):
                 yield Completion(
                     text=self._format_completion_text(s, is_quoted=is_quoted),
                     start_position=start_position,
-                    display=self._format_display_label(s, keyword=""),
+                    display=self._format_display_label(s),
                 )
             return []  # type: ignore[reportUnknownVariableType]
 
@@ -421,12 +421,11 @@ class _AtFilesCompleter(Completer):
 
         # Prepare Completion objects. Replace from the '@' character.
         start_position = token_start_in_input - len(text_before)  # negative
-        keyword_lower = search_frag.lower()
         for s in suggestions[: self._max_results]:
             yield Completion(
                 text=self._format_completion_text(s, is_quoted=is_quoted),
                 start_position=start_position,
-                display=self._format_display_label(s, keyword=keyword_lower),
+                display=self._format_display_label(s),
             )
 
     # ---- Core logic ----
@@ -631,11 +630,10 @@ class _AtFilesCompleter(Completer):
             return f'@"{suggestion}" '
         return f"@{suggestion} "
 
-    def _format_display_label(self, suggestion: str, *, keyword: str) -> FormattedText:
+    def _format_display_label(self, suggestion: str) -> FormattedText:
         """Format visible label showing the full path.
 
-        The filename is shown in default color, directory parts use a dim style,
-        and the keyword match is highlighted with a yellow underline.
+        The filename is shown in default color, directory parts use a dim style.
         """
         is_dir = suggestion.endswith("/")
         stripped = suggestion.rstrip("/")
@@ -644,45 +642,12 @@ class _AtFilesCompleter(Completer):
             basename += "/"
         dir_prefix = suggestion[: len(suggestion) - len(basename)]
 
-        # Build segments: (style, text) pairs
         segments: list[tuple[str, str]] = []
         if dir_prefix:
             segments.append(("ansibrightblack", dir_prefix))
         segments.append(("", basename))
 
-        if not keyword:
-            return FormattedText(segments)
-
-        # Highlight the first keyword match across the full path
-        path_lower = suggestion.lower()
-        match_start = path_lower.find(keyword)
-        if match_start == -1:
-            return FormattedText(segments)
-
-        match_end = match_start + len(keyword)
-        result: list[tuple[str, str]] = []
-        pos = 0
-        dim = "ansibrightblack"
-        highlight = "underline fg:ansiyellow"
-
-        for style, text in segments:
-            seg_start = pos
-            seg_end = pos + len(text)
-
-            if seg_end <= match_start or seg_start >= match_end:
-                result.append((style, text))
-            else:
-                before = max(match_start - seg_start, 0)
-                after = min(match_end - seg_start, len(text))
-                if before > 0:
-                    result.append((style, text[:before]))
-                result.append((highlight if style == dim else f"{highlight}", text[before:after]))
-                if after < len(text):
-                    result.append((style, text[after:]))
-
-            pos = seg_end
-
-        return FormattedText(result)
+        return FormattedText(segments)
 
     def _same_scope(self, prev_key: str, cur_key: str) -> bool:
         # Consider same scope if they share the same base directory and one prefix startswith the other
