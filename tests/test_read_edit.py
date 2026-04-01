@@ -904,37 +904,12 @@ class TestBlockedDevicePaths(BaseTempDirTest):
 
 class TestOOMGuard(BaseTempDirTest):
     def test_edit_rejects_huge_file(self):
-        from unittest.mock import patch
-
         p = os.path.abspath("huge.txt")
         with open(p, "w", encoding="utf-8") as f:
             f.write("hello\n")
         _ = arun(ReadTool.call(json.dumps({"file_path": p}), self.tool_context))
 
-        # Fake a huge file size
-        fake_size = 2 * 1024 * 1024 * 1024  # 2 GiB
-        orig_stat = os.stat
-
-        def fake_stat(path, *a, **kw):
-            result = orig_stat(path, *a, **kw)
-            if str(path) == p:
-                # Return a modified stat result with large st_size
-
-                class FakeStat:
-                    pass
-
-                fs = FakeStat()
-                for attr in dir(result):
-                    if attr.startswith("st_"):
-                        setattr(fs, attr, getattr(result, attr))
-                fs.st_size = fake_size  # type: ignore[attr-defined]
-                return fs  # type: ignore[return-value]
-            return result
-
-        with patch("klaude_code.core.tool.file.edit_tool.Path.stat", side_effect=lambda: orig_stat(p)):
-            pass
-
-        # Simpler approach: just check the constant is used
+        # Check the constant is used
         from klaude_code.const import EDIT_MAX_FILE_SIZE
 
         self.assertEqual(EDIT_MAX_FILE_SIZE, 1024 * 1024 * 1024)
@@ -1139,7 +1114,7 @@ class TestTrailingWhitespaceCleanup(BaseTempDirTest):
 class TestNotebookSupport(BaseTempDirTest):
     def test_read_notebook(self):
         p = os.path.abspath("test.ipynb")
-        nb_content = {
+        nb_content: dict[str, object] = {
             "cells": [
                 {
                     "cell_type": "code",

@@ -254,7 +254,7 @@ class TestRunHandoff:
 
 class TestMemoryReset:
     def test_reset_memory_loaded_flags(self) -> None:
-        from klaude_code.core.agent.task import _reset_memory_loaded_flags
+        from klaude_code.core.agent.task import _reset_memory_loaded_flags  # pyright: ignore[reportPrivateUsage]
 
         file_tracker: dict[str, model.FileStatus] = {
             "src/foo.py": model.FileStatus(mtime=1.0, is_memory=False),
