@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
@@ -9,24 +8,24 @@ if TYPE_CHECKING:
     from klaude_code.config.config import Config
 
 from klaude_code.core.agent.reminders import (
+    Reminder,
     at_file_reader_reminder,
+    file_changed_externally_reminder,
     image_reminder,
     last_path_memory_reminder,
     memory_reminder,
     skill_reminder,
+    todo_reminder,
 )
 from klaude_code.core.prompts.system_prompt import load_system_prompt
 from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_registry import get_tool_schemas
 from klaude_code.llm import LLMClientABC
-from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol import llm_param, tools
 from klaude_code.protocol.model_id import (
     is_gpt5_model,
 )
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
-from klaude_code.session import Session
-
-type Reminder = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
 
 
 @dataclass(frozen=True)
@@ -114,9 +113,11 @@ def load_agent_reminders(
     return [
         memory_reminder,
         at_file_reader_reminder,
+        file_changed_externally_reminder,
         last_path_memory_reminder,
         image_reminder,
         skill_reminder,
+        todo_reminder,
     ]
 
 

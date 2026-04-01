@@ -1,9 +1,14 @@
+import asyncio
+import difflib
 import hashlib
+import logging
 import re
 import shlex
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 
 from klaude_code.core.memory import (
+    AUTO_MEMORY_MAX_LINES,
     Memory,
     discover_memory_files_near_paths,
     format_memories_reminder,
@@ -19,8 +24,19 @@ from klaude_code.protocol import message, model, tools
 from klaude_code.session import Session
 from klaude_code.skill import get_skill
 
+logger = logging.getLogger(__name__)
+
 # Match @ preceded by whitespace, start of line, or → (ReadTool line number arrow)
+# Supports optional line range suffix: @file.txt#L10-20 or @file.txt#L10
 AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>\S+))')
+
+# Memory budget limits (inspired by Claude Code's attachment system)
+MEMORY_MAX_BYTES_PER_FILE = 4096
+MEMORY_MAX_SESSION_BYTES = 60 * 1024
+
+# Todo reminder configuration
+TODO_REMINDER_TURNS_SINCE_WRITE = 10
+TODO_REMINDER_TURNS_BETWEEN_REMINDERS = 10
 
 # Match /skill:xxx or //skill:xxx inline (at start of line or after whitespace).
 # Require token boundary after the skill name to avoid matching paths like
@@ -28,20 +44,58 @@ AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P
 SLASH_SKILL_PATTERN = re.compile(r"(?:^|\s)(?://|/)skill:(?P<skill>[^\s/]+)(?=\s|$)")
 
 
-def get_at_patterns(session: Session) -> list[str]:
+class AtFileRef:
+    """Parsed @file reference with optional line range."""
+
+    __slots__ = ("line_end", "line_start", "path")
+
+    def __init__(self, path: str, line_start: int | None = None, line_end: int | None = None) -> None:
+        self.path = path
+        self.line_start = line_start
+        self.line_end = line_end
+
+
+def _parse_at_file_ref(raw: str) -> AtFileRef:
+    """Parse a raw @-mention string into path + optional line range.
+
+    Supports: file.txt, file.txt#L10, file.txt#L10-20
+
+    To avoid breaking filenames that literally contain ``#L``, the suffix is
+    only stripped when the path-without-suffix resolves to an existing file
+    and the full raw path does not.
+    """
+    match = re.match(r"^(.+?)#L(\d+)(?:-(\d+))?$", raw)
+    if not match:
+        return AtFileRef(raw)
+
+    base_path = match.group(1)
+    # If the raw string is itself a valid path, treat it literally
+    if Path(raw).resolve().exists():
+        return AtFileRef(raw)
+    # Only interpret as line range if the base path exists
+    if not Path(base_path).resolve().exists():
+        return AtFileRef(raw)
+
+    line_start = int(match.group(2))
+    line_end_str = match.group(3)
+    line_end = int(line_end_str) if line_end_str else line_start
+    return AtFileRef(base_path, line_start, line_end)
+
+
+def get_at_patterns(session: Session) -> list[AtFileRef]:
     """Get @ patterns from the last user message."""
     for item in reversed(session.conversation_history):
         if isinstance(item, message.ToolResultMessage):
             break
         if isinstance(item, message.UserMessage):
             content = message.join_text_parts(item.parts)
-            patterns: list[str] = []
+            refs: list[AtFileRef] = []
             if "@" in content:
                 for match in AT_FILE_PATTERN.finditer(content):
                     path_str = match.group("quoted") or match.group("plain")
                     if path_str:
-                        patterns.append(path_str)
-            return patterns
+                        refs.append(_parse_at_file_ref(path_str))
+            return refs
     return []
 
 
@@ -82,7 +136,7 @@ def _is_tracked_file_unchanged(session: Session, path: str) -> bool:
 
 async def _load_at_file(
     session: Session,
-    pattern: str,
+    ref: AtFileRef,
     at_ops: list[model.AtFileOp],
     formatted_blocks: list[str],
     collected_images: list[message.ImageURLPart],
@@ -90,7 +144,7 @@ async def _load_at_file(
     discovered_memories: list[Memory],
 ) -> None:
     """Load a single @ file or directory reference."""
-    path = Path(pattern).resolve()
+    path = Path(ref.path).resolve()
     path_str = str(path)
 
     tool_context = ToolContext(
@@ -101,9 +155,23 @@ async def _load_at_file(
     )
 
     if path.exists() and path.is_file():
-        if _is_tracked_file_unchanged(session, path_str):
+        # Already-read optimization: if file is unchanged and no line range specified,
+        # emit a lightweight "already in context" note instead of re-reading.
+        if _is_tracked_file_unchanged(session, path_str) and ref.line_start is None:
+            at_ops.append(model.AtFileOp(operation="Read", path=path_str))
+            formatted_blocks.append(
+                f"Note: {path_str} is already in context and unchanged. "
+                f"Use the {tools.READ} tool if you need to re-read it."
+            )
             return
-        args = ReadTool.ReadArguments(file_path=path_str)
+
+        # Build ReadTool args, passing offset/limit if line range specified
+        read_kwargs: dict[str, object] = {"file_path": path_str}
+        if ref.line_start is not None:
+            read_kwargs["offset"] = ref.line_start
+        if ref.line_end is not None and ref.line_start is not None:
+            read_kwargs["limit"] = ref.line_end - ref.line_start + 1
+        args = ReadTool.ReadArguments(**read_kwargs)  # type: ignore[arg-type]
         tool_result = await ReadTool.call_with_args(args, tool_context)
         images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
 
@@ -148,8 +216,8 @@ async def at_file_reader_reminder(
     session: Session,
 ) -> message.DeveloperMessage | None:
     """Parse @foo/bar references from the last user message and load them."""
-    patterns = get_at_patterns(session)
-    if not patterns:
+    refs = get_at_patterns(session)
+    if not refs:
         return None
 
     at_ops: list[model.AtFileOp] = []
@@ -158,10 +226,10 @@ async def at_file_reader_reminder(
     collected_image_paths: list[str] = []
     discovered_memories: list[Memory] = []
 
-    for pattern in patterns:
+    for ref in refs:
         await _load_at_file(
             session,
-            pattern,
+            ref,
             at_ops,
             formatted_blocks,
             collected_images,
@@ -188,56 +256,112 @@ async def at_file_reader_reminder(
     )
 
 
+def _compute_diff_snippet(old_content: str, new_content: str, path: str) -> str:
+    """Compute a contextual diff snippet between old and new file content.
+
+    Returns only the changed sections with surrounding context, rather than the
+    full file content. This dramatically reduces context injection for large files
+    with small changes.
+    """
+    old_lines = old_content.splitlines(keepends=True)
+    new_lines = new_content.splitlines(keepends=True)
+
+    diff_lines: list[str] = []
+    for group in difflib.SequenceMatcher(None, old_lines, new_lines).get_grouped_opcodes(3):
+        for tag, i1, i2, j1, j2 in group:
+            if tag == "equal":
+                for idx, line in enumerate(new_lines[j1:j2]):
+                    line_no = j1 + idx + 1
+                    diff_lines.append(f"  {line_no:>6}\t{line.rstrip()}")
+            elif tag == "replace":
+                for line in old_lines[i1:i2]:
+                    diff_lines.append(f"       -\t{line.rstrip()}")
+                for idx, line in enumerate(new_lines[j1:j2]):
+                    line_no = j1 + idx + 1
+                    diff_lines.append(f"  {line_no:>6}+\t{line.rstrip()}")
+            elif tag == "delete":
+                for line in old_lines[i1:i2]:
+                    diff_lines.append(f"       -\t{line.rstrip()}")
+            elif tag == "insert":
+                for idx, line in enumerate(new_lines[j1:j2]):
+                    line_no = j1 + idx + 1
+                    diff_lines.append(f"  {line_no:>6}+\t{line.rstrip()}")
+        diff_lines.append("  ------")
+
+    return "\n".join(diff_lines).rstrip("\n -")
+
+
 async def file_changed_externally_reminder(
     session: Session,
 ) -> message.DeveloperMessage | None:
-    """Remind agent about user/linter' changes to the files in FileTracker, provding the newest content of the file."""
+    """Remind agent about user/linter changes, showing a diff snippet when possible."""
     changed_files: list[tuple[str, str, list[message.ImageURLPart] | None]] = []
     collected_images: list[message.ImageURLPart] = []
-    if session.file_tracker and len(session.file_tracker) > 0:
-        for path, status in session.file_tracker.items():
-            try:
-                current_mtime = Path(path).stat().st_mtime
+    if not session.file_tracker or len(session.file_tracker) == 0:
+        return None
 
-                changed = False
-                if status.content_sha256 is not None:
-                    current_sha256 = _compute_file_content_sha256(path)
-                    changed = current_sha256 is not None and current_sha256 != status.content_sha256
-                else:
-                    # Backward-compat: old sessions only tracked mtime.
-                    changed = current_mtime != status.mtime
+    # Snapshot keys to avoid dict-changed-size-during-iteration
+    tracked_items = list(session.file_tracker.items())
 
-                if changed:
-                    tool_context = ToolContext(
-                        file_tracker=session.file_tracker,
-                        todo_context=build_todo_context(session),
-                        session_id=session.id,
-                        work_dir=session.work_dir,
-                    )
-                    tool_result = await ReadTool.call_with_args(
-                        ReadTool.ReadArguments(file_path=path),
-                        tool_context,
-                    )  # This tool will update file tracker
-                    if tool_result.status == "success":
-                        images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
-                        changed_files.append((path, tool_result.output_text, images or None))
-                        if images:
-                            collected_images.extend(images)
-            except (
-                FileNotFoundError,
-                IsADirectoryError,
-                OSError,
-                PermissionError,
-                UnicodeDecodeError,
-            ):
+    for path, status in tracked_items:
+        try:
+            current_mtime = Path(path).stat().st_mtime
+
+            changed = False
+            if status.content_sha256 is not None:
+                current_sha256 = _compute_file_content_sha256(path)
+                changed = current_sha256 is not None and current_sha256 != status.content_sha256
+            else:
+                changed = current_mtime != status.mtime
+
+            if not changed:
                 continue
+
+            tool_context = ToolContext(
+                file_tracker=session.file_tracker,
+                todo_context=build_todo_context(session),
+                session_id=session.id,
+                work_dir=session.work_dir,
+            )
+
+            # Read the new content via ReadTool (this also updates file_tracker)
+            tool_result = await ReadTool.call_with_args(
+                ReadTool.ReadArguments(file_path=path),
+                tool_context,
+            )
+            if tool_result.status != "success":
+                continue
+
+            images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
+            new_output = tool_result.output_text
+
+            # Try to compute a diff snippet by finding the old ReadTool output in history
+            old_output = _find_last_read_output(session, path)
+            if old_output is not None:
+                snippet = _compute_diff_snippet(old_output, new_output, path)
+                if snippet:
+                    changed_files.append((path, snippet, images or None))
+                    if images:
+                        collected_images.extend(images)
+                    continue
+
+            # Fallback: include full new content
+            changed_files.append((path, new_output, images or None))
+            if images:
+                collected_images.extend(images)
+        except (
+            FileNotFoundError,
+            IsADirectoryError,
+            OSError,
+            PermissionError,
+            UnicodeDecodeError,
+        ):
+            continue
+
     if len(changed_files) > 0:
         changed_files_str = "\n\n".join(
-            [
-                f"Note: {file_path} was modified, either by the user or by a linter. Don't tell the user this, since they are already aware. This change was intentional, so make sure to take it into account as you proceed (ie. don't revert it unless the user asks you to). So that you don't need to re-read the file, here's the result of running `cat -n` on a snippet of the edited file:\n\n{file_content}"
-                ""
-                for file_path, file_content, _ in changed_files
-            ]
+            f"Note: {file_path} was modified, either by the user or by a linter. Don't tell the user this, since they are already aware. This change was intentional, so make sure to take it into account as you proceed (ie. don't revert it unless the user asks you to). Here are the relevant changes:\n\n{file_content}"
+            for file_path, file_content, _ in changed_files
         )
         return message.DeveloperMessage(
             parts=message.parts_from_text_and_images(
@@ -249,6 +373,32 @@ async def file_changed_externally_reminder(
             ),
         )
 
+    return None
+
+
+def _find_last_read_output(session: Session, path: str) -> str | None:
+    """Find the last ReadTool output for a given file path in conversation history.
+
+    Searches backwards through DeveloperMessage (from @file reads) and
+    ToolResultMessage (from explicit ReadTool calls) for output containing
+    this file's path. Both use the same cat-n format, so diff is meaningful.
+    """
+    for item in reversed(session.conversation_history):
+        if (
+            isinstance(item, message.ToolResultMessage)
+            and item.tool_name == tools.READ
+            and path in item.output_text
+        ):
+            return item.output_text
+        if isinstance(item, message.DeveloperMessage):
+            # @file reads are wrapped in DeveloperMessage with the ReadTool output
+            text = message.join_text_parts(item.parts)
+            if path in text and "Result of calling the Read tool:" in text:
+                # Extract the ReadTool output portion
+                marker = "Result of calling the Read tool:\n"
+                idx = text.find(marker)
+                if idx >= 0:
+                    return text[idx + len(marker) :].split("\n\nCalled the")[0].rstrip()
     return None
 
 
@@ -368,15 +518,72 @@ def _mark_memory_loaded(session: Session, path: str) -> None:
     session.file_tracker[path] = model.FileStatus(mtime=mtime, content_sha256=content_sha256, is_memory=True)
 
 
+def _truncate_memory_content(text: str, path: str) -> str:
+    """Truncate memory file content to stay within per-file budget.
+
+    Enforces both line count (AUTO_MEMORY_MAX_LINES) and byte size
+    (MEMORY_MAX_BYTES_PER_FILE) limits. When truncated, appends a note
+    so the model knows more content exists.
+    """
+    lines = text.splitlines()
+    truncated = False
+
+    if len(lines) > AUTO_MEMORY_MAX_LINES:
+        lines = lines[:AUTO_MEMORY_MAX_LINES]
+        truncated = True
+
+    result = "\n".join(lines)
+    if len(result.encode("utf-8")) > MEMORY_MAX_BYTES_PER_FILE:
+        encoded = result.encode("utf-8")[:MEMORY_MAX_BYTES_PER_FILE]
+        result = encoded.decode("utf-8", errors="ignore")
+        truncated = True
+
+    if truncated:
+        result += f"\n\n> This memory file was truncated ({MEMORY_MAX_BYTES_PER_FILE} byte limit). Use the {tools.READ} tool to view the complete file at: {path}"
+    return result
+
+
+def _count_memory_session_bytes(session: Session) -> int:
+    """Count cumulative bytes of memory content already injected in this session."""
+    total = 0
+    for item in session.conversation_history:
+        if isinstance(item, message.DeveloperMessage) and item.ui_extra:
+            for ui_item in item.ui_extra.items:
+                if isinstance(ui_item, model.MemoryLoadedUIItem):
+                    # Estimate bytes from the text parts of this developer message
+                    total += sum(len(p.text.encode("utf-8")) for p in item.parts if isinstance(p, message.TextPart))
+                    break
+    return total
+
+
 async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
-    """CLAUDE.md AGENTS.md and per-project MEMORY.md"""
+    """CLAUDE.md AGENTS.md and per-project MEMORY.md with budget limits."""
+    # Check session-level memory budget
+    session_bytes = _count_memory_session_bytes(session)
+    if session_bytes >= MEMORY_MAX_SESSION_BYTES:
+        return None
+
     memory_paths = get_memory_paths(work_dir=session.work_dir)
     memories: list[Memory] = []
+    remaining_budget = MEMORY_MAX_SESSION_BYTES - session_bytes
+
     for memory_path, instruction in memory_paths:
         path_str = str(memory_path)
         if memory_path.exists() and memory_path.is_file() and not _is_memory_loaded(session, path_str):
             try:
                 text = memory_path.read_text(encoding="utf-8", errors="replace")
+                text = _truncate_memory_content(text, path_str)
+                text_bytes = len(text.encode("utf-8"))
+                if text_bytes > remaining_budget:
+                    # Would exceed session budget; truncate further or skip
+                    if remaining_budget > 256:
+                        text = text.encode("utf-8")[:remaining_budget].decode("utf-8", errors="ignore")
+                        text += f"\n\n> Memory truncated due to session budget ({MEMORY_MAX_SESSION_BYTES} bytes total)."
+                        text_bytes = len(text.encode("utf-8"))
+                    else:
+                        _mark_memory_loaded(session, path_str)
+                        continue
+                remaining_budget -= text_bytes
                 _mark_memory_loaded(session, path_str)
                 memories.append(Memory(path=path_str, instruction=instruction, content=text))
             except (PermissionError, UnicodeDecodeError, OSError):
@@ -386,8 +593,14 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
     auto_memory_hint = ""
     if auto_mem is not None:
         if not _is_memory_loaded(session, auto_mem.path):
-            _mark_memory_loaded(session, auto_mem.path)
-            memories.append(auto_mem)
+            auto_mem_content = _truncate_memory_content(auto_mem.content, auto_mem.path)
+            auto_mem_bytes = len(auto_mem_content.encode("utf-8"))
+            if auto_mem_bytes <= remaining_budget:
+                remaining_budget -= auto_mem_bytes
+                _mark_memory_loaded(session, auto_mem.path)
+                memories.append(Memory(path=auto_mem.path, instruction=auto_mem.instruction, content=auto_mem_content))
+            else:
+                _mark_memory_loaded(session, auto_mem.path)
     else:
         auto_memory_path = get_auto_memory_path(session.work_dir)
         path_str = str(auto_memory_path)
@@ -401,7 +614,6 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
         reminder_text = format_memories_reminder(memories, include_header=True) if memories else ""
         if auto_memory_hint:
             if reminder_text:
-                # Insert hint before closing </system-reminder> tag
                 reminder_text = reminder_text.replace("</system-reminder>", f"{auto_memory_hint}\n</system-reminder>")
             else:
                 reminder_text = f"<system-reminder>{auto_memory_hint}\n</system-reminder>"
@@ -440,3 +652,131 @@ async def last_path_memory_reminder(
             ui_extra=model.DeveloperUIExtra(items=[model.MemoryLoadedUIItem(files=loaded_files)]),
         )
     return None
+
+
+def _count_assistant_turns_since(session: Session, predicate: str) -> tuple[int, int]:
+    """Count assistant turns since last TodoWrite and since last todo_reminder.
+
+    Returns (turns_since_write, turns_since_reminder).
+    """
+    turns_since_write = 0
+    turns_since_reminder = 0
+    found_write = False
+    found_reminder = False
+
+    for item in reversed(session.conversation_history):
+        if isinstance(item, message.AssistantMessage):
+            if not found_write:
+                turns_since_write += 1
+            if not found_reminder:
+                turns_since_reminder += 1
+
+        # Check for TodoWrite tool call in assistant messages
+        if not found_write and isinstance(item, message.ToolResultMessage) and item.tool_name == tools.TODO_WRITE:
+            found_write = True
+
+        # Check for previous todo_reminder in developer messages
+        if not found_reminder and isinstance(item, message.DeveloperMessage) and item.ui_extra:
+            for ui_item in item.ui_extra.items:
+                if isinstance(ui_item, model.TodoReminderUIItem):
+                    found_reminder = True
+                    break
+
+        if found_write and found_reminder:
+            break
+
+    return turns_since_write, turns_since_reminder
+
+
+async def todo_reminder(session: Session) -> message.DeveloperMessage | None:
+    """Periodically remind the agent to use TodoWrite if it hasn't been used recently."""
+    if not session.todos and not session.conversation_history:
+        return None
+
+    turns_since_write, turns_since_reminder = _count_assistant_turns_since(session, tools.TODO_WRITE)
+
+    if turns_since_write < TODO_REMINDER_TURNS_SINCE_WRITE:
+        return None
+    if turns_since_reminder < TODO_REMINDER_TURNS_BETWEEN_REMINDERS:
+        return None
+
+    todo_str = ""
+    if session.todos:
+        todo_items = "\n".join(f"{i + 1}. [{t.status}] {t.content}" for i, t in enumerate(session.todos))
+        todo_str = f"\n\nHere are the existing contents of your todo list:\n\n[{todo_items}]"
+
+    content = (
+        "The TodoWrite tool hasn't been used recently. If you're working on tasks that would benefit "
+        "from tracking progress, consider using the TodoWrite tool to track progress. Also consider "
+        "cleaning up the todo list if it has become stale and no longer matches what you are working on. "
+        "Only use it if it's relevant to the current work. This is just a gentle reminder - ignore if "
+        "not applicable. Make sure that you NEVER mention this reminder to the user"
+        f"{todo_str}"
+    )
+
+    reason: model.TodoReminderUIItem = model.TodoReminderUIItem(
+        reason="not_used_recently" if session.todos else "empty"
+    )
+
+    return message.DeveloperMessage(
+        parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
+        ui_extra=model.DeveloperUIExtra(items=[reason]),
+    )
+
+
+type Reminder = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
+
+# Reminders that mutate file_tracker or depend on another reminder's side effects
+# must run sequentially. In particular:
+# - at_file_reader_reminder writes to file_tracker via ReadTool
+# - file_changed_externally_reminder iterates file_tracker (dict iteration safety)
+# - last_path_memory_reminder reads file_tracker populated by at_file_reader_reminder
+# These form a sequential phase. Others (memory_reminder, image_reminder,
+# skill_reminder, todo_reminder) are independent and safe to parallelize.
+_SEQUENTIAL_REMINDERS: frozenset[str] = frozenset({
+    "at_file_reader_reminder",
+    "file_changed_externally_reminder",
+    "last_path_memory_reminder",
+})
+
+
+async def collect_reminders(
+    session: Session,
+    reminders: Sequence[Reminder],
+) -> list[message.DeveloperMessage]:
+    """Collect reminders with error isolation and safe ordering.
+
+    Reminders that share mutable state (file_tracker) run sequentially first.
+    Independent reminders run in parallel afterward. Each reminder is wrapped
+    in a try/except so one failure doesn't block others.
+    """
+
+    async def _safe_call(reminder: Reminder) -> message.DeveloperMessage | None:
+        try:
+            return await reminder(session)
+        except Exception:
+            name = getattr(reminder, "__name__", repr(reminder))
+            logger.warning("Reminder %s failed", name, exc_info=True)
+            return None
+
+    sequential: list[Reminder] = []
+    parallel: list[Reminder] = []
+    for r in reminders:
+        name = getattr(r, "__name__", "")
+        if name in _SEQUENTIAL_REMINDERS:
+            sequential.append(r)
+        else:
+            parallel.append(r)
+
+    results: list[message.DeveloperMessage | None] = []
+
+    # Phase 1: sequential reminders (order-dependent, mutate file_tracker)
+    for r in sequential:
+        results.append(await _safe_call(r))
+
+    # Phase 2: independent reminders in parallel
+    if parallel:
+        parallel_results = await asyncio.gather(*[_safe_call(r) for r in parallel])
+        results.extend(parallel_results)
+
+    return [r for r in results if r is not None]

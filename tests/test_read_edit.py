@@ -268,7 +268,7 @@ class TestReminders(BaseTempDirTest):
         self.assertTrue(at_file.path.endswith("README.md"))
         self.assertIn("READ ME", message.join_text_parts(reminder.parts))
 
-    def test_at_file_reader_reminder_skips_tracked_unchanged_file(self):
+    def test_at_file_reader_reminder_returns_lightweight_for_tracked_unchanged_file(self):
         file_path = os.path.abspath("tracked.txt")
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("hello\n")
@@ -280,9 +280,13 @@ class TestReminders(BaseTempDirTest):
         )
 
         reminder = arun(at_file_reader_reminder(self.session))
-        self.assertIsNone(reminder)
+        # Now returns a lightweight "already in context" message instead of None
+        self.assertIsNotNone(reminder)
+        text = message.join_text_parts(reminder.parts)
+        self.assertIn("already in context", text)
+        self.assertNotIn("hello", text)
 
-    def test_at_file_reader_reminder_skips_when_touched_but_hash_unchanged(self):
+    def test_at_file_reader_reminder_returns_lightweight_when_touched_but_hash_unchanged(self):
         file_path = os.path.abspath("touched.txt")
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("same content\n")
@@ -301,7 +305,10 @@ class TestReminders(BaseTempDirTest):
         )
 
         reminder = arun(at_file_reader_reminder(self.session))
-        self.assertIsNone(reminder)
+        # File content unchanged (same hash), so lightweight message
+        self.assertIsNotNone(reminder)
+        text = message.join_text_parts(reminder.parts)
+        self.assertIn("already in context", text)
 
     def test_at_file_reader_reminder_ignores_mid_word_at_symbols(self):
         file_path = os.path.abspath("bar.com")

@@ -325,10 +325,13 @@ class TaskExecutor:
             self._rewind_manager.register_checkpoint(checkpoint_id, user_msg)
 
         while True:
-            # Process reminders at the start of each turn
-            for reminder in profile.reminders:
-                async for event in ctx.process_reminder(reminder):
-                    yield event
+            # Process reminders in parallel with error isolation
+            from klaude_code.core.agent.reminders import collect_reminders
+
+            reminder_results = await collect_reminders(ctx.session, profile.reminders)
+            for item in reminder_results:
+                ctx.session.append_history([item])
+                yield events.DeveloperMessageEvent(session_id=session_ctx.session_id, item=item)
 
             # Threshold-based compaction before starting a new turn.
             # This matters for multi-turn tool loops where no new user input occurs.
