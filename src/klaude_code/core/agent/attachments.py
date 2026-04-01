@@ -384,11 +384,7 @@ def _find_last_read_output(session: Session, path: str) -> str | None:
     this file's path. Both use the same cat-n format, so diff is meaningful.
     """
     for item in reversed(session.conversation_history):
-        if (
-            isinstance(item, message.ToolResultMessage)
-            and item.tool_name == tools.READ
-            and path in item.output_text
-        ):
+        if isinstance(item, message.ToolResultMessage) and item.tool_name == tools.READ and path in item.output_text:
             return item.output_text
         if isinstance(item, message.DeveloperMessage):
             # @file reads are wrapped in DeveloperMessage with the ReadTool output
@@ -578,7 +574,9 @@ async def memory_attachment(session: Session) -> message.DeveloperMessage | None
                     # Would exceed session budget; truncate further or skip
                     if remaining_budget > 256:
                         text = text.encode("utf-8")[:remaining_budget].decode("utf-8", errors="ignore")
-                        text += f"\n\n> Memory truncated due to session budget ({MEMORY_MAX_SESSION_BYTES} bytes total)."
+                        text += (
+                            f"\n\n> Memory truncated due to session budget ({MEMORY_MAX_SESSION_BYTES} bytes total)."
+                        )
                         text_bytes = len(text.encode("utf-8"))
                     else:
                         _mark_memory_loaded(session, path_str)
@@ -733,11 +731,13 @@ type Attachment = Callable[[Session], Awaitable[message.DeveloperMessage | None]
 # - last_path_memory_attachment reads file_tracker populated by at_file_reader_attachment
 # These form a sequential phase. Others (memory_attachment, image_attachment,
 # skill_attachment, todo_attachment) are independent and safe to parallelize.
-_SEQUENTIAL_ATTACHMENTS: frozenset[str] = frozenset({
-    "at_file_reader_attachment",
-    "file_changed_externally_attachment",
-    "last_path_memory_attachment",
-})
+_SEQUENTIAL_ATTACHMENTS: frozenset[str] = frozenset(
+    {
+        "at_file_reader_attachment",
+        "file_changed_externally_attachment",
+        "last_path_memory_attachment",
+    }
+)
 
 
 async def collect_attachments(
