@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-import klaude_code.core.agent.reminders as reminders
-from klaude_code.core.agent.reminders import get_skills_from_user_input
+import klaude_code.core.agent.attachments as attachments
+from klaude_code.core.agent.attachments import get_skills_from_user_input
 from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import message, model
 from klaude_code.session.session import Session
@@ -61,7 +61,7 @@ def test_get_skills_deduplicates() -> None:
     assert get_skills_from_user_input(session) == ["commit"]
 
 
-def test_skill_reminder_tracks_skill_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_skill_attachment_tracks_skill_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     skill_dir = tmp_path / "demo-skill"
     skill_dir.mkdir(parents=True)
     skill_path = skill_dir / "SKILL.md"
@@ -79,18 +79,18 @@ def test_skill_reminder_tracks_skill_file(tmp_path: Path, monkeypatch: pytest.Mo
     def _mock_get_skill(_: str) -> Skill | None:
         return skill
 
-    monkeypatch.setattr(reminders, "get_skill", _mock_get_skill)
+    monkeypatch.setattr(attachments, "get_skill", _mock_get_skill)
 
     session = _build_session_with_user_text("/skill:demo")
-    reminder = _arun(reminders.skill_reminder(session))
+    attachment = _arun(attachments.skill_attachment(session))
 
-    assert reminder is not None
+    assert attachment is not None
     tracked = session.file_tracker[str(skill_path)]
     assert tracked.content_sha256 == hash_text_sha256(skill_content)
     assert tracked.is_memory is False
 
 
-def test_skill_reminder_loads_multiple_skills(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_skill_attachment_loads_multiple_skills(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     skills: dict[str, Skill] = {}
     for name in ("alpha", "beta"):
         skill_dir = tmp_path / name
@@ -108,17 +108,17 @@ def test_skill_reminder_loads_multiple_skills(tmp_path: Path, monkeypatch: pytes
     def _mock_get_skill(name: str) -> Skill | None:
         return skills.get(name)
 
-    monkeypatch.setattr(reminders, "get_skill", _mock_get_skill)
+    monkeypatch.setattr(attachments, "get_skill", _mock_get_skill)
 
     session = _build_session_with_user_text("//skill:alpha //skill:beta")
-    reminder = _arun(reminders.skill_reminder(session))
+    attachment = _arun(attachments.skill_attachment(session))
 
-    assert reminder is not None
-    assert reminder.ui_extra is not None
-    activated = [item for item in reminder.ui_extra.items if isinstance(item, model.SkillActivatedUIItem)]
+    assert attachment is not None
+    assert attachment.ui_extra is not None
+    activated = [item for item in attachment.ui_extra.items if isinstance(item, model.SkillActivatedUIItem)]
     assert [item.name for item in activated] == ["alpha", "beta"]
 
-    text = message.join_text_parts(reminder.parts)
+    text = message.join_text_parts(attachment.parts)
     assert "alpha" in text
     assert "beta" in text
 

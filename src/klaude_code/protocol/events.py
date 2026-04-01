@@ -127,7 +127,7 @@ class UserMessageEvent(Event):
 
 
 class DeveloperMessageEvent(Event):
-    """DeveloperMessages are reminders in user messages or tool results."""
+    """DeveloperMessages are attachments in user messages or tool results."""
 
     item: message.DeveloperMessage
 

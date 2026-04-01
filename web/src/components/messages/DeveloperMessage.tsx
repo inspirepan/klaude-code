@@ -5,7 +5,7 @@ import type {
   DeveloperMessageItem,
   AtFileOp,
   DeveloperUIItem,
-  TodoReminderUIItem,
+  TodoAttachmentUIItem,
 } from "@/types/message";
 import { buildFileApiUrl } from "@/api/client";
 import {
@@ -92,7 +92,7 @@ function buildAttachedSummary(
         case "at_file_images":
           imageCount += ui.paths.length;
           break;
-        case "todo_reminder":
+        case "todo_attachment":
           break;
       }
     }
@@ -174,7 +174,7 @@ function AttachDetail({
   devItems: DeveloperMessageItem[];
   images: string[];
 }): React.JSX.Element {
-  const allUIItems = devItems.flatMap((d) => d.items).filter((ui) => ui.type !== "todo_reminder");
+  const allUIItems = devItems.flatMap((d) => d.items).filter((ui) => ui.type !== "todo_attachment");
   const sessionId = devItems[0]?.sessionId ?? null;
 
   return (
@@ -217,9 +217,9 @@ export function DeveloperMessage({ items }: DeveloperMessageProps): React.JSX.El
   const images = items.flatMap((d) => collectImages(d.items));
   const allUIItems = items.flatMap((d) => d.items);
   const todoItems = allUIItems.filter(
-    (ui): ui is TodoReminderUIItem => ui.type === "todo_reminder",
+    (ui): ui is TodoAttachmentUIItem => ui.type === "todo_attachment",
   );
-  const attachItems = allUIItems.filter((ui) => ui.type !== "todo_reminder");
+  const attachItems = allUIItems.filter((ui) => ui.type !== "todo_attachment");
   const hasAttachments = attachItems.length > 0 || images.length > 0;
   const summary = hasAttachments ? buildAttachedSummary(items, t) : "";
 

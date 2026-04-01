@@ -7,15 +7,15 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     from klaude_code.config.config import Config
 
-from klaude_code.core.agent.reminders import (
-    Reminder,
-    at_file_reader_reminder,
-    file_changed_externally_reminder,
-    image_reminder,
-    last_path_memory_reminder,
-    memory_reminder,
-    skill_reminder,
-    todo_reminder,
+from klaude_code.core.agent.attachments import (
+    Attachment,
+    at_file_reader_attachment,
+    file_changed_externally_attachment,
+    image_attachment,
+    last_path_memory_attachment,
+    memory_attachment,
+    skill_attachment,
+    todo_attachment,
 )
 from klaude_code.core.prompts.system_prompt import load_system_prompt
 from klaude_code.core.tool.report_back_tool import ReportBackTool
@@ -30,12 +30,12 @@ from klaude_code.protocol.sub_agent import get_sub_agent_profile
 
 @dataclass(frozen=True)
 class AgentProfile:
-    """Encapsulates the active LLM client plus prompts/tools/reminders."""
+    """Encapsulates the active LLM client plus prompts/tools/attachments."""
 
     llm_client: LLMClientABC
     system_prompt: str | None
     tools: list[llm_param.ToolSchema]
-    reminders: list[Reminder]
+    attachments: list[Attachment]
 
 
 MAIN_AGENT_COMMON_BASE_TOOLS: list[str] = [tools.BASH, tools.READ]
@@ -92,16 +92,16 @@ def load_agent_tools(
     return get_tool_schemas(tool_names)
 
 
-def load_agent_reminders(
+def load_agent_attachments(
     model_name: str,
     sub_agent_type: str | None = None,
     available_tools: list[llm_param.ToolSchema] | None = None,
-) -> list[Reminder]:
-    """Get reminders for an agent based on model and agent type.
+) -> list[Attachment]:
+    """Get attachments for an agent based on model and agent type.
 
     Args:
         model_name: The model name.
-        sub_agent_type: If None, returns main agent reminders. Otherwise returns sub-agent reminders.
+        sub_agent_type: If None, returns main agent attachments. Otherwise returns sub-agent attachments.
         available_tools: Tools available to the active profile.
     """
 
@@ -111,13 +111,13 @@ def load_agent_reminders(
     del available_tools
 
     return [
-        memory_reminder,
-        at_file_reader_reminder,
-        file_changed_externally_reminder,
-        last_path_memory_reminder,
-        image_reminder,
-        skill_reminder,
-        todo_reminder,
+        memory_attachment,
+        at_file_reader_attachment,
+        file_changed_externally_attachment,
+        last_path_memory_attachment,
+        image_attachment,
+        skill_attachment,
+        todo_attachment,
     ]
 
 
@@ -128,7 +128,7 @@ def with_structured_output(profile: AgentProfile, output_schema: dict[str, Any])
         llm_client=profile.llm_client,
         system_prompt=base_prompt + STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT,
         tools=[*profile.tools, report_back_tool_class.schema()],
-        reminders=profile.reminders,
+        attachments=profile.attachments,
     )
 
 
@@ -146,7 +146,7 @@ class ModelProfileProvider(Protocol):
 
 
 class DefaultModelProfileProvider(ModelProfileProvider):
-    """Default provider backed by global prompts/tool/reminder registries."""
+    """Default provider backed by global prompts/tool/attachment registries."""
 
     def __init__(self, config: Config | None = None) -> None:
         self._config = config
@@ -164,13 +164,13 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         agent_system_prompt = load_system_prompt(
             model_name, sub_agent_type, available_tools=agent_tools, work_dir=work_dir
         )
-        agent_reminders = load_agent_reminders(model_name, sub_agent_type, available_tools=agent_tools)
+        agent_attachments = load_agent_attachments(model_name, sub_agent_type, available_tools=agent_tools)
 
         profile = AgentProfile(
             llm_client=llm_client,
             system_prompt=agent_system_prompt,
             tools=agent_tools,
-            reminders=agent_reminders,
+            attachments=agent_attachments,
         )
         if output_schema:
             return with_structured_output(profile, output_schema)
@@ -178,7 +178,7 @@ class DefaultModelProfileProvider(ModelProfileProvider):
 
 
 class VanillaModelProfileProvider(ModelProfileProvider):
-    """Provider that strips prompts, reminders, and tools for vanilla mode."""
+    """Provider that strips prompts, attachments, and tools for vanilla mode."""
 
     def build_profile(
         self,
@@ -193,7 +193,7 @@ class VanillaModelProfileProvider(ModelProfileProvider):
             llm_client=llm_client,
             system_prompt="You're an agent running in user's terminal",
             tools=get_tool_schemas([tools.BASH, tools.EDIT, tools.WRITE, tools.READ]),
-            reminders=[],
+            attachments=[],
         )
         if output_schema:
             return with_structured_output(profile, output_schema)

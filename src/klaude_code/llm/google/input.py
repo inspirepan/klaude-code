@@ -16,7 +16,7 @@ from klaude_code.llm.input_common import (
     DeveloperAttachment,
     ImagePart,
     attach_developer_messages,
-    merge_reminder_text,
+    merge_attachment_text,
     split_thinking_parts,
 )
 from klaude_code.llm.json_stable import canonicalize_json
@@ -88,7 +88,7 @@ def _tool_messages_to_contents(
     extra_image_contents: list[types.Content] = []
 
     for msg, attachment in msgs:
-        merged_text = merge_reminder_text(
+        merged_text = merge_attachment_text(
             msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
             attachment.text,
             prefix_text=attachment.prefix_text,

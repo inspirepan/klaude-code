@@ -28,7 +28,7 @@ def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedF
 def _build_profile() -> AgentProfile:
     llm_config = SimpleNamespace(model_id="test-model")
     llm_client = SimpleNamespace(model_name="test-model", get_llm_config=lambda: llm_config)
-    return AgentProfile(llm_client=cast(Any, llm_client), system_prompt=None, tools=[], reminders=[])
+    return AgentProfile(llm_client=cast(Any, llm_client), system_prompt=None, tools=[], attachments=[])
 
 
 def _build_executor(
@@ -63,10 +63,6 @@ def _build_executor(
 
     monkeypatch.setattr(task_module, "TurnExecutor", StubTurnExecutor)
 
-    async def _process_reminder(_: Any) -> AsyncGenerator[events.DeveloperMessageEvent]:
-        if False:
-            yield cast(events.DeveloperMessageEvent, None)
-
     session_ctx = SessionContext(
         session_id=session.id,
         work_dir=session.work_dir,
@@ -84,7 +80,6 @@ def _build_executor(
             session_ctx=session_ctx,
             profile=_build_profile(),
             tool_registry={},
-            process_reminder=_process_reminder,
             sub_agent_state=None,
         )
     )

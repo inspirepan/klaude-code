@@ -116,10 +116,10 @@ export function parseDeveloperUIItems(raw: unknown): DeveloperUIItem[] {
         out.push({ type: "external_file_changes", paths });
         break;
       }
-      case "todo_reminder": {
+      case "todo_attachment": {
         const reason = ui.reason;
         if (reason !== "empty" && reason !== "not_used_recently") break;
-        out.push({ type: "todo_reminder", reason });
+        out.push({ type: "todo_attachment", reason });
         break;
       }
       case "at_file_ops": {

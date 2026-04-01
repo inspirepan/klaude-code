@@ -23,7 +23,7 @@ from klaude_code.llm.input_common import (
     DeveloperAttachment,
     ImagePart,
     attach_developer_messages,
-    merge_reminder_text,
+    merge_attachment_text,
     split_thinking_parts,
 )
 from klaude_code.protocol import llm_param, message
@@ -112,7 +112,7 @@ def _tool_message_to_block(
 ) -> BetaToolResultBlockParam:
     """Convert a single tool result message to a tool_result block."""
     tool_content: list[BetaTextBlockParam | BetaImageBlockParam] = []
-    merged_text = merge_reminder_text(
+    merged_text = merge_attachment_text(
         msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
         prefix_text=attachment.prefix_text,

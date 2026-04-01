@@ -40,17 +40,12 @@ def test_task_interrupt_persists_interrupt_entry(tmp_path: Path, monkeypatch: py
             request_user_interaction=None,
         )
 
-        async def _process_reminder(_: Any):
-            if False:
-                yield
-
         executor = TaskExecutor(
             TaskExecutionContext(
                 session=session,
                 session_ctx=session_ctx,
                 profile=cast(Any, object()),
                 tool_registry={},
-                process_reminder=_process_reminder,
                 sub_agent_state=None,
             )
         )
@@ -86,17 +81,12 @@ def test_task_interrupt_does_not_duplicate_when_aborted_message_exists(
             request_user_interaction=None,
         )
 
-        async def _process_reminder(_: Any):
-            if False:
-                yield
-
         executor = TaskExecutor(
             TaskExecutionContext(
                 session=session,
                 session_ctx=session_ctx,
                 profile=cast(Any, object()),
                 tool_registry={},
-                process_reminder=_process_reminder,
                 sub_agent_state=None,
             )
         )

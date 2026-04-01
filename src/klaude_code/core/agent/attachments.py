@@ -11,7 +11,7 @@ from klaude_code.core.memory import (
     AUTO_MEMORY_MAX_LINES,
     Memory,
     discover_memory_files_near_paths,
-    format_memories_reminder,
+    format_memories_attachment,
     format_memory_content,
     get_auto_memory_path,
     get_memory_paths,
@@ -34,9 +34,9 @@ AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P
 MEMORY_MAX_BYTES_PER_FILE = 4096
 MEMORY_MAX_SESSION_BYTES = 60 * 1024
 
-# Todo reminder configuration
-TODO_REMINDER_TURNS_SINCE_WRITE = 10
-TODO_REMINDER_TURNS_BETWEEN_REMINDERS = 10
+# Todo attachment configuration
+TODO_ATTACHMENT_TURNS_SINCE_WRITE = 10
+TODO_ATTACHMENT_TURNS_BETWEEN = 10
 
 # Match /skill:xxx or //skill:xxx inline (at start of line or after whitespace).
 # Require token boundary after the skill name to avoid matching paths like
@@ -212,7 +212,7 @@ Result of calling the {tools.BASH} tool:
             discovered_memories.append(memory)
 
 
-async def at_file_reader_reminder(
+async def at_file_reader_attachment(
     session: Session,
 ) -> message.DeveloperMessage | None:
     """Parse @foo/bar references from the last user message and load them."""
@@ -291,10 +291,10 @@ def _compute_diff_snippet(old_content: str, new_content: str, path: str) -> str:
     return "\n".join(diff_lines).rstrip("\n -")
 
 
-async def file_changed_externally_reminder(
+async def file_changed_externally_attachment(
     session: Session,
 ) -> message.DeveloperMessage | None:
-    """Remind agent about user/linter changes, showing a diff snippet when possible."""
+    """Notify agent about user/linter changes, showing a diff snippet when possible."""
     changed_files: list[tuple[str, str, list[message.ImageURLPart] | None]] = []
     collected_images: list[message.ImageURLPart] = []
     if not session.file_tracker or len(session.file_tracker) == 0:
@@ -434,8 +434,8 @@ def get_last_user_message_image_paths(session: Session) -> list[str]:
     return []
 
 
-async def image_reminder(session: Session) -> message.DeveloperMessage | None:
-    """Remind agent about images attached by user in the last message."""
+async def image_attachment(session: Session) -> message.DeveloperMessage | None:
+    """Attach images from the last user message."""
     image_paths = get_last_user_message_image_paths(session)
     if not image_paths:
         return None
@@ -446,7 +446,7 @@ async def image_reminder(session: Session) -> message.DeveloperMessage | None:
     )
 
 
-async def skill_reminder(session: Session) -> message.DeveloperMessage | None:
+async def skill_attachment(session: Session) -> message.DeveloperMessage | None:
     """Load skill content when user references skills with explicit skill syntax."""
     skill_names = get_skills_from_user_input(session)
     if not skill_names:
@@ -556,7 +556,7 @@ def _count_memory_session_bytes(session: Session) -> int:
     return total
 
 
-async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
+async def memory_attachment(session: Session) -> message.DeveloperMessage | None:
     """CLAUDE.md AGENTS.md and per-project MEMORY.md with budget limits."""
     # Check session-level memory budget
     session_bytes = _count_memory_session_bytes(session)
@@ -611,21 +611,21 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
     if memories or auto_memory_hint:
         loaded_files = [model.MemoryFileLoaded(path=memory.path) for memory in memories]
         ui_items: list[model.DeveloperUIItem] = [model.MemoryLoadedUIItem(files=loaded_files)] if loaded_files else []
-        reminder_text = format_memories_reminder(memories, include_header=True) if memories else ""
+        content_text = format_memories_attachment(memories, include_header=True) if memories else ""
         if auto_memory_hint:
-            if reminder_text:
-                reminder_text = reminder_text.replace("</system-reminder>", f"{auto_memory_hint}\n</system-reminder>")
+            if content_text:
+                content_text = content_text.replace("</system-reminder>", f"{auto_memory_hint}\n</system-reminder>")
             else:
-                reminder_text = f"<system-reminder>{auto_memory_hint}\n</system-reminder>"
+                content_text = f"<system-reminder>{auto_memory_hint}\n</system-reminder>"
         return message.DeveloperMessage(
-            parts=message.text_parts_from_str(reminder_text),
+            parts=message.text_parts_from_str(content_text),
             attachment_position="prepend",
             ui_extra=model.DeveloperUIExtra(items=ui_items),
         )
     return None
 
 
-async def last_path_memory_reminder(
+async def last_path_memory_attachment(
     session: Session,
 ) -> message.DeveloperMessage | None:
     """Load CLAUDE.md/AGENTS.md from directories containing files in file_tracker.
@@ -647,7 +647,7 @@ async def last_path_memory_reminder(
     if len(memories) > 0:
         loaded_files = [model.MemoryFileLoaded(path=memory.path) for memory in memories]
         return message.DeveloperMessage(
-            parts=message.text_parts_from_str(format_memories_reminder(memories, include_header=False)),
+            parts=message.text_parts_from_str(format_memories_attachment(memories, include_header=False)),
             attachment_position="prepend",
             ui_extra=model.DeveloperUIExtra(items=[model.MemoryLoadedUIItem(files=loaded_files)]),
         )
@@ -655,49 +655,49 @@ async def last_path_memory_reminder(
 
 
 def _count_assistant_turns_since(session: Session, predicate: str) -> tuple[int, int]:
-    """Count assistant turns since last TodoWrite and since last todo_reminder.
+    """Count assistant turns since last TodoWrite and since last todo_attachment.
 
-    Returns (turns_since_write, turns_since_reminder).
+    Returns (turns_since_write, turns_since_attachment).
     """
     turns_since_write = 0
-    turns_since_reminder = 0
+    turns_since_attachment = 0
     found_write = False
-    found_reminder = False
+    found_attachment = False
 
     for item in reversed(session.conversation_history):
         if isinstance(item, message.AssistantMessage):
             if not found_write:
                 turns_since_write += 1
-            if not found_reminder:
-                turns_since_reminder += 1
+            if not found_attachment:
+                turns_since_attachment += 1
 
         # Check for TodoWrite tool call in assistant messages
         if not found_write and isinstance(item, message.ToolResultMessage) and item.tool_name == tools.TODO_WRITE:
             found_write = True
 
-        # Check for previous todo_reminder in developer messages
-        if not found_reminder and isinstance(item, message.DeveloperMessage) and item.ui_extra:
+        # Check for previous todo_attachment in developer messages
+        if not found_attachment and isinstance(item, message.DeveloperMessage) and item.ui_extra:
             for ui_item in item.ui_extra.items:
-                if isinstance(ui_item, model.TodoReminderUIItem):
-                    found_reminder = True
+                if isinstance(ui_item, model.TodoAttachmentUIItem):
+                    found_attachment = True
                     break
 
-        if found_write and found_reminder:
+        if found_write and found_attachment:
             break
 
-    return turns_since_write, turns_since_reminder
+    return turns_since_write, turns_since_attachment
 
 
-async def todo_reminder(session: Session) -> message.DeveloperMessage | None:
-    """Periodically remind the agent to use TodoWrite if it hasn't been used recently."""
+async def todo_attachment(session: Session) -> message.DeveloperMessage | None:
+    """Periodically attach a todo nudge if TodoWrite hasn't been used recently."""
     if not session.todos and not session.conversation_history:
         return None
 
-    turns_since_write, turns_since_reminder = _count_assistant_turns_since(session, tools.TODO_WRITE)
+    turns_since_write, turns_since_attachment = _count_assistant_turns_since(session, tools.TODO_WRITE)
 
-    if turns_since_write < TODO_REMINDER_TURNS_SINCE_WRITE:
+    if turns_since_write < TODO_ATTACHMENT_TURNS_SINCE_WRITE:
         return None
-    if turns_since_reminder < TODO_REMINDER_TURNS_BETWEEN_REMINDERS:
+    if turns_since_attachment < TODO_ATTACHMENT_TURNS_BETWEEN:
         return None
 
     todo_str = ""
@@ -714,7 +714,7 @@ async def todo_reminder(session: Session) -> message.DeveloperMessage | None:
         f"{todo_str}"
     )
 
-    reason: model.TodoReminderUIItem = model.TodoReminderUIItem(
+    reason: model.TodoAttachmentUIItem = model.TodoAttachmentUIItem(
         reason="not_used_recently" if session.todos else "empty"
     )
 
@@ -724,57 +724,57 @@ async def todo_reminder(session: Session) -> message.DeveloperMessage | None:
     )
 
 
-type Reminder = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
+type Attachment = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
 
-# Reminders that mutate file_tracker or depend on another reminder's side effects
+# Attachments that mutate file_tracker or depend on another attachment's side effects
 # must run sequentially. In particular:
-# - at_file_reader_reminder writes to file_tracker via ReadTool
-# - file_changed_externally_reminder iterates file_tracker (dict iteration safety)
-# - last_path_memory_reminder reads file_tracker populated by at_file_reader_reminder
-# These form a sequential phase. Others (memory_reminder, image_reminder,
-# skill_reminder, todo_reminder) are independent and safe to parallelize.
-_SEQUENTIAL_REMINDERS: frozenset[str] = frozenset({
-    "at_file_reader_reminder",
-    "file_changed_externally_reminder",
-    "last_path_memory_reminder",
+# - at_file_reader_attachment writes to file_tracker via ReadTool
+# - file_changed_externally_attachment iterates file_tracker (dict iteration safety)
+# - last_path_memory_attachment reads file_tracker populated by at_file_reader_attachment
+# These form a sequential phase. Others (memory_attachment, image_attachment,
+# skill_attachment, todo_attachment) are independent and safe to parallelize.
+_SEQUENTIAL_ATTACHMENTS: frozenset[str] = frozenset({
+    "at_file_reader_attachment",
+    "file_changed_externally_attachment",
+    "last_path_memory_attachment",
 })
 
 
-async def collect_reminders(
+async def collect_attachments(
     session: Session,
-    reminders: Sequence[Reminder],
+    attachments: Sequence[Attachment],
 ) -> list[message.DeveloperMessage]:
-    """Collect reminders with error isolation and safe ordering.
+    """Collect attachments with error isolation and safe ordering.
 
-    Reminders that share mutable state (file_tracker) run sequentially first.
-    Independent reminders run in parallel afterward. Each reminder is wrapped
+    Attachments that share mutable state (file_tracker) run sequentially first.
+    Independent attachments run in parallel afterward. Each attachment is wrapped
     in a try/except so one failure doesn't block others.
     """
 
-    async def _safe_call(reminder: Reminder) -> message.DeveloperMessage | None:
+    async def _safe_call(attachment: Attachment) -> message.DeveloperMessage | None:
         try:
-            return await reminder(session)
+            return await attachment(session)
         except Exception:
-            name = getattr(reminder, "__name__", repr(reminder))
-            logger.warning("Reminder %s failed", name, exc_info=True)
+            name = getattr(attachment, "__name__", repr(attachment))
+            logger.warning("Attachment %s failed", name, exc_info=True)
             return None
 
-    sequential: list[Reminder] = []
-    parallel: list[Reminder] = []
-    for r in reminders:
+    sequential: list[Attachment] = []
+    parallel: list[Attachment] = []
+    for r in attachments:
         name = getattr(r, "__name__", "")
-        if name in _SEQUENTIAL_REMINDERS:
+        if name in _SEQUENTIAL_ATTACHMENTS:
             sequential.append(r)
         else:
             parallel.append(r)
 
     results: list[message.DeveloperMessage | None] = []
 
-    # Phase 1: sequential reminders (order-dependent, mutate file_tracker)
+    # Phase 1: sequential attachments (order-dependent, mutate file_tracker)
     for r in sequential:
         results.append(await _safe_call(r))
 
-    # Phase 2: independent reminders in parallel
+    # Phase 2: independent attachments in parallel
     if parallel:
         parallel_results = await asyncio.gather(*[_safe_call(r) for r in parallel])
         results.extend(parallel_results)

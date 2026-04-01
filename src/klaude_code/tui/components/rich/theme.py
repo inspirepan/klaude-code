@@ -180,9 +180,9 @@ class ThemeKey(str, Enum):
     USER_INPUT_SKILL = "user.skill"
     # ASSISTANT
     ASSISTANT_MESSAGE_MARK = "assistant.message_mark"
-    # REMINDER
-    REMINDER = "reminder"
-    REMINDER_BOLD = "reminder.bold"
+    # ATTACHMENT
+    ATTACHMENT = "attachment"
+    ATTACHMENT_BOLD = "attachment.bold"
     # TOOL
     INVALID_TOOL_CALL_ARGS = "tool.invalid_tool_call_args"
     TOOL_NAME = "tool.name"
@@ -333,9 +333,9 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.STATUS_TEXT_BOLD_ITALIC.value: "bold italic " + palette.grey1,
                 ThemeKey.STATUS_TOAST.value: "bold " + palette.yellow,
                 ThemeKey.STATUS_HINT.value: palette.grey2,
-                # REMINDER
-                ThemeKey.REMINDER.value: palette.grey1,
-                ThemeKey.REMINDER_BOLD.value: palette.grey1,
+                # ATTACHMENT
+                ThemeKey.ATTACHMENT.value: palette.grey1,
+                ThemeKey.ATTACHMENT_BOLD.value: palette.grey1,
                 # TOOL
                 ThemeKey.INVALID_TOOL_CALL_ARGS.value: palette.yellow,
                 ThemeKey.TOOL_NAME.value: "bold",
