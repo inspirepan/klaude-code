@@ -635,7 +635,7 @@ class _AtFilesCompleter(Completer):
         """Format visible label showing the full path.
 
         The filename is shown in default color, directory parts use a dim style,
-        and the keyword match is highlighted with a yellow background.
+        and the keyword match is highlighted with a yellow underline.
         """
         is_dir = suggestion.endswith("/")
         stripped = suggestion.rstrip("/")
@@ -663,7 +663,7 @@ class _AtFilesCompleter(Completer):
         result: list[tuple[str, str]] = []
         pos = 0
         dim = "ansibrightblack"
-        highlight = "bg:#d4a843 #1a1a1a"
+        highlight = "underline fg:ansiyellow"
 
         for style, text in segments:
             seg_start = pos
