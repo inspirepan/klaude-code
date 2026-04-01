@@ -39,6 +39,9 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
         label = "effort" if is_claude_model_any(model_params.model_id) else "verbosity"
         parts.append(f"{label} {model_params.verbosity}")
 
+    if model_params.fast_mode:
+        parts.append("fast mode")
+
     if model_params.provider_routing:
         parts.append(f"provider routing {_format_provider_routing(model_params.provider_routing)}")
 

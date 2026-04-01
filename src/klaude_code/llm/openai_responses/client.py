@@ -87,6 +87,9 @@ def build_payload(
     if param.verbosity:
         payload["text"] = {"verbosity": param.verbosity}  # type: ignore[typeddict-item]
 
+    if param.fast_mode:
+        payload["service_tier"] = "priority"  # type: ignore[typeddict-item]
+
     return payload
 
 

@@ -19,6 +19,7 @@ def test_build_model_select_items_hides_provider_on_each_model_row() -> None:
             selector="kimi@opencode-zen",
             thinking=None,
             verbosity=None,
+            fast_mode=False,
             provider_routing=None,
         ),
         SimpleNamespace(
@@ -28,6 +29,7 @@ def test_build_model_select_items_hides_provider_on_each_model_row() -> None:
             selector="minimax@opencode-zen",
             thinking=llm_param.Thinking(budget_tokens=2048),
             verbosity=None,
+            fast_mode=False,
             provider_routing=None,
         ),
     ]
