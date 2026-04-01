@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useT } from "@/i18n";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TodoListUIExtra } from "./message-ui-extra";
+import { getVisibleTodos } from "./todo-list-view";
 
 const iconSize = "h-3.5 w-3.5 shrink-0";
 
@@ -77,12 +78,13 @@ interface TodoListViewProps {
 
 export function TodoListView({ uiExtra }: TodoListViewProps): React.JSX.Element {
   const t = useT();
-  const { todos, explanation } = uiExtra.todo_list;
+  const { todos, new_completed: newCompleted, explanation } = uiExtra.todo_list;
+  const visibleTodos = getVisibleTodos(todos, newCompleted);
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-0.5 py-1 text-sm">
       <span className="mb-0.5 font-semibold text-neutral-700">{t("tool.todoTitle")}</span>
-      {todos.map((todo, i) => {
+      {visibleTodos.map((todo, i) => {
         const config = statusConfig[todo.status];
         const Icon = statusIcon[todo.status];
         return (

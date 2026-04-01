@@ -282,9 +282,6 @@ body {
   color: hsl(var(--foreground));
   padding-bottom: 0.25em;
 }
-.planned-group-content .assistant-text {
-  @apply text-sm;
-}
 /* Tailwind preflight resets many element styles; restore them for Streamdown */
 .assistant-text hr {
   margin-top: 1.75em;

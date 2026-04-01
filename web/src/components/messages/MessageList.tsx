@@ -26,7 +26,6 @@ import { CollapseAllContext } from "./collapse-all-context";
 import { DeveloperMessage } from "./DeveloperMessage";
 import { MessageListHeader } from "./MessageListHeader";
 import { MessageRow } from "./MessageRow";
-import { PlannedGroupBlock } from "./PlannedGroupBlock";
 import {
   buildSections,
   buildSectionBlocksForSection,
@@ -64,7 +63,7 @@ const RAIL_CONTENT_OFFSET = "pl-[22px]";
 
 function blockSpacingClass(block: SectionBlock, isFirst: boolean): string {
   if (isFirst) return "";
-  if (block.type === "planned_group" || block.type === "collapse_group") return "mt-3";
+  if (block.type === "collapse_group") return "mt-3";
   if (block.type === "item" && block.item.type === "tool_block") return "mt-3";
   return "mt-3";
 }
@@ -210,57 +209,6 @@ const SectionView = memo(function SectionView({
                   />
                 )}
               />
-            </AnimatedDiv>
-          );
-        }
-
-        if (block.type === "planned_group") {
-          const pgCollapsed = isCollapseGroupCollapsed(block.id);
-          return (
-            <AnimatedDiv key={block.id} className={spacing} style={blockStyle}>
-              <PlannedGroupBlock
-                todos={block.todos}
-                collapsed={pgCollapsed}
-                onToggle={() => {
-                  onToggleCollapseGroup(block.id, pgCollapsed);
-                }}
-              >
-                {block.blocks.map((inner) => {
-                  if (inner.type === "dev_group") {
-                    return <DeveloperMessage key={inner.id} items={inner.items} />;
-                  }
-                  if (inner.type === "sub_agent_group") {
-                    return (
-                      <SubAgentGroupCard
-                        parentSessionId={sessionId}
-                        key={inner.groupId}
-                        sourceSessionId={inner.sourceSessionId}
-                        sourceSessionType={inner.sourceSessionType}
-                        sourceSessionDesc={inner.sourceSessionDesc}
-                        toolCount={inner.toolCount}
-                        onEnterSubAgent={onEnterSubAgent}
-                      />
-                    );
-                  }
-                  const innerItem = inner.item;
-                  const innerHasRailGrid =
-                    GRID_ITEM_TYPES.has(innerItem.type) &&
-                    !(innerItem.type === "tool_block" && CARD_TOOL_NAMES.has(innerItem.toolName));
-                  const innerOffset = !innerHasRailGrid ? RAIL_CONTENT_OFFSET : "";
-                  return (
-                    <div key={innerItem.id} className={innerOffset}>
-                      <MessageRow
-                        item={innerItem}
-                        workDir={workspacePath}
-                        isActive={innerItem.id === activeItemId}
-                        copied={copiedItemId === innerItem.id}
-                        onCopy={onCopy}
-                        setItemRef={setItemRef}
-                      />
-                    </div>
-                  );
-                })}
-              </PlannedGroupBlock>
             </AnimatedDiv>
           );
         }
@@ -864,10 +812,6 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
           for (const entry of block.entries) {
             if (entry.type !== "sub_agent_group") map.set(entry.id, block.id);
           }
-        } else if (block.type === "planned_group") {
-          for (const inner of block.blocks) {
-            if (inner.type === "item") map.set(inner.item.id, block.id);
-          }
         }
       }
     }
@@ -884,7 +828,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
     if (!lastSection) return new Set<string>();
     const ids = new Set<string>();
     for (const block of lastSection) {
-      if (block.type === "collapse_group" || block.type === "planned_group") ids.add(block.id);
+      if (block.type === "collapse_group") ids.add(block.id);
     }
     return ids;
   }, [sectionBlocks]);
@@ -893,7 +837,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
     const ids: string[] = [];
     for (const blocks of sectionBlocks) {
       for (const block of blocks) {
-        if (block.type === "collapse_group" || block.type === "planned_group") ids.push(block.id);
+        if (block.type === "collapse_group") ids.push(block.id);
       }
     }
     return ids;
