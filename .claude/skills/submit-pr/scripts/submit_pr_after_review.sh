@@ -37,6 +37,26 @@ jj_is_empty_rev() {
   jj log -r "$rev" --no-graph --template 'empty'
 }
 
+jj_parent_count() {
+  local rev="$1"
+  jj log -r "parents($rev)" --no-graph --template 'commit_id ++ "\n"' | sed '/^$/d' | wc -l | tr -d ' '
+}
+
+jj_should_skip_empty_rev() {
+  local rev="$1"
+  [[ "$(jj_is_empty_rev "$rev")" == "true" ]] || return 1
+  [[ "$(jj_parent_count "$rev")" -le 1 ]]
+}
+
+jj_first_parent_ref() {
+  local depth="$1"
+  if [[ "$depth" -eq 0 ]]; then
+    printf '@'
+  else
+    printf 'first_parent(@, %s)' "$depth"
+  fi
+}
+
 jj_first_line_description() {
   local rev="$1"
   jj log -r "$rev" --no-graph --template 'description.first_line()'
@@ -163,15 +183,15 @@ if [[ "$mode" == "jj" ]]; then
     compare_rev="$(jj log -r "$jj_rev" --no-graph --template 'commit_id')" || die "Failed to resolve jj revision '$jj_rev'."
     compare_ref="$jj_rev"
     commits="$(git log --oneline "$base_ref..$compare_rev")" || die "Failed to list commits from '$base_ref..$compare_ref'."
-    [[ "$(jj_is_empty_rev "$jj_rev")" != "true" ]] || die "jj revision '$jj_rev' is empty.
-Fix: pass a non-empty revision such as the nearest non-empty ancestor (for example '@--'), or describe the actual change commit before retrying."
+    ! jj_should_skip_empty_rev "$jj_rev" || die "jj revision '$jj_rev' is empty.
+Fix: pass a non-empty revision such as the nearest non-empty first parent (for example 'first_parent(@, 2)'), or describe the actual change commit before retrying."
   else
-    candidate_ref="@"
     skipped_empty_count=0
     selected_non_default=0
     search_depth=0
     max_search_depth=32
     while [[ "$search_depth" -lt "$max_search_depth" ]]; do
+      candidate_ref="$(jj_first_parent_ref "$search_depth")"
       compare_ref="$candidate_ref"
       compare_rev="$(jj_resolve_commit_id "$candidate_ref" 2>/dev/null || true)"
       if [[ -z "$compare_rev" ]]; then
@@ -180,14 +200,12 @@ Fix: pass a non-empty revision such as the nearest non-empty ancestor (for examp
 
       commits="$(git log --oneline "$base_ref..$compare_rev" 2>/dev/null || true)"
       if [[ -z "$commits" ]]; then
-        candidate_ref+="-"
         selected_non_default=1
         search_depth=$((search_depth + 1))
         continue
       fi
 
-      if [[ "$(jj_is_empty_rev "$candidate_ref")" == "true" ]]; then
-        candidate_ref+="-"
+      if jj_should_skip_empty_rev "$candidate_ref"; then
         skipped_empty_count=$((skipped_empty_count + 1))
         selected_non_default=1
         search_depth=$((search_depth + 1))
