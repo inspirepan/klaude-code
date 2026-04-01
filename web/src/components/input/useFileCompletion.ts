@@ -41,7 +41,11 @@ function getFileCompletionContext(
   };
 }
 
-function formatFileCompletionText(path: string, isQuoted: boolean, noTrailingSpace?: boolean): string {
+function formatFileCompletionText(
+  path: string,
+  isQuoted: boolean,
+  noTrailingSpace?: boolean,
+): string {
   const suffix = noTrailingSpace ? "" : " ";
   if (isQuoted || /\s/.test(path)) {
     return `@"${path}"${suffix}`;

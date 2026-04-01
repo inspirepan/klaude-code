@@ -167,7 +167,6 @@ class PrintRuleLine(RenderCommand):
     pass
 
 
-
 @dataclass(frozen=True, slots=True)
 class TaskClockStart(RenderCommand):
     pass

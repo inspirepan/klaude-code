@@ -406,7 +406,9 @@ class ReadTool(ToolABC):
         is_full_read = offset == 1 and limit is None
         if offset > max(read_result.total_lines, 0):
             warn = f"<system-reminder>Warning: the file exists but is shorter than the provided offset ({offset}). The file has {read_result.total_lines} lines.</system-reminder>"
-            _track_file_access(context.file_tracker, file_path, content_sha256=read_result.content_sha256, read_complete=is_full_read)
+            _track_file_access(
+                context.file_tracker, file_path, content_sha256=read_result.content_sha256, read_complete=is_full_read
+            )
             return message.ToolResultMessage(status="success", output_text=warn)
 
         lines_out: list[str] = [_format_numbered_line(no, content) for no, content in read_result.selected_lines]
@@ -424,7 +426,9 @@ class ReadTool(ToolABC):
             )
 
         read_result_str = "\n".join(lines_out)
-        _track_file_access(context.file_tracker, file_path, content_sha256=read_result.content_sha256, read_complete=is_full_read)
+        _track_file_access(
+            context.file_tracker, file_path, content_sha256=read_result.content_sha256, read_complete=is_full_read
+        )
 
         # When offset > 1, show a preview of the first 5 lines in UI
         ui_extra = None
@@ -440,9 +444,7 @@ class ReadTool(ToolABC):
         return message.ToolResultMessage(status="success", output_text=read_result_str, ui_extra=ui_extra)
 
     @classmethod
-    async def _read_image(
-        cls, file_path: str, size_bytes: int, context: ToolContext
-    ) -> message.ToolResultMessage:
+    async def _read_image(cls, file_path: str, size_bytes: int, context: ToolContext) -> message.ToolResultMessage:
         if size_bytes > READ_MAX_IMAGE_BYTES:
             size_mb = size_bytes / (1024 * 1024)
             limit_mb = READ_MAX_IMAGE_BYTES / (1024 * 1024)

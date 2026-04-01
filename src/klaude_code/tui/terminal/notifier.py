@@ -104,4 +104,3 @@ def _compact(text: str, limit: int = NOTIFY_COMPACT_LIMIT) -> str:
     if len(squashed) > limit:
         return squashed[: limit - 3] + "…"
     return squashed
-

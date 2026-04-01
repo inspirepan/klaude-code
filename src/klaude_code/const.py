@@ -85,20 +85,22 @@ BINARY_CHECK_SIZE = 8192  # Bytes to check for binary file detection
 EDIT_MAX_FILE_SIZE = 1024 * 1024 * 1024  # Maximum file size for edit/write operations (1 GiB, prevents OOM)
 
 # Device paths that would hang the process: infinite output or blocking input.
-BLOCKED_DEVICE_PATHS = frozenset({
-    "/dev/zero",
-    "/dev/random",
-    "/dev/urandom",
-    "/dev/full",
-    "/dev/stdin",
-    "/dev/tty",
-    "/dev/console",
-    "/dev/stdout",
-    "/dev/stderr",
-    "/dev/fd/0",
-    "/dev/fd/1",
-    "/dev/fd/2",
-})
+BLOCKED_DEVICE_PATHS = frozenset(
+    {
+        "/dev/zero",
+        "/dev/random",
+        "/dev/urandom",
+        "/dev/full",
+        "/dev/stdin",
+        "/dev/tty",
+        "/dev/console",
+        "/dev/stdout",
+        "/dev/stderr",
+        "/dev/fd/0",
+        "/dev/fd/1",
+        "/dev/fd/2",
+    }
+)
 
 FILE_UNCHANGED_STUB = (
     "File unchanged since last read. The content from the earlier Read tool_result "

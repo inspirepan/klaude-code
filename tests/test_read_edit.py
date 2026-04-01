@@ -919,7 +919,6 @@ class TestOOMGuard(BaseTempDirTest):
             result = orig_stat(path, *a, **kw)
             if str(path) == p:
                 # Return a modified stat result with large st_size
-                import stat as stat_mod
 
                 class FakeStat:
                     pass
@@ -997,7 +996,7 @@ class TestQuoteNormalization(BaseTempDirTest):
         p = os.path.abspath("curly.txt")
         # File has curly quotes
         with open(p, "w", encoding="utf-8") as f:
-            f.write("She said \u201Chello\u201D\n")
+            f.write("She said \u201chello\u201d\n")
         _ = arun(ReadTool.call(json.dumps({"file_path": p}), self.tool_context))
 
         # Model sends straight quotes
@@ -1018,8 +1017,8 @@ class TestQuoteNormalization(BaseTempDirTest):
         with open(p, encoding="utf-8") as f:
             content = f.read()
         # new_string should have curly quotes preserved
-        self.assertIn("\u201C", content)
-        self.assertIn("\u201D", content)
+        self.assertIn("\u201c", content)
+        self.assertIn("\u201d", content)
 
 
 class TestReadDedup(BaseTempDirTest):

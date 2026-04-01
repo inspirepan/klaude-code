@@ -1262,7 +1262,6 @@ class TestCliResume:
         monkeypatch.chdir(project_dir)
 
         import klaude_code.cli.main as _cli_main
-
         from klaude_code.cli.main import app
 
         _orig_run = _cli_main.asyncio.run
@@ -1285,7 +1284,6 @@ class TestCliResume:
         monkeypatch.chdir(project_dir)
 
         import klaude_code.cli.main as _cli_main
-
         from klaude_code.cli.main import app
 
         _orig_run = _cli_main.asyncio.run

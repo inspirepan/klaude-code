@@ -246,8 +246,9 @@ def _image_bytes_within_limits(image_bytes: bytes) -> bool:
     return size_bytes <= _MAX_IMAGE_SIZE_BYTES and _base64_size_bytes(size_bytes) <= _MAX_BASE64_IMAGE_SIZE_BYTES
 
 
-
-def _resize_image_bytes_if_needed(image_bytes: bytes, mime_type: str, *, max_dimension: int = _MAX_IMAGE_DIMENSION) -> bytes:
+def _resize_image_bytes_if_needed(
+    image_bytes: bytes, mime_type: str, *, max_dimension: int = _MAX_IMAGE_DIMENSION
+) -> bytes:
     media_type = mime_type.lower()
     if not media_type.startswith("image/"):
         return image_bytes

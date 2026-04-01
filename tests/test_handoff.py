@@ -215,7 +215,11 @@ class TestRunHandoff:
                 _text_user("do something"),
                 # Simulates a memory reminder injected by the system
                 message.DeveloperMessage(
-                    parts=[message.TextPart(text="<system-reminder>Loaded memory files. SECRET_MEMORY_CONTENT\n</system-reminder>")],
+                    parts=[
+                        message.TextPart(
+                            text="<system-reminder>Loaded memory files. SECRET_MEMORY_CONTENT\n</system-reminder>"
+                        )
+                    ],
                 ),
                 _text_assistant("OK, doing it."),
             ]

@@ -85,8 +85,8 @@ def is_blocked_device_path(file_path: str) -> bool:
 
 LEFT_SINGLE_CURLY = "\u2018"  # '
 RIGHT_SINGLE_CURLY = "\u2019"  # '
-LEFT_DOUBLE_CURLY = "\u201C"  # "
-RIGHT_DOUBLE_CURLY = "\u201D"  # "
+LEFT_DOUBLE_CURLY = "\u201c"  # "
+RIGHT_DOUBLE_CURLY = "\u201d"  # "
 
 
 def normalize_quotes(s: str) -> str:
