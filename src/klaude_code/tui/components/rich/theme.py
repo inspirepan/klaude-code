@@ -21,6 +21,11 @@ class Palette:
     purple: str
     lavender: str
     black: str
+    # Dim variants: pre-computed dimmed colors to avoid relying on terminal "dim" attribute
+    dim_red: str
+    dim_grey1: str
+    dim_grey2: str
+    dim_grey3: str
     diff_add: str
     diff_add_char: str
     diff_remove: str
@@ -56,6 +61,10 @@ LIGHT_PALETTE = Palette(
     purple="#5f5fb7",
     lavender="#7878b0",
     black="#101827",
+    dim_red="#d88888",
+    dim_grey1="#8fa2b0",
+    dim_grey2="#b0bec5",
+    dim_grey3="#d8dfe3",
     diff_add="#2e5a32 on #dafbe1",
     diff_add_char="#2e5a32 on #aceebb",
     diff_remove="#82071e on #ffecec",
@@ -90,6 +99,10 @@ DARK_PALETTE = Palette(
     purple="#afbafe",
     lavender="#9898b8",
     black="white",
+    dim_red="#9a4545",
+    dim_grey1="#6e7b89",
+    dim_grey2="#576574",
+    dim_grey3="#3e444f",
     diff_add="#c8e6c9 on #1b3928",
     diff_add_char="#c8e6c9 on #2d6b42",
     diff_remove="#ffcdd2 on #3d1f23",
@@ -269,7 +282,7 @@ def get_theme(theme: str | None = None) -> Themes:
         app_theme=Theme(
             styles={
                 ThemeKey.LINES.value: palette.grey3,
-                ThemeKey.LINES_DIM.value: "dim " + palette.grey3,
+                ThemeKey.LINES_DIM.value: palette.dim_grey3,
                 # CODE
                 ThemeKey.CODE_BACKGROUND.value: f"on {palette.code_background}",
                 # PANEL
@@ -287,7 +300,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 # ERROR
                 ThemeKey.ERROR.value: palette.red,
                 ThemeKey.ERROR_BOLD.value: "bold " + palette.red,
-                ThemeKey.ERROR_DIM.value: "dim " + palette.red,
+                ThemeKey.ERROR_DIM.value: palette.dim_red,
                 ThemeKey.WARN.value: palette.yellow,
                 ThemeKey.WARN_BOLD.value: "bold " + palette.yellow,
                 ThemeKey.INTERRUPT.value: palette.red,
@@ -301,13 +314,13 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.ASSISTANT_MESSAGE_MARK.value: "bold",
                 # METADATA
                 ThemeKey.METADATA.value: palette.grey1,
-                ThemeKey.METADATA_DIM.value: "dim " + palette.grey1,
+                ThemeKey.METADATA_DIM.value: palette.dim_grey1,
                 ThemeKey.METADATA_BOLD.value: "bold " + palette.grey1,
                 ThemeKey.METADATA_ITALIC.value: "italic " + palette.purple,
                 ThemeKey.METADATA_TOKEN.value: palette.grey1 + " on " + palette.green_background,
                 ThemeKey.METADATA_TOKEN_OK.value: palette.green + " on " + palette.green_background,
                 ThemeKey.METADATA_TOKEN_WARN.value: palette.red + " on " + palette.red_background,
-                ThemeKey.METADATA_CONTEXT.value: "dim " + palette.grey1,
+                ThemeKey.METADATA_CONTEXT.value: palette.dim_grey1,
                 ThemeKey.METADATA_MAIN_AGENT_NAME.value: palette.blue + " on " + palette.blue_sub_background,
                 ThemeKey.METADATA_SUB_AGENT_NAME.value: palette.purple + " on " + palette.purple_background,
                 ThemeKey.METADATA_GREEN.value: palette.green,
@@ -339,7 +352,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_RESULT_QUESTION_PROMPT.value: palette.black,
                 ThemeKey.TOOL_RESULT_TREE_PREFIX.value: palette.grey3,
                 ThemeKey.TOOL_RESULT_BOLD.value: "bold " + palette.grey_green,
-                ThemeKey.TOOL_RESULT_TRUNCATED.value: palette.grey1 + " dim",
+                ThemeKey.TOOL_RESULT_TRUNCATED.value: palette.dim_grey1,
                 ThemeKey.COMMAND_OUTPUT.value: palette.grey1,
                 ThemeKey.FORK_NOTICE.value: "bold " + palette.blue,
                 ThemeKey.SESSION_STATUS.value: palette.grey1,
@@ -348,7 +361,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_APPROVED.value: palette.green + " bold reverse",
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",
                 ThemeKey.TOOL_TIMEOUT.value: palette.grey2,
-                ThemeKey.SUB_AGENT_FOOTER.value: "dim " + palette.grey2,
+                ThemeKey.SUB_AGENT_FOOTER.value: palette.dim_grey2,
                 # BASH SYNTAX
                 ThemeKey.BASH_COMMAND.value: "bold " + palette.green,
                 ThemeKey.BASH_ARGUMENT.value: palette.green,
@@ -362,11 +375,11 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.COMPACTION_SUMMARY.value: palette.grey1,
                 # HANDOFF
                 ThemeKey.HANDOFF.value: palette.blue,
-                ThemeKey.HANDOFF_INFO.value: "dim " + palette.grey2,
+                ThemeKey.HANDOFF_INFO.value: palette.dim_grey2,
                 ThemeKey.HANDOFF_NOTE.value: palette.grey1,
                 # REWIND
                 ThemeKey.REWIND.value: palette.orange,
-                ThemeKey.REWIND_INFO.value: "dim " + palette.grey2,
+                ThemeKey.REWIND_INFO.value: palette.dim_grey2,
                 ThemeKey.REWIND_USER_MESSAGE.value: palette.cyan,
                 ThemeKey.REWIND_NOTE.value: palette.grey1,
                 # TODO_ITEM
@@ -400,7 +413,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.CONFIG_STATUS_ERROR.value: palette.red,
                 ThemeKey.CONFIG_ITEM_NAME.value: palette.cyan,
                 ThemeKey.CONFIG_MODEL_ID.value: palette.blue,
-                ThemeKey.CONFIG_PARAM_LABEL.value: "dim",
+                ThemeKey.CONFIG_PARAM_LABEL.value: palette.dim_grey2,
                 ThemeKey.CONFIG_PARAM_VALUE.value: palette.grey1,
                 ThemeKey.CONFIG_PROVIDER.value: palette.cyan + " bold",
             }
@@ -445,7 +458,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.code.fence": palette.grey2,
                 "markdown.code.fence.title": palette.grey1,
                 "markdown.code.border": palette.grey2,
-                "markdown.thinking.tag": palette.grey2 + " dim",
+                "markdown.thinking.tag": palette.dim_grey2,
                 "markdown.h1": "bold reverse",
                 "markdown.h1.border": palette.grey3,
                 "markdown.h3": "bold " + palette.grey1,
