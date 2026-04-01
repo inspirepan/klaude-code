@@ -93,12 +93,7 @@ class EditTool(ToolABC):
         # Smart deletion: when deleting a single occurrence (new_string is empty, not replace_all)
         # and old_string doesn't end with a newline, also remove the trailing newline to avoid
         # leaving blank lines. Only for single replacement to avoid miscount with replace_all.
-        if (
-            not replace_all
-            and new_string == ""
-            and "\n" not in old_string
-            and content.find(old_string + "\n") != -1
-        ):
+        if not replace_all and new_string == "" and "\n" not in old_string and content.find(old_string + "\n") != -1:
             return content.replace(old_string + "\n", new_string, 1)
 
         if replace_all:
