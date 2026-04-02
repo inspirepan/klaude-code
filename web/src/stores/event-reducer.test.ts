@@ -174,3 +174,26 @@ describe("reduceBatch", () => {
     });
   });
 });
+
+describe("reduceEvent — developer message", () => {
+  it("keeps messages that only contain discovered skills", () => {
+    const state = reduceEvent(
+      createInitialState(),
+      "developer.message",
+      makeEvent({
+        item: {
+          ui_extra: {
+            items: [{ type: "skill_discovered", name: "tmux-test" }],
+          },
+        },
+      }),
+      null,
+    );
+
+    expect(state.items).toHaveLength(1);
+    expect(state.items[0]).toMatchObject({
+      type: "developer_message",
+      items: [{ type: "skill_discovered", name: "tmux-test" }],
+    });
+  });
+});

@@ -150,6 +150,12 @@ export function parseDeveloperUIItems(raw: unknown): DeveloperUIItem[] {
         out.push({ type: "skill_activated", name });
         break;
       }
+      case "skill_discovered": {
+        const name = typeof ui.name === "string" ? ui.name : "";
+        if (name.length === 0) break;
+        out.push({ type: "skill_discovered", name });
+        break;
+      }
       case "at_file_images": {
         const paths = parseStringArray(ui.paths).filter((p) => p.length > 0);
         if (paths.length === 0) break;
