@@ -46,6 +46,7 @@ def test_render_todo_write_tool_call_hides_explanation_details() -> None:
 
 def test_render_todo_result_keeps_explanation_once() -> None:
     explanation = "Scope all references before deleting auth code."
+    todo_content = "Locate OAuth references"
     event = events.ToolResultEvent(
         session_id="s1",
         tool_call_id="tc1",
@@ -54,7 +55,7 @@ def test_render_todo_result_keeps_explanation_once() -> None:
         status="success",
         ui_extra=model.TodoListUIExtra(
             todo_list=model.TodoUIExtra(
-                todos=[model.TodoItem(content="Locate OAuth references", status="in_progress")],
+                todos=[model.TodoItem(content=todo_content, status="in_progress")],
                 new_completed=[],
                 explanation=explanation,
             )
@@ -64,5 +65,6 @@ def test_render_todo_result_keeps_explanation_once() -> None:
 
     output = _render_tool_result_to_text(event)
 
-    assert "Locate OAuth references" in output
+    assert todo_content in output
     assert output.count(explanation) == 1
+    assert output.index(explanation) < output.index(todo_content)
