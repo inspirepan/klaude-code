@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from klaude_code.config.config import Config
@@ -21,7 +21,6 @@ from klaude_code.core.agent.attachments import (
     todo_attachment,
 )
 from klaude_code.core.prompts.system_prompt import load_system_prompt
-from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_registry import get_tool_schemas
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import llm_param, tools
@@ -52,15 +51,6 @@ MAIN_AGENT_COMMON_TOOLS: list[str] = [
     tools.WEB_SEARCH,
     tools.ASK_USER_QUESTION,
 ]
-
-
-STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT = """\
-
-# Structured Output
-You have a `report_back` tool available. When you complete the task,\
-you MUST call `report_back` with the structured result matching the required schema.\
-Only the content passed to `report_back` will be returned to user.\
-"""
 
 
 def load_agent_tools(
@@ -129,17 +119,6 @@ def load_agent_attachments(
     return attachments
 
 
-def with_structured_output(profile: AgentProfile, output_schema: dict[str, Any]) -> AgentProfile:
-    report_back_tool_class = ReportBackTool.for_schema(output_schema)
-    base_prompt = profile.system_prompt or ""
-    return AgentProfile(
-        llm_client=profile.llm_client,
-        system_prompt=base_prompt + STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT,
-        tools=[*profile.tools, report_back_tool_class.schema()],
-        attachments=profile.attachments,
-    )
-
-
 class ModelProfileProvider(Protocol):
     """Strategy interface for constructing agent profiles."""
 
@@ -148,7 +127,6 @@ class ModelProfileProvider(Protocol):
         llm_client: LLMClientABC,
         sub_agent_type: tools.SubAgentType | None = None,
         *,
-        output_schema: dict[str, Any] | None = None,
         work_dir: Path,
     ) -> AgentProfile: ...
 
@@ -164,7 +142,6 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         llm_client: LLMClientABC,
         sub_agent_type: tools.SubAgentType | None = None,
         *,
-        output_schema: dict[str, Any] | None = None,
         work_dir: Path,
     ) -> AgentProfile:
         model_name = llm_client.model_name
@@ -174,15 +151,12 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         )
         agent_attachments = load_agent_attachments(model_name, sub_agent_type, available_tools=agent_tools)
 
-        profile = AgentProfile(
+        return AgentProfile(
             llm_client=llm_client,
             system_prompt=agent_system_prompt,
             tools=agent_tools,
             attachments=agent_attachments,
         )
-        if output_schema:
-            return with_structured_output(profile, output_schema)
-        return profile
 
 
 class VanillaModelProfileProvider(ModelProfileProvider):
@@ -193,16 +167,12 @@ class VanillaModelProfileProvider(ModelProfileProvider):
         llm_client: LLMClientABC,
         sub_agent_type: tools.SubAgentType | None = None,
         *,
-        output_schema: dict[str, Any] | None = None,
         work_dir: Path,
     ) -> AgentProfile:
         del sub_agent_type, work_dir
-        profile = AgentProfile(
+        return AgentProfile(
             llm_client=llm_client,
             system_prompt="You're an agent running in user's terminal",
             tools=get_tool_schemas([tools.BASH, tools.EDIT, tools.WRITE, tools.READ]),
             attachments=[],
         )
-        if output_schema:
-            return with_structured_output(profile, output_schema)
-        return profile

@@ -14,7 +14,6 @@ from .file.edit_tool import EditTool
 from .file.read_tool import ReadTool
 from .file.write_tool import WriteTool
 from .handoff_tool import HandoffTool
-from .report_back_tool import ReportBackTool
 from .rewind_tool import RewindTool
 from .shell.bash_tool import BashTool
 from .shell.command_safety import SafetyCheckResult, is_safe_command
@@ -35,7 +34,6 @@ __all__ = [
     "FileTracker",
     "HandoffTool",
     "ReadTool",
-    "ReportBackTool",
     "RequestUserInteraction",
     "RewindTool",
     "RunSubtask",

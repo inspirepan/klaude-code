@@ -350,7 +350,6 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
         events.TaskFinishEvent(
             session_id=sub_session,
             task_result="done",
-            has_structured_output=False,
         )
     )
     finish_update = _last_spinner_update(finish_cmds)
@@ -532,7 +531,6 @@ def test_main_session_tokens_accumulate_across_task_boundaries() -> None:
         events.TaskFinishEvent(
             session_id=session_id,
             task_result="done",
-            has_structured_output=False,
         )
     )
 

@@ -53,10 +53,6 @@ AGENT_SCHEMA = llm_param.ToolSchema(
                 "type": "string",
                 "description": "The task for the agent to perform.",
             },
-            "output_schema": {
-                "type": "object",
-                "description": "Optional JSON Schema for structured output.",
-            },
         },
         "required": ["description", "prompt"],
         "additionalProperties": False,
@@ -111,16 +107,12 @@ class AgentTool(ToolABC):
 
         sub_agent_prompt = str(typed_args.get("prompt", ""))
 
-        output_schema_raw = typed_args.get("output_schema")
-        output_schema = cast(dict[str, Any], output_schema_raw) if isinstance(output_schema_raw, dict) else None
-
         try:
             result = await runner(
                 model.SubAgentState(
                     sub_agent_type=profile.name,
                     sub_agent_desc=description,
                     sub_agent_prompt=sub_agent_prompt,
-                    output_schema=output_schema,
                     fork_context=profile.fork_context,
                 ),
                 context.record_sub_agent_session_id,

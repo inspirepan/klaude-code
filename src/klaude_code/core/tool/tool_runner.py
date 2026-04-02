@@ -5,9 +5,8 @@ from dataclasses import dataclass
 from klaude_code.const import CANCEL_OUTPUT
 from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.offload import offload_tool_output
-from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy
-from klaude_code.protocol import message, model, tools
+from klaude_code.protocol import message, model
 
 
 @dataclass(frozen=True)
@@ -33,13 +32,6 @@ async def run_tool(
     Returns:
         The result of the tool execution.
     """
-    # Special handling for report_back tool (not registered in global registry)
-    if tool_call.tool_name == tools.REPORT_BACK:
-        tool_result = await ReportBackTool.call(tool_call.arguments_json, context)
-        tool_result.call_id = tool_call.call_id
-        tool_result.tool_name = tool_call.tool_name
-        return tool_result
-
     if tool_call.tool_name not in registry:
         return message.ToolResultMessage(
             call_id=tool_call.call_id,

@@ -34,7 +34,6 @@ MARK_EDIT = "±"
 MARK_WRITE = "+"
 MARK_WEB_FETCH = "→"
 MARK_WEB_SEARCH = "✱"
-MARK_DONE = "✔"
 MARK_REWIND = "↶"
 MARK_QUESTION = "◉"
 
@@ -549,10 +548,6 @@ def render_web_search_tool_call(arguments: str) -> RenderableType:
     return _render_tool_call_tree(mark=MARK_WEB_SEARCH, tool_name=tool_name, details=summary)
 
 
-def render_report_back_tool_call() -> RenderableType:
-    return _render_tool_call_tree(mark=MARK_DONE, tool_name="Report Back", details=None)
-
-
 def render_rewind_tool_call(arguments: str) -> RenderableType:
     tool_name = "Rewind"
 
@@ -611,7 +606,6 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.TODO_WRITE: "Planning",
     tools.WEB_FETCH: "Fetching Web",
     tools.WEB_SEARCH: "Searching Web",
-    tools.REPORT_BACK: "Reporting",
     tools.AGENT: "Running Task",
     tools.REWIND: "Rewinding",
     tools.ASK_USER_QUESTION: "Questioning",
@@ -651,8 +645,6 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_apply_patch_tool_call(e.arguments)
         case tools.TODO_WRITE:
             return render_todo_write_tool_call(e.arguments)
-        case tools.REPORT_BACK:
-            return render_report_back_tool_call()
         case tools.REWIND:
             return render_rewind_tool_call(e.arguments)
         case tools.WEB_FETCH:

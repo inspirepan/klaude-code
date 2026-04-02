@@ -8,7 +8,6 @@ Minimal code agent CLI.
 - **Model-aware tools**: Claude Code tool set for Opus, `apply_patch` for GPT-5/Codex
 - **Reminders**: Cooldown-based todo tracking, instruction reinforcement and external file change reminder
 - **Sub-agents**: Task, Finder
-- **Structured sub-agent output**: Main agent defines JSON schema and get schema-compliant responses via constrained decoding
 - **Recursive `@file` mentions**: Circular dependency protection, relative path resolution
 - **External file sync**: Monitoring for external edits (linter, manual)
 - **Interrupt handling**: Ctrl+C preserves partial responses and synthesizes tool cancellation results

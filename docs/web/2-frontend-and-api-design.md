@@ -379,7 +379,6 @@ Sub-agent 事件和主 agent 事件共享同一个 WS 连接。前端通过 `ses
 │  {description}
 │  ─────────────
 │  Prompt: {prompt 前 10 行，截断}
-│  Output Schema: {output_schema 摘要}     [展开查看完整]
 └─
 ```
 
@@ -551,7 +550,6 @@ ToolCallHeader:
 | `WebFetch` | Fetch Web | `->` | `arguments.url` (截断显示) |
 | `WebSearch` | Search Web | `*` | `arguments.query` (截断显示) + 可选 max_results |
 | `AskUserQuestion` | "Agent has N questions" | `?` | 从 `arguments.questions` 数组取 length |
-| `report_back` | Report Back | check | (无 details) |
 | `Rewind` | Rewind | undo | `Checkpoint {id}` + rationale 摘要 |
 | `Agent` (sub-agent) | -- | -- | **不渲染**，sub-agent 工具调用在主流中隐藏 |
 | 其他 | 原始 tool_name | generic | `key: value` 拼接所有参数 |

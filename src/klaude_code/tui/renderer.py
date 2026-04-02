@@ -701,7 +701,6 @@ class TUICommandRenderer:
                 self.print(
                     c_sub_agent.render_sub_agent_result(
                         event.task_result,
-                        has_structured_output=event.has_structured_output,
                         description=description,
                         sub_agent_color=self._current_sub_agent_color,
                     )

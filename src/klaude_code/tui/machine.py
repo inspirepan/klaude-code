@@ -74,7 +74,6 @@ FAST_TOOLS: frozenset[str] = frozenset(
         tools.BASH,
         tools.TODO_WRITE,
         tools.APPLY_PATCH,
-        tools.REPORT_BACK,
         tools.REWIND,
     }
 )
@@ -1284,7 +1283,6 @@ class DisplayStateMachine:
                 if (
                     not is_replay
                     and not s.is_sub_agent
-                    and not e.has_structured_output
                     and s.assistant_char_count == 0
                     and e.task_result.strip()
                     and e.task_result.strip().lower() not in {"task cancelled", "task canceled"}

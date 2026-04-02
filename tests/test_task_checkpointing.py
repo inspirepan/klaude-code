@@ -56,7 +56,6 @@ def _build_executor(
             else:
                 self.continue_agent = continue_agent_sequence[index]
             self.task_result = "done"
-            self.has_structured_output = False
 
         async def run(self) -> AsyncGenerator[events.Event]:
             if False:

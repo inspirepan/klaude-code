@@ -15,7 +15,6 @@ def test_task_finish_renders_final_result_when_no_assistant_events() -> None:
         events.TaskFinishEvent(
             session_id=session_id,
             task_result="Hello from task finish",
-            has_structured_output=False,
         )
     )
 
@@ -37,24 +36,6 @@ def test_task_finish_does_not_duplicate_when_assistant_text_streamed() -> None:
         events.TaskFinishEvent(
             session_id=session_id,
             task_result="Hi",
-            has_structured_output=False,
-        )
-    )
-
-    assert not any(isinstance(c, AppendAssistant) for c in cmds)
-
-
-def test_task_finish_does_not_render_structured_output_as_assistant_text() -> None:
-    m = DisplayStateMachine()
-    session_id = "s1"
-
-    _ = m.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
-
-    cmds = m.transition(
-        events.TaskFinishEvent(
-            session_id=session_id,
-            task_result='{"ok": true}',
-            has_structured_output=True,
         )
     )
 
@@ -71,7 +52,6 @@ def test_task_finish_does_not_render_task_cancelled_as_assistant_text() -> None:
         events.TaskFinishEvent(
             session_id=session_id,
             task_result="task cancelled",
-            has_structured_output=False,
         )
     )
 

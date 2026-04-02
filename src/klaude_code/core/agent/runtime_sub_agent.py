@@ -86,7 +86,6 @@ class SubAgentExecutor:
             child_profile = self._model_profile_provider.build_profile(
                 clients.get_client(state.sub_agent_type),
                 state.sub_agent_type,
-                output_schema=state.output_schema,
                 work_dir=parent_session.work_dir,
             )
 
@@ -176,11 +175,6 @@ class SubAgentExecutor:
 
                 if isinstance(event, events.TaskFinishEvent):
                     result = event.task_result
-                    event = events.TaskFinishEvent(
-                        session_id=event.session_id,
-                        task_result=result,
-                        has_structured_output=event.has_structured_output,
-                    )
                 elif isinstance(event, events.TaskMetadataEvent):
                     task_metadata = event.metadata.main_agent
                     task_metadata.sub_agent_name = state.sub_agent_type
