@@ -17,7 +17,7 @@ export function CommandListPanel({
 }): React.JSX.Element {
   return (
     <div
-      className={cn("overflow-hidden rounded-xl border border-border/80 bg-background", className)}
+      className={cn("overflow-hidden rounded-xl bg-background ring-1 ring-black/[0.06]", className)}
     >
       {children}
     </div>
@@ -32,7 +32,7 @@ export const CommandListScroll = React.forwardRef<
   HTMLDivElement,
   { maxHeight?: string; children: React.ReactNode }
 >(({ maxHeight = "max-h-72", children }, ref) => (
-  <ScrollArea ref={ref} className="w-full px-1 py-1.5" viewportClassName={maxHeight} type="hover">
+  <ScrollArea ref={ref} className="w-full py-1.5" viewportClassName={maxHeight} type="hover">
     {children}
   </ScrollArea>
 ));
@@ -56,7 +56,7 @@ export function CommandListItem({
     <button
       type="button"
       className={cn(
-        "mx-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors",
+        "mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors",
         highlighted ? "bg-muted text-neutral-900" : "text-neutral-600 hover:bg-surface",
         className,
       )}

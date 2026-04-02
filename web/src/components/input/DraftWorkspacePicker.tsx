@@ -104,7 +104,10 @@ export function DraftWorkspacePicker({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
-        <label htmlFor="draft-workspace" className="text-sm font-semibold text-neutral-600">
+        <label
+          htmlFor="draft-workspace"
+          className="font-mono text-xs font-medium uppercase tracking-wider text-neutral-500"
+        >
           {t("workspace.label")}
         </label>
         <span className="text-xs text-neutral-500">{t("workspace.hint")}</span>

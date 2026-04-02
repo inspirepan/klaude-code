@@ -40,7 +40,7 @@ export function RewindSummary({ item }: RewindSummaryProps): React.JSX.Element {
   return (
     <div className="relative mt-4 pt-5">
       <div className="pointer-events-none absolute left-1/2 top-0 w-[200vw] -translate-x-1/2 border-t border-border/80" />
-      <div className="rounded-lg bg-amber-50/55 px-5 py-5">
+      <div className="rounded-lg bg-amber-50/55 px-5 py-5 ring-1 ring-inset ring-amber-500/[0.06]">
         <div className="mb-2 flex items-center gap-2 text-base font-semibold text-rewind-label">
           <RotateCcw className="h-4 w-4 shrink-0" />
           {t("rewind.label")(item.checkpointId)}

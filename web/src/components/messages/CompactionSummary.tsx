@@ -86,7 +86,7 @@ export function CompactionSummary({ item }: CompactionSummaryProps): React.JSX.E
   return (
     <div className="relative mt-4 pt-5">
       <div className="pointer-events-none absolute left-1/2 top-0 w-[200vw] -translate-x-1/2 border-t border-border/80" />
-      <div className="rounded-lg bg-sky-50/55 px-5 py-5">
+      <div className="rounded-lg bg-sky-50/55 px-5 py-5 ring-1 ring-inset ring-sky-500/[0.06]">
         <div className="mb-2 text-base font-semibold text-compaction-label">
           {t("compaction.label")}
         </div>

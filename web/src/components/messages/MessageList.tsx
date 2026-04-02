@@ -995,7 +995,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
                     onClick={() => {
                       scrollToBottom();
                     }}
-                    className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card/95 text-neutral-700 shadow-sm ring-1 ring-black/[0.06] backdrop-blur transition-colors hover:bg-card hover:text-neutral-900"
+                    className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-card/95 text-neutral-700 shadow-sm ring-1 ring-black/[0.06] backdrop-blur transition-colors hover:bg-card hover:text-neutral-900"
                     aria-label={t("messageList.scrollToBottom")}
                   >
                     <ArrowDown className="h-4 w-4" />

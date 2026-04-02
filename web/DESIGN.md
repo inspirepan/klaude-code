@@ -57,7 +57,6 @@ Dark mode inverts the neutral scale but keeps the same semantic color mapping. `
 - **Never mix green families**: use `emerald-*` exclusively. Never `green-*`.
 - **Never mix red families**: use `red-*` exclusively. Never `rose-*`.
 - **Never hardcode `bg-white`**: use `bg-card` (adapts to dark mode).
-- **Never hardcode border colors**: use `border-border` (maps to `--border` token). Use `border-neutral-300` only for intentionally heavier borders.
 - **Body text uses `--foreground`**: never hardcode `#171717` or other hex values for body text.
 
 ## 3. Typography Rules
@@ -114,17 +113,40 @@ A strict neutral scale for text, from strongest to weakest:
 
 **Rule**: When a text-neutral-500 element has a hover state, use `hover:text-neutral-700`. When a text-neutral-600 element has a hover state, use `hover:text-neutral-800`.
 
+### Eyebrow Text
+
+Section labels, category tags, and header chips use a consistent formula: `font-mono text-xs font-medium uppercase tracking-wider text-neutral-500`. The monospace font gives short labels a technical, precise appearance. Examples: question header chips in UserInteractionCard, workspace picker label, operation headers.
+
+### Text Wrapping
+
+- **`text-pretty`**: Applied to paragraph text (question text, descriptions, assistant prose) to prevent orphan words at the end of lines.
+- **`text-balance`**: Applied to short headings (overlay titles) to distribute text evenly across lines.
+- Rule: multi-line body text gets `text-pretty`; short display headings get `text-balance`.
+
 ### Character
 
-Anti-aliased rendering (`-webkit-font-smoothing: antialiased`). The assistant text area uses `line-height: 1.6` for compact but comfortable reading of long-form markdown. Code blocks and tool output use the monospace stack at `0.9em` relative size. The overall typographic feel is **compact but breathable** -- high information density with enough vertical rhythm to avoid fatigue.
+Anti-aliased rendering (`-webkit-font-smoothing: antialiased`). The assistant text area uses `line-height: 1.6` with `text-wrap: pretty` for compact but comfortable reading of long-form markdown. Code blocks and tool output use the monospace stack at `0.9em` relative size. The overall typographic feel is **compact but breathable** -- high information density with enough vertical rhythm to avoid fatigue.
 
 ## 4. Component Stylings
 
+### Edge Definition Strategy
+
+The project uses **ring** instead of **border** for edge definition on elevated elements. When an element has both a shadow and a solid border, the transition between shadow and border creates a "muddy" visual artifact. Rings produce a sharper, cleaner edge.
+
+**Outer ring** (elements with shadow): `ring-1 ring-black/[0.06]` replaces `border border-*`. Applied to: composer card, user interaction card, tooltips, search bar, overlay dialogs, scroll-to-bottom button, dropdown panels, outline buttons.
+
+**Inset ring** (recessed containers without shadow): `ring-1 ring-inset ring-black/[0.05]` replaces `border border-border/80`. Applied to: tool blocks (plan, question), diff view containers, image thumbnails. The inset placement is more subtle than border and avoids stealing visual focus from content.
+
+**Tinted inset ring** (colored containers): `ring-1 ring-inset ring-{color}-500/[0.06]` for containers with semantic background colors. Applied to: compaction summary (`ring-sky-500/[0.06]`), rewind summary (`ring-amber-500/[0.06]`).
+
+**Border is still used for**: sidebar divider (`border-r`), structural separators (horizontal rules between sections), form input borders (which transition to ring on focus), selection pill borders (which change color on selection state).
+
 ### Buttons
 
-- **Shape**: `rounded-md` (6px effective radius). Full-round (`rounded-full`) for icon-only circular actions (send, add image, close).
+- **Shape**: `rounded-md` (6px effective radius) for standard buttons. `rounded-full` for icon-only circular actions (send, add image, close) and pill-shaped action buttons (submit, cancel, next in interaction cards).
 - **Height scale**: `h-7` (28px) for inline/compact, `h-8` (32px) for standard, `h-9`/`h-10` for emphasized.
 - **Shadow**: `shadow-sm` on default/destructive/outline variants. Ghost and link variants have no shadow.
+- **Outline variant**: Uses `ring-1 ring-black/[0.06]` instead of `border` for cleaner shadow interaction.
 - **Hover**: Color shift only (`bg-primary/90`, `bg-accent`). No scale, no translate.
 - **Active/Press**: No `:active` scale transform currently applied. **Opportunity**: add `transform: scale(0.97)` on `:active` for tactile press feedback per Emil Kowalski's principle.
 - **Disabled**: `opacity-50` + `pointer-events-none`. Clean, no grayed-out background trick.
@@ -133,11 +155,12 @@ Anti-aliased rendering (`-webkit-font-smoothing: antialiased`). The assistant te
 
 ### Cards & Containers
 
-- **Composer card**: `rounded-lg` (8px), `bg-card`, `shadow-sm`, `ring-1 ring-black/[0.06]`. The ring is almost invisible -- just enough to define the card edge against the off-white background. This is the signature "barely-there border" pattern.
-- **User interaction card**: `rounded-2xl` (16px), `border border-border/80`, `bg-card`, `shadow-sm`. Slightly more elevated than the composer -- rounder corners signal "this needs your attention."
+- **Composer card**: `rounded-lg` (8px), `bg-card`, `shadow-sm`, `ring-1 ring-black/[0.06]`. The ring is almost invisible -- just enough to define the card edge against the off-white background. This is the signature "barely-there edge" pattern.
+- **User interaction card**: `rounded-2xl` (16px), `bg-card`, `shadow-sm`, `ring-1 ring-black/[0.06]`. Rounder corners signal "this needs your attention."
 - **Sidebar**: Flat `bg-sidebar` with a single `border-r border-border` divider. No shadow. The sidebar should feel like part of the page, not floating above it.
-- **Popovers/Dropdowns**: `bg-card`, `border border-border/80`, `shadow-float-lg`. Stronger shadow than cards to establish elevation hierarchy.
-- **Tooltips**: `rounded-md`, `border border-border`, `bg-card`, `shadow-sm`, `text-xs`. Minimal and precise.
+- **Popovers/Dropdowns**: `bg-background`, `ring-1 ring-black/[0.06]`, with `shadow-float` or `shadow-float-lg`. Stronger shadow than cards to establish elevation hierarchy.
+- **Tooltips**: `rounded-md`, `bg-card`, `shadow-sm`, `ring-1 ring-black/[0.06]`, `text-xs`. Minimal and precise.
+- **Recessed containers** (tool blocks, plan/question blocks): `bg-surface/50`, `ring-1 ring-inset ring-black/[0.05]`. The inset ring is nearly invisible -- just enough edge definition to separate the container from surrounding content.
 
 ### Inputs & Forms
 
@@ -263,8 +286,6 @@ The `darkMode: ["class"]` approach means dark mode is toggled by adding `.dark` 
 
 ## 10. Design Opportunities & Gaps
 
-Areas where the current implementation can be improved, informed by the Emil Kowalski design engineering philosophy:
-
 ### Missing Tactile Feedback
 
 - Buttons lack `:active` scale. Add `transform: scale(0.97)` with `transition: transform 160ms ease-out` to all pressable elements. This single change makes the entire interface feel more responsive.
@@ -281,9 +302,7 @@ Areas where the current implementation can be improved, informed by the Emil Kow
 
 ### Custom Easing Curves
 
-- Current transitions use Tailwind defaults (`ease-out`, `ease-in-out`). These are too gentle. Consider custom curves:
-  - `cubic-bezier(0.23, 1, 0.32, 1)` for a punchier ease-out
-  - `cubic-bezier(0.77, 0, 0.175, 1)` for smoother ease-in-out
+- The `ease-out-strong` curve (`cubic-bezier(0.23, 1, 0.32, 1)`) is defined in `tailwind.config.js` but not yet widely used. Consider adopting it for collapse/expand and popover transitions where the default `ease-out` feels too gentle.
 
 ### Performance
 
@@ -300,3 +319,20 @@ Areas where the current implementation can be improved, informed by the Emil Kow
 - Streaming text uses a 120ms fade-in -- good, nearly instant.
 - Consider making the loading spinner slightly faster to improve perceived load times.
 - The `useStreamThrottle` hook (80ms minimum update interval) is a good balance between smoothness and performance.
+
+### Concentric Radius
+
+When a rounded container holds another rounded element near its edges, the inner element's `border-radius` should equal `outer_radius - gap` (where gap is the distance from outer edge to inner edge). This creates concentric arcs that look harmonious. When inner and outer use the same radius but the gap is small, the spacing between curves looks pinched.
+
+**Formula**: `inner_radius = max(0, outer_radius - gap_to_inner_edge)`
+
+Current concentric relationships:
+
+| Container                           | Outer                | Gap        | Inner              | Formula check           |
+| ----------------------------------- | -------------------- | ---------- | ------------------ | ----------------------- |
+| CommandListPanel -> CommandListItem | `rounded-xl` (12px)  | ~8px       | `rounded-md` (6px) | 12-8=4, 6 is close      |
+| NewSessionOverlay -> inner cards    | `rounded-[20px]`     | 12px (p-3) | `rounded-lg` (8px) | 20-12=8, exact match    |
+| UserMessage bubble -> images        | `rounded-2xl` (16px) | 10px       | `rounded-md` (6px) | 16-10=6, exact match    |
+| UserInteractionCard -> pills        | `rounded-2xl` (16px) | 20px       | `rounded-lg` (8px) | gap > radius, any works |
+
+**Rule**: When adding new card-in-card or panel-in-panel layouts, check the formula. If the gap is larger than the outer radius, any inner radius works. If the gap is small (< outer radius), apply the formula.

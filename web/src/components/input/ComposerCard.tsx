@@ -473,7 +473,7 @@ export function ComposerCard({
           {images.map((attachment) => (
             <div
               key={attachment.id}
-              className="group relative overflow-hidden rounded-md border border-border/80 bg-surface"
+              className="group relative overflow-hidden rounded-md bg-surface ring-1 ring-inset ring-black/[0.05]"
             >
               <img
                 src={buildFileApiUrl(attachment.image.file_path)}
@@ -532,7 +532,7 @@ export function ComposerCard({
                 }}
                 disabled={attachmentsDisabled}
                 aria-label={t("composer.addImage")}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-neutral-500 transition-colors hover:border-neutral-300 hover:text-neutral-700 disabled:cursor-not-allowed disabled:border-border disabled:text-neutral-300"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-card text-neutral-500 ring-1 ring-black/[0.06] transition-colors hover:text-neutral-700 hover:ring-neutral-300 disabled:cursor-not-allowed disabled:text-neutral-300"
               >
                 <Plus className="h-4 w-4" strokeWidth={2.2} />
               </button>
@@ -552,7 +552,7 @@ export function ComposerCard({
                 }}
                 disabled={disableInput}
                 aria-label={t("composer.inputHistory")}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-neutral-500 transition-colors hover:border-neutral-300 hover:text-neutral-700 disabled:cursor-not-allowed disabled:border-border disabled:text-neutral-300"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-card text-neutral-500 ring-1 ring-black/[0.06] transition-colors hover:text-neutral-700 hover:ring-neutral-300 disabled:cursor-not-allowed disabled:text-neutral-300"
               >
                 <History className="h-4 w-4" strokeWidth={2.2} />
               </button>
