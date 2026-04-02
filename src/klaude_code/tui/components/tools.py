@@ -612,7 +612,7 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.WEB_FETCH: "Fetching Web",
     tools.WEB_SEARCH: "Searching Web",
     tools.REPORT_BACK: "Reporting",
-    tools.AGENT: "Spawning Task",
+    tools.AGENT: "Running Task",
     tools.REWIND: "Rewinding",
     tools.ASK_USER_QUESTION: "Questioning",
 }

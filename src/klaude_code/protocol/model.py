@@ -212,6 +212,9 @@ class FileStatus(BaseModel):
     mtime: float
     content_sha256: str | None = None
     is_memory: bool = False
+    is_skill: bool = False
+    skill_attachment_source: Literal["dynamic", "explicit"] | None = None
+    is_directory: bool = False
     read_complete: bool = False
 
 
@@ -384,6 +387,11 @@ class SkillActivatedUIItem(BaseModel):
     name: str
 
 
+class SkillDiscoveredUIItem(BaseModel):
+    type: Literal["skill_discovered"] = "skill_discovered"
+    name: str
+
+
 class AtFileImagesUIItem(BaseModel):
     type: Literal["at_file_images"] = "at_file_images"
     paths: list[str]
@@ -396,6 +404,7 @@ type DeveloperUIItem = (
     | AtFileOpsUIItem
     | UserImagesUIItem
     | SkillActivatedUIItem
+    | SkillDiscoveredUIItem
     | AtFileImagesUIItem
 )
 

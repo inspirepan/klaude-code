@@ -253,22 +253,34 @@ class TestRunHandoff:
 
 
 class TestMemoryReset:
-    def test_reset_memory_loaded_flags(self) -> None:
-        from klaude_code.core.agent.task import _reset_memory_loaded_flags  # pyright: ignore[reportPrivateUsage]
+    def test_reset_attachment_loaded_flags(self) -> None:
+        from klaude_code.core.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
 
         file_tracker: dict[str, model.FileStatus] = {
             "src/foo.py": model.FileStatus(mtime=1.0, is_memory=False),
             "/home/.claude/CLAUDE.md": model.FileStatus(mtime=2.0, is_memory=True),
             "/home/.claude/memory/MEMORY.md": model.FileStatus(mtime=3.0, is_memory=True),
+            "/repo/src/.claude/skills/local/SKILL.md": model.FileStatus(
+                mtime=3.5,
+                is_skill=True,
+                skill_attachment_source="dynamic",
+            ),
+            "/repo/src/.claude/skills/explicit/SKILL.md": model.FileStatus(
+                mtime=3.7,
+                is_skill=True,
+                skill_attachment_source="explicit",
+            ),
             "src/bar.py": model.FileStatus(mtime=4.0, is_memory=False),
         }
 
-        _reset_memory_loaded_flags(file_tracker)
+        _reset_attachment_loaded_flags(file_tracker)
 
-        # Memory entries should be removed
+        # Attachment-only entries should be removed
         assert "/home/.claude/CLAUDE.md" not in file_tracker
         assert "/home/.claude/memory/MEMORY.md" not in file_tracker
-        # Non-memory entries should remain
+        assert "/repo/src/.claude/skills/local/SKILL.md" not in file_tracker
+        assert "/repo/src/.claude/skills/explicit/SKILL.md" in file_tracker
+        # Non-attachment entries should remain
         assert "src/foo.py" in file_tracker
         assert "src/bar.py" in file_tracker
 

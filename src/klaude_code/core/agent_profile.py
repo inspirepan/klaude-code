@@ -13,6 +13,7 @@ from klaude_code.core.agent.attachments import (
     file_changed_externally_attachment,
     image_attachment,
     last_path_memory_attachment,
+    last_path_skill_attachment,
     memory_attachment,
     skill_attachment,
     todo_attachment,
@@ -115,6 +116,7 @@ def load_agent_attachments(
         at_file_reader_attachment,
         file_changed_externally_attachment,
         last_path_memory_attachment,
+        last_path_skill_attachment,
         image_attachment,
         skill_attachment,
     ]

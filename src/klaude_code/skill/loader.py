@@ -1,4 +1,5 @@
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
@@ -338,3 +339,67 @@ class SkillLoader:
         Returns XML-like metadata used in the system prompt.
         """
         return self.get_skills_xml()
+
+
+def discover_skills_near_paths(paths: Iterable[str], *, work_dir: Path) -> list[Skill]:
+    """Discover project-local skills from nested skill dirs near accessed paths.
+
+    Walks from each accessed file or directory upward toward ``work_dir`` and checks
+    each ancestor for ``.claude/skills`` and ``.agents/skills``. ``work_dir`` itself
+    is excluded because those top-level project skills are already part of the normal
+    static skill discovery process.
+
+    When multiple nested directories define the same skill name, the definition from
+    the deeper directory wins.
+    """
+
+    resolved_work_dir = work_dir.resolve()
+    candidate_dirs: dict[Path, int] = {}
+
+    for raw_path in paths:
+        path = Path(raw_path)
+        full_path = (resolved_work_dir / path).resolve() if not path.is_absolute() else path.resolve()
+        try:
+            _ = full_path.relative_to(resolved_work_dir)
+        except ValueError:
+            continue
+
+        current_dir = full_path if full_path.is_dir() else full_path.parent
+        while current_dir != resolved_work_dir:
+            try:
+                depth = len(current_dir.relative_to(resolved_work_dir).parts)
+            except ValueError:
+                break
+
+            for project_dir in SkillLoader.PROJECT_SKILLS_DIRS:
+                skill_dir = (current_dir / project_dir).resolve() if not project_dir.is_absolute() else project_dir.resolve()
+                if skill_dir.exists() and skill_dir.is_dir():
+                    existing_depth = candidate_dirs.get(skill_dir)
+                    if existing_depth is None or depth > existing_depth:
+                        candidate_dirs[skill_dir] = depth
+
+            if current_dir.parent == current_dir:
+                break
+            current_dir = current_dir.parent
+
+    loader = SkillLoader()
+    selected_by_name: dict[str, tuple[Skill, int]] = {}
+
+    for skill_dir, depth in sorted(candidate_dirs.items(), key=lambda item: item[1]):
+        for skill_file in loader._iter_skill_files(skill_dir):
+            skill = loader.load_skill(skill_file, location="project")
+            if skill is None:
+                continue
+
+            existing = selected_by_name.get(skill.name)
+            if existing is None:
+                selected_by_name[skill.name] = (skill, depth)
+                continue
+
+            if skill.skill_path == existing[0].skill_path:
+                continue
+
+            if depth >= existing[1]:
+                selected_by_name[skill.name] = (skill, depth)
+
+    return [skill for skill, _depth in sorted(selected_by_name.values(), key=lambda item: item[1], reverse=True)]

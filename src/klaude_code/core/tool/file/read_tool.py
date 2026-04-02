@@ -138,6 +138,7 @@ def _track_file_access(
     *,
     content_sha256: str | None = None,
     is_memory: bool = False,
+    is_skill: bool = False,
     read_complete: bool = False,
 ) -> None:
     if file_tracker is None or not file_exists(file_path) or is_directory(file_path):
@@ -145,10 +146,15 @@ def _track_file_access(
     with contextlib.suppress(Exception):
         existing = file_tracker.get(file_path)
         is_mem = is_memory or (existing.is_memory if existing else False)
+        is_skill_file = is_skill or (existing.is_skill if existing else False)
+        is_dir = existing.is_directory if existing else False
         file_tracker[file_path] = model.FileStatus(
             mtime=Path(file_path).stat().st_mtime,
             content_sha256=content_sha256,
             is_memory=is_mem,
+            is_skill=is_skill_file,
+            skill_attachment_source=None,
+            is_directory=is_dir,
             read_complete=read_complete,
         )
 

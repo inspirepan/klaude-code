@@ -373,7 +373,7 @@ def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> N
     update = _last_spinner_update(cmds)
     assert update.leading_blank_line is False
     assert len(update.status_lines) == 1
-    assert _line_plain(update.status_lines[0]).startswith("Spawning Task")
+    assert _line_plain(update.status_lines[0]).startswith("Running Task")
 
 
 def test_interrupt_clears_stale_sub_agent_status_lines() -> None:

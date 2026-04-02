@@ -354,7 +354,7 @@ class TaskExecutor:
                     )
                     log_debug("[Compact] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
 
-                    _reset_memory_loaded_flags(ctx.session.file_tracker)
+                    _reset_attachment_loaded_flags(ctx.session.file_tracker)
                     session_ctx.append_history([result.to_entry()])
                     if self._rewind_manager is not None:
                         self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
@@ -466,7 +466,7 @@ class TaskExecutor:
                             log_debug(
                                 "[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE
                             )
-                            _reset_memory_loaded_flags(ctx.session.file_tracker)
+                            _reset_attachment_loaded_flags(ctx.session.file_tracker)
                             session_ctx.append_history([result.to_entry()])
                             if self._rewind_manager is not None:
                                 self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
@@ -573,7 +573,7 @@ class TaskExecutor:
                             llm_config=compact_client.get_llm_config(),
                         )
                         log_debug("[Handoff] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
-                        _reset_memory_loaded_flags(ctx.session.file_tracker)
+                        _reset_attachment_loaded_flags(ctx.session.file_tracker)
                         session_ctx.append_history([result.to_entry()])
                         if self._rewind_manager is not None:
                             self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
@@ -653,10 +653,14 @@ class TaskExecutor:
         )
 
 
-def _reset_memory_loaded_flags(file_tracker: dict[str, model.FileStatus]) -> None:
-    """Remove memory-only entries from file_tracker so attachments re-inject them."""
-    memory_paths = [path for path, status in file_tracker.items() if status.is_memory]
-    for path in memory_paths:
+def _reset_attachment_loaded_flags(file_tracker: dict[str, model.FileStatus]) -> None:
+    """Remove attachment-only entries so memory and dynamic skills can re-inject after compaction."""
+    transient_paths = [
+        path
+        for path, status in file_tracker.items()
+        if status.is_memory or status.skill_attachment_source == "dynamic"
+    ]
+    for path in transient_paths:
         del file_tracker[path]
 
 
