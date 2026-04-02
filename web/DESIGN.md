@@ -328,11 +328,11 @@ When a rounded container holds another rounded element near its edges, the inner
 
 Current concentric relationships:
 
-| Container | Outer | Gap | Inner | Formula check |
-|---|---|---|---|---|
-| CommandListPanel -> CommandListItem | `rounded-xl` (12px) | ~8px | `rounded-md` (6px) | 12-8=4, 6 is close |
-| NewSessionOverlay -> inner cards | `rounded-[20px]` | 12px (p-3) | `rounded-lg` (8px) | 20-12=8, exact match |
-| UserMessage bubble -> images | `rounded-2xl` (16px) | 10px | `rounded-md` (6px) | 16-10=6, exact match |
-| UserInteractionCard -> pills | `rounded-2xl` (16px) | 20px | `rounded-lg` (8px) | gap > radius, any works |
+| Container                           | Outer                | Gap        | Inner              | Formula check           |
+| ----------------------------------- | -------------------- | ---------- | ------------------ | ----------------------- |
+| CommandListPanel -> CommandListItem | `rounded-xl` (12px)  | ~8px       | `rounded-md` (6px) | 12-8=4, 6 is close      |
+| NewSessionOverlay -> inner cards    | `rounded-[20px]`     | 12px (p-3) | `rounded-lg` (8px) | 20-12=8, exact match    |
+| UserMessage bubble -> images        | `rounded-2xl` (16px) | 10px       | `rounded-md` (6px) | 16-10=6, exact match    |
+| UserInteractionCard -> pills        | `rounded-2xl` (16px) | 20px       | `rounded-lg` (8px) | gap > radius, any works |
 
 **Rule**: When adding new card-in-card or panel-in-panel layouts, check the formula. If the gap is larger than the outer radius, any inner radius works. If the gap is small (< outer radius), apply the formula.

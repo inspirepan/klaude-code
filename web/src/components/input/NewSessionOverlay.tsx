@@ -222,8 +222,12 @@ export function NewSessionOverlay({
         } sm:p-4`}
       >
         <div className="mb-3 space-y-0.5">
-          <div className="text-balance text-base font-semibold text-neutral-800">{t("newSession.title")}</div>
-          <div className="text-pretty text-base leading-6 text-neutral-500">{t("newSession.subtitle")}</div>
+          <div className="text-balance text-base font-semibold text-neutral-800">
+            {t("newSession.title")}
+          </div>
+          <div className="text-pretty text-base leading-6 text-neutral-500">
+            {t("newSession.subtitle")}
+          </div>
         </div>
 
         <div className="space-y-3">

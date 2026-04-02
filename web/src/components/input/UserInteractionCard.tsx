@@ -132,7 +132,9 @@ function OptionPill({
           {label}
         </span>
         {description && (
-          <span className="mt-0.5 block text-xs leading-relaxed text-neutral-500">{description}</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-neutral-500">
+            {description}
+          </span>
         )}
       </span>
     </button>
@@ -172,7 +174,9 @@ function QuestionPanel({
       </div>
 
       {/* Question text */}
-      <p className="mb-3 text-pretty text-base leading-relaxed text-neutral-700">{question.question}</p>
+      <p className="mb-3 text-pretty text-base leading-relaxed text-neutral-700">
+        {question.question}
+      </p>
 
       {/* Option pills */}
       <div className="flex flex-wrap gap-2">
