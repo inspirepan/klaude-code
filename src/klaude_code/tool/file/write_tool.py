@@ -146,6 +146,7 @@ class WriteTool(ToolABC):
             file_tracker[file_path] = model.FileStatus(
                 mtime=Path(file_path).stat().st_mtime,
                 content_sha256=hash_text_sha256(args.content),
+                cached_content=args.content,
                 is_memory=is_mem,
                 is_skill=is_skill,
                 skill_attachment_source=None,
