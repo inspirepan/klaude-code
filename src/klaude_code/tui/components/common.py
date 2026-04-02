@@ -14,6 +14,13 @@ from klaude_code.const import (
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 
+def format_pascal_case(name: str) -> str:
+    """Convert kebab-case or snake_case name to PascalCase (e.g. 'general-purpose' -> 'GeneralPurpose')."""
+    import re
+
+    return "".join(word.capitalize() for word in re.split(r"[-_]", name))
+
+
 def format_elapsed_compact(seconds: float) -> str:
     """Format seconds into a compact human-readable duration string (e.g. 11s, 1m02s, 3h32m05s)."""
     total_seconds = max(0, int(seconds))

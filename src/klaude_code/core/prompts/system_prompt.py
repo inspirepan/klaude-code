@@ -48,37 +48,7 @@ EDIT_PARALLELIZE_INST = """- Parallelize independent work when safe, such as rea
 
 WRITE_CREATE_WHEN_NEEDED_INST = """- NEVER create files unless necessary for the task. Prefer editing existing files."""
 
-EXTENDED_THINKING_INST = """
-
-# Extended Thinking
-
-Extended thinking adds latency and should only be used when it will meaningfully improve answer quality -- typically for problems that require multi-step reasoning. When in doubt, respond directly."""
-
-GPT_PHASE_WORKING_WITH_USER_INST = """# Working with the User
-
-You interact with the user through a terminal. You have 2 ways of communicating with the users:
-- Share intermediary updates in `commentary` channel.
-- After you have completed all your work, send a message to the `final` channel.
-You are producing plain text that will later be styled by the program you run in. Formatting should make results easy to scan, but not feel mechanical. Use judgment to decide how much structure adds value. Follow the formatting rules exactly.
-
-## Intermediary Updates
-
-- Intermediary updates go to the `commentary` channel.
-- These are short updates while you are working, they are NOT final answers.
-- Keep updates to 1-2 sentences to communicate progress and new information.
-- Send an update only when it changes the user's understanding of the work: a meaningful discovery, a decision with tradeoffs, a blocker, a substantial plan, or the start of a non-trivial edit or verification step.
-- Do not narrate routine searching, file reads, obvious next steps, or incremental confirmations. Combine related progress into a single update instead of a sequence of small status messages.
-- Do not begin updates with conversational interjections or meta commentary. Avoid openers such as acknowledgements ("Done --", "Got it", "Great question") or framing phrases.
-- Before doing substantial work, start with an update explaining your first step.
-- After you have sufficient context and the work is substantial, provide a longer plan (this is the only update that may be longer than 2 sentences and can contain formatting).
-- Before performing file edits of any kind, provide updates explaining what edits you are making.
-
-## Final Response
-
-- Your final response goes in the `final` channel.
-- The complexity of the answer should match the task. If the task is simple, your answer should be a one-liner. Order sections from general to specific to supporting.
-- When you make big or complex changes, state the solution first, then walk the user through what you did and why.
-- If there are natural next steps the user may want to take, suggest them at the end. Do not make suggestions if there are no natural next steps."""
+EXTERNAL_REFS_INST = """- Pull in external references when uncertainty or risk is meaningful: unclear APIs/behavior, security-sensitive flows, migrations, performance-critical paths, or best-in-class patterns proven in open source or other language ecosystems. Prefer official docs first, then source."""
 
 
 @cache
@@ -105,7 +75,7 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
     tool_names = [tool_schema.name for tool_schema in available_tools]
     tool_name_set = set(tool_names)
 
-    strategy_lines: list[str] = [PARALLEL_TOOL_CALLS_INST]
+    strategy_lines: list[str] = [PARALLEL_TOOL_CALLS_INST, EXTERNAL_REFS_INST]
 
     if tools.BASH in tool_name_set:
         strategy_lines.extend(
@@ -224,13 +194,19 @@ def load_system_prompt(
     from klaude_code.skill.manager import format_available_skills_for_system_prompt
 
     base_prompt = build_main_system_prompt(model_name, available_tools or [])
+    git_hygiene_prompt = "\n\n" + load_prompt_by_path("prompts/git-workspace-hygiene-prompt.md")
     conventions_prompt = "\n\n" + load_prompt_by_path("prompts/following-conventions-prompt.md")
-    extended_thinking_prompt = EXTENDED_THINKING_INST if model_id.supports_adaptive_thinking(model_name) else ""
+    extended_thinking_prompt = (
+        "\n\n" + load_prompt_by_path("prompts/extended-thinking-prompt.md")
+        if model_id.supports_adaptive_thinking(model_name)
+        else ""
+    )
     auto_memory_prompt = _build_auto_memory_prompt(effective_work_dir)
     skills_prompt = format_available_skills_for_system_prompt()
 
     return (
         base_prompt
+        + git_hygiene_prompt
         + conventions_prompt
         + extended_thinking_prompt
         + auto_memory_prompt

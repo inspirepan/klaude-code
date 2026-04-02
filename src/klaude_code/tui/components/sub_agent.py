@@ -8,7 +8,7 @@ from rich.text import Text
 
 from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
 from klaude_code.protocol import model
-from klaude_code.tui.components.common import truncate_head
+from klaude_code.tui.components.common import format_pascal_case, truncate_head
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 
@@ -43,7 +43,7 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
         f" {e.sub_agent_desc} ",
         style=Style(color=style.color if style else None, bold=True, reverse=True),
     )
-    header = Text.assemble((e.sub_agent_type, ThemeKey.TOOL_NAME), " ", desc)
+    header = Text.assemble((format_pascal_case(e.sub_agent_type), ThemeKey.TOOL_NAME), " ", desc)
     if e.fork_context:
         header.append(" [fork]", style=ThemeKey.STATUS_HINT)
     elements: list[RenderableType] = [

@@ -106,19 +106,21 @@ def load_agent_attachments(
     """
 
     del model_name
-
     del sub_agent_type
-    del available_tools
 
-    return [
+    has_todo_tool = available_tools is not None and any(t.name == tools.TODO_WRITE for t in available_tools)
+
+    attachments: list[Attachment] = [
         memory_attachment,
         at_file_reader_attachment,
         file_changed_externally_attachment,
         last_path_memory_attachment,
         image_attachment,
         skill_attachment,
-        todo_attachment,
     ]
+    if has_todo_tool:
+        attachments.append(todo_attachment)
+    return attachments
 
 
 def with_structured_output(profile: AgentProfile, output_schema: dict[str, Any]) -> AgentProfile:
