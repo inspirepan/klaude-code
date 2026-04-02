@@ -58,7 +58,7 @@ class SkillLoader:
         self.loaded_skills: dict[str, Skill] = {}
         self.skill_warnings_by_location: dict[str, list[str]] = {"system": [], "user": [], "project": []}
 
-    def _iter_skill_files(self, root_dir: Path) -> list[Path]:
+    def iter_skill_files(self, root_dir: Path) -> list[Path]:
         skill_files: list[Path] = []
         visited_dirs: set[Path] = set()
 
@@ -240,7 +240,7 @@ class SkillLoader:
         # Load system-level skills first (lowest priority, can be overridden)
         system_dir = self.SYSTEM_SKILLS_DIR.expanduser()
         if system_dir.exists():
-            for skill_file in self._iter_skill_files(system_dir):
+            for skill_file in self.iter_skill_files(system_dir):
                 skill = self.load_skill(skill_file, location="system")
                 if skill:
                     skills.append(skill)
@@ -250,7 +250,7 @@ class SkillLoader:
         for user_dir in self.USER_SKILLS_DIRS:
             expanded_dir = user_dir.expanduser()
             if expanded_dir.exists():
-                for skill_file in self._iter_skill_files(expanded_dir):
+                for skill_file in self.iter_skill_files(expanded_dir):
                     # Skip files under .system directory (already loaded above)
                     if ".system" in skill_file.parts:
                         continue
@@ -262,7 +262,7 @@ class SkillLoader:
         # Load project-level skills (override user skills if same name)
         for resolved_dir in self._get_project_skill_dirs(work_dir):
             if resolved_dir.exists():
-                for skill_file in self._iter_skill_files(resolved_dir):
+                for skill_file in self.iter_skill_files(resolved_dir):
                     skill = self.load_skill(skill_file, location="project")
                     if skill:
                         skills.append(skill)
@@ -386,7 +386,7 @@ def discover_skills_near_paths(paths: Iterable[str], *, work_dir: Path) -> list[
     selected_by_name: dict[str, tuple[Skill, int]] = {}
 
     for skill_dir, depth in sorted(candidate_dirs.items(), key=lambda item: item[1]):
-        for skill_file in loader._iter_skill_files(skill_dir):
+        for skill_file in loader.iter_skill_files(skill_dir):
             skill = loader.load_skill(skill_file, location="project")
             if skill is None:
                 continue

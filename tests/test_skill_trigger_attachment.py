@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -372,7 +373,7 @@ def test_skill_attachment_prefers_dynamic_skill_over_static_with_same_name(
         base_dir=static_skill_dir,
     )
 
-    monkeypatch.setattr(attachments, "get_skill", lambda _: static_skill)
+    monkeypatch.setattr(attachments, "get_skill", lambda _name="": static_skill)
 
     session = Session(work_dir=work_dir)
     session.file_tracker[str(target_file.resolve())] = model.FileStatus(
@@ -418,10 +419,10 @@ def test_skill_attachment_preserves_exact_namespaced_static_skill(
     )
 
     class _Loader:
-        loaded_skills = {"team:commit": static_skill}
+        loaded_skills: ClassVar[dict[str, object]] = {"team:commit": static_skill}
 
     monkeypatch.setattr(attachments, "get_skill_loader", lambda: _Loader())
-    monkeypatch.setattr(attachments, "get_skill", lambda _: None)
+    monkeypatch.setattr(attachments, "get_skill", lambda _name="": None)
 
     session = Session(work_dir=work_dir)
     session.file_tracker[str(target_file.resolve())] = model.FileStatus(

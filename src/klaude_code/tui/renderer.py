@@ -353,6 +353,7 @@ class TUICommandRenderer:
             self._stream_max_height = 0
             self._stream_last_height = 0
             self._stream_last_width = 0
+            self._bottom_last_height = 0
             self._refresh_bottom_live()
             return
 

@@ -6,6 +6,7 @@ import re
 import shlex
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
+from typing import Literal
 
 from klaude_code.core.memory import (
     Memory,
@@ -508,7 +509,7 @@ def _read_skill_content(skill: Skill) -> str | None:
     return content or None
 
 
-def _mark_skill_loaded(session: Session, path: str, content: str, *, source: str) -> None:
+def _mark_skill_loaded(session: Session, path: str, content: str, *, source: Literal["dynamic", "explicit"]) -> None:
     existing = session.file_tracker.get(path)
     try:
         mtime = Path(path).stat().st_mtime
@@ -623,6 +624,7 @@ def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bo
 
         supersedes_previous = existing_path is not None and existing_path != skill_path
         if supersedes_previous:
+            assert existing_path is not None
             session.file_tracker.pop(existing_path, None)
 
         _mark_skill_loaded(session, skill_path, skill_content, source="explicit" if explicit else "dynamic")
@@ -664,6 +666,7 @@ def _collect_dynamic_skills(session: Session, skills: list[Skill]) -> tuple[list
 
         supersedes_previous = existing_path is not None and existing_path != skill_path
         if supersedes_previous:
+            assert existing_path is not None
             session.file_tracker.pop(existing_path, None)
             superseded_any = True
 
@@ -681,7 +684,7 @@ def _build_skill_attachment(session: Session, skills: list[Skill], *, explicit: 
     if not skill_blocks:
         return None
 
-    ui_items = [model.SkillActivatedUIItem(name=skill.name) for skill in activated_skills]
+    ui_items: list[model.DeveloperUIItem] = [model.SkillActivatedUIItem(name=skill.name) for skill in activated_skills]
 
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(f"<system-reminder>{chr(10).join(skill_blocks)}\n</system-reminder>"),
@@ -695,7 +698,7 @@ def _build_dynamic_skill_listing_attachment(session: Session, skills: list[Skill
         return None
 
     content = _format_dynamic_available_skills(activated_skills, supersedes_previous=superseded_any)
-    ui_items = [model.SkillDiscoveredUIItem(name=skill.name) for skill in activated_skills]
+    ui_items: list[model.DeveloperUIItem] = [model.SkillDiscoveredUIItem(name=skill.name) for skill in activated_skills]
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
         ui_extra=model.DeveloperUIExtra(items=ui_items),
