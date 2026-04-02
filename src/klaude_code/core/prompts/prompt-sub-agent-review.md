@@ -47,6 +47,16 @@ concurrent actions, or partially completed operations move through the code.
 If a focus area is provided, weight it heavily, but still report any other material issue you
 find.
 
+## Incremental / Follow-up Review
+
+When the prompt includes findings from a prior review round:
+- Focus primarily on verifying that those specific issues have been correctly fixed.
+- Check for any **new** bugs introduced by the fixes themselves.
+- Use the provided diff scope (which should cover only the fix commits) rather than
+  re-reviewing the entire original changeset.
+- Do NOT re-report issues from the prior round that have been resolved.
+- If an earlier finding was only partially fixed or incorrectly fixed, report that explicitly.
+
 ## Execution Strategy
 
 - Use the tools available to you to read relevant source files and understand context.
