@@ -2,12 +2,12 @@
 
 from typing import cast
 
-from rich.console import Group
-from rich.padding import Padding
+from rich.console import Console
+from rich.table import Table
 from rich.text import Text
 
-from klaude_code.tui.components.rich.theme import ThemeKey
-from klaude_code.tui.components.user_input import render_at_and_skill_patterns, render_user_input
+from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
+from klaude_code.tui.components.user_input import USER_MESSAGE_MARK, render_at_and_skill_patterns, render_user_input
 
 
 def get_spans_by_style(text: Text, style: str) -> list[str]:
@@ -25,9 +25,14 @@ def has_style(text: Text, style: str) -> bool:
 
 def first_line_text(content: str) -> Text:
     rendered = render_user_input(content)
-    padding = cast(Padding, rendered)
-    group = cast(Group, padding.renderable)
-    return cast(Text, group.renderables[0])
+    table = cast(Table, rendered)
+    return cast(Text, table.columns[1]._cells[0])
+
+
+def rendered_lines(content: str) -> list[str]:
+    console = Console(width=200, record=True, theme=get_theme().app_theme)
+    console.print(render_user_input(content))
+    return [line.rstrip() for line in console.export_text(styles=False).splitlines()]
 
 
 class TestRenderAtAndSkillPatterns:
@@ -156,3 +161,11 @@ class TestRenderAtAndSkillPatterns:
     def test_render_user_input_does_not_treat_abs_path_as_slash_command(self):
         line = first_line_text("/Users/root/code/project")
         assert not has_style(line, ThemeKey.USER_INPUT_SLASH_COMMAND)
+
+    def test_render_user_input_renders_prompt_and_indents_following_lines(self):
+        assert rendered_lines("first line\nsecond line") == ["❯ first line", "  second line"]
+
+    def test_render_user_input_keeps_prompt_spacing_in_first_column(self):
+        table = cast(Table, render_user_input("first line\nsecond line"))
+        assert cast(Text, table.columns[0]._cells[0]).plain == USER_MESSAGE_MARK
+        assert cast(Text, table.columns[0]._cells[1]).plain == " " * len(USER_MESSAGE_MARK)
