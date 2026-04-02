@@ -8,9 +8,6 @@ start with better context.
 Any prior instruction about not editing AGENTS.md files applies to the main conversation --
 in this role, writing is your job.
 
-Working directory: $workingDirectory
-Workspace root: $workspaceRoot
-
 ## What a good AGENTS.md covers
 
 Evaluate existing files against these dimensions before making updates:
