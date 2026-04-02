@@ -21,10 +21,10 @@ class CopyCommand(CommandABC):
 
         last = _collect_assistant_text(agent.session.conversation_history)
         if not last:
-            return _command_output(agent, "(no assistant message to copy)", self.name, is_error=True)
+            return _command_output(agent, "(no assistant message to copy)", is_error=True)
 
         copy_to_clipboard(last)
-        return _command_output(agent, "Copied last assistant message to clipboard.", self.name)
+        return _command_output(agent, "Copied last assistant message to clipboard.")
 
 
 def _collect_assistant_text(history: list[message.HistoryEvent]) -> str:
@@ -48,7 +48,7 @@ def _format_assistant(msg: message.AssistantMessage) -> str:
     return message.join_text_parts(msg.parts).strip()
 
 
-def _command_output(agent: Agent, content: str, command_name: CommandName, *, is_error: bool = False) -> CommandResult:
+def _command_output(agent: Agent, content: str, *, is_error: bool = False) -> CommandResult:
     return CommandResult(
         events=[
             events.NoticeEvent(

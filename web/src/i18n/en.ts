@@ -226,7 +226,7 @@ const en = {
   "plural.image": (n: number) => `${n} ${n === 1 ? "image" : "images"}`,
 } as const;
 
-export type TranslationKey = keyof typeof en;
+type TranslationKey = keyof typeof en;
 export type Translations = {
   [K in TranslationKey]: (typeof en)[K] extends (...args: infer A) => string
     ? (...args: A) => string

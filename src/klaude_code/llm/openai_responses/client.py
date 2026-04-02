@@ -1,6 +1,6 @@
 import json
 from collections.abc import AsyncGenerator, AsyncIterable
-from typing import TYPE_CHECKING, cast, override
+from typing import cast, override
 
 import httpx
 import openai
@@ -22,9 +22,6 @@ from klaude_code.llm.stream_parts import (
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message, model
-
-if TYPE_CHECKING:
-    from openai.types.responses import ResponseStreamEvent
 
 
 def _merge_assistant_phase(
@@ -170,7 +167,7 @@ class ResponsesStreamStateManager:
 
 
 async def parse_responses_stream(
-    stream: AsyncIterable["ResponseStreamEvent"],
+    stream: AsyncIterable[responses.ResponseStreamEvent],
     *,
     state: ResponsesStreamStateManager,
     param: llm_param.LLMCallParameter,
@@ -360,7 +357,7 @@ class ResponsesLLMStream(LLMStreamABC):
 
     def __init__(
         self,
-        stream: AsyncIterable["ResponseStreamEvent"],
+        stream: AsyncIterable[responses.ResponseStreamEvent],
         *,
         param: llm_param.LLMCallParameter,
         metadata_tracker: MetadataTracker,

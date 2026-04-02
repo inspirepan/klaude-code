@@ -67,10 +67,7 @@ function queueMessageEvents(events: MessageStoreEvent[]): void {
   });
 }
 
-export async function pollRuntimeStates(
-  get: () => SessionStoreState,
-  set: SetState,
-): Promise<void> {
+async function pollRuntimeStates(set: SetState): Promise<void> {
   try {
     const states = await fetchRunningSessions();
 
@@ -414,7 +411,7 @@ export function openSessionWs(
           lastError: null,
         }),
       }));
-      void pollRuntimeStates(get, set);
+      void pollRuntimeStates(set);
     },
     onClose: () => {
       if (activeConnection?.connection === connection) {

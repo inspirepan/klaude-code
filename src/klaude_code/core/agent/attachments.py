@@ -842,7 +842,7 @@ async def last_path_skill_attachment(session: Session) -> message.DeveloperMessa
     return _build_dynamic_skill_listing_attachment(session, dynamic_skills)
 
 
-def _count_assistant_turns_since(session: Session, predicate: str) -> tuple[int, int]:
+def _count_assistant_turns_since(session: Session) -> tuple[int, int]:
     """Count assistant turns since last TodoWrite and since last todo_attachment.
 
     Returns (turns_since_write, turns_since_attachment).
@@ -881,7 +881,7 @@ async def todo_attachment(session: Session) -> message.DeveloperMessage | None:
     if not session.todos and not session.conversation_history:
         return None
 
-    turns_since_write, turns_since_attachment = _count_assistant_turns_since(session, tools.TODO_WRITE)
+    turns_since_write, turns_since_attachment = _count_assistant_turns_since(session)
 
     if turns_since_write < TODO_ATTACHMENT_TURNS_SINCE_WRITE:
         return None

@@ -28,7 +28,7 @@ export function parseUserMessageImages(raw: unknown): MessageImagePart[] {
   return images;
 }
 
-export function parseTaskMetadataUsage(raw: unknown): TaskMetadataUsage | null {
+function parseTaskMetadataUsage(raw: unknown): TaskMetadataUsage | null {
   if (raw === null || typeof raw !== "object") return null;
   const u = raw as Record<string, unknown>;
   const inputTokens = parseFiniteNumber(u.input_tokens) ?? 0;
