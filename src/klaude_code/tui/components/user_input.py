@@ -49,12 +49,9 @@ def render_at_and_skill_patterns(
     return result
 
 
-def render_user_input(content: str) -> RenderableType:
-    """Render a user message with a prompt on the first line.
+def build_user_input_rows(content: str) -> list[tuple[Text, Text]]:
+    """Build prompt/content rows for user input rendering."""
 
-    - Highlights slash command token on the first line
-    - Highlights @file and /skill patterns in all lines
-    """
     lines = content.strip().split("\n")
     is_bash_mode = bool(lines) and lines[0].startswith("!")
 
@@ -104,14 +101,31 @@ def render_user_input(content: str) -> RenderableType:
         )
 
     if not renderables:
+        return []
+
+    rows = [(Text(USER_MESSAGE_MARK, style=ThemeKey.USER_INPUT_PROMPT), renderables[0])]
+    indent = Text(" " * len(USER_MESSAGE_MARK), style=ThemeKey.USER_INPUT)
+    for line_text in renderables[1:]:
+        rows.append((indent.copy(), line_text))
+    return rows
+
+
+def render_user_input(content: str) -> RenderableType:
+    """Render a user message with a prompt on the first line.
+
+    - Highlights slash command token on the first line
+    - Highlights @file and /skill patterns in all lines
+    """
+    rows = build_user_input_rows(content)
+
+    if not rows:
         return Text("", style=ThemeKey.USER_INPUT)
 
     grid = Table.grid(padding=0)
     grid.add_column(no_wrap=True)
     grid.add_column(overflow="fold")
-    grid.add_row(Text(USER_MESSAGE_MARK, style=ThemeKey.USER_INPUT_PROMPT), renderables[0])
-    for line_text in renderables[1:]:
-        grid.add_row(Text(" " * len(USER_MESSAGE_MARK), style=ThemeKey.USER_INPUT), line_text)
+    for prompt_text, line_text in rows:
+        grid.add_row(prompt_text, line_text)
 
     return grid
 

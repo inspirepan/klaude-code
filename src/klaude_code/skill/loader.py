@@ -38,7 +38,7 @@ def _resolve_skill_discovery_scope(path: Path, work_dir: Path) -> tuple[Path, Pa
 
 
 @lru_cache(maxsize=512)
-def _get_candidate_skill_dirs_for_anchor(
+def get_candidate_skill_dirs_for_anchor(
     anchor_dir: Path, boundary_dir: Path, include_boundary: bool
 ) -> tuple[tuple[str, int], ...]:
     candidate_dirs: dict[str, int] = {}
@@ -67,6 +67,10 @@ def _get_candidate_skill_dirs_for_anchor(
         current_dir = current_dir.parent
 
     return tuple(sorted(candidate_dirs.items()))
+
+
+# Backward-compatible alias for internal callers that still use the old name.
+_get_candidate_skill_dirs_for_anchor = get_candidate_skill_dirs_for_anchor
 
 
 @dataclass
@@ -419,7 +423,7 @@ def discover_skills_near_paths(paths: Iterable[str], *, work_dir: Path) -> list[
             continue
         seen_scopes.add(scope)
 
-        for skill_dir_str, depth in _get_candidate_skill_dirs_for_anchor(anchor_dir, boundary_dir, include_boundary):
+        for skill_dir_str, depth in get_candidate_skill_dirs_for_anchor(anchor_dir, boundary_dir, include_boundary):
             skill_dir = Path(skill_dir_str)
             existing_depth = candidate_dirs.get(skill_dir)
             if existing_depth is None or depth > existing_depth:

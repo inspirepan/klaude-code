@@ -1,13 +1,15 @@
 """Tests for user input inline pattern rendering."""
 
-from typing import cast
-
 from rich.console import Console
-from rich.table import Table
 from rich.text import Text
 
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
-from klaude_code.tui.components.user_input import USER_MESSAGE_MARK, render_at_and_skill_patterns, render_user_input
+from klaude_code.tui.components.user_input import (
+    USER_MESSAGE_MARK,
+    build_user_input_rows,
+    render_at_and_skill_patterns,
+    render_user_input,
+)
 
 
 def get_spans_by_style(text: Text, style: str) -> list[str]:
@@ -24,9 +26,7 @@ def has_style(text: Text, style: str) -> bool:
 
 
 def first_line_text(content: str) -> Text:
-    rendered = render_user_input(content)
-    table = cast(Table, rendered)
-    return cast(Text, table.columns[1]._cells[0])
+    return build_user_input_rows(content)[0][1]
 
 
 def rendered_lines(content: str) -> list[str]:
@@ -166,6 +166,6 @@ class TestRenderAtAndSkillPatterns:
         assert rendered_lines("first line\nsecond line") == ["❯ first line", "  second line"]
 
     def test_render_user_input_keeps_prompt_spacing_in_first_column(self):
-        table = cast(Table, render_user_input("first line\nsecond line"))
-        assert cast(Text, table.columns[0]._cells[0]).plain == USER_MESSAGE_MARK
-        assert cast(Text, table.columns[0]._cells[1]).plain == " " * len(USER_MESSAGE_MARK)
+        rows = build_user_input_rows("first line\nsecond line")
+        assert rows[0][0].plain == USER_MESSAGE_MARK
+        assert rows[1][0].plain == " " * len(USER_MESSAGE_MARK)

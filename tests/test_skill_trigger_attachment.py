@@ -9,7 +9,7 @@ from klaude_code.core.agent.attachments import get_skills_from_user_input
 from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import message, model
 from klaude_code.session.session import Session
-from klaude_code.skill.loader import Skill, _get_candidate_skill_dirs_for_anchor
+from klaude_code.skill.loader import Skill, get_candidate_skill_dirs_for_anchor
 
 
 def _arun(coro):  # type: ignore
@@ -507,15 +507,15 @@ def test_last_path_skill_attachment_discovers_external_repo_root_skill(tmp_path:
 
 
 def test_candidate_skill_dir_discovery_uses_cache(tmp_path: Path) -> None:
-    _get_candidate_skill_dirs_for_anchor.cache_clear()
+    get_candidate_skill_dirs_for_anchor.cache_clear()
 
     boundary_dir = tmp_path / "external" / "project"
     anchor_dir = boundary_dir / "pkg"
 
-    _get_candidate_skill_dirs_for_anchor(anchor_dir, boundary_dir, True)
-    first = _get_candidate_skill_dirs_for_anchor.cache_info()
+    get_candidate_skill_dirs_for_anchor(anchor_dir, boundary_dir, True)
+    first = get_candidate_skill_dirs_for_anchor.cache_info()
 
-    _get_candidate_skill_dirs_for_anchor(anchor_dir, boundary_dir, True)
-    second = _get_candidate_skill_dirs_for_anchor.cache_info()
+    get_candidate_skill_dirs_for_anchor(anchor_dir, boundary_dir, True)
+    second = get_candidate_skill_dirs_for_anchor.cache_info()
 
     assert second.hits == first.hits + 1
