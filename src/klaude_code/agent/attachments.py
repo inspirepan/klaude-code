@@ -396,7 +396,6 @@ async def file_changed_externally_attachment(
     return None
 
 
-
 def _compute_file_content_sha256(path: str) -> str | None:
     """Compute SHA-256 for file content using the same decoding behavior as ReadTool."""
 

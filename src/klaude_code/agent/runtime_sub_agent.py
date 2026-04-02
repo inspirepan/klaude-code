@@ -133,9 +133,8 @@ class SubAgentExecutor:
             if state.fork_context:
                 profile = get_sub_agent_profile(state.sub_agent_type)
                 if profile.prompt_file:
-                    role_prompt = (
-                        load_prompt_by_path(profile.prompt_file)
-                        + build_sub_agent_env_info(parent_session.work_dir)
+                    role_prompt = load_prompt_by_path(profile.prompt_file) + build_sub_agent_env_info(
+                        parent_session.work_dir
                     )
                     context_text = (
                         "You are no longer the main coding agent. "
