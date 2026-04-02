@@ -123,6 +123,15 @@ def build_main_system_prompt(model_name: str, available_tools: list[llm_param.To
     return base_prompt + build_dynamic_tool_strategy_prompt(available_tools)
 
 
+def _get_available_commands() -> list[str]:
+    """Return list of available bash commands with descriptions."""
+    available: list[str] = []
+    for command, desc in COMMAND_DESCRIPTIONS.items():
+        if shutil.which(command) is not None:
+            available.append(f"{command}: {desc}")
+    return available
+
+
 def _build_env_info(model_name: str, work_dir: Path) -> str:
     """Build environment info section with dynamic runtime values."""
 
@@ -132,10 +141,7 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
     is_missing_dir = not cwd.exists()
     is_empty_dir = not is_missing_dir and not any(cwd.iterdir())
 
-    available_commands: list[str] = []
-    for command, desc in COMMAND_DESCRIPTIONS.items():
-        if shutil.which(command) is not None:
-            available_commands.append(f"{command}: {desc}")
+    available_commands = _get_available_commands()
 
     cwd_display = f"{cwd} (not found)" if is_missing_dir else f"{cwd} (empty)" if is_empty_dir else str(cwd)
     git_repo_line = (
@@ -189,9 +195,16 @@ def load_system_prompt(
         profile = get_sub_agent_profile(sub_agent_type)
         if not profile.use_main_prompt:
             workspace_root = find_git_repo_root(work_dir=effective_work_dir) or effective_work_dir
+            available_cmds = _get_available_commands()
+            cmds_block = (
+                "Available bash commands:\n" + "\n".join(f"- {cmd}" for cmd in available_cmds)
+                if available_cmds
+                else ""
+            )
             base_prompt = Template(load_prompt_by_path(profile.prompt_file)).safe_substitute(
                 workingDirectory=effective_work_dir,
                 workspaceRoot=workspace_root,
+                availableBashCommands=cmds_block,
             )
             return base_prompt
 
