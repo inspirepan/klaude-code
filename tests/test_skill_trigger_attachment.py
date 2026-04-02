@@ -9,7 +9,7 @@ from klaude_code.core.agent.attachments import get_skills_from_user_input
 from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import message, model
 from klaude_code.session.session import Session
-from klaude_code.skill.loader import Skill
+from klaude_code.skill.loader import Skill, _get_candidate_skill_dirs_for_anchor
 
 
 def _arun(coro):  # type: ignore
@@ -473,3 +473,49 @@ def test_last_path_skill_attachment_does_not_override_explicit_skill(tmp_path: P
     )
 
     assert _arun(attachments.last_path_skill_attachment(session)) is None
+
+
+def test_last_path_skill_attachment_discovers_external_repo_root_skill(tmp_path: Path) -> None:
+    work_dir = tmp_path / "repo"
+    work_dir.mkdir()
+
+    external_repo = tmp_path / "content-workspace"
+    (external_repo / ".git").mkdir(parents=True)
+
+    target_file = external_repo / "posts" / "draft.md"
+    target_file.parent.mkdir(parents=True)
+    target_file.write_text("# Draft\n", encoding="utf-8")
+
+    skill_dir = external_repo / ".agents" / "skills" / "writer"
+    skill_dir.mkdir(parents=True)
+    skill_path = skill_dir / "SKILL.md"
+    skill_path.write_text("---\nname: writer\ndescription: external writer skill\n---\n# Writer\n", encoding="utf-8")
+
+    session = Session(work_dir=work_dir)
+    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+        mtime=target_file.stat().st_mtime,
+        content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
+    )
+
+    attachment = _arun(attachments.last_path_skill_attachment(session))
+
+    assert attachment is not None
+    text = message.join_text_parts(attachment.parts)
+    assert "<name>writer</name>" in text
+    assert "<description>external writer skill</description>" in text
+    assert "# Writer" not in text
+
+
+def test_candidate_skill_dir_discovery_uses_cache(tmp_path: Path) -> None:
+    _get_candidate_skill_dirs_for_anchor.cache_clear()
+
+    boundary_dir = tmp_path / "external" / "project"
+    anchor_dir = boundary_dir / "pkg"
+
+    _get_candidate_skill_dirs_for_anchor(anchor_dir, boundary_dir, True)
+    first = _get_candidate_skill_dirs_for_anchor.cache_info()
+
+    _get_candidate_skill_dirs_for_anchor(anchor_dir, boundary_dir, True)
+    second = _get_candidate_skill_dirs_for_anchor.cache_info()
+
+    assert second.hits == first.hits + 1
