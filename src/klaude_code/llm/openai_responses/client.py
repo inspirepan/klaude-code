@@ -1,17 +1,12 @@
-import asyncio
 import json
 from collections.abc import AsyncGenerator, AsyncIterable
-from contextlib import suppress
-from typing import TYPE_CHECKING, Any, cast, override
+from typing import TYPE_CHECKING, cast, override
 
 import httpx
 import openai
 from openai import AsyncAzureOpenAI, AsyncOpenAI
-from openai._models import construct_type_unchecked
 from openai.types import responses
 from openai.types.responses.response_create_params import ResponseCreateParamsBase
-from websockets.asyncio.client import ClientConnection as AsyncWebsocketConnection
-from websockets.exceptions import ConnectionClosed, WebSocketException
 
 from klaude_code.const import LLM_HTTP_TIMEOUT_CONNECT, LLM_HTTP_TIMEOUT_READ, LLM_HTTP_TIMEOUT_TOTAL
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
@@ -30,9 +25,6 @@ from klaude_code.protocol import llm_param, message, model
 
 if TYPE_CHECKING:
     from openai.types.responses import ResponseStreamEvent
-
-
-OPENAI_BETA_RESPONSES_WEBSOCKETS = "responses_websockets=2026-02-06"
 
 
 def _merge_assistant_phase(
@@ -175,94 +167,6 @@ class ResponsesStreamStateManager:
             response_id=self.response_id,
             phase=self.assistant_phase,
         )
-
-
-class ResponsesWebSocketTransport:
-    def __init__(
-        self,
-        client: AsyncOpenAI,
-        connect_headers: dict[str, str] | None = None,
-        connect_kwargs: dict[str, Any] | None = None,
-    ) -> None:
-        self._client = client
-        self._connect_headers = connect_headers or {}
-        self._connect_kwargs = connect_kwargs or {}
-
-    def _prepare_url(self) -> httpx.URL:
-        if self._client.websocket_base_url is not None:
-            base_url = httpx.URL(self._client.websocket_base_url)
-        else:
-            base_url = self._client.base_url.copy_with(scheme="wss")
-        return base_url.copy_with(raw_path=base_url.raw_path.rstrip(b"/") + b"/responses")
-
-    async def _open_connection(self) -> AsyncWebsocketConnection:
-        from websockets.asyncio.client import connect
-
-        headers = dict(self._client.auth_headers)
-        if self._client.organization:
-            headers["OpenAI-Organization"] = self._client.organization
-        if self._client.project:
-            headers["OpenAI-Project"] = self._client.project
-        headers.update(self._connect_headers)
-        headers.setdefault("OpenAI-Beta", OPENAI_BETA_RESPONSES_WEBSOCKETS)
-
-        user_agent = headers.pop("User-Agent", self._client.user_agent)
-
-        log_debug(
-            "[responses websocket] connecting",
-            str(self._prepare_url()),
-            debug_type=DebugType.LLM_STREAM,
-        )
-        connection = await connect(
-            str(self._prepare_url()),
-            user_agent_header=user_agent,
-            additional_headers=headers,
-            **self._connect_kwargs,
-        )
-        log_debug(
-            "[responses websocket] connected",
-            debug_type=DebugType.LLM_STREAM,
-        )
-        return connection
-
-    async def stream(self, payload: ResponseCreateParamsBase) -> AsyncGenerator[responses.ResponseStreamEvent]:
-        connection = await self._open_connection()
-        request = json.dumps({"type": "response.create", **payload})
-        should_close = True
-        try:
-            await connection.send(request)
-        except ConnectionClosed:
-            with suppress(ConnectionClosed, WebSocketException):
-                await connection.close()
-            connection = await self._open_connection()
-            await connection.send(request)
-
-        try:
-            while True:
-                raw_message = await connection.recv(decode=False)
-                raw_event = json.loads(raw_message)
-                event = cast(
-                    responses.ResponseStreamEvent,
-                    construct_type_unchecked(value=raw_event, type_=cast(Any, responses.ResponseStreamEvent)),
-                )
-                yield event
-                if raw_event.get("type") in {"response.completed", "response.failed", "response.incomplete", "error"}:
-                    return
-        except asyncio.CancelledError:
-            should_close = False
-            transport = getattr(connection, "transport", None)
-            if transport is not None:
-                transport.abort()
-            else:
-                with suppress(ConnectionClosed, WebSocketException):
-                    await connection.close()
-            raise
-        except ConnectionClosed:
-            raise
-        finally:
-            if should_close:
-                with suppress(ConnectionClosed, WebSocketException):
-                    await connection.close()
 
 
 async def parse_responses_stream(
@@ -434,7 +338,7 @@ async def parse_responses_stream(
                         str(event),
                         debug_type=DebugType.LLM_STREAM,
                     )
-    except (openai.OpenAIError, httpx.HTTPError, WebSocketException, OSError, json.JSONDecodeError, ImportError) as e:
+    except (openai.OpenAIError, httpx.HTTPError, OSError, json.JSONDecodeError, ImportError) as e:
         yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
         state.stop_reason = "error"
 
@@ -503,7 +407,6 @@ class ResponsesClient(LLMClientABC):
                     LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
                 ),
             )
-            ws_transport: ResponsesWebSocketTransport | None = None
         else:
             client = AsyncOpenAI(
                 api_key=config.api_key,
@@ -512,9 +415,7 @@ class ResponsesClient(LLMClientABC):
                     LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
                 ),
             )
-            ws_transport = ResponsesWebSocketTransport(client) if not config.base_url else None
         self.client: AsyncAzureOpenAI | AsyncOpenAI = client
-        self._ws_transport = ws_transport
 
     @classmethod
     @override
@@ -533,23 +434,14 @@ class ResponsesClient(LLMClientABC):
             json.dumps(payload, ensure_ascii=False, default=str),
             debug_type=DebugType.LLM_PAYLOAD,
         )
-        ws_transport = self._ws_transport
-        if ws_transport is not None:
-            log_debug(
-                "[responses websocket] enabled",
-                f"model={param.model_id}",
-                debug_type=DebugType.LLM_CONFIG,
+        try:
+            stream = await self.client.responses.create(
+                **payload,
+                stream=True,
+                extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
             )
-            stream = ws_transport.stream(payload)
-        else:
-            try:
-                stream = await self.client.responses.create(
-                    **payload,
-                    stream=True,
-                    extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
-                )
-            except (openai.OpenAIError, httpx.HTTPError) as e:
-                error_message = f"{e.__class__.__name__} {e!s}"
-                return error_llm_stream(metadata_tracker, error=error_message)
+        except (openai.OpenAIError, httpx.HTTPError) as e:
+            error_message = f"{e.__class__.__name__} {e!s}"
+            return error_llm_stream(metadata_tracker, error=error_message)
 
         return ResponsesLLMStream(stream, param=param, metadata_tracker=metadata_tracker)

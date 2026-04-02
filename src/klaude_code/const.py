@@ -40,7 +40,7 @@ RETRY_PRESERVE_PARTIAL_MESSAGE = True  # Preserve partial message on stream erro
 LLM_HTTP_TIMEOUT_TOTAL = 300.0  # HTTP timeout for LLM API requests (seconds)
 LLM_HTTP_TIMEOUT_CONNECT = 15.0  # HTTP connect timeout (seconds)
 LLM_HTTP_TIMEOUT_READ = 285.0  # HTTP read timeout (seconds)
-LLM_FIRST_TOKEN_TIMEOUT_S = 60.0  # Retry turn if no valid first token arrives within this time (seconds)
+LLM_FIRST_TOKEN_TIMEOUT_S = 120.0  # Retry turn if no valid first token arrives within this time (seconds)
 FIRST_TOKEN_TIMEOUT_NO_RETRY_INPUT_TOKENS = 150_000  # Skip first-token-timeout retry when input exceeds this
 
 ANTHROPIC_BETA_INTERLEAVED_THINKING = "interleaved-thinking-2025-05-14"  # Anthropic API beta flag
