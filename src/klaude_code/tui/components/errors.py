@@ -5,13 +5,16 @@ from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 
-def render_error(error_msg: Text) -> RenderableType:
+def render_error(error_msg: Text, *, can_retry: bool = False) -> RenderableType:
     """Render error with X mark for error events."""
     grid = create_grid()
-    error_msg.style = ThemeKey.ERROR
+    message_style = ThemeKey.WARN if can_retry else ThemeKey.ERROR
+    mark_style = ThemeKey.WARN_BOLD if can_retry else ThemeKey.ERROR_BOLD
+
+    error_msg.style = message_style
     error_msg.overflow = "fold"
-    grid.add_row(Text("✘", style=ThemeKey.ERROR_BOLD), error_msg)
-    grid.add_row(Text(), Text("╌" * 10, style=ThemeKey.ERROR))
+    grid.add_row(Text("✘", style=mark_style), error_msg)
+    grid.add_row(Text(), Text("╌" * 10, style=message_style))
 
     return grid
 
