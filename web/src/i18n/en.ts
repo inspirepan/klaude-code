@@ -160,7 +160,7 @@ const en = {
   "fileSearch.searching": "Searching files...",
 
   // Tool block
-  "tool.planning": "Planning\u2026",
+  "tool.planning": "Updating todos\u2026",
   "tool.todoTitle": "Update To-Do",
   "tool.askingQuestion": "Composing question\u2026",
 

@@ -160,7 +160,7 @@ const zh: Translations = {
   "fileSearch.searching": "搜索文件中...",
 
   // Tool block
-  "tool.planning": "规划中\u2026",
+  "tool.planning": "更新待办中\u2026",
   "tool.todoTitle": "计划清单",
   "tool.askingQuestion": "编写问题中\u2026",
 
