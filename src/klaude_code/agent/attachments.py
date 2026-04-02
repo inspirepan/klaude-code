@@ -362,10 +362,10 @@ async def file_changed_externally_attachment(
             # Diff against cached content from last tool interaction
             if old_content is None:
                 continue
-            new_content = session.file_tracker[path].cached_content if path in session.file_tracker else None
-            if new_content is None:
+            new_status = session.file_tracker.get(path)
+            if new_status is None or new_status.cached_content is None:
                 continue
-            snippet = _compute_diff_snippet(old_content, new_content, path)
+            snippet = _compute_diff_snippet(old_content, new_status.cached_content, path)
             if snippet:
                 changed_files.append((path, snippet, images or None))
                 if images:
