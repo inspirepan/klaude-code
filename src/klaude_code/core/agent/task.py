@@ -25,7 +25,7 @@ from klaude_code.core.tool import FileTracker, TodoContext, ToolABC
 from klaude_code.core.tool.context import RunSubtask
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, message, model, user_interaction
+from klaude_code.protocol import events, message, model, tools, user_interaction
 from klaude_code.session.session import Session
 
 type RequestUserInteraction = Callable[
@@ -300,9 +300,10 @@ class TaskExecutor:
         has_user_input = bool(user_input.text.strip() or user_input.images)
 
         if ctx.sub_agent_state is None:
-            self._rewind_manager = RewindManager()
-            self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-            self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+            if tools.REWIND in ctx.tool_registry:
+                self._rewind_manager = RewindManager()
+                self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
             self._handoff_manager = HandoffManager()
 
         yield events.TaskStartEvent(
