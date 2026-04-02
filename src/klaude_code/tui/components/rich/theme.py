@@ -205,7 +205,6 @@ class ThemeKey(str, Enum):
     TOOL_APPROVED = "tool.approved"
     TOOL_REJECTED = "tool.rejected"
     TOOL_TIMEOUT = "tool.timeout"
-    SUB_AGENT_FOOTER = "sub_agent.footer"
     # BASH SYNTAX
     BASH_COMMAND = "bash.command"
     BASH_ARGUMENT = "bash.argument"
@@ -361,7 +360,6 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_APPROVED.value: palette.green + " bold reverse",
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",
                 ThemeKey.TOOL_TIMEOUT.value: palette.grey2,
-                ThemeKey.SUB_AGENT_FOOTER.value: palette.dim_grey2,
                 # BASH SYNTAX
                 ThemeKey.BASH_COMMAND.value: "bold " + palette.green,
                 ThemeKey.BASH_ARGUMENT.value: palette.green,
@@ -413,7 +411,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.CONFIG_STATUS_ERROR.value: palette.red,
                 ThemeKey.CONFIG_ITEM_NAME.value: palette.cyan,
                 ThemeKey.CONFIG_MODEL_ID.value: palette.blue,
-                ThemeKey.CONFIG_PARAM_LABEL.value: palette.dim_grey2,
+                ThemeKey.CONFIG_PARAM_LABEL.value: palette.grey2,
                 ThemeKey.CONFIG_PARAM_VALUE.value: palette.grey1,
                 ThemeKey.CONFIG_PROVIDER.value: palette.cyan + " bold",
             }
