@@ -1118,6 +1118,7 @@ class TestOutOfBoxExperience:
             "OPENROUTER_API_KEY",
             "DEEPSEEK_API_KEY",
             "MOONSHOT_API_KEY",
+            "MINIMAX_API_KEY",
         ]:
             monkeypatch.delenv(env_var, raising=False)
 
@@ -1142,7 +1143,7 @@ class TestOutOfBoxExperience:
 
         # Set only Anthropic API key, clear others
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-key-12345")
-        for env in ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY"]:
+        for env in ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY", "MINIMAX_API_KEY"]:
             monkeypatch.delenv(env, raising=False)
 
         load_config.cache_clear()
@@ -1163,7 +1164,7 @@ class TestOutOfBoxExperience:
 
         # Set only OpenAI API key, clear others
         monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test-key-12345")
-        for env in ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY"]:
+        for env in ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY", "MINIMAX_API_KEY"]:
             monkeypatch.delenv(env, raising=False)
 
         load_config.cache_clear()
@@ -1185,7 +1186,7 @@ class TestOutOfBoxExperience:
         # Set multiple API keys
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
-        for env in ["OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY"]:
+        for env in ["OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY", "MINIMAX_API_KEY"]:
             monkeypatch.delenv(env, raising=False)
 
         load_config.cache_clear()
@@ -1208,7 +1209,7 @@ class TestOutOfBoxExperience:
 
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-        for env in ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY"]:
+        for env in ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY", "MINIMAX_API_KEY"]:
             monkeypatch.delenv(env, raising=False)
 
         load_config.cache_clear()
@@ -1429,7 +1430,7 @@ class TestOutOfBoxExperience:
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
 
         monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-deepseek-test")
-        for env in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MOONSHOT_API_KEY"]:
+        for env in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MOONSHOT_API_KEY", "MINIMAX_API_KEY"]:
             monkeypatch.delenv(env, raising=False)
 
         load_config.cache_clear()
@@ -1449,7 +1450,7 @@ class TestOutOfBoxExperience:
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
 
         monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
-        for env in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY"]:
+        for env in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY", "MINIMAX_API_KEY"]:
             monkeypatch.delenv(env, raising=False)
 
         load_config.cache_clear()
@@ -1480,6 +1481,7 @@ class TestOutOfBoxExperience:
             "GEMINI_API_KEY",
             "DEEPSEEK_API_KEY",
             "MOONSHOT_API_KEY",
+            "MINIMAX_API_KEY",
         ]:
             monkeypatch.delenv(env, raising=False)
 
@@ -1508,6 +1510,7 @@ class TestOutOfBoxExperience:
             "GOOGLE_API_KEY",
             "DEEPSEEK_API_KEY",
             "MOONSHOT_API_KEY",
+            "MINIMAX_API_KEY",
         ]:
             monkeypatch.delenv(env, raising=False)
 

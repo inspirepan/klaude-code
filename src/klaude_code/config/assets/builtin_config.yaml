@@ -244,6 +244,28 @@ provider_list:
       budget_tokens: 8192
     cost: { input: 4, output: 21, cache_read: 0.7, currency: CNY }
 
+- provider_name: minimax
+  protocol: anthropic
+  api_key: ${MINIMAX_API_KEY}
+  base_url: https://api.minimax.io/anthropic
+  model_list:
+
+  - model_name: m2.7
+    model_id: MiniMax-M2.7
+    context_limit: 204800
+    thinking:
+      type: enabled
+      budget_tokens: 8192
+    cost: { input: 0.3, output: 1.2, cache_read: 0.06, cache_write: 0.375 }
+
+  - model_name: m2.7:highspeed
+    model_id: MiniMax-M2.7-highspeed
+    context_limit: 204800
+    thinking:
+      type: enabled
+      budget_tokens: 8192
+    cost: { input: 0.6, output: 2.4, cache_read: 0.06, cache_write: 0.375 }
+
 - provider_name: cerebras
   protocol: openai
   api_key: ${CEREBRAS_API_KEY}
@@ -549,6 +571,14 @@ provider_list:
       type: enabled
       budget_tokens: 2048
     cost: { input: 0.2, output: 0.5, cache_read: 0.05 }
+
+  - model_name: m2.7
+    model_id: minimax/minimax-m2.7
+    context_limit: 204800
+    thinking:
+      type: enabled
+      budget_tokens: 8192
+    cost: { input: 0.3, output: 1.2, cache_read: 0.06 }
 
   - model_name: glm
     model_id: z-ai/glm-5
