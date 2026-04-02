@@ -558,22 +558,21 @@ def _get_loaded_skill_paths_by_name(session: Session, *, dynamic_only: bool) -> 
     return result
 
 
-def _format_skill_block_str(skill: Skill, skill_content: str, *, explicit: bool, supersedes_previous: bool) -> str:
+def _format_skill_block_str(skill: Skill, skill_content: str, *, explicit: bool) -> str:
     return fmt_skill_block(
         skill_name=skill.name,
         skill_path=skill.skill_path,
         base_dir=skill.base_dir,
         skill_content=skill_content,
         explicit=explicit,
-        supersedes_previous=supersedes_previous,
     )
 
 
-def _format_dynamic_available_skills_str(skills: list[Skill], *, supersedes_previous: bool) -> str:
+def _format_dynamic_available_skills_str(skills: list[Skill]) -> str:
     loader = SkillLoader()
     loader.loaded_skills = {skill.name: skill for skill in skills}
     skills_xml = loader.get_skills_xml().rstrip()
-    return fmt_dynamic_available_skills(skills_xml, supersedes_previous=supersedes_previous)
+    return fmt_dynamic_available_skills(skills_xml)
 
 
 def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bool) -> tuple[list[str], list[Skill]]:
@@ -588,22 +587,13 @@ def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bo
             continue
 
         skill_path = str(skill.skill_path)
-        if explicit:
-            existing_path = None
-        else:
+        if not explicit:
             non_dynamic_path = loaded_all_paths_by_name.get(skill.name)
             dynamic_path = loaded_dynamic_paths_by_name.get(skill.name)
             if non_dynamic_path is not None and non_dynamic_path != dynamic_path:
                 continue
-            existing_path = dynamic_path
-
-        if not explicit and existing_path == skill_path and _is_tracked_file_unchanged(session, skill_path):
-            continue
-
-        supersedes_previous = existing_path is not None and existing_path != skill_path
-        if supersedes_previous:
-            assert existing_path is not None
-            session.file_tracker.pop(existing_path, None)
+            if dynamic_path == skill_path and _is_tracked_file_unchanged(session, skill_path):
+                continue
 
         _mark_skill_loaded(session, skill_path, skill_content, source="explicit" if explicit else "dynamic")
         loaded_dynamic_paths_by_name[skill.name] = skill_path
@@ -613,7 +603,6 @@ def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bo
                 skill,
                 skill_content,
                 explicit=explicit,
-                supersedes_previous=supersedes_previous,
             )
         )
         activated_skills.append(skill)
@@ -621,11 +610,10 @@ def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bo
     return skill_blocks, activated_skills
 
 
-def _collect_dynamic_skills(session: Session, skills: list[Skill]) -> tuple[list[Skill], bool]:
+def _collect_dynamic_skills(session: Session, skills: list[Skill]) -> list[Skill]:
     activated_skills: list[Skill] = []
     loaded_dynamic_paths_by_name = _get_loaded_skill_paths_by_name(session, dynamic_only=True)
     loaded_all_paths_by_name = _get_loaded_skill_paths_by_name(session, dynamic_only=False)
-    superseded_any = False
 
     for skill in skills:
         skill_content = _read_skill_content(skill)
@@ -638,22 +626,15 @@ def _collect_dynamic_skills(session: Session, skills: list[Skill]) -> tuple[list
         if non_dynamic_path is not None and non_dynamic_path != dynamic_path:
             continue
 
-        existing_path = dynamic_path
-        if existing_path == skill_path and _is_tracked_file_unchanged(session, skill_path):
+        if dynamic_path == skill_path and _is_tracked_file_unchanged(session, skill_path):
             continue
-
-        supersedes_previous = existing_path is not None and existing_path != skill_path
-        if supersedes_previous:
-            assert existing_path is not None
-            session.file_tracker.pop(existing_path, None)
-            superseded_any = True
 
         _mark_skill_loaded(session, skill_path, skill_content, source="dynamic")
         loaded_dynamic_paths_by_name[skill.name] = skill_path
         loaded_all_paths_by_name[skill.name] = skill_path
         activated_skills.append(skill)
 
-    return activated_skills, superseded_any
+    return activated_skills
 
 
 def _build_skill_attachment(session: Session, skills: list[Skill], *, explicit: bool) -> message.DeveloperMessage | None:
@@ -671,11 +652,11 @@ def _build_skill_attachment(session: Session, skills: list[Skill], *, explicit: 
 
 
 def _build_dynamic_skill_listing_attachment(session: Session, skills: list[Skill]) -> message.DeveloperMessage | None:
-    activated_skills, superseded_any = _collect_dynamic_skills(session, skills)
+    activated_skills = _collect_dynamic_skills(session, skills)
     if not activated_skills:
         return None
 
-    content = _format_dynamic_available_skills_str(activated_skills, supersedes_previous=superseded_any)
+    content = _format_dynamic_available_skills_str(activated_skills)
     ui_items: list[model.DeveloperUIItem] = [model.SkillDiscoveredUIItem(name=skill.name) for skill in activated_skills]
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),

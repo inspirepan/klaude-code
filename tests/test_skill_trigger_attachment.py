@@ -304,9 +304,6 @@ def test_last_path_skill_attachment_supersedes_prior_same_name_skill(tmp_path: P
     assert second_attachment is not None
     second_text = message.join_text_parts(second_attachment.parts)
     assert "<description>second</description>" in second_text
-    assert "<description>first</description>" not in second_text
-    assert "treat the definitions below as the current ones" in second_text
-    assert str(first_skill.resolve()) not in session.file_tracker
     assert str(second_skill.resolve()) in session.file_tracker
 
 

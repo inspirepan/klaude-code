@@ -50,7 +50,6 @@ def fmt_skill_block(
     skill_content: str,
     *,
     explicit: bool,
-    supersedes_previous: bool,
 ) -> str:
     if explicit:
         preface = f'The user activated the "{skill_name}" skill, prioritize this skill'
@@ -59,9 +58,6 @@ def fmt_skill_block(
             f'The "{skill_name}" skill was discovered near files already accessed in this session. '
             "Apply it when relevant to the current work."
         )
-
-    if supersedes_previous:
-        preface += " This definition supersedes any earlier skill with the same name loaded from another path."
 
     return f"""{preface}
 <skill>
@@ -73,15 +69,8 @@ def fmt_skill_block(
 </skill>"""
 
 
-def fmt_dynamic_available_skills(skills_xml: str, *, supersedes_previous: bool) -> str:
-    preface = "Additional skills are now available because of files or directories already accessed in this session."
-    if supersedes_previous:
-        preface += (
-            " For any repeated skill names from earlier dynamic skill listings, "
-            "treat the definitions below as the current ones."
-        )
-
-    return f"""{preface}
+def fmt_dynamic_available_skills(skills_xml: str) -> str:
+    return f"""The following skills are available from directories you have accessed.
 
 <available_skills>
 {skills_xml}
