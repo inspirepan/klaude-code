@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Literal
 
-from klaude_code.core.agent.attachment_messages import (
+from klaude_code.core.agent.attachment_prompts import (
     fmt_auto_memory_hint,
     fmt_dynamic_available_skills,
     fmt_file_already_in_context,
