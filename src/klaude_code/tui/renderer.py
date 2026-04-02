@@ -82,6 +82,7 @@ from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMark
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.status import BreathingSpinner, StackedStatusText
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
+from klaude_code.tui.status_runtime import clear_task_start, set_task_start
 from klaude_code.tui.terminal.image import print_kitty_image
 from klaude_code.tui.terminal.notifier import (
     Notification,
@@ -1037,9 +1038,9 @@ class TUICommandRenderer:
                 case PrintRuleLine():
                     self.console.print(Rule(characters="─", style=ThemeKey.LINES_DIM))
                 case TaskClockStart():
-                    r_status.set_task_start()
+                    set_task_start()
                 case TaskClockClear():
-                    r_status.clear_task_start()
+                    clear_task_start()
                 case UpdateTerminalTitlePrefix(prefix=prefix, model_name=model_name, session_title=session_title):
                     if is_title_blinking():
                         update_blink_params(model_name=model_name, session_title=session_title)
