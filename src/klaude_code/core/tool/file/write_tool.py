@@ -172,5 +172,8 @@ class WriteTool(ToolABC):
         else:
             ui_extra = build_structured_diff(before, args.content, file_path=file_path)
 
-        output_msg = f"File {'overwritten' if exists else 'created'} successfully at: {file_path}"
+        if exists:
+            output_msg = f"The file {file_path} has been updated successfully."
+        else:
+            output_msg = f"File created successfully at: {file_path}"
         return message.ToolResultMessage(status="success", output_text=output_msg, ui_extra=ui_extra)

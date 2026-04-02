@@ -100,6 +100,11 @@ export interface SkillActivatedUIItem {
   name: string;
 }
 
+export interface SkillDiscoveredUIItem {
+  type: "skill_discovered";
+  name: string;
+}
+
 export interface AtFileImagesUIItem {
   type: "at_file_images";
   paths: string[];
@@ -112,6 +117,7 @@ export type DeveloperUIItem =
   | AtFileOpsUIItem
   | UserImagesUIItem
   | SkillActivatedUIItem
+  | SkillDiscoveredUIItem
   | AtFileImagesUIItem;
 
 export interface DeveloperMessageItem {

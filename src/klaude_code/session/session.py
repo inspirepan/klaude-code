@@ -11,7 +11,7 @@ from typing import Any, cast
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
 from klaude_code.const import ProjectPaths, project_key_from_path
-from klaude_code.protocol import events, llm_param, message, model, tools
+from klaude_code.protocol import events, llm_param, message, model
 from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
 
 _DEFAULT_STORES: dict[str, JsonlSessionStore] = {}
@@ -604,7 +604,6 @@ class Session(BaseModel):
         seen_sub_agent_sessions: set[str] = set()
         prev_item: message.HistoryEvent | None = None
         last_assistant_content: str = ""
-        report_back_result: str | None = None
         pending_tool_calls: dict[str, events.ToolCallEvent] = {}
         history = self.conversation_history
         history_len = len(history)
@@ -695,8 +694,6 @@ class Session(BaseModel):
                     for part in am.parts:
                         if not isinstance(part, message.ToolCallPart):
                             continue
-                        if part.tool_name == tools.REPORT_BACK:
-                            report_back_result = part.arguments_json
                         pending_tool_calls[part.call_id] = events.ToolCallEvent(
                             tool_call_id=part.call_id,
                             tool_name=part.tool_name,
@@ -798,13 +795,9 @@ class Session(BaseModel):
             pending_tool_calls.clear()
 
         if emit_finish:
-            has_structured_output = report_back_result is not None
-            task_result = report_back_result if has_structured_output else last_assistant_content
-
             yield events.TaskFinishEvent(
                 session_id=self.id,
-                task_result=task_result or "",
-                has_structured_output=has_structured_output,
+                task_result=last_assistant_content or "",
                 timestamp=msg_ts,
             )
 

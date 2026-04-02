@@ -19,6 +19,10 @@ interface DeveloperMessageProps {
   items: DeveloperMessageItem[];
 }
 
+function formatSkillName(name: string): string {
+  return `skill:${name}`;
+}
+
 function PathPill({ path }: { path: string }): React.JSX.Element {
   return (
     <span className="inline-flex origin-left scale-[0.92] align-middle">
@@ -63,6 +67,7 @@ function buildAttachedSummary(
 ): string {
   let memoryCount = 0;
   const skillNames: string[] = [];
+  const discoveredSkillNames = new Set<string>();
   let fileCount = 0;
   let folderListCount = 0;
   let rereadCount = 0;
@@ -76,6 +81,9 @@ function buildAttachedSummary(
           break;
         case "skill_activated":
           skillNames.push(ui.name);
+          break;
+        case "skill_discovered":
+          discoveredSkillNames.add(ui.name);
           break;
         case "at_file_ops":
           for (const op of ui.ops) {
@@ -101,6 +109,7 @@ function buildAttachedSummary(
   const parts: string[] = [];
   if (memoryCount > 0) parts.push(t("plural.memory")(memoryCount));
   for (const name of skillNames) parts.push(t("developer.summarySkill")(name));
+  for (const name of discoveredSkillNames) parts.push(t("developer.summaryDiscoveredSkill")(name));
   if (fileCount > 0) parts.push(t("plural.file")(fileCount));
   if (folderListCount > 0) parts.push(t("developer.summaryFolderList")(folderListCount));
   if (rereadCount > 0) parts.push(t("developer.summaryReread")(rereadCount));
@@ -167,6 +176,27 @@ function PathList({ paths }: { paths: string[] }): React.JSX.Element {
   );
 }
 
+function SkillPill({ name }: { name: string }): React.JSX.Element {
+  return (
+    <span className="inline-block rounded bg-surface px-1.5 py-0.5 align-middle font-mono text-sm leading-5">
+      {formatSkillName(name)}
+    </span>
+  );
+}
+
+function SkillRow({ label, names }: { label: string; names: string[] }): React.JSX.Element {
+  return (
+    <div className="flex items-start gap-2 text-sm leading-6 text-neutral-500">
+      <span className="shrink-0">{label}</span>
+      <div className="flex min-w-0 flex-wrap gap-1.5">
+        {names.map((name) => (
+          <SkillPill key={name} name={name} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AttachDetail({
   devItems,
   images,
@@ -174,8 +204,12 @@ function AttachDetail({
   devItems: DeveloperMessageItem[];
   images: string[];
 }): React.JSX.Element {
+  const t = useT();
   const allUIItems = devItems.flatMap((d) => d.items).filter((ui) => ui.type !== "todo_attachment");
   const sessionId = devItems[0]?.sessionId ?? null;
+  const discoveredSkillNames = Array.from(
+    new Set(allUIItems.flatMap((ui) => (ui.type === "skill_discovered" ? [ui.name] : []))),
+  );
 
   return (
     <div className="flex flex-col gap-1">
@@ -190,11 +224,29 @@ function AttachDetail({
               <PathList key={`${g.operation}-${g.paths.join(",")}`} paths={g.paths} />
             ));
           case "skill_activated":
+            return (
+              <SkillRow
+                key={`skill-activated-${idx}`}
+                label={t("developer.activatedSkill")}
+                names={[ui.name]}
+              />
+            );
+          case "skill_discovered":
           case "user_images":
           case "at_file_images":
             return null;
         }
       })}
+      {discoveredSkillNames.length > 0 ? (
+        <SkillRow
+          label={
+            discoveredSkillNames.length === 1
+              ? t("developer.discoveredSkill")
+              : t("developer.discoveredSkills")
+          }
+          names={discoveredSkillNames}
+        />
+      ) : null}
       {images.length > 0 ? (
         <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {images.map((p) => (

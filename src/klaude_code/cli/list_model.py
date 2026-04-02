@@ -1,8 +1,10 @@
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from rich.console import Console
 from rich.text import Text
 
+from klaude_code.auth.env import get_auth_env
 from klaude_code.cli.oauth_usage import (
     format_oauth_usage_summary,
     load_oauth_usage_summary,
@@ -26,6 +28,16 @@ def mask_api_key(api_key: str | None) -> str:
     return f"{api_key[:6]}…{api_key[-6:]}"
 
 
+def _resolve_env_var_source(env_var_expression: str) -> str | None:
+    """Return 'env' if the value comes from os.environ, 'configured' if from auth store."""
+    for env_var_name in env_var_expression.split("|"):
+        if os.environ.get(env_var_name):
+            return "env"
+        if get_auth_env(env_var_name):
+            return "configured"
+    return None
+
+
 def _format_secret_value_display(value: str | None, *, fallback_name: str) -> Text:
     """Format `${ENV}` or raw secret as `NAME=masked`.
 
@@ -35,9 +47,12 @@ def _format_secret_value_display(value: str | None, *, fallback_name: str) -> Te
 
     if env_var:
         if resolved:
+            source = _resolve_env_var_source(env_var)
+            source_label = " (env)" if source == "env" else " (configured)" if source == "configured" else ""
             return Text.assemble(
                 (f"{env_var}=", "dim"),
                 (mask_api_key(resolved), ThemeKey.CONFIG_PARAM_VALUE),
+                (source_label, "dim"),
             )
         return Text.assemble((f"{env_var}=", "dim"), ("(not set)", ThemeKey.CONFIG_STATUS_ERROR))
     if value:

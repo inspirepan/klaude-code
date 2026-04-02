@@ -27,7 +27,7 @@ export interface SessionStatusState {
   taskElapsedSeconds: number | null;
 }
 
-export function createInitialSessionStatus(sessionId: string): SessionStatusState {
+function createInitialSessionStatus(sessionId: string): SessionStatusState {
   return {
     sessionId,
     isSubAgent: false,
@@ -55,11 +55,11 @@ export function createInitialSessionStatus(sessionId: string): SessionStatusStat
   };
 }
 
-export function getSessionStatus(state: ReducerState, sessionId: string): SessionStatusState {
+function getSessionStatus(state: ReducerState, sessionId: string): SessionStatusState {
   return state.statusBySessionId[sessionId] ?? createInitialSessionStatus(sessionId);
 }
 
-export function updateSessionStatus(
+function updateSessionStatus(
   state: ReducerState,
   sessionId: string,
   updater: (current: SessionStatusState) => SessionStatusState,

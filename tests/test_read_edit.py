@@ -458,8 +458,7 @@ class TestEditTool(BaseTempDirTest):
             )
         )
         self.assertEqual(res.status, "success")
-        self.assertIn("Here's the result of running `cat -n`", res.output_text or "")
-        self.assertIn("1→修改后的行", res.output_text or "")
+        self.assertIn("has been updated successfully", res.output_text or "")
 
     def test_edit_duplicates_require_replace_all_or_unique(self):
         p = os.path.abspath("dups.txt")
@@ -498,7 +497,7 @@ class TestEditTool(BaseTempDirTest):
             )
         )
         self.assertEqual(res2.status, "success")
-        self.assertIn("All occurrences of '重复行' were successfully replaced", res2.output_text or "")
+        self.assertIn("All occurrences were successfully replaced", res2.output_text or "")
 
     def test_edit_not_found_and_same_string(self):
         p = os.path.abspath("notfound.txt")

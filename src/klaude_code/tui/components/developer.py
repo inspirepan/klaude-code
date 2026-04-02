@@ -22,6 +22,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     Command output is excluded; render it separately via `render_command_output`.
     """
     parts: list[RenderableType] = []
+    discovered_skill_names: list[str] = []
 
     if e.item.ui_extra:
         for ui_item in e.item.ui_extra.items:
@@ -31,7 +32,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                     grid.add_row(
                         Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
                         Text.assemble(
-                            ("Load memory ", ThemeKey.ATTACHMENT),
+                            ("Read memory ", ThemeKey.ATTACHMENT),
                             Text(", ", ThemeKey.ATTACHMENT).join(
                                 render_path(mem.path, ThemeKey.ATTACHMENT_BOLD) for mem in item.files
                             ),
@@ -102,17 +103,24 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                     )
                     parts.append(grid)
                 case model.SkillDiscoveredUIItem() as item:
-                    grid = create_grid()
-                    grid.add_row(
-                        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
-                        Text.assemble(
-                            ("Discovered skill ", ThemeKey.ATTACHMENT),
-                            (item.name, ThemeKey.TOOL_PARAM_FILE_PATH_SKILL_NAME),
-                        ),
-                    )
-                    parts.append(grid)
+                    if item.name not in discovered_skill_names:
+                        discovered_skill_names.append(item.name)
                 case model.AtFileImagesUIItem():
                     # Image display is handled by renderer.display_developer_message
                     pass
+
+    if discovered_skill_names:
+        grid = create_grid()
+        label = "Discovered skill " if len(discovered_skill_names) == 1 else "Discovered skills "
+        grid.add_row(
+            Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+            Text.assemble(
+                (label, ThemeKey.ATTACHMENT),
+                Text(", ", ThemeKey.ATTACHMENT).join(
+                    Text(name, ThemeKey.ATTACHMENT) for name in discovered_skill_names
+                ),
+            ),
+        )
+        parts.append(grid)
 
     return Group(*parts) if parts else Text("")

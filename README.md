@@ -8,7 +8,6 @@ Minimal code agent CLI.
 - **Model-aware tools**: Claude Code tool set for Opus, `apply_patch` for GPT-5/Codex
 - **Reminders**: Cooldown-based todo tracking, instruction reinforcement and external file change reminder
 - **Sub-agents**: Task, Finder
-- **Structured sub-agent output**: Main agent defines JSON schema and get schema-compliant responses via constrained decoding
 - **Recursive `@file` mentions**: Circular dependency protection, relative path resolution
 - **External file sync**: Monitoring for external edits (linter, manual)
 - **Interrupt handling**: Ctrl+C preserves partial responses and synthesizes tool cancellation results
@@ -93,6 +92,7 @@ export OPENAI_API_KEY=sk-xxx             # GPT models
 export OPENROUTER_API_KEY=sk-or-xxx      # OpenRouter (multi-provider)
 export DEEPSEEK_API_KEY=sk-xxx           # DeepSeek models
 export MOONSHOT_API_KEY=sk-xxx           # Moonshot/Kimi models
+export MINIMAX_API_KEY=xxx               # MiniMax models
 export EXA_API_KEY=exa-xxx               # Exa Search (optional, WebSearch provider, preferred)
 export BRAVE_API_KEY=BSA-xxx             # Brave Search (optional, WebSearch provider, fallback)
 
@@ -129,6 +129,7 @@ Klaude tries these entries in order and uses the first available model. `fast_mo
 | bedrock          | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`                   | sonnet                                                                                                   |
 | deepseek         | `DEEPSEEK_API_KEY`                                                           | deepseek                                                                                                 |
 | moonshot         | `MOONSHOT_API_KEY`                                                           | kimi                                                                                                     |
+| minimax          | `MINIMAX_API_KEY`                                                            | m2.7, m2.7:highspeed                                                                                     |
 | cerebras         | `CEREBRAS_API_KEY`                                                           | glm                                                                                                      |
 | claude-max       | N/A (OAuth)                                             | sonnet, sonnet-no-thinking, opus, haiku                                                                 |
 | codex            | N/A (OAuth)                                                                  | gpt-5.3-codex, gpt-5.3-codex-xhigh, gpt-5.4-high, gpt-5.4-xhigh   |
@@ -159,6 +160,7 @@ klaude auth login google      # Set GOOGLE_API_KEY
 klaude auth login openrouter  # Set OPENROUTER_API_KEY
 klaude auth login deepseek    # Set DEEPSEEK_API_KEY
 klaude auth login moonshot    # Set MOONSHOT_API_KEY
+klaude auth login minimax    # Set MINIMAX_API_KEY
 
 # OAuth login for subscription-based providers
 klaude auth login codex       # ChatGPT Pro subscription

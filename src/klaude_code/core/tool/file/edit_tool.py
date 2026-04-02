@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import difflib
 import os
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from klaude_code.const import DIFF_DEFAULT_CONTEXT_LINES, EDIT_MAX_FILE_SIZE
+from klaude_code.const import EDIT_MAX_FILE_SIZE
 from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.file._utils import (
     file_exists,
@@ -231,16 +230,6 @@ class EditTool(ToolABC):
         except (OSError, UnicodeError) as e:  # pragma: no cover
             return message.ToolResultMessage(status="error", output_text=f"<tool_use_error>{e}</tool_use_error>")
 
-        # Prepare UI extra: unified diff with default context lines
-        diff_lines = list(
-            difflib.unified_diff(
-                before.splitlines(),
-                after.splitlines(),
-                fromfile=file_path,
-                tofile=file_path,
-                n=DIFF_DEFAULT_CONTEXT_LINES,
-            )
-        )
         ui_extra = build_structured_diff(before, after, file_path=file_path)
         if context.file_change_summary is not None:
             context.file_change_summary.record_edited(file_path)
@@ -267,46 +256,7 @@ class EditTool(ToolABC):
 
         # Build output message
         if args.replace_all:
-            msg = f"The file {file_path} has been updated. All occurrences of '{args.old_string}' were successfully replaced with '{new_string}'."
-            return message.ToolResultMessage(status="success", output_text=msg, ui_extra=ui_extra)
-
-        # For single replacement, show a snippet consisting of context + added lines only
-        # Parse the diff to collect target line numbers in the 'after' file
-        include_after_line_nos: list[int] = []
-        after_line_no = 0
-        for line in diff_lines:
-            if line.startswith("@@"):
-                # Parse header: @@ -l,s +l,s @@
-                # Extract the +l,s part
-                try:
-                    header = line
-                    plus = header.split("+", 1)[1]
-                    plus_range = plus.split(" ")[0]
-                    start = int(plus_range.split(",")[0]) if "," in plus_range else int(plus_range)
-                    after_line_no = start - 1
-                except (ValueError, IndexError):
-                    after_line_no = 0
-                continue
-            if line.startswith(" ") or (line.startswith("+") and not line.startswith("+++ ")):
-                after_line_no += 1
-                include_after_line_nos.append(after_line_no)
-            elif line.startswith("-") and not line.startswith("--- "):
-                # Removed line does not advance after_line_no
-                continue
-            else:
-                # file header lines etc.
-                continue
-
-        # Build numbered snippet from the new content
-        snippet_lines: list[str] = []
-        after_lines = after.splitlines()
-        for no in include_after_line_nos:
-            if 1 <= no <= len(after_lines):
-                snippet_lines.append(f"{no:>6}→{after_lines[no - 1]}")
-
-        snippet = "\n".join(snippet_lines)
-        output = (
-            f"The file {file_path} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:\n"
-            f"{snippet}"
-        )
-        return message.ToolResultMessage(status="success", output_text=output, ui_extra=ui_extra)
+            msg = f"The file {file_path} has been updated. All occurrences were successfully replaced."
+        else:
+            msg = f"The file {file_path} has been updated successfully."
+        return message.ToolResultMessage(status="success", output_text=msg, ui_extra=ui_extra)

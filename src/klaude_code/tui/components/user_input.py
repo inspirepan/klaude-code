@@ -1,7 +1,7 @@
 import re
 
-from rich.console import Group, RenderableType
-from rich.padding import Padding
+from rich.console import RenderableType
+from rich.table import Table
 from rich.text import Text
 
 from klaude_code.const import TAB_EXPAND_WIDTH
@@ -49,19 +49,15 @@ def render_at_and_skill_patterns(
     return result
 
 
-def render_user_input(content: str) -> RenderableType:
-    """Render a user message as a group of quoted lines with styles.
+def build_user_input_rows(content: str) -> list[tuple[Text, Text]]:
+    """Build prompt/content rows for user input rendering."""
 
-    - Highlights slash command token on the first line
-    - Highlights @file and /skill patterns in all lines
-    - Wrapped in a Panel for block-style background
-    """
     lines = content.strip().split("\n")
     is_bash_mode = bool(lines) and lines[0].startswith("!")
 
     available_skill_names: set[str] | None = None
 
-    renderables: list[RenderableType] = []
+    renderables: list[Text] = []
     for i, line in enumerate(lines):
         if not line.strip():
             continue
@@ -104,12 +100,34 @@ def render_user_input(content: str) -> RenderableType:
             )
         )
 
-    return Padding(
-        Group(*renderables),
-        pad=(0, 2),
-        style=ThemeKey.USER_INPUT,
-        expand=False,
-    )
+    if not renderables:
+        return []
+
+    rows = [(Text(USER_MESSAGE_MARK, style=ThemeKey.USER_INPUT_PROMPT), renderables[0])]
+    indent = Text(" " * len(USER_MESSAGE_MARK), style=ThemeKey.USER_INPUT)
+    for line_text in renderables[1:]:
+        rows.append((indent.copy(), line_text))
+    return rows
+
+
+def render_user_input(content: str) -> RenderableType:
+    """Render a user message with a prompt on the first line.
+
+    - Highlights slash command token on the first line
+    - Highlights @file and /skill patterns in all lines
+    """
+    rows = build_user_input_rows(content)
+
+    if not rows:
+        return Text("", style=ThemeKey.USER_INPUT)
+
+    grid = Table.grid(padding=0)
+    grid.add_column(no_wrap=True)
+    grid.add_column(overflow="fold")
+    for prompt_text, line_text in rows:
+        grid.add_row(prompt_text, line_text)
+
+    return grid
 
 
 def render_interrupt() -> RenderableType:

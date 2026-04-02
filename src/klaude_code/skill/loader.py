@@ -1,6 +1,7 @@
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import ClassVar
 from xml.sax.saxutils import escape
@@ -8,6 +9,68 @@ from xml.sax.saxutils import escape
 import yaml
 
 from klaude_code.log import log_debug
+
+
+def _find_git_repo_root(start: Path) -> Path | None:
+    current = start.resolve()
+    while True:
+        if (current / ".git").exists():
+            return current
+        if current.parent == current:
+            return None
+        current = current.parent
+
+
+def _resolve_skill_discovery_scope(path: Path, work_dir: Path) -> tuple[Path, Path, bool]:
+    resolved_work_dir = work_dir.resolve()
+    full_path = (resolved_work_dir / path).resolve() if not path.is_absolute() else path.resolve()
+    anchor_dir = full_path if full_path.is_dir() else full_path.parent
+
+    try:
+        anchor_dir.relative_to(resolved_work_dir)
+    except ValueError:
+        repo_root = _find_git_repo_root(anchor_dir)
+        if repo_root is not None:
+            return anchor_dir, repo_root, True
+        return anchor_dir, anchor_dir, True
+
+    return anchor_dir, resolved_work_dir, False
+
+
+@lru_cache(maxsize=512)
+def get_candidate_skill_dirs_for_anchor(
+    anchor_dir: Path, boundary_dir: Path, include_boundary: bool
+) -> tuple[tuple[str, int], ...]:
+    candidate_dirs: dict[str, int] = {}
+    current_dir = anchor_dir
+
+    while True:
+        if include_boundary or current_dir != boundary_dir:
+            try:
+                depth = len(current_dir.relative_to(boundary_dir).parts)
+            except ValueError:
+                break
+
+            for project_dir in SkillLoader.PROJECT_SKILLS_DIRS:
+                skill_dir = (
+                    (current_dir / project_dir).resolve() if not project_dir.is_absolute() else project_dir.resolve()
+                )
+                if not skill_dir.exists() or not skill_dir.is_dir():
+                    continue
+                skill_dir_str = str(skill_dir)
+                existing_depth = candidate_dirs.get(skill_dir_str)
+                if existing_depth is None or depth > existing_depth:
+                    candidate_dirs[skill_dir_str] = depth
+
+        if current_dir == boundary_dir or current_dir.parent == current_dir:
+            break
+        current_dir = current_dir.parent
+
+    return tuple(sorted(candidate_dirs.items()))
+
+
+# Backward-compatible alias for internal callers that still use the old name.
+_get_candidate_skill_dirs_for_anchor = get_candidate_skill_dirs_for_anchor
 
 
 @dataclass
@@ -93,13 +156,7 @@ class SkillLoader:
         return skill_files
 
     def _find_git_repo_root(self, cwd: Path) -> Path | None:
-        current = cwd.resolve()
-        while True:
-            if (current / ".git").exists():
-                return current
-            if current.parent == current:
-                return None
-            current = current.parent
+        return _find_git_repo_root(cwd)
 
     def _get_project_skill_dirs(self, work_dir: Path) -> list[Path]:
         cwd = work_dir.resolve()
@@ -344,45 +401,33 @@ class SkillLoader:
 def discover_skills_near_paths(paths: Iterable[str], *, work_dir: Path) -> list[Skill]:
     """Discover project-local skills from nested skill dirs near accessed paths.
 
-    Walks from each accessed file or directory upward toward ``work_dir`` and checks
-    each ancestor for ``.claude/skills`` and ``.agents/skills``. ``work_dir`` itself
-    is excluded because those top-level project skills are already part of the normal
+    For paths inside ``work_dir``, walk upward toward ``work_dir`` and check each
+    ancestor for ``.claude/skills`` and ``.agents/skills``. ``work_dir`` itself is
+    excluded because those top-level project skills are already part of the normal
     static skill discovery process.
+
+    For paths outside ``work_dir``, treat the nearest git repo root as the discovery
+    boundary and include that root so external project-level skills can be discovered.
 
     When multiple nested directories define the same skill name, the definition from
     the deeper directory wins.
     """
 
-    resolved_work_dir = work_dir.resolve()
     candidate_dirs: dict[Path, int] = {}
+    seen_scopes: set[tuple[Path, Path, bool]] = set()
 
     for raw_path in paths:
-        path = Path(raw_path)
-        full_path = (resolved_work_dir / path).resolve() if not path.is_absolute() else path.resolve()
-        try:
-            _ = full_path.relative_to(resolved_work_dir)
-        except ValueError:
+        anchor_dir, boundary_dir, include_boundary = _resolve_skill_discovery_scope(Path(raw_path), work_dir)
+        scope = (anchor_dir, boundary_dir, include_boundary)
+        if scope in seen_scopes:
             continue
+        seen_scopes.add(scope)
 
-        current_dir = full_path if full_path.is_dir() else full_path.parent
-        while current_dir != resolved_work_dir:
-            try:
-                depth = len(current_dir.relative_to(resolved_work_dir).parts)
-            except ValueError:
-                break
-
-            for project_dir in SkillLoader.PROJECT_SKILLS_DIRS:
-                skill_dir = (
-                    (current_dir / project_dir).resolve() if not project_dir.is_absolute() else project_dir.resolve()
-                )
-                if skill_dir.exists() and skill_dir.is_dir():
-                    existing_depth = candidate_dirs.get(skill_dir)
-                    if existing_depth is None or depth > existing_depth:
-                        candidate_dirs[skill_dir] = depth
-
-            if current_dir.parent == current_dir:
-                break
-            current_dir = current_dir.parent
+        for skill_dir_str, depth in get_candidate_skill_dirs_for_anchor(anchor_dir, boundary_dir, include_boundary):
+            skill_dir = Path(skill_dir_str)
+            existing_depth = candidate_dirs.get(skill_dir)
+            if existing_depth is None or depth > existing_depth:
+                candidate_dirs[skill_dir] = depth
 
     loader = SkillLoader()
     selected_by_name: dict[str, tuple[Skill, int]] = {}

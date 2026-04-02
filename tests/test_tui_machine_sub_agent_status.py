@@ -350,7 +350,6 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
         events.TaskFinishEvent(
             session_id=sub_session,
             task_result="done",
-            has_structured_output=False,
         )
     )
     finish_update = _last_spinner_update(finish_cmds)
@@ -374,6 +373,27 @@ def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> N
     assert update.leading_blank_line is False
     assert len(update.status_lines) == 1
     assert _line_plain(update.status_lines[0]).startswith("Running Task")
+
+
+def test_main_session_composing_keeps_sub_agent_activity_priority() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.ToolCallStartEvent(
+            session_id=main_session,
+            tool_call_id="tc-task-1",
+            tool_name=tools.AGENT,
+        )
+    )
+
+    cmds = machine.transition(events.AssistantTextStartEvent(session_id=main_session, response_id="r1"))
+    update = _last_spinner_update(cmds)
+
+    assert len(update.status_lines) == 1
+    assert _line_plain(update.status_lines[0]).startswith("Running Task")
+    assert "Typing" not in _line_plain(update.status_lines[0])
 
 
 def test_interrupt_clears_stale_sub_agent_status_lines() -> None:
@@ -511,7 +531,6 @@ def test_main_session_tokens_accumulate_across_task_boundaries() -> None:
         events.TaskFinishEvent(
             session_id=session_id,
             task_result="done",
-            has_structured_output=False,
         )
     )
 

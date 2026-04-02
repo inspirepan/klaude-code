@@ -211,7 +211,11 @@ const zh: Translations = {
   "messageList.scrollToBottom": "滚动到底部",
 
   // Developer summary
+  "developer.activatedSkill": "已激活技能",
+  "developer.discoveredSkill": "已发现技能",
+  "developer.discoveredSkills": "已发现技能",
   "developer.summarySkill": (name: string) => `skill:${name}`,
+  "developer.summaryDiscoveredSkill": (name: string) => `skill:${name}（已发现）`,
   "developer.summaryFolderList": (n: number) => `${n} 个目录列表`,
   "developer.summaryReread": (n: number) => `${n} 个重读文件`,
 

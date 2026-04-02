@@ -211,7 +211,11 @@ const en = {
   "messageList.scrollToBottom": "Scroll to bottom",
 
   // Developer summary
+  "developer.activatedSkill": "Activated skill",
+  "developer.discoveredSkill": "Discovered skill",
+  "developer.discoveredSkills": "Discovered skills",
   "developer.summarySkill": (name: string) => `skill:${name}`,
+  "developer.summaryDiscoveredSkill": (name: string) => `skill:${name} (discovered)`,
   "developer.summaryFolderList": (n: number) => `${n} folder ${n === 1 ? "list" : "lists"}`,
   "developer.summaryReread": (n: number) => `${n} re-read ${n === 1 ? "file" : "files"}`,
 
@@ -222,7 +226,7 @@ const en = {
   "plural.image": (n: number) => `${n} ${n === 1 ? "image" : "images"}`,
 } as const;
 
-export type TranslationKey = keyof typeof en;
+type TranslationKey = keyof typeof en;
 export type Translations = {
   [K in TranslationKey]: (typeof en)[K] extends (...args: infer A) => string
     ? (...args: A) => string

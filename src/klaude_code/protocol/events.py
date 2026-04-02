@@ -253,7 +253,6 @@ class RewindEvent(Event):
 
 class TaskFinishEvent(Event):
     task_result: str
-    has_structured_output: bool = False
 
 
 class TurnStartEvent(Event):

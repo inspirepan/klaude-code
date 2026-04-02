@@ -28,7 +28,7 @@ export function parseUserMessageImages(raw: unknown): MessageImagePart[] {
   return images;
 }
 
-export function parseTaskMetadataUsage(raw: unknown): TaskMetadataUsage | null {
+function parseTaskMetadataUsage(raw: unknown): TaskMetadataUsage | null {
   if (raw === null || typeof raw !== "object") return null;
   const u = raw as Record<string, unknown>;
   const inputTokens = parseFiniteNumber(u.input_tokens) ?? 0;
@@ -148,6 +148,12 @@ export function parseDeveloperUIItems(raw: unknown): DeveloperUIItem[] {
         const name = typeof ui.name === "string" ? ui.name : "";
         if (name.length === 0) break;
         out.push({ type: "skill_activated", name });
+        break;
+      }
+      case "skill_discovered": {
+        const name = typeof ui.name === "string" ? ui.name : "";
+        if (name.length === 0) break;
+        out.push({ type: "skill_discovered", name });
         break;
       }
       case "at_file_images": {

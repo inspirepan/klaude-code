@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import math
-import time
 from collections.abc import Callable
 
 import rich.status as rich_status
@@ -22,45 +21,11 @@ from klaude_code.const import (
     STATUS_SHIMMER_ENABLED,
     STATUS_SHIMMER_PADDING,
 )
-from klaude_code.tui.components.common import format_elapsed_compact
 from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.status_runtime import elapsed_since_process_start
 
 # Use an existing Rich spinner name; BreathingSpinner overrides its rendering
 BREATHING_SPINNER_NAME = "dots"
-
-
-_process_start: float | None = None
-_task_start: float | None = None
-
-
-def _elapsed_since_start() -> float:
-    """Return seconds elapsed since first call in this process."""
-    global _process_start
-    now = time.perf_counter()
-    if _process_start is None:
-        _process_start = now
-    return now - _process_start
-
-
-def set_task_start(start: float | None = None) -> None:
-    """Set the current task start time (perf_counter seconds)."""
-
-    global _task_start
-    _task_start = time.perf_counter() if start is None else start
-
-
-def clear_task_start() -> None:
-    """Clear the current task start time."""
-
-    global _task_start
-    _task_start = None
-
-
-def _task_elapsed_seconds(now: float | None = None) -> float | None:
-    if _task_start is None:
-        return None
-    current = time.perf_counter() if now is None else now
-    return max(0.0, current - _task_start)
 
 
 def current_hint_text(*, min_time_width: int = 0) -> str:
@@ -73,18 +38,6 @@ def current_hint_text(*, min_time_width: int = 0) -> str:
     # Keep the signature stable; min_time_width is intentionally ignored.
     _ = min_time_width
     return STATUS_HINT_TEXT
-
-
-def current_elapsed_text(*, min_time_width: int = 0) -> str | None:
-    """Return the current task elapsed time text (e.g. "11s", "1m02s")."""
-
-    elapsed = _task_elapsed_seconds()
-    if elapsed is None:
-        return None
-    time_text = format_elapsed_compact(elapsed)
-    if min_time_width > 0:
-        time_text = time_text.rjust(min_time_width)
-    return time_text
 
 
 class DynamicText:
@@ -160,7 +113,7 @@ def _shimmer_profile(main_text: str) -> list[tuple[str, float]]:
     # Use same period as breathing spinner for visual consistency
     sweep_seconds = max(SPINNER_BREATH_PERIOD_SECONDS, 0.1)
 
-    elapsed = _elapsed_since_start()
+    elapsed = elapsed_since_process_start()
     # Complete one full sweep in sweep_seconds, regardless of text length
     pos_f = (elapsed / sweep_seconds % 1.0) * period
     pos = int(pos_f)
@@ -295,8 +248,7 @@ class StackedStatusText:
             self._todo_text = text
         else:
             self._todo_text = Text(todo_text, style=main_style)
-        self._hint_style = ThemeKey.STATUS_HINT
-        self._metadata_text = metadata_text
+        self._metadata_line = StatusMetadataLine(metadata_text, hint_style=ThemeKey.STATUS_HINT)
         self._status_lines = status_lines
         self._leading_blank_line = leading_blank_line
 
@@ -325,13 +277,7 @@ class StackedStatusText:
             if line.plain:
                 rendered_status_lines.append(line)
 
-        metadata_line = _build_metadata_line(
-            metadata_text=self._metadata_text,
-            hint_style=self._hint_style,
-            max_width=max_width,
-            console=console,
-            line_options=line_options,
-        )
+        metadata_line = self._metadata_line.render(console=console, line_options=line_options, max_width=max_width)
 
         lines: list[Text] = []
         if self._leading_blank_line and rendered_status_lines:
@@ -373,37 +319,41 @@ def _render_right_text(
     return _render_single_line_text(renderable, console=console, options=options)
 
 
-def _build_metadata_line(
-    *,
-    metadata_text: RenderableType | None,
-    hint_style: ThemeKey,
-    max_width: int,
-    console: Console,
-    line_options: ConsoleOptions,
-) -> Text:
-    hint_text = Text(current_hint_text().strip(), style=console.get_style(str(hint_style)))
-    if metadata_text is None:
-        return truncate_right(hint_text, max(1, max_width), console=console)
+class StatusMetadataLine:
+    """Build the bottom metadata line, including compact/hint fallback policy."""
 
-    full_metadata_text = _render_right_text(metadata_text, console=console, options=line_options, compact=False)
-    if cell_len(full_metadata_text.plain) == 0:
-        return truncate_right(hint_text, max(1, max_width), console=console)
+    def __init__(self, metadata_text: RenderableType | None, *, hint_style: ThemeKey) -> None:
+        self._metadata_text = metadata_text
+        self._hint_style = hint_style
 
-    separator = Text(" · ", style=ThemeKey.STATUS_HINT)
-    full_with_hint = Text.assemble(full_metadata_text, separator, hint_text)
-    if cell_len(full_with_hint.plain) <= max_width:
-        return full_with_hint
-    if cell_len(full_metadata_text.plain) <= max_width:
-        return full_metadata_text
+    def render(self, *, console: Console, line_options: ConsoleOptions, max_width: int) -> Text:
+        hint_text = Text(current_hint_text().strip(), style=console.get_style(str(self._hint_style)))
+        if self._metadata_text is None:
+            return truncate_right(hint_text, max(1, max_width), console=console)
 
-    compact_metadata_text = _render_right_text(metadata_text, console=console, options=line_options, compact=True)
-    if 0 < cell_len(compact_metadata_text.plain) < cell_len(full_metadata_text.plain):
-        compact_with_hint = Text.assemble(compact_metadata_text, separator, hint_text)
-        if cell_len(compact_with_hint.plain) <= max_width:
-            return compact_with_hint
-    if cell_len(compact_metadata_text.plain) <= max_width:
-        return compact_metadata_text
-    return truncate_right(compact_metadata_text, max(1, max_width), console=console)
+        full_metadata_text = _render_right_text(
+            self._metadata_text, console=console, options=line_options, compact=False
+        )
+        if cell_len(full_metadata_text.plain) == 0:
+            return truncate_right(hint_text, max(1, max_width), console=console)
+
+        separator = Text(" · ", style=ThemeKey.STATUS_HINT)
+        full_with_hint = Text.assemble(full_metadata_text, separator, hint_text)
+        if cell_len(full_with_hint.plain) <= max_width:
+            return full_with_hint
+        if cell_len(full_metadata_text.plain) <= max_width:
+            return full_metadata_text
+
+        compact_metadata_text = _render_right_text(
+            self._metadata_text, console=console, options=line_options, compact=True
+        )
+        if 0 < cell_len(compact_metadata_text.plain) < cell_len(full_metadata_text.plain):
+            compact_with_hint = Text.assemble(compact_metadata_text, separator, hint_text)
+            if cell_len(compact_with_hint.plain) <= max_width:
+                return compact_with_hint
+        if cell_len(compact_metadata_text.plain) <= max_width:
+            return compact_metadata_text
+        return truncate_right(compact_metadata_text, max(1, max_width), console=console)
 
 
 class _StatusShimmerLine:

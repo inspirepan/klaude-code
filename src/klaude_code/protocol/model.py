@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, computed_field
 
@@ -421,7 +421,6 @@ class SubAgentState(BaseModel):
     sub_agent_type: SubAgentType
     sub_agent_desc: str
     sub_agent_prompt: str
-    output_schema: dict[str, Any] | None = None
     fork_context: bool = False
 
 

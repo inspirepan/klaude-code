@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rich.cells import cell_len
 
-from klaude_code.const import STATUS_DEFAULT_TEXT, STATUS_THINKING_TEXT
+from klaude_code.const import STATUS_COMPACTING_TEXT, STATUS_DEFAULT_TEXT, STATUS_THINKING_TEXT
 from klaude_code.protocol import model
 from klaude_code.tui.machine import SpinnerStatusState
 
@@ -108,6 +108,16 @@ def test_reasoning_on_first_line_and_default_on_secondary_line() -> None:
     assert status.plain.startswith("Thinking …")
 
 
+def test_clear_default_reasoning_status_keeps_non_thinking_phase() -> None:
+    state = SpinnerStatusState()
+    state.set_reasoning_status(STATUS_COMPACTING_TEXT)
+
+    state.clear_default_reasoning_status()
+
+    status = state.get_status()
+    assert status.plain.startswith(STATUS_COMPACTING_TEXT)
+
+
 def test_composing_status_keeps_min_loading_width() -> None:
     state = SpinnerStatusState()
     state.set_composing(True)
@@ -118,6 +128,17 @@ def test_composing_status_keeps_min_loading_width() -> None:
     assert todo_status.plain == ""
     assert status.plain.startswith("Typing …")
     assert cell_len(status.plain) == cell_len(STATUS_THINKING_TEXT)
+
+
+def test_stopping_composing_returns_to_default_status() -> None:
+    state = SpinnerStatusState()
+    state.set_composing(True)
+    state.set_buffer_length(123)
+
+    state.set_composing(False)
+
+    status = state.get_status()
+    assert status.plain.startswith(STATUS_DEFAULT_TEXT)
 
 
 def test_default_status_keeps_min_thinking_width() -> None:

@@ -645,12 +645,10 @@ class TaskExecutor:
 
         # Get task result from turn
         task_result = turn.task_result if turn is not None else ""
-        has_structured_output = turn.has_structured_output if turn is not None else False
 
         yield events.TaskFinishEvent(
             session_id=session_ctx.session_id,
             task_result=task_result,
-            has_structured_output=has_structured_output,
         )
 
 

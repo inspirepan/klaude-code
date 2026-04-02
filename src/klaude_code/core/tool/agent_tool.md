@@ -22,4 +22,4 @@ Usage notes:
 - When asking a sub-agent to execute a skill, include the skill's full `location` and `base_dir` in your prompt, since sub-agents do not automatically load `<available_skills>` metadata.
 - If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
 - If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple Agent tool use content blocks. For example, if you need to launch both a code-reviewer agent and a test-runner agent in parallel, send a single message with both tool calls.
-- Agents can provide structured output by passing a JSON Schema in `output_schema`.
+

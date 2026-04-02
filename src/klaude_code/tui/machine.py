@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum, auto
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -60,6 +61,7 @@ from klaude_code.tui.commands import (
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import get_agent_active_form, get_tool_active_form, is_sub_agent_tool
+from klaude_code.tui.status_runtime import current_elapsed_text
 
 # Tools that complete quickly and don't benefit from streaming activity display.
 # For models without fine-grained tool JSON streaming (e.g., Gemini), showing these
@@ -72,7 +74,6 @@ FAST_TOOLS: frozenset[str] = frozenset(
         tools.BASH,
         tools.TODO_WRITE,
         tools.APPLY_PATCH,
-        tools.REPORT_BACK,
         tools.REWIND,
     }
 )
@@ -107,23 +108,22 @@ def _empty_status_tool_ids() -> dict[str, str]:
     return {}
 
 
+class SpinnerPhase(Enum):
+    WAITING = auto()
+    THINKING = auto()
+    COMPOSING = auto()
+    COMPACTING = auto()
+    RUNNING = auto()
+    CUSTOM = auto()
+
+
 class ActivityState:
-    """Tracks composing/tool activity for spinner display."""
+    """Tracks tool activity for spinner display."""
 
     def __init__(self) -> None:
-        self._composing: bool = False
-        self._buffer_length: int = 0
         self._tool_calls: dict[str, int] = {}
         self._sub_agent_tool_calls: dict[str, int] = {}
         self._sub_agent_tool_calls_by_id: dict[str, str] = {}
-
-    def set_composing(self, composing: bool) -> None:
-        self._composing = composing
-        if not composing:
-            self._buffer_length = 0
-
-    def set_buffer_length(self, length: int) -> None:
-        self._buffer_length = length
 
     def add_tool_call(self, tool_name: str) -> None:
         self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
@@ -153,13 +153,9 @@ class ActivityState:
         self._tool_calls = {}
 
     def clear_for_new_turn(self) -> None:
-        self._composing = False
-        self._buffer_length = 0
         self._tool_calls = {}
 
     def reset(self) -> None:
-        self._composing = False
-        self._buffer_length = 0
         self._tool_calls = {}
         self._sub_agent_tool_calls = {}
         self._sub_agent_tool_calls_by_id = {}
@@ -187,24 +183,18 @@ class ActivityState:
                 _append_counts(self._tool_calls)
 
             return activity_text
-
-        if self._composing:
-            text = Text()
-            text.append(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT)
-            if STATUS_SHOW_BUFFER_LENGTH and self._buffer_length > 0:
-                text.append(f" ({self._buffer_length:,})", style=ThemeKey.STATUS_TEXT)
-            return text
-
         return None
 
 
 class SpinnerStatusState:
-    """Multi-layer spinner status state management."""
+    """State machine for spinner status plus task/session metadata."""
 
     def __init__(self) -> None:
         self._todo_status: str | None = None
-        self._reasoning_status: str | None = None
+        self._phase = SpinnerPhase.WAITING
+        self._custom_status: str | None = None
         self._toast_status: str | None = None
+        self._composing_buffer_length: int = 0
         self._activity = ActivityState()
         self._token_input: int | None = None
         self._token_cached: int | None = None
@@ -220,7 +210,7 @@ class SpinnerStatusState:
 
     def reset(self) -> None:
         self._todo_status = None
-        self._reasoning_status = None
+        self._enter_phase(SpinnerPhase.WAITING)
         self._toast_status = None
         self._activity.reset()
         self._token_input = None
@@ -239,9 +229,26 @@ class SpinnerStatusState:
         """Clear task-scoped spinner state while keeping session metadata."""
 
         self._todo_status = None
-        self._reasoning_status = None
+        self._enter_phase(SpinnerPhase.WAITING)
         self._toast_status = None
         self._activity.reset()
+
+    def _enter_phase(self, phase: SpinnerPhase, *, custom_status: str | None = None) -> None:
+        self._phase = phase
+        self._custom_status = custom_status if phase is SpinnerPhase.CUSTOM else None
+        self._composing_buffer_length = 0
+
+    def enter_waiting(self) -> None:
+        self._enter_phase(SpinnerPhase.WAITING)
+
+    def enter_thinking(self) -> None:
+        self._enter_phase(SpinnerPhase.THINKING)
+
+    def enter_compacting(self) -> None:
+        self._enter_phase(SpinnerPhase.COMPACTING)
+
+    def enter_running(self) -> None:
+        self._enter_phase(SpinnerPhase.RUNNING)
 
     def set_toast_status(self, status: str | None) -> None:
         self._toast_status = status
@@ -250,20 +257,35 @@ class SpinnerStatusState:
         self._todo_status = status
 
     def set_reasoning_status(self, status: str | None) -> None:
-        self._reasoning_status = status
+        if status is None:
+            self.enter_waiting()
+            return
+        if status == STATUS_THINKING_TEXT:
+            self.enter_thinking()
+            return
+        if status == STATUS_COMPACTING_TEXT:
+            self.enter_compacting()
+            return
+        if status == STATUS_RUNNING_TEXT:
+            self.enter_running()
+            return
+        self._enter_phase(SpinnerPhase.CUSTOM, custom_status=status)
 
     def clear_default_reasoning_status(self) -> None:
-        """Clear reasoning status only if it's the default 'Reasoning ...' text."""
-        if self._reasoning_status == STATUS_THINKING_TEXT:
-            self._reasoning_status = None
+        """Clear the phase only when the spinner is in the default thinking state."""
+        if self._phase is SpinnerPhase.THINKING:
+            self.enter_waiting()
 
     def set_composing(self, composing: bool) -> None:
         if composing:
-            self._reasoning_status = None
-        self._activity.set_composing(composing)
+            self._enter_phase(SpinnerPhase.COMPOSING)
+            return
+        if self._phase is SpinnerPhase.COMPOSING:
+            self.enter_waiting()
 
     def set_buffer_length(self, length: int) -> None:
-        self._activity.set_buffer_length(length)
+        if self._phase is SpinnerPhase.COMPOSING:
+            self._composing_buffer_length = length
 
     def add_tool_call(self, tool_name: str) -> None:
         self._activity.add_tool_call(tool_name)
@@ -279,6 +301,8 @@ class SpinnerStatusState:
 
     def clear_for_new_turn(self) -> None:
         self._activity.clear_for_new_turn()
+        if self._phase is SpinnerPhase.COMPOSING:
+            self.enter_waiting()
 
     def set_context_usage(self, usage: model.Usage) -> None:
         has_token_usage = any(
@@ -318,6 +342,25 @@ class SpinnerStatusState:
         """Expose current activity for tests and UI composition."""
         return self._activity.get_activity_text()
 
+    def _base_status_text(self) -> Text | None:
+        match self._phase:
+            case SpinnerPhase.WAITING:
+                return None
+            case SpinnerPhase.THINKING:
+                return Text(STATUS_THINKING_TEXT, style=ThemeKey.STATUS_TEXT)
+            case SpinnerPhase.COMPOSING:
+                text = Text(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT)
+                if STATUS_SHOW_BUFFER_LENGTH and self._composing_buffer_length > 0:
+                    text.append(f" ({self._composing_buffer_length:,})", style=ThemeKey.STATUS_TEXT)
+                return text
+            case SpinnerPhase.COMPACTING:
+                return Text(STATUS_COMPACTING_TEXT, style=ThemeKey.STATUS_TEXT)
+            case SpinnerPhase.RUNNING:
+                return Text(STATUS_RUNNING_TEXT, style=ThemeKey.STATUS_TEXT)
+            case SpinnerPhase.CUSTOM:
+                return Text(self._custom_status or "", style=ThemeKey.STATUS_TEXT)
+        return None
+
     def get_todo_status(self) -> Text:
         todo_status = self._todo_status
         if todo_status is None:
@@ -333,11 +376,13 @@ class SpinnerStatusState:
         if self._toast_status:
             return Text(self._toast_status, style=ThemeKey.STATUS_TOAST)
 
-        reasoning_status = self._reasoning_status
+        base_status = self._base_status_text()
         activity_text = self._activity.get_activity_text()
 
-        if reasoning_status is not None:
-            status_text = Text(reasoning_status, style=ThemeKey.STATUS_TEXT)
+        if self._phase is SpinnerPhase.COMPOSING and activity_text is not None:
+            status_text = activity_text
+        elif base_status is not None:
+            status_text = base_status
             if activity_text:
                 status_text.append(" | ")
                 status_text.append_text(activity_text)
@@ -405,7 +450,7 @@ class SpinnerStatusState:
                 parts.append(f"cost {currency_symbol}{self._cost_total:.4f}")
 
         if include_elapsed:
-            current_elapsed = r_status.current_elapsed_text()
+            current_elapsed = current_elapsed_text()
             if current_elapsed is not None:
                 if parts:
                     parts.append(" · ")
@@ -713,7 +758,7 @@ class DisplayStateMachine:
                     return []
                 self._bash_mode_output_chunks_by_session[e.session_id] = []
                 if not is_replay:
-                    self._spinner.set_reasoning_status(STATUS_RUNNING_TEXT)
+                    self._spinner.enter_running()
                     cmds.append(TaskClockStart())
                     cmds.append(SpinnerStart())
                     cmds.extend(self._spinner_update_commands())
@@ -761,7 +806,7 @@ class DisplayStateMachine:
                 cmds.append(PrintBlankLine())
 
                 if not is_replay:
-                    self._spinner.set_reasoning_status(None)
+                    self._spinner.enter_waiting()
                     cmds.append(TaskClockClear())
                     cmds.append(SpinnerStop())
                     cmds.extend(self._spinner_update_commands())
@@ -799,7 +844,7 @@ class DisplayStateMachine:
 
             case events.CompactionStartEvent():
                 if not is_replay:
-                    self._spinner.set_reasoning_status(STATUS_COMPACTING_TEXT)
+                    self._spinner.enter_compacting()
                     if not s.task_active:
                         cmds.append(SpinnerStart())
                     cmds.extend(self._spinner_update_commands())
@@ -807,7 +852,7 @@ class DisplayStateMachine:
 
             case events.CompactionEndEvent() as e:
                 if not is_replay:
-                    self._spinner.set_reasoning_status(None)
+                    self._spinner.enter_waiting()
                     if not s.task_active:
                         cmds.append(SpinnerStop())
                     cmds.extend(self._spinner_update_commands())
@@ -892,7 +937,7 @@ class DisplayStateMachine:
                         s.clear_status_activity()
                     else:
                         self._spinner.clear_for_new_turn()
-                        self._spinner.set_reasoning_status(None)
+                        self._spinner.enter_waiting()
                     cmds.extend(self._spinner_update_commands())
                 return cmds
 
@@ -911,7 +956,7 @@ class DisplayStateMachine:
                 # Ensure the status reflects that reasoning has started even
                 # before we receive any deltas.
                 if not is_replay:
-                    self._spinner.set_reasoning_status(STATUS_THINKING_TEXT)
+                    self._spinner.enter_thinking()
                 cmds.append(StartThinkingStream(session_id=e.session_id))
                 if not is_replay:
                     cmds.extend(self._spinner_update_commands())
@@ -1238,7 +1283,6 @@ class DisplayStateMachine:
                 if (
                     not is_replay
                     and not s.is_sub_agent
-                    and not e.has_structured_output
                     and s.assistant_char_count == 0
                     and e.task_result.strip()
                     and e.task_result.strip().lower() not in {"task cancelled", "task canceled"}

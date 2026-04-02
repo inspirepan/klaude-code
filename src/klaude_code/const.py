@@ -166,7 +166,6 @@ TRUNCATE_DISPLAY_MAX_LINES = 10  # Maximum lines for truncated display
 MIN_HIDDEN_LINES_FOR_INDICATOR = 5  # Minimum hidden lines before showing truncation indicator
 SUB_AGENT_RESULT_MAX_LINES = 10  # Maximum lines for sub-agent result display
 TRUNCATE_HEAD_MAX_LINES = 2  # Maximum lines for sub-agent error display
-BASH_OUTPUT_PANEL_THRESHOLD = 10  # Bash output line threshold for CodePanel display
 BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES = (
     20  # Max lines shown for heredoc / multiline string tokens in bash tool calls
 )

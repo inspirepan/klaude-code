@@ -34,14 +34,10 @@ export function t<K extends keyof Translations>(key: K): Translations[K] {
 
 export const I18nContext = createContext<Locale>(currentLocale);
 
-export function useLocale(): Locale {
-  return useContext(I18nContext);
-}
-
 export function useT(): typeof t {
   // Re-read from context to trigger re-render on locale change
   useContext(I18nContext);
   return t;
 }
 
-export { type Translations, type TranslationKey } from "./en";
+export { type Translations } from "./en";
