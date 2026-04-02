@@ -51,6 +51,31 @@ def test_rich_cjk_wrap_patch_avoids_splitting_parenthetical_phrase() -> None:
     assert "(No\n" not in rendered
 
 
+def test_rich_cjk_wrap_in_table_cell_no_fold() -> None:
+    """CJK splitting should work in table cells where overflow != fold."""
+    from klaude_code.tui.components.rich import install_rich_cjk_wrap_patch
+
+    install_rich_cjk_wrap_patch()
+
+    from rich.table import Table
+
+    buffer = io.StringIO()
+    console = Console(file=buffer, width=100, force_terminal=False)
+
+    table = Table()
+    table.add_column("A", width=33)
+    table.add_column("B", width=33)
+    table.add_row("test", "4 条原则：泛化反馈、保持精简、解释why、识别重复劳动")
+    console.print(table)
+
+    output = buffer.getvalue()
+    # "4" must NOT be alone on a line — it should stay with the CJK text.
+    for line in output.splitlines():
+        stripped = line.strip().strip("│┃").strip()
+        if stripped == "4":
+            raise AssertionError(f"'4' is isolated on a line:\n{output}")
+
+
 def test_rich_cjk_wrap_patch_avoids_splitting_after_open_paren() -> None:
     sample = "• 深度的“制造者时间” (Deep Maker Time)：由于无法通过会议进行同步沟通，他避开了大公司的会议地狱。"
 

@@ -181,7 +181,10 @@ def install_rich_cjk_wrap_patch() -> bool:
                     break
 
                 # Prefer splitting CJK-containing tokens to fill remaining space.
-                if fold and cell_offset and start and remaining_space > 0 and _contains_cjk(word):
+                # CJK text has no whitespace word boundaries, so splitting at character
+                # boundaries is always valid — even when fold=False (e.g. table cells
+                # with overflow="ellipsis").
+                if cell_offset and start and remaining_space > 0 and _contains_cjk(word):
                     prefix_len = _find_prefix_len_for_remaining(word, remaining_space)
                     if prefix_len:
                         break_at = start + prefix_len
