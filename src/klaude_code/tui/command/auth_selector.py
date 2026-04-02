@@ -30,12 +30,18 @@ def _get_oauth_auth_state(provider_name: str) -> tuple[bool, bool]:
         return False, False
 
 
-def _is_api_key_configured(env_var: str) -> bool:
+def _api_key_source(env_var: str) -> str | None:
+    """Return the source of the API key: 'env' for OS environment, 'configured' for auth store, or None."""
     try:
-        value = os.environ.get(env_var) or get_auth_env(env_var)
-        return bool(value and value.strip())
+        env_value = os.environ.get(env_var)
+        if env_value and env_value.strip():
+            return "env"
+        auth_value = get_auth_env(env_var)
+        if auth_value and auth_value.strip():
+            return "configured"
+        return None
     except Exception:
-        return False
+        return None
 
 
 def _oauth_title(label: str, provider_name: str) -> list[tuple[str, str]]:
@@ -55,24 +61,41 @@ def _oauth_title(label: str, provider_name: str) -> list[tuple[str, str]]:
 def _api_key_title(label: str, env_var: str) -> list[tuple[str, str]]:
     title: list[tuple[str, str]] = [
         ("", f"{label} "),
-        ("ansibrightblack", "[API key]"),
+        ("ansibrightblack", f"[{env_var}]"),
     ]
-    if _is_api_key_configured(env_var):
+    source = _api_key_source(env_var)
+    if source == "env":
+        title.append(("ansigreen", " ✓ env"))
+    elif source == "configured":
         title.append(("ansigreen", " ✓ configured"))
     title.append(("", "\n"))
     return title
 
 
-def _is_google_vertex_configured() -> bool:
+def _google_vertex_source() -> str | None:
+    """Return the source of Google Vertex credentials: 'env', 'configured', or None."""
     try:
-        vars = (
+        required_vars = (
             "GOOGLE_APPLICATION_CREDENTIALS",
             "GOOGLE_CLOUD_PROJECT",
             "GOOGLE_CLOUD_LOCATION",
         )
-        return all(bool((os.environ.get(v) or get_auth_env(v) or "").strip()) for v in vars)
+        all_from_env = True
+        all_present = True
+        for v in required_vars:
+            env_value = os.environ.get(v)
+            if env_value and env_value.strip():
+                continue
+            all_from_env = False
+            auth_value = get_auth_env(v)
+            if not (auth_value and auth_value.strip()):
+                all_present = False
+                break
+        if not all_present:
+            return None
+        return "env" if all_from_env else "configured"
     except Exception:
-        return False
+        return None
 
 
 def _google_vertex_title() -> list[tuple[str, str]]:
@@ -80,7 +103,10 @@ def _google_vertex_title() -> list[tuple[str, str]]:
         ("", "Google Vertex "),
         ("ansibrightblack", "[Cloud credentials]"),
     ]
-    if _is_google_vertex_configured():
+    source = _google_vertex_source()
+    if source == "env":
+        title.append(("ansigreen", " ✓ env"))
+    elif source == "configured":
         title.append(("ansigreen", " ✓ configured"))
     title.append(("", "\n"))
     return title
