@@ -44,7 +44,6 @@ MAIN_AGENT_COMMON_BASE_TOOLS: list[str] = [tools.BASH, tools.READ]
 MAIN_AGENT_GPT5_DIFF_TOOLS: list[str] = [tools.APPLY_PATCH, tools.TODO_WRITE]
 MAIN_AGENT_NON_GPT5_DIFF_TOOLS: list[str] = [tools.EDIT, tools.WRITE, tools.TODO_WRITE]
 MAIN_AGENT_COMMON_TOOLS: list[str] = [
-    tools.REWIND,
     tools.HANDOFF,
     tools.AGENT,
     tools.WEB_FETCH,
