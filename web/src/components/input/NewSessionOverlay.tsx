@@ -217,13 +217,13 @@ export function NewSessionOverlay({
         />
       ) : null}
       <div
-        className={`absolute left-1/2 top-[20%] w-full max-w-2xl -translate-x-1/2 rounded-xl border border-border/90 bg-card p-3 ${
+        className={`absolute left-1/2 top-[20%] w-full max-w-2xl -translate-x-1/2 rounded-[20px] bg-card p-3 ring-1 ring-black/[0.06] ${
           showBackdrop ? "shadow-overlay" : ""
         } sm:p-4`}
       >
         <div className="mb-3 space-y-0.5">
-          <div className="text-base font-semibold text-neutral-800">{t("newSession.title")}</div>
-          <div className="text-base leading-6 text-neutral-500">{t("newSession.subtitle")}</div>
+          <div className="text-balance text-base font-semibold text-neutral-800">{t("newSession.title")}</div>
+          <div className="text-pretty text-base leading-6 text-neutral-500">{t("newSession.subtitle")}</div>
         </div>
 
         <div className="space-y-3">

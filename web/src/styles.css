@@ -281,6 +281,7 @@ body {
   line-height: 1.6;
   color: hsl(var(--foreground));
   padding-bottom: 0.25em;
+  text-wrap: pretty;
 }
 /* Tailwind preflight resets many element styles; restore them for Streamdown */
 .assistant-text hr {

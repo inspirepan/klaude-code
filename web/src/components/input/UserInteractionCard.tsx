@@ -132,7 +132,7 @@ function OptionPill({
           {label}
         </span>
         {description && (
-          <span className="mt-0.5 block text-xs leading-snug text-neutral-500">{description}</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-neutral-500">{description}</span>
         )}
       </span>
     </button>
@@ -163,7 +163,7 @@ function QuestionPanel({
     <div>
       {/* Question header chip */}
       <div className="mb-1.5 flex items-center gap-1.5">
-        <span className="text-xs font-medium uppercase tracking-wider text-neutral-500">
+        <span className="font-mono text-xs font-medium uppercase tracking-wider text-neutral-500">
           {question.header || `Question ${questionIndex + 1}`}
         </span>
         {question.multi_select && (
@@ -172,7 +172,7 @@ function QuestionPanel({
       </div>
 
       {/* Question text */}
-      <p className="mb-3 text-base leading-relaxed text-neutral-700">{question.question}</p>
+      <p className="mb-3 text-pretty text-base leading-relaxed text-neutral-700">{question.question}</p>
 
       {/* Option pills */}
       <div className="flex flex-wrap gap-2">
@@ -294,7 +294,7 @@ export function UserInteractionCard({
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm shadow-neutral-200/40">
+    <section className="overflow-hidden rounded-2xl bg-card shadow-sm shadow-neutral-200/40 ring-1 ring-black/[0.06]">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-5 pb-1 pt-4">
         <CircleHelp className="h-4 w-4 shrink-0 text-sky-500" />
@@ -386,11 +386,11 @@ export function UserInteractionCard({
         {operationPayload && (
           <div>
             <div className="mb-1.5">
-              <span className="text-xs font-medium uppercase tracking-wider text-neutral-500">
+              <span className="font-mono text-xs font-medium uppercase tracking-wider text-neutral-500">
                 {operationPayload.header}
               </span>
             </div>
-            <p className="mb-3 text-base leading-relaxed text-neutral-700">
+            <p className="mb-3 text-pretty text-base leading-relaxed text-neutral-700">
               {operationPayload.question}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -421,7 +421,7 @@ export function UserInteractionCard({
               void cancel();
             }}
             disabled={actionDisabled}
-            className="inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-sm text-neutral-500 transition hover:bg-muted hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-sm text-neutral-500 transition hover:bg-muted hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <X className="h-3 w-3" />
             {t("interaction.cancel")}
@@ -433,14 +433,14 @@ export function UserInteractionCard({
                 if (nextUnansweredIndex >= 0) setActiveTab(nextUnansweredIndex);
               }}
               disabled={actionDisabled || nextUnansweredIndex < 0}
-              className={`inline-flex h-7 items-center gap-1 rounded-lg border px-3 text-sm shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`inline-flex h-7 items-center gap-1 rounded-full px-3 text-sm shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
                 isQuestionAnswered(
                   askPayload.questions[activeTab],
                   selectedByQuestion,
                   noteByQuestion,
                 )
-                  ? "border-transparent bg-sky-500 text-white hover:bg-sky-600"
-                  : "border-border bg-card text-neutral-500 hover:bg-surface hover:text-neutral-700"
+                  ? "bg-sky-500 text-white hover:bg-sky-600"
+                  : "bg-card text-neutral-500 ring-1 ring-black/[0.06] hover:bg-surface hover:text-neutral-700"
               }`}
             >
               {t("interaction.next")}
@@ -456,7 +456,7 @@ export function UserInteractionCard({
                 void submitOperationResponse();
               }}
               disabled={actionDisabled}
-              className="inline-flex h-7 items-center gap-1 rounded-lg bg-sky-500 px-3 text-sm text-white shadow-sm transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-7 items-center gap-1 rounded-full bg-sky-500 px-3 text-sm text-white shadow-sm transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Check className="h-3 w-3" />
               {t("interaction.submit")}

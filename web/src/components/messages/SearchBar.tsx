@@ -58,7 +58,7 @@ export function SearchBar({
 
   return (
     <div className="absolute right-4 top-2 z-30 sm:right-6">
-      <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 shadow-sm">
+      <div className="flex items-center gap-1.5 rounded-lg bg-card px-3 py-1.5 shadow-sm ring-1 ring-black/[0.06]">
         <Search className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
         <input
           ref={inputRef}

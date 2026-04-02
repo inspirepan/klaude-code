@@ -490,9 +490,9 @@ export function LeftSidebar(): React.JSX.Element {
               </Tooltip>
 
               {archivedMenuOpen ? (
-                <div className="absolute bottom-full left-0 z-40 mb-2 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border/80 bg-card p-1 shadow-float-lg">
+                <div className="absolute bottom-full left-0 z-40 mb-2 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg bg-card p-1 shadow-float-lg ring-1 ring-black/[0.06]">
                   <div className="flex items-center justify-between border-b border-neutral-100 px-2 py-1.5">
-                    <span className="text-xs font-medium uppercase tracking-[0.08em] text-neutral-500">
+                    <span className="font-mono text-xs font-medium uppercase tracking-wider text-neutral-500">
                       {t("sidebar.archived")}
                     </span>
                     <span className="text-xs text-neutral-500">{archivedSessionCount}</span>
@@ -540,7 +540,7 @@ export function LeftSidebar(): React.JSX.Element {
               {archiveCleanupConfirmOpen ? (
                 <div
                   ref={archiveCleanupContentRef}
-                  className="absolute bottom-full left-3 z-40 mb-2 w-72 rounded-md border border-border bg-card px-3 py-2 text-sm text-neutral-700 shadow-sm"
+                  className="absolute bottom-full left-3 z-40 mb-2 w-72 rounded-md bg-card px-3 py-2 text-sm text-neutral-700 shadow-sm ring-1 ring-black/[0.06]"
                 >
                   <div className="space-y-2">
                     <div className="text-sm font-medium text-neutral-800">
@@ -586,7 +586,7 @@ export function LeftSidebar(): React.JSX.Element {
 
           {archiveUndoSessionId !== null ? (
             <div className="pointer-events-none absolute inset-x-2 bottom-2 z-40">
-              <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-lg border border-border bg-card/95 px-2.5 py-2 shadow-toast backdrop-blur">
+              <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-lg bg-card/95 px-2.5 py-2 shadow-toast ring-1 ring-black/[0.06] backdrop-blur">
                 <span className="text-sm text-neutral-700">{t("sidebar.sessionArchived")}</span>
                 <Tooltip>
                   <TooltipTrigger asChild>

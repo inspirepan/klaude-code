@@ -147,7 +147,7 @@ export function ModelSelector({
         <div
           className={
             panelClassName ??
-            `absolute left-0 z-30 w-[360px] overflow-hidden rounded-xl border border-border/80 bg-card pt-1 shadow-float-lg ${dropUp ? "bottom-full mb-2" : "top-full mt-2"}`
+            `absolute left-0 z-30 w-[360px] overflow-hidden rounded-xl bg-card pt-1 shadow-float-lg ring-1 ring-black/[0.06] ${dropUp ? "bottom-full mb-2" : "top-full mt-2"}`
           }
         >
           <div className="flex items-center gap-1.5 border-b border-neutral-100 px-2 pb-1.5 pt-1">
@@ -193,7 +193,7 @@ export function ModelSelector({
                 <div key={group.provider}>
                   <button
                     type="button"
-                    className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-1 rounded-lg px-2 pb-0.5 pt-1.5 text-xs tracking-wide text-emerald-700 transition-colors hover:bg-surface"
+                    className="mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-1 rounded-md px-2 pb-0.5 pt-1.5 text-xs tracking-wide text-emerald-700 transition-colors hover:bg-surface"
                     onMouseDown={(event) => {
                       event.preventDefault();
                     }}
