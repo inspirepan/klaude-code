@@ -1,7 +1,7 @@
 """Tests for todo-related tools."""
 
-from klaude_code.core.tool.todo.todo_write_tool import TodoWriteArguments, get_new_completed_todos
 from klaude_code.protocol.model import TodoItem
+from klaude_code.tool.todo.todo_write_tool import TodoWriteArguments, get_new_completed_todos
 
 
 class TestGetNewCompletedTodos:

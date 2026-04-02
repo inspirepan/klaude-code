@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 from uuid import uuid4
 
-from klaude_code.core.control.runtime_facade import RuntimeFacade
+from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.protocol import model
 from klaude_code.web.session_access import is_session_read_only_for_runtime
 from klaude_code.web.session_index import SessionIndex, SessionSummary

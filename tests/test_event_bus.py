@@ -5,7 +5,7 @@ import contextlib
 from collections.abc import Coroutine
 from typing import Any, TypeVar
 
-from klaude_code.core.control.event_bus import EventBus, EventSubscription, event_publish_context
+from klaude_code.control.event_bus import EventBus, EventSubscription, event_publish_context
 from klaude_code.protocol import events
 
 T = TypeVar("T")

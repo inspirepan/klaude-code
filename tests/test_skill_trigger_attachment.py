@@ -4,12 +4,12 @@ from typing import ClassVar
 
 import pytest
 
-import klaude_code.core.agent.attachments as attachments
-from klaude_code.core.agent.attachments import get_skills_from_user_input
-from klaude_code.core.tool.file._utils import hash_text_sha256
+import klaude_code.agent.attachments as attachments
+from klaude_code.agent.attachments import get_skills_from_user_input
 from klaude_code.protocol import message, model
 from klaude_code.session.session import Session
 from klaude_code.skill.loader import Skill, get_candidate_skill_dirs_for_anchor
+from klaude_code.tool.file._utils import hash_text_sha256
 
 
 def _arun(coro):  # type: ignore
@@ -308,7 +308,7 @@ def test_last_path_skill_attachment_supersedes_prior_same_name_skill(tmp_path: P
 
 
 def test_at_dir_skill_anchor_survives_attachment_reset(tmp_path: Path) -> None:
-    from klaude_code.core.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
+    from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
 
     work_dir = tmp_path / "repo"
     target_dir = work_dir / "nested"

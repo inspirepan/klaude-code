@@ -4,8 +4,8 @@ import asyncio
 from collections.abc import Coroutine
 from typing import Any, TypeVar
 
-from klaude_code.core.control.event_bus import EventBus
-from klaude_code.core.control.runtime_facade import OperationCompletionAwaiter
+from klaude_code.app.runtime_facade import OperationCompletionAwaiter
+from klaude_code.control.event_bus import EventBus
 from klaude_code.protocol import events
 
 T = TypeVar("T")

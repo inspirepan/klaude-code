@@ -4,13 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from klaude_code.core.handoff import HandoffManager, run_handoff
-from klaude_code.core.handoff.prompts import HANDOFF_SUMMARY_PREFIX
-from klaude_code.core.tool.handoff_tool import HandoffTool
+from klaude_code.agent.handoff import HandoffManager, run_handoff
+from klaude_code.agent.handoff.prompts import HANDOFF_SUMMARY_PREFIX
 from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.protocol import llm_param, message, model, tools
 from klaude_code.session.session import Session
+from klaude_code.tool.handoff_tool import HandoffTool
 
 
 def arun(coro: object) -> object:
@@ -254,7 +254,7 @@ class TestRunHandoff:
 
 class TestMemoryReset:
     def test_reset_attachment_loaded_flags(self) -> None:
-        from klaude_code.core.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
+        from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
 
         file_tracker: dict[str, model.FileStatus] = {
             "src/foo.py": model.FileStatus(mtime=1.0, is_memory=False),
@@ -297,7 +297,7 @@ class TestHandoffTool:
         assert "goal" in schema.parameters["properties"]
 
     def test_call_with_no_manager(self) -> None:
-        from klaude_code.core.tool.context import TodoContext, ToolContext
+        from klaude_code.tool.context import TodoContext, ToolContext
 
         ctx = ToolContext(
             file_tracker={},
@@ -315,7 +315,7 @@ class TestHandoffTool:
         arun(_test())
 
     def test_call_with_manager(self) -> None:
-        from klaude_code.core.tool.context import TodoContext, ToolContext
+        from klaude_code.tool.context import TodoContext, ToolContext
 
         manager = HandoffManager()
         ctx = ToolContext(

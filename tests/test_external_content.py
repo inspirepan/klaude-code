@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from klaude_code.core.tool.web.external_content import (
+from klaude_code.tool.web.external_content import (
     _BOUNDARY_END,  # pyright: ignore[reportPrivateUsage]
     _BOUNDARY_START,  # pyright: ignore[reportPrivateUsage]
     _SECURITY_WARNING,  # pyright: ignore[reportPrivateUsage]

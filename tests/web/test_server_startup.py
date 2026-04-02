@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from klaude_code.core.agent.runtime_llm import LLMClients
-from klaude_code.core.control.event_bus import EventBus
-from klaude_code.core.control.runtime_facade import RuntimeFacade
+from klaude_code.agent.runtime_llm import LLMClients
+from klaude_code.app.runtime_facade import RuntimeFacade
+from klaude_code.control.event_bus import EventBus
 from klaude_code.session.session import close_default_store
 from klaude_code.web import server
 from klaude_code.web.app import create_app

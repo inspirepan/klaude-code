@@ -6,7 +6,7 @@ from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any, TypeVar
 
-from klaude_code.core.control.session_meta_relay import (
+from klaude_code.control.session_meta_relay import (
     SessionMetaRelayMessage,
     SessionMetaRelayPublisher,
     SessionMetaRelayServer,

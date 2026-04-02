@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from klaude_code.core.compaction import CompactionConfig, should_compact_threshold
+from klaude_code.agent.compaction import CompactionConfig, should_compact_threshold
 from klaude_code.protocol import llm_param, message, model
 from klaude_code.session.session import Session
 

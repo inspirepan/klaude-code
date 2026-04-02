@@ -6,8 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, TypeVar, cast
 
-from klaude_code.core.control.runtime_facade import RuntimeFacade
-from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
+from klaude_code.app.runtime_facade import RuntimeFacade
+from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import events, model, user_interaction
 
 T = TypeVar("T")

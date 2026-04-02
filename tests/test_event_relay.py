@@ -6,8 +6,8 @@ from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any, TypeVar
 
-from klaude_code.core.control.event_bus import EnvelopeBus, EventBus
-from klaude_code.core.control.event_relay import EventRelayPublisher, EventRelayServer, event_relay_socket_path
+from klaude_code.control.event_bus import EnvelopeBus, EventBus
+from klaude_code.control.event_relay import EventRelayPublisher, EventRelayServer, event_relay_socket_path
 from klaude_code.protocol import events
 
 T = TypeVar("T")

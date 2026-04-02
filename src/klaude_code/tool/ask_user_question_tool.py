@@ -1,0 +1,298 @@
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from klaude_code.protocol import llm_param, message, model, tools, user_interaction
+from klaude_code.tool.context import ToolContext
+from klaude_code.tool.tool_abc import ToolABC, load_desc
+from klaude_code.tool.tool_registry import register
+
+
+class AskUserQuestionOptionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    description: str
+
+
+class AskUserQuestionQuestionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    question: str
+    header: str
+    options: list[AskUserQuestionOptionInput] = Field(min_length=2, max_length=4)
+    multi_select: bool = Field(default=False, alias="multiSelect")
+
+
+class AskUserQuestionArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    questions: list[AskUserQuestionQuestionInput] = Field(min_length=1, max_length=4)
+
+
+@register(tools.ASK_USER_QUESTION)
+class AskUserQuestionTool(ToolABC):
+    _BLOCK_SEPARATOR = "\n---\n"
+
+    @classmethod
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
+            name=tools.ASK_USER_QUESTION,
+            type="function",
+            description=load_desc(Path(__file__).parent / "ask_user_question_tool.md"),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "questions": {
+                        "description": "Questions to ask the user (1-4 questions)",
+                        "minItems": 1,
+                        "maxItems": 4,
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "question": {
+                                    "description": (
+                                        "The complete question to ask the user. Should be clear, specific, "
+                                        "and end with a question mark. "
+                                        'Example: "Which library should we use for date formatting?" '
+                                        "If multiSelect is true, phrase it accordingly, "
+                                        'e.g. "Which features do you want to enable?"'
+                                    ),
+                                    "type": "string",
+                                },
+                                "header": {
+                                    "description": (
+                                        "Very short label displayed as a chip/tag (max 12 chars). "
+                                        'Examples: "Auth method", "Library", "Approach".'
+                                    ),
+                                    "type": "string",
+                                },
+                                "options": {
+                                    "description": (
+                                        "The available choices for this question. Must have 2-4 options. "
+                                        "Each option should be a distinct, mutually exclusive choice "
+                                        "(unless multiSelect is enabled). There should be no 'Other' option, "
+                                        "that will be provided automatically."
+                                    ),
+                                    "type": "array",
+                                    "minItems": 2,
+                                    "maxItems": 4,
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "label": {
+                                                "description": (
+                                                    "The display text for this option that the user will see and "
+                                                    "select. Should be concise (1-5 words) and clearly describe "
+                                                    "the choice."
+                                                ),
+                                                "type": "string",
+                                            },
+                                            "description": {
+                                                "description": (
+                                                    "Explanation of what this option means or what will happen "
+                                                    "if chosen. Useful for providing context about trade-offs "
+                                                    "or implications."
+                                                ),
+                                                "type": "string",
+                                            },
+                                        },
+                                        "required": ["label", "description"],
+                                        "additionalProperties": False,
+                                    },
+                                },
+                                "multiSelect": {
+                                    "description": (
+                                        "Set to true to allow the user to select multiple options instead "
+                                        "of just one. Use when choices are not mutually exclusive."
+                                    ),
+                                    "type": "boolean",
+                                    "default": False,
+                                },
+                            },
+                            "required": ["question", "header", "options", "multiSelect"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+                "required": ["questions"],
+                "additionalProperties": False,
+            },
+        )
+
+    @classmethod
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        try:
+            args = AskUserQuestionArguments.model_validate_json(arguments)
+        except ValueError as exc:
+            return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {exc}")
+
+        request_user_interaction = context.request_user_interaction
+        if request_user_interaction is None:
+            return message.ToolResultMessage(
+                status="error",
+                output_text="AskUserQuestion is not available in this context",
+            )
+
+        interaction_questions: list[user_interaction.AskUserQuestionQuestion] = []
+        for q_idx, question in enumerate(args.questions, start=1):
+            interaction_options: list[user_interaction.AskUserQuestionOption] = []
+            for o_idx, option in enumerate(question.options, start=1):
+                interaction_options.append(
+                    user_interaction.AskUserQuestionOption(
+                        id=f"q{q_idx}_o{o_idx}",
+                        label=option.label,
+                        description=option.description,
+                    )
+                )
+            interaction_questions.append(
+                user_interaction.AskUserQuestionQuestion(
+                    id=f"q{q_idx}",
+                    header=question.header,
+                    question=question.question,
+                    options=interaction_options,
+                    multi_select=question.multi_select,
+                    input_placeholder=None,
+                )
+            )
+
+        request_payload = user_interaction.AskUserQuestionRequestPayload(questions=interaction_questions)
+
+        try:
+            response = await request_user_interaction(
+                uuid4().hex,
+                "tool",
+                request_payload,
+                None,
+            )
+        except asyncio.CancelledError:
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                raise
+            output_text, ui_extra = cls._format_cancelled_output(interaction_questions)
+            return message.ToolResultMessage(
+                status="success",
+                output_text=output_text,
+                ui_extra=ui_extra,
+                continue_agent=False,
+            )
+
+        if response.status == "cancelled":
+            output_text, ui_extra = cls._format_cancelled_output(interaction_questions)
+            return message.ToolResultMessage(
+                status="success",
+                output_text=output_text,
+                ui_extra=ui_extra,
+                continue_agent=False,
+            )
+
+        if response.payload is None:
+            return message.ToolResultMessage(status="error", output_text="Missing AskUserQuestion response payload")
+        if response.payload.kind != "ask_user_question":
+            return message.ToolResultMessage(status="error", output_text="Invalid AskUserQuestion response payload")
+
+        output_text, ui_extra = cls._format_submitted_output(interaction_questions, response.payload.answers)
+        return message.ToolResultMessage(
+            status="success",
+            output_text=output_text,
+            ui_extra=ui_extra,
+        )
+
+    @classmethod
+    def _format_cancelled_output(
+        cls,
+        questions: list[user_interaction.AskUserQuestionQuestion],
+    ) -> tuple[str, model.AskUserQuestionSummaryUIExtra]:
+        blocks: list[str] = []
+        summary_items: list[model.AskUserQuestionSummaryItem] = []
+        summary = "(User declined to answer questions)"
+        for question in questions:
+            blocks.append(f"Question: {question.question}\nAnswer: {summary}")
+            summary_items.append(
+                model.AskUserQuestionSummaryItem(question=question.question, summary=summary, answered=False)
+            )
+        return cls._BLOCK_SEPARATOR.join(blocks), model.AskUserQuestionSummaryUIExtra(items=summary_items)
+
+    @classmethod
+    def _format_submitted_output(
+        cls,
+        questions: list[user_interaction.AskUserQuestionQuestion],
+        answers: list[user_interaction.AskUserQuestionAnswer],
+    ) -> tuple[str, model.AskUserQuestionSummaryUIExtra]:
+        answers_by_question_id = {answer.question_id: answer for answer in answers}
+        blocks: list[str] = []
+        summary_items: list[model.AskUserQuestionSummaryItem] = []
+        no_answer_summary = "(No answer provided)"
+
+        for question in questions:
+            answer = answers_by_question_id.get(question.id)
+            if answer is None:
+                blocks.append(f"Question: {question.question}\nAnswer: {no_answer_summary}")
+                summary_items.append(
+                    model.AskUserQuestionSummaryItem(
+                        question=question.question,
+                        summary=no_answer_summary,
+                        answered=False,
+                    )
+                )
+                continue
+
+            option_by_id = {option.id: option for option in question.options}
+            selected_lines: list[str] = []
+            for option_id in answer.selected_option_ids:
+                if option_id == "__other__":
+                    other_value = (answer.other_text or answer.note or "").strip()
+                    if other_value:
+                        selected_lines.append(f"Other: {other_value}")
+                    else:
+                        selected_lines.append("Other")
+                    continue
+
+                option = option_by_id.get(option_id)
+                if option is None:
+                    continue
+                selected_lines.append(f"{option.label}: {option.description}".strip())
+
+            if not selected_lines:
+                free_text = (answer.note or "").strip()
+                if free_text:
+                    selected_lines.append(f"Other: {free_text}")
+
+            if question.multi_select:
+                if selected_lines:
+                    bullet_lines = "\n".join(f"- {line}" for line in selected_lines)
+                    blocks.append(f"Question: {question.question}\nAnswer:\n{bullet_lines}")
+                    summary_items.append(
+                        model.AskUserQuestionSummaryItem(
+                            question=question.question,
+                            summary="\n".join(f"• {line}" for line in selected_lines),
+                            answered=True,
+                        )
+                    )
+                else:
+                    blocks.append(f"Question: {question.question}\nAnswer: {no_answer_summary}")
+                    summary_items.append(
+                        model.AskUserQuestionSummaryItem(
+                            question=question.question,
+                            summary=no_answer_summary,
+                            answered=False,
+                        )
+                    )
+                continue
+
+            single_line = selected_lines[0] if selected_lines else no_answer_summary
+            blocks.append(f"Question: {question.question}\nAnswer: {single_line}")
+            summary_items.append(
+                model.AskUserQuestionSummaryItem(
+                    question=question.question,
+                    summary=single_line,
+                    answered=bool(selected_lines),
+                )
+            )
+
+        return cls._BLOCK_SEPARATOR.join(blocks), model.AskUserQuestionSummaryUIExtra(items=summary_items)

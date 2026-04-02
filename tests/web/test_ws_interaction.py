@@ -8,7 +8,7 @@ from typing import Any, ClassVar, cast
 
 import pytest
 
-from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
+from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import message, user_interaction
 from klaude_code.web.routes import ws
 

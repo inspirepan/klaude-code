@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-import klaude_code.core.compaction.compaction as compaction_module
-from klaude_code.core.compaction import CompactionReason, run_compaction
-from klaude_code.core.compaction.prompts import (
+import klaude_code.agent.compaction.compaction as compaction_module
+from klaude_code.agent.compaction import CompactionReason, run_compaction
+from klaude_code.agent.compaction.prompts import (
     COMPACTION_SUMMARY_PREFIX,
     SUMMARIZATION_PROMPT,
     TASK_PREFIX_SUMMARIZATION_PROMPT,

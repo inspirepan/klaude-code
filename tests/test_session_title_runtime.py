@@ -9,10 +9,10 @@ from typing import Any
 
 import pytest
 
+from klaude_code.agent.runtime_agent_ops import AgentOperationHandler
+from klaude_code.agent.runtime_llm import LLMClients, build_llm_clients
+from klaude_code.agent.session_title import _normalize_session_title, generate_session_title
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
-from klaude_code.core.agent.runtime_agent_ops import AgentOperationHandler
-from klaude_code.core.agent.runtime_llm import LLMClients, build_llm_clients
-from klaude_code.core.agent.session_title import _normalize_session_title, generate_session_title
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import llm_param, message
 from klaude_code.session.session import Session
@@ -115,7 +115,7 @@ def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.Monkey
         return _FakeLLMClient([], config=llm_config)
 
     monkeypatch.setattr(
-        "klaude_code.core.agent.runtime_llm.create_llm_client",
+        "klaude_code.agent.runtime_llm.create_llm_client",
         _create_client,
     )
 

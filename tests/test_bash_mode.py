@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from klaude_code.core.bash_mode import run_bash_command
+from klaude_code.agent.bash_mode import run_bash_command
 from klaude_code.protocol import events
 from klaude_code.session.session import Session
 

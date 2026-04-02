@@ -7,7 +7,10 @@ Python package with source code located in `src/klaude_code/`. Main modules incl
 - `src/klaude_code/auth/`: OAuth authentication providers (codex, github-copilot, etc.)
 - `src/klaude_code/cli/`: Command-line interface
 - `src/klaude_code/config/`: Configuration loading, model config, builtin defaults
-- `src/klaude_code/core/`: Core application logic (agent, tools, prompts, compaction, memory)
+- `src/klaude_code/agent/`: Agent runtime (agent loop, attachments, memory, context management)
+- `src/klaude_code/tool/`: Tool implementations (file, shell, web, agent, etc.)
+- `src/klaude_code/prompts/`: Prompt templates and system prompt builder
+- `src/klaude_code/control/`: Event bus, session orchestration, runtime facade
 - `src/klaude_code/llm/`: LLM client implementations per protocol
 - `src/klaude_code/protocol/`: Communication structures, event definitions, sub-agent profiles
 - `src/klaude_code/session/`: Session persistence and history management
@@ -61,9 +64,11 @@ Python tests are located in the `tests/` directory. Web frontend tests are in `w
 
 ## Architecture Constraints
 
-- `protocol` layer cannot import from `config` or `core` (enforced by import-linter)
-- Sub-agent profiles are registered in `protocol/sub_agent/`, runtime logic lives in `core/agent/`
-- Prompt files live in `core/prompts/`, loaded via `load_prompt_by_path()`
+- Layered architecture enforced by import-linter: `cli > tui/web > app > agent > tool/prompts/control > skill > session > config > llm > protocol > auth > log/const`
+- `agent` can import from `tool`, `prompts`, `control`; reverse direction is forbidden
+- Sub-agent profiles are registered in `protocol/sub_agent/`, runtime logic lives in `agent/`
+- Prompt files live in `prompts/`, loaded via `load_prompt_by_path()`
+- Context management (compaction, handoff, rewind) lives in `agent/compaction/`, `agent/handoff/`, `agent/rewind/`
 
 ## Commit Message Convention
 
@@ -76,7 +81,7 @@ Always use the [Conventional Commits](https://www.conventionalcommits.org/) spec
 ## Module-Specific Docs
 
 - `src/klaude_code/auth/AGENTS.md` - Adding new OAuth authentication providers
-- `src/klaude_code/core/compaction/AGENTS.md` - Context window compaction logic and triggers
+- `src/klaude_code/agent/context/compaction/AGENTS.md` - Context window compaction logic and triggers
 - `src/klaude_code/protocol/sub_agent/AGENTS.md` - Sub-agent profiles, registration, fork context mode
 - `src/klaude_code/skill/AGENTS.md` - Skill submodule management and loading
 - `src/klaude_code/tui/input/AGENTS.md` - REPL input handling, markers, and special syntax

@@ -8,13 +8,13 @@ from typing import Any, cast
 
 import pytest
 
-import klaude_code.core.agent.task as task_module
-from klaude_code.core.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
-from klaude_code.core.agent_profile import AgentProfile
-from klaude_code.core.tool.context import build_todo_context
-from klaude_code.core.tool.rewind_tool import RewindTool
+import klaude_code.agent.task as task_module
+from klaude_code.agent.agent_profile import AgentProfile
+from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.protocol import events, message, tools
 from klaude_code.session.session import Session, close_default_store
+from klaude_code.tool.context import build_todo_context
+from klaude_code.tool.rewind_tool import RewindTool
 
 
 def arun(coro: object) -> object:

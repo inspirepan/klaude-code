@@ -1,8 +1,8 @@
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from klaude_code.core.tool.file.diff_builder import build_structured_diff
 from klaude_code.protocol import model
+from klaude_code.tool.file.diff_builder import build_structured_diff
 
 
 def _find_spans(diff: model.DiffUIExtra, kind: str, op: str) -> list[str]:

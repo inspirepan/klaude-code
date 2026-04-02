@@ -9,18 +9,18 @@ from uuid import uuid4
 
 import typer
 
-from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
-from klaude_code.config import Config, load_config
-from klaude_code.core.agent.agent import Agent
-from klaude_code.core.agent.runtime_llm import build_llm_clients
-from klaude_code.core.agent_profile import (
+from klaude_code.agent.agent import Agent
+from klaude_code.agent.agent_profile import (
     DefaultModelProfileProvider,
     VanillaModelProfileProvider,
 )
-from klaude_code.core.control.event_bus import EventBus, EventSubscription
-from klaude_code.core.control.event_relay import EventRelayPublisher, event_relay_socket_path
-from klaude_code.core.control.runtime_facade import RuntimeFacade
-from klaude_code.core.control.session_meta_relay import SessionMetaRelayPublisher, session_meta_relay_socket_path
+from klaude_code.agent.runtime_llm import build_llm_clients
+from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
+from klaude_code.app.runtime_facade import RuntimeFacade
+from klaude_code.config import Config, load_config
+from klaude_code.control.event_bus import EventBus, EventSubscription
+from klaude_code.control.event_relay import EventRelayPublisher, event_relay_socket_path
+from klaude_code.control.session_meta_relay import SessionMetaRelayPublisher, session_meta_relay_socket_path
 from klaude_code.log import DebugType, log, log_debug, set_debug_logging
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.session.session import Session, close_default_store
