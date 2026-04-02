@@ -82,3 +82,4 @@ from klaude_code.protocol.sub_agent import finder as finder  # noqa: E402
 from klaude_code.protocol.sub_agent import general_purpose as general_purpose  # noqa: E402
 from klaude_code.protocol.sub_agent import memory as memory  # noqa: E402
 from klaude_code.protocol.sub_agent import review as review  # noqa: E402
+from klaude_code.protocol.sub_agent import simplifier as simplifier  # noqa: E402
