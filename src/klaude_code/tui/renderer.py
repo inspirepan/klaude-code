@@ -353,6 +353,7 @@ class TUICommandRenderer:
             self._stream_max_height = 0
             self._stream_last_height = 0
             self._stream_last_width = 0
+            self._bottom_last_height = 0
             self._refresh_bottom_live()
             return
 
@@ -713,9 +714,9 @@ class TUICommandRenderer:
     def display_error(self, event: events.ErrorEvent) -> None:
         if event.session_id:
             with self.session_print_context(event.session_id):
-                self.print(c_errors.render_error(Text(event.error_message)))
+                self.print(c_errors.render_error(Text(event.error_message), can_retry=event.can_retry))
         else:
-            self.print(c_errors.render_error(Text(event.error_message)))
+            self.print(c_errors.render_error(Text(event.error_message), can_retry=event.can_retry))
 
     def display_compaction_summary(self, summary: str, kept_items_brief: tuple[tuple[str, int, str], ...] = ()) -> None:
         stripped = summary.strip()

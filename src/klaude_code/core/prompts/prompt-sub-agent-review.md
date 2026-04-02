@@ -47,6 +47,16 @@ concurrent actions, or partially completed operations move through the code.
 If a focus area is provided, weight it heavily, but still report any other material issue you
 find.
 
+## Incremental / Follow-up Review
+
+When the prompt includes findings from a prior review round:
+- Focus primarily on verifying that those specific issues have been correctly fixed.
+- Check for any **new** bugs introduced by the fixes themselves.
+- Use the provided diff scope (which should cover only the fix commits) rather than
+  re-reviewing the entire original changeset.
+- Do NOT re-report issues from the prior round that have been resolved.
+- If an earlier finding was only partially fixed or incorrectly fixed, report that explicitly.
+
 ## Execution Strategy
 
 - Use the tools available to you to read relevant source files and understand context.
@@ -95,30 +105,33 @@ Before finalizing output, verify each finding is:
 
 ## Output Format
 
-Return a single JSON object (no markdown fences, no surrounding prose):
+Use the following Markdown structure. If there are no findings, omit the Findings section
+and state that the patch looks correct.
 
-```json
-{
-  "findings": [
-    {
-      "title": "<priority tag> <imperative description, max 80 chars>",
-      "body": "<Markdown explanation: why it is a bug, cite files/lines/functions>",
-      "recommendation": "<concrete change to reduce the risk, 1-2 sentences>",
-      "confidence_score": <float 0.0-1.0>,
-      "priority": <int 0-3>,
-      "code_location": {
-        "absolute_file_path": "<file path>",
-        "line_range": {"start": <int>, "end": <int>}
-      }
-    }
-  ],
-  "overall_correctness": "patch is correct | patch is incorrect",
-  "overall_explanation": "<1-3 sentence justification>",
-  "overall_confidence_score": <float 0.0-1.0>
-}
+```
+## Findings
+
+### <priority tag> <imperative description, max 80 chars>
+
+**File:** `<absolute file path>` L<start>-L<end>
+**Confidence:** <0.0-1.0>
+
+<Why it is a bug -- cite files, lines, functions. One paragraph.>
+
+**Recommendation:** <concrete change to reduce the risk, 1-2 sentences>
+
+---
+
+(repeat for each finding)
+
+## Summary
+
+**Correctness:** patch is correct | patch is incorrect
+**Confidence:** <0.0-1.0>
+<1-3 sentence justification>
 ```
 
 Rules:
-- `code_location` is required for every finding and must overlap with the diff.
-- Keep `line_range` as short as possible (prefer under 10 lines).
-- `recommendation` should be a concise fix suggestion, not a full patch.
+- Every finding must cite a file and line range that overlaps with the diff.
+- Keep line ranges short (prefer under 10 lines).
+- `Recommendation` should be a concise fix suggestion, not a full patch.

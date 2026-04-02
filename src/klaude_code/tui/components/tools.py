@@ -386,9 +386,10 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
         text.stylize(text_style)
         todo_grid.add_row(Text(mark, style=mark_style), text)
 
-    parts: list[RenderableType] = [todo_grid]
+    parts: list[RenderableType] = []
     if ui_extra.explanation:
         parts.append(Text(ui_extra.explanation, style=ThemeKey.TODO_EXPLANATION))
+    parts.append(todo_grid)
     return Group(*parts) if len(parts) > 1 else todo_grid
 
 
@@ -611,7 +612,7 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.WEB_FETCH: "Fetching Web",
     tools.WEB_SEARCH: "Searching Web",
     tools.REPORT_BACK: "Reporting",
-    tools.AGENT: "Spawning Task",
+    tools.AGENT: "Running Task",
     tools.REWIND: "Rewinding",
     tools.ASK_USER_QUESTION: "Questioning",
 }

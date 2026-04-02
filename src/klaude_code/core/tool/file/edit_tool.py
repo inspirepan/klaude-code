@@ -254,10 +254,15 @@ class EditTool(ToolABC):
         with contextlib.suppress(Exception):
             existing = file_tracker.get(file_path)
             is_mem = existing.is_memory if existing else False
+            is_skill = existing.is_skill if existing else False
+            is_dir = existing.is_directory if existing else False
             file_tracker[file_path] = model.FileStatus(
                 mtime=Path(file_path).stat().st_mtime,
                 content_sha256=hash_text_sha256(after),
                 is_memory=is_mem,
+                is_skill=is_skill,
+                skill_attachment_source=None,
+                is_directory=is_dir,
             )
 
         # Build output message

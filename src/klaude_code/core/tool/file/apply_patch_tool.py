@@ -116,10 +116,15 @@ class ApplyPatchHandler:
             with contextlib.suppress(Exception):  # pragma: no cover - file tracker best-effort
                 existing = file_tracker.get(resolved)
                 is_mem = existing.is_memory if existing else False
+                is_skill = existing.is_skill if existing else False
+                is_dir = existing.is_directory if existing else False
                 file_tracker[resolved] = model.FileStatus(
                     mtime=Path(resolved).stat().st_mtime,
                     content_sha256=hash_text_sha256(content),
                     is_memory=is_mem,
+                    is_skill=is_skill,
+                    skill_attachment_source=None,
+                    is_directory=is_dir,
                 )
 
         def remove_fn(path: str) -> None:

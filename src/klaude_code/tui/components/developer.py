@@ -101,6 +101,16 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                         ),
                     )
                     parts.append(grid)
+                case model.SkillDiscoveredUIItem() as item:
+                    grid = create_grid()
+                    grid.add_row(
+                        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+                        Text.assemble(
+                            ("Discovered skill ", ThemeKey.ATTACHMENT),
+                            (item.name, ThemeKey.TOOL_PARAM_FILE_PATH_SKILL_NAME),
+                        ),
+                    )
+                    parts.append(grid)
                 case model.AtFileImagesUIItem():
                     # Image display is handled by renderer.display_developer_message
                     pass

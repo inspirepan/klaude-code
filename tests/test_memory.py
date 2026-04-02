@@ -98,3 +98,30 @@ def test_get_existing_memory_files_does_not_scan_parent_without_git(
 
     assert result["project"] == [str(work_agents)]
     assert result["user"] == []
+
+
+def test_discover_memory_files_near_paths_truncates_content(tmp_path: Path) -> None:
+    work_dir = tmp_path / "repo"
+    nested_dir = work_dir / "src" / "feature"
+    nested_dir.mkdir(parents=True)
+    target_file = nested_dir / "app.py"
+    target_file.write_text("print('hello')\n", encoding="utf-8")
+
+    agents_path = work_dir / "src" / "AGENTS.md"
+    agents_lines = [f"line {i}" for i in range(1, memory.AUTO_MEMORY_MAX_LINES + 6)]
+    agents_path.write_text("\n".join(agents_lines), encoding="utf-8")
+
+    loaded: set[str] = set()
+    memories = memory.discover_memory_files_near_paths(
+        [str(target_file.resolve())],
+        work_dir=work_dir,
+        is_memory_loaded=lambda p: p in loaded,
+        mark_memory_loaded=lambda p: loaded.add(p),
+    )
+
+    assert len(memories) == 1
+    discovered = memories[0]
+    assert discovered.path == str(agents_path)
+    assert f"line {memory.AUTO_MEMORY_MAX_LINES}" in discovered.content
+    assert f"line {memory.AUTO_MEMORY_MAX_LINES + 1}" not in discovered.content
+    assert "This memory file was truncated" in discovered.content

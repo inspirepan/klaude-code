@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -124,3 +125,351 @@ def test_skill_attachment_loads_multiple_skills(tmp_path: Path, monkeypatch: pyt
 
     assert str(skills["alpha"].skill_path) in session.file_tracker
     assert str(skills["beta"].skill_path) in session.file_tracker
+
+
+def test_last_path_skill_attachment_discovers_nested_project_skill(tmp_path: Path) -> None:
+    work_dir = tmp_path / "repo"
+    target_file = work_dir / "src" / "feature" / "app.py"
+    target_file.parent.mkdir(parents=True)
+    target_file.write_text("print('hello')\n", encoding="utf-8")
+
+    skill_dir = work_dir / "src" / ".claude" / "skills" / "local-skill"
+    skill_dir.mkdir(parents=True)
+    skill_path = skill_dir / "SKILL.md"
+    skill_path.write_text("---\nname: local-skill\ndescription: nested skill\n---\n# Local skill\n", encoding="utf-8")
+
+    session = Session(work_dir=work_dir)
+    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+        mtime=target_file.stat().st_mtime,
+        content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
+    )
+
+    attachment = _arun(attachments.last_path_skill_attachment(session))
+
+    assert attachment is not None
+    assert attachment.ui_extra is not None
+    discovered = [item for item in attachment.ui_extra.items if isinstance(item, model.SkillDiscoveredUIItem)]
+    assert [item.name for item in discovered] == ["local-skill"]
+
+    text = message.join_text_parts(attachment.parts)
+    assert "<available_skills>" in text
+    assert "<name>local-skill</name>" in text
+    assert "<description>nested skill</description>" in text
+    assert "# Local skill" not in text
+
+    tracked = session.file_tracker[str(skill_path.resolve())]
+    assert tracked.is_skill is True
+    assert tracked.content_sha256 == hash_text_sha256(skill_path.read_text(encoding="utf-8"))
+
+
+def test_last_path_skill_attachment_same_directory_second_file_does_not_repeat(tmp_path: Path) -> None:
+    work_dir = tmp_path / "repo"
+    target_dir = work_dir / "a" / "b" / "c"
+    target_dir.mkdir(parents=True)
+    file1 = target_dir / "file1.py"
+    file2 = target_dir / "file2.py"
+    file1.write_text("print('file1')\n", encoding="utf-8")
+    file2.write_text("print('file2')\n", encoding="utf-8")
+
+    skill_dir = target_dir / ".agents" / "skills" / "build"
+    skill_dir.mkdir(parents=True)
+    skill_path = skill_dir / "SKILL.md"
+    skill_path.write_text("---\nname: build\ndescription: build skill\n---\n# Build\n", encoding="utf-8")
+
+    session = Session(work_dir=work_dir)
+    session.file_tracker[str(file1.resolve())] = model.FileStatus(
+        mtime=file1.stat().st_mtime,
+        content_sha256=hash_text_sha256(file1.read_text(encoding="utf-8")),
+    )
+
+    first_attachment = _arun(attachments.last_path_skill_attachment(session))
+    assert first_attachment is not None
+    first_text = message.join_text_parts(first_attachment.parts)
+    assert "<name>build</name>" in first_text
+
+    session.file_tracker[str(file2.resolve())] = model.FileStatus(
+        mtime=file2.stat().st_mtime,
+        content_sha256=hash_text_sha256(file2.read_text(encoding="utf-8")),
+    )
+
+    assert _arun(attachments.last_path_skill_attachment(session)) is None
+    assert str(skill_path.resolve()) in session.file_tracker
+    tracked = session.file_tracker[str(skill_path.resolve())]
+    assert tracked.is_skill is True
+    assert tracked.skill_attachment_source == "dynamic"
+
+
+def test_last_path_skill_attachment_prefers_deeper_skill_with_same_name(tmp_path: Path) -> None:
+    work_dir = tmp_path / "repo"
+    target_file = work_dir / "apps" / "service" / "handlers" / "main.py"
+    target_file.parent.mkdir(parents=True)
+    target_file.write_text("print('hello')\n", encoding="utf-8")
+
+    shallow_skill = work_dir / "apps" / ".claude" / "skills" / "shared-skill" / "SKILL.md"
+    shallow_skill.parent.mkdir(parents=True)
+    shallow_skill.write_text(
+        "---\nname: shared-skill\ndescription: shallow\n---\n# Shallow\n",
+        encoding="utf-8",
+    )
+
+    deep_skill = work_dir / "apps" / "service" / ".claude" / "skills" / "shared-skill" / "SKILL.md"
+    deep_skill.parent.mkdir(parents=True)
+    deep_skill.write_text(
+        "---\nname: shared-skill\ndescription: deep\n---\n# Deep\n",
+        encoding="utf-8",
+    )
+
+    session = Session(work_dir=work_dir)
+    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+        mtime=target_file.stat().st_mtime,
+        content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
+    )
+
+    attachment = _arun(attachments.last_path_skill_attachment(session))
+
+    assert attachment is not None
+    text = message.join_text_parts(attachment.parts)
+    assert "<description>deep</description>" in text
+    assert "<description>shallow</description>" not in text
+    assert "# Deep" not in text
+
+
+def test_last_path_skill_attachment_reloads_when_skill_changes(tmp_path: Path) -> None:
+    work_dir = tmp_path / "repo"
+    target_file = work_dir / "pkg" / "module" / "code.py"
+    target_file.parent.mkdir(parents=True)
+    target_file.write_text("print('hello')\n", encoding="utf-8")
+
+    skill_dir = work_dir / "pkg" / ".agents" / "skills" / "refresh-skill"
+    skill_dir.mkdir(parents=True)
+    skill_path = skill_dir / "SKILL.md"
+    skill_path.write_text("---\nname: refresh-skill\ndescription: v1\n---\nversion one\n", encoding="utf-8")
+
+    session = Session(work_dir=work_dir)
+    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+        mtime=target_file.stat().st_mtime,
+        content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
+    )
+
+    first_attachment = _arun(attachments.last_path_skill_attachment(session))
+    assert first_attachment is not None
+    first_text = message.join_text_parts(first_attachment.parts)
+    assert "<description>v1</description>" in first_text
+    assert "version one" not in first_text
+
+    assert _arun(attachments.last_path_skill_attachment(session)) is None
+
+    skill_path.write_text("---\nname: refresh-skill\ndescription: v2\n---\nversion two\n", encoding="utf-8")
+
+    second_attachment = _arun(attachments.last_path_skill_attachment(session))
+    assert second_attachment is not None
+    second_text = message.join_text_parts(second_attachment.parts)
+    assert "<description>v2</description>" in second_text
+    assert "version two" not in second_text
+
+
+def test_last_path_skill_attachment_supersedes_prior_same_name_skill(tmp_path: Path) -> None:
+    work_dir = tmp_path / "repo"
+
+    first_file = work_dir / "pkg_a" / "main.py"
+    first_file.parent.mkdir(parents=True)
+    first_file.write_text("print('a')\n", encoding="utf-8")
+    first_skill = work_dir / "pkg_a" / ".claude" / "skills" / "shared" / "SKILL.md"
+    first_skill.parent.mkdir(parents=True)
+    first_skill.write_text("---\nname: shared\ndescription: first\n---\n# First\n", encoding="utf-8")
+
+    second_file = work_dir / "pkg_b" / "main.py"
+    second_file.parent.mkdir(parents=True)
+    second_file.write_text("print('b')\n", encoding="utf-8")
+    second_skill = work_dir / "pkg_b" / ".claude" / "skills" / "shared" / "SKILL.md"
+    second_skill.parent.mkdir(parents=True)
+    second_skill.write_text("---\nname: shared\ndescription: second\n---\n# Second\n", encoding="utf-8")
+
+    session = Session(work_dir=work_dir)
+    session.file_tracker[str(first_file.resolve())] = model.FileStatus(
+        mtime=first_file.stat().st_mtime,
+        content_sha256=hash_text_sha256(first_file.read_text(encoding="utf-8")),
+    )
+
+    first_attachment = _arun(attachments.last_path_skill_attachment(session))
+    assert first_attachment is not None
+    assert "<description>first</description>" in message.join_text_parts(first_attachment.parts)
+
+    session.file_tracker[str(second_file.resolve())] = model.FileStatus(
+        mtime=second_file.stat().st_mtime,
+        content_sha256=hash_text_sha256(second_file.read_text(encoding="utf-8")),
+    )
+
+    second_attachment = _arun(attachments.last_path_skill_attachment(session))
+    assert second_attachment is not None
+    second_text = message.join_text_parts(second_attachment.parts)
+    assert "<description>second</description>" in second_text
+    assert str(second_skill.resolve()) in session.file_tracker
+
+
+def test_at_dir_skill_anchor_survives_attachment_reset(tmp_path: Path) -> None:
+    from klaude_code.core.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
+
+    work_dir = tmp_path / "repo"
+    target_dir = work_dir / "nested"
+    target_dir.mkdir(parents=True)
+    (target_dir / "file.txt").write_text("hello\n", encoding="utf-8")
+
+    skill_dir = target_dir / ".claude" / "skills" / "local-dir-skill"
+    skill_dir.mkdir(parents=True)
+    skill_path = skill_dir / "SKILL.md"
+    skill_path.write_text(
+        "---\nname: local-dir-skill\ndescription: dir skill\n---\n# Dir skill\n",
+        encoding="utf-8",
+    )
+
+    session = Session(work_dir=work_dir)
+    session.conversation_history.append(
+        message.UserMessage(parts=message.text_parts_from_str(f"@{target_dir.resolve()}"))
+    )
+
+    first_attachment = _arun(attachments.at_file_reader_attachment(session))
+    assert first_attachment is not None
+    first_text = message.join_text_parts(first_attachment.parts)
+    assert "<available_skills>" in first_text
+    assert "<name>local-dir-skill</name>" in first_text
+    assert "# Dir skill" not in first_text
+    assert str(target_dir.resolve()) in session.file_tracker
+    assert session.file_tracker[str(target_dir.resolve())].is_directory is True
+
+    _reset_attachment_loaded_flags(session.file_tracker)
+
+    second_attachment = _arun(attachments.last_path_skill_attachment(session))
+    assert second_attachment is not None
+    assert "<name>local-dir-skill</name>" in message.join_text_parts(second_attachment.parts)
+
+
+def test_skill_attachment_prefers_dynamic_skill_over_static_with_same_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work_dir = tmp_path / "repo"
+    target_file = work_dir / "feature" / "app.py"
+    target_file.parent.mkdir(parents=True)
+    target_file.write_text("print('hello')\n", encoding="utf-8")
+
+    dynamic_skill_dir = work_dir / "feature" / ".claude" / "skills" / "commit"
+    dynamic_skill_dir.mkdir(parents=True)
+    dynamic_skill_path = dynamic_skill_dir / "SKILL.md"
+    dynamic_skill_path.write_text(
+        "---\nname: commit\ndescription: dynamic commit\n---\n# Dynamic commit\n",
+        encoding="utf-8",
+    )
+
+    static_skill_dir = tmp_path / "static-commit"
+    static_skill_dir.mkdir(parents=True)
+    static_skill_path = static_skill_dir / "SKILL.md"
+    static_skill_path.write_text("# Static commit\n", encoding="utf-8")
+    static_skill = Skill(
+        name="commit",
+        description="static commit",
+        location="system",
+        skill_path=static_skill_path,
+        base_dir=static_skill_dir,
+    )
+
+    monkeypatch.setattr(attachments, "get_skill", lambda _name="": static_skill)
+
+    session = Session(work_dir=work_dir)
+    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+        mtime=target_file.stat().st_mtime,
+        content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
+    )
+    session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("/skill:commit")))
+
+    attachment = _arun(attachments.skill_attachment(session))
+
+    assert attachment is not None
+    text = message.join_text_parts(attachment.parts)
+    assert "# Dynamic commit" in text
+    assert "# Static commit" not in text
+
+
+def test_skill_attachment_preserves_exact_namespaced_static_skill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work_dir = tmp_path / "repo"
+    target_file = work_dir / "feature" / "app.py"
+    target_file.parent.mkdir(parents=True)
+    target_file.write_text("print('hello')\n", encoding="utf-8")
+
+    dynamic_skill_dir = work_dir / "feature" / ".claude" / "skills" / "commit"
+    dynamic_skill_dir.mkdir(parents=True)
+    dynamic_skill_path = dynamic_skill_dir / "SKILL.md"
+    dynamic_skill_path.write_text(
+        "---\nname: commit\ndescription: dynamic commit\n---\n# Dynamic commit\n",
+        encoding="utf-8",
+    )
+
+    static_skill_dir = tmp_path / "static-namespaced"
+    static_skill_dir.mkdir(parents=True)
+    static_skill_path = static_skill_dir / "SKILL.md"
+    static_skill_path.write_text("# Static namespaced commit\n", encoding="utf-8")
+    static_skill = Skill(
+        name="team:commit",
+        description="namespaced commit",
+        location="system",
+        skill_path=static_skill_path,
+        base_dir=static_skill_dir,
+    )
+
+    class _Loader:
+        loaded_skills: ClassVar[dict[str, object]] = {"team:commit": static_skill}
+
+    monkeypatch.setattr(attachments, "get_skill_loader", lambda: _Loader())
+    monkeypatch.setattr(attachments, "get_skill", lambda _name="": None)
+
+    session = Session(work_dir=work_dir)
+    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+        mtime=target_file.stat().st_mtime,
+        content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
+    )
+    session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("/skill:team:commit")))
+
+    attachment = _arun(attachments.skill_attachment(session))
+
+    assert attachment is not None
+    text = message.join_text_parts(attachment.parts)
+    assert "# Static namespaced commit" in text
+    assert "# Dynamic commit" not in text
+
+
+def test_last_path_skill_attachment_does_not_override_explicit_skill(tmp_path: Path) -> None:
+    work_dir = tmp_path / "repo"
+    target_file = work_dir / "pkg" / "main.py"
+    target_file.parent.mkdir(parents=True)
+    target_file.write_text("print('hello')\n", encoding="utf-8")
+
+    dynamic_skill_dir = work_dir / "pkg" / ".claude" / "skills" / "shared"
+    dynamic_skill_dir.mkdir(parents=True)
+    dynamic_skill_path = dynamic_skill_dir / "SKILL.md"
+    dynamic_skill_path.write_text(
+        "---\nname: shared\ndescription: dynamic\n---\n# Dynamic shared\n",
+        encoding="utf-8",
+    )
+
+    explicit_skill_dir = tmp_path / "explicit-shared"
+    explicit_skill_dir.mkdir(parents=True)
+    explicit_skill_path = explicit_skill_dir / "SKILL.md"
+    explicit_skill_path.write_text(
+        "---\nname: shared\ndescription: explicit\n---\n# Explicit shared\n",
+        encoding="utf-8",
+    )
+
+    session = Session(work_dir=work_dir)
+    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+        mtime=target_file.stat().st_mtime,
+        content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
+    )
+    session.file_tracker[str(explicit_skill_path.resolve())] = model.FileStatus(
+        mtime=explicit_skill_path.stat().st_mtime,
+        content_sha256=hash_text_sha256(explicit_skill_path.read_text(encoding="utf-8")),
+        is_skill=True,
+        skill_attachment_source="explicit",
+    )
+
+    assert _arun(attachments.last_path_skill_attachment(session)) is None

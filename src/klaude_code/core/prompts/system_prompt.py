@@ -33,8 +33,7 @@ READ_BEFORE_EDIT_INST = """- NEVER propose changes to code you haven't read. Rea
 
 AGENT_FINDER_INST = """- For broad codebase exploration, use `Agent` with `type="finder"`."""
 AGENT_FINDER_PARALLEL_INST = """- Launch multiple finder sub-agents in parallel when tasks are independent."""
-AGENT_REVIEW_INST = """- After completing complex or large-scale changes, launch an `Agent` with `type="review"` to review your work before reporting back to the user."""
-AGENT_MEMORY_INST = """- After sessions with significant learnings (new commands, gotchas, architecture insights), launch an `Agent` with `type="memory"` to persist them into AGENTS.md files."""
+
 
 TODO_FREQUENT_USAGE_INST = """- Use `TodoWrite` frequently for planning and tracking progress on multi-step tasks."""
 TODO_COMPLETE_IMMEDIATELY_INST = """- Mark todos completed immediately when finished. Do not batch-complete later."""
@@ -47,6 +46,8 @@ EDIT_WRITE_PREFERENCE_INST = """- Prefer `edit` for existing files. Use `write` 
 EDIT_PARALLELIZE_INST = """- Parallelize independent work when safe, such as reads, searches, checks, or disjoint `edit` calls, including disjoint sections of the same file."""
 
 WRITE_CREATE_WHEN_NEEDED_INST = """- NEVER create files unless necessary for the task. Prefer editing existing files."""
+
+REWIND_CHECKPOINT_INST = """- After each new user message, the system automatically injects a `<system-reminder>Checkpoint N</system-reminder>` marker into the conversation. These markers are rewind targets -- use the `Rewind` tool with a checkpoint ID to roll back conversation history to that point."""
 
 EXTERNAL_REFS_INST = """- Pull in external references when uncertainty or risk is meaningful: unclear APIs/behavior, security-sensitive flows, migrations, performance-critical paths, or best-in-class patterns proven in open source or other language ecosystems. Prefer official docs first, then source."""
 
@@ -88,7 +89,12 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
         strategy_lines.append(READ_BEFORE_EDIT_INST)
 
     if tools.AGENT in tool_name_set:
-        strategy_lines.extend([AGENT_FINDER_INST, AGENT_FINDER_PARALLEL_INST, AGENT_REVIEW_INST, AGENT_MEMORY_INST])
+        strategy_lines.extend(
+            [
+                AGENT_FINDER_INST,
+                AGENT_FINDER_PARALLEL_INST,
+            ]
+        )
 
     if tools.TODO_WRITE in tool_name_set:
         strategy_lines.extend([TODO_FREQUENT_USAGE_INST, TODO_COMPLETE_IMMEDIATELY_INST])
@@ -101,6 +107,9 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
 
     if tools.WRITE in tool_name_set:
         strategy_lines.append(WRITE_CREATE_WHEN_NEEDED_INST)
+
+    if tools.REWIND in tool_name_set:
+        strategy_lines.append(REWIND_CHECKPOINT_INST)
 
     lines = ["", "", "# Using your tools"]
     lines.extend(strategy_lines)

@@ -161,11 +161,16 @@ class BashTool(ToolABC):
                     continue
                 existing = file_tracker.get(abs_path)
                 is_mem = existing.is_memory if existing else False
+                is_skill = existing.is_skill if existing else False
+                is_dir = existing.is_directory if existing else False
                 with contextlib.suppress(Exception):
                     file_tracker[abs_path] = model.FileStatus(
                         mtime=Path(abs_path).stat().st_mtime,
                         content_sha256=sha,
                         is_memory=is_mem,
+                        is_skill=is_skill,
+                        skill_attachment_source=None,
+                        is_directory=is_dir,
                     )
 
         def _track_files_written(file_paths: list[str], *, base_dir: str) -> None:
@@ -183,6 +188,8 @@ class BashTool(ToolABC):
                 # Remove old entry if present.
                 existing = file_tracker.pop(abs_src, None)
                 is_mem = existing.is_memory if existing else False
+                is_skill = existing.is_skill if existing else False
+                is_dir = existing.is_directory if existing else False
 
                 if not os.path.exists(abs_new) or os.path.isdir(abs_new):
                     continue
@@ -195,6 +202,9 @@ class BashTool(ToolABC):
                         mtime=Path(abs_new).stat().st_mtime,
                         content_sha256=sha,
                         is_memory=is_mem,
+                        is_skill=is_skill,
+                        skill_attachment_source=None,
+                        is_directory=is_dir,
                     )
 
         def _best_effort_update_file_tracker(command: str) -> None:

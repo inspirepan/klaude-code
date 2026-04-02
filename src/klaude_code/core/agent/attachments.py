@@ -1,14 +1,28 @@
 import asyncio
 import difflib
 import hashlib
+import json
 import logging
 import re
 import shlex
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
+from typing import Literal
 
+from klaude_code.core.agent.attachment_prompts import (
+    fmt_auto_memory_hint,
+    fmt_dynamic_available_skills,
+    fmt_file_already_in_context,
+    fmt_file_changed_externally,
+    fmt_memory_truncated,
+    fmt_post_todo_complete,
+    fmt_review_followup,
+    fmt_skill_block,
+    fmt_todo_items,
+    fmt_todo_nudge,
+    fmt_tool_result,
+)
 from klaude_code.core.memory import (
-    AUTO_MEMORY_MAX_LINES,
     Memory,
     discover_memory_files_near_paths,
     format_memories_attachment,
@@ -16,13 +30,15 @@ from klaude_code.core.memory import (
     get_auto_memory_path,
     get_memory_paths,
     load_auto_memory,
+    truncate_memory_content,
 )
 from klaude_code.core.tool import BashTool, ReadTool, build_todo_context
 from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import message, model, tools
 from klaude_code.session import Session
-from klaude_code.skill import get_skill
+from klaude_code.skill import get_skill, get_skill_loader
+from klaude_code.skill.loader import Skill, SkillLoader, discover_skills_near_paths
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +47,6 @@ logger = logging.getLogger(__name__)
 AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>\S+))')
 
 # Memory budget limits (inspired by Claude Code's attachment system)
-MEMORY_MAX_BYTES_PER_FILE = 4096
 MEMORY_MAX_SESSION_BYTES = 60 * 1024
 
 # Todo attachment configuration
@@ -142,6 +157,7 @@ async def _load_at_file(
     collected_images: list[message.ImageURLPart],
     collected_image_paths: list[str],
     discovered_memories: list[Memory],
+    skill_discovery_paths: list[str],
 ) -> None:
     """Load a single @ file or directory reference."""
     path = Path(ref.path).resolve()
@@ -159,10 +175,7 @@ async def _load_at_file(
         # emit a lightweight "already in context" note instead of re-reading.
         if _is_tracked_file_unchanged(session, path_str) and ref.line_start is None:
             at_ops.append(model.AtFileOp(operation="Read", path=path_str))
-            formatted_blocks.append(
-                f"Note: {path_str} is already in context and unchanged. "
-                f"Use the {tools.READ} tool if you need to re-read it."
-            )
+            formatted_blocks.append(fmt_file_already_in_context(path_str, tools.READ))
             return
 
         # Build ReadTool args, passing offset/limit if line range specified
@@ -176,12 +189,7 @@ async def _load_at_file(
         images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
 
         tool_args = args.model_dump_json(exclude_none=True)
-        formatted_blocks.append(
-            f"""Called the {tools.READ} tool with the following input: {tool_args}
-Result of calling the {tools.READ} tool:
-{tool_result.output_text}
-"""
-        )
+        formatted_blocks.append(fmt_tool_result(tools.READ, tool_args, tool_result.output_text))
         at_ops.append(model.AtFileOp(operation="Read", path=path_str))
         if images:
             collected_images.extend(images)
@@ -192,13 +200,9 @@ Result of calling the {tools.READ} tool:
         tool_result = await BashTool.call_with_args(args, tool_context)
 
         tool_args = args.model_dump_json(exclude_none=True)
-        formatted_blocks.append(
-            f"""Called the {tools.BASH} tool with the following input: {tool_args}
-Result of calling the {tools.BASH} tool:
-{tool_result.output_text}
-"""
-        )
+        formatted_blocks.append(fmt_tool_result(tools.BASH, tool_args, tool_result.output_text))
         at_ops.append(model.AtFileOp(operation="List", path=path_str + "/"))
+        _mark_directory_accessed(session, path_str)
 
         # Discover memory files (AGENTS.md/CLAUDE.md) along the path from work_dir to this directory
         new_memories = discover_memory_files_near_paths(
@@ -210,6 +214,7 @@ Result of calling the {tools.BASH} tool:
         for memory in new_memories:
             formatted_blocks.append(format_memory_content(memory))
             discovered_memories.append(memory)
+        skill_discovery_paths.append(path_str)
 
 
 async def at_file_reader_attachment(
@@ -225,6 +230,7 @@ async def at_file_reader_attachment(
     collected_images: list[message.ImageURLPart] = []
     collected_image_paths: list[str] = []
     discovered_memories: list[Memory] = []
+    skill_discovery_paths: list[str] = []
 
     for ref in refs:
         await _load_at_file(
@@ -235,7 +241,20 @@ async def at_file_reader_attachment(
             collected_images,
             collected_image_paths,
             discovered_memories,
+            skill_discovery_paths,
         )
+
+    dynamic_skill_attachment = _build_dynamic_skill_listing_attachment(
+        session,
+        discover_skills_near_paths(skill_discovery_paths, work_dir=session.work_dir),
+    )
+    dynamic_skill_text = ""
+    if dynamic_skill_attachment is not None:
+        dynamic_skill_text = message.join_text_parts(dynamic_skill_attachment.parts)
+        if dynamic_skill_text.startswith("<system-reminder>") and dynamic_skill_text.endswith("</system-reminder>"):
+            dynamic_skill_text = dynamic_skill_text.removeprefix("<system-reminder>").removesuffix("</system-reminder>")
+        if dynamic_skill_text:
+            formatted_blocks.append(dynamic_skill_text.rstrip())
 
     if len(formatted_blocks) == 0:
         return None
@@ -247,6 +266,8 @@ async def at_file_reader_attachment(
     if discovered_memories:
         loaded_files = [model.MemoryFileLoaded(path=m.path) for m in discovered_memories]
         ui_items.append(model.MemoryLoadedUIItem(files=loaded_files))
+    if dynamic_skill_attachment is not None and dynamic_skill_attachment.ui_extra is not None:
+        ui_items.extend(dynamic_skill_attachment.ui_extra.items)
     return message.DeveloperMessage(
         parts=message.parts_from_text_and_images(
             f"""<system-reminder>{at_files_str}\n</system-reminder>""",
@@ -304,6 +325,8 @@ async def file_changed_externally_attachment(
     tracked_items = list(session.file_tracker.items())
 
     for path, status in tracked_items:
+        if status.is_directory:
+            continue
         try:
             current_mtime = Path(path).stat().st_mtime
 
@@ -360,8 +383,7 @@ async def file_changed_externally_attachment(
 
     if len(changed_files) > 0:
         changed_files_str = "\n\n".join(
-            f"Note: {file_path} was modified, either by the user or by a linter. Don't tell the user this, since they are already aware. This change was intentional, so make sure to take it into account as you proceed (ie. don't revert it unless the user asks you to). Here are the relevant changes:\n\n{file_content}"
-            for file_path, file_content, _ in changed_files
+            fmt_file_changed_externally(file_path, file_content) for file_path, file_content, _ in changed_files
         )
         return message.DeveloperMessage(
             parts=message.parts_from_text_and_images(
@@ -442,52 +464,230 @@ async def image_attachment(session: Session) -> message.DeveloperMessage | None:
     )
 
 
+def _get_dynamic_skills_for_session(session: Session) -> list[Skill]:
+    if not session.file_tracker:
+        return []
+    return discover_skills_near_paths(session.file_tracker.keys(), work_dir=session.work_dir)
+
+
+def _find_dynamic_skill(session: Session, name: str, *, allow_short_fallback: bool = False) -> Skill | None:
+    dynamic_skills = _get_dynamic_skills_for_session(session)
+    by_name = {skill.name: skill for skill in dynamic_skills}
+
+    skill = by_name.get(name)
+    if skill is not None:
+        return skill
+
+    if allow_short_fallback and ":" in name:
+        return by_name.get(name.split(":")[-1])
+
+    return None
+
+
+def _resolve_skill_for_input(session: Session, skill_name: str) -> Skill | None:
+    dynamic_exact = _find_dynamic_skill(session, skill_name)
+    if dynamic_exact is not None:
+        return dynamic_exact
+
+    static_exact = get_skill_loader().loaded_skills.get(skill_name)
+    if static_exact is not None:
+        return static_exact
+
+    if ":" in skill_name:
+        dynamic_short = _find_dynamic_skill(session, skill_name, allow_short_fallback=True)
+        if dynamic_short is not None:
+            return dynamic_short
+        return get_skill(skill_name.split(":")[-1])
+
+    return get_skill(skill_name)
+
+
+def _read_skill_content(skill: Skill) -> str | None:
+    if not skill.skill_path.exists() or not skill.skill_path.is_file():
+        return None
+    content = skill.skill_path.read_text(encoding="utf-8", errors="replace")
+    return content or None
+
+
+def _mark_skill_loaded(session: Session, path: str, content: str, *, source: Literal["dynamic", "explicit"]) -> None:
+    existing = session.file_tracker.get(path)
+    try:
+        mtime = Path(path).stat().st_mtime
+    except (OSError, FileNotFoundError):
+        mtime = 0.0
+    session.file_tracker[path] = model.FileStatus(
+        mtime=mtime,
+        content_sha256=hash_text_sha256(content),
+        is_memory=existing.is_memory if existing else False,
+        is_skill=True,
+        skill_attachment_source=source,
+        is_directory=existing.is_directory if existing else False,
+        read_complete=existing.read_complete if existing else False,
+    )
+
+
+def _mark_directory_accessed(session: Session, path: str) -> None:
+    existing = session.file_tracker.get(path)
+    try:
+        mtime = Path(path).stat().st_mtime
+    except (OSError, FileNotFoundError):
+        mtime = 0.0
+    session.file_tracker[path] = model.FileStatus(
+        mtime=mtime,
+        content_sha256=None,
+        is_memory=existing.is_memory if existing else False,
+        is_skill=existing.is_skill if existing else False,
+        skill_attachment_source=existing.skill_attachment_source if existing else None,
+        is_directory=True,
+        read_complete=existing.read_complete if existing else False,
+    )
+
+
+def _get_loaded_skill_paths_by_name(session: Session, *, dynamic_only: bool) -> dict[str, str]:
+    loader = SkillLoader()
+    result: dict[str, str] = {}
+
+    for path, status in session.file_tracker.items():
+        if not status.is_skill:
+            continue
+        if dynamic_only and status.skill_attachment_source != "dynamic":
+            continue
+        skill = loader.load_skill(Path(path), location="project")
+        if skill is None:
+            continue
+        result[skill.name] = path
+
+    return result
+
+
+def _format_skill_block_str(skill: Skill, skill_content: str, *, explicit: bool) -> str:
+    return fmt_skill_block(
+        skill_name=skill.name,
+        skill_path=skill.skill_path,
+        base_dir=skill.base_dir,
+        skill_content=skill_content,
+        explicit=explicit,
+    )
+
+
+def _format_dynamic_available_skills_str(skills: list[Skill]) -> str:
+    loader = SkillLoader()
+    loader.loaded_skills = {skill.name: skill for skill in skills}
+    skills_xml = loader.get_skills_xml().rstrip()
+    return fmt_dynamic_available_skills(skills_xml)
+
+
+def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bool) -> tuple[list[str], list[Skill]]:
+    skill_blocks: list[str] = []
+    activated_skills: list[Skill] = []
+    loaded_dynamic_paths_by_name = _get_loaded_skill_paths_by_name(session, dynamic_only=True)
+    loaded_all_paths_by_name = _get_loaded_skill_paths_by_name(session, dynamic_only=False)
+
+    for skill in skills:
+        skill_content = _read_skill_content(skill)
+        if skill_content is None:
+            continue
+
+        skill_path = str(skill.skill_path)
+        if not explicit:
+            non_dynamic_path = loaded_all_paths_by_name.get(skill.name)
+            dynamic_path = loaded_dynamic_paths_by_name.get(skill.name)
+            if non_dynamic_path is not None and non_dynamic_path != dynamic_path:
+                continue
+            if dynamic_path == skill_path and _is_tracked_file_unchanged(session, skill_path):
+                continue
+
+        _mark_skill_loaded(session, skill_path, skill_content, source="explicit" if explicit else "dynamic")
+        loaded_dynamic_paths_by_name[skill.name] = skill_path
+        loaded_all_paths_by_name[skill.name] = skill_path
+        skill_blocks.append(
+            _format_skill_block_str(
+                skill,
+                skill_content,
+                explicit=explicit,
+            )
+        )
+        activated_skills.append(skill)
+
+    return skill_blocks, activated_skills
+
+
+def _collect_dynamic_skills(session: Session, skills: list[Skill]) -> list[Skill]:
+    activated_skills: list[Skill] = []
+    loaded_dynamic_paths_by_name = _get_loaded_skill_paths_by_name(session, dynamic_only=True)
+    loaded_all_paths_by_name = _get_loaded_skill_paths_by_name(session, dynamic_only=False)
+
+    for skill in skills:
+        skill_content = _read_skill_content(skill)
+        if skill_content is None:
+            continue
+
+        skill_path = str(skill.skill_path)
+        non_dynamic_path = loaded_all_paths_by_name.get(skill.name)
+        dynamic_path = loaded_dynamic_paths_by_name.get(skill.name)
+        if non_dynamic_path is not None and non_dynamic_path != dynamic_path:
+            continue
+
+        if dynamic_path == skill_path and _is_tracked_file_unchanged(session, skill_path):
+            continue
+
+        _mark_skill_loaded(session, skill_path, skill_content, source="dynamic")
+        loaded_dynamic_paths_by_name[skill.name] = skill_path
+        loaded_all_paths_by_name[skill.name] = skill_path
+        activated_skills.append(skill)
+
+    return activated_skills
+
+
+def _build_skill_attachment(
+    session: Session, skills: list[Skill], *, explicit: bool
+) -> message.DeveloperMessage | None:
+    skill_blocks, activated_skills = _collect_skill_blocks(session, skills, explicit=explicit)
+
+    if not skill_blocks:
+        return None
+
+    ui_items: list[model.DeveloperUIItem] = [model.SkillActivatedUIItem(name=skill.name) for skill in activated_skills]
+
+    return message.DeveloperMessage(
+        parts=message.text_parts_from_str(f"<system-reminder>{chr(10).join(skill_blocks)}\n</system-reminder>"),
+        ui_extra=model.DeveloperUIExtra(items=ui_items),
+    )
+
+
+def _build_dynamic_skill_listing_attachment(session: Session, skills: list[Skill]) -> message.DeveloperMessage | None:
+    activated_skills = _collect_dynamic_skills(session, skills)
+    if not activated_skills:
+        return None
+
+    content = _format_dynamic_available_skills_str(activated_skills)
+    ui_items: list[model.DeveloperUIItem] = [model.SkillDiscoveredUIItem(name=skill.name) for skill in activated_skills]
+    return message.DeveloperMessage(
+        parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
+        ui_extra=model.DeveloperUIExtra(items=ui_items),
+    )
+
+
 async def skill_attachment(session: Session) -> message.DeveloperMessage | None:
     """Load skill content when user references skills with explicit skill syntax."""
     skill_names = get_skills_from_user_input(session)
     if not skill_names:
         return None
 
-    skill_blocks: list[str] = []
-    ui_items: list[model.DeveloperUIItem] = []
+    resolved_skills: list[Skill] = []
+    seen_paths: set[str] = set()
 
     for skill_name in skill_names:
-        skill = get_skill(skill_name)
+        skill = _resolve_skill_for_input(session, skill_name)
         if not skill:
             continue
-        if not skill.skill_path.exists() or not skill.skill_path.is_file():
-            continue
-        skill_content = skill.skill_path.read_text(encoding="utf-8", errors="replace")
-        if not skill_content:
-            continue
-
         skill_path = str(skill.skill_path)
-        existing = session.file_tracker.get(skill_path)
-        session.file_tracker[skill_path] = model.FileStatus(
-            mtime=skill.skill_path.stat().st_mtime,
-            content_sha256=hash_text_sha256(skill_content),
-            is_memory=existing.is_memory if existing else False,
-        )
+        if skill_path in seen_paths:
+            continue
+        seen_paths.add(skill_path)
+        resolved_skills.append(skill)
 
-        skill_blocks.append(f"""The user activated the "{skill.name}" skill, prioritize this skill
-<skill>
-<name>{skill.name}</name>
-<location>{skill.skill_path}</location>
-<base_dir>{skill.base_dir}</base_dir>
-
-{skill_content}
-</skill>""")
-        ui_items.append(model.SkillActivatedUIItem(name=skill.name))
-
-    if not skill_blocks:
-        return None
-
-    content = f"<system-reminder>{chr(10).join(skill_blocks)}\n</system-reminder>"
-
-    return message.DeveloperMessage(
-        parts=message.text_parts_from_str(content),
-        ui_extra=model.DeveloperUIExtra(items=ui_items),
-    )
+    return _build_skill_attachment(session, resolved_skills, explicit=True)
 
 
 def _is_memory_loaded(session: Session, path: str) -> bool:
@@ -511,32 +711,16 @@ def _mark_memory_loaded(session: Session, path: str) -> None:
         content_sha256 = hash_text_sha256(Path(path).read_text(encoding="utf-8", errors="replace"))
     except (OSError, FileNotFoundError, PermissionError, UnicodeDecodeError):
         content_sha256 = None
-    session.file_tracker[path] = model.FileStatus(mtime=mtime, content_sha256=content_sha256, is_memory=True)
-
-
-def _truncate_memory_content(text: str, path: str) -> str:
-    """Truncate memory file content to stay within per-file budget.
-
-    Enforces both line count (AUTO_MEMORY_MAX_LINES) and byte size
-    (MEMORY_MAX_BYTES_PER_FILE) limits. When truncated, appends a note
-    so the model knows more content exists.
-    """
-    lines = text.splitlines()
-    truncated = False
-
-    if len(lines) > AUTO_MEMORY_MAX_LINES:
-        lines = lines[:AUTO_MEMORY_MAX_LINES]
-        truncated = True
-
-    result = "\n".join(lines)
-    if len(result.encode("utf-8")) > MEMORY_MAX_BYTES_PER_FILE:
-        encoded = result.encode("utf-8")[:MEMORY_MAX_BYTES_PER_FILE]
-        result = encoded.decode("utf-8", errors="ignore")
-        truncated = True
-
-    if truncated:
-        result += f"\n\n> This memory file was truncated ({MEMORY_MAX_BYTES_PER_FILE} byte limit). Use the {tools.READ} tool to view the complete file at: {path}"
-    return result
+    existing = session.file_tracker.get(path)
+    session.file_tracker[path] = model.FileStatus(
+        mtime=mtime,
+        content_sha256=content_sha256,
+        is_memory=True,
+        is_skill=existing.is_skill if existing else False,
+        skill_attachment_source=existing.skill_attachment_source if existing else None,
+        is_directory=existing.is_directory if existing else False,
+        read_complete=existing.read_complete if existing else False,
+    )
 
 
 def _count_memory_session_bytes(session: Session) -> int:
@@ -568,15 +752,13 @@ async def memory_attachment(session: Session) -> message.DeveloperMessage | None
         if memory_path.exists() and memory_path.is_file() and not _is_memory_loaded(session, path_str):
             try:
                 text = memory_path.read_text(encoding="utf-8", errors="replace")
-                text = _truncate_memory_content(text, path_str)
+                text = truncate_memory_content(text, path_str)
                 text_bytes = len(text.encode("utf-8"))
                 if text_bytes > remaining_budget:
                     # Would exceed session budget; truncate further or skip
                     if remaining_budget > 256:
                         text = text.encode("utf-8")[:remaining_budget].decode("utf-8", errors="ignore")
-                        text += (
-                            f"\n\n> Memory truncated due to session budget ({MEMORY_MAX_SESSION_BYTES} bytes total)."
-                        )
+                        text += fmt_memory_truncated(MEMORY_MAX_SESSION_BYTES)
                         text_bytes = len(text.encode("utf-8"))
                     else:
                         _mark_memory_loaded(session, path_str)
@@ -591,7 +773,7 @@ async def memory_attachment(session: Session) -> message.DeveloperMessage | None
     auto_memory_hint = ""
     if auto_mem is not None:
         if not _is_memory_loaded(session, auto_mem.path):
-            auto_mem_content = _truncate_memory_content(auto_mem.content, auto_mem.path)
+            auto_mem_content = truncate_memory_content(auto_mem.content, auto_mem.path)
             auto_mem_bytes = len(auto_mem_content.encode("utf-8"))
             if auto_mem_bytes <= remaining_budget:
                 remaining_budget -= auto_mem_bytes
@@ -604,7 +786,7 @@ async def memory_attachment(session: Session) -> message.DeveloperMessage | None
         path_str = str(auto_memory_path)
         if not _is_memory_loaded(session, path_str):
             _mark_memory_loaded(session, path_str)
-            auto_memory_hint = f"\n\nNo auto memory file yet for this project. Create {auto_memory_path} when you need to persist memories."
+            auto_memory_hint = fmt_auto_memory_hint(auto_memory_path)
 
     if memories or auto_memory_hint:
         loaded_files = [model.MemoryFileLoaded(path=memory.path) for memory in memories]
@@ -650,6 +832,14 @@ async def last_path_memory_attachment(
             ui_extra=model.DeveloperUIExtra(items=[model.MemoryLoadedUIItem(files=loaded_files)]),
         )
     return None
+
+
+async def last_path_skill_attachment(session: Session) -> message.DeveloperMessage | None:
+    """Announce nested project-local skills discovered near accessed paths."""
+    dynamic_skills = _get_dynamic_skills_for_session(session)
+    if not dynamic_skills:
+        return None
+    return _build_dynamic_skill_listing_attachment(session, dynamic_skills)
 
 
 def _count_assistant_turns_since(session: Session, predicate: str) -> tuple[int, int]:
@@ -700,17 +890,10 @@ async def todo_attachment(session: Session) -> message.DeveloperMessage | None:
 
     todo_str = ""
     if session.todos:
-        todo_items = "\n".join(f"{i + 1}. [{t.status}] {t.content}" for i, t in enumerate(session.todos))
-        todo_str = f"\n\nHere are the existing contents of your todo list:\n\n[{todo_items}]"
+        todo_items_str = "\n".join(f"{i + 1}. [{t.status}] {t.content}" for i, t in enumerate(session.todos))
+        todo_str = fmt_todo_items(todo_items_str)
 
-    content = (
-        "The TodoWrite tool hasn't been used recently. If you're working on tasks that would benefit "
-        "from tracking progress, consider using the TodoWrite tool to track progress. Also consider "
-        "cleaning up the todo list if it has become stale and no longer matches what you are working on. "
-        "Only use it if it's relevant to the current work. This is just a gentle reminder - ignore if "
-        "not applicable. Make sure that you NEVER mention this reminder to the user"
-        f"{todo_str}"
-    )
+    content = fmt_todo_nudge(todo_str)
 
     reason: model.TodoAttachmentUIItem = model.TodoAttachmentUIItem(
         reason="not_used_recently" if session.todos else "empty"
@@ -722,6 +905,55 @@ async def todo_attachment(session: Session) -> message.DeveloperMessage | None:
     )
 
 
+def _last_turn_completed_all_todos(session: Session) -> bool:
+    """Check if the most recent turn was a TodoWrite that marked all todos completed."""
+    if not session.todos or not all(t.status == "completed" for t in session.todos):
+        return False
+    for item in reversed(session.conversation_history):
+        if isinstance(item, message.ToolResultMessage):
+            return item.tool_name == tools.TODO_WRITE
+        if isinstance(item, message.AssistantMessage | message.UserMessage):
+            return False
+    return False
+
+
+async def post_todo_complete_attachment(session: Session) -> message.DeveloperMessage | None:
+    """Inject review/memory guidance when all todos were just completed."""
+    if not _last_turn_completed_all_todos(session):
+        return None
+    content = fmt_post_todo_complete()
+    return message.DeveloperMessage(
+        parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
+    )
+
+
+def _has_review_agent_call(session: Session) -> bool:
+    """Check if a review sub-agent has been invoked in the conversation history."""
+    for item in session.conversation_history:
+        if not isinstance(item, message.AssistantMessage):
+            continue
+        for part in item.parts:
+            if not isinstance(part, message.ToolCallPart) or part.tool_name != tools.AGENT:
+                continue
+            try:
+                args = json.loads(part.arguments_json)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if args.get("type") == "review":
+                return True
+    return False
+
+
+async def review_followup_attachment(session: Session) -> message.DeveloperMessage | None:
+    """Inject review follow-up guidance after the agent has used a review sub-agent."""
+    if not _has_review_agent_call(session):
+        return None
+    content = fmt_review_followup()
+    return message.DeveloperMessage(
+        parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
+    )
+
+
 type Attachment = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
 
 # Attachments that mutate file_tracker or depend on another attachment's side effects
@@ -729,6 +961,7 @@ type Attachment = Callable[[Session], Awaitable[message.DeveloperMessage | None]
 # - at_file_reader_attachment writes to file_tracker via ReadTool
 # - file_changed_externally_attachment iterates file_tracker (dict iteration safety)
 # - last_path_memory_attachment reads file_tracker populated by at_file_reader_attachment
+# - last_path_skill_attachment reads and updates file_tracker using accessed paths
 # These form a sequential phase. Others (memory_attachment, image_attachment,
 # skill_attachment, todo_attachment) are independent and safe to parallelize.
 _SEQUENTIAL_ATTACHMENTS: frozenset[str] = frozenset(
@@ -736,6 +969,7 @@ _SEQUENTIAL_ATTACHMENTS: frozenset[str] = frozenset(
         "at_file_reader_attachment",
         "file_changed_externally_attachment",
         "last_path_memory_attachment",
+        "last_path_skill_attachment",
     }
 )
 

@@ -25,7 +25,7 @@ from klaude_code.core.tool import FileTracker, TodoContext, ToolABC
 from klaude_code.core.tool.context import RunSubtask
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, message, model, user_interaction
+from klaude_code.protocol import events, message, model, tools, user_interaction
 from klaude_code.session.session import Session
 
 type RequestUserInteraction = Callable[
@@ -300,9 +300,10 @@ class TaskExecutor:
         has_user_input = bool(user_input.text.strip() or user_input.images)
 
         if ctx.sub_agent_state is None:
-            self._rewind_manager = RewindManager()
-            self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-            self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+            if tools.REWIND in ctx.tool_registry:
+                self._rewind_manager = RewindManager()
+                self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
             self._handoff_manager = HandoffManager()
 
         yield events.TaskStartEvent(
@@ -354,7 +355,7 @@ class TaskExecutor:
                     )
                     log_debug("[Compact] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
 
-                    _reset_memory_loaded_flags(ctx.session.file_tracker)
+                    _reset_attachment_loaded_flags(ctx.session.file_tracker)
                     session_ctx.append_history([result.to_entry()])
                     if self._rewind_manager is not None:
                         self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
@@ -466,7 +467,7 @@ class TaskExecutor:
                             log_debug(
                                 "[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE
                             )
-                            _reset_memory_loaded_flags(ctx.session.file_tracker)
+                            _reset_attachment_loaded_flags(ctx.session.file_tracker)
                             session_ctx.append_history([result.to_entry()])
                             if self._rewind_manager is not None:
                                 self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
@@ -573,7 +574,7 @@ class TaskExecutor:
                             llm_config=compact_client.get_llm_config(),
                         )
                         log_debug("[Handoff] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
-                        _reset_memory_loaded_flags(ctx.session.file_tracker)
+                        _reset_attachment_loaded_flags(ctx.session.file_tracker)
                         session_ctx.append_history([result.to_entry()])
                         if self._rewind_manager is not None:
                             self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
@@ -653,10 +654,12 @@ class TaskExecutor:
         )
 
 
-def _reset_memory_loaded_flags(file_tracker: dict[str, model.FileStatus]) -> None:
-    """Remove memory-only entries from file_tracker so attachments re-inject them."""
-    memory_paths = [path for path, status in file_tracker.items() if status.is_memory]
-    for path in memory_paths:
+def _reset_attachment_loaded_flags(file_tracker: dict[str, model.FileStatus]) -> None:
+    """Remove attachment-only entries so memory and dynamic skills can re-inject after compaction."""
+    transient_paths = [
+        path for path, status in file_tracker.items() if status.is_memory or status.skill_attachment_source == "dynamic"
+    ]
+    for path in transient_paths:
         del file_tracker[path]
 
 

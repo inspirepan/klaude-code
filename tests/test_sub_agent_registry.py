@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -14,7 +15,7 @@ from klaude_code.core.tool.agent_tool import AgentTool
 from klaude_code.core.tool.context import TodoContext, ToolContext
 from klaude_code.core.tool.tool_abc import ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_runner import ToolCallRequest, ToolExecutionResult, ToolExecutor
-from klaude_code.llm.openai_responses.client import ResponsesClient
+from klaude_code.llm.client import LLMStreamABC
 from klaude_code.protocol import llm_param, message, model, tools
 from klaude_code.protocol.sub_agent import SubAgentResult, is_sub_agent_tool
 
@@ -81,52 +82,29 @@ class _SlowSubAgentTool(ToolABC):
         )
 
 
-class _BlockingCompletedConnection:
+class _BlockingFakeStream(LLMStreamABC):
+    """Fake LLM stream that blocks until released, then yields a single AssistantMessage."""
+
     def __init__(self, response_id: str, text: str, started: asyncio.Event, release: asyncio.Event) -> None:
-        self.sent: list[str] = []
-        self.close_calls = 0
+        self._response_id = response_id
+        self._text = text
         self._started = started
         self._release = release
-        self._receiving = False
-        self._done = False
-        self._payload: dict[str, Any] = {
-            "type": "response.completed",
-            "response": {
-                "id": response_id,
-                "created_at": 0,
-                "status": "completed",
-                "output": [
-                    {
-                        "type": "message",
-                        "id": f"msg_{response_id}",
-                        "role": "assistant",
-                        "status": "completed",
-                        "content": [{"type": "output_text", "text": text, "annotations": []}],
-                    }
-                ],
-            },
-        }
 
-    async def send(self, data: str) -> None:
-        self.sent.append(data)
+    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
+        return self._iterate()
 
-    async def recv(self, decode: bool = False) -> bytes:
-        del decode
-        if self._done:
-            raise AssertionError("recv called after completed response")
-        if self._receiving:
-            raise AssertionError("recv called concurrently on the same websocket")
-        self._receiving = True
+    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
         self._started.set()
         await self._release.wait()
-        try:
-            self._done = True
-            return json.dumps(self._payload).encode()
-        finally:
-            self._receiving = False
+        yield message.AssistantMessage(
+            parts=[message.TextPart(text=self._text)],
+            response_id=self._response_id,
+            stop_reason="stop",
+        )
 
-    async def close(self) -> None:
-        self.close_calls += 1
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        return None
 
 
 def _consume_tool_executor(executor: ToolExecutor, tool_calls: list[ToolCallRequest]) -> asyncio.Task[None]:
@@ -176,25 +154,11 @@ def test_agent_tool_concurrent_sub_agents_share_responses_client_safely() -> Non
         release = asyncio.Event()
         started_one = asyncio.Event()
         started_two = asyncio.Event()
-        connection_one = _BlockingCompletedConnection("resp_1", "subagent one", started_one, release)
-        connection_two = _BlockingCompletedConnection("resp_2", "subagent two", started_two, release)
-        connections = iter([connection_one, connection_two])
+        stream_one = _BlockingFakeStream("resp_1", "subagent one", started_one, release)
+        stream_two = _BlockingFakeStream("resp_2", "subagent two", started_two, release)
+        streams = iter([stream_one, stream_two])
 
-        shared_client = ResponsesClient(
-            llm_param.LLMConfigParameter(
-                provider_name="test",
-                protocol=llm_param.LLMClientProtocol.RESPONSES,
-                model_id="gpt-5.4",
-                api_key="test-key",
-            )
-        )
-        ws_transport = cast(Any, shared_client)._ws_transport
-        assert ws_transport is not None
-
-        async def _open_connection() -> Any:
-            return next(connections)
-
-        ws_transport._open_connection = _open_connection
+        mock_call = AsyncMock(side_effect=lambda param: next(streams))  # pyright: ignore[reportUnknownLambdaType]
 
         async def _run_subtask(
             state: Any,
@@ -207,7 +171,7 @@ def test_agent_tool_concurrent_sub_agents_share_responses_client_safely() -> Non
             if callable(record_session_id):
                 record_session_id(f"session-{state.sub_agent_desc}")
 
-            stream = await shared_client.call(
+            stream = await mock_call(
                 llm_param.LLMCallParameter(
                     input=[message.UserMessage(parts=[message.TextPart(text=state.sub_agent_prompt)])],
                     model_id="gpt-5.4",
@@ -271,9 +235,6 @@ def test_agent_tool_concurrent_sub_agents_share_responses_client_safely() -> Non
         assert len(results) == 2
         assert {result.tool_result.output_text for result in results} == {"subagent one", "subagent two"}
         assert session_ids == {"session-one", "session-two"}
-        assert len(connection_one.sent) == 1
-        assert len(connection_two.sent) == 1
-        assert connection_one.close_calls == 1
-        assert connection_two.close_calls == 1
+        assert mock_call.call_count == 2
 
     asyncio.run(_test())

@@ -18,6 +18,7 @@ PROJECT_MEMORY_INSTRUCTION = "project instructions, checked into the codebase"
 
 AUTO_MEMORY_FILE = "MEMORY.md"
 AUTO_MEMORY_MAX_LINES = 200
+MEMORY_MAX_BYTES_PER_FILE = 4096
 
 
 class Memory(BaseModel):
@@ -121,6 +122,30 @@ Loaded memory files. Follow these instructions. Do not mention them to the user 
     return f"<system-reminder>{memories_str}\n</system-reminder>"
 
 
+def truncate_memory_content(text: str, path: str) -> str:
+    """Truncate memory content to the shared per-file limits used by attachments."""
+
+    lines = text.splitlines()
+    truncated = False
+
+    if len(lines) > AUTO_MEMORY_MAX_LINES:
+        lines = lines[:AUTO_MEMORY_MAX_LINES]
+        truncated = True
+
+    result = "\n".join(lines)
+    if len(result.encode("utf-8")) > MEMORY_MAX_BYTES_PER_FILE:
+        encoded = result.encode("utf-8")[:MEMORY_MAX_BYTES_PER_FILE]
+        result = encoded.decode("utf-8", errors="ignore")
+        truncated = True
+
+    if truncated:
+        result += (
+            f"\n\n> This memory file was truncated ({MEMORY_MAX_BYTES_PER_FILE} byte limit). "
+            f"Use the Read tool to view the complete file at: {path}"
+        )
+    return result
+
+
 def discover_memory_files_near_paths(
     paths: list[str],
     *,
@@ -169,6 +194,7 @@ def discover_memory_files_near_paths(
                 if mem_path.exists() and mem_path.is_file() and not is_memory_loaded(path_str):
                     try:
                         text = mem_path.read_text(encoding="utf-8", errors="replace")
+                        text = truncate_memory_content(text, path_str)
                     except (PermissionError, UnicodeDecodeError, OSError):
                         continue
                     mark_memory_loaded(path_str)

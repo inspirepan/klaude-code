@@ -8,6 +8,12 @@ Available agent types and the tools they have access to:
 
 ${types_section}
 
+Execution model:
+- Each agent invocation creates a fresh, isolated session. Agents are stateless and one-shot: they run to completion and are then discarded.
+- There is no way to resume, continue, or send follow-up messages to a previously launched agent.
+- The agent's final text output is returned as the tool result. Internal tool calls and intermediate reasoning are not visible to the caller.
+- If you need to iterate on an agent's output, launch a new agent with an updated prompt that includes the previous result.
+
 Usage notes:
 - Always include a short description (3-5 words) summarizing what the agent will do
 - Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses
