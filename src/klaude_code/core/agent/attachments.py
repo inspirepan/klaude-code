@@ -8,6 +8,17 @@ from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Literal
 
+from klaude_code.core.agent.attachment_messages import (
+    fmt_auto_memory_hint,
+    fmt_dynamic_available_skills,
+    fmt_file_already_in_context,
+    fmt_file_changed_externally,
+    fmt_memory_truncated,
+    fmt_skill_block,
+    fmt_todo_items,
+    fmt_todo_nudge,
+    fmt_tool_result,
+)
 from klaude_code.core.memory import (
     Memory,
     discover_memory_files_near_paths,
@@ -161,10 +172,7 @@ async def _load_at_file(
         # emit a lightweight "already in context" note instead of re-reading.
         if _is_tracked_file_unchanged(session, path_str) and ref.line_start is None:
             at_ops.append(model.AtFileOp(operation="Read", path=path_str))
-            formatted_blocks.append(
-                f"Note: {path_str} is already in context and unchanged. "
-                f"Use the {tools.READ} tool if you need to re-read it."
-            )
+            formatted_blocks.append(fmt_file_already_in_context(path_str, tools.READ))
             return
 
         # Build ReadTool args, passing offset/limit if line range specified
@@ -178,12 +186,7 @@ async def _load_at_file(
         images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
 
         tool_args = args.model_dump_json(exclude_none=True)
-        formatted_blocks.append(
-            f"""Called the {tools.READ} tool with the following input: {tool_args}
-Result of calling the {tools.READ} tool:
-{tool_result.output_text}
-"""
-        )
+        formatted_blocks.append(fmt_tool_result(tools.READ, tool_args, tool_result.output_text))
         at_ops.append(model.AtFileOp(operation="Read", path=path_str))
         if images:
             collected_images.extend(images)
@@ -194,12 +197,7 @@ Result of calling the {tools.READ} tool:
         tool_result = await BashTool.call_with_args(args, tool_context)
 
         tool_args = args.model_dump_json(exclude_none=True)
-        formatted_blocks.append(
-            f"""Called the {tools.BASH} tool with the following input: {tool_args}
-Result of calling the {tools.BASH} tool:
-{tool_result.output_text}
-"""
-        )
+        formatted_blocks.append(fmt_tool_result(tools.BASH, tool_args, tool_result.output_text))
         at_ops.append(model.AtFileOp(operation="List", path=path_str + "/"))
         _mark_directory_accessed(session, path_str)
 
@@ -382,7 +380,7 @@ async def file_changed_externally_attachment(
 
     if len(changed_files) > 0:
         changed_files_str = "\n\n".join(
-            f"Note: {file_path} was modified, either by the user or by a linter. Don't tell the user this, since they are already aware. This change was intentional, so make sure to take it into account as you proceed (ie. don't revert it unless the user asks you to). Here are the relevant changes:\n\n{file_content}"
+            fmt_file_changed_externally(file_path, file_content)
             for file_path, file_content, _ in changed_files
         )
         return message.DeveloperMessage(
@@ -560,42 +558,22 @@ def _get_loaded_skill_paths_by_name(session: Session, *, dynamic_only: bool) -> 
     return result
 
 
-def _format_skill_block(skill: Skill, skill_content: str, *, explicit: bool, supersedes_previous: bool) -> str:
-    if explicit:
-        preface = f'The user activated the "{skill.name}" skill, prioritize this skill'
-    else:
-        preface = (
-            f'The "{skill.name}" skill was discovered near files already accessed in this session. '
-            "Apply it when relevant to the current work."
-        )
-
-    if supersedes_previous:
-        preface += " This definition supersedes any earlier skill with the same name loaded from another path."
-
-    return f"""{preface}
-<skill>
-<name>{skill.name}</name>
-<location>{skill.skill_path}</location>
-<base_dir>{skill.base_dir}</base_dir>
-
-{skill_content}
-</skill>"""
+def _format_skill_block_str(skill: Skill, skill_content: str, *, explicit: bool, supersedes_previous: bool) -> str:
+    return fmt_skill_block(
+        skill_name=skill.name,
+        skill_path=skill.skill_path,
+        base_dir=skill.base_dir,
+        skill_content=skill_content,
+        explicit=explicit,
+        supersedes_previous=supersedes_previous,
+    )
 
 
-def _format_dynamic_available_skills(skills: list[Skill], *, supersedes_previous: bool) -> str:
+def _format_dynamic_available_skills_str(skills: list[Skill], *, supersedes_previous: bool) -> str:
     loader = SkillLoader()
     loader.loaded_skills = {skill.name: skill for skill in skills}
     skills_xml = loader.get_skills_xml().rstrip()
-
-    preface = "Additional skills are now available because of files or directories already accessed in this session."
-    if supersedes_previous:
-        preface += " For any repeated skill names from earlier dynamic skill listings, treat the definitions below as the current ones."
-
-    return f"""{preface}
-
-<available_skills>
-{skills_xml}
-</available_skills>"""
+    return fmt_dynamic_available_skills(skills_xml, supersedes_previous=supersedes_previous)
 
 
 def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bool) -> tuple[list[str], list[Skill]]:
@@ -631,7 +609,7 @@ def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bo
         loaded_dynamic_paths_by_name[skill.name] = skill_path
         loaded_all_paths_by_name[skill.name] = skill_path
         skill_blocks.append(
-            _format_skill_block(
+            _format_skill_block_str(
                 skill,
                 skill_content,
                 explicit=explicit,
@@ -697,7 +675,7 @@ def _build_dynamic_skill_listing_attachment(session: Session, skills: list[Skill
     if not activated_skills:
         return None
 
-    content = _format_dynamic_available_skills(activated_skills, supersedes_previous=superseded_any)
+    content = _format_dynamic_available_skills_str(activated_skills, supersedes_previous=superseded_any)
     ui_items: list[model.DeveloperUIItem] = [model.SkillDiscoveredUIItem(name=skill.name) for skill in activated_skills]
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
@@ -795,9 +773,7 @@ async def memory_attachment(session: Session) -> message.DeveloperMessage | None
                     # Would exceed session budget; truncate further or skip
                     if remaining_budget > 256:
                         text = text.encode("utf-8")[:remaining_budget].decode("utf-8", errors="ignore")
-                        text += (
-                            f"\n\n> Memory truncated due to session budget ({MEMORY_MAX_SESSION_BYTES} bytes total)."
-                        )
+                        text += fmt_memory_truncated(MEMORY_MAX_SESSION_BYTES)
                         text_bytes = len(text.encode("utf-8"))
                     else:
                         _mark_memory_loaded(session, path_str)
@@ -825,7 +801,7 @@ async def memory_attachment(session: Session) -> message.DeveloperMessage | None
         path_str = str(auto_memory_path)
         if not _is_memory_loaded(session, path_str):
             _mark_memory_loaded(session, path_str)
-            auto_memory_hint = f"\n\nNo auto memory file yet for this project. Create {auto_memory_path} when you need to persist memories."
+            auto_memory_hint = fmt_auto_memory_hint(auto_memory_path)
 
     if memories or auto_memory_hint:
         loaded_files = [model.MemoryFileLoaded(path=memory.path) for memory in memories]
@@ -929,17 +905,10 @@ async def todo_attachment(session: Session) -> message.DeveloperMessage | None:
 
     todo_str = ""
     if session.todos:
-        todo_items = "\n".join(f"{i + 1}. [{t.status}] {t.content}" for i, t in enumerate(session.todos))
-        todo_str = f"\n\nHere are the existing contents of your todo list:\n\n[{todo_items}]"
+        todo_items_str = "\n".join(f"{i + 1}. [{t.status}] {t.content}" for i, t in enumerate(session.todos))
+        todo_str = fmt_todo_items(todo_items_str)
 
-    content = (
-        "The TodoWrite tool hasn't been used recently. If you're working on tasks that would benefit "
-        "from tracking progress, consider using the TodoWrite tool to track progress. Also consider "
-        "cleaning up the todo list if it has become stale and no longer matches what you are working on. "
-        "Only use it if it's relevant to the current work. This is just a gentle reminder - ignore if "
-        "not applicable. Make sure that you NEVER mention this reminder to the user"
-        f"{todo_str}"
-    )
+    content = fmt_todo_nudge(todo_str)
 
     reason: model.TodoAttachmentUIItem = model.TodoAttachmentUIItem(
         reason="not_used_recently" if session.todos else "empty"
