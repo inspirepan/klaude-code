@@ -331,7 +331,9 @@ class StatusMetadataLine:
         if self._metadata_text is None:
             return truncate_right(hint_text, max(1, max_width), console=console)
 
-        full_metadata_text = _render_right_text(self._metadata_text, console=console, options=line_options, compact=False)
+        full_metadata_text = _render_right_text(
+            self._metadata_text, console=console, options=line_options, compact=False
+        )
         if cell_len(full_metadata_text.plain) == 0:
             return truncate_right(hint_text, max(1, max_width), console=console)
 
@@ -342,7 +344,9 @@ class StatusMetadataLine:
         if cell_len(full_metadata_text.plain) <= max_width:
             return full_metadata_text
 
-        compact_metadata_text = _render_right_text(self._metadata_text, console=console, options=line_options, compact=True)
+        compact_metadata_text = _render_right_text(
+            self._metadata_text, console=console, options=line_options, compact=True
+        )
         if 0 < cell_len(compact_metadata_text.plain) < cell_len(full_metadata_text.plain):
             compact_with_hint = Text.assemble(compact_metadata_text, separator, hint_text)
             if cell_len(compact_with_hint.plain) <= max_width:

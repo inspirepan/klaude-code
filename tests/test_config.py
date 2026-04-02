@@ -1164,7 +1164,13 @@ class TestOutOfBoxExperience:
 
         # Set only OpenAI API key, clear others
         monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test-key-12345")
-        for env in ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY", "MINIMAX_API_KEY"]:
+        for env in [
+            "ANTHROPIC_API_KEY",
+            "OPENROUTER_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "MOONSHOT_API_KEY",
+            "MINIMAX_API_KEY",
+        ]:
             monkeypatch.delenv(env, raising=False)
 
         load_config.cache_clear()
