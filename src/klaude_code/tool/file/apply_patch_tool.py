@@ -121,6 +121,7 @@ class ApplyPatchHandler:
                 file_tracker[resolved] = model.FileStatus(
                     mtime=Path(resolved).stat().st_mtime,
                     content_sha256=hash_text_sha256(content),
+                    cached_content=content,
                     is_memory=is_mem,
                     is_skill=is_skill,
                     skill_attachment_source=None,

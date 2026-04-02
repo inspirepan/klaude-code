@@ -248,6 +248,7 @@ class EditTool(ToolABC):
             file_tracker[file_path] = model.FileStatus(
                 mtime=Path(file_path).stat().st_mtime,
                 content_sha256=hash_text_sha256(after),
+                cached_content=after,
                 is_memory=is_mem,
                 is_skill=is_skill,
                 skill_attachment_source=None,

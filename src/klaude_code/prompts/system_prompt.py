@@ -5,7 +5,6 @@ import shutil
 from functools import cache
 from importlib.resources import files
 from pathlib import Path
-from string import Template
 
 from klaude_code.const import ProjectPaths, find_git_repo_root, project_key_from_path
 from klaude_code.protocol import llm_param, model_id, tools
@@ -123,6 +122,36 @@ def build_main_system_prompt(model_name: str, available_tools: list[llm_param.To
     return base_prompt + build_dynamic_tool_strategy_prompt(available_tools)
 
 
+def _get_available_commands() -> list[str]:
+    """Return list of available bash commands with descriptions."""
+    available: list[str] = []
+    for command, desc in COMMAND_DESCRIPTIONS.items():
+        if shutil.which(command) is not None:
+            available.append(f"{command}: {desc}")
+    return available
+
+
+def build_sub_agent_env_info(work_dir: Path) -> str:
+    """Build environment info block for sub-agents, appended at the end of their prompt."""
+    workspace_root = find_git_repo_root(work_dir=work_dir) or work_dir
+    available_commands = _get_available_commands()
+
+    env_lines: list[str] = [
+        "",
+        "",
+        "# Environment",
+        f"Working directory: {work_dir}",
+        f"Workspace root: {workspace_root}",
+    ]
+
+    if available_commands:
+        env_lines.append("Available bash commands:")
+        for cmd in available_commands:
+            env_lines.append(f"- {cmd}")
+
+    return "\n".join(env_lines)
+
+
 def _build_env_info(model_name: str, work_dir: Path) -> str:
     """Build environment info section with dynamic runtime values."""
 
@@ -132,10 +161,7 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
     is_missing_dir = not cwd.exists()
     is_empty_dir = not is_missing_dir and not any(cwd.iterdir())
 
-    available_commands: list[str] = []
-    for command, desc in COMMAND_DESCRIPTIONS.items():
-        if shutil.which(command) is not None:
-            available_commands.append(f"{command}: {desc}")
+    available_commands = _get_available_commands()
 
     cwd_display = f"{cwd} (not found)" if is_missing_dir else f"{cwd} (empty)" if is_empty_dir else str(cwd)
     git_repo_line = (
@@ -188,12 +214,8 @@ def load_system_prompt(
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)
         if not profile.use_main_prompt:
-            workspace_root = find_git_repo_root(work_dir=effective_work_dir) or effective_work_dir
-            base_prompt = Template(load_prompt_by_path(profile.prompt_file)).safe_substitute(
-                workingDirectory=effective_work_dir,
-                workspaceRoot=workspace_root,
-            )
-            return base_prompt
+            base_prompt = load_prompt_by_path(profile.prompt_file)
+            return base_prompt + build_sub_agent_env_info(effective_work_dir)
 
     # Main agent prompt path (also used by sub-agents with use_main_prompt=True)
     from klaude_code.skill.manager import format_available_skills_for_system_prompt

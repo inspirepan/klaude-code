@@ -70,19 +70,28 @@ def _build_multi_column_tree(
     # 12 = quote prefix (3) + tree guide indent (4) + margin (3) + item indent (2)
     content_width = shutil.get_terminal_size().columns - 12
     all_items = [item for _, items in grouped_items for item in items]
-    name_width = max(len(item) for item in all_items)
+    max_name_width = max(len(item) for item in all_items)
     sep = " | "
-    num_cols = min(4, max(1, (content_width + len(sep)) // (name_width + len(sep))))
+    num_cols = min(4, max(1, (content_width + len(sep)) // (max_name_width + len(sep))))
     for scope, items in grouped_items:
+        # Compute per-column max widths for this group
+        col_widths = [0] * num_cols
+        for i, item in enumerate(items):
+            col_widths[i % num_cols] = max(col_widths[i % num_cols], len(item))
         scope_text = Text()
         scope_text.append(scope, style=ThemeKey.WELCOME_SCOPE)
         for i, item in enumerate(items):
-            if i % num_cols == 0:
+            col = i % num_cols
+            if col == 0:
                 scope_text.append("\n")
                 scope_text.append("  ", style=ThemeKey.WELCOME_INFO)
             else:
                 scope_text.append(sep, style=ThemeKey.LINES)
-            scope_text.append(f"{item:<{name_width}}", style=ThemeKey.WELCOME_INFO)
+            is_last_in_row = (col == num_cols - 1) or (i == len(items) - 1)
+            if is_last_in_row:
+                scope_text.append(item, style=ThemeKey.WELCOME_INFO)
+            else:
+                scope_text.append(f"{item:<{col_widths[col]}}", style=ThemeKey.WELCOME_INFO)
         tree.add(scope_text)
     return tree
 

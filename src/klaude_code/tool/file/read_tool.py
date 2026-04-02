@@ -23,7 +23,7 @@ from klaude_code.llm.image import detect_mime_type_from_bytes
 from klaude_code.protocol import llm_param, message, model, tools
 from klaude_code.protocol.model import ImageUIExtra, ReadPreviewLine, ReadPreviewUIExtra
 from klaude_code.tool.context import FileTracker, ToolContext
-from klaude_code.tool.file._utils import detect_encoding, file_exists, is_blocked_device_path, is_directory
+from klaude_code.tool.file._utils import detect_encoding, file_exists, is_blocked_device_path, is_directory, read_text
 from klaude_code.tool.tool_abc import ToolABC, load_desc
 from klaude_code.tool.tool_registry import register
 
@@ -137,6 +137,7 @@ def _track_file_access(
     file_path: str,
     *,
     content_sha256: str | None = None,
+    cached_content: str | None = None,
     is_memory: bool = False,
     is_skill: bool = False,
     read_complete: bool = False,
@@ -151,6 +152,7 @@ def _track_file_access(
         file_tracker[file_path] = model.FileStatus(
             mtime=Path(file_path).stat().st_mtime,
             content_sha256=content_sha256,
+            cached_content=cached_content,
             is_memory=is_mem,
             is_skill=is_skill_file,
             skill_attachment_source=None,
@@ -432,8 +434,21 @@ class ReadTool(ToolABC):
             )
 
         read_result_str = "\n".join(lines_out)
+        # Cache raw content for external-change diff (only complete, non-truncated reads)
+        cached_content = None
+        if (
+            is_full_read
+            and read_result.remaining_due_to_char_limit == 0
+            and read_result.remaining_selected_beyond_cap == 0
+        ):
+            with contextlib.suppress(OSError):
+                cached_content = read_text(file_path)
         _track_file_access(
-            context.file_tracker, file_path, content_sha256=read_result.content_sha256, read_complete=is_full_read
+            context.file_tracker,
+            file_path,
+            content_sha256=read_result.content_sha256,
+            cached_content=cached_content,
+            read_complete=is_full_read,
         )
 
         # When offset > 1, show a preview of the first 5 lines in UI

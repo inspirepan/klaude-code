@@ -340,6 +340,8 @@ async def file_changed_externally_attachment(
             if not changed:
                 continue
 
+            old_content = status.cached_content  # Grab before ReadTool call overwrites
+
             tool_context = ToolContext(
                 file_tracker=session.file_tracker,
                 todo_context=build_todo_context(session),
@@ -356,22 +358,18 @@ async def file_changed_externally_attachment(
                 continue
 
             images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
-            new_output = tool_result.output_text
 
-            # Try to compute a diff snippet by finding the old ReadTool output in history
-            old_output = _find_last_read_output(session, path)
-            if old_output is not None:
-                snippet = _compute_diff_snippet(old_output, new_output, path)
-                if snippet:
-                    changed_files.append((path, snippet, images or None))
-                    if images:
-                        collected_images.extend(images)
-                    continue
-
-            # Fallback: include full new content
-            changed_files.append((path, new_output, images or None))
-            if images:
-                collected_images.extend(images)
+            # Diff against cached content from last tool interaction
+            if old_content is None:
+                continue
+            new_status = session.file_tracker.get(path)
+            if new_status is None or new_status.cached_content is None:
+                continue
+            snippet = _compute_diff_snippet(old_content, new_status.cached_content, path)
+            if snippet:
+                changed_files.append((path, snippet, images or None))
+                if images:
+                    collected_images.extend(images)
         except (
             FileNotFoundError,
             IsADirectoryError,
@@ -395,28 +393,6 @@ async def file_changed_externally_attachment(
             ),
         )
 
-    return None
-
-
-def _find_last_read_output(session: Session, path: str) -> str | None:
-    """Find the last ReadTool output for a given file path in conversation history.
-
-    Searches backwards through DeveloperMessage (from @file reads) and
-    ToolResultMessage (from explicit ReadTool calls) for output containing
-    this file's path. Both use the same cat-n format, so diff is meaningful.
-    """
-    for item in reversed(session.conversation_history):
-        if isinstance(item, message.ToolResultMessage) and item.tool_name == tools.READ and path in item.output_text:
-            return item.output_text
-        if isinstance(item, message.DeveloperMessage):
-            # @file reads are wrapped in DeveloperMessage with the ReadTool output
-            text = message.join_text_parts(item.parts)
-            if path in text and "Result of calling the Read tool:" in text:
-                # Extract the ReadTool output portion
-                marker = "Result of calling the Read tool:\n"
-                idx = text.find(marker)
-                if idx >= 0:
-                    return text[idx + len(marker) :].split("\n\nCalled the")[0].rstrip()
     return None
 
 

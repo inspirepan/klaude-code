@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from string import Template
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
 from klaude_code.agent.runtime_llm import LLMClients
-from klaude_code.const import find_git_repo_root
 from klaude_code.log import DebugType, log_debug
-from klaude_code.prompts.system_prompt import load_prompt_by_path
+from klaude_code.prompts.system_prompt import build_sub_agent_env_info, load_prompt_by_path
 from klaude_code.protocol import events, message, model
 from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
 from klaude_code.session.session import Session
@@ -135,10 +133,8 @@ class SubAgentExecutor:
             if state.fork_context:
                 profile = get_sub_agent_profile(state.sub_agent_type)
                 if profile.prompt_file:
-                    workspace_root = find_git_repo_root(work_dir=parent_session.work_dir) or parent_session.work_dir
-                    role_prompt = Template(load_prompt_by_path(profile.prompt_file)).safe_substitute(
-                        workingDirectory=parent_session.work_dir,
-                        workspaceRoot=workspace_root,
+                    role_prompt = load_prompt_by_path(profile.prompt_file) + build_sub_agent_env_info(
+                        parent_session.work_dir
                     )
                     context_text = (
                         "You are no longer the main coding agent. "
