@@ -8,16 +8,16 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-import klaude_code.core.tool as core_tool
-from klaude_code.core.agent_profile import load_agent_tools
-from klaude_code.core.tool import ToolABC
-from klaude_code.core.tool.agent_tool import AgentTool
-from klaude_code.core.tool.context import TodoContext, ToolContext
-from klaude_code.core.tool.tool_abc import ToolConcurrencyPolicy, ToolMetadata
-from klaude_code.core.tool.tool_runner import ToolCallRequest, ToolExecutionResult, ToolExecutor
+import klaude_code.tool as core_tool
+from klaude_code.agent.agent_profile import load_agent_tools
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.protocol import llm_param, message, model, tools
 from klaude_code.protocol.sub_agent import SubAgentResult, is_sub_agent_tool
+from klaude_code.tool import ToolABC
+from klaude_code.tool.agent_tool import AgentTool
+from klaude_code.tool.context import TodoContext, ToolContext
+from klaude_code.tool.tool_abc import ToolConcurrencyPolicy, ToolMetadata
+from klaude_code.tool.tool_runner import ToolCallRequest, ToolExecutionResult, ToolExecutor
 
 
 def _tool_context() -> ToolContext:

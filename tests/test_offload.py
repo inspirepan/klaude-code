@@ -7,7 +7,8 @@ from pathlib import Path
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from klaude_code.core.tool.offload import (
+from klaude_code.protocol import message, tools
+from klaude_code.tool.offload import (
     HeadTailOffloadStrategy,
     OffloadPolicy,
     OffloadResult,
@@ -15,7 +16,6 @@ from klaude_code.core.tool.offload import (
     get_strategy,
     offload_tool_output,
 )
-from klaude_code.protocol import message, tools
 
 
 class TestReadToolStrategy:

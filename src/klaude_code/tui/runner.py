@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
+from klaude_code.agent.compaction import should_compact_threshold
 from klaude_code.app.ports import DisplayABC, InputProviderABC, InteractionHandlerABC
 from klaude_code.app.runtime import (
     AppInitConfig,
@@ -18,9 +19,8 @@ from klaude_code.app.runtime import (
     initialize_app_components,
     initialize_session,
 )
+from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.config import load_config
-from klaude_code.core.compaction import should_compact_threshold
-from klaude_code.core.control.runtime_facade import RuntimeFacade
 from klaude_code.log import log
 from klaude_code.protocol import events, llm_param, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload

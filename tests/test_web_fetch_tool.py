@@ -9,14 +9,14 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
 
-from klaude_code.core.tool import WebFetchTool
-from klaude_code.core.tool.context import TodoContext, ToolContext
-from klaude_code.core.tool.web.external_content import (
+from klaude_code.tool import WebFetchTool
+from klaude_code.tool.context import TodoContext, ToolContext
+from klaude_code.tool.web.external_content import (
     _BOUNDARY_END,  # pyright: ignore[reportPrivateUsage]
     _BOUNDARY_START,  # pyright: ignore[reportPrivateUsage]
 )
-from klaude_code.core.tool.web.web_cache import _cache as web_cache  # pyright: ignore[reportPrivateUsage]
-from klaude_code.core.tool.web.web_fetch_tool import (
+from klaude_code.tool.web.web_cache import _cache as web_cache  # pyright: ignore[reportPrivateUsage]
+from klaude_code.tool.web.web_fetch_tool import (
     _READABILITY_MAX_HTML_CHARS,  # pyright: ignore[reportPrivateUsage]
     _RETRY_HTTP_STATUS_CODES,  # pyright: ignore[reportPrivateUsage]
     _convert_html_to_markdown,  # pyright: ignore[reportPrivateUsage]
@@ -236,7 +236,7 @@ class TestWebFetchTool:
     def test_ssrf_blocks_dns_to_private(self) -> None:
         """Domain that resolves to a private IP should be blocked."""
         fake_addrinfo = [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("127.0.0.1", 0))]
-        with patch("klaude_code.core.tool.web.ssrf.socket.getaddrinfo", return_value=fake_addrinfo):
+        with patch("klaude_code.tool.web.ssrf.socket.getaddrinfo", return_value=fake_addrinfo):
             args = WebFetchTool.WebFetchArguments(url="http://evil.example.com/steal").model_dump_json()
             result = asyncio.run(WebFetchTool.call(args, _tool_context()))
             assert result.status == "error"
@@ -250,7 +250,7 @@ class TestWebFetchTool:
         def fake_fetch(*_args: object, **_kwargs: object) -> tuple[str, bytes, str | None]:
             return ("text/plain", b"Hello from the web", "utf-8")
 
-        with patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch):
+        with patch("klaude_code.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch):
             args = WebFetchTool.WebFetchArguments(url="https://example.com/page").model_dump_json()
             result = asyncio.run(WebFetchTool.call(args, _tool_context()))
             assert result.status == "success"
@@ -269,7 +269,7 @@ class TestWebFetchTool:
             call_count += 1
             return ("text/plain", b"cached content", "utf-8")
 
-        with patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch):
+        with patch("klaude_code.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch):
             args = WebFetchTool.WebFetchArguments(url="https://example.com/cached").model_dump_json()
             result1 = asyncio.run(WebFetchTool.call(args, _tool_context()))
             result2 = asyncio.run(WebFetchTool.call(args, _tool_context()))
@@ -329,9 +329,9 @@ class TestFetchUrlRedirectHandling:
 
         with (
             patch(
-                "klaude_code.core.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=mock_opener
+                "klaude_code.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=mock_opener
             ) as patched_build,
-            patch("klaude_code.core.tool.web.web_fetch_tool.check_ssrf", return_value=None),
+            patch("klaude_code.tool.web.web_fetch_tool.check_ssrf", return_value=None),
         ):
             content_type, data, charset = _fetch_url("https://my.feishu.cn/wiki/doc")
 
@@ -355,8 +355,8 @@ class TestFetchUrlRedirectHandling:
                 )
 
         with (
-            patch("klaude_code.core.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=LoopOpener()),
-            patch("klaude_code.core.tool.web.web_fetch_tool.check_ssrf", return_value=None),
+            patch("klaude_code.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=LoopOpener()),
+            patch("klaude_code.tool.web.web_fetch_tool.check_ssrf", return_value=None),
         ):
             try:
                 _fetch_url("https://my.feishu.cn/wiki/doc", max_redirects=2)
@@ -418,8 +418,8 @@ class TestFetchUrlRedirectHandling:
         mock_opener = MockOpener()
 
         with (
-            patch("klaude_code.core.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=mock_opener),
-            patch("klaude_code.core.tool.web.web_fetch_tool.check_ssrf", return_value=None),
+            patch("klaude_code.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=mock_opener),
+            patch("klaude_code.tool.web.web_fetch_tool.check_ssrf", return_value=None),
         ):
             content_type, data, charset = _fetch_url(start_url)
 
@@ -532,8 +532,8 @@ class TestFetchUrlWithRetry:
             return ("text/plain", b"ok", "utf-8")
 
         with (
-            patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch),
-            patch("klaude_code.core.tool.web.web_fetch_tool.time.sleep"),
+            patch("klaude_code.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch),
+            patch("klaude_code.tool.web.web_fetch_tool.time.sleep"),
         ):
             _content_type, data, _charset = _fetch_url_with_retry("https://x.com/")
 
@@ -548,7 +548,7 @@ class TestFetchUrlWithRetry:
             call_count += 1
             raise urllib.error.HTTPError(url="https://x.com/", code=404, msg="Not Found", hdrs={}, fp=None)  # type: ignore[arg-type]
 
-        with patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch):
+        with patch("klaude_code.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch):
             try:
                 _fetch_url_with_retry("https://x.com/")
                 raise AssertionError("Expected HTTPError")
@@ -567,8 +567,8 @@ class TestFetchUrlWithRetry:
             return ("text/plain", b"ok", None)
 
         with (
-            patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch),
-            patch("klaude_code.core.tool.web.web_fetch_tool.time.sleep"),
+            patch("klaude_code.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch),
+            patch("klaude_code.tool.web.web_fetch_tool.time.sleep"),
         ):
             _content_type, data, _charset = _fetch_url_with_retry("https://x.com/")
 
@@ -580,8 +580,8 @@ class TestFetchUrlWithRetry:
             raise urllib.error.HTTPError(url="https://x.com/", code=503, msg="Service Unavailable", hdrs={}, fp=None)  # type: ignore[arg-type]
 
         with (
-            patch("klaude_code.core.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch),
-            patch("klaude_code.core.tool.web.web_fetch_tool.time.sleep"),
+            patch("klaude_code.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch),
+            patch("klaude_code.tool.web.web_fetch_tool.time.sleep"),
         ):
             try:
                 _fetch_url_with_retry("https://x.com/")
@@ -628,8 +628,8 @@ class TestGzipFetchIntegration:
                 return MockResponse()
 
         with (
-            patch("klaude_code.core.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=MockOpener()),
-            patch("klaude_code.core.tool.web.web_fetch_tool.check_ssrf", return_value=None),
+            patch("klaude_code.tool.web.web_fetch_tool.urllib.request.build_opener", return_value=MockOpener()),
+            patch("klaude_code.tool.web.web_fetch_tool.check_ssrf", return_value=None),
         ):
             _content_type, data, charset = _fetch_url("https://example.com/page")
 

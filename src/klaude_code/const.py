@@ -235,6 +235,17 @@ LOG_BACKUP_COUNT = 3  # Number of backup log files to keep
 # =============================================================================
 
 
+def find_git_repo_root(*, work_dir: Path) -> Path | None:
+    """Find nearest git repository root by walking parents and checking for .git."""
+    current = work_dir.resolve()
+    while True:
+        if (current / ".git").exists():
+            return current
+        if current.parent == current:
+            return None
+        current = current.parent
+
+
 def project_key_from_path(path: Path) -> str:
     """Derive the project key from an explicit directory path."""
     return str(path.resolve()).strip("/").replace("/", "-")

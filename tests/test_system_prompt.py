@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from klaude_code.core.prompts.system_prompt import (
+from klaude_code.prompts.system_prompt import (
     _build_env_info,  # pyright: ignore[reportPrivateUsage]
     load_main_base_prompt,
     load_system_prompt,

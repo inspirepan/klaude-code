@@ -603,7 +603,7 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.EDIT: "Editing",
     tools.READ: "Reading",
     tools.WRITE: "Writing",
-    tools.TODO_WRITE: "Planning",
+    tools.TODO_WRITE: "Updating Todos",
     tools.WEB_FETCH: "Fetching Web",
     tools.WEB_SEARCH: "Searching Web",
     tools.AGENT: "Running Task",

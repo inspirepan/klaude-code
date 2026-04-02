@@ -18,8 +18,8 @@ import uvicorn
 import uvicorn.server
 
 from klaude_code.app.runtime import AppInitConfig, cleanup_app_components, initialize_app_components
-from klaude_code.core.control.event_relay import event_relay_socket_path
-from klaude_code.core.control.session_meta_relay import session_meta_relay_socket_path
+from klaude_code.control.event_relay import event_relay_socket_path
+from klaude_code.control.session_meta_relay import session_meta_relay_socket_path
 from klaude_code.log import DebugType, log, log_debug
 from klaude_code.update import INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL, get_installation_info
 from klaude_code.web.app import create_app

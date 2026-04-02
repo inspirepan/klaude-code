@@ -5,8 +5,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request, WebSocket
 
-from klaude_code.core.control.event_bus import EnvelopeBus, EventBus, EventSubscription
-from klaude_code.core.control.runtime_facade import RuntimeFacade
+from klaude_code.app.runtime_facade import RuntimeFacade
+from klaude_code.control.event_bus import EnvelopeBus, EventBus, EventSubscription
 from klaude_code.web.interaction import WebInteractionHandler
 from klaude_code.web.session_live import SessionLiveState
 

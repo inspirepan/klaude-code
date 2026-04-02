@@ -8,14 +8,14 @@ from unittest.mock import patch
 
 import pytest
 
-from klaude_code.core.tool import WebSearchTool
-from klaude_code.core.tool.context import TodoContext, ToolContext
-from klaude_code.core.tool.web.external_content import (
+from klaude_code.tool import WebSearchTool
+from klaude_code.tool.context import TodoContext, ToolContext
+from klaude_code.tool.web.external_content import (
     _BOUNDARY_END,  # pyright: ignore[reportPrivateUsage]
     _BOUNDARY_START,  # pyright: ignore[reportPrivateUsage]
 )
-from klaude_code.core.tool.web.web_cache import _cache as web_cache  # pyright: ignore[reportPrivateUsage]
-from klaude_code.core.tool.web.web_search_tool import SearchResult
+from klaude_code.tool.web.web_cache import _cache as web_cache  # pyright: ignore[reportPrivateUsage]
+from klaude_code.tool.web.web_search_tool import SearchResult
 
 
 def _tool_context() -> ToolContext:
@@ -51,7 +51,7 @@ class TestWebSearchSecurity:
         web_cache.clear()
         with (
             patch.dict(os.environ, {"EXA_API_KEY": "exa-key"}),
-            patch("klaude_code.core.tool.web.web_search_tool._search_exa", side_effect=_fake_exa),
+            patch("klaude_code.tool.web.web_search_tool._search_exa", side_effect=_fake_exa),
         ):
             args = WebSearchTool.WebSearchArguments(query="test query").model_dump_json()
             result = asyncio.run(WebSearchTool.call(args, _tool_context()))
@@ -65,7 +65,7 @@ class TestWebSearchSecurity:
         web_cache.clear()
         with (
             patch.dict(os.environ, {"EXA_API_KEY": "exa-key"}),
-            patch("klaude_code.core.tool.web.web_search_tool._search_exa", side_effect=_fake_exa),
+            patch("klaude_code.tool.web.web_search_tool._search_exa", side_effect=_fake_exa),
         ):
             args = WebSearchTool.WebSearchArguments(query="another query").model_dump_json()
             result = asyncio.run(WebSearchTool.call(args, _tool_context()))
@@ -77,7 +77,7 @@ class TestWebSearchSecurity:
         web_cache.clear()
         with (
             patch.dict(os.environ, {"EXA_API_KEY": "exa-key"}),
-            patch("klaude_code.core.tool.web.web_search_tool._search_exa", side_effect=_fake_exa),
+            patch("klaude_code.tool.web.web_search_tool._search_exa", side_effect=_fake_exa),
         ):
             args = WebSearchTool.WebSearchArguments(query="find results").model_dump_json()
             result = asyncio.run(WebSearchTool.call(args, _tool_context()))
@@ -99,7 +99,7 @@ class TestWebSearchCaching:
 
         with (
             patch.dict(os.environ, {"EXA_API_KEY": "exa-key"}),
-            patch("klaude_code.core.tool.web.web_search_tool._search_exa", side_effect=counting_search),
+            patch("klaude_code.tool.web.web_search_tool._search_exa", side_effect=counting_search),
         ):
             args = WebSearchTool.WebSearchArguments(query="cached search").model_dump_json()
             r1 = asyncio.run(WebSearchTool.call(args, _tool_context()))
@@ -119,7 +119,7 @@ class TestWebSearchCaching:
 
         with (
             patch.dict(os.environ, {"EXA_API_KEY": "exa-key"}),
-            patch("klaude_code.core.tool.web.web_search_tool._search_exa", side_effect=counting_search),
+            patch("klaude_code.tool.web.web_search_tool._search_exa", side_effect=counting_search),
         ):
             args1 = WebSearchTool.WebSearchArguments(query="query one").model_dump_json()
             args2 = WebSearchTool.WebSearchArguments(query="query two").model_dump_json()
@@ -137,7 +137,7 @@ class TestApiKeySelection:
     def test_returns_error_when_both_exa_and_brave_keys_missing(self) -> None:
         web_cache.clear()
 
-        with patch("klaude_code.core.tool.web.web_search_tool.get_auth_env", return_value=""):
+        with patch("klaude_code.tool.web.web_search_tool.get_auth_env", return_value=""):
             args = WebSearchTool.WebSearchArguments(query="missing key").model_dump_json()
             result = asyncio.run(WebSearchTool.call(args, _tool_context()))
 
@@ -156,11 +156,11 @@ class TestApiKeySelection:
 
         with (
             patch(
-                "klaude_code.core.tool.web.web_search_tool.get_auth_env",
+                "klaude_code.tool.web.web_search_tool.get_auth_env",
                 side_effect=_auth_env_side_effect,
             ) as mock_get_auth_env,
             patch(
-                "klaude_code.core.tool.web.web_search_tool._search_exa",
+                "klaude_code.tool.web.web_search_tool._search_exa",
                 side_effect=_fake_exa,
             ) as mock_search_exa,
         ):
@@ -178,10 +178,10 @@ class TestApiKeySelection:
         with (
             patch.dict(os.environ, {"EXA_API_KEY": "exa-env-key"}),
             patch(
-                "klaude_code.core.tool.web.web_search_tool.get_auth_env",
+                "klaude_code.tool.web.web_search_tool.get_auth_env",
             ) as mock_get_auth_env,
             patch(
-                "klaude_code.core.tool.web.web_search_tool._search_exa",
+                "klaude_code.tool.web.web_search_tool._search_exa",
                 side_effect=_fake_exa,
             ) as mock_search_exa,
         ):
@@ -205,15 +205,15 @@ class TestApiKeySelection:
 
         with (
             patch(
-                "klaude_code.core.tool.web.web_search_tool.get_auth_env",
+                "klaude_code.tool.web.web_search_tool.get_auth_env",
                 side_effect=_auth_env_side_effect,
             ) as mock_get_auth_env,
             patch(
-                "klaude_code.core.tool.web.web_search_tool._search_brave",
+                "klaude_code.tool.web.web_search_tool._search_brave",
                 side_effect=_fake_brave,
             ) as mock_search_brave,
             patch(
-                "klaude_code.core.tool.web.web_search_tool._search_exa",
+                "klaude_code.tool.web.web_search_tool._search_exa",
                 side_effect=_fake_exa,
             ) as mock_search_exa,
         ):
@@ -233,15 +233,15 @@ class TestApiKeySelection:
         with (
             patch.dict(os.environ, {"BRAVE_API_KEY": "brave-env-key"}),
             patch(
-                "klaude_code.core.tool.web.web_search_tool.get_auth_env",
+                "klaude_code.tool.web.web_search_tool.get_auth_env",
                 return_value="",
             ) as mock_get_auth_env,
             patch(
-                "klaude_code.core.tool.web.web_search_tool._search_brave",
+                "klaude_code.tool.web.web_search_tool._search_brave",
                 side_effect=_fake_brave,
             ) as mock_search_brave,
             patch(
-                "klaude_code.core.tool.web.web_search_tool._search_exa",
+                "klaude_code.tool.web.web_search_tool._search_exa",
                 side_effect=_fake_exa,
             ) as mock_search_exa,
         ):

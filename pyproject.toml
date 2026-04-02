@@ -102,6 +102,7 @@ include = [
 [tool.importlinter]
 root_packages = ["klaude_code"]
 include_external_packages = false
+exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
 name = "Layered architecture"
@@ -111,7 +112,8 @@ layers = [
     "klaude_code.tui",
     "klaude_code.web",
     "klaude_code.app",
-    "klaude_code.core",
+    "klaude_code.agent",
+    "klaude_code.tool | klaude_code.prompts | klaude_code.control",
     "klaude_code.skill",
     "klaude_code.session",
     "klaude_code.config",
@@ -120,4 +122,8 @@ layers = [
     "klaude_code.auth",
     "klaude_code.log",
     "klaude_code.const",
+]
+ignore_imports = [
+    # prompts lazy-imports skill.manager for system prompt assembly
+    "klaude_code.prompts.* -> klaude_code.skill.*",
 ]

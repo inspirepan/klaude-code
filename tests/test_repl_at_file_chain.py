@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from prompt_toolkit.document import Document
 
-from klaude_code.core.agent.attachments import at_file_reader_attachment
+from klaude_code.agent.attachments import at_file_reader_attachment
 from klaude_code.protocol import events, message, model
 from klaude_code.session.session import Session
 from klaude_code.tui.components.developer import render_developer_message

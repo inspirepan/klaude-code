@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from klaude_code.core.rewind import RewindManager
-from klaude_code.core.tool.context import TodoContext, ToolContext
-from klaude_code.core.tool.rewind_tool import RewindTool
+from klaude_code.agent.rewind import RewindManager
 from klaude_code.protocol import message
 from klaude_code.session.session import Session, close_default_store
+from klaude_code.tool.context import TodoContext, ToolContext
+from klaude_code.tool.rewind_tool import RewindTool
 
 
 def arun(coro: object) -> object:

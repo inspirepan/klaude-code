@@ -17,17 +17,17 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
     os.sys.path.insert(0, str(SRC_DIR))  # type: ignore
 
-from klaude_code.core.agent.attachments import at_file_reader_attachment  # noqa: E402
-from klaude_code.core.tool import (  # noqa: E402
+from klaude_code.agent.attachments import at_file_reader_attachment  # noqa: E402
+from klaude_code.protocol import message, model  # noqa: E402
+from klaude_code.session.session import Session  # noqa: E402
+from klaude_code.tool import (  # noqa: E402
     BashTool,
     EditTool,
     ReadTool,
     WriteTool,
     build_todo_context,
 )
-from klaude_code.core.tool.context import ToolContext  # noqa: E402
-from klaude_code.protocol import message, model  # noqa: E402
-from klaude_code.session.session import Session  # noqa: E402
+from klaude_code.tool.context import ToolContext  # noqa: E402
 
 _TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
 
@@ -840,7 +840,7 @@ def edit_scenarios_with_match(draw: st.DrawFn) -> tuple[str, str, str]:
 @settings(max_examples=100, deadline=None)
 def test_edit_tool_valid_detects_same_strings(scenario: tuple[str, str, str, bool]) -> None:
     """Property: valid() returns error when old_string == new_string."""
-    from klaude_code.core.tool.file.edit_tool import EditTool
+    from klaude_code.tool.file.edit_tool import EditTool
 
     content, old_string, new_string, replace_all = scenario
 
@@ -855,7 +855,7 @@ def test_edit_tool_valid_detects_same_strings(scenario: tuple[str, str, str, boo
 @settings(max_examples=100, deadline=None)
 def test_edit_tool_valid_detects_missing_string(scenario: tuple[str, str, str, bool]) -> None:
     """Property: valid() returns error when old_string not in content."""
-    from klaude_code.core.tool.file.edit_tool import EditTool
+    from klaude_code.tool.file.edit_tool import EditTool
 
     content, old_string, new_string, replace_all = scenario
     assume(old_string != new_string)
@@ -871,7 +871,7 @@ def test_edit_tool_valid_detects_missing_string(scenario: tuple[str, str, str, b
 @settings(max_examples=100, deadline=None)
 def test_edit_tool_execute_replace_all_removes_all(scenario: tuple[str, str, str]) -> None:
     """Property: execute with replace_all=True removes all occurrences."""
-    from klaude_code.core.tool.file.edit_tool import EditTool
+    from klaude_code.tool.file.edit_tool import EditTool
 
     content, old_string, new_string = scenario
 
@@ -884,7 +884,7 @@ def test_edit_tool_execute_replace_all_removes_all(scenario: tuple[str, str, str
 @settings(max_examples=100, deadline=None)
 def test_edit_tool_execute_single_replace_count(scenario: tuple[str, str, str]) -> None:
     """Property: execute with replace_all=False replaces exactly one occurrence."""
-    from klaude_code.core.tool.file.edit_tool import EditTool
+    from klaude_code.tool.file.edit_tool import EditTool
 
     content, old_string, new_string = scenario
 

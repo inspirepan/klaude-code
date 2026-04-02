@@ -13,9 +13,9 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from klaude_code.core.tool import ApplyPatchTool  # noqa: E402
-from klaude_code.core.tool.context import TodoContext, ToolContext  # noqa: E402
 from klaude_code.protocol import model  # noqa: E402
+from klaude_code.tool import ApplyPatchTool  # noqa: E402
+from klaude_code.tool.context import TodoContext, ToolContext  # noqa: E402
 
 
 def arun(coro: Any) -> Any:

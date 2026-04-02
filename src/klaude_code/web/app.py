@@ -11,9 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from klaude_code.core.control.event_bus import EnvelopeBus, EventBus
-from klaude_code.core.control.runtime_facade import RuntimeFacade
-from klaude_code.core.control.session_meta_relay import (
+from klaude_code.app.runtime_facade import RuntimeFacade
+from klaude_code.control.event_bus import EnvelopeBus, EventBus
+from klaude_code.control.session_meta_relay import (
     SessionMetaRelayMessage,
     SessionMetaRelayServer,
     session_meta_relay_socket_path,

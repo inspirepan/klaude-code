@@ -1,4 +1,4 @@
-from klaude_code.core.loaded_skills import (
+from klaude_code.agent.loaded_skills import (
     get_loaded_skill_names_by_location,
     get_loaded_skill_warnings_by_location,
 )

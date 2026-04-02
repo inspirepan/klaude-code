@@ -126,20 +126,20 @@ def _build_metadata_content(
 
         parts.append(
             Text.assemble(
-                ("in ", ThemeKey.METADATA),
-                (format_number(input_tokens), ThemeKey.METADATA),
+                ("in ", ThemeKey.METADATA_DIM),
+                (format_number(input_tokens), ThemeKey.METADATA_DIM),
             )
         )
         if metadata.usage.cached_tokens > 0:
             cache_text = Text.assemble(
-                ("cache ", ThemeKey.METADATA),
-                (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA),
+                ("cache ", ThemeKey.METADATA_DIM),
+                (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA_DIM),
             )
             if metadata.usage.cache_hit_rate is not None:
                 if metadata.usage.cache_hit_rate >= 0.995:
                     rate_style = ThemeKey.METADATA_GREEN
                 elif metadata.usage.cache_hit_rate >= LOW_CACHE_HIT_RATE_THRESHOLD:
-                    rate_style = ThemeKey.METADATA
+                    rate_style = ThemeKey.METADATA_DIM
                 else:
                     rate_style = ThemeKey.WARN
                 cache_text.append(f" ({metadata.usage.cache_hit_rate:.0%})", style=rate_style)
@@ -147,21 +147,21 @@ def _build_metadata_content(
         if metadata.usage.cache_write_tokens > 0:
             parts.append(
                 Text.assemble(
-                    ("cache write ", ThemeKey.METADATA),
-                    (format_number(metadata.usage.cache_write_tokens), ThemeKey.METADATA),
+                    ("cache write ", ThemeKey.METADATA_DIM),
+                    (format_number(metadata.usage.cache_write_tokens), ThemeKey.METADATA_DIM),
                 )
             )
         parts.append(
             Text.assemble(
-                ("out ", ThemeKey.METADATA),
-                (format_number(output_tokens), ThemeKey.METADATA),
+                ("out ", ThemeKey.METADATA_DIM),
+                (format_number(output_tokens), ThemeKey.METADATA_DIM),
             )
         )
         if metadata.usage.reasoning_tokens > 0:
             parts.append(
                 Text.assemble(
-                    ("thought ", ThemeKey.METADATA),
-                    (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA),
+                    ("thought ", ThemeKey.METADATA_DIM),
+                    (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA_DIM),
                 )
             )
 
@@ -181,20 +181,20 @@ def _build_metadata_content(
         if metadata.usage.total_cost is not None:
             parts.append(
                 Text.assemble(
-                    ("cost ", ThemeKey.METADATA),
-                    (currency_symbol, ThemeKey.METADATA),
-                    (f"{metadata.usage.total_cost:.4f}", ThemeKey.METADATA),
+                    ("cost ", ThemeKey.METADATA_DIM),
+                    (currency_symbol, ThemeKey.METADATA_DIM),
+                    (f"{metadata.usage.total_cost:.4f}", ThemeKey.METADATA_DIM),
                 )
             )
 
     if show_duration and show_context_and_time and metadata.task_duration_s is not None:
-        parts.append(Text(format_elapsed_compact(metadata.task_duration_s), style=ThemeKey.METADATA))
+        parts.append(Text(format_elapsed_compact(metadata.task_duration_s), style=ThemeKey.METADATA_DIM))
 
     if metadata.usage is not None and metadata.usage.throughput_tps is not None:
         parts.append(
             Text.assemble(
-                (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA),
-                (" tok/s", ThemeKey.METADATA),
+                (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA_DIM),
+                (" tok/s", ThemeKey.METADATA_DIM),
             )
         )
 
@@ -202,8 +202,8 @@ def _build_metadata_content(
         suffix = " step" if metadata.turn_count == 1 else " steps"
         parts.append(
             Text.assemble(
-                (str(metadata.turn_count), ThemeKey.METADATA),
-                (suffix, ThemeKey.METADATA),
+                (str(metadata.turn_count), ThemeKey.METADATA_DIM),
+                (suffix, ThemeKey.METADATA_DIM),
             )
         )
 
@@ -280,9 +280,9 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
         currency_symbol = "¥" if currency == "CNY" else "$"
         tree.add(
             Text.assemble(
-                ("total cost ", ThemeKey.METADATA),
-                (currency_symbol, ThemeKey.METADATA),
-                (f"{total_cost:.4f}", ThemeKey.METADATA),
+                ("total cost ", ThemeKey.METADATA_DIM),
+                (currency_symbol, ThemeKey.METADATA_DIM),
+                (f"{total_cost:.4f}", ThemeKey.METADATA_DIM),
             )
         )
         renderables.append(tree)

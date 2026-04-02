@@ -5,8 +5,8 @@ import contextlib
 from collections.abc import Coroutine
 from typing import Any, TypeVar
 
-from klaude_code.core.control.session_registry import SessionRegistry
-from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
+from klaude_code.control.session_registry import SessionRegistry
+from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.llm_param import Thinking
 from klaude_code.protocol.message import UserInputPayload

@@ -8,10 +8,10 @@ from typing import Any
 
 import pytest
 
-from klaude_code.core.tool.agent_tool import AgentTool
-from klaude_code.core.tool.context import RunSubtask, TodoContext, ToolContext
 from klaude_code.protocol import tools
 from klaude_code.protocol.sub_agent import SubAgentProfile
+from klaude_code.tool.agent_tool import AgentTool
+from klaude_code.tool.context import RunSubtask, TodoContext, ToolContext
 
 
 def arun(coro: Any) -> Any:

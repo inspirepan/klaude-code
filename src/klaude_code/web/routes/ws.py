@@ -13,7 +13,7 @@ import anyio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, ValidationError
 
-from klaude_code.core.control.user_interaction import PendingUserInteractionRequest
+from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, llm_param, message, model, op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from klaude_code.core.tool.context import TodoContext, ToolContext
 from klaude_code.protocol import user_interaction
+from klaude_code.tool.context import TodoContext, ToolContext
 
 
 def test_tool_context_can_attach_user_interaction_callback() -> None:

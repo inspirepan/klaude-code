@@ -5,8 +5,8 @@ import contextlib
 from dataclasses import dataclass
 from pathlib import Path
 
-from klaude_code.core.control.event_bus import EnvelopeBus, EventBus
-from klaude_code.core.control.event_relay import EventRelayServer, event_relay_socket_path
+from klaude_code.control.event_bus import EnvelopeBus, EventBus
+from klaude_code.control.event_relay import EventRelayServer, event_relay_socket_path
 from klaude_code.log import DebugType, log_debug
 
 
