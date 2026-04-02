@@ -103,7 +103,7 @@ def fmt_post_todo_complete() -> str:
     return (
         "All your tasks are now complete. Before reporting back to the user, consider:\n"
         "- After completing complex or large-scale changes (touching 3+ files with non-trivial logic), "
-        "launch an `Agent` with `type=\"review\"` to review your work before reporting back to the user. "
+        'launch an `Agent` with `type="review"` to review your work before reporting back to the user. '
         "Do NOT launch review for small, straightforward edits like config tweaks, single-file fixes, "
         "renames, or simple bug fixes.\n"
         "- After sessions with significant learnings (new commands, gotchas, architecture insights), "

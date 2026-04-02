@@ -372,7 +372,9 @@ def discover_skills_near_paths(paths: Iterable[str], *, work_dir: Path) -> list[
                 break
 
             for project_dir in SkillLoader.PROJECT_SKILLS_DIRS:
-                skill_dir = (current_dir / project_dir).resolve() if not project_dir.is_absolute() else project_dir.resolve()
+                skill_dir = (
+                    (current_dir / project_dir).resolve() if not project_dir.is_absolute() else project_dir.resolve()
+                )
                 if skill_dir.exists() and skill_dir.is_dir():
                     existing_depth = candidate_dirs.get(skill_dir)
                     if existing_depth is None or depth > existing_depth:

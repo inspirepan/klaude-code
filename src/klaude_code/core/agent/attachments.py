@@ -383,8 +383,7 @@ async def file_changed_externally_attachment(
 
     if len(changed_files) > 0:
         changed_files_str = "\n\n".join(
-            fmt_file_changed_externally(file_path, file_content)
-            for file_path, file_content, _ in changed_files
+            fmt_file_changed_externally(file_path, file_content) for file_path, file_content, _ in changed_files
         )
         return message.DeveloperMessage(
             parts=message.parts_from_text_and_images(
@@ -640,7 +639,9 @@ def _collect_dynamic_skills(session: Session, skills: list[Skill]) -> list[Skill
     return activated_skills
 
 
-def _build_skill_attachment(session: Session, skills: list[Skill], *, explicit: bool) -> message.DeveloperMessage | None:
+def _build_skill_attachment(
+    session: Session, skills: list[Skill], *, explicit: bool
+) -> message.DeveloperMessage | None:
     skill_blocks, activated_skills = _collect_skill_blocks(session, skills, explicit=explicit)
 
     if not skill_blocks:

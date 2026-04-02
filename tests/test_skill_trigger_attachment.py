@@ -324,7 +324,9 @@ def test_at_dir_skill_anchor_survives_attachment_reset(tmp_path: Path) -> None:
     )
 
     session = Session(work_dir=work_dir)
-    session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{target_dir.resolve()}")))
+    session.conversation_history.append(
+        message.UserMessage(parts=message.text_parts_from_str(f"@{target_dir.resolve()}"))
+    )
 
     first_attachment = _arun(attachments.at_file_reader_attachment(session))
     assert first_attachment is not None

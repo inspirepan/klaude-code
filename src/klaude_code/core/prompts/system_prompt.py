@@ -89,10 +89,12 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
         strategy_lines.append(READ_BEFORE_EDIT_INST)
 
     if tools.AGENT in tool_name_set:
-        strategy_lines.extend([
-            AGENT_FINDER_INST,
-            AGENT_FINDER_PARALLEL_INST,
-        ])
+        strategy_lines.extend(
+            [
+                AGENT_FINDER_INST,
+                AGENT_FINDER_PARALLEL_INST,
+            ]
+        )
 
     if tools.TODO_WRITE in tool_name_set:
         strategy_lines.extend([TODO_FREQUENT_USAGE_INST, TODO_COMPLETE_IMMEDIATELY_INST])

@@ -657,9 +657,7 @@ class TaskExecutor:
 def _reset_attachment_loaded_flags(file_tracker: dict[str, model.FileStatus]) -> None:
     """Remove attachment-only entries so memory and dynamic skills can re-inject after compaction."""
     transient_paths = [
-        path
-        for path, status in file_tracker.items()
-        if status.is_memory or status.skill_attachment_source == "dynamic"
+        path for path, status in file_tracker.items() if status.is_memory or status.skill_attachment_source == "dynamic"
     ]
     for path in transient_paths:
         del file_tracker[path]

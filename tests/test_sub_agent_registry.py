@@ -158,7 +158,7 @@ def test_agent_tool_concurrent_sub_agents_share_responses_client_safely() -> Non
         stream_two = _BlockingFakeStream("resp_2", "subagent two", started_two, release)
         streams = iter([stream_one, stream_two])
 
-        mock_call = AsyncMock(side_effect=lambda param: next(streams))
+        mock_call = AsyncMock(side_effect=lambda param: next(streams))  # pyright: ignore[reportUnknownLambdaType]
 
         async def _run_subtask(
             state: Any,
