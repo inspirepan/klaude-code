@@ -83,10 +83,7 @@ class FakeLLMClient(LLMClientABC):
         if not self._responses:
             raise RuntimeError("FakeLLMClient has no queued response")
         entry = self._responses.pop(0)
-        if callable(entry):
-            items = entry(param)
-        else:
-            items = entry
+        items = entry(param) if callable(entry) else entry
         return ScriptedLLMStream(items)
 
 

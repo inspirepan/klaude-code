@@ -10,7 +10,6 @@ import pytest
 from klaude_code.protocol import events, llm_param, message, model
 from klaude_code.tool.context import ToolContext
 from klaude_code.tool.tool_abc import ToolABC
-
 from tests.agent_harness import create_harness
 
 
