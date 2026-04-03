@@ -9,7 +9,7 @@ The `protocol` layer cannot import from `config`, `agent`, `tool`, `prompts`, or
 ## Core Files
 
 - `__init__.py` - `SubAgentProfile` dataclass and registration.
-- `general_purpose.py`, `finder.py`, `review.py`, `memory.py`, `simplifier.py` - Individual sub-agent type definitions.
+- `general_purpose.py`, `finder.py`, `review.py`, `simplifier.py` - Individual sub-agent type definitions.
 
 ## Model Selection
 
