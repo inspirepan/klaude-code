@@ -876,6 +876,8 @@ async def todo_attachment(session: Session) -> message.DeveloperMessage | None:
         parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
         ui_extra=model.DeveloperUIExtra(items=[reason]),
     )
+
+
 type Attachment = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
 
 # Attachments that mutate file_tracker or depend on another attachment's side effects
