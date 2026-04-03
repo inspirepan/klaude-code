@@ -26,7 +26,7 @@ REVIEW_SUMMARY = (
 
 register_sub_agent(
     SubAgentProfile(
-        name="review",
+        name="code-reviewer",
         prompt_file="prompts/prompt-sub-agent-review.md",
         tool_set=(tools.BASH, tools.READ),
         invoker_summary=REVIEW_SUMMARY,

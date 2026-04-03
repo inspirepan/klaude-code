@@ -493,7 +493,7 @@ sub_agent_models:
   - gpt-5.4-mini
   - gemini-flash:minimal
   - haiku
-  review:
+  code-reviewer:
   - gpt-5.4
   - opus
 
