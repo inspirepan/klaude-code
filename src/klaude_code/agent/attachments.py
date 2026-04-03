@@ -1,7 +1,6 @@
 import asyncio
 import difflib
 import hashlib
-import json
 import logging
 import re
 import shlex
@@ -15,8 +14,6 @@ from klaude_code.agent.attachment_prompts import (
     fmt_file_already_in_context,
     fmt_file_changed_externally,
     fmt_memory_truncated,
-    fmt_post_todo_complete,
-    fmt_review_followup,
     fmt_skill_block,
     fmt_todo_items,
     fmt_todo_nudge,
@@ -879,57 +876,6 @@ async def todo_attachment(session: Session) -> message.DeveloperMessage | None:
         parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
         ui_extra=model.DeveloperUIExtra(items=[reason]),
     )
-
-
-def _last_turn_completed_all_todos(session: Session) -> bool:
-    """Check if the most recent turn was a TodoWrite that marked all todos completed."""
-    if not session.todos or not all(t.status == "completed" for t in session.todos):
-        return False
-    for item in reversed(session.conversation_history):
-        if isinstance(item, message.ToolResultMessage):
-            return item.tool_name == tools.TODO_WRITE
-        if isinstance(item, message.AssistantMessage | message.UserMessage):
-            return False
-    return False
-
-
-async def post_todo_complete_attachment(session: Session) -> message.DeveloperMessage | None:
-    """Inject review/memory guidance when all todos were just completed."""
-    if not _last_turn_completed_all_todos(session):
-        return None
-    content = fmt_post_todo_complete()
-    return message.DeveloperMessage(
-        parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
-    )
-
-
-def _has_review_agent_call(session: Session) -> bool:
-    """Check if a review sub-agent has been invoked in the conversation history."""
-    for item in session.conversation_history:
-        if not isinstance(item, message.AssistantMessage):
-            continue
-        for part in item.parts:
-            if not isinstance(part, message.ToolCallPart) or part.tool_name != tools.AGENT:
-                continue
-            try:
-                args = json.loads(part.arguments_json)
-            except (json.JSONDecodeError, TypeError):
-                continue
-            if args.get("type") == "review":
-                return True
-    return False
-
-
-async def review_followup_attachment(session: Session) -> message.DeveloperMessage | None:
-    """Inject review follow-up guidance after the agent has used a review sub-agent."""
-    if not _has_review_agent_call(session):
-        return None
-    content = fmt_review_followup()
-    return message.DeveloperMessage(
-        parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
-    )
-
-
 type Attachment = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
 
 # Attachments that mutate file_tracker or depend on another attachment's side effects
