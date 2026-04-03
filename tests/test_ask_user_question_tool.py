@@ -65,6 +65,7 @@ def test_ask_user_question_success_response() -> None:
         assert source == "tool"
         assert payload.kind == "ask_user_question"
         assert payload.questions[0].options[0].id == "q1_o1"
+        assert payload.questions[0].options[0].markdown is None
         return user_interaction.UserInteractionResponse(
             status="submitted",
             payload=user_interaction.AskUserQuestionResponsePayload(
@@ -98,7 +99,65 @@ def test_ask_user_question_success_response() -> None:
     assert result.continue_agent is True
     assert result.output_text == "Question: What should we do?\nAnswer:\n- A: Option A\n- Other: custom"
     assert isinstance(result.ui_extra, model.AskUserQuestionSummaryUIExtra)
-    assert result.ui_extra.items[0].summary == "• A: Option A\n• Other: custom"
+    assert result.ui_extra.items[0].summary == "A: Option A\nOther: custom"
+    assert result.ui_extra.items[0].answered is True
+
+
+def test_ask_user_question_single_select_annotation_is_included_for_model_only() -> None:
+    async def _callback(
+        _request_id: str,
+        _source: user_interaction.UserInteractionSource,
+        payload: user_interaction.UserInteractionRequestPayload,
+        _tool_call_id: str | None,
+    ) -> user_interaction.UserInteractionResponse:
+        assert payload.kind == "ask_user_question"
+        assert payload.questions[0].options[0].markdown == "# Design A\n\nFast path"
+        return user_interaction.UserInteractionResponse(
+            status="submitted",
+            payload=user_interaction.AskUserQuestionResponsePayload(
+                answers=[
+                    user_interaction.AskUserQuestionAnswer(
+                        question_id="q1",
+                        selected_option_ids=["q1_o1"],
+                        annotation=user_interaction.AskUserQuestionAnswer.Annotation(
+                            markdown="# Design A\n\nFast path",
+                            notes="Prefer the simpler rollout.",
+                        ),
+                    )
+                ]
+            ),
+        )
+
+    arguments = {
+        "questions": [
+            {
+                "question": "Which design should we ship?",
+                "header": "Design",
+                "options": [
+                    {
+                        "label": "A",
+                        "description": "Option A",
+                        "markdown": "# Design A\n\nFast path",
+                    },
+                    {"label": "B", "description": "Option B"},
+                ],
+                "multiSelect": False,
+            }
+        ]
+    }
+
+    result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context(_callback)))
+    assert result.status == "success"
+    assert result.output_text == (
+        "Question: Which design should we ship?\n"
+        "Answer: A: Option A\n"
+        "Selected markdown:\n"
+        "# Design A\n\n"
+        "Fast path\n"
+        "User notes: Prefer the simpler rollout."
+    )
+    assert isinstance(result.ui_extra, model.AskUserQuestionSummaryUIExtra)
+    assert result.ui_extra.items[0].summary == "A: Option A"
     assert result.ui_extra.items[0].answered is True
 
 

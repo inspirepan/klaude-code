@@ -17,6 +17,7 @@ class AskUserQuestionOption(BaseModel):
     id: str
     label: str
     description: str
+    markdown: str | None = None
 
 
 class AskUserQuestionQuestion(BaseModel):
@@ -51,10 +52,15 @@ type UserInteractionRequestPayload = AskUserQuestionRequestPayload | OperationSe
 
 
 class AskUserQuestionAnswer(BaseModel):
+    class Annotation(BaseModel):
+        markdown: str | None = None
+        notes: str | None = None
+
     question_id: str
     selected_option_ids: list[str]
     other_text: str | None = None
     note: str | None = None
+    annotation: Annotation | None = None
 
 
 class AskUserQuestionResponsePayload(BaseModel):

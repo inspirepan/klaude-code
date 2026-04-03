@@ -17,6 +17,7 @@ class AskUserQuestionOptionInput(BaseModel):
 
     label: str
     description: str
+    markdown: str | None = None
 
 
 class AskUserQuestionQuestionInput(BaseModel):
@@ -101,6 +102,14 @@ class AskUserQuestionTool(ToolABC):
                                                 ),
                                                 "type": "string",
                                             },
+                                            "markdown": {
+                                                "description": (
+                                                    "Optional markdown preview shown when this option is focused. "
+                                                    "Use for mockups, code snippets, or structured comparisons "
+                                                    "that help the user decide between single-select options."
+                                                ),
+                                                "type": "string",
+                                            },
                                         },
                                         "required": ["label", "description"],
                                         "additionalProperties": False,
@@ -148,6 +157,7 @@ class AskUserQuestionTool(ToolABC):
                         id=f"q{q_idx}_o{o_idx}",
                         label=option.label,
                         description=option.description,
+                        markdown=option.markdown,
                     )
                 )
             interaction_questions.append(
@@ -244,6 +254,7 @@ class AskUserQuestionTool(ToolABC):
 
             option_by_id = {option.id: option for option in question.options}
             selected_lines: list[str] = []
+            annotation_lines: list[str] = []
             for option_id in answer.selected_option_ids:
                 if option_id == "__other__":
                     other_value = (answer.other_text or answer.note or "").strip()
@@ -258,6 +269,15 @@ class AskUserQuestionTool(ToolABC):
                     continue
                 selected_lines.append(f"{option.label}: {option.description}".strip())
 
+            annotation = answer.annotation
+            if annotation is not None:
+                markdown = (annotation.markdown or "").strip()
+                notes = (annotation.notes or "").strip()
+                if markdown:
+                    annotation_lines.append(f"Selected markdown:\n{markdown}")
+                if notes:
+                    annotation_lines.append(f"User notes: {notes}")
+
             if not selected_lines:
                 free_text = (answer.note or "").strip()
                 if free_text:
@@ -266,11 +286,14 @@ class AskUserQuestionTool(ToolABC):
             if question.multi_select:
                 if selected_lines:
                     bullet_lines = "\n".join(f"- {line}" for line in selected_lines)
-                    blocks.append(f"Question: {question.question}\nAnswer:\n{bullet_lines}")
+                    block = f"Question: {question.question}\nAnswer:\n{bullet_lines}"
+                    if annotation_lines:
+                        block += "\n" + "\n".join(annotation_lines)
+                    blocks.append(block)
                     summary_items.append(
                         model.AskUserQuestionSummaryItem(
                             question=question.question,
-                            summary="\n".join(f"• {line}" for line in selected_lines),
+                            summary="\n".join(selected_lines),
                             answered=True,
                         )
                     )
@@ -286,7 +309,10 @@ class AskUserQuestionTool(ToolABC):
                 continue
 
             single_line = selected_lines[0] if selected_lines else no_answer_summary
-            blocks.append(f"Question: {question.question}\nAnswer: {single_line}")
+            block = f"Question: {question.question}\nAnswer: {single_line}"
+            if annotation_lines:
+                block += "\n" + "\n".join(annotation_lines)
+            blocks.append(block)
             summary_items.append(
                 model.AskUserQuestionSummaryItem(
                     question=question.question,

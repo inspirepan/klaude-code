@@ -423,13 +423,15 @@ def render_ask_user_question_summary(ui_extra: model.AskUserQuestionSummaryUIExt
             ),
         )
         summary_style = ThemeKey.TOOL_PARAM if item.answered else ThemeKey.WARN
-        answer_text = Text()
-        answer_text.append(Text("→ ", style=ThemeKey.TOOL_RESULT_TRUNCATED, overflow="fold"))
-        answer_text.append(item.summary.expandtabs(TAB_EXPAND_WIDTH), style=summary_style)
-        grid.add_row(
-            Text(""),
-            answer_text,
-        )
+        summary_lines = item.summary.split("\n")
+        for line in summary_lines:
+            answer_text = Text()
+            answer_text.append(Text("→ ", style=ThemeKey.TOOL_RESULT_TRUNCATED, overflow="fold"))
+            answer_text.append(line.expandtabs(TAB_EXPAND_WIDTH), style=summary_style)
+            grid.add_row(
+                Text(""),
+                answer_text,
+            )
 
     return grid
 
