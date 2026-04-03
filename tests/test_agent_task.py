@@ -180,7 +180,11 @@ def test_tool_call_then_followup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 
         # Check history: user, assistant(tool_call), tool_result, assistant(text)
         history = harness.get_history_messages()
-        msg_types = [type(h).__name__ for h in history if isinstance(h, (message.UserMessage, message.AssistantMessage, message.ToolResultMessage))]
+        msg_types = [
+            type(h).__name__
+            for h in history
+            if isinstance(h, (message.UserMessage, message.AssistantMessage, message.ToolResultMessage))
+        ]
         assert msg_types == ["UserMessage", "AssistantMessage", "ToolResultMessage", "AssistantMessage"]
 
         # Tool was executed
@@ -214,10 +218,12 @@ def test_multiple_tool_calls_in_one_response(tmp_path: Path, monkeypatch: pytest
 
         # Turn 1: two tool calls
         harness.fake_llm.enqueue(
-            _tool_call_assistant_message([
-                ("echo", "call_1", '{"text":"foo"}'),
-                ("upper", "call_2", '{"text":"bar"}'),
-            ]),
+            _tool_call_assistant_message(
+                [
+                    ("echo", "call_1", '{"text":"foo"}'),
+                    ("upper", "call_2", '{"text":"bar"}'),
+                ]
+            ),
         )
         # Turn 2: text response
         harness.fake_llm.enqueue(

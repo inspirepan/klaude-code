@@ -62,7 +62,9 @@ class FakeLLMClient(LLMClientABC):
                 model_id="fake-model",
             )
         )
-        self._responses: list[list[message.LLMStreamItem] | Callable[[llm_param.LLMCallParameter], list[message.LLMStreamItem]]] = []
+        self._responses: list[
+            list[message.LLMStreamItem] | Callable[[llm_param.LLMCallParameter], list[message.LLMStreamItem]]
+        ] = []
 
     @classmethod
     def create(cls, config: llm_param.LLMConfigParameter) -> LLMClientABC:
@@ -100,9 +102,11 @@ class Harness:
     async def run_task(self, text: str = "hello") -> list[events.Event]:
         """Run a full task and collect all events."""
         # Append user message to session history before running
-        self.session.append_history([
-            message.UserMessage(parts=message.text_parts_from_str(text)),
-        ])
+        self.session.append_history(
+            [
+                message.UserMessage(parts=message.text_parts_from_str(text)),
+            ]
+        )
 
         tool_schemas = [tool_cls.schema() for tool_cls in self.tool_registry.values()]
         profile = AgentProfile(
