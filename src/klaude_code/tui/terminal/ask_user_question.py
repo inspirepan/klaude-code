@@ -136,8 +136,10 @@ def _normalize_question_result[T](
 
 
 def _question_has_markdown_preview[T](question: QuestionPrompt[T]) -> bool:
-    return question.input_mode == "notes" and not question.multi_select and any(
-        (item.markdown or "").strip() for item in question.items
+    return (
+        question.input_mode == "notes"
+        and not question.multi_select
+        and any((item.markdown or "").strip() for item in question.items)
     )
 
 
@@ -480,7 +482,11 @@ def select_questions[T](
             tokens.append((submit_style, " ✔ Submit "))
             tokens.append(("class:meta", " → · Enter to confirm"))
         else:
-            hint = "Enter to confirm · n for notes" if _question_has_markdown_preview(_current_question()) else "Enter to confirm"
+            hint = (
+                "Enter to confirm · n for notes"
+                if _question_has_markdown_preview(_current_question())
+                else "Enter to confirm"
+            )
             tokens.append(("class:meta", hint))
         return tokens
 
@@ -732,7 +738,9 @@ def select_questions[T](
         "n",
         eager=True,
         filter=Condition(
-            lambda: (not _is_submit_tab()) and _current_question().input_mode == "notes" and not _is_notes_input_active()
+            lambda: (not _is_submit_tab())
+            and _current_question().input_mode == "notes"
+            and not _is_notes_input_active()
         ),
     )
     def _(event: KeyPressEvent) -> None:
