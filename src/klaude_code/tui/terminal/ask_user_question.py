@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import sys
+from functools import lru_cache
+from io import StringIO
 from typing import Any
 
 from prompt_toolkit.application import Application
@@ -12,11 +14,13 @@ from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent, merge_key_bin
 from prompt_toolkit.key_binding.defaults import load_key_bindings
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import ConditionalContainer, Float, FloatContainer, HSplit, Layout, VSplit, Window
-from prompt_toolkit.layout.containers import Container, ScrollOffsets
+from prompt_toolkit.layout.containers import Container, DynamicContainer, ScrollOffsets
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.styles import Style, merge_styles
 from prompt_toolkit.styles.base import BaseStyle
+from rich.console import Console
 
+from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.terminal.selector import (
     QuestionPrompt,
     QuestionSelectResult,
@@ -107,7 +111,7 @@ def _normalize_question_selection[T](
     input_text: str,
 ) -> list[T]:
     """Normalize selection state when the free-text Other row is used."""
-    if question.other_value is None or not input_text.strip():
+    if question.input_mode != "other" or question.other_value is None or not input_text.strip():
         return selected_values
 
     if question.multi_select:
@@ -122,10 +126,56 @@ def _normalize_question_result[T](
     question: QuestionPrompt[T],
     result: QuestionSelectResult[T],
 ) -> QuestionSelectResult[T]:
+    input_text = result.input_text.strip() if question.input_mode == "other" else ""
+    annotation_notes = result.annotation_notes.strip() if question.input_mode == "notes" else ""
     return QuestionSelectResult(
-        selected_values=_normalize_question_selection(question, list(result.selected_values), result.input_text),
-        input_text=result.input_text.strip(),
+        selected_values=_normalize_question_selection(question, list(result.selected_values), input_text),
+        input_text=input_text,
+        annotation_notes=annotation_notes,
     )
+
+
+def _question_has_markdown_preview[T](question: QuestionPrompt[T]) -> bool:
+    return (
+        question.input_mode == "notes"
+        and not question.multi_select
+        and any((item.markdown or "").strip() for item in question.items)
+    )
+
+
+def _should_imply_pointed_selection[T](
+    question: QuestionPrompt[T],
+    *,
+    has_explicit_selection: bool,
+    pointed_at: int,
+    on_input_row: bool,
+    on_submit_row: bool,
+) -> bool:
+    return (
+        not question.multi_select
+        and not has_explicit_selection
+        and not on_input_row
+        and not on_submit_row
+        and not _question_has_markdown_preview(question)
+        and 0 <= pointed_at < len(question.items)
+    )
+
+
+@lru_cache(maxsize=128)
+def _render_markdown_preview(markdown: str, width: int) -> tuple[str, ...]:
+    content = markdown.strip()
+    if not content:
+        return ("No preview available.",)
+
+    buffer = StringIO()
+    console = Console(file=buffer, force_terminal=False, color_system=None, width=max(24, width))
+    try:
+        console.print(NoInsetMarkdown(content, code_theme="monokai"))
+    except Exception:
+        return tuple(content.splitlines() or [content])
+
+    rendered = buffer.getvalue().strip("\n")
+    return tuple(rendered.splitlines() or [""])
 
 
 def _has_unconfirmed_edits[T](
@@ -176,6 +226,7 @@ def select_questions[T](
     submit_pointed_at = 0
     submit_warning = False
     input_buffer = Buffer()
+    notes_input_active_by_question = [False for _ in questions]
 
     def _is_submit_tab(tab_idx: int | None = None) -> bool:
         if submit_tab_idx is None:
@@ -191,8 +242,14 @@ def select_questions[T](
     def _current_question() -> QuestionPrompt[T]:
         return questions[_current_question_idx()]
 
+    def _is_notes_input_active(question_idx: int | None = None) -> bool:
+        idx = _current_question_idx() if question_idx is None else question_idx
+        return notes_input_active_by_question[idx]
+
     def _is_input_row(row: int, *, question_idx: int | None = None) -> bool:
         idx = _current_question_idx() if question_idx is None else question_idx
+        if questions[idx].input_mode == "notes":
+            return False
         return row == len(questions[idx].items)
 
     def _question_submit_row_index(question_idx: int) -> int | None:
@@ -207,6 +264,8 @@ def select_questions[T](
         return submit_row is not None and row == submit_row
 
     def _total_rows(question_idx: int) -> int:
+        if questions[question_idx].input_mode == "notes":
+            return len(questions[question_idx].items)
         submit_row = _question_submit_row_index(question_idx)
         if submit_row is None:
             return len(questions[question_idx].items) + 1
@@ -216,6 +275,7 @@ def select_questions[T](
         nonlocal active_tab_idx, submit_warning
         if not _is_submit_tab(active_tab_idx):
             input_text_by_question[active_tab_idx] = input_buffer.text
+            notes_input_active_by_question[active_tab_idx] = False
 
         tab_count = len(questions) + (1 if has_submit_tab else 0)
         active_tab_idx = (active_tab_idx + delta) % tab_count
@@ -234,6 +294,16 @@ def select_questions[T](
             return
 
         question_idx = _current_question_idx()
+        question = questions[question_idx]
+        if _is_notes_input_active(question_idx) and _question_has_markdown_preview(question):
+            pointed = pointed_at_by_question[question_idx]
+            total_rows = max(1, len(question.items))
+            next_pointed = (pointed + delta) % total_rows
+            pointed_at_by_question[question_idx] = next_pointed
+            selected_indices_by_question[question_idx] = {next_pointed}
+            _confirm_current_question()
+            return
+
         pointed = pointed_at_by_question[question_idx]
         total_rows = _total_rows(question_idx)
         pointed_at_by_question[question_idx] = (pointed + delta) % total_rows
@@ -257,16 +327,19 @@ def select_questions[T](
             return
 
         selected_indices_by_question[question_idx] = {idx}
+        if _question_has_markdown_preview(questions[question_idx]):
+            _confirm_current_question()
 
     def _build_draft_result_for(question_idx: int) -> QuestionSelectResult[T]:
         question = questions[question_idx]
         effective: set[int] = set(selected_indices_by_question[question_idx])
         pointed_at = pointed_at_by_question[question_idx]
-        if (
-            not question.multi_select
-            and not effective
-            and not _is_input_row(pointed_at, question_idx=question_idx)
-            and not _is_question_submit_row(pointed_at, question_idx=question_idx)
+        if _should_imply_pointed_selection(
+            question,
+            has_explicit_selection=bool(effective),
+            pointed_at=pointed_at,
+            on_input_row=_is_input_row(pointed_at, question_idx=question_idx),
+            on_submit_row=_is_question_submit_row(pointed_at, question_idx=question_idx),
         ):
             effective = {pointed_at}
 
@@ -278,17 +351,21 @@ def select_questions[T](
             values.append(value)
 
         if _is_submit_tab(active_tab_idx):
-            input_text = input_text_by_question[question_idx]
+            raw_input = input_text_by_question[question_idx]
         elif question_idx == active_tab_idx:
-            input_text = input_buffer.text
+            raw_input = input_buffer.text
         else:
-            input_text = input_text_by_question[question_idx]
+            raw_input = input_text_by_question[question_idx]
 
+        input_text = raw_input if question.input_mode == "other" else ""
+        annotation_notes = raw_input if question.input_mode == "notes" else ""
         values = _normalize_question_selection(question, values, input_text)
 
-        return QuestionSelectResult(selected_values=values, input_text=input_text)
+        return QuestionSelectResult(selected_values=values, input_text=input_text, annotation_notes=annotation_notes)
 
-    def _has_answer(result: QuestionSelectResult[T]) -> bool:
+    def _has_answer(question: QuestionPrompt[T], result: QuestionSelectResult[T]) -> bool:
+        if question.input_mode == "notes":
+            return bool(result.selected_values)
         return bool(result.selected_values or result.input_text.strip())
 
     def _confirm_current_question() -> None:
@@ -299,7 +376,7 @@ def select_questions[T](
         input_text_by_question[question_idx] = input_buffer.text
         result = _build_draft_result_for(question_idx)
         confirmed_results[question_idx] = result
-        answered_by_question[question_idx] = _has_answer(result)
+        answered_by_question[question_idx] = _has_answer(questions[question_idx], result)
 
     def _all_answered() -> bool:
         return all(answered_by_question)
@@ -338,6 +415,25 @@ def select_questions[T](
 
         return ", ".join(parts) if parts else "(No answer provided)"
 
+    def _preview_content(question_idx: int) -> str:
+        question = questions[question_idx]
+        if not _question_has_markdown_preview(question):
+            return ""
+
+        result = _build_draft_result_for(question_idx)
+        for value in result.selected_values:
+            item = _find_item_by_value(question, value)
+            if item is not None and (item.markdown or "").strip():
+                return item.markdown or ""
+
+        pointed_at = pointed_at_by_question[question_idx]
+        if 0 <= pointed_at < len(question.items):
+            item = question.items[pointed_at]
+            if (item.markdown or "").strip():
+                return item.markdown or ""
+
+        return ""
+
     def _question_has_unconfirmed_edits(question_idx: int) -> bool:
         return _has_unconfirmed_edits(
             questions[question_idx],
@@ -348,6 +444,28 @@ def select_questions[T](
 
     def _has_any_unconfirmed_edits() -> bool:
         return any(_question_has_unconfirmed_edits(idx) for idx in range(len(questions)))
+
+    def _set_notes_input_active(active: bool, *, question_idx: int | None = None) -> None:
+        idx = _current_question_idx() if question_idx is None else question_idx
+        notes_input_active_by_question[idx] = active
+
+    def _exit_notes_input() -> None:
+        if _is_submit_tab():
+            return
+        question_idx = _current_question_idx()
+        input_text_by_question[question_idx] = input_buffer.text
+        _set_notes_input_active(False, question_idx=question_idx)
+
+    def _enter_notes_input() -> None:
+        if _is_submit_tab():
+            return
+        question = _current_question()
+        if question.input_mode != "notes":
+            return
+        question_idx = _current_question_idx()
+        _set_notes_input_active(True, question_idx=question_idx)
+        input_buffer.text = input_text_by_question[question_idx]
+        input_buffer.cursor_position = len(input_buffer.text)
 
     def get_tabs_tokens() -> list[tuple[str, str]]:
         tokens: list[tuple[str, str]] = []
@@ -364,7 +482,12 @@ def select_questions[T](
             tokens.append((submit_style, " ✔ Submit "))
             tokens.append(("class:meta", " → · Enter to confirm"))
         else:
-            tokens.append(("class:meta", "Enter to confirm"))
+            hint = (
+                "Enter to confirm · n for notes"
+                if _question_has_markdown_preview(_current_question())
+                else "Enter to confirm"
+            )
+            tokens.append(("class:meta", hint))
         return tokens
 
     def get_header_tokens() -> list[tuple[str, str]]:
@@ -463,13 +586,61 @@ def select_questions[T](
             return _build_submit_choices_tokens()
         return _build_question_choices_tokens(_current_question_idx())
 
+    def get_preview_tokens() -> list[tuple[str, str]]:
+        if _is_submit_tab():
+            return []
+
+        question = _current_question()
+        if not _question_has_markdown_preview(question):
+            return []
+
+        try:
+            size = get_app().output.get_size()
+            columns = size.columns
+            rows = size.rows
+        except Exception:
+            columns = 120
+            rows = 24
+
+        box_width = max(32, min(80, columns - 8))
+        inner_width = max(24, box_width - 4)
+        # Fit preview content to the current terminal height while reserving space
+        # for tabs/header chrome, the notes row, box borders, and one truncation line.
+        max_lines = max(3, rows - 9)
+        content_lines = list(_render_markdown_preview(_preview_content(_current_question_idx()), inner_width))
+        hidden_count = max(0, len(content_lines) - max_lines)
+        visible_lines = content_lines[:max_lines]
+
+        top = f"┌{'─' * (box_width - 2)}┐"
+        bottom = f"└{'─' * (box_width - 2)}┘"
+        tokens: list[tuple[str, str]] = [("class:preview_border", top + "\n")]
+
+        for line in visible_lines:
+            trimmed = line[:inner_width]
+            padding = " " * max(0, inner_width - len(trimmed))
+            tokens.append(("class:preview_border", "│ "))
+            tokens.append(("class:preview_content", trimmed))
+            tokens.append(("class:preview_border", padding + " │\n"))
+
+        if hidden_count > 0:
+            label = f"... {hidden_count} lines hidden"
+            trimmed = label[:inner_width]
+            padding = " " * max(0, inner_width - len(trimmed))
+            tokens.append(("class:preview_border", "│ "))
+            tokens.append(("class:warning", trimmed))
+            tokens.append(("class:preview_border", padding + " │\n"))
+
+        tokens.append(("class:preview_border", bottom))
+        return tokens
+
     def get_input_prefix_tokens() -> list[tuple[str, str]]:
         pointer_pad = " " * (2 + len(pointer))
         pointed_prefix = f" {pointer} "
         question_idx = _current_question_idx()
         question = _current_question()
-        row_num = f"{len(question.items) + 1}. "
-        is_input_row = (not _is_submit_tab()) and _is_input_row(pointed_at_by_question[question_idx])
+        is_input_row = (not _is_submit_tab()) and (
+            _is_notes_input_active(question_idx) or _is_input_row(pointed_at_by_question[question_idx])
+        )
         row_style = "class:highlighted" if is_input_row else "class:msg"
 
         prefix: list[tuple[str, str]] = []
@@ -478,6 +649,10 @@ def select_questions[T](
         else:
             prefix.append(("class:text", pointer_pad))
 
+        if question.input_mode == "notes":
+            return prefix
+
+        row_num = f"{len(question.items) + 1}. "
         if question.multi_select and question.other_value is not None:
             prefix.append((row_style, row_num))
             is_selected = bool(input_buffer.text.strip())
@@ -489,10 +664,13 @@ def select_questions[T](
         prefix.append((row_style, row_num))
         return prefix
 
-    def get_other_label_tokens() -> list[tuple[str, str]]:
-        is_pointed = (not _is_submit_tab()) and _is_input_row(pointed_at_by_question[_current_question_idx()])
+    def get_input_label_tokens() -> list[tuple[str, str]]:
+        is_pointed = (not _is_submit_tab()) and (
+            _is_notes_input_active() or _is_input_row(pointed_at_by_question[_current_question_idx()])
+        )
         style_name = "class:highlighted" if is_pointed else "class:msg"
-        return [(style_name, "Other: ")]
+        label = "Notes: " if _current_question().input_mode == "notes" else "Other: "
+        return [(style_name, label)]
 
     def get_question_submit_tokens() -> list[tuple[str, str]]:
         pointer_pad = " " * (2 + len(pointer))
@@ -507,7 +685,8 @@ def select_questions[T](
         placeholder = _current_question().input_placeholder
         style_name = (
             "class:highlighted"
-            if not _is_submit_tab() and _is_input_row(pointed_at_by_question[_current_question_idx()])
+            if not _is_submit_tab()
+            and (_is_notes_input_active() or _is_input_row(pointed_at_by_question[_current_question_idx()]))
             else "class:search_placeholder"
         )
         return [(style_name, placeholder)]
@@ -519,39 +698,53 @@ def select_questions[T](
     def _(event: KeyPressEvent) -> None:
         event.app.exit(result=None)
 
-    @kb.add(Keys.Left, eager=True)
+    @kb.add(Keys.Left, eager=True, filter=Condition(lambda: not _is_notes_input_active()))
     def _(event: KeyPressEvent) -> None:
         _switch_tab(-1)
         _sync_focus(event.app)
         event.app.invalidate()
 
-    @kb.add(Keys.Right, eager=True)
+    @kb.add(Keys.Right, eager=True, filter=Condition(lambda: not _is_notes_input_active()))
     def _(event: KeyPressEvent) -> None:
         _switch_tab(+1)
         _sync_focus(event.app)
         event.app.invalidate()
 
-    @kb.add(Keys.Tab, eager=True)
+    @kb.add(Keys.Tab, eager=True, filter=Condition(lambda: not _is_notes_input_active()))
     def _(event: KeyPressEvent) -> None:
         _switch_tab(+1)
         _sync_focus(event.app)
         event.app.invalidate()
 
-    @kb.add(Keys.BackTab, eager=True)
+    @kb.add(Keys.BackTab, eager=True, filter=Condition(lambda: not _is_notes_input_active()))
     def _(event: KeyPressEvent) -> None:
         _switch_tab(-1)
         _sync_focus(event.app)
         event.app.invalidate()
 
-    @kb.add(Keys.Down, eager=True)
+    @kb.add(Keys.Down, eager=True, filter=Condition(lambda: not _is_submit_tab()))
     def _(event: KeyPressEvent) -> None:
         _move(+1)
         _sync_focus(event.app)
         event.app.invalidate()
 
-    @kb.add(Keys.Up, eager=True)
+    @kb.add(Keys.Up, eager=True, filter=Condition(lambda: not _is_submit_tab()))
     def _(event: KeyPressEvent) -> None:
         _move(-1)
+        _sync_focus(event.app)
+        event.app.invalidate()
+
+    @kb.add(
+        "n",
+        eager=True,
+        filter=Condition(
+            lambda: (not _is_submit_tab())
+            and _current_question().input_mode == "notes"
+            and not _is_notes_input_active()
+        ),
+    )
+    def _(event: KeyPressEvent) -> None:
+        _enter_notes_input()
         _sync_focus(event.app)
         event.app.invalidate()
 
@@ -559,12 +752,19 @@ def select_questions[T](
         " ",
         eager=True,
         filter=Condition(
-            lambda: (not _is_submit_tab()) and _is_question_submit_row(pointed_at_by_question[_current_question_idx()])
+            lambda: (not _is_submit_tab())
+            and (not _is_notes_input_active())
+            and _is_question_submit_row(pointed_at_by_question[_current_question_idx()])
         ),
     )
     def _(event: KeyPressEvent) -> None:
+        question_idx = _current_question_idx()
+        question = questions[question_idx]
         _confirm_current_question()
         if not has_submit_tab:
+            if not _has_answer(question, confirmed_results[question_idx]):
+                event.app.invalidate()
+                return
             event.app.exit(result=_confirmed_results())
             return
         _switch_tab(+1)
@@ -576,6 +776,7 @@ def select_questions[T](
         eager=True,
         filter=Condition(
             lambda: (not _is_submit_tab())
+            and (not _is_notes_input_active())
             and (not _is_input_row(pointed_at_by_question[_current_question_idx()]))
             and (not _is_question_submit_row(pointed_at_by_question[_current_question_idx()]))
         ),
@@ -587,6 +788,13 @@ def select_questions[T](
     @kb.add(Keys.Enter, eager=True)
     def _(event: KeyPressEvent) -> None:
         nonlocal submit_warning
+        if _is_notes_input_active():
+            _confirm_current_question()
+            _exit_notes_input()
+            _sync_focus(event.app)
+            event.app.invalidate()
+            return
+
         if _is_submit_tab():
             if submit_pointed_at == 0:
                 if not _all_answered():
@@ -619,6 +827,9 @@ def select_questions[T](
             event.app.invalidate()
             return
 
+        if _question_has_markdown_preview(question):
+            _toggle_current_option()
+
         _confirm_current_question()
         if not has_submit_tab:
             event.app.exit(result=_confirmed_results())
@@ -629,6 +840,13 @@ def select_questions[T](
 
     @kb.add(Keys.Escape, eager=True)
     def _(event: KeyPressEvent) -> None:
+        if _is_notes_input_active():
+            _confirm_current_question()
+            _exit_notes_input()
+            _sync_focus(event.app)
+            event.app.invalidate()
+            return
+
         if (
             not _is_submit_tab()
             and _is_input_row(pointed_at_by_question[_current_question_idx()])
@@ -681,11 +899,14 @@ def select_questions[T](
     max_row_num = max(len(question.items) + 1 for question in questions)
 
     def _input_prefix_template() -> str:
+        question = _current_question()
+        if question.input_mode == "notes":
+            return f" {pointer} "
+
         template = f" {pointer} " + f"{max_row_num}. "
         if _is_submit_tab():
             return template
 
-        question = _current_question()
         if question.multi_select and question.other_value is not None:
             return template + "[ ] "
         return template
@@ -698,8 +919,8 @@ def select_questions[T](
         always_hide_cursor=Always(),
     )
     other_label_window = Window(
-        FormattedTextControl(get_other_label_tokens),
-        width=len("Other: "),
+        FormattedTextControl(get_input_label_tokens),
+        width=lambda: len("Notes: ") if _current_question().input_mode == "notes" else len("Other: "),
         height=1,
         dont_extend_height=Always(),
         always_hide_cursor=Always(),
@@ -724,6 +945,14 @@ def select_questions[T](
     )
     input_row = VSplit([input_prefix_window, other_label_window, input_container], padding=0)
     input_row_container = ConditionalContainer(content=input_row, filter=Condition(lambda: not _is_submit_tab()))
+    preview_window = ConditionalContainer(
+        content=Window(
+            FormattedTextControl(get_preview_tokens),
+            dont_extend_height=Always(),
+            always_hide_cursor=Always(),
+        ),
+        filter=Condition(lambda: (not _is_submit_tab()) and _question_has_markdown_preview(_current_question())),
+    )
     question_submit_spacer_container = ConditionalContainer(
         content=Window(
             FormattedTextControl([("", "")]),
@@ -750,7 +979,8 @@ def select_questions[T](
             question_idx = _current_question_idx()
             target = (
                 input_text_window
-                if _is_input_row(pointed_at_by_question[question_idx], question_idx=question_idx)
+                if _is_notes_input_active(question_idx)
+                or _is_input_row(pointed_at_by_question[question_idx], question_idx=question_idx)
                 else list_window
             )
         if app.layout.current_window is not target:
@@ -766,13 +996,27 @@ def select_questions[T](
 
     input_buffer.text = input_text_by_question[_current_question_idx()]
 
+    def _build_body_container() -> Container:
+        if (not _is_submit_tab()) and _question_has_markdown_preview(_current_question()):
+            return VSplit(
+                [
+                    HSplit([list_window], width=30),
+                    HSplit([preview_window, input_row_container], padding=1),
+                ],
+                padding=4,
+            )
+
+        children: list[Container] = [list_window, input_row_container]
+        return HSplit(children)
+
+    body_container = DynamicContainer(_build_body_container)
+
     root_children: list[Container] = [top_spacer_window, tabs_window, tabs_header_spacer_window]
     root_children.extend(
         [
             header_window,
             spacer_window,
-            list_window,
-            input_row_container,
+            body_container,
             question_submit_spacer_container,
             question_submit_row_container,
         ]
@@ -791,6 +1035,8 @@ def select_questions[T](
             ("question_tab_active", "reverse fg:ansigreen bold"),
             ("warning", "fg:ansiyellow"),
             ("submit_option", "bold"),
+            ("preview_border", "fg:ansibrightblack dim"),
+            ("preview_content", ""),
         ]
     )
     merged_style = merge_styles([base_style, style] if style is not None else [base_style])

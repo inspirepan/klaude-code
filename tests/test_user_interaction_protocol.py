@@ -63,6 +63,7 @@ def test_user_interaction_response_submitted_and_cancelled() -> None:
                     selected_option_ids=["a"],
                     other_text="",
                     note="n1",
+                    annotation=AskUserQuestionAnswer.Annotation(markdown="## preview", notes="ship this"),
                 )
             ]
         ),
@@ -71,6 +72,8 @@ def test_user_interaction_response_submitted_and_cancelled() -> None:
     assert submitted.payload is not None
     assert submitted.payload.kind == "ask_user_question"
     assert submitted.payload.answers[0].question_id == "q1"
+    assert submitted.payload.answers[0].annotation is not None
+    assert submitted.payload.answers[0].annotation.notes == "ship this"
 
     cancelled = UserInteractionResponse(status="cancelled", payload=None)
     assert cancelled.status == "cancelled"

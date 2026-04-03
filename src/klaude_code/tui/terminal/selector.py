@@ -5,7 +5,7 @@ import sys
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from prompt_toolkit.application import Application
 from prompt_toolkit.application.current import get_app
@@ -48,12 +48,14 @@ class SelectItem[T]:
     search_text: str
     summary: str | None = None
     selectable: bool = True
+    markdown: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class QuestionSelectResult[T]:
     selected_values: list[T]
     input_text: str
+    annotation_notes: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +65,7 @@ class QuestionPrompt[T]:
     items: list[SelectItem[T]]
     multi_select: bool
     input_placeholder: str = "Type something."
+    input_mode: Literal["other", "notes"] = "other"
     other_value: T | None = None
 
 

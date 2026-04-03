@@ -1,8 +1,14 @@
 import { useMemo, useState } from "react";
 import { Check, CircleHelp, X } from "lucide-react";
+import { Streamdown } from "streamdown";
+import { code } from "@streamdown/code";
+
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useT } from "@/i18n";
+import { mermaid } from "@/lib/mermaid-plugin";
 
 import type {
+  AskUserQuestionOption,
   AskUserQuestionQuestion,
   AskUserQuestionResponsePayload,
   OperationSelectResponsePayload,
@@ -17,17 +23,43 @@ interface UserInteractionCardProps {
   onRespond: (response: UserInteractionResponse) => Promise<void>;
 }
 
+const markdownPlugins = { code, mermaid };
+
+function questionHasMarkdownPreview(question: AskUserQuestionQuestion): boolean {
+  return (
+    !question.multi_select &&
+    question.options.some((option) => (option.markdown ?? "").trim().length > 0)
+  );
+}
+
+function getPreviewOption(
+  question: AskUserQuestionQuestion,
+  selectedOptionIds: string[],
+): AskUserQuestionOption | null {
+  for (const optionId of selectedOptionIds) {
+    const option = question.options.find((item) => item.id === optionId);
+    if (option) {
+      return option;
+    }
+  }
+  return question.options[0] ?? null;
+}
+
 function buildAskResponsePayload(
   questions: AskUserQuestionQuestion[],
   selectedByQuestion: Record<string, string[]>,
-  noteByQuestion: Record<string, string>,
+  otherTextByQuestion: Record<string, string>,
+  annotationNotesByQuestion: Record<string, string>,
 ): AskUserQuestionResponsePayload {
   return {
     kind: "ask_user_question",
     answers: questions.map((question) => {
-      const note = (noteByQuestion[question.id] ?? "").trim();
+      const otherText = (otherTextByQuestion[question.id] ?? "").trim();
+      const annotationNotes = (annotationNotesByQuestion[question.id] ?? "").trim();
+      const hasMarkdownPreview = questionHasMarkdownPreview(question);
       let selectedOptionIds = [...(selectedByQuestion[question.id] ?? [])];
-      if (note.length > 0) {
+
+      if (!hasMarkdownPreview && otherText.length > 0) {
         if (question.multi_select) {
           if (!selectedOptionIds.includes("__other__")) {
             selectedOptionIds.push("__other__");
@@ -36,11 +68,25 @@ function buildAskResponsePayload(
           selectedOptionIds = ["__other__"];
         }
       }
+
+      const previewOption = getPreviewOption(question, selectedOptionIds);
+      const annotation = hasMarkdownPreview
+        ? {
+            markdown: (previewOption?.markdown ?? "").trim() || undefined,
+            notes: annotationNotes || undefined,
+          }
+        : undefined;
+
       return {
+        annotation:
+          annotation && (annotation.markdown !== undefined || annotation.notes !== undefined)
+            ? annotation
+            : undefined,
         question_id: question.id,
         selected_option_ids: selectedOptionIds,
-        other_text: selectedOptionIds.includes("__other__") && note.length > 0 ? note : undefined,
-        note: note.length > 0 ? note : undefined,
+        other_text:
+          selectedOptionIds.includes("__other__") && otherText.length > 0 ? otherText : undefined,
+        note: otherText.length > 0 ? otherText : undefined,
       };
     }),
   };
@@ -49,11 +95,14 @@ function buildAskResponsePayload(
 function isQuestionAnswered(
   question: AskUserQuestionQuestion,
   selectedByQuestion: Record<string, string[]>,
-  noteByQuestion: Record<string, string>,
+  otherTextByQuestion: Record<string, string>,
 ): boolean {
   const selected = selectedByQuestion[question.id] ?? [];
-  const note = (noteByQuestion[question.id] ?? "").trim();
-  return selected.length > 0 || note.length > 0;
+  if (questionHasMarkdownPreview(question)) {
+    return selected.length > 0;
+  }
+  const otherText = (otherTextByQuestion[question.id] ?? "").trim();
+  return selected.length > 0 || otherText.length > 0;
 }
 
 function toggleOption(
@@ -76,14 +125,13 @@ function toggleOption(
   return { ...current, [questionId]: isAlreadySelected ? [] : [optionId] };
 }
 
-/* ── Option pill (shared by ask + operation) ────────────────────────── */
-
 function OptionPill({
   checked,
   disabled,
   multiSelect,
   label,
   description,
+  className,
   onClick,
 }: {
   checked: boolean;
@@ -91,6 +139,7 @@ function OptionPill({
   multiSelect: boolean;
   label: string;
   description: string;
+  className?: string;
   onClick: () => void;
 }): React.JSX.Element {
   return (
@@ -102,7 +151,7 @@ function OptionPill({
         checked
           ? "border-sky-200 bg-sky-50/80 ring-1 ring-sky-200/60"
           : "border-border bg-card hover:border-neutral-300 hover:bg-surface"
-      } disabled:cursor-not-allowed disabled:opacity-50`}
+      } ${className ?? ""} disabled:cursor-not-allowed disabled:opacity-50`}
     >
       {multiSelect ? (
         <span
@@ -141,29 +190,34 @@ function OptionPill({
   );
 }
 
-/* ── Single question panel ──────────────────────────────────────────── */
-
 function QuestionPanel({
   question,
   questionIndex,
   selected,
-  note,
+  otherText,
+  annotationNotes,
   actionDisabled,
   onToggleOption,
-  onNoteChange,
+  onOtherTextChange,
+  onAnnotationNotesChange,
 }: {
   question: AskUserQuestionQuestion;
   questionIndex: number;
   selected: string[];
-  note: string;
+  otherText: string;
+  annotationNotes: string;
   actionDisabled: boolean;
   onToggleOption: (optionId: string) => void;
-  onNoteChange: (value: string) => void;
+  onOtherTextChange: (value: string) => void;
+  onAnnotationNotesChange: (value: string) => void;
 }): React.JSX.Element {
   const t = useT();
+  const hasMarkdownPreview = questionHasMarkdownPreview(question);
+  const previewOption = getPreviewOption(question, selected);
+  const previewMarkdown = (previewOption?.markdown ?? "").trim();
+
   return (
     <div>
-      {/* Question header chip */}
       <div className="mb-1.5 flex items-center gap-1.5">
         <span className="font-mono text-xs font-medium uppercase tracking-wider text-neutral-500">
           {question.header || `Question ${questionIndex + 1}`}
@@ -173,46 +227,95 @@ function QuestionPanel({
         )}
       </div>
 
-      {/* Question text */}
       <p className="mb-3 text-pretty text-base leading-relaxed text-neutral-700">
         {question.question}
       </p>
 
-      {/* Option pills */}
-      <div className="flex flex-wrap gap-2">
-        {question.options.map((option) => (
-          <OptionPill
-            key={option.id}
-            checked={selected.includes(option.id)}
-            disabled={actionDisabled}
-            multiSelect={question.multi_select}
-            label={option.label}
-            description={option.description}
-            onClick={() => {
-              onToggleOption(option.id);
-            }}
-          />
-        ))}
-      </div>
+      {hasMarkdownPreview ? (
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-2">
+            {question.options.map((option) => (
+              <OptionPill
+                key={option.id}
+                checked={selected.includes(option.id)}
+                disabled={actionDisabled}
+                multiSelect={question.multi_select}
+                label={option.label}
+                description={option.description}
+                className="w-full justify-start"
+                onClick={() => {
+                  onToggleOption(option.id);
+                }}
+              />
+            ))}
+          </div>
 
-      {/* Other text input */}
-      <div className="mt-3">
-        <input
-          type="text"
-          disabled={actionDisabled}
-          value={note}
-          onChange={(e) => {
-            onNoteChange(e.target.value);
-          }}
-          placeholder={t("interaction.otherPlaceholder")}
-          className="h-9 w-full rounded-lg border border-border bg-surface/50 px-3 text-base text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 focus:bg-card focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
-        />
-      </div>
+          <div className="min-w-0 space-y-3">
+            <div className="overflow-hidden rounded-xl bg-surface/50 ring-1 ring-inset ring-black/[0.05]">
+              <div className="truncate border-b border-border px-3 py-1.5 font-mono text-xs font-medium uppercase tracking-wider text-neutral-500">
+                {previewOption?.label ?? t("interaction.previewLabel")}
+              </div>
+              <ScrollArea viewportClassName="max-h-80">
+                <div className="assistant-text px-4 py-3 text-base">
+                  <Streamdown mode="static" isAnimating={false} plugins={markdownPlugins}>
+                    {previewMarkdown || t("interaction.noPreview")}
+                  </Streamdown>
+                </div>
+              </ScrollArea>
+            </div>
+
+            <div>
+              <div className="mb-1.5 font-mono text-xs font-medium uppercase tracking-wider text-neutral-500">
+                {t("interaction.notesLabel")}
+              </div>
+              <input
+                type="text"
+                disabled={actionDisabled}
+                value={annotationNotes}
+                onChange={(e) => {
+                  onAnnotationNotesChange(e.target.value);
+                }}
+                placeholder={t("interaction.notesPlaceholder")}
+                className="h-9 w-full rounded-lg border border-border bg-surface/50 px-3 text-base text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 focus:bg-card focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {question.options.map((option) => (
+              <OptionPill
+                key={option.id}
+                checked={selected.includes(option.id)}
+                disabled={actionDisabled}
+                multiSelect={question.multi_select}
+                label={option.label}
+                description={option.description}
+                onClick={() => {
+                  onToggleOption(option.id);
+                }}
+              />
+            ))}
+          </div>
+
+          <div className="mt-3">
+            <input
+              type="text"
+              disabled={actionDisabled}
+              value={otherText}
+              onChange={(e) => {
+                onOtherTextChange(e.target.value);
+              }}
+              placeholder={t("interaction.otherPlaceholder")}
+              className="h-9 w-full rounded-lg border border-border bg-surface/50 px-3 text-base text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 focus:bg-card focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
-
-/* ── Main card ──────────────────────────────────────────────────────── */
 
 export function UserInteractionCard({
   request,
@@ -222,7 +325,10 @@ export function UserInteractionCard({
 }: UserInteractionCardProps): React.JSX.Element {
   const t = useT();
   const [selectedByQuestion, setSelectedByQuestion] = useState<Record<string, string[]>>({});
-  const [noteByQuestion, setNoteByQuestion] = useState<Record<string, string>>({});
+  const [otherTextByQuestion, setOtherTextByQuestion] = useState<Record<string, string>>({});
+  const [annotationNotesByQuestion, setAnnotationNotesByQuestion] = useState<
+    Record<string, string>
+  >({});
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
 
@@ -232,9 +338,9 @@ export function UserInteractionCard({
   const askCanSubmit = useMemo(() => {
     if (askPayload === null) return false;
     return askPayload.questions.every((q) =>
-      isQuestionAnswered(q, selectedByQuestion, noteByQuestion),
+      isQuestionAnswered(q, selectedByQuestion, otherTextByQuestion),
     );
-  }, [askPayload, noteByQuestion, selectedByQuestion]);
+  }, [askPayload, otherTextByQuestion, selectedByQuestion]);
 
   const operationCanSubmit = useMemo(() => {
     if (operationPayload === null) return false;
@@ -245,18 +351,17 @@ export function UserInteractionCard({
   const actionDisabled = disabled || submitting;
   const multipleQuestions = askPayload !== null && askPayload.questions.length > 1;
 
-  // Find the next unanswered question index after the active tab (wrapping around).
   const nextUnansweredIndex = useMemo(() => {
     if (askPayload === null) return -1;
     const len = askPayload.questions.length;
     for (let offset = 1; offset <= len; offset++) {
       const idx = (activeTab + offset) % len;
-      if (!isQuestionAnswered(askPayload.questions[idx], selectedByQuestion, noteByQuestion)) {
+      if (!isQuestionAnswered(askPayload.questions[idx], selectedByQuestion, otherTextByQuestion)) {
         return idx;
       }
     }
     return -1;
-  }, [askPayload, activeTab, selectedByQuestion, noteByQuestion]);
+  }, [askPayload, activeTab, selectedByQuestion, otherTextByQuestion]);
 
   async function submitAskResponse(): Promise<void> {
     if (askPayload === null || actionDisabled || !canSubmit) return;
@@ -264,7 +369,12 @@ export function UserInteractionCard({
     try {
       await onRespond({
         status: "submitted",
-        payload: buildAskResponsePayload(askPayload.questions, selectedByQuestion, noteByQuestion),
+        payload: buildAskResponsePayload(
+          askPayload.questions,
+          selectedByQuestion,
+          otherTextByQuestion,
+          annotationNotesByQuestion,
+        ),
       });
     } finally {
       setSubmitting(false);
@@ -299,7 +409,6 @@ export function UserInteractionCard({
 
   return (
     <section className="overflow-hidden rounded-2xl bg-card shadow-sm shadow-neutral-200/40 ring-1 ring-black/[0.06]">
-      {/* Header */}
       <div className="flex items-center gap-2.5 px-5 pb-1 pt-4">
         <CircleHelp className="h-4 w-4 shrink-0 text-sky-500" />
         <div className="min-w-0 flex-1">
@@ -316,16 +425,14 @@ export function UserInteractionCard({
         )}
       </div>
 
-      {/* Body */}
       <div className="px-5 pb-4 pt-3">
         {askPayload && (
           <div>
-            {/* ── Tab bar (only when > 1 question) ── */}
             {multipleQuestions && (
               <div className="mb-4 flex flex-wrap gap-1.5">
                 {askPayload.questions.map((q, i) => {
                   const isActive = i === activeTab;
-                  const answered = isQuestionAnswered(q, selectedByQuestion, noteByQuestion);
+                  const answered = isQuestionAnswered(q, selectedByQuestion, otherTextByQuestion);
                   return (
                     <button
                       key={q.id}
@@ -339,7 +446,6 @@ export function UserInteractionCard({
                           : "bg-surface text-neutral-500 hover:bg-muted hover:text-neutral-700"
                       }`}
                     >
-                      {/* Answered dot */}
                       <span
                         className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
                           answered ? "bg-emerald-600" : "bg-neutral-300"
@@ -352,34 +458,37 @@ export function UserInteractionCard({
               </div>
             )}
 
-            {/* ── Active question panel ── */}
             {askPayload.questions.map((question, qi) => {
               if (multipleQuestions && qi !== activeTab) return null;
               const selected = selectedByQuestion[question.id] ?? [];
-              const note = noteByQuestion[question.id] ?? "";
+              const otherText = otherTextByQuestion[question.id] ?? "";
+              const annotationNotes = annotationNotesByQuestion[question.id] ?? "";
+              const hasMarkdownPreview = questionHasMarkdownPreview(question);
               return (
                 <QuestionPanel
                   key={question.id}
                   question={question}
                   questionIndex={qi}
                   selected={selected}
-                  note={note}
+                  otherText={otherText}
+                  annotationNotes={annotationNotes}
                   actionDisabled={actionDisabled}
                   onToggleOption={(optionId) => {
                     setSelectedByQuestion((cur) =>
                       toggleOption(question.id, optionId, question.multi_select, cur),
                     );
-                    // Single-select: selecting a pill clears Other text
-                    if (!question.multi_select) {
-                      setNoteByQuestion((cur) => ({ ...cur, [question.id]: "" }));
+                    if (!question.multi_select && !hasMarkdownPreview) {
+                      setOtherTextByQuestion((cur) => ({ ...cur, [question.id]: "" }));
                     }
                   }}
-                  onNoteChange={(value) => {
-                    setNoteByQuestion((cur) => ({ ...cur, [question.id]: value }));
-                    // Single-select: typing in Other clears pill selection
+                  onOtherTextChange={(value) => {
+                    setOtherTextByQuestion((cur) => ({ ...cur, [question.id]: value }));
                     if (!question.multi_select && value.length > 0) {
                       setSelectedByQuestion((cur) => ({ ...cur, [question.id]: [] }));
                     }
+                  }}
+                  onAnnotationNotesChange={(value) => {
+                    setAnnotationNotesByQuestion((cur) => ({ ...cur, [question.id]: value }));
                   }}
                 />
               );
@@ -417,7 +526,6 @@ export function UserInteractionCard({
           </div>
         )}
 
-        {/* Action bar */}
         <div className="mt-3 flex items-center justify-end gap-2">
           <button
             type="button"
@@ -441,7 +549,7 @@ export function UserInteractionCard({
                 isQuestionAnswered(
                   askPayload.questions[activeTab],
                   selectedByQuestion,
-                  noteByQuestion,
+                  otherTextByQuestion,
                 )
                   ? "bg-sky-500 text-white hover:bg-sky-600"
                   : "bg-card text-neutral-500 ring-1 ring-black/[0.06] hover:bg-surface hover:text-neutral-700"

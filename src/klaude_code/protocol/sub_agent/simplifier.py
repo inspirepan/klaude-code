@@ -19,7 +19,7 @@ SIMPLIFIER_SUMMARY = (
 
 register_sub_agent(
     SubAgentProfile(
-        name="simplifier",
+        name="code-simplifier",
         prompt_file="prompts/prompt-sub-agent-simplifier.md",
         tool_set=(tools.BASH, tools.READ, tools.EDIT),
         invoker_summary=SIMPLIFIER_SUMMARY,

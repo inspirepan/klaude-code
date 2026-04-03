@@ -9,6 +9,7 @@ export interface AskUserQuestionOption {
   id: string;
   label: string;
   description: string;
+  markdown: string | null;
 }
 
 export interface AskUserQuestionQuestion {
@@ -51,6 +52,10 @@ export interface PendingUserInteractionRequest {
 }
 
 export interface AskUserQuestionAnswer {
+  annotation?: {
+    markdown?: string;
+    notes?: string;
+  };
   question_id: string;
   selected_option_ids: string[];
   other_text?: string;
@@ -108,8 +113,9 @@ function parseAskUserQuestionPayload(
       const optionId = parseString(optionObj.id);
       const label = parseString(optionObj.label);
       const description = parseString(optionObj.description);
+      const markdown = parseString(optionObj.markdown);
       if (optionId === null || label === null || description === null) return null;
-      options.push({ id: optionId, label, description });
+      options.push({ id: optionId, label, description, markdown });
     }
 
     const multiSelect = questionObj.multi_select;

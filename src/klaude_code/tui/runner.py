@@ -176,6 +176,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     value=option.id,
                     search_text=f"{option.label} {option.description}",
                     summary=option.label,
+                    markdown=option.markdown,
                 )
             )
         return items
@@ -293,14 +294,25 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         prompts: list[QuestionPrompt[str]] = []
         for question in payload.questions:
+            has_markdown_preview = (not question.multi_select) and any(
+                (option.markdown or "").strip() for option in question.options
+            )
             prompts.append(
                 QuestionPrompt(
                     header=question.header,
                     message=question.question,
                     items=_build_question_items(question),
                     multi_select=question.multi_select,
-                    input_placeholder=question.input_placeholder or "Type something.",
-                    other_value="__other__",
+                    input_placeholder=(
+                        question.input_placeholder
+                        or (
+                            "Press n to add notes about the selected option."
+                            if has_markdown_preview
+                            else "Type something."
+                        )
+                    ),
+                    input_mode="notes" if has_markdown_preview else "other",
+                    other_value=None if has_markdown_preview else "__other__",
                 )
             )
 
@@ -323,6 +335,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         for question, selection in zip(payload.questions, selections, strict=False):
             note_text = selection.input_text.strip()
+            annotation_notes = selection.annotation_notes.strip()
             selected_ids = list(selection.selected_values)
             if note_text:
                 if question.multi_select:
@@ -331,6 +344,21 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 else:
                     selected_ids = ["__other__"]
             other_text = note_text if "__other__" in selected_ids and note_text else None
+            selected_markdown = None
+            if not question.multi_select:
+                option_by_id = {option.id: option for option in question.options}
+                for option_id in selected_ids:
+                    option = option_by_id.get(option_id)
+                    if option is not None and (option.markdown or "").strip():
+                        selected_markdown = option.markdown
+                        break
+
+            annotation = None
+            if selected_markdown or annotation_notes:
+                annotation = user_interaction.AskUserQuestionAnswer.Annotation(
+                    markdown=selected_markdown,
+                    notes=annotation_notes or None,
+                )
 
             answers.append(
                 user_interaction.AskUserQuestionAnswer(
@@ -338,6 +366,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     selected_option_ids=selected_ids,
                     other_text=other_text,
                     note=note_text or None,
+                    annotation=annotation,
                 )
             )
 

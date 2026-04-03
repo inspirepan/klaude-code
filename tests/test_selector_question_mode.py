@@ -7,6 +7,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from klaude_code.tui.terminal.ask_user_question import (
     _has_unconfirmed_edits,  # pyright: ignore[reportPrivateUsage]
     _normalize_question_selection,  # pyright: ignore[reportPrivateUsage]
+    _should_imply_pointed_selection,  # pyright: ignore[reportPrivateUsage]
 )
 from klaude_code.tui.terminal.selector import (
     QuestionPrompt,
@@ -146,3 +147,52 @@ def test_has_unconfirmed_edits_is_false_for_equivalent_other_with_whitespace() -
     draft: QuestionSelectResult[str] = QuestionSelectResult(selected_values=["a"], input_text="custom   ")
 
     assert _has_unconfirmed_edits(question, confirmed, draft, is_answered=True) is False
+
+
+def test_preview_question_does_not_imply_selection_from_focus() -> None:
+    question = QuestionPrompt(
+        header="Design",
+        message="Pick one",
+        items=[
+            SelectItem(title=[("", "1. A\n")], value="a", search_text="a", markdown="# A"),
+            SelectItem(title=[("", "2. B\n")], value="b", search_text="b", markdown="# B"),
+        ],
+        multi_select=False,
+        input_mode="notes",
+    )
+
+    assert (
+        _should_imply_pointed_selection(
+            question,
+            has_explicit_selection=False,
+            pointed_at=0,
+            on_input_row=False,
+            on_submit_row=False,
+        )
+        is False
+    )
+
+
+def test_regular_single_select_still_implies_selection_from_focus() -> None:
+    question = QuestionPrompt(
+        header="Role",
+        message="Pick one",
+        items=[
+            SelectItem(title=[("", "1. A\n")], value="a", search_text="a"),
+            SelectItem(title=[("", "2. B\n")], value="b", search_text="b"),
+        ],
+        multi_select=False,
+        input_mode="other",
+        other_value="__other__",
+    )
+
+    assert (
+        _should_imply_pointed_selection(
+            question,
+            has_explicit_selection=False,
+            pointed_at=1,
+            on_input_row=False,
+            on_submit_row=False,
+        )
+        is True
+    )
