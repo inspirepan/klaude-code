@@ -43,7 +43,7 @@ def test_render_welcome_shows_skills_as_tree_list() -> None:
         session_id="s1",
         work_dir="/tmp",
         llm_config=llm_config,
-        loaded_skills={"system": ["deslop", "web-search"]},
+        loaded_skills={"system": ["playwright", "web-search"]},
     )
 
     out = io.StringIO()
@@ -52,9 +52,9 @@ def test_render_welcome_shows_skills_as_tree_list() -> None:
     output = out.getvalue()
 
     assert "system" in output
-    assert "deslop" in output
+    assert "playwright" in output
     assert "web-search" in output
-    assert "── deslop" not in output
+    assert "── playwright" not in output
 
 
 def test_render_welcome_shows_startup_update_and_shortcuts() -> None:

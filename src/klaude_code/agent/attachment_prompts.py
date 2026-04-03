@@ -99,26 +99,6 @@ def fmt_todo_items(todo_items_str: str) -> str:
     return f"\n\nHere are the existing contents of your todo list:\n\n[{todo_items_str}]"
 
 
-def fmt_post_todo_complete() -> str:
-    return (
-        "All your tasks are now complete. Before reporting back to the user, consider:\n"
-        "- After completing complex or large-scale changes (touching 3+ files with non-trivial logic), "
-        'launch an `Agent` with `type="review"` to review your work before reporting back to the user. '
-        "Do NOT launch review for small, straightforward edits like config tweaks, single-file fixes, "
-        "renames, or simple bug fixes.\n"
-        "- After sessions with significant learnings (new commands, gotchas, architecture insights), "
-        'launch an `Agent` with `type="memory"` to persist them into AGENTS.md files.'
-    )
-
-
-def fmt_review_followup() -> str:
-    return (
-        "For follow-up reviews (after fixing issues from a prior review), include the previous findings "
-        "in the prompt and provide a diff command scoped to only the fix commits, so the reviewer can "
-        "verify fixes incrementally instead of re-reviewing the entire changeset."
-    )
-
-
 def fmt_todo_nudge(todo_str: str) -> str:
     return (
         "The TodoWrite tool hasn't been used recently. If you're working on tasks that would benefit "
