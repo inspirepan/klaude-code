@@ -129,14 +129,12 @@ class BashTool(ToolABC):
 
         def _hash_file_content_sha256(file_path: str) -> str | None:
             try:
+                import hashlib
+
                 suffix = Path(file_path).suffix.lower()
                 if suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
-                    import hashlib
-
                     with open(file_path, "rb") as f:
                         return hashlib.sha256(f.read()).hexdigest()
-
-                import hashlib
 
                 hasher = hashlib.sha256()
                 with open(file_path, encoding="utf-8", errors="replace") as f:
@@ -408,7 +406,7 @@ class BashTool(ToolABC):
             rc = proc.returncode
 
             if rc == 0:
-                output = stdout if stdout else ""
+                output = stdout
                 # Include stderr if there is useful diagnostics despite success
                 if stderr.strip():
                     output = (output + ("\n" if output else "")) + f"[stderr]\n{stderr}"

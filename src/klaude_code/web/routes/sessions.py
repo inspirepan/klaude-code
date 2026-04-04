@@ -125,7 +125,7 @@ async def stream_sessions(request: Request, state: WebAppState = WEB_STATE_DEP) 
         return await anext(iterator)
 
     async def _iter() -> AsyncIterator[str]:
-        iterator = subscription.__aiter__()
+        iterator = aiter(subscription)
         next_event_task: asyncio.Task[Any] | None = None
         try:
             while True:

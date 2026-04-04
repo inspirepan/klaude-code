@@ -216,7 +216,7 @@ def _extract_url_filename(url: str) -> str:
     path = parsed.path.strip("/").replace("/", "_")
     name = f"{host}_{path}" if path else host
     name = re.sub(r"[^a-zA-Z0-9_\-]", "_", name)
-    return name[:URL_FILENAME_MAX_LENGTH] if len(name) > URL_FILENAME_MAX_LENGTH else name
+    return name[:URL_FILENAME_MAX_LENGTH]
 
 
 def _save_binary_content(url: str, data: bytes, extension: str = ".bin") -> str | None:

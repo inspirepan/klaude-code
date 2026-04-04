@@ -53,8 +53,6 @@ def is_sub_agent_tool(tool_name: str) -> bool:
 
 def get_agent_active_form(arguments: str) -> str:
     """Return active form text for Agent tool based on its arguments."""
-    import json
-
     from klaude_code.protocol.sub_agent import get_sub_agent_profile
 
     _DEFAULT = "Tasking"

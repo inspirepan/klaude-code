@@ -366,8 +366,8 @@ class ReadTool(ToolABC):
             return await cls._read_image(file_path, size_bytes, context)
 
         # --- Read dedup: avoid resending unchanged content ---
-        offset = 1 if args.offset is None or args.offset < 1 else int(args.offset)
-        limit = None if args.limit is None else int(args.limit)
+        offset = 1 if args.offset is None or args.offset < 1 else args.offset
+        limit = args.limit
         if limit is not None and limit < 0:
             limit = 0
 

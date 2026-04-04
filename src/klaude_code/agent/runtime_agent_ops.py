@@ -646,9 +646,8 @@ class AgentOperationHandler:
 
         tasks_to_cancel = self._cancel_tasks_for_sessions({session_id})
 
-        scope = session_id
         log_debug(
-            f"Interrupting {len(tasks_to_cancel)} task(s) for: {scope}",
+            f"Interrupting {len(tasks_to_cancel)} task(s) for: {session_id}",
             debug_type=DebugType.EXECUTION,
         )
 
@@ -664,7 +663,7 @@ class AgentOperationHandler:
             )
         except TimeoutError:
             log_debug(
-                f"Interrupt timeout while waiting task cancellation for: {scope}",
+                f"Interrupt timeout while waiting task cancellation for: {session_id}",
                 debug_type=DebugType.EXECUTION,
             )
 

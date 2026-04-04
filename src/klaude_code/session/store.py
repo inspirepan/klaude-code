@@ -105,12 +105,10 @@ class JsonlSessionWriter:
         session_dir = self._paths.session_dir(batch.session_id)
         session_dir.mkdir(parents=True, exist_ok=True)
 
-        event_lines = [encode_jsonl_line(item) for item in batch.items]
-
         events_path = self._paths.events_file(batch.session_id)
         with events_path.open("a", encoding="utf-8") as f:
-            for line in event_lines:
-                f.write(line)
+            for item in batch.items:
+                f.write(encode_jsonl_line(item))
             f.flush()
 
         meta_path = self._paths.meta_file(batch.session_id)

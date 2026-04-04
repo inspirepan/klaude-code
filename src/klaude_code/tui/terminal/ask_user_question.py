@@ -365,9 +365,7 @@ def select_questions[T](
                 continue
             values.append(value)
 
-        if _is_submit_tab(active_tab_idx):
-            raw_input = input_text_by_question[question_idx]
-        elif question_idx == active_tab_idx:
+        if question_idx == active_tab_idx and not _is_submit_tab(active_tab_idx):
             raw_input = input_buffer.text
         else:
             raw_input = input_text_by_question[question_idx]

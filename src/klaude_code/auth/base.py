@@ -81,7 +81,7 @@ class BaseTokenManager[T: BaseAuthState](ABC):
         """Delete stored tokens."""
         store = self._load_store()
         store.pop(self.storage_key, None)
-        if len(store) == 0:
+        if not store:
             if self.auth_file.exists():
                 self.auth_file.unlink()
         else:

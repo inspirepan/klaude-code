@@ -62,11 +62,11 @@ def delete_auth_env(env_var: str) -> None:
     if env_section is None:
         return
     env_section.pop(env_var, None)
-    if len(env_section) == 0:
+    if not env_section:
         store.pop("env", None)
     else:
         store["env"] = env_section
-    if len(store) == 0:
+    if not store:
         if KLAUDE_AUTH_FILE.exists():
             KLAUDE_AUTH_FILE.unlink()
     else:

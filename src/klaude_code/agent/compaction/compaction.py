@@ -300,7 +300,7 @@ def _call_args_probably_modify_file(args: dict[str, object]) -> bool:
         return True
     # Batch edits.
     edits = args.get("edits")
-    return bool(isinstance(edits, list))
+    return isinstance(edits, list)
 
 
 def collect_file_operations(

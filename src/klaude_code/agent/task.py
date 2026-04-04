@@ -47,7 +47,7 @@ class MetadataAccumulator:
     """
 
     def __init__(self, model_name: str) -> None:
-        self._main_agent = model.TaskMetadata(model_name=model_name)  # Main agent metadata
+        self._main_agent = model.TaskMetadata(model_name=model_name)
         self._sub_agent_metadata: list[model.TaskMetadata] = []
         self._throughput_weighted_sum: float = 0.0
         self._throughput_tracked_tokens: int = 0
@@ -131,7 +131,6 @@ class MetadataAccumulator:
         if self._main_agent.usage is None:
             return None
 
-        # Create a copy to avoid modifying the original
         usage_copy = self._main_agent.usage.model_copy(deep=True)
 
         if self._throughput_tracked_tokens > 0:

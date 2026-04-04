@@ -443,13 +443,12 @@ async def _receive_commands(
         if not isinstance(payload, dict):
             await _send_error_frame(websocket, code="invalid_message", message="Message must be an object")
             continue
-        payload_dict = cast(dict[str, Any], payload)
+        payload = cast(dict[str, Any], payload)
 
-        frame_type_raw = payload_dict.get("type")
-        if not isinstance(frame_type_raw, str):
+        frame_type = payload.get("type")
+        if not isinstance(frame_type, str):
             await _send_error_frame(websocket, code="invalid_message", message="Missing message type")
             continue
-        frame_type = frame_type_raw
         if frame_type not in {
             "message",
             "interrupt",
@@ -464,7 +463,7 @@ async def _receive_commands(
             continue
 
         try:
-            frame = _validate_incoming_frame(payload_dict, frame_type)
+            frame = _validate_incoming_frame(payload, frame_type)
         except ValidationError as exc:
             await _send_error_frame(
                 websocket,
@@ -556,11 +555,8 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
         for task in done:
             with contextlib.suppress(asyncio.CancelledError, FutureCancelledError):
                 exc = task.exception()
-                if exc is None:
-                    continue
-                if isinstance(exc, WebSocketDisconnect):
-                    continue
-                raise exc
+                if exc is not None and not isinstance(exc, WebSocketDisconnect):
+                    raise exc
     except (WebSocketDisconnect, asyncio.CancelledError, FutureCancelledError):
         return
     finally:

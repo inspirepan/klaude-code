@@ -19,8 +19,7 @@ from klaude_code.protocol import message
 
 _MAX_IMAGE_SIZE_BYTES = 4_500_000
 _MAX_BASE64_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
-_MAX_IMAGE_DIMENSION = 8000
-MAX_IMAGE_DIMENSION = _MAX_IMAGE_DIMENSION
+MAX_IMAGE_DIMENSION = 8000
 _JPEG_SOF_MARKERS = {
     0xC0,
     0xC1,
@@ -247,7 +246,7 @@ def _image_bytes_within_limits(image_bytes: bytes) -> bool:
 
 
 def _resize_image_bytes_if_needed(
-    image_bytes: bytes, mime_type: str, *, max_dimension: int = _MAX_IMAGE_DIMENSION
+    image_bytes: bytes, mime_type: str, *, max_dimension: int = MAX_IMAGE_DIMENSION
 ) -> bytes:
     media_type = mime_type.lower()
     if not media_type.startswith("image/"):
@@ -323,7 +322,7 @@ def parse_data_url(url: str) -> tuple[str, str, bytes]:
     return mime_type, base64_payload, decoded
 
 
-def normalize_image_data_url(url: str, *, max_dimension: int = _MAX_IMAGE_DIMENSION) -> str:
+def normalize_image_data_url(url: str, *, max_dimension: int = MAX_IMAGE_DIMENSION) -> str:
     """Normalize a data URL image by resizing oversized inline images and correcting MIME types."""
 
     if not url.startswith("data:"):
@@ -343,7 +342,7 @@ def normalize_image_data_url(url: str, *, max_dimension: int = _MAX_IMAGE_DIMENS
     return f"data:{mime_type};base64,{encoded}"
 
 
-def image_file_to_data_url(image: message.ImageFilePart, *, max_dimension: int = _MAX_IMAGE_DIMENSION) -> str | None:
+def image_file_to_data_url(image: message.ImageFilePart, *, max_dimension: int = MAX_IMAGE_DIMENSION) -> str | None:
     """Load an image file from disk and encode it as a base64 data URL.
 
     Returns None if the file no longer exists on disk.

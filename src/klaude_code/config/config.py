@@ -75,9 +75,9 @@ def _normalize_model_preference(value: Any) -> ModelPreference:
     if isinstance(value, list):
         normalized_list: list[str] = []
         for item in cast(list[object], value):
-            normalized_item = str(item).strip()
-            if normalized_item:
-                normalized_list.append(normalized_item)
+            s = str(item).strip()
+            if s:
+                normalized_list.append(s)
         return normalized_list or None
     return value
 
@@ -524,7 +524,7 @@ class Config(BaseModel):
         )
 
         provider_list = [
-            p.model_dump(mode="json", exclude_none=True, exclude_unset=True) for p in (user_config.provider_list or [])
+            p.model_dump(mode="json", exclude_none=True, exclude_unset=True) for p in user_config.provider_list
         ]
         if provider_list:
             config_dict["provider_list"] = provider_list
@@ -532,7 +532,7 @@ class Config(BaseModel):
         def _save_config() -> None:
             config_path.parent.mkdir(parents=True, exist_ok=True)
             yaml_content = yaml.dump(config_dict, default_flow_style=False, sort_keys=False)
-            _ = config_path.write_text(str(yaml_content or ""))
+            config_path.write_text(yaml_content or "")
 
         await asyncio.to_thread(_save_config)
 
@@ -566,11 +566,6 @@ def get_example_config() -> UserConfig:
             ),
         ],
     )
-
-
-def _get_builtin_config() -> Config:
-    """Load built-in provider configurations."""
-    return get_builtin_config()
 
 
 def _merge_model(builtin: ModelConfig, user: ModelConfig) -> ModelConfig:
@@ -721,23 +716,23 @@ def create_example_config() -> bool:
     config_dict = example_config.model_dump(mode="json", exclude_none=True)
 
     yaml_str = yaml.dump(config_dict, default_flow_style=False, sort_keys=False) or ""
-    header = "# Example configuration for klaude-code\n"
-    header += "# Copy this file to klaude-config.yaml and modify as needed.\n"
-    header += "# Run `klaude list` to see available models.\n"
-    header += "# Tip: you can pick a provider explicitly with `model@provider` (e.g. `sonnet@openrouter`).\n"
-    header += (
+    header = (
+        "# Example configuration for klaude-code\n"
+        "# Copy this file to klaude-config.yaml and modify as needed.\n"
+        "# Run `klaude list` to see available models.\n"
+        "# Tip: you can pick a provider explicitly with `model@provider` (e.g. `sonnet@openrouter`).\n"
         "# If you omit `@provider` (e.g. `sonnet`), klaude picks the first configured provider with credentials.\n"
+        "#\n"
+        "# Built-in providers (anthropic, openai, openrouter, deepseek) are available automatically.\n"
+        "# Just set the corresponding API key environment variable to use them.\n\n"
     )
-    header += "#\n"
-    header += "# Built-in providers (anthropic, openai, openrouter, deepseek) are available automatically.\n"
-    header += "# Just set the corresponding API key environment variable to use them.\n\n"
-    _ = example_config_path.write_text(header + yaml_str)
+    example_config_path.write_text(header + yaml_str)
     return True
 
 
 def _load_config_uncached() -> Config:
     """Load and merge builtin + user config. Always returns a valid Config."""
-    builtin_config = _get_builtin_config()
+    builtin_config = get_builtin_config()
 
     user_config = _load_user_config()
 
