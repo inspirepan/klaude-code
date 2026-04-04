@@ -39,6 +39,6 @@ These features span three modules that must stay in sync:
 |-------|--------|----------------|
 | Input | `completers.py` | Autocomplete paths/skills as user types |
 | Display | `components/user_input.py` | Highlight syntax in rendered messages |
-| Action | `core/reminders.py` | Inject file content / load skill for LLM |
+| Action | `agent/attachments.py` | Inject file content / load skill for LLM |
 
 When adding or modifying syntax (e.g., new prefix like `#tag`), update all three.

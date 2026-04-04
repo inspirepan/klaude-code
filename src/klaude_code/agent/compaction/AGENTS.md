@@ -45,7 +45,7 @@ if run_ops and should_compact_threshold(...):
     await executor.submit_and_wait(CompactSessionOperation(...))
 ```
 
-### 2. Task Turn Start (`core/task.py`)
+### 2. Task Turn Start (`agent/task.py`)
 
 At the beginning of each turn in `TaskRunner._run_inner()`. Important for multi-turn tool loops where no new user input occurs:
 
@@ -58,7 +58,7 @@ if ctx.sub_agent_state is None and should_compact_threshold(...):
 
 Note: Sub-agents skip threshold compaction (handled by parent).
 
-### 3. Context Overflow Recovery (`core/task.py`)
+### 3. Context Overflow Recovery (`agent/task.py`)
 
 When LLM API returns context overflow error, triggers compaction and retries:
 

@@ -7,13 +7,17 @@ Minimal code agent CLI.
 - **Keep reasoning item in context**: Interleaved thinking support
 - **Model-aware tools**: Claude Code tool set for Opus, `apply_patch` for GPT-5/Codex
 - **Reminders**: Cooldown-based todo tracking, instruction reinforcement and external file change reminder
-- **Sub-agents**: Task, Finder
+- **Sub-agents**: General Purpose, Finder, Code Reviewer, Code Simplifier (+ fork-context variant)
 - **Recursive `@file` mentions**: Circular dependency protection, relative path resolution
 - **External file sync**: Monitoring for external edits (linter, manual)
 - **Interrupt handling**: Ctrl+C preserves partial responses and synthesizes tool cancellation results
 - **Output truncation**: Large outputs saved to file system with snapshot links
 - **Agent Skills**: Built-in + user + project Agent Skills (with implicit invocation by Skill tool or explicit invocation by typing `//skill` or `/skill`)
-- **Sessions**: Resumable with `--continue`
+- **Prompt caching**: Append-only message history maximizes prefix cache hits (cached tokens cost 10% of base input)
+- **Context management**: Auto-compaction, Rewind (rollback to checkpoint), Handoff (compress and continue in fresh context)
+- **Auto memory**: Persistent cross-session memory per project (`~/.klaude/projects/<project>/memory/`)
+- **Web UI**: Browser-based interface via `klaude web` or `/web` slash command
+- **Sessions**: Resumable with `--continue`, forkable with `/fork-session`
 - **Extras**: Slash commands, sub-agents, image paste, terminal notifications, auto-theming
 
 ## Installation
@@ -93,6 +97,7 @@ export OPENROUTER_API_KEY=sk-or-xxx      # OpenRouter (multi-provider)
 export DEEPSEEK_API_KEY=sk-xxx           # DeepSeek models
 export MOONSHOT_API_KEY=sk-xxx           # Moonshot/Kimi models
 export MINIMAX_API_KEY=xxx               # MiniMax models
+export GOOGLE_API_KEY=xxx                # Google Gemini models (or GEMINI_API_KEY)
 export EXA_API_KEY=exa-xxx               # Exa Search (optional, WebSearch provider, preferred)
 export BRAVE_API_KEY=BSA-xxx             # Brave Search (optional, WebSearch provider, fallback)
 
@@ -234,17 +239,23 @@ provider_list:
 
 ##### Sub-agent Model Configuration
 
-`sub_agent_models` only accepts sub-agent types. Current supported keys are:
+`sub_agent_models` accepts registered sub-agent type names as keys. Current supported keys are:
 
-- `general-purpose` (Task sub-agent)
-- `finder` (Finder sub-agent)
+- `general-purpose` - Autonomous multi-step task executor
+- `general-purpose-fork-context` - Same as above but inherits parent conversation history
+- `finder` - Fast codebase search and exploration
+- `code-reviewer` - Identifies bugs in proposed changes
+- `code-simplifier` - Refines code for clarity and consistency
 
-If a sub-agent type is not configured, it falls back to the main agent model.
+If a sub-agent type is not configured, it falls back to the main agent model. Each key also accepts a list for fallback ordering.
 
 ```yaml
 sub_agent_models:
   general-purpose: sonnet
-  finder: haiku
+  finder:
+    - haiku
+    - gemini-flash
+  code-reviewer: opus
 ```
 
 ##### Supported Protocols
@@ -253,9 +264,11 @@ sub_agent_models:
 - `openai` - OpenAI Chat Completion API
 - `responses` - OpenAI Responses API (for o-series, GPT-5, Codex)
 - `codex_oauth` - OpenAI Codex CLI (OAuth-based, for ChatGPT Pro subscribers)
+- `github_copilot_oauth` - GitHub Copilot (OAuth-based)
 - `openrouter` - OpenRouter API (handling `reasoning_details` for interleaved thinking)
 - `google` - Google Gemini API
-- `bedrock` - AWS Bedrock for Claude(uses AWS credentials instead of api_key)
+- `google_vertex` - Google Vertex AI (uses GCP credentials)
+- `bedrock` - AWS Bedrock for Claude (uses AWS credentials instead of api_key)
 
 List configured providers and models:
 
@@ -285,19 +298,20 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 - `/...` supports mixed completion for commands + skills (command names take priority on conflicts).
 - `//...` shows skill-only completion and triggers skills explicitly.
 
+- `/copy` - Copy last assistant message to clipboard.
+- `/compact` - Clear conversation history but keep a summary in context.
+- `/fork-session` - Fork current session from a selected point.
+- `/refresh-terminal` - Refresh terminal display.
+- `/web` - Switch to web UI mode.
+- `/new` - Start a new session (clears context).
 - `/model` - Switch the active LLM during the session.
-- `/thinking` - Configure model thinking/reasoning level.
-- `/clear` - Clear the current conversation context.
-- `/copy` - Copy last assistant message.
+- `/sub-agent-model` - Configure sub-agent models at runtime.
+- `/thinking` - Change thinking/reasoning level.
 - `/status` - Show session usage statistics (cost, tokens, model breakdown).
-- `/resume` - Select and resume a previous session.
-- `/fork-session` - Fork current session to a new session ID (supports interactive fork point selection).
-- `/export` - Export last assistant message to a temp Markdown file.
+- `/login` - Login to provider or configure API key.
+- `/logout` - Logout from provider.
+- `/continue` - Continue current session without a new user message.
 - `/debug [filters]` - Toggle debug mode and configure debug filters.
-- `/init` - Bootstrap a new project structure or module.
-- `/dev-doc [feature]` - Generate a comprehensive execution plan for a feature.
-- `/terminal-setup` - Configure terminal for Shift+Enter support.
-- `/help` - List all available commands.
 
 
 ### Input Shortcuts
@@ -305,7 +319,7 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 | Key                  | Action                                      |
 | -------------------- | ------------------------------------------- |
 | `Enter`              | Submit input                                |
-| `Shift+Enter`        | Insert newline (requires `/terminal-setup`) |
+| `Shift+Enter`        | Insert newline (terminal-dependent)         |
 | `Ctrl+J`             | Insert newline                              |
 | `Ctrl+L`             | Open model picker overlay                   |
 | `Ctrl+T`             | Open thinking level picker overlay          |
@@ -320,5 +334,62 @@ The main agent can spawn specialized sub-agents for specific tasks:
 
 | Sub-Agent | Purpose |
 |-----------|---------|
+| **General Purpose** | Handle complex multi-step tasks autonomously |
+| **General Purpose (Fork Context)** | Same as above, but inherits the parent agent's full conversation history |
 | **Finder** | Fast codebase exploration - find files, search code, answer questions about the codebase |
-| **Task** | Handle complex multi-step tasks autonomously |
+| **Code Reviewer** | Identify real bugs in proposed changes |
+| **Code Simplifier** | Refine recently changed code for clarity and consistency |
+
+### Web UI
+
+Klaude includes a browser-based interface as an alternative to the terminal TUI.
+
+```bash
+# Start web UI directly
+klaude web
+
+# With options
+klaude web --port 9000 --host 0.0.0.0 --no-open
+```
+
+You can also switch from TUI to web mid-session with the `/web` slash command. The web UI provides the same capabilities as the TUI: multi-session management, file browsing, tool execution, and real-time streaming.
+
+### Prompt Caching
+
+Klaude is designed to maximize prefix cache hit rates across LLM API calls. Cached tokens are priced at ~10% of base input tokens, so high cache hit rates significantly reduce cost.
+
+**Append-only message history.** The conversation history is strictly append-only. New messages, tool results, and attachments are always appended to the end of the message array, never inserted or modified in the middle. Any mutation to the head of the messages array (compressing old tool results, replacing images, reordering tool definitions) would invalidate the prefix cache and force a full re-tokenization.
+
+Design choices that preserve prefix stability:
+- **Stable system prompt**: The system prompt is composed of a static base prompt + stable tool strategy block + environment info, avoiding per-turn variation.
+- **Stable JSON serialization**: Tool schemas and provider payloads use `canonicalize_json()` for deterministic key ordering across calls.
+- **Cache control markers**: For Anthropic and OpenRouter (Claude models), `cache_control: {"type": "ephemeral"}` is placed on the system prompt and the last message part to hint the provider's caching boundary.
+- **Compaction preserves prefix**: When context is compacted, the summary is prepended as a new first message while keeping the retained tail intact -- no existing message bytes are modified.
+- **Fork-context sub-agents**: Sub-agents with `fork_context=True` inherit the parent's full system prompt and tool list to maximize prefix cache sharing.
+
+The TUI displays cache hit rate per turn in the metadata line (e.g. `cache 12.5k (98%)`). Rates below 90% are highlighted as a warning.
+
+### Context Management
+
+The agent automatically manages context window limits:
+
+- **Auto-compaction**: When the conversation approaches the model's context limit, older messages are summarized and replaced with a compact summary. The agent also recovers from context overflow errors by compacting and retrying.
+- **Rewind**: The agent can roll back the conversation to a previous checkpoint (automatically inserted at key points). File system changes are preserved; only conversation history is rewound.
+- **Handoff**: The agent can compress the current conversation into a summary and continue in a fresh context. Useful for very long sessions where context quality degrades.
+
+### Auto Memory
+
+Klaude maintains persistent memory per project across sessions. Memory files are stored in `~/.klaude/projects/<project-key>/memory/` with a `MEMORY.md` index file. The agent automatically loads relevant memories at session start and can save new memories during a session.
+
+Memory types include user preferences, feedback/corrections, project context, and external references.
+
+### Project Configuration Files
+
+Klaude reads instruction files from your project directory to customize agent behavior:
+
+| File | Purpose |
+|------|---------|
+| `AGENTS.md` | Project-level instructions checked into version control (shared with team) |
+| `CLAUDE.md` | Personal instructions (typically gitignored) |
+
+These files are loaded automatically and injected into the system prompt. They can be placed at the project root or in subdirectories for scoped instructions.
