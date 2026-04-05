@@ -1,6 +1,7 @@
 """Configuration commands for CLI."""
 
 import os
+import shlex
 import subprocess
 import sys
 
@@ -71,13 +72,7 @@ def edit_config() -> None:
         log(f"Opening example config (copy to {config_path.name} to use)")
 
     try:
-        if editor == "open -a TextEdit":
-            subprocess.run(["open", "-a", "TextEdit", str(target_path)], check=True)
-        elif editor in ["open", "xdg-open"]:
-            # For open/xdg-open, we need to pass the file directly
-            subprocess.run([editor, str(target_path)], check=True)
-        else:
-            subprocess.run([editor, str(target_path)], check=True)
+        subprocess.run([*shlex.split(editor), str(target_path)], check=True)
     except subprocess.CalledProcessError as e:
         log((f"Error: Failed to open editor: {e}", "red"))
         raise typer.Exit(1) from None
