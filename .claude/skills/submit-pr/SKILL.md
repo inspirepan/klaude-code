@@ -66,7 +66,11 @@ EOF
 
 `--head` is required in jj mode, auto-detected in git mode.
 
-Extract the PR number from the script output (shown in `PR_URL`) and report the PR URL to the user.
+Extract the PR number and URL from the script output (shown in `PR_URL`). Open it in the browser and report to the user:
+
+```bash
+open <PR_URL>
+```
 
 ### 4. Fix until CI passes
 
