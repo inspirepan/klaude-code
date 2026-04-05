@@ -9,6 +9,12 @@ import pytest
 from klaude_code.tui.terminal import image as terminal_image
 
 
+@pytest.fixture(autouse=True)
+def _force_kitty_support(monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
+    """Ensure existing tests run as if Kitty graphics is supported."""
+    monkeypatch.setattr(terminal_image, "supports_kitty_graphics", lambda: True)
+
+
 def _png_bytes(width: int = 18, height: int = 18) -> bytes:
     return (
         b"\x89PNG\r\n\x1a\n"
@@ -78,3 +84,20 @@ def test_print_kitty_image_expands_rows_for_tall_image_readability(
     terminal_image.print_kitty_image(png_path, file=io.StringIO())
 
     assert size_params == ["c=50"]
+
+
+def test_print_kitty_image_falls_back_when_unsupported(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    png_path = tmp_path / "photo.png"
+    png_path.write_bytes(_png_bytes())
+
+    monkeypatch.setattr(terminal_image, "supports_kitty_graphics", lambda: False)
+
+    def _write_kitty_graphics(out: io.StringIO, encoded_data: str, *, size_param: str) -> None:
+        raise AssertionError("should not render kitty graphics on unsupported terminal")
+
+    monkeypatch.setattr(terminal_image, "_write_kitty_graphics", _write_kitty_graphics)
+
+    output = io.StringIO()
+    terminal_image.print_kitty_image(png_path, file=output)
+
+    assert output.getvalue().strip() == f"[[Image: {png_path}]]"

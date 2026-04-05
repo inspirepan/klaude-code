@@ -244,9 +244,7 @@ def _apply_entries(daily_stats: dict[str, DailyStats], entries: list[dict[str, A
             day_stats = daily_stats.setdefault(date_str, DailyStats(date=date_str))
 
             model_key = (model_name, provider)
-            stats = day_stats.by_model.setdefault(
-                model_key, ModelUsageStats(model_name=model_name, provider=provider)
-            )
+            stats = day_stats.by_model.setdefault(model_key, ModelUsageStats(model_name=model_name, provider=provider))
 
             stats.input_tokens += input_tokens
             stats.output_tokens += output_tokens

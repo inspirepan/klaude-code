@@ -1122,11 +1122,7 @@ class DisplayStateMachine:
                         primary.thinking_stream_active = False
                         cmds.append(EndThinkingStream(session_id=primary.session_id))
 
-                if (
-                    not is_replay
-                    and e.tool_name == tools.AGENT
-                    and not s.should_skip_tool_activity(e.tool_name)
-                ):
+                if not is_replay and e.tool_name == tools.AGENT and not s.should_skip_tool_activity(e.tool_name):
                     tool_active_form = get_agent_active_form(e.arguments)
                     if s.is_sub_agent:
                         s.add_status_tool_call(e.tool_call_id, tool_active_form)

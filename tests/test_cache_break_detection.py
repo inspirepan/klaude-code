@@ -7,10 +7,7 @@ from klaude_code.protocol import llm_param, model
 
 
 def _make_tools(*names: str) -> list[llm_param.ToolSchema]:
-    return [
-        llm_param.ToolSchema(name=n, type="function", description=f"tool {n}", parameters={})
-        for n in names
-    ]
+    return [llm_param.ToolSchema(name=n, type="function", description=f"tool {n}", parameters={}) for n in names]
 
 
 def _make_usage(cached: int = 0, input_tokens: int = 0, cache_write: int = 0) -> model.Usage:
