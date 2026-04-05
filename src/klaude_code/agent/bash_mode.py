@@ -66,6 +66,8 @@ def _resolve_shell_command(command_text: str) -> list[str]:
     # Use the user's default shell when possible.
     # - macOS/Linux: $SHELL (supports bash/zsh/fish)
     # - Windows: prefer pwsh/powershell
+    # We use -i (interactive) so that user aliases/functions from ~/.zshrc / ~/.bashrc
+    # are available in bash mode.
     if sys.platform == "win32":  # pragma: no cover
         exe = "pwsh" if shutil.which("pwsh") else "powershell"
         return [exe, "-NoProfile", "-Command", command_text]
@@ -73,8 +75,8 @@ def _resolve_shell_command(command_text: str) -> list[str]:
     shell_path = os.environ.get("SHELL")
     shell_name = Path(shell_path).name.lower() if shell_path else ""
     if shell_path and shell_name in {"bash", "zsh", "fish"}:
-        return [shell_path, "-lc", command_text]
-    return ["bash", "-lc", command_text]
+        return [shell_path, "-ilc", command_text]
+    return ["bash", "-ilc", command_text]
 
 
 async def _terminate_process(proc: asyncio.subprocess.Process) -> None:
