@@ -100,6 +100,31 @@ def test_get_existing_memory_files_does_not_scan_parent_without_git(
     assert result["user"] == []
 
 
+def test_discover_memory_files_near_paths_deduplicates_symlinks(tmp_path: Path) -> None:
+    """When CLAUDE.md is a symlink to AGENTS.md, only one should be loaded."""
+    work_dir = tmp_path / "repo"
+    nested_dir = work_dir / "src"
+    nested_dir.mkdir(parents=True)
+    target_file = nested_dir / "app.py"
+    target_file.write_text("print('hello')\n", encoding="utf-8")
+
+    agents_path = nested_dir / "AGENTS.md"
+    agents_path.write_text("shared instructions\n", encoding="utf-8")
+    claude_path = nested_dir / "CLAUDE.md"
+    claude_path.symlink_to(agents_path)
+
+    loaded: set[str] = set()
+    memories = memory.discover_memory_files_near_paths(
+        [str(target_file.resolve())],
+        work_dir=work_dir,
+        is_memory_loaded=lambda p: p in loaded,
+        mark_memory_loaded=lambda p: loaded.add(p),
+    )
+
+    assert len(memories) == 1
+    assert memories[0].content.strip() == "shared instructions"
+
+
 def test_discover_memory_files_near_paths_truncates_content(tmp_path: Path) -> None:
     work_dir = tmp_path / "repo"
     nested_dir = work_dir / "src" / "feature"
