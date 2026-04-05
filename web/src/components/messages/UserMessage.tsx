@@ -51,7 +51,7 @@ export function UserMessage({ item }: UserMessageProps): React.JSX.Element {
   const [collapsedTextMaxHeight, setCollapsedTextMaxHeight] = useState<number | null>(null);
   const [expandedImageIndex, setExpandedImageIndex] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
-  const copyTimerRef = useRef<number>(0);
+  const copyTimerRef = useRef(0);
 
   const handleCopy = useCallback(async () => {
     try {

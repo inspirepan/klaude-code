@@ -359,7 +359,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const wasAtBottomRef = useRef(true);
-  const itemRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
+  const itemRefsMap = useRef(new Map<string, HTMLDivElement>());
   const previousLastVisibleItemIdRef = useRef<string | null>(null);
   const mainScrollTopRef = useRef<number | null>(null);
   // Tracks programmatic scroll target so handleScroll can ignore the resulting event.

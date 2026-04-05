@@ -128,6 +128,13 @@ def install_system_skills() -> bool:
             log_debug("No embedded system skills found")
             return False
 
+        # Guard: if the assets dir exists but has no skill subdirectories
+        # (e.g. git submodule not initialized), skip without writing marker
+        has_skills = any(item.is_dir() and not item.name.startswith(".") for item in assets_path.iterdir())
+        if not has_skills:
+            log_debug("Embedded assets directory is empty (submodule not initialized?), skipping")
+            return False
+
         # Calculate fingerprint of embedded assets
         expected_fingerprint = _calculate_fingerprint(assets_path)
 
