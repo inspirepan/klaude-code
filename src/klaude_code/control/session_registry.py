@@ -267,11 +267,11 @@ class SessionRegistry:
         return runtime.session_id, handle
 
     def list_active_tasks(self) -> list[tuple[str, RuntimeTaskHandle]]:
-        active_tasks: list[tuple[str, RuntimeTaskHandle]] = []
-        for runtime in self._session_actors.values():
-            for handle in runtime.list_active_tasks():
-                active_tasks.append((runtime.session_id, handle))
-        return active_tasks
+        return [
+            (runtime.session_id, handle)
+            for runtime in self._session_actors.values()
+            for handle in runtime.list_active_tasks()
+        ]
 
     # -- Holder management --
 

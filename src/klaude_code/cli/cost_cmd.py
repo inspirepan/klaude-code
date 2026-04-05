@@ -193,9 +193,8 @@ class DailyStats:
 
 
 def _load_cost_cache() -> dict[str, Any]:
-    cache_path = COST_CACHE_PATH
     try:
-        raw = json.loads(cache_path.read_text(encoding="utf-8"))
+        raw = json.loads(COST_CACHE_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {"version": COST_CACHE_VERSION, "sessions": {}}
 
@@ -207,19 +206,18 @@ def _load_cost_cache() -> dict[str, Any]:
     if data.get("version") != COST_CACHE_VERSION:
         return {"version": COST_CACHE_VERSION, "sessions": {}}
 
-    if "sessions" not in data or not isinstance(data.get("sessions"), dict):
+    if not isinstance(data.get("sessions"), dict):
         data["sessions"] = {}
 
     return data
 
 
 def _save_cost_cache(cache: dict[str, Any]) -> None:
-    cache_path = COST_CACHE_PATH
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = cache_path.with_suffix(".tmp")
+    COST_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = COST_CACHE_PATH.with_suffix(".tmp")
     payload = json.dumps(cache, ensure_ascii=True, indent=2, sort_keys=True)
     tmp_path.write_text(payload, encoding="utf-8")
-    tmp_path.replace(cache_path)
+    tmp_path.replace(COST_CACHE_PATH)
 
 
 def _is_cache_entry_valid(entry: dict[str, Any], events_path: Path) -> bool:
@@ -243,16 +241,10 @@ def _apply_entries(daily_stats: dict[str, DailyStats], entries: list[dict[str, A
             cost_usd = float(entry["cost_usd"])
             cost_cny = float(entry["cost_cny"])
 
-            day_stats = daily_stats.get(date_str)
-            if day_stats is None:
-                day_stats = DailyStats(date=date_str)
-                daily_stats[date_str] = day_stats
+            day_stats = daily_stats.setdefault(date_str, DailyStats(date=date_str))
 
             model_key = (model_name, provider)
-            stats = day_stats.by_model.get(model_key)
-            if stats is None:
-                stats = ModelUsageStats(model_name=model_name, provider=provider)
-                day_stats.by_model[model_key] = stats
+            stats = day_stats.by_model.setdefault(model_key, ModelUsageStats(model_name=model_name, provider=provider))
 
             stats.input_tokens += input_tokens
             stats.output_tokens += output_tokens
@@ -269,10 +261,7 @@ def _aggregate_session_entries(events_path: Path) -> list[dict[str, Any]]:
     per_day: dict[str, DailyStats] = {}
 
     for date_str, metadata_item in iter_task_metadata_from_events(events_path):
-        day_stats = per_day.get(date_str)
-        if day_stats is None:
-            day_stats = DailyStats(date=date_str)
-            per_day[date_str] = day_stats
+        day_stats = per_day.setdefault(date_str, DailyStats(date=date_str))
 
         day_stats.add_task_metadata(metadata_item.main_agent, date_str)
         for sub_meta in metadata_item.sub_agent_task_metadata:

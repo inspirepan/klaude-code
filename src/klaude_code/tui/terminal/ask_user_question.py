@@ -18,6 +18,7 @@ from prompt_toolkit.layout.containers import Container, DynamicContainer, Scroll
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.styles import Style, merge_styles
 from prompt_toolkit.styles.base import BaseStyle
+from prompt_toolkit.utils import get_cwidth
 from rich.console import Console
 
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
@@ -159,6 +160,20 @@ def _should_imply_pointed_selection[T](
         and not _question_has_markdown_preview(question)
         and 0 <= pointed_at < len(question.items)
     )
+
+
+def _display_width(s: str) -> int:
+    return sum(get_cwidth(c) for c in s)
+
+
+def _trim_to_display_width(s: str, width: int) -> str:
+    w = 0
+    for i, c in enumerate(s):
+        cw = get_cwidth(c)
+        if w + cw > width:
+            return s[:i]
+        w += cw
+    return s
 
 
 @lru_cache(maxsize=128)
@@ -350,9 +365,7 @@ def select_questions[T](
                 continue
             values.append(value)
 
-        if _is_submit_tab(active_tab_idx):
-            raw_input = input_text_by_question[question_idx]
-        elif question_idx == active_tab_idx:
+        if question_idx == active_tab_idx and not _is_submit_tab(active_tab_idx):
             raw_input = input_buffer.text
         else:
             raw_input = input_text_by_question[question_idx]
@@ -616,16 +629,16 @@ def select_questions[T](
         tokens: list[tuple[str, str]] = [("class:preview_border", top + "\n")]
 
         for line in visible_lines:
-            trimmed = line[:inner_width]
-            padding = " " * max(0, inner_width - len(trimmed))
+            trimmed = _trim_to_display_width(line, inner_width)
+            padding = " " * max(0, inner_width - _display_width(trimmed))
             tokens.append(("class:preview_border", "│ "))
             tokens.append(("class:preview_content", trimmed))
             tokens.append(("class:preview_border", padding + " │\n"))
 
         if hidden_count > 0:
             label = f"... {hidden_count} lines hidden"
-            trimmed = label[:inner_width]
-            padding = " " * max(0, inner_width - len(trimmed))
+            trimmed = _trim_to_display_width(label, inner_width)
+            padding = " " * max(0, inner_width - _display_width(trimmed))
             tokens.append(("class:preview_border", "│ "))
             tokens.append(("class:warning", trimmed))
             tokens.append(("class:preview_border", padding + " │\n"))

@@ -81,8 +81,10 @@ Always use the [Conventional Commits](https://www.conventionalcommits.org/) spec
 ## Module-Specific Docs
 
 - `src/klaude_code/auth/AGENTS.md` - Adding new OAuth authentication providers
-- `src/klaude_code/agent/context/compaction/AGENTS.md` - Context window compaction logic and triggers
+- `src/klaude_code/agent/compaction/AGENTS.md` - Context window compaction logic and triggers
 - `src/klaude_code/protocol/sub_agent/AGENTS.md` - Sub-agent profiles, registration, fork context mode
 - `src/klaude_code/skill/AGENTS.md` - Skill submodule management and loading
+- `src/klaude_code/tool/AGENTS.md` - Adding new tools, ToolABC interface, registration pattern
+- `src/klaude_code/tui/command/AGENTS.md` - Adding new slash commands, CommandABC interface
 - `src/klaude_code/tui/input/AGENTS.md` - REPL input handling, markers, and special syntax
 - `web/AGENTS.md` - Web frontend component rules and design system

@@ -278,11 +278,7 @@ def _build_http_error(
 
 
 def _clamp_percent(value: float) -> float:
-    if value < 0:
-        return 0.0
-    if value > 100:
-        return 100.0
-    return value
+    return max(0.0, min(100.0, value))
 
 
 def _remaining_percent(used_percent: float) -> float:

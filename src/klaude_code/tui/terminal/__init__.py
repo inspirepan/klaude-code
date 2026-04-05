@@ -54,3 +54,25 @@ def supports_osc8_hyperlinks() -> bool:
 
     # Default to False for unknown terminals
     return False
+
+
+@lru_cache(maxsize=1)
+def supports_kitty_graphics() -> bool:
+    """Check if the current terminal supports the Kitty graphics protocol."""
+    term_program = os.environ.get("TERM_PROGRAM", "").lower()
+    term = os.environ.get("TERM", "").lower()
+
+    # Kitty
+    if "kitty" in term_program or "kitty" in term:
+        return True
+
+    # Ghostty supports Kitty graphics protocol
+    if "ghostty" in term_program or "ghostty" in term:
+        return True
+
+    # WezTerm supports Kitty graphics protocol
+    if "wezterm" in term_program:
+        return True
+
+    # Konsole (KDE) supports Kitty graphics protocol
+    return bool(os.environ.get("KONSOLE_VERSION"))

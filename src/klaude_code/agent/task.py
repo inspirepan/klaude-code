@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from klaude_code.agent.agent_profile import AgentProfile
+from klaude_code.agent.cache_break_detection import CacheBreakReport, CacheTracker
 from klaude_code.agent.compaction import (
     CompactionReason,
     is_context_overflow,
@@ -47,28 +48,39 @@ class MetadataAccumulator:
     """
 
     def __init__(self, model_name: str) -> None:
-        self._main_agent = model.TaskMetadata(model_name=model_name)  # Main agent metadata
+        self._main_agent = model.TaskMetadata(model_name=model_name)
         self._sub_agent_metadata: list[model.TaskMetadata] = []
         self._throughput_weighted_sum: float = 0.0
         self._throughput_tracked_tokens: int = 0
         self._first_token_latency_sum: float = 0.0
         self._first_token_latency_count: int = 0
         self._turn_count: int = 0
-        self._prev_turn_input_tokens: int = 0
-        self._cache_hit_rate_sum: float = 0.0
-        self._cache_hit_rate_count: int = 0
-        # Per-turn cache info set by the most recent add() call.
-        self.last_turn_cache_hit_rate: float | None = None
-        self.last_turn_cached_tokens: int = 0
-        self.last_turn_prev_input_tokens: int = 0
+        self.cache = CacheTracker()
 
     @property
     def prev_turn_input_tokens(self) -> int:
         """Input token count from the most recent successful turn."""
-        return self._prev_turn_input_tokens
+        return self.cache.prev_turn_input_tokens
 
-    def add(self, turn_usage: model.Usage) -> None:
-        """Merge a turn's usage into the accumulated state."""
+    # Convenience aliases so callers read through the same path.
+    @property
+    def last_turn_cache_hit_rate(self) -> float | None:
+        return self.cache.last_hit_rate
+
+    @property
+    def last_turn_cached_tokens(self) -> int:
+        return self.cache.last_cached_tokens
+
+    @property
+    def last_turn_prev_input_tokens(self) -> int:
+        return self.cache.last_prev_input_tokens
+
+    def add(self, turn_usage: model.Usage) -> CacheBreakReport | None:
+        """Merge a turn's usage into the accumulated state.
+
+        Returns a ``CacheBreakReport`` when a prompt-prefix cache break is
+        detected, ``None`` otherwise.
+        """
         self._turn_count += 1
         usage = turn_usage
 
@@ -96,28 +108,14 @@ class MetadataAccumulator:
                 self._throughput_weighted_sum += usage.throughput_tps * current_output
                 self._throughput_tracked_tokens += current_output
 
-        if self._prev_turn_input_tokens > 0:
-            hit_rate = usage.cached_tokens / self._prev_turn_input_tokens
-            self._cache_hit_rate_sum += hit_rate
-            self._cache_hit_rate_count += 1
-            self.last_turn_cache_hit_rate = hit_rate
-            self.last_turn_cached_tokens = usage.cached_tokens
-            self.last_turn_prev_input_tokens = self._prev_turn_input_tokens
-        else:
-            self.last_turn_cache_hit_rate = None
-            self.last_turn_cached_tokens = 0
-            self.last_turn_prev_input_tokens = 0
-        # Use the larger one as denominator baseline so cache hit rate remains
-        # stable across providers with different usage field semantics.
-        self._prev_turn_input_tokens = max(
-            usage.input_tokens,
-            usage.cached_tokens + usage.cache_write_tokens,
-        )
+        cache_break = self.cache.update(usage)
 
         if usage.provider is not None:
             self._main_agent.provider = usage.provider
         if usage.model_name:
             self._main_agent.model_name = usage.model_name
+
+        return cache_break
 
     def add_sub_agent_metadata(self, sub_agent_metadata: model.TaskMetadata) -> None:
         """Add sub-agent task metadata to the accumulated state."""
@@ -131,7 +129,6 @@ class MetadataAccumulator:
         if self._main_agent.usage is None:
             return None
 
-        # Create a copy to avoid modifying the original
         usage_copy = self._main_agent.usage.model_copy(deep=True)
 
         if self._throughput_tracked_tokens > 0:
@@ -144,10 +141,7 @@ class MetadataAccumulator:
         else:
             usage_copy.first_token_latency_ms = None
 
-        if self._cache_hit_rate_count > 0:
-            usage_copy.cache_hit_rate = self._cache_hit_rate_sum / self._cache_hit_rate_count
-        else:
-            usage_copy.cache_hit_rate = None
+        usage_copy.cache_hit_rate = self.cache.avg_hit_rate
 
         return model.TaskMetadata(
             model_name=self._main_agent.model_name,
@@ -186,10 +180,7 @@ class MetadataAccumulator:
             else:
                 self._main_agent.usage.first_token_latency_ms = None
 
-            if self._cache_hit_rate_count > 0:
-                self._main_agent.usage.cache_hit_rate = self._cache_hit_rate_sum / self._cache_hit_rate_count
-            else:
-                self._main_agent.usage.cache_hit_rate = None
+            self._main_agent.usage.cache_hit_rate = self.cache.avg_hit_rate
 
         self._main_agent.task_duration_s = task_duration_s
         self._main_agent.turn_count = self._turn_count
@@ -360,6 +351,7 @@ class TaskExecutor:
                     if self._rewind_manager is not None:
                         self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
                         self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+                    metadata_accumulator.cache.notify_compaction()
                     yield events.CompactionEndEvent(
                         session_id=session_ctx.session_id,
                         reason=CompactionReason.THRESHOLD.value,
@@ -408,6 +400,10 @@ class TaskExecutor:
                 prev_turn_input_tokens=metadata_accumulator.prev_turn_input_tokens,
             )
 
+            metadata_accumulator.cache.record_pre_call_state(
+                profile.system_prompt, profile.tools, profile.llm_client.model_name
+            )
+
             turn: TurnExecutor | None = None
             turn_succeeded = False
             last_error_message: str | None = None
@@ -422,7 +418,7 @@ class TaskExecutor:
                             case events.ResponseCompleteEvent() as am:
                                 yield am
                             case events.UsageEvent() as e:
-                                metadata_accumulator.add(e.usage)
+                                cache_break = metadata_accumulator.add(e.usage)
                                 yield e
                                 if metadata_accumulator.last_turn_cache_hit_rate is not None:
                                     cache_hit_entry = message.CacheHitRateEntry(
@@ -436,6 +432,17 @@ class TaskExecutor:
                                         cache_hit_rate=metadata_accumulator.last_turn_cache_hit_rate,
                                         cached_tokens=metadata_accumulator.last_turn_cached_tokens,
                                         prev_turn_input_tokens=metadata_accumulator.last_turn_prev_input_tokens,
+                                    )
+                                if cache_break is not None:
+                                    try:
+                                        report_path = cache_break.write_report()
+                                        msg = f"{cache_break.summary}\n  Report: {report_path}"
+                                    except OSError:
+                                        msg = cache_break.summary
+                                    yield events.ErrorEvent(
+                                        session_id=session_ctx.session_id,
+                                        error_message=msg,
+                                        can_retry=True,
                                     )
                             case events.ToolResultEvent() as e:
                                 # Collect sub-agent task metadata from tool results
@@ -472,6 +479,7 @@ class TaskExecutor:
                             if self._rewind_manager is not None:
                                 self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
                                 self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+                            metadata_accumulator.cache.notify_compaction()
                             yield events.CompactionEndEvent(
                                 session_id=session_ctx.session_id,
                                 reason=CompactionReason.OVERFLOW.value,
@@ -547,6 +555,7 @@ class TaskExecutor:
                         session_ctx.append_history([entry])
                         self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
                         self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+                        metadata_accumulator.cache.notify_compaction()
                         yield events.RewindEvent(
                             session_id=session_ctx.session_id,
                             checkpoint_id=pending.checkpoint_id,
@@ -579,6 +588,7 @@ class TaskExecutor:
                         if self._rewind_manager is not None:
                             self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
                             self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+                        metadata_accumulator.cache.notify_compaction()
                         yield events.CompactionEndEvent(
                             session_id=session_ctx.session_id,
                             reason="handoff",

@@ -8,6 +8,8 @@ import tempfile
 from pathlib import Path
 from typing import IO
 
+from klaude_code.tui.terminal import supports_kitty_graphics
+
 # Kitty graphics protocol chunk size (4096 is the recommended max)
 _CHUNK_SIZE = 4096
 
@@ -70,6 +72,10 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
     path = Path(file_path) if isinstance(file_path, str) else file_path
     if not path.exists():
         print(f"Image not found: {path}", file=file or sys.stdout, flush=True)
+        return
+
+    if not supports_kitty_graphics():
+        print(f"[[Image: {path}]]", file=file or sys.stdout, flush=True)
         return
 
     try:

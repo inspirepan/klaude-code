@@ -146,11 +146,8 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
         if len(matches) == 1:
             return ModelMatchResult(matched_model=matches[0].selector, filtered_models=models, filter_hint=None)
         if matches:
-            # Multiple matches: filter the list for interactive selection
             return ModelMatchResult(matched_model=None, filtered_models=matches, filter_hint=filter_hint)
-        else:
-            # No matches: show all models without filter hint
-            log(("No matching models found. Showing all models.", "yellow"))
-            return ModelMatchResult(matched_model=None, filtered_models=models, filter_hint=None)
+        log(("No matching models found. Showing all models.", "yellow"))
+        return ModelMatchResult(matched_model=None, filtered_models=models, filter_hint=None)
 
     return ModelMatchResult(matched_model=None, filtered_models=models, filter_hint=None)

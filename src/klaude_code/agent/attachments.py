@@ -253,7 +253,7 @@ async def at_file_reader_attachment(
         if dynamic_skill_text:
             formatted_blocks.append(dynamic_skill_text.rstrip())
 
-    if len(formatted_blocks) == 0:
+    if not formatted_blocks:
         return None
 
     at_files_str = "\n\n".join(formatted_blocks)
@@ -315,7 +315,7 @@ async def file_changed_externally_attachment(
     """Notify agent about user/linter changes, showing a diff snippet when possible."""
     changed_files: list[tuple[str, str, list[message.ImageURLPart] | None]] = []
     collected_images: list[message.ImageURLPart] = []
-    if not session.file_tracker or len(session.file_tracker) == 0:
+    if not session.file_tracker:
         return None
 
     # Snapshot keys to avoid dict-changed-size-during-iteration
@@ -376,7 +376,7 @@ async def file_changed_externally_attachment(
         ):
             continue
 
-    if len(changed_files) > 0:
+    if changed_files:
         changed_files_str = "\n\n".join(
             fmt_file_changed_externally(file_path, file_content) for file_path, file_content, _ in changed_files
         )
@@ -797,7 +797,7 @@ async def last_path_memory_attachment(
         mark_memory_loaded=lambda p: _mark_memory_loaded(session, p),
     )
 
-    if len(memories) > 0:
+    if memories:
         loaded_files = [model.MemoryFileLoaded(path=memory.path) for memory in memories]
         return message.DeveloperMessage(
             parts=message.text_parts_from_str(format_memories_attachment(memories, include_header=False)),

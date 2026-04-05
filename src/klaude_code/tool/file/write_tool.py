@@ -104,8 +104,7 @@ class WriteTool(ToolABC):
                 before = await asyncio.to_thread(read_text, file_path)
                 before_read_ok = True
             except OSError:
-                before = ""
-                before_read_ok = False
+                pass
 
             # Re-check external modifications using content hash when available.
             if before_read_ok and tracked_status is not None and tracked_status.content_sha256 is not None:

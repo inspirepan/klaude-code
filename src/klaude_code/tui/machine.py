@@ -1057,28 +1057,19 @@ class DisplayStateMachine:
                     return []
 
                 # Some providers/models may not emit fine-grained AssistantText* deltas.
-                # In that case, ResponseCompleteEvent.content is the only assistant text we get.
-                # Render it as a single assistant stream to avoid dropping the entire message.
+                # Render from the final snapshot when no streamed text was received.
                 content = e.content
-                if content.strip():
-                    # If we saw no streamed assistant text for this response, render from the final snapshot.
-                    if s.assistant_char_count == 0:
-                        if not s.assistant_stream_active:
-                            s.assistant_stream_active = True
-                            cmds.append(StartAssistantStream(session_id=e.session_id))
-                        cmds.append(AppendAssistant(session_id=e.session_id, content=content))
-                        s.assistant_char_count += len(content)
+                if content.strip() and s.assistant_char_count == 0:
+                    if not s.assistant_stream_active:
+                        s.assistant_stream_active = True
+                        cmds.append(StartAssistantStream(session_id=e.session_id))
+                    cmds.append(AppendAssistant(session_id=e.session_id, content=content))
+                    s.assistant_char_count += len(content)
 
-                    # Ensure any active assistant stream is finalized.
-                    if s.assistant_stream_active:
-                        s.assistant_stream_active = False
-                        cmds.append(EndAssistantStream(session_id=e.session_id))
-                else:
-                    # If there is an active stream but the final snapshot has no text,
-                    # still finalize to flush any pending markdown rendering.
-                    if s.assistant_stream_active:
-                        s.assistant_stream_active = False
-                        cmds.append(EndAssistantStream(session_id=e.session_id))
+                # Finalize any active assistant stream to flush pending markdown.
+                if s.assistant_stream_active:
+                    s.assistant_stream_active = False
+                    cmds.append(EndAssistantStream(session_id=e.session_id))
 
                 if not is_replay:
                     self._spinner.set_composing(False)
@@ -1110,11 +1101,10 @@ class DisplayStateMachine:
                     tool_active_form = get_tool_active_form(e.tool_name)
                     if s.is_sub_agent:
                         s.add_status_tool_call(e.tool_call_id, tool_active_form)
+                    elif is_sub_agent_tool(e.tool_name):
+                        self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
                     else:
-                        if is_sub_agent_tool(e.tool_name):
-                            self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
-                        else:
-                            self._spinner.add_tool_call(tool_active_form)
+                        self._spinner.add_tool_call(tool_active_form)
 
                 if not is_replay:
                     cmds.extend(self._spinner_update_commands())
@@ -1132,23 +1122,12 @@ class DisplayStateMachine:
                         primary.thinking_stream_active = False
                         cmds.append(EndThinkingStream(session_id=primary.session_id))
 
-                if (
-                    not is_replay
-                    and s.is_sub_agent
-                    and e.tool_name == tools.AGENT
-                    and not s.should_skip_tool_activity(e.tool_name)
-                ):
+                if not is_replay and e.tool_name == tools.AGENT and not s.should_skip_tool_activity(e.tool_name):
                     tool_active_form = get_agent_active_form(e.arguments)
-                    s.add_status_tool_call(e.tool_call_id, tool_active_form)
-                    cmds.extend(self._spinner_update_commands())
-                elif (
-                    not is_replay
-                    and not s.is_sub_agent
-                    and e.tool_name == tools.AGENT
-                    and not s.should_skip_tool_activity(e.tool_name)
-                ):
-                    tool_active_form = get_agent_active_form(e.arguments)
-                    self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
+                    if s.is_sub_agent:
+                        s.add_status_tool_call(e.tool_call_id, tool_active_form)
+                    else:
+                        self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
                     cmds.extend(self._spinner_update_commands())
 
                 if not s.is_sub_agent and e.tool_name == tools.BASH:

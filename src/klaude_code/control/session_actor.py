@@ -268,8 +268,6 @@ class SessionActor:
             cancelled.append(pending.request)
             if not pending.future.done():
                 pending.future.cancel()
-                self._finalize_pending_request(request_id)
-                continue
             self._finalize_pending_request(request_id)
         return cancelled
 
@@ -339,18 +337,13 @@ class SessionActor:
 
     def mark_operation_completed(self, operation_id: str) -> None:
         active = self._state.active_root_task
-        if active is None:
-            self._refresh_idle_since()
-            return
-        if active.operation_id == operation_id:
+        if active is not None and active.operation_id == operation_id:
             self._state.active_root_task = None
         self._refresh_idle_since()
 
     def bind_root_task(self, *, operation_id: str, task_id: str) -> None:
         active = self._state.active_root_task
-        if active is None:
-            return
-        if active.operation_id != operation_id:
+        if active is None or active.operation_id != operation_id:
             return
         self._state.active_root_task = RootTaskState(
             operation_id=active.operation_id, task_id=task_id, kind=active.kind
@@ -398,15 +391,9 @@ class SessionActor:
         )
 
     def snapshot(self) -> SessionActorSnapshot:
-        active = self._state.active_root_task
-        active_snapshot = (
-            RootTaskState(operation_id=active.operation_id, task_id=active.task_id, kind=active.kind)
-            if active is not None
-            else None
-        )
         return SessionActorSnapshot(
             session_id=self.session_id,
-            active_root_task=active_snapshot,
+            active_root_task=self._state.active_root_task,
             child_task_count=len(self._state.child_task_ids),
             pending_request_count=len(self._state.pending_requests),
             is_idle=self.is_idle(),

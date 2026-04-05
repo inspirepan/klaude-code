@@ -72,8 +72,7 @@ def load_main_base_prompt(model_name: str) -> str:
 def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchema]) -> str:
     """Build tool strategy guidance based on currently available tools."""
 
-    tool_names = [tool_schema.name for tool_schema in available_tools]
-    tool_name_set = set(tool_names)
+    tool_name_set = {tool_schema.name for tool_schema in available_tools}
 
     strategy_lines: list[str] = [PARALLEL_TOOL_CALLS_INST, EXTERNAL_REFS_INST]
 
@@ -124,11 +123,7 @@ def build_main_system_prompt(model_name: str, available_tools: list[llm_param.To
 
 def _get_available_commands() -> list[str]:
     """Return list of available bash commands with descriptions."""
-    available: list[str] = []
-    for command, desc in COMMAND_DESCRIPTIONS.items():
-        if shutil.which(command) is not None:
-            available.append(f"{command}: {desc}")
-    return available
+    return [f"{cmd}: {desc}" for cmd, desc in COMMAND_DESCRIPTIONS.items() if shutil.which(cmd) is not None]
 
 
 def build_sub_agent_env_info(work_dir: Path) -> str:
@@ -155,15 +150,16 @@ def build_sub_agent_env_info(work_dir: Path) -> str:
 def _build_env_info(model_name: str, work_dir: Path) -> str:
     """Build environment info section with dynamic runtime values."""
 
-    cwd = work_dir
     today = datetime.datetime.now().strftime("%Y-%m-%d")
-    git_root = find_git_repo_root(work_dir=cwd)
-    is_missing_dir = not cwd.exists()
-    is_empty_dir = not is_missing_dir and not any(cwd.iterdir())
+    git_root = find_git_repo_root(work_dir=work_dir)
+    is_missing_dir = not work_dir.exists()
+    is_empty_dir = not is_missing_dir and not any(work_dir.iterdir())
 
     available_commands = _get_available_commands()
 
-    cwd_display = f"{cwd} (not found)" if is_missing_dir else f"{cwd} (empty)" if is_empty_dir else str(cwd)
+    cwd_display = (
+        f"{work_dir} (not found)" if is_missing_dir else f"{work_dir} (empty)" if is_empty_dir else str(work_dir)
+    )
     git_repo_line = (
         f"Current directory is a git repo (root: {git_root})"
         if git_root is not None
@@ -208,14 +204,12 @@ def load_system_prompt(
 ) -> str:
     """Get system prompt content for the given model and sub-agent type."""
 
-    effective_work_dir = work_dir
-
     # Sub-agents with their own dedicated prompt get a minimal system prompt
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)
         if not profile.use_main_prompt:
             base_prompt = load_prompt_by_path(profile.prompt_file)
-            return base_prompt + build_sub_agent_env_info(effective_work_dir)
+            return base_prompt + build_sub_agent_env_info(work_dir)
 
     # Main agent prompt path (also used by sub-agents with use_main_prompt=True)
     from klaude_code.skill.manager import format_available_skills_for_system_prompt
@@ -228,7 +222,7 @@ def load_system_prompt(
         if model_id.supports_adaptive_thinking(model_name)
         else ""
     )
-    auto_memory_prompt = _build_auto_memory_prompt(effective_work_dir)
+    auto_memory_prompt = _build_auto_memory_prompt(work_dir)
     skills_prompt = format_available_skills_for_system_prompt()
 
     return (
@@ -238,5 +232,5 @@ def load_system_prompt(
         + extended_thinking_prompt
         + auto_memory_prompt
         + skills_prompt
-        + _build_env_info(model_name, effective_work_dir)
+        + _build_env_info(model_name, work_dir)
     )

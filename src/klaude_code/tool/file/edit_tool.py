@@ -127,7 +127,6 @@ class EditTool(ToolABC):
 
         # FileTracker checks (only for editing existing files)
         file_tracker = context.file_tracker
-        tracked_status: model.FileStatus | None = None
         if not file_exists(file_path):
             return message.ToolResultMessage(
                 status="error",

@@ -30,9 +30,7 @@ class SubAgentProfile:
     name: str  # e.g., "general-purpose", "finder"
 
     # Sub-agent run configuration
-    prompt_file: str = (
-        ""  # Resource file path relative to klaude_code package (e.g., "prompts/prompt-sub-agent-finder.md")
-    )
+    prompt_file: str = ""  # Path relative to klaude_code package (e.g. "prompts/prompt-sub-agent-finder.md")
     tool_set: tuple[str, ...] = ()  # Tools available to this sub agent
 
     # Entry-point metadata for Agent tool (RunSubAgent)

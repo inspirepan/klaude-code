@@ -163,7 +163,6 @@ class _SlashCommandCompleter(Completer):
             matched_skills = [(name, desc, location) for _, name, desc, location in ranked_skills]
 
         if prefix == "/":
-            frag_lower = frag.lower()
             allow_contains_match = len(frag_lower) > 4
 
             matched_prefix: list[CommandInfo] = []
