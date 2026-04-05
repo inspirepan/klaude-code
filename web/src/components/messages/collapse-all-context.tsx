@@ -7,7 +7,7 @@ export interface CollapseAllState {
   expandGen: number;
 }
 
-export const CollapseAllContext = createContext<CollapseAllState>({ collapseGen: 0, expandGen: 0 });
+export const CollapseAllContext = createContext({ collapseGen: 0, expandGen: 0 });
 
 export function useCollapseAll(): CollapseAllState {
   return useContext(CollapseAllContext);

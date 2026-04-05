@@ -12,7 +12,7 @@ const defaultState: SearchState = {
   activeIndex: -1,
 };
 
-const SearchContext = createContext<SearchState>(defaultState);
+const SearchContext = createContext(defaultState);
 
 export const SearchProvider = SearchContext.Provider;
 
