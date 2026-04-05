@@ -664,18 +664,36 @@ async def skill_attachment(session: Session) -> message.DeveloperMessage | None:
 
 
 def _is_memory_loaded(session: Session, path: str) -> bool:
-    """Check if a memory file has already been loaded or read unchanged."""
-    status = session.file_tracker.get(path)
-    if status is None:
-        return False
-    if status.is_memory:
-        return True
-    # Already tracked by ReadTool/@file - check if unchanged
-    return _is_tracked_file_unchanged(session, path)
+    """Check if a memory file has already been loaded or read unchanged.
+
+    Also checks the resolved (symlink-followed) path so that e.g.
+    CLAUDE.md -> AGENTS.md is not loaded twice.
+    """
+    paths_to_check = [path]
+    try:
+        resolved = str(Path(path).resolve())
+        if resolved != path:
+            paths_to_check.append(resolved)
+    except OSError:
+        pass
+
+    for p in paths_to_check:
+        status = session.file_tracker.get(p)
+        if status is None:
+            continue
+        if status.is_memory:
+            return True
+        if _is_tracked_file_unchanged(session, p):
+            return True
+    return False
 
 
 def _mark_memory_loaded(session: Session, path: str) -> None:
-    """Mark a file as loaded memory in file_tracker."""
+    """Mark a file as loaded memory in file_tracker.
+
+    Also marks the resolved (symlink-followed) path so that a later check
+    on a symlink alias is recognised as already loaded.
+    """
     try:
         mtime = Path(path).stat().st_mtime
     except (OSError, FileNotFoundError):
@@ -684,16 +702,26 @@ def _mark_memory_loaded(session: Session, path: str) -> None:
         content_sha256 = hash_text_sha256(Path(path).read_text(encoding="utf-8", errors="replace"))
     except (OSError, FileNotFoundError, PermissionError, UnicodeDecodeError):
         content_sha256 = None
-    existing = session.file_tracker.get(path)
-    session.file_tracker[path] = model.FileStatus(
-        mtime=mtime,
-        content_sha256=content_sha256,
-        is_memory=True,
-        is_skill=existing.is_skill if existing else False,
-        skill_attachment_source=existing.skill_attachment_source if existing else None,
-        is_directory=existing.is_directory if existing else False,
-        read_complete=existing.read_complete if existing else False,
-    )
+
+    paths_to_mark = [path]
+    try:
+        resolved = str(Path(path).resolve())
+        if resolved != path:
+            paths_to_mark.append(resolved)
+    except OSError:
+        pass
+
+    for p in paths_to_mark:
+        existing = session.file_tracker.get(p)
+        session.file_tracker[p] = model.FileStatus(
+            mtime=mtime,
+            content_sha256=content_sha256,
+            is_memory=True,
+            is_skill=existing.is_skill if existing else False,
+            skill_attachment_source=existing.skill_attachment_source if existing else None,
+            is_directory=existing.is_directory if existing else False,
+            read_complete=existing.read_complete if existing else False,
+        )
 
 
 def _count_memory_session_bytes(session: Session) -> int:

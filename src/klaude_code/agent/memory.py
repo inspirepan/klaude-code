@@ -155,6 +155,7 @@ def discover_memory_files_near_paths(
     memories: list[Memory] = []
     work_dir = work_dir.resolve()
     seen_dirs: set[Path] = set()
+    seen_resolved: set[Path] = set()
 
     for p_str in paths:
         p = Path(p_str)
@@ -180,20 +181,31 @@ def discover_memory_files_near_paths(
             for fname in MEMORY_FILE_NAMES:
                 mem_path = current_dir / fname
                 path_str = str(mem_path)
-                if mem_path.exists() and mem_path.is_file() and not is_memory_loaded(path_str):
-                    try:
-                        text = mem_path.read_text(encoding="utf-8", errors="replace")
-                        text = truncate_memory_content(text, path_str)
-                    except (PermissionError, UnicodeDecodeError, OSError):
-                        continue
-                    mark_memory_loaded(path_str)
-                    memories.append(
-                        Memory(
-                            path=path_str,
-                            instruction="project instructions, discovered near last accessed path",
-                            content=text,
-                        )
+                if not mem_path.exists() or not mem_path.is_file():
+                    continue
+                # Deduplicate symlinks / hardlinks pointing to the same file
+                try:
+                    resolved = mem_path.resolve()
+                except OSError:
+                    resolved = mem_path
+                if resolved in seen_resolved:
+                    continue
+                seen_resolved.add(resolved)
+                if is_memory_loaded(path_str):
+                    continue
+                try:
+                    text = mem_path.read_text(encoding="utf-8", errors="replace")
+                    text = truncate_memory_content(text, path_str)
+                except (PermissionError, UnicodeDecodeError, OSError):
+                    continue
+                mark_memory_loaded(path_str)
+                memories.append(
+                    Memory(
+                        path=path_str,
+                        instruction="project instructions, discovered near last accessed path",
+                        content=text,
                     )
+                )
 
     return memories
 
