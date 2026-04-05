@@ -30,21 +30,16 @@ def _run_and_collect_output(*, session: Session, session_id: str, command: str) 
     return "".join(chunks)
 
 
-def test_bash_mode_pwd_uses_session_work_dir_and_avoids_interactive_shell(
+def test_bash_mode_pwd_uses_session_work_dir_with_interactive_shell(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Verify that bash mode uses an interactive login shell (for alias support)
+    and that the subprocess cwd is still the session work_dir."""
     real_bash = shutil.which("bash")
     if real_bash is None:
         pytest.skip("bash is required")
 
-    fake_shell = tmp_path / "bash"
-    fake_shell.write_text(
-        f'#!/bin/sh\ncase "$1" in\n  *i*) cd / ;;\nesac\nexec {real_bash} "$@"\n',
-        encoding="utf-8",
-    )
-    fake_shell.chmod(0o755)
-
-    monkeypatch.setenv("SHELL", str(fake_shell))
+    monkeypatch.setenv("SHELL", real_bash)
 
     work_dir = tmp_path / "workspace"
     work_dir.mkdir()
