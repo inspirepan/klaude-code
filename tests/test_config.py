@@ -277,6 +277,46 @@ class TestConfig:
         assert llm_config.google_cloud_project == "my-project"
         assert llm_config.google_cloud_location == "us-central1"
 
+    def test_get_model_config_resolves_custom_bedrock_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(_config_module, "get_auth_env", _auth_env_none)
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-access-key")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
+        monkeypatch.setenv("AWS_REGION", "us-east-1")
+
+        user_config = UserConfig.model_validate(
+            {
+                "provider_list": [
+                    {
+                        "provider_name": "aws-bedrock-custom",
+                        "protocol": "bedrock",
+                        "aws_access_key": "${AWS_ACCESS_KEY_ID}",
+                        "aws_secret_key": "${AWS_SECRET_ACCESS_KEY}",
+                        "aws_region": "${AWS_REGION}",
+                        "model_list": [
+                            {
+                                "model_name": "claude-sonnet-4-5",
+                                "model_id": (
+                                    "arn:aws:bedrock:us-east-1:171713231348:"
+                                    "inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+                                ),
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        config = _config_module._merge_configs(user_config, Config())
+
+        llm_config = config.get_model_config("claude-sonnet-4-5@aws-bedrock-custom")
+
+        assert llm_config.protocol == llm_param.LLMClientProtocol.BEDROCK
+        assert llm_config.aws_access_key == "test-access-key"
+        assert llm_config.aws_secret_key == "test-secret-key"
+        assert llm_config.aws_region == "us-east-1"
+        assert llm_config.model_id == (
+            "arn:aws:bedrock:us-east-1:171713231348:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+        )
+
     def test_provider_disabled_excluded_from_available_models(self, sample_model_config: ModelConfig) -> None:
         provider = ProviderConfig(
             provider_name="test-provider",
@@ -1429,6 +1469,18 @@ class TestOutOfBoxExperience:
 
         # Builtin should not preset main_model
         assert config.main_model is None
+
+    def test_builtin_config_does_not_include_bedrock_provider(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        load_config.cache_clear()
+        config = load_config()
+
+        provider_names = [p.provider_name for p in config.provider_list]
+        assert "bedrock" not in provider_names
 
     def test_deepseek_provider_available(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """DeepSeek provider should be available when DEEPSEEK_API_KEY is set."""

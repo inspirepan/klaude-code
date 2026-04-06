@@ -96,19 +96,27 @@ class NoInsetCodeBlock(CodeBlock):
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         code = str(self.text).rstrip()
+        # Skip empty code blocks — these appear in the live streaming area when only
+        # the opening fence has arrived yet, producing a spurious ``` ``` artifact.
+        if not code:
+            return
         lang = self.lexer_name if self.lexer_name != "text" else ""
         fence_style = console.get_style("markdown.code.fence", default="none")
         fence_title_style = console.get_style("markdown.code.fence.title", default="none")
 
         yield Text.assemble(("```", fence_style), (lang, fence_title_style))
-        syntax = Syntax(
-            code,
-            self.lexer_name,
-            theme=self.theme,
-            word_wrap=True,
-            padding=(0, 0),
-        )
-        yield syntax
+        try:
+            syntax = Syntax(
+                code,
+                self.lexer_name,
+                theme=self.theme,
+                word_wrap=True,
+                padding=(0, 0),
+            )
+            yield syntax
+        except Exception:
+            # Fallback to plain text if the pygments lexer is unavailable.
+            yield Text(code)
         yield Text("```", style=fence_style)
 
 
@@ -117,6 +125,8 @@ class ThinkingCodeBlock(CodeBlock):
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         code = str(self.text).rstrip()
+        if not code:
+            return
         fence_style = "markdown.code.fence"
         code_style = "markdown.code.block"
         lang = self.lexer_name if self.lexer_name != "text" else ""

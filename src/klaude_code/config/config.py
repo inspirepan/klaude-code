@@ -202,6 +202,11 @@ class UserProviderConfig(BaseModel):
     disabled: bool = False
     base_url: str | None = None
     api_key: str | None = None
+    aws_access_key: str | None = None
+    aws_secret_key: str | None = None
+    aws_region: str | None = None
+    aws_session_token: str | None = None
+    aws_profile: str | None = None
     google_application_credentials: str | None = None
     google_cloud_project: str | None = None
     google_cloud_location: str | None = None
