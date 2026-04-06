@@ -131,7 +131,6 @@ Klaude tries these entries in order and uses the first available model. `fast_mo
 | openrouter       | `OPENROUTER_API_KEY`                                                         | gpt-5.3-codex, gpt-5.3-codex-xhigh, gpt-5.4-high, gpt-5.4-xhigh, kimi, haiku, sonnet, sonnet-no-thinking, opus, gemini-pro, gemini-flash, grok, minimax, glm |
 | google           | `GOOGLE_API_KEY` or `GEMINI_API_KEY`                                         | gemini-pro, gemini-flash                                                                                |
 | google-vertex    | `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | gemini-pro, gemini-flash                                                                                |
-| bedrock          | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`                   | sonnet                                                                                                   |
 | deepseek         | `DEEPSEEK_API_KEY`                                                           | deepseek                                                                                                 |
 | moonshot         | `MOONSHOT_API_KEY`                                                           | kimi                                                                                                     |
 | minimax          | `MINIMAX_API_KEY`                                                            | m2.7, m2.7:highspeed                                                                                     |
@@ -148,7 +147,9 @@ List all configured providers and models:
 klaude list
 ```
 
-Models from providers without a valid API key are shown as dimmed/unavailable.
+Models from providers without valid credentials are shown as dimmed/unavailable.
+
+Bedrock is supported as a custom provider rather than a built-in one. See `docs/bedrock-setup.md`.
 
 #### Authentication
 
@@ -269,6 +270,8 @@ sub_agent_models:
 - `google` - Google Gemini API
 - `google_vertex` - Google Vertex AI (uses GCP credentials)
 - `bedrock` - AWS Bedrock for Claude (uses AWS credentials instead of api_key)
+
+For a working Bedrock provider example, see `docs/bedrock-setup.md`.
 
 List configured providers and models:
 

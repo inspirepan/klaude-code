@@ -1,6 +1,7 @@
 """AWS Bedrock LLM client using Anthropic SDK."""
 
 import json
+from importlib.util import find_spec
 from typing import override
 
 import anthropic
@@ -23,6 +24,13 @@ class BedrockClient(LLMClientABC):
 
     def __init__(self, config: llm_param.LLMConfigParameter):
         super().__init__(config)
+        missing = [name for name in ("boto3", "botocore") if find_spec(name) is None]
+        if missing:
+            missing_names = ", ".join(missing)
+            raise ModuleNotFoundError(
+                "Bedrock support requires boto3 and botocore. "
+                f"Missing: {missing_names}. Reinstall klaude-code with `anthropic[bedrock]`."
+            )
         self.client = anthropic.AsyncAnthropicBedrock(
             aws_access_key=config.aws_access_key,
             aws_secret_key=config.aws_secret_key,

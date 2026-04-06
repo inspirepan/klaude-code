@@ -210,19 +210,6 @@ provider_list:
 
   - *gemini_flash_lite
 
-# ######################################## bedrock ########################################
-- provider_name: bedrock
-  protocol: bedrock
-  aws_access_key: ${AWS_ACCESS_KEY_ID}
-  aws_secret_key: ${AWS_SECRET_ACCESS_KEY}
-  aws_region: ${AWS_REGION}
-  model_list:
-
-  - model_name: sonnet
-    model_id: anthropic.claude-sonnet-4-6
-    context_limit: 1000000
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
-
 # ######################################## deepseek ########################################
 - provider_name: deepseek
   protocol: anthropic
