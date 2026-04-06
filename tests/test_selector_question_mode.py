@@ -158,7 +158,6 @@ def test_preview_question_does_not_imply_selection_from_focus() -> None:
             SelectItem(title=[("", "2. B\n")], value="b", search_text="b", markdown="# B"),
         ],
         multi_select=False,
-        input_mode="notes",
     )
 
     assert (
@@ -182,7 +181,6 @@ def test_regular_single_select_still_implies_selection_from_focus() -> None:
             SelectItem(title=[("", "2. B\n")], value="b", search_text="b"),
         ],
         multi_select=False,
-        input_mode="other",
         other_value="__other__",
     )
 

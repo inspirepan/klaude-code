@@ -149,8 +149,6 @@ const en = {
   "interaction.submit": "Submit",
   "interaction.next": "Next",
   "interaction.otherPlaceholder": "Other: Type something.",
-  "interaction.notesLabel": "Notes",
-  "interaction.notesPlaceholder": "Add notes about the selected option.",
   "interaction.previewLabel": "Preview",
   "interaction.noPreview": "No preview available.",
 

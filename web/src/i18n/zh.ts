@@ -149,8 +149,6 @@ const zh: Translations = {
   "interaction.submit": "提交",
   "interaction.next": "下一个问题",
   "interaction.otherPlaceholder": "其他：请输入内容。",
-  "interaction.notesLabel": "备注",
-  "interaction.notesPlaceholder": "为当前选项补充备注。",
   "interaction.previewLabel": "预览",
   "interaction.noPreview": "暂无预览内容。",
 

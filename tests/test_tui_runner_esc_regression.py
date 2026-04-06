@@ -36,8 +36,8 @@ class _FakeDisplay:
     def __init__(self, *, theme: str | None = None) -> None:
         self.theme = theme
 
-    def notify_ask_user_question(self, *, question_count: int) -> None:
-        del question_count
+    def notify_ask_user_question(self, *, question_count: int, headers: list[str] | None = None) -> None:
+        del question_count, headers
 
     def hide_progress_ui(self) -> None:
         return None

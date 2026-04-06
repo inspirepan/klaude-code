@@ -54,7 +54,6 @@ type UserInteractionRequestPayload = AskUserQuestionRequestPayload | OperationSe
 class AskUserQuestionAnswer(BaseModel):
     class Annotation(BaseModel):
         markdown: str | None = None
-        notes: str | None = None
 
     question_id: str
     selected_option_ids: list[str]

@@ -10,4 +10,3 @@ Usage notes:
 - Use the same language as the user
 - For single-select questions, an option may include `markdown` to show a richer preview while the user is deciding
 - Keep `markdown` previews concise. In the TUI they render in a compact preview box and may be truncated to fit the current terminal height, so put the most important content first
-- Rich preview questions can also return per-answer `annotation` metadata such as the selected markdown and any user notes

@@ -272,11 +272,8 @@ class AskUserQuestionTool(ToolABC):
             annotation = answer.annotation
             if annotation is not None:
                 markdown = (annotation.markdown or "").strip()
-                notes = (annotation.notes or "").strip()
                 if markdown:
                     annotation_lines.append(f"Selected markdown:\n{markdown}")
-                if notes:
-                    annotation_lines.append(f"User notes: {notes}")
 
             if not selected_lines:
                 free_text = (answer.note or "").strip()

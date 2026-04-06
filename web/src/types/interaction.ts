@@ -54,7 +54,6 @@ export interface PendingUserInteractionRequest {
 export interface AskUserQuestionAnswer {
   annotation?: {
     markdown?: string;
-    notes?: string;
   };
   question_id: string;
   selected_option_ids: string[];

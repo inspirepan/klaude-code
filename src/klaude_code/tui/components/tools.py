@@ -577,6 +577,7 @@ def render_rewind_tool_call(arguments: str) -> RenderableType:
 
 def render_ask_user_question_tool_call(arguments: str) -> RenderableType:
     question_count = 1
+    headers: list[str] = []
     if arguments:
         try:
             payload_raw: Any = json.loads(arguments)
@@ -585,6 +586,10 @@ def render_ask_user_question_tool_call(arguments: str) -> RenderableType:
                 questions: Any = payload.get("questions")
                 if isinstance(questions, list) and questions:
                     question_count = len(cast(list[Any], questions))
+                    for q in cast(list[dict[str, Any]], questions):
+                        header = q.get("header")
+                        if isinstance(header, str):
+                            headers.append(header)
         except json.JSONDecodeError:
             pass
 
@@ -593,7 +598,11 @@ def render_ask_user_question_tool_call(arguments: str) -> RenderableType:
     else:
         tool_name = f"Agent has {question_count} questions for you"
 
-    return _render_tool_call_tree(mark=MARK_QUESTION, tool_name=tool_name, details=None)
+    details: RenderableType | None = None
+    if headers:
+        details = Text(" / ".join(headers), style="dim")
+
+    return _render_tool_call_tree(mark=MARK_QUESTION, tool_name=tool_name, details=details)
 
 
 # Tool name to active form mapping (for spinner status)
