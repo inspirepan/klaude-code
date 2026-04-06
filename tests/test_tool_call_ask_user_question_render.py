@@ -33,8 +33,8 @@ def test_render_ask_user_question_tool_call_shows_marker_and_name_only() -> None
     output = _render_event_to_text(event)
     assert "◉" in output
     assert "Agent has 2 questions for you" in output
-    assert "Language" not in output
-    assert "Scope" not in output
+    assert "Language" in output
+    assert "Scope" in output
 
 
 def test_render_ask_user_question_tool_call_ignores_argument_details() -> None:

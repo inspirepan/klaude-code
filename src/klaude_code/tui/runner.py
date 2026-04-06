@@ -164,11 +164,18 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     def _build_question_items(
         question: user_interaction.AskUserQuestionQuestion,
     ) -> list[SelectItem[str]]:
+        import textwrap
+
+        columns = shutil.get_terminal_size((120, 24)).columns
+        # 7 = pointer_pad (3) + description indent (4)
+        desc_width = max(30, columns - 7)
         items: list[SelectItem[str]] = []
         for idx, option in enumerate(question.options, start=1):
+            desc_lines = textwrap.wrap(option.description, width=desc_width, max_lines=5, placeholder=" ...")
+            desc_text = "\n".join(f"    {line}" for line in desc_lines) + "\n"
             title: list[tuple[str, str]] = [
                 ("class:msg", f"{idx}. {option.label}\n"),
-                ("class:meta", f"    {option.description}\n"),
+                ("class:meta", desc_text),
             ]
             items.append(
                 SelectItem(
@@ -289,30 +296,22 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         answers: list[user_interaction.AskUserQuestionAnswer] = []
         if request_event.source == "tool":
-            tui_display.notify_ask_user_question(question_count=len(payload.questions))
+            tui_display.notify_ask_user_question(
+                question_count=len(payload.questions),
+                headers=[q.header for q in payload.questions],
+            )
         tui_display.hide_progress_ui()
 
         prompts: list[QuestionPrompt[str]] = []
         for question in payload.questions:
-            has_markdown_preview = (not question.multi_select) and any(
-                (option.markdown or "").strip() for option in question.options
-            )
             prompts.append(
                 QuestionPrompt(
                     header=question.header,
                     message=question.question,
                     items=_build_question_items(question),
                     multi_select=question.multi_select,
-                    input_placeholder=(
-                        question.input_placeholder
-                        or (
-                            "Press n to add notes about the selected option."
-                            if has_markdown_preview
-                            else "Type something."
-                        )
-                    ),
-                    input_mode="notes" if has_markdown_preview else "other",
-                    other_value=None if has_markdown_preview else "__other__",
+                    input_placeholder=question.input_placeholder or "Type something.",
+                    other_value="__other__",
                 )
             )
 
@@ -335,7 +334,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         for question, selection in zip(payload.questions, selections, strict=False):
             note_text = selection.input_text.strip()
-            annotation_notes = selection.annotation_notes.strip()
             selected_ids = list(selection.selected_values)
             if note_text:
                 if question.multi_select:
@@ -354,10 +352,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                         break
 
             annotation = None
-            if selected_markdown or annotation_notes:
+            if selected_markdown:
                 annotation = user_interaction.AskUserQuestionAnswer.Annotation(
                     markdown=selected_markdown,
-                    notes=annotation_notes or None,
                 )
 
             answers.append(

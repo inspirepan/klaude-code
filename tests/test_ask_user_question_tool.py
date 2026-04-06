@@ -121,7 +121,6 @@ def test_ask_user_question_single_select_annotation_is_included_for_model_only()
                         selected_option_ids=["q1_o1"],
                         annotation=user_interaction.AskUserQuestionAnswer.Annotation(
                             markdown="# Design A\n\nFast path",
-                            notes="Prefer the simpler rollout.",
                         ),
                     )
                 ]
@@ -149,12 +148,7 @@ def test_ask_user_question_single_select_annotation_is_included_for_model_only()
     result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context(_callback)))
     assert result.status == "success"
     assert result.output_text == (
-        "Question: Which design should we ship?\n"
-        "Answer: A: Option A\n"
-        "Selected markdown:\n"
-        "# Design A\n\n"
-        "Fast path\n"
-        "User notes: Prefer the simpler rollout."
+        "Question: Which design should we ship?\nAnswer: A: Option A\nSelected markdown:\n# Design A\n\nFast path"
     )
     assert isinstance(result.ui_extra, model.AskUserQuestionSummaryUIExtra)
     assert result.ui_extra.items[0].summary == "A: Option A"

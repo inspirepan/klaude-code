@@ -5,7 +5,7 @@ import sys
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from prompt_toolkit.application import Application
 from prompt_toolkit.application.current import get_app
@@ -55,7 +55,6 @@ class SelectItem[T]:
 class QuestionSelectResult[T]:
     selected_values: list[T]
     input_text: str
-    annotation_notes: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,7 +64,6 @@ class QuestionPrompt[T]:
     items: list[SelectItem[T]]
     multi_select: bool
     input_placeholder: str = "Type something."
-    input_mode: Literal["other", "notes"] = "other"
     other_value: T | None = None
 
 

@@ -131,14 +131,17 @@ class TUIDisplay(DisplayABC):
             session_title=self._machine.session_title,
         )
 
-    def notify_ask_user_question(self, *, question_count: int) -> None:
+    def notify_ask_user_question(self, *, question_count: int, headers: list[str] | None = None) -> None:
         if question_count <= 0:
             return
         noun = "question" if question_count == 1 else "questions"
+        body = f"{question_count} {noun} waiting for your answer"
+        if headers:
+            body += f": {' / '.join(headers)}"
         self._notifier.notify(
             Notification(
                 type=NotificationType.ASK_USER_QUESTION,
                 title="Input Required",
-                body=f"{question_count} {noun} waiting for your answer",
+                body=body,
             )
         )

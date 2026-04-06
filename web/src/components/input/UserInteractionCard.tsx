@@ -49,17 +49,14 @@ function buildAskResponsePayload(
   questions: AskUserQuestionQuestion[],
   selectedByQuestion: Record<string, string[]>,
   otherTextByQuestion: Record<string, string>,
-  annotationNotesByQuestion: Record<string, string>,
 ): AskUserQuestionResponsePayload {
   return {
     kind: "ask_user_question",
     answers: questions.map((question) => {
       const otherText = (otherTextByQuestion[question.id] ?? "").trim();
-      const annotationNotes = (annotationNotesByQuestion[question.id] ?? "").trim();
-      const hasMarkdownPreview = questionHasMarkdownPreview(question);
       let selectedOptionIds = [...(selectedByQuestion[question.id] ?? [])];
 
-      if (!hasMarkdownPreview && otherText.length > 0) {
+      if (otherText.length > 0) {
         if (question.multi_select) {
           if (!selectedOptionIds.includes("__other__")) {
             selectedOptionIds.push("__other__");
@@ -70,18 +67,14 @@ function buildAskResponsePayload(
       }
 
       const previewOption = getPreviewOption(question, selectedOptionIds);
-      const annotation = hasMarkdownPreview
-        ? {
-            markdown: (previewOption?.markdown ?? "").trim() || undefined,
-            notes: annotationNotes || undefined,
-          }
-        : undefined;
+      const selectedMarkdown = (previewOption?.markdown ?? "").trim();
+      const annotation =
+        questionHasMarkdownPreview(question) && selectedMarkdown
+          ? { markdown: selectedMarkdown }
+          : undefined;
 
       return {
-        annotation:
-          annotation && (annotation.markdown !== undefined || annotation.notes !== undefined)
-            ? annotation
-            : undefined,
+        annotation,
         question_id: question.id,
         selected_option_ids: selectedOptionIds,
         other_text:
@@ -98,9 +91,6 @@ function isQuestionAnswered(
   otherTextByQuestion: Record<string, string>,
 ): boolean {
   const selected = selectedByQuestion[question.id] ?? [];
-  if (questionHasMarkdownPreview(question)) {
-    return selected.length > 0;
-  }
   const otherText = (otherTextByQuestion[question.id] ?? "").trim();
   return selected.length > 0 || otherText.length > 0;
 }
@@ -195,21 +185,17 @@ function QuestionPanel({
   questionIndex,
   selected,
   otherText,
-  annotationNotes,
   actionDisabled,
   onToggleOption,
   onOtherTextChange,
-  onAnnotationNotesChange,
 }: {
   question: AskUserQuestionQuestion;
   questionIndex: number;
   selected: string[];
   otherText: string;
-  annotationNotes: string;
   actionDisabled: boolean;
   onToggleOption: (optionId: string) => void;
   onOtherTextChange: (value: string) => void;
-  onAnnotationNotesChange: (value: string) => void;
 }): React.JSX.Element {
   const t = useT();
   const hasMarkdownPreview = questionHasMarkdownPreview(question);
@@ -232,55 +218,54 @@ function QuestionPanel({
       </p>
 
       {hasMarkdownPreview ? (
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-          <div className="flex flex-col gap-2">
-            {question.options.map((option) => (
-              <OptionPill
-                key={option.id}
-                checked={selected.includes(option.id)}
-                disabled={actionDisabled}
-                multiSelect={question.multi_select}
-                label={option.label}
-                description={option.description}
-                className="w-full justify-start"
-                onClick={() => {
-                  onToggleOption(option.id);
-                }}
-              />
-            ))}
-          </div>
+        <>
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+            <div className="flex flex-col gap-2">
+              {question.options.map((option) => (
+                <OptionPill
+                  key={option.id}
+                  checked={selected.includes(option.id)}
+                  disabled={actionDisabled}
+                  multiSelect={question.multi_select}
+                  label={option.label}
+                  description={option.description}
+                  className="w-full justify-start"
+                  onClick={() => {
+                    onToggleOption(option.id);
+                  }}
+                />
+              ))}
+            </div>
 
-          <div className="min-w-0 space-y-3">
-            <div className="overflow-hidden rounded-xl bg-surface/50 ring-1 ring-inset ring-black/[0.05]">
-              <div className="truncate border-b border-border px-3 py-1.5 font-mono text-xs font-medium uppercase tracking-wider text-neutral-500">
-                {previewOption?.label ?? t("interaction.previewLabel")}
-              </div>
-              <ScrollArea viewportClassName="max-h-80">
-                <div className="assistant-text px-4 py-3 text-base">
-                  <Streamdown mode="static" isAnimating={false} plugins={markdownPlugins}>
-                    {previewMarkdown || t("interaction.noPreview")}
-                  </Streamdown>
+            <div className="min-w-0">
+              <div className="overflow-hidden rounded-xl bg-surface/50 ring-1 ring-inset ring-black/[0.05]">
+                <div className="truncate border-b border-border px-3 py-1.5 font-mono text-xs font-medium uppercase tracking-wider text-neutral-500">
+                  {previewOption?.label ?? t("interaction.previewLabel")}
                 </div>
-              </ScrollArea>
-            </div>
-
-            <div>
-              <div className="mb-1.5 font-mono text-xs font-medium uppercase tracking-wider text-neutral-500">
-                {t("interaction.notesLabel")}
+                <ScrollArea viewportClassName="max-h-80">
+                  <div className="assistant-text px-4 py-3 text-base">
+                    <Streamdown mode="static" isAnimating={false} plugins={markdownPlugins}>
+                      {previewMarkdown || t("interaction.noPreview")}
+                    </Streamdown>
+                  </div>
+                </ScrollArea>
               </div>
-              <input
-                type="text"
-                disabled={actionDisabled}
-                value={annotationNotes}
-                onChange={(e) => {
-                  onAnnotationNotesChange(e.target.value);
-                }}
-                placeholder={t("interaction.notesPlaceholder")}
-                className="h-9 w-full rounded-lg border border-border bg-surface/50 px-3 text-base text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 focus:bg-card focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
-              />
             </div>
           </div>
-        </div>
+
+          <div className="mt-3">
+            <input
+              type="text"
+              disabled={actionDisabled}
+              value={otherText}
+              onChange={(e) => {
+                onOtherTextChange(e.target.value);
+              }}
+              placeholder={t("interaction.otherPlaceholder")}
+              className="h-9 w-full rounded-lg border border-border bg-surface/50 px-3 text-base text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 focus:bg-card focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
+        </>
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
@@ -326,9 +311,6 @@ export function UserInteractionCard({
   const t = useT();
   const [selectedByQuestion, setSelectedByQuestion] = useState<Record<string, string[]>>({});
   const [otherTextByQuestion, setOtherTextByQuestion] = useState<Record<string, string>>({});
-  const [annotationNotesByQuestion, setAnnotationNotesByQuestion] = useState<
-    Record<string, string>
-  >({});
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
 
@@ -373,7 +355,6 @@ export function UserInteractionCard({
           askPayload.questions,
           selectedByQuestion,
           otherTextByQuestion,
-          annotationNotesByQuestion,
         ),
       });
     } finally {
@@ -462,8 +443,6 @@ export function UserInteractionCard({
               if (multipleQuestions && qi !== activeTab) return null;
               const selected = selectedByQuestion[question.id] ?? [];
               const otherText = otherTextByQuestion[question.id] ?? "";
-              const annotationNotes = annotationNotesByQuestion[question.id] ?? "";
-              const hasMarkdownPreview = questionHasMarkdownPreview(question);
               return (
                 <QuestionPanel
                   key={question.id}
@@ -471,13 +450,12 @@ export function UserInteractionCard({
                   questionIndex={qi}
                   selected={selected}
                   otherText={otherText}
-                  annotationNotes={annotationNotes}
                   actionDisabled={actionDisabled}
                   onToggleOption={(optionId) => {
                     setSelectedByQuestion((cur) =>
                       toggleOption(question.id, optionId, question.multi_select, cur),
                     );
-                    if (!question.multi_select && !hasMarkdownPreview) {
+                    if (!question.multi_select) {
                       setOtherTextByQuestion((cur) => ({ ...cur, [question.id]: "" }));
                     }
                   }}
@@ -486,9 +464,6 @@ export function UserInteractionCard({
                     if (!question.multi_select && value.length > 0) {
                       setSelectedByQuestion((cur) => ({ ...cur, [question.id]: [] }));
                     }
-                  }}
-                  onAnnotationNotesChange={(value) => {
-                    setAnnotationNotesByQuestion((cur) => ({ ...cur, [question.id]: value }));
                   }}
                 />
               );
