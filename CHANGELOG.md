@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.25.0] - 2026-04-06
+
+### Added
+
+- add Other option to all questions and improve TUI layout ([#257](https://github.com/inspirepan/klaude-code/pull/257))
+- use interactive shell to support user aliases ([#254](https://github.com/inspirepan/klaude-code/pull/254))
+- agent test harness, sub-agent rename, ask-user-question markdown previews ([#251](https://github.com/inspirepan/klaude-code/pull/251))
+- improve agent prompting and terminal rendering ([#249](https://github.com/inspirepan/klaude-code/pull/249))
+- add simplifier sub-agent, MiniMax provider, and multiple refinements ([#246](https://github.com/inspirepan/klaude-code/pull/246))
+- add fast mode presets and input fixes ([#241](https://github.com/inspirepan/klaude-code/pull/241))
+- handoff tool, file tool alignment, theme refactor, and completer improvements ([#239](https://github.com/inspirepan/klaude-code/pull/239))
+- prioritize Exa over Brave as default search provider ([#237](https://github.com/inspirepan/klaude-code/pull/237))
+- refactor profiles, add review/memory agents, fix tool handling ([#234](https://github.com/inspirepan/klaude-code/pull/234))
+- improve web command and tui skill warnings ([#233](https://github.com/inspirepan/klaude-code/pull/233))
+- add model-specific prompts ([#220](https://github.com/inspirepan/klaude-code/pull/220))
+- add edit/write tool usage guidance to system prompt ([#219](https://github.com/inspirepan/klaude-code/pull/219))
+
+### Changed
+
+- add open command to submit-pr skill for opening PR in browser ([#256](https://github.com/inspirepan/klaude-code/pull/256))
+- simplify sub-agent guidance and terminal prompts ([#250](https://github.com/inspirepan/klaude-code/pull/250))
+- dissolve core/ package into top-level agent/, control/, prompts/, tool/ modules ([#248](https://github.com/inspirepan/klaude-code/pull/248))
+- apply Schoger UI polish -- ring edges, concentric radius, typography ([#247](https://github.com/inspirepan/klaude-code/pull/247))
+- improve attachments, skills, sub-agents, and TUI ([#245](https://github.com/inspirepan/klaude-code/pull/245))
+- tighten prompt composition and jj stack handling ([#244](https://github.com/inspirepan/klaude-code/pull/244))
+- rename reminder to attachment and port upstream improvements ([#240](https://github.com/inspirepan/klaude-code/pull/240))
+- add stacked PR guidance to submit-pr skill ([#231](https://github.com/inspirepan/klaude-code/pull/231))
+- enable additional Geist OpenType stylistic sets ([#230](https://github.com/inspirepan/klaude-code/pull/230))
+- overhaul prompt system, rename explore to finder, fix config save ([#221](https://github.com/inspirepan/klaude-code/pull/221))
+
+### Fixed
+
+- suppress TUI empty code block artifact and support custom Bedrock provider setup ([#258](https://github.com/inspirepan/klaude-code/pull/258))
+- deduplicate symlinked CLAUDE.md / AGENTS.md files ([#255](https://github.com/inspirepan/klaude-code/pull/255))
+- skip Kitty graphics on unsupported terminals ([#252](https://github.com/inspirepan/klaude-code/pull/252))
+- stabilize tool block status indicator ([#242](https://github.com/inspirepan/klaude-code/pull/242))
+- downscale images exceeding 8000px dimension limit before sending to Anthropic API ([#238](https://github.com/inspirepan/klaude-code/pull/238))
+- misc fixes and sub-agent tool cleanup ([#235](https://github.com/inspirepan/klaude-code/pull/235))
+- preserve partial output in tool result on timeout ([#232](https://github.com/inspirepan/klaude-code/pull/232))
+- improve planned group boundaries and render rewind note as markdown ([#229](https://github.com/inspirepan/klaude-code/pull/229))
+- disable uvicorn websocket keepalive ping to suppress ConnectionClosedError noise ([#223](https://github.com/inspirepan/klaude-code/pull/223))
+- avoid duplicate todo explanation rendering ([#222](https://github.com/inspirepan/klaude-code/pull/222))
+- stop preserving bash live tail height ([#218](https://github.com/inspirepan/klaude-code/pull/218))
+- reduce live height reset threshold ([#217](https://github.com/inspirepan/klaude-code/pull/217))
+- handle missing image files and improve type safety ([#216](https://github.com/inspirepan/klaude-code/pull/216))
+
+### Other
+
+- simplify editor invocation, guard empty skill assets, fix web lint ([#253](https://github.com/inspirepan/klaude-code/pull/253))
+- Merge pull request #243 from inspirepan/fix/todo-plain-cards ([#243](https://github.com/inspirepan/klaude-code/pull/243))
+- update skill/assets submodule ([#236](https://github.com/inspirepan/klaude-code/pull/236))
+- merge stacked PRs #224-#227 into main ([#228](https://github.com/inspirepan/klaude-code/pull/228))
+- update uv lock (`82ee1005`)
+
 ## [2.24.0] - 2026-03-27
 
 ### Added
@@ -2166,7 +2220,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.24.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.25.0...HEAD
+[2.25.0]: https://github.com/inspirepan/klaude-code/compare/v2.24.0...v2.25.0
 [2.24.0]: https://github.com/inspirepan/klaude-code/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/inspirepan/klaude-code/compare/v2.22.0...v2.23.0
 [2.22.0]: https://github.com/inspirepan/klaude-code/compare/v2.21.0...v2.22.0
