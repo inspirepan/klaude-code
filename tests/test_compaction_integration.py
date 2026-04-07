@@ -224,40 +224,12 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
     arun(_test())
 
 
-def test_call_summarizer_retries_on_stream_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(compaction_module, "MAX_FAILED_TURN_RETRIES", 2)
-    monkeypatch.setattr(compaction_module, "INITIAL_RETRY_DELAY_S", 0.0)
-    monkeypatch.setattr(compaction_module, "MAX_RETRY_DELAY_S", 0.0)
-
+def test_call_summarizer_fails_fast_on_stream_error() -> None:
     llm_config = llm_param.LLMConfigParameter(
         protocol=llm_param.LLMClientProtocol.OPENAI,
         model_id="dummy",
     )
     client = _FlakySummarizerClient(llm_config, failures_before_success=1)
-
-    async def _test() -> None:
-        summary = await compaction_module._call_summarizer(  # pyright: ignore[reportPrivateUsage]
-            input=[message.UserMessage(parts=[message.TextPart(text="test")])],
-            llm_client=client,
-            max_tokens=256,
-            cancel=None,
-        )
-        assert summary == "RETRY_OK"
-
-    arun(_test())
-    assert client.calls == 2
-
-
-def test_call_summarizer_raises_after_retry_exhausted(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(compaction_module, "MAX_FAILED_TURN_RETRIES", 2)
-    monkeypatch.setattr(compaction_module, "INITIAL_RETRY_DELAY_S", 0.0)
-    monkeypatch.setattr(compaction_module, "MAX_RETRY_DELAY_S", 0.0)
-
-    llm_config = llm_param.LLMConfigParameter(
-        protocol=llm_param.LLMClientProtocol.OPENAI,
-        model_id="dummy",
-    )
-    client = _FlakySummarizerClient(llm_config, failures_before_success=10)
 
     async def _test() -> None:
         with pytest.raises(RuntimeError, match="transient network"):
@@ -269,4 +241,4 @@ def test_call_summarizer_raises_after_retry_exhausted(monkeypatch: pytest.Monkey
             )
 
     arun(_test())
-    assert client.calls == 3
+    assert client.calls == 1
