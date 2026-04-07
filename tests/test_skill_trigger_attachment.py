@@ -147,7 +147,7 @@ def test_available_skills_attachment_injects_listing_once_per_compaction_window(
         _make_skill("commit", root=tmp_path, location="system"),
         _make_skill("submit-pr", root=tmp_path, location="user"),
     ]
-    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: skills)
+    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: skills)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     session = Session(work_dir=tmp_path)
     session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("help")))
