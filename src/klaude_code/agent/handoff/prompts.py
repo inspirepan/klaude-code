@@ -20,7 +20,7 @@ Write a context summary in FIRST PERSON (as if the user is speaking to a new ass
 3. **Technical context** - specific file paths, function names, error messages, data structures
 4. **What I need you to do next** - restate the goal with any necessary context
 
-IMPORTANT: Do NOT include any content from <system-reminder> tags. These contain system-injected instructions (memory files, loaded skills, project guidelines) that are re-injected automatically and must not be summarized.
+IMPORTANT: Do NOT include any content from <system-reminder> tags. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
 
 Be comprehensive but concise. Preserve exact file paths, function names, and error messages.
 Do NOT include meta-commentary about the conversation or summarization process."""

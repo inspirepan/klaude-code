@@ -77,6 +77,28 @@ def fmt_dynamic_available_skills(skills_xml: str) -> str:
 </available_skills>"""
 
 
+def fmt_available_skills(skills_xml: str) -> str:
+    return f"""# Skills
+
+Skills are optional task-specific instructions stored as `SKILL.md` files.
+
+How to use skills:
+- Use the metadata in <available_skills> to decide whether a skill applies.
+- When the task matches a skill's description, use the `Read` tool to load the `SKILL.md` at the given <location>.
+- Treat the skill <base_dir> as the working directory when following the skill instructions.
+- Resolve any relative paths in SKILL.md (such as `scripts/...`, `references/...`, `assets/...`) against that <base_dir>.
+
+Important:
+- Only use skills listed in <available_skills> below.
+- Keep context small: do NOT load skill files unless needed.
+
+The list below is metadata only. The full instructions live in the referenced file.
+
+<available_skills>
+{skills_xml}
+</available_skills>"""
+
+
 # ---------------------------------------------------------------------------
 # Memory
 # ---------------------------------------------------------------------------

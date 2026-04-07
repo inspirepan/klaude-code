@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 from klaude_code.agent.attachments import (
     Attachment,
+    available_skills_attachment,
     at_file_reader_attachment,
     file_changed_externally_attachment,
     image_attachment,
@@ -102,6 +103,7 @@ def load_agent_attachments(
 
     attachments: list[Attachment] = [
         memory_attachment,
+        available_skills_attachment,
         at_file_reader_attachment,
         file_changed_externally_attachment,
         last_path_memory_attachment,

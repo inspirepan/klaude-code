@@ -212,8 +212,6 @@ def load_system_prompt(
             return base_prompt + build_sub_agent_env_info(work_dir)
 
     # Main agent prompt path (also used by sub-agents with use_main_prompt=True)
-    from klaude_code.skill.manager import format_available_skills_for_system_prompt
-
     base_prompt = build_main_system_prompt(model_name, available_tools or [])
     git_hygiene_prompt = "\n\n" + load_prompt_by_path("prompts/git-workspace-hygiene-prompt.md")
     conventions_prompt = "\n\n" + load_prompt_by_path("prompts/following-conventions-prompt.md")
@@ -223,7 +221,6 @@ def load_system_prompt(
         else ""
     )
     auto_memory_prompt = _build_auto_memory_prompt(work_dir)
-    skills_prompt = format_available_skills_for_system_prompt()
 
     return (
         base_prompt
@@ -231,6 +228,5 @@ def load_system_prompt(
         + conventions_prompt
         + extended_thinking_prompt
         + auto_memory_prompt
-        + skills_prompt
         + _build_env_info(model_name, work_dir)
     )

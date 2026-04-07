@@ -19,7 +19,7 @@ Usage notes:
 - Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses
 - Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, etc.), since it is not aware of the user's intent
 - Provide clear, detailed prompts so the agent can work autonomously and return exactly the information you need.
-- When asking a sub-agent to execute a skill, include the skill's full `location` and `base_dir` in your prompt, since sub-agents do not automatically load `<available_skills>` metadata.
+- When asking a sub-agent to execute a skill, include the skill's full `location` and `base_dir` in your prompt. Do not assume the skill content is already loaded; the sub-agent still needs the concrete path context to read and apply it.
 - If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
 - If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple Agent tool use content blocks. For example, if you need to launch both a code-reviewer agent and a test-runner agent in parallel, send a single message with both tool calls.
 

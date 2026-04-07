@@ -36,7 +36,7 @@ Use this EXACT format:
 - [Any data, examples, or references needed to continue]
 - [Or "(none)" if not applicable]
 
-IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. These contain system-injected instructions (memory files, loaded skills, project guidelines) that are re-injected automatically and must not be summarized.
+IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
 
 Keep each section concise. Preserve exact file paths, function names, and error messages."""
 
@@ -77,7 +77,7 @@ Use this EXACT format:
 ## Critical Context
 - [Preserve important context, add new if needed]
 
-IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. These contain system-injected instructions (memory files, loaded skills, project guidelines) that are re-injected automatically and must not be summarized.
+IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
 
 Keep each section concise. Preserve exact file paths, function names, and error messages."""
 

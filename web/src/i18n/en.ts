@@ -213,9 +213,13 @@ const en = {
   "messageList.scrollToBottom": "Scroll to bottom",
 
   // Developer summary
+  "developer.availableSkill": "Available skill",
+  "developer.availableSkills": "Available skills",
   "developer.activatedSkill": "Activated skill",
   "developer.discoveredSkill": "Discovered skill",
   "developer.discoveredSkills": "Discovered skills",
+  "developer.summaryAvailableSkills": (n: number) =>
+    `${n} available ${n === 1 ? "skill" : "skills"}`,
   "developer.summarySkill": (name: string) => `skill:${name}`,
   "developer.summaryDiscoveredSkill": (name: string) => `skill:${name} (discovered)`,
   "developer.summaryFolderList": (n: number) => `${n} folder ${n === 1 ? "list" : "lists"}`,

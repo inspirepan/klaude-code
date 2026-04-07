@@ -22,6 +22,17 @@ def _build_session_with_user_text(text: str) -> Session:
     return session
 
 
+def _make_skill(name: str, *, root: Path, location: str = "system", description: str | None = None) -> Skill:
+    skill_dir = root / name
+    return Skill(
+        name=name,
+        description=description or f"{name} skill",
+        location=location,
+        skill_path=skill_dir / "SKILL.md",
+        base_dir=skill_dir,
+    )
+
+
 def test_get_skill_from_slash_token() -> None:
     session = _build_session_with_user_text("please /skill:commit now")
     assert get_skills_from_user_input(session) == ["commit"]
@@ -125,6 +136,44 @@ def test_skill_attachment_loads_multiple_skills(tmp_path: Path, monkeypatch: pyt
 
     assert str(skills["alpha"].skill_path) in session.file_tracker
     assert str(skills["beta"].skill_path) in session.file_tracker
+
+
+def test_available_skills_attachment_injects_listing_once_per_compaction_window(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
+
+    skills = [
+        _make_skill("commit", root=tmp_path, location="system"),
+        _make_skill("submit-pr", root=tmp_path, location="user"),
+    ]
+    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: skills)
+
+    session = Session(work_dir=tmp_path)
+    session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("help")))
+
+    first_attachment = _arun(attachments.available_skills_attachment(session))
+    assert first_attachment is not None
+    assert first_attachment.attachment_position == "prepend"
+    assert first_attachment.ui_extra is not None
+
+    listing = [item for item in first_attachment.ui_extra.items if isinstance(item, model.SkillListingUIItem)]
+    assert listing == [model.SkillListingUIItem(names=["submit-pr", "commit"])]
+
+    first_text = message.join_text_parts(first_attachment.parts)
+    assert "# Skills" in first_text
+    assert "<available_skills>" in first_text
+    assert "<name>submit-pr</name>" in first_text
+    assert "<name>commit</name>" in first_text
+    assert any(status.is_skill_listing for status in session.file_tracker.values())
+
+    assert _arun(attachments.available_skills_attachment(session)) is None
+
+    _reset_attachment_loaded_flags(session.file_tracker)
+
+    second_attachment = _arun(attachments.available_skills_attachment(session))
+    assert second_attachment is not None
+    assert "<available_skills>" in message.join_text_parts(second_attachment.parts)
 
 
 def test_last_path_skill_attachment_discovers_nested_project_skill(tmp_path: Path) -> None:
