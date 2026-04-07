@@ -133,9 +133,6 @@ export function TaskMetadata({ item }: TaskMetadataProps): React.JSX.Element {
   const t = useT();
   const [open, setOpen] = useState(false);
   const agent = item.mainAgent;
-  const modelLabel = agent.subAgentName
-    ? `${agent.subAgentName} ${agent.modelName}`
-    : agent.modelName;
 
   return (
     <div
@@ -150,7 +147,8 @@ export function TaskMetadata({ item }: TaskMetadataProps): React.JSX.Element {
       >
         <CollapseRailMarker open={open} />
         <span className="min-w-0 truncate">
-          {modelLabel}
+          {agent.subAgentName && <>{agent.subAgentName} </>}
+          <span className="font-mono">{agent.modelName}</span>
           {agent.durationSeconds !== null && (
             <>
               <span className="mx-1.5 text-neutral-400">{"\u00b7"}</span>
