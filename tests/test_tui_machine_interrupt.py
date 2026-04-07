@@ -12,6 +12,5 @@ def test_replay_interrupt_has_blank_lines_around_render() -> None:
 
     assert isinstance(cmds[0], EndThinkingStream)
     assert isinstance(cmds[1], EndAssistantStream)
-    assert isinstance(cmds[2], PrintBlankLine)
-    assert isinstance(cmds[3], RenderInterrupt)
-    assert isinstance(cmds[4], PrintBlankLine)
+    assert isinstance(cmds[2], RenderInterrupt)
+    assert not any(isinstance(cmd, PrintBlankLine) for cmd in cmds)

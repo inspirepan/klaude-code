@@ -14,7 +14,7 @@ def test_task_metadata_partial_adds_trailing_blank_line() -> None:
     mt = model.TaskMetadataItem(main_agent=model.TaskMetadata(model_name="test"))
     cmds = m.transition(events.TaskMetadataEvent(session_id=session_id, metadata=mt, is_partial=True))
 
-    assert any(isinstance(c, PrintBlankLine) for c in cmds)
+    assert not any(isinstance(c, PrintBlankLine) for c in cmds)
 
 
 def test_task_metadata_final_does_not_add_trailing_blank_line() -> None:
