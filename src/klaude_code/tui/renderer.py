@@ -149,7 +149,6 @@ class _SessionStatus:
     color: Style | None = None
     color_index: int | None = None
     sub_agent_state: model.SubAgentState | None = None
-    turn_first_dev_msg_rendered: bool = False
 
 
 class TUICommandRenderer:
@@ -202,6 +201,8 @@ class TUICommandRenderer:
         self._current_sub_agent_color: Style | None = None
         self._sub_agent_color_index = 0
         self._sub_agent_thinking_buffers: dict[str, str] = {}
+        self._developer_block_open: bool = False
+        self._tool_block_open: bool = False
 
     def set_replay_mode(self, enabled: bool) -> None:
         """Enable or disable replay rendering mode.
@@ -271,6 +272,48 @@ class TUICommandRenderer:
                 self.console.print(Quote(content, style=self._current_sub_agent_color), overflow="ellipsis")
             return
         self.console.print(*objects, style=style, end=end, overflow="ellipsis")
+
+    def _clear_open_blocks(self) -> None:
+        self._developer_block_open = False
+        self._tool_block_open = False
+
+    def _flush_open_blocks(self) -> None:
+        if not (self._developer_block_open or self._tool_block_open):
+            return
+        self.print()
+        self._clear_open_blocks()
+
+    def flush_open_blocks(self) -> None:
+        self._flush_open_blocks()
+
+    def _flush_open_blocks_before(self, cmd: RenderCommand) -> None:
+        if not (self._developer_block_open or self._tool_block_open):
+            return
+
+        match cmd:
+            case PrintBlankLine():
+                self._clear_open_blocks()
+                return
+            case SpinnerStart() | SpinnerStop() | SpinnerUpdate() | TaskClockStart() | TaskClockClear():
+                return
+            case UpdateTerminalTitlePrefix() | StartTitleBlink() | StopTitleBlink():
+                return
+            case (
+                RenderToolCall()
+                | RenderToolResult()
+                | RenderBashCommandStart()
+                | AppendBashCommandOutput()
+                | RenderBashCommandEnd()
+            ):
+                if self._developer_block_open:
+                    self._flush_open_blocks()
+                return
+            case RenderDeveloperMessage():
+                if self._tool_block_open:
+                    self._flush_open_blocks()
+                return
+            case _:
+                self._flush_open_blocks()
 
     def spinner_start(self) -> None:
         self._spinner_visible = True
@@ -503,21 +546,23 @@ class TUICommandRenderer:
     # Event-specific rendering helpers
     # ---------------------------------------------------------------------
 
-    def display_tool_call(self, e: events.ToolCallEvent) -> None:
+    def display_tool_call(self, e: events.ToolCallEvent) -> bool:
         if c_tools.is_sub_agent_tool(e.tool_name):
-            return
+            return False
         renderable = c_tools.render_tool_call(e)
         if renderable is not None:
             self.print(renderable)
+            return True
+        return False
 
-    def display_tool_call_result(self, e: events.ToolResultEvent, *, is_sub_agent: bool = False) -> None:
+    def display_tool_call_result(self, e: events.ToolResultEvent, *, is_sub_agent: bool = False) -> bool:
         if c_tools.is_sub_agent_tool(e.tool_name):
-            return
+            return False
 
         if is_sub_agent and e.is_error:
             error_msg = truncate_head(e.result)
             self.print(c_errors.render_tool_error(error_msg))
-            return
+            return True
 
         if not is_sub_agent and isinstance(e.ui_extra, model.ImageUIExtra):
             self.display_image(e.ui_extra.file_path)
@@ -525,6 +570,8 @@ class TUICommandRenderer:
         renderable = c_tools.render_tool_result(e, code_theme=self.themes.code_theme)
         if renderable is not None:
             self.print(renderable)
+            return True
+        return False
 
     def display_thinking_header(self, header: str) -> None:
         stripped = header.strip()
@@ -538,14 +585,10 @@ class TUICommandRenderer:
             )
         )
 
-    def display_developer_message(self, e: events.DeveloperMessageEvent) -> None:
+    def display_developer_message(self, e: events.DeveloperMessageEvent) -> bool:
         if not c_developer.need_render_developer_message(e):
-            return
+            return False
         with self.session_print_context(e.session_id):
-            session_status = self._sessions.get(e.session_id)
-            if session_status and not session_status.turn_first_dev_msg_rendered:
-                session_status.turn_first_dev_msg_rendered = True
-                self.print()
             self.print(c_developer.render_developer_message(e))
 
         # Display images from @ file references and user attachments
@@ -554,16 +597,15 @@ class TUICommandRenderer:
                 if isinstance(ui_item, (model.AtFileImagesUIItem, model.UserImagesUIItem)):
                     for image_path in ui_item.paths:
                         self.display_image(image_path)
+        return True
 
     def display_notice(self, e: events.NoticeEvent) -> None:
         with self.session_print_context(e.session_id):
-            self.print()
             self.print(c_command_output.render_notice(e))
             self.print()
 
     def display_session_stats(self, e: events.SessionStatsEvent) -> None:
         with self.session_print_context(e.session_id):
-            self.print()
             self.print(c_command_output.render_session_stats(e))
             self.print()
 
@@ -641,6 +683,7 @@ class TUICommandRenderer:
 
     def display_user_message(self, event: events.UserMessageEvent) -> None:
         self.print(c_user_input.render_user_input(event.content))
+        self.print()
 
     def display_task_start(self, event: events.TaskStartEvent) -> None:
         self.register_session(event.session_id, event.sub_agent_state)
@@ -652,12 +695,10 @@ class TUICommandRenderer:
                         self._get_session_sub_agent_color(event.session_id),
                     )
                 )
+                self.print()
 
     def display_turn_start(self, event: events.TurnStartEvent) -> None:
-        if event.session_id in self._sessions:
-            self._sessions[event.session_id].turn_first_dev_msg_rendered = False
-        if not self.is_sub_agent_session(event.session_id):
-            self.print()
+        del event
 
     def display_image(self, file_path: str, caption: str | None = None) -> None:
         # Suspend the Live status bar while emitting raw terminal output.
@@ -692,6 +733,7 @@ class TUICommandRenderer:
         if self.is_sub_agent_session(event.session_id):
             return
         self.print(c_metadata.render_task_metadata(event))
+        self.print()
 
     def display_task_finish(self, event: events.TaskFinishEvent) -> None:
         if self.is_sub_agent_session(event.session_id):
@@ -705,11 +747,11 @@ class TUICommandRenderer:
                         sub_agent_color=self._current_sub_agent_color,
                     )
                 )
-        else:
-            self.print()
+                self.print()
 
     def display_interrupt(self) -> None:
         self.print(c_user_input.render_interrupt())
+        self.print()
 
     def display_error(self, event: events.ErrorEvent) -> None:
         if event.session_id:
@@ -717,6 +759,7 @@ class TUICommandRenderer:
                 self.print(c_errors.render_error(Text(event.error_message), can_retry=event.can_retry))
         else:
             self.print(c_errors.render_error(Text(event.error_message), can_retry=event.can_retry))
+        self.print()
 
     def display_compaction_summary(self, summary: str, kept_items_brief: tuple[tuple[str, int, str], ...] = ()) -> None:
         stripped = summary.strip()
@@ -911,6 +954,7 @@ class TUICommandRenderer:
 
     async def execute(self, commands: list[RenderCommand]) -> None:
         for cmd in commands:
+            self._flush_open_blocks_before(cmd)
             log_debug(
                 f"{'[Cmd] [Replay]' if self._replay_mode else '[Cmd]'} [{cmd.__class__.__name__}]",
                 str(cmd),
@@ -924,7 +968,9 @@ class TUICommandRenderer:
                 case RenderTaskStart(event=event):
                     self.display_task_start(event)
                 case RenderDeveloperMessage(event=event):
-                    self.display_developer_message(event)
+                    if self.display_developer_message(event):
+                        self._developer_block_open = True
+                        self._tool_block_open = False
                 case RenderNotice(event=event):
                     self.display_notice(event)
                 case RenderSessionStats(event=event):
@@ -987,10 +1033,18 @@ class TUICommandRenderer:
                         self.display_thinking_header(header)
                 case RenderToolCall(event=event):
                     with self.session_print_context(event.session_id):
-                        self.display_tool_call(event)
+                        rendered = self.display_tool_call(event)
+                    if rendered:
+                        self._tool_block_open = True
+                        self._developer_block_open = False
                 case RenderToolResult(event=event, is_sub_agent_session=is_sub_agent_session):
                     with self.session_print_context(event.session_id):
-                        self.display_tool_call_result(event, is_sub_agent=is_sub_agent_session)
+                        rendered = self.display_tool_call_result(event, is_sub_agent=is_sub_agent_session)
+                    if rendered and not self._tool_block_open:
+                        self.print()
+                    elif rendered:
+                        self._tool_block_open = True
+                        self._developer_block_open = False
                 case RenderTaskMetadata(event=event):
                     self.display_task_metadata(event)
                 case RenderTaskFinish() as cmd_finish:
@@ -1032,6 +1086,7 @@ class TUICommandRenderer:
                 ):
                     self.spinner_update(todo_text, metadata_text, status_lines, reset_bottom_height, leading_blank_line)
                 case PrintBlankLine():
+                    self._clear_open_blocks()
                     self.print()
                 case PrintRuleLine():
                     self.console.print(Rule(characters="─", style=ThemeKey.LINES_DIM))
@@ -1052,6 +1107,7 @@ class TUICommandRenderer:
                     continue
 
     async def stop(self) -> None:
+        self._flush_open_blocks()
         self._flush_assistant()
         self._flush_thinking()
         stop_terminal_title_blink()

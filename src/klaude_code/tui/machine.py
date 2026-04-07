@@ -805,7 +805,6 @@ class DisplayStateMachine:
                         is_sub_agent_session=False,
                     )
                 )
-                cmds.append(PrintBlankLine())
 
                 if not is_replay:
                     self._spinner.enter_waiting()
@@ -1206,11 +1205,7 @@ class DisplayStateMachine:
             case events.TaskMetadataEvent() as e:
                 cmds.append(EndThinkingStream(e.session_id))
                 cmds.append(EndAssistantStream(e.session_id))
-                if e.is_partial:
-                    cmds.append(PrintBlankLine())
                 cmds.append(RenderTaskMetadata(e))
-                if is_replay or e.is_partial:
-                    cmds.append(PrintBlankLine())
                 return cmds
 
             case events.TodoChangeEvent() as e:
@@ -1311,11 +1306,7 @@ class DisplayStateMachine:
                                 session_title=self._session_title,
                             )
                         )
-                else:
-                    cmds.append(PrintBlankLine())
                 cmds.append(RenderInterrupt(session_id=e.session_id))
-                if is_replay:
-                    cmds.append(PrintBlankLine())
                 return cmds
 
             case events.ErrorEvent() as e:

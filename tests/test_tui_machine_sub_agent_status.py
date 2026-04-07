@@ -250,7 +250,7 @@ def test_bash_mode_end_emits_final_tool_result_from_streamed_output() -> None:
     assert tool_results[0].event.tool_name == tools.BASH
     assert tool_results[0].event.result == "hello"
     assert tool_results[0].event.status == "success"
-    assert any(isinstance(cmd, PrintBlankLine) for cmd in end_cmds)
+    assert not any(isinstance(cmd, PrintBlankLine) for cmd in end_cmds)
 
 
 def test_bash_mode_end_includes_nonzero_exit_message_in_final_tool_result() -> None:

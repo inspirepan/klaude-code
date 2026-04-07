@@ -115,6 +115,8 @@ class TUIDisplay(DisplayABC):
             self._renderer.spinner_stop()
         with contextlib.suppress(Exception):
             self._renderer.stop_bottom_live()
+        with contextlib.suppress(Exception):
+            self._renderer.flush_open_blocks()
 
     def show_progress_ui(self) -> None:
         """Restore bottom status line after temporary interactive prompts."""
