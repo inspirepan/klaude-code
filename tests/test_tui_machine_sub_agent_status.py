@@ -197,6 +197,47 @@ def test_main_session_bash_tool_buffers_before_delay_and_falls_back_to_tool_resu
     assert any(isinstance(cmd, RenderToolResult) for cmd in result_cmds)
 
 
+def test_sub_agent_todo_write_result_is_rendered() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    sub_session = "sub-1"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=model.SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="tracking progress",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+
+    cmds = machine.transition(
+        events.ToolResultEvent(
+            session_id=sub_session,
+            tool_call_id="todo-1",
+            tool_name=tools.TODO_WRITE,
+            result="Todos updated",
+            status="success",
+            ui_extra=model.TodoListUIExtra(
+                todo_list=model.TodoUIExtra(
+                    todos=[model.TodoItem(content="Review matches", status="in_progress")],
+                    new_completed=[],
+                    explanation="Keep the search scoped.",
+                )
+            ),
+        )
+    )
+
+    tool_results = [cmd for cmd in cmds if isinstance(cmd, RenderToolResult)]
+    assert len(tool_results) == 1
+    assert tool_results[0].event.tool_name == tools.TODO_WRITE
+    assert tool_results[0].is_sub_agent_session is True
+
+
 def test_main_session_bash_tool_flushes_buffer_after_delay(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(machine_module, "BASH_STREAM_DELAY_SEC", 3.0)
     machine = DisplayStateMachine()
