@@ -66,6 +66,7 @@ function buildAttachedSummary(
   t: ReturnType<typeof useT>,
 ): string {
   let memoryCount = 0;
+  const availableSkillNames = new Set<string>();
   const skillNames: string[] = [];
   const discoveredSkillNames = new Set<string>();
   let fileCount = 0;
@@ -78,6 +79,9 @@ function buildAttachedSummary(
       switch (ui.type) {
         case "memory_loaded":
           memoryCount += ui.files.length;
+          break;
+        case "skill_listing":
+          for (const name of ui.names) availableSkillNames.add(name);
           break;
         case "skill_activated":
           skillNames.push(ui.name);
@@ -108,6 +112,9 @@ function buildAttachedSummary(
 
   const parts: string[] = [];
   if (memoryCount > 0) parts.push(t("plural.memory")(memoryCount));
+  if (availableSkillNames.size > 0) {
+    parts.push(t("developer.summaryAvailableSkills")(availableSkillNames.size));
+  }
   for (const name of skillNames) parts.push(t("developer.summarySkill")(name));
   for (const name of discoveredSkillNames) parts.push(t("developer.summaryDiscoveredSkill")(name));
   if (fileCount > 0) parts.push(t("plural.file")(fileCount));
@@ -207,6 +214,9 @@ function AttachDetail({
   const t = useT();
   const allUIItems = devItems.flatMap((d) => d.items).filter((ui) => ui.type !== "todo_attachment");
   const sessionId = devItems[0]?.sessionId ?? null;
+  const availableSkillNames = Array.from(
+    new Set(allUIItems.flatMap((ui) => (ui.type === "skill_listing" ? ui.names : []))),
+  );
   const discoveredSkillNames = Array.from(
     new Set(allUIItems.flatMap((ui) => (ui.type === "skill_discovered" ? [ui.name] : []))),
   );
@@ -223,6 +233,8 @@ function AttachDetail({
             return groupAtFileOps(ui.ops).map((g) => (
               <PathList key={`${g.operation}-${g.paths.join(",")}`} paths={g.paths} />
             ));
+          case "skill_listing":
+            return null;
           case "skill_activated":
             return (
               <SkillRow
@@ -237,6 +249,16 @@ function AttachDetail({
             return null;
         }
       })}
+      {availableSkillNames.length > 0 ? (
+        <SkillRow
+          label={
+            availableSkillNames.length === 1
+              ? t("developer.availableSkill")
+              : t("developer.availableSkills")
+          }
+          names={availableSkillNames}
+        />
+      ) : null}
       {discoveredSkillNames.length > 0 ? (
         <SkillRow
           label={

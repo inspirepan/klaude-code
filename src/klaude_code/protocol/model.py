@@ -216,6 +216,7 @@ class FileStatus(BaseModel):
     cached_content: str | None = Field(default=None, exclude=True)
     is_memory: bool = False
     is_skill: bool = False
+    is_skill_listing: bool = False
     skill_attachment_source: Literal["dynamic", "explicit"] | None = None
     is_directory: bool = False
     read_complete: bool = False
@@ -395,6 +396,11 @@ class SkillDiscoveredUIItem(BaseModel):
     name: str
 
 
+class SkillListingUIItem(BaseModel):
+    type: Literal["skill_listing"] = "skill_listing"
+    names: list[str]
+
+
 class AtFileImagesUIItem(BaseModel):
     type: Literal["at_file_images"] = "at_file_images"
     paths: list[str]
@@ -408,6 +414,7 @@ type DeveloperUIItem = (
     | UserImagesUIItem
     | SkillActivatedUIItem
     | SkillDiscoveredUIItem
+    | SkillListingUIItem
     | AtFileImagesUIItem
 )
 

@@ -123,7 +123,4 @@ layers = [
     "klaude_code.log",
     "klaude_code.const",
 ]
-ignore_imports = [
-    # prompts lazy-imports skill.manager for system prompt assembly
-    "klaude_code.prompts.* -> klaude_code.skill.*",
-]
+ignore_imports = []

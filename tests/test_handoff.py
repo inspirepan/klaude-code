@@ -265,6 +265,10 @@ class TestMemoryReset:
                 is_skill=True,
                 skill_attachment_source="dynamic",
             ),
+            "/repo/.klaude-system-skill-listing": model.FileStatus(
+                mtime=3.6,
+                is_skill_listing=True,
+            ),
             "/repo/src/.claude/skills/explicit/SKILL.md": model.FileStatus(
                 mtime=3.7,
                 is_skill=True,
@@ -279,6 +283,7 @@ class TestMemoryReset:
         assert "/home/.claude/CLAUDE.md" not in file_tracker
         assert "/home/.claude/memory/MEMORY.md" not in file_tracker
         assert "/repo/src/.claude/skills/local/SKILL.md" not in file_tracker
+        assert "/repo/.klaude-system-skill-listing" not in file_tracker
         assert "/repo/src/.claude/skills/explicit/SKILL.md" in file_tracker
         # Non-attachment entries should remain
         assert "src/foo.py" in file_tracker

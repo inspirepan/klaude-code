@@ -18,10 +18,11 @@ def need_render_developer_message(e: events.DeveloperMessageEvent) -> bool:
 def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     """Render developer message details into a single group.
 
-    Includes: memory paths, external file changes, todo attachment, @file operations.
+    Includes: memory paths, skill listings, external file changes, todo attachment, @file operations.
     Command output is excluded; render it separately via `render_command_output`.
     """
     parts: list[RenderableType] = []
+    available_skill_names: list[str] = []
     discovered_skill_names: list[str] = []
 
     if e.item.ui_extra:
@@ -102,12 +103,28 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                         ),
                     )
                     parts.append(grid)
+                case model.SkillListingUIItem() as item:
+                    for name in item.names:
+                        if name not in available_skill_names:
+                            available_skill_names.append(name)
                 case model.SkillDiscoveredUIItem() as item:
                     if item.name not in discovered_skill_names:
                         discovered_skill_names.append(item.name)
                 case model.AtFileImagesUIItem():
                     # Image display is handled by renderer.display_developer_message
                     pass
+
+    if available_skill_names:
+        grid = create_grid()
+        count = len(available_skill_names)
+        grid.add_row(
+            Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+            Text(
+                f"{count} available skill{'s' if count != 1 else ''}",
+                ThemeKey.ATTACHMENT,
+            ),
+        )
+        parts.append(grid)
 
     if discovered_skill_names:
         grid = create_grid()

@@ -10,6 +10,7 @@ from typing import Literal
 
 from klaude_code.agent.attachment_prompts import (
     fmt_auto_memory_hint,
+    fmt_available_skills,
     fmt_dynamic_available_skills,
     fmt_file_already_in_context,
     fmt_file_changed_externally,
@@ -33,6 +34,7 @@ from klaude_code.protocol import message, model, tools
 from klaude_code.session import Session
 from klaude_code.skill import get_skill, get_skill_loader
 from klaude_code.skill.loader import Skill, SkillLoader, discover_skills_near_paths
+from klaude_code.skill.system_skills import install_system_skills
 from klaude_code.tool import BashTool, ReadTool, build_todo_context
 from klaude_code.tool.context import ToolContext
 from klaude_code.tool.file._utils import hash_text_sha256
@@ -54,6 +56,8 @@ TODO_ATTACHMENT_TURNS_BETWEEN = 10
 # Require token boundary after the skill name to avoid matching paths like
 # /Users/root/code.
 SLASH_SKILL_PATTERN = re.compile(r"(?:^|\s)(?://|/)skill:(?P<skill>[^\s/]+)(?=\s|$)")
+
+SYSTEM_SKILL_LISTING_MARKER_NAME = ".klaude-system-skill-listing"
 
 
 class AtFileRef:
@@ -493,6 +497,7 @@ def _mark_skill_loaded(session: Session, path: str, content: str, *, source: Lit
         content_sha256=hash_text_sha256(content),
         is_memory=existing.is_memory if existing else False,
         is_skill=True,
+        is_skill_listing=existing.is_skill_listing if existing else False,
         skill_attachment_source=source,
         is_directory=existing.is_directory if existing else False,
         read_complete=existing.read_complete if existing else False,
@@ -510,6 +515,7 @@ def _mark_directory_accessed(session: Session, path: str) -> None:
         content_sha256=None,
         is_memory=existing.is_memory if existing else False,
         is_skill=existing.is_skill if existing else False,
+        is_skill_listing=existing.is_skill_listing if existing else False,
         skill_attachment_source=existing.skill_attachment_source if existing else None,
         is_directory=True,
         read_complete=existing.read_complete if existing else False,
@@ -545,9 +551,52 @@ def _format_skill_block_str(skill: Skill, skill_content: str, *, explicit: bool)
 
 def _format_dynamic_available_skills_str(skills: list[Skill]) -> str:
     loader = SkillLoader()
-    loader.loaded_skills = {skill.name: skill for skill in skills}
+    loader.loaded_skills = {skill.name: skill for skill in _sort_skills_for_listing(skills)}
     skills_xml = loader.get_skills_xml().rstrip()
     return fmt_dynamic_available_skills(skills_xml)
+
+
+def _format_available_skills_str(skills: list[Skill]) -> str:
+    loader = SkillLoader()
+    loader.loaded_skills = {skill.name: skill for skill in _sort_skills_for_listing(skills)}
+    skills_xml = loader.get_skills_xml().rstrip()
+    return fmt_available_skills(skills_xml)
+
+
+def _sort_skills_for_listing(skills: Sequence[Skill]) -> list[Skill]:
+    location_order = {"project": 0, "user": 1, "system": 2}
+    return sorted(skills, key=lambda skill: (location_order.get(skill.location, 3), skill.name))
+
+
+def _get_system_skill_listing_marker_path(session: Session) -> str:
+    return str((session.work_dir / SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
+
+
+def _is_system_skill_listing_loaded(session: Session) -> bool:
+    status = session.file_tracker.get(_get_system_skill_listing_marker_path(session))
+    return status is not None and status.is_skill_listing
+
+
+def _mark_system_skill_listing_loaded(session: Session) -> None:
+    marker_path = _get_system_skill_listing_marker_path(session)
+    existing = session.file_tracker.get(marker_path)
+    session.file_tracker[marker_path] = model.FileStatus(
+        mtime=0.0,
+        content_sha256=None,
+        is_memory=existing.is_memory if existing else False,
+        is_skill=existing.is_skill if existing else False,
+        is_skill_listing=True,
+        skill_attachment_source=existing.skill_attachment_source if existing else None,
+        is_directory=existing.is_directory if existing else False,
+        read_complete=existing.read_complete if existing else False,
+    )
+
+
+def _get_available_skills_for_session(session: Session) -> list[Skill]:
+    install_system_skills()
+    loader = SkillLoader()
+    loader.discover_skills(work_dir=session.work_dir)
+    return _sort_skills_for_listing(list(loader.loaded_skills.values()))
 
 
 def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bool) -> tuple[list[str], list[Skill]]:
@@ -641,6 +690,24 @@ def _build_dynamic_skill_listing_attachment(session: Session, skills: list[Skill
     )
 
 
+async def available_skills_attachment(session: Session) -> message.DeveloperMessage | None:
+    """Attach the full available-skill listing once per compaction window."""
+    if _is_system_skill_listing_loaded(session):
+        return None
+
+    skills = _sort_skills_for_listing(_get_available_skills_for_session(session))
+    if not skills:
+        return None
+
+    _mark_system_skill_listing_loaded(session)
+    content = _format_available_skills_str(skills)
+    return message.DeveloperMessage(
+        parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
+        attachment_position="prepend",
+        ui_extra=model.DeveloperUIExtra(items=[model.SkillListingUIItem(names=[skill.name for skill in skills])]),
+    )
+
+
 async def skill_attachment(session: Session) -> message.DeveloperMessage | None:
     """Load skill content when user references skills with explicit skill syntax."""
     skill_names = get_skills_from_user_input(session)
@@ -718,6 +785,7 @@ def _mark_memory_loaded(session: Session, path: str) -> None:
             content_sha256=content_sha256,
             is_memory=True,
             is_skill=existing.is_skill if existing else False,
+            is_skill_listing=existing.is_skill_listing if existing else False,
             skill_attachment_source=existing.skill_attachment_source if existing else None,
             is_directory=existing.is_directory if existing else False,
             read_complete=existing.read_complete if existing else False,
@@ -914,8 +982,9 @@ type Attachment = Callable[[Session], Awaitable[message.DeveloperMessage | None]
 # - file_changed_externally_attachment iterates file_tracker (dict iteration safety)
 # - last_path_memory_attachment reads file_tracker populated by at_file_reader_attachment
 # - last_path_skill_attachment reads and updates file_tracker using accessed paths
-# These form a sequential phase. Others (memory_attachment, image_attachment,
-# skill_attachment, todo_attachment) are independent and safe to parallelize.
+# These form a sequential phase. Others (memory_attachment,
+# available_skills_attachment, image_attachment, skill_attachment,
+# todo_attachment) are independent and safe to parallelize.
 _SEQUENTIAL_ATTACHMENTS: frozenset[str] = frozenset(
     {
         "at_file_reader_attachment",

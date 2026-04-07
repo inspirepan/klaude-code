@@ -65,3 +65,20 @@ def test_render_developer_message_discovered_skills_are_grouped_without_skill_st
 
     assert style_at(skill_name_start) == console.get_style(ThemeKey.ATTACHMENT)
     assert style_at(second_skill_start) == console.get_style(ThemeKey.ATTACHMENT)
+
+
+def test_render_developer_message_available_skills_use_skill_style() -> None:
+    console = Console(width=120, record=False, force_terminal=False, theme=get_theme().app_theme)
+    event = events.DeveloperMessageEvent(
+        session_id="test-session",
+        item=message.DeveloperMessage(
+            parts=[],
+            ui_extra=model.DeveloperUIExtra(items=[model.SkillListingUIItem(names=["commit", "submit-pr"])]),
+        ),
+    )
+
+    line = console.render_lines(render_developer_message(event), console.options, pad=False)[0]
+    parts: list[tuple[str, object]] = [(segment.text, segment.style) for segment in line]
+    full_text = "".join(text for text, _ in parts)
+    assert full_text == "+ 2 available skills"
+    assert all(style == console.get_style(ThemeKey.ATTACHMENT) for _, style in parts if _.strip())
