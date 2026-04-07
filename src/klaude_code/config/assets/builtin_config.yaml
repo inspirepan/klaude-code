@@ -104,7 +104,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: xhigh
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
   - model_name: gpt-5.4:fast
@@ -126,7 +126,7 @@ provider_list:
     fast_mode: true
     thinking:
       reasoning_effort: xhigh
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
   - &gpt53codex
@@ -380,7 +380,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: xhigh
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
   - model_name: kimi
