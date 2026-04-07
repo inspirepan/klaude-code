@@ -12,10 +12,12 @@ Prefers pnpm when available, falls back to npm.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
@@ -39,8 +41,34 @@ def run(args: list[str], *, cwd: str | None = None) -> int:
     return result.returncode
 
 
+def dependencies_installed() -> bool:
+    package_json = WEB_DIR / "package.json"
+    if not package_json.exists():
+        return True
+
+    try:
+        package_data = json.loads(package_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return False
+
+    if not isinstance(package_data, dict):
+        return False
+    package_json_data = cast(dict[str, object], package_data)
+
+    for group_name in ("dependencies", "devDependencies"):
+        group_data = package_json_data.get(group_name)
+        if not isinstance(group_data, dict):
+            continue
+        group = cast(dict[str, object], group_data)
+        for package_name in group:
+            if not (WEB_DIR / "node_modules" / package_name).exists():
+                return False
+
+    return True
+
+
 def ensure_node_modules(cmd: str, name: str) -> bool:
-    if (WEB_DIR / "node_modules").exists():
+    if dependencies_installed():
         return True
     install_args = [cmd, "install"]
     if name == "pnpm" and (WEB_DIR / "pnpm-lock.yaml").exists():
