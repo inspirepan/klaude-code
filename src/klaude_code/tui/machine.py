@@ -381,7 +381,7 @@ class SpinnerStatusState:
 
         if self._phase is SpinnerPhase.COMPOSING and activity_text is not None:
             status_text = activity_text
-            status_text.append(" …", style=ThemeKey.STATUS_TEXT)
+            status_text.append("…", style=ThemeKey.STATUS_TEXT)
         elif base_status is not None:
             status_text = base_status
             if activity_text:
@@ -389,7 +389,7 @@ class SpinnerStatusState:
                 status_text.append_text(activity_text)
         elif activity_text:
             status_text = activity_text
-            status_text.append(" …", style=ThemeKey.STATUS_TEXT)
+            status_text.append("…", style=ThemeKey.STATUS_TEXT)
         else:
             status_text = Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT)
 
@@ -638,7 +638,7 @@ class DisplayStateMachine:
             description = session.status_description()
             line = Text(title, style=ThemeKey.STATUS_TEXT)
             if description:
-                line.append(" ", style=ThemeKey.STATUS_TEXT)
+                line.append(": ", style=ThemeKey.STATUS_TEXT)
                 description_start = len(line)
                 line.append(description, style=ThemeKey.STATUS_TEXT)
                 line.stylize("italic", description_start, len(line))

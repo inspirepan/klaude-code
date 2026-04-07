@@ -4,7 +4,7 @@ from rich.cells import cell_len
 
 from klaude_code.const import STATUS_COMPACTING_TEXT, STATUS_DEFAULT_TEXT, STATUS_THINKING_TEXT
 from klaude_code.protocol import model
-from klaude_code.tui.machine import SpinnerStatusState
+from klaude_code.tui.machine import STATUS_LEFT_MIN_WIDTH_CELLS, SpinnerStatusState
 
 
 def test_sub_agent_tool_calls_persist_across_turn_start() -> None:
@@ -46,12 +46,12 @@ def test_sub_agent_tool_calls_decrement_by_tool_call_id() -> None:
 def test_todo_status_takes_priority_over_default_thinking() -> None:
     state = SpinnerStatusState()
     state.set_todo_status("Write tests")
-    state.set_reasoning_status("Thinking …")
+    state.set_reasoning_status("Thinking…")
 
     todo_status = state.get_todo_status()
     status = state.get_status()
     assert todo_status.plain == "Write tests"
-    assert status.plain.startswith("Thinking …")
+    assert status.plain.startswith("Thinking…")
 
 
 def test_custom_reasoning_is_shown_on_second_line_when_todo_present() -> None:
@@ -85,7 +85,7 @@ def test_activity_is_shown_on_secondary_line_when_no_base_status() -> None:
     status = state.get_status()
 
     assert todo_status.plain == ""
-    assert status.plain.startswith("Typing …")
+    assert status.plain.startswith("Typing…")
 
 
 def test_short_reasoning_status_keeps_min_loading_width() -> None:
@@ -93,19 +93,19 @@ def test_short_reasoning_status_keeps_min_loading_width() -> None:
     state.set_reasoning_status("Typing")
 
     status = state.get_status()
-    assert cell_len(status.plain) == cell_len(STATUS_THINKING_TEXT)
+    assert cell_len(status.plain) == STATUS_LEFT_MIN_WIDTH_CELLS
     assert status.plain.startswith("Typing")
 
 
 def test_reasoning_on_first_line_and_default_on_secondary_line() -> None:
     state = SpinnerStatusState()
-    state.set_reasoning_status("Thinking …")
+    state.set_reasoning_status("Thinking…")
 
     todo_status = state.get_todo_status()
     status = state.get_status()
 
     assert todo_status.plain == ""
-    assert status.plain.startswith("Thinking …")
+    assert status.plain.startswith("Thinking…")
 
 
 def test_clear_default_reasoning_status_keeps_non_thinking_phase() -> None:
@@ -126,8 +126,8 @@ def test_composing_status_keeps_min_loading_width() -> None:
     status = state.get_status()
 
     assert todo_status.plain == ""
-    assert status.plain.startswith("Typing …")
-    assert cell_len(status.plain) == cell_len(STATUS_THINKING_TEXT)
+    assert status.plain.startswith("Typing…")
+    assert cell_len(status.plain) == STATUS_LEFT_MIN_WIDTH_CELLS
 
 
 def test_stopping_composing_returns_to_default_status() -> None:
@@ -149,7 +149,7 @@ def test_default_status_keeps_min_thinking_width() -> None:
 
     assert todo_status.plain == ""
     assert status.plain.startswith(STATUS_DEFAULT_TEXT)
-    assert cell_len(status.plain) == cell_len(STATUS_THINKING_TEXT)
+    assert cell_len(status.plain) == STATUS_LEFT_MIN_WIDTH_CELLS
 
 
 def test_toast_is_shown_on_secondary_line_with_highest_priority() -> None:
