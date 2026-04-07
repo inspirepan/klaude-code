@@ -55,10 +55,17 @@ class CacheBreakReport:
     @property
     def summary(self) -> str:
         return (
-            f"Prompt cache break detected: {self.reason} "
-            f"(cached tokens: {self.prev_cached_tokens:,} -> {self.curr_cached_tokens:,}, "
-            f"drop: {self.token_drop:,})"
+            f"Prompt cache break detected: {self.reason}\n"
+            f"Cached tokens: {self.prev_cached_tokens:,} -> {self.curr_cached_tokens:,} "
+            f"(drop: {self.token_drop:,})"
         )
+
+    def format_message(self, report_path: str | None = None) -> str:
+        """Build the user-facing cache break message shown in the terminal."""
+
+        if report_path is None:
+            return self.summary
+        return f"{self.summary}\nReport: {report_path}"
 
     def write_report(self) -> str:
         """Write a detailed report file and return its path as a string."""

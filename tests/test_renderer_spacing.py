@@ -46,6 +46,36 @@ def test_turn_start_does_not_add_extra_blank_line_before_retry_error() -> None:
     assert "❯ retry me\n\n\n✘ Retrying 1/10" not in rendered
 
 
+def test_multiline_error_continuation_uses_single_grid_indent() -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "main"
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderError(
+                    event=events.ErrorEvent(
+                        session_id=session_id,
+                        error_message=(
+                            "Prompt cache break detected: likely server-side\n"
+                            "Cached tokens: 5,120 -> 0 (drop: 5,120)\n"
+                            "Report: /tmp/cache-break.txt"
+                        ),
+                        can_retry=True,
+                    )
+                ),
+            ]
+        )
+    )
+
+    rendered = output.getvalue()
+    lines = rendered.splitlines()
+    assert lines[0].rstrip() == "✘ Prompt cache break detected: likely server-side"
+    assert lines[1].rstrip() == "  Cached tokens: 5,120 -> 0 (drop: 5,120)"
+    assert lines[2].rstrip() == "  Report: /tmp/cache-break.txt"
+    assert not lines[2].startswith("    Report:")
+
+
 def test_developer_messages_stay_grouped_until_turn_boundary() -> None:
     renderer, output = _renderer_and_output()
     session_id = "main"

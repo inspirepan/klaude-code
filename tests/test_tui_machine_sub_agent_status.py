@@ -12,6 +12,7 @@ from klaude_code.tui.commands import (
     PrintBlankLine,
     RenderBashCommandEnd,
     RenderCommand,
+    RenderTaskFinish,
     RenderToolResult,
     SpinnerStatusLine,
     SpinnerUpdate,
@@ -355,6 +356,37 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
     finish_update = _last_spinner_update(finish_cmds)
     assert finish_update.reset_bottom_height is True
     assert finish_update.leading_blank_line is False
+
+
+def test_sub_agent_finish_emits_blank_line_after_result() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    sub_session = "sub-1"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=model.SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="searching",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+
+    finish_cmds = machine.transition(
+        events.TaskFinishEvent(
+            session_id=sub_session,
+            task_result="done",
+        )
+    )
+
+    render_task_finish_index = next(i for i, cmd in enumerate(finish_cmds) if isinstance(cmd, RenderTaskFinish))
+    print_blank_line_index = next(i for i, cmd in enumerate(finish_cmds) if isinstance(cmd, PrintBlankLine))
+
+    assert print_blank_line_index > render_task_finish_index
 
 
 def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> None:

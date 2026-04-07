@@ -436,9 +436,9 @@ class TaskExecutor:
                                 if cache_break is not None:
                                     try:
                                         report_path = cache_break.write_report()
-                                        msg = f"{cache_break.summary}\n  Report: {report_path}"
+                                        msg = cache_break.format_message(report_path)
                                     except OSError:
-                                        msg = cache_break.summary
+                                        msg = cache_break.format_message()
                                     yield events.ErrorEvent(
                                         session_id=session_ctx.session_id,
                                         error_message=msg,

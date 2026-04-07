@@ -72,6 +72,22 @@ class TestCacheTrackerBreakDetection:
         assert report is not None
         assert report.token_drop == 40_000
 
+    def test_report_message_is_multiline_and_readable(self) -> None:
+        t = CacheTracker()
+        t.record_pre_call_state("prompt", _make_tools("bash"), "claude-sonnet-4-20250514")
+        t.update(_make_usage(cached=50_000, input_tokens=60_000))
+        t.record_pre_call_state("prompt", _make_tools("bash"), "claude-sonnet-4-20250514")
+        report = t.update(_make_usage(cached=10_000, input_tokens=60_000))
+
+        assert report is not None
+        summary_lines = report.summary.splitlines()
+        assert summary_lines[0].startswith("Prompt cache break detected: ")
+        assert summary_lines[1] == "Cached tokens: 50,000 -> 10,000 (drop: 40,000)"
+        assert report.format_message("/tmp/cache-break.txt").splitlines() == [
+            *summary_lines,
+            "Report: /tmp/cache-break.txt",
+        ]
+
     def test_system_prompt_change_detected(self) -> None:
         t = CacheTracker()
         t.record_pre_call_state("prompt v1", _make_tools("bash"), "claude-sonnet-4-20250514")

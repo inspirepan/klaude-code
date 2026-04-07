@@ -1244,6 +1244,8 @@ class DisplayStateMachine:
                 s.task_active = False
                 s.clear_status_activity()
                 cmds.append(RenderTaskFinish(e))
+                if s.is_sub_agent:
+                    cmds.append(PrintBlankLine())
 
                 # Defensive: finalize any open streams so buffered markdown is flushed.
                 if s.thinking_stream_active:
