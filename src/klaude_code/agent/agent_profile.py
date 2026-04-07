@@ -9,8 +9,8 @@ if TYPE_CHECKING:
 
 from klaude_code.agent.attachments import (
     Attachment,
-    available_skills_attachment,
     at_file_reader_attachment,
+    available_skills_attachment,
     file_changed_externally_attachment,
     image_attachment,
     last_path_memory_attachment,
