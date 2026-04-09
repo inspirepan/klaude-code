@@ -5,7 +5,6 @@ that are shared between command layer and UI layer.
 """
 
 from dataclasses import dataclass
-from typing import Literal
 
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.model_id import (
@@ -16,8 +15,6 @@ from klaude_code.protocol.model_id import (
     is_openrouter_model_with_reasoning_effort,
     supports_adaptive_thinking,
 )
-
-ReasoningEffort = Literal["high", "medium", "low", "minimal", "none", "xhigh"]
 
 # Thinking level options for different protocols
 RESPONSES_LEVELS = ["low", "medium", "high"]

@@ -6,7 +6,6 @@ import signal
 import sys
 import termios
 import threading
-import time
 import tty
 from collections.abc import Callable, Coroutine
 from types import FrameType
@@ -88,54 +87,6 @@ def start_esc_interrupt_monitor(
 
     esc_task: asyncio.Task[None] = asyncio.create_task(asyncio.to_thread(_esc_monitor, stop_event))
     return stop_event, esc_task
-
-
-def install_sigint_double_press_exit(
-    show_toast: Callable[[], None],
-    hide_progress: Callable[[], None],
-    *,
-    window_seconds: float = 2.0,
-) -> Callable[[], None]:
-    """Install a SIGINT handler that requires a double press to exit.
-
-    Behavior:
-    - First Ctrl+C within ``window_seconds``: calls ``show_toast`` to inform the
-      user that a second press will exit.
-    - Second Ctrl+C within the time window: calls ``hide_progress`` and raises
-      ``KeyboardInterrupt`` to unwind the current asyncio loop.
-
-    Returns a ``restore()`` function that should be called during shutdown to
-    restore the original SIGINT handler.
-    """
-
-    last_sigint_time: float = 0.0
-    original_handler = signal.getsignal(signal.SIGINT)
-
-    def _handler(signum: int, frame: FrameType | None) -> None:
-        nonlocal last_sigint_time
-        now = time.monotonic()
-        if now - last_sigint_time <= window_seconds:
-            # Second press within window: hide progress UI and exit.
-            with contextlib.suppress(Exception):
-                hide_progress()
-            raise KeyboardInterrupt
-
-        # First press: remember timestamp and show toast.
-        last_sigint_time = now
-        with contextlib.suppress(Exception):
-            show_toast()
-
-    try:
-        signal.signal(signal.SIGINT, _handler)
-    except (OSError, ValueError):  # pragma: no cover - platform dependent
-        # If installing the handler fails, restore() will be a no-op.
-        return lambda: None
-
-    def restore() -> None:
-        with contextlib.suppress(Exception):
-            signal.signal(signal.SIGINT, original_handler)
-
-    return restore
 
 
 def install_sigint_interrupt(

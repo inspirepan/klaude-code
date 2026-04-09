@@ -65,13 +65,6 @@ DEFAULT_TEMPERATURE = 1.0  # Default temperature for LLM requests
 DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS = 2048  # Default thinking budget tokens for Anthropic models
 
 
-# =============================================================================
-# Attachments
-# =============================================================================
-
-TODO_ATTACHMENT_TOOL_CALL_THRESHOLD = 10  # Tool call count threshold for todo attachment
-ATTACHMENT_COOLDOWN_TURNS = 3  # Cooldown turns between attachment triggers
-
 
 # =============================================================================
 # Tool - Read
@@ -159,7 +152,6 @@ TOOL_OUTPUT_TRUNCATION_DIR = get_system_temp()  # Directory for saving full trun
 
 TAB_EXPAND_WIDTH = 8  # Tab expansion width for text rendering
 DIFF_PREFIX_WIDTH = 4  # Width of line number prefix in diff display
-MAX_DIFF_LINES = 500  # Maximum lines to show in diff output
 INVALID_TOOL_CALL_MAX_LENGTH = 200  # Maximum length for invalid tool call display
 TRUNCATE_DISPLAY_MAX_LINE_LENGTH = 500  # Maximum line length for truncated display
 TRUNCATE_DISPLAY_MAX_LINES = 10  # Maximum lines for truncated display
