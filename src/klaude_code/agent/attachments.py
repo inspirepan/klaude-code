@@ -718,7 +718,9 @@ async def available_skills_attachment(session: Session) -> message.DeveloperMess
 
     previous_skill_paths = _get_available_skill_paths_by_name(session)
     current_skill_paths = {skill.name: str(skill.skill_path) for skill in skills}
-    updated_skills = [skill for skill in skills if previous_skill_paths.get(skill.name) != current_skill_paths[skill.name]]
+    updated_skills = [
+        skill for skill in skills if previous_skill_paths.get(skill.name) != current_skill_paths[skill.name]
+    ]
     if not updated_skills:
         return None
 
@@ -732,7 +734,9 @@ async def available_skills_attachment(session: Session) -> message.DeveloperMess
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
         attachment_position="prepend",
-        ui_extra=model.DeveloperUIExtra(items=[model.SkillListingUIItem(names=[skill.name for skill in updated_skills])]),
+        ui_extra=model.DeveloperUIExtra(
+            items=[model.SkillListingUIItem(names=[skill.name for skill in updated_skills])]
+        ),
     )
 
 
