@@ -314,6 +314,8 @@ class TaskExecutor:
             user_msg = ctx.session.get_user_message_before_checkpoint(checkpoint_id) or ""
             self._rewind_manager.register_checkpoint(checkpoint_id, user_msg)
 
+        skip_threshold_compaction = False
+
         while True:
             # Process attachments in parallel with error isolation
             from klaude_code.agent.attachments import collect_attachments
@@ -325,10 +327,14 @@ class TaskExecutor:
 
             # Threshold-based compaction before starting a new turn.
             # This matters for multi-turn tool loops where no new user input occurs.
-            if ctx.sub_agent_state is None and should_compact_threshold(
-                session=ctx.session,
-                config=None,
-                llm_config=profile.llm_client.get_llm_config(),
+            if (
+                ctx.sub_agent_state is None
+                and not skip_threshold_compaction
+                and should_compact_threshold(
+                    session=ctx.session,
+                    config=None,
+                    llm_config=profile.llm_client.get_llm_config(),
+                )
             ):
                 log_debug("[Compact] start", debug_type=DebugType.RESPONSE)
                 yield events.CompactionStartEvent(
@@ -373,6 +379,10 @@ class TaskExecutor:
                 except Exception as e:
                     import traceback
 
+                    nothing_to_compact = isinstance(e, ValueError) and str(e).startswith("Nothing to compact")
+                    if not nothing_to_compact:
+                        skip_threshold_compaction = True
+
                     # For threshold compaction, failure should not take down the task.
                     log_debug(
                         "[Compact] error",
@@ -387,6 +397,12 @@ class TaskExecutor:
                         aborted=True,
                         will_retry=False,
                     )
+                    if not nothing_to_compact:
+                        yield events.ErrorEvent(
+                            error_message=f"Compaction failed, continuing without compaction: {e}",
+                            can_retry=True,
+                            session_id=session_ctx.session_id,
+                        )
 
             turn_context = TurnExecutionContext(
                 session_ctx=session_ctx,
@@ -436,9 +452,9 @@ class TaskExecutor:
                                 if cache_break is not None:
                                     try:
                                         report_path = cache_break.write_report()
-                                        msg = f"{cache_break.summary}\n  Report: {report_path}"
+                                        msg = cache_break.format_message(report_path)
                                     except OSError:
-                                        msg = cache_break.summary
+                                        msg = cache_break.format_message()
                                     yield events.ErrorEvent(
                                         session_id=session_ctx.session_id,
                                         error_message=msg,
@@ -509,13 +525,23 @@ class TaskExecutor:
                                 traceback.format_exc(),
                                 debug_type=DebugType.RESPONSE,
                             )
-                            last_error_message = f"{last_error_message} (compaction failed: {exc})"
                             yield events.CompactionEndEvent(
                                 session_id=session_ctx.session_id,
                                 reason=CompactionReason.OVERFLOW.value,
                                 aborted=True,
                                 will_retry=False,
                             )
+                            error_message = (
+                                f"{last_error_message}\nCompaction failed while recovering from context overflow: {exc}"
+                            )
+                            yield events.ErrorEvent(
+                                error_message=error_message,
+                                can_retry=False,
+                                session_id=session_ctx.session_id,
+                            )
+                            if ctx.sub_agent_state is not None:
+                                raise RuntimeError(error_message) from exc
+                            return
                     if attempt < MAX_FAILED_TURN_RETRIES:
                         delay = _retry_delay_seconds(attempt + 1)
                         error_msg = f"Retrying {attempt + 1}/{MAX_FAILED_TURN_RETRIES} in {delay:.1f}s"

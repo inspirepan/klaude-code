@@ -122,7 +122,7 @@ def render_user_input(content: str) -> RenderableType:
         return Text("", style=ThemeKey.USER_INPUT)
 
     grid = Table.grid(padding=0)
-    grid.add_column(no_wrap=True)
+    grid.add_column(no_wrap=True, style=ThemeKey.USER_INPUT)
     grid.add_column(overflow="fold")
     for prompt_text, line_text in rows:
         grid.add_row(prompt_text, line_text)

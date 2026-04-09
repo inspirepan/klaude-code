@@ -14,7 +14,6 @@ def render_error(error_msg: Text, *, can_retry: bool = False) -> RenderableType:
     error_msg.style = message_style
     error_msg.overflow = "fold"
     grid.add_row(Text("✘", style=mark_style), error_msg)
-
     return grid
 
 

@@ -12,6 +12,7 @@ from klaude_code.tui.commands import (
     PrintBlankLine,
     RenderBashCommandEnd,
     RenderCommand,
+    RenderTaskFinish,
     RenderToolResult,
     SpinnerStatusLine,
     SpinnerUpdate,
@@ -69,7 +70,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     assert update.leading_blank_line is True
     assert update.status_lines[0].session_id == sub_session
     lines = [_line_plain(line) for line in update.status_lines]
-    assert lines == ["Finding searching xxxxx | Running …"]
+    assert lines == ["Finding: searching xxxxx | Running…"]
     first_line = update.status_lines[0].text
     assert isinstance(first_line, Text)
     assert any(
@@ -105,7 +106,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     )
     update = _last_spinner_update(cmds)
     lines = [_line_plain(line) for line in update.status_lines]
-    assert lines == ["Finding searching yyyyy | Bashing × 1"]
+    assert lines == ["Finding: searching yyyyy | Bashing × 1"]
 
     cmds = machine.transition(
         events.ToolCallStartEvent(
@@ -116,7 +117,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     )
     update = _last_spinner_update(cmds)
     lines = [_line_plain(line) for line in update.status_lines]
-    assert lines == ["Finding searching yyyyy | Bashing × 2"]
+    assert lines == ["Finding: searching yyyyy | Bashing × 2"]
 
 
 def test_main_session_bash_tool_streams_append_only_and_keeps_success_result(
@@ -194,6 +195,47 @@ def test_main_session_bash_tool_buffers_before_delay_and_falls_back_to_tool_resu
     assert not any(isinstance(cmd, AppendBashCommandOutput) for cmd in result_cmds)
     assert not any(isinstance(cmd, RenderBashCommandEnd) for cmd in result_cmds)
     assert any(isinstance(cmd, RenderToolResult) for cmd in result_cmds)
+
+
+def test_sub_agent_todo_write_result_is_rendered() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    sub_session = "sub-1"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=model.SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="tracking progress",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+
+    cmds = machine.transition(
+        events.ToolResultEvent(
+            session_id=sub_session,
+            tool_call_id="todo-1",
+            tool_name=tools.TODO_WRITE,
+            result="Todos updated",
+            status="success",
+            ui_extra=model.TodoListUIExtra(
+                todo_list=model.TodoUIExtra(
+                    todos=[model.TodoItem(content="Review matches", status="in_progress")],
+                    new_completed=[],
+                    explanation="Keep the search scoped.",
+                )
+            ),
+        )
+    )
+
+    tool_results = [cmd for cmd in cmds if isinstance(cmd, RenderToolResult)]
+    assert len(tool_results) == 1
+    assert tool_results[0].event.tool_name == tools.TODO_WRITE
+    assert tool_results[0].is_sub_agent_session is True
 
 
 def test_main_session_bash_tool_flushes_buffer_after_delay(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -321,8 +363,8 @@ def test_sub_agent_status_lines_cap_with_more_indicator() -> None:
     assert last_update is not None
     lines = [_line_plain(line) for line in last_update.status_lines]
     assert len(lines) == 6
-    assert lines[0] == "Finding searching 0 | Running …"
-    assert lines[4] == "Finding searching 4 | Running …"
+    assert lines[0] == "Finding: searching 0 | Running…"
+    assert lines[4] == "Finding: searching 4 | Running…"
     assert lines[5] == "+2 more..."
 
 
@@ -355,6 +397,37 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
     finish_update = _last_spinner_update(finish_cmds)
     assert finish_update.reset_bottom_height is True
     assert finish_update.leading_blank_line is False
+
+
+def test_sub_agent_finish_emits_blank_line_after_result() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    sub_session = "sub-1"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=model.SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="searching",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+
+    finish_cmds = machine.transition(
+        events.TaskFinishEvent(
+            session_id=sub_session,
+            task_result="done",
+        )
+    )
+
+    render_task_finish_index = next(i for i, cmd in enumerate(finish_cmds) if isinstance(cmd, RenderTaskFinish))
+    print_blank_line_index = next(i for i, cmd in enumerate(finish_cmds) if isinstance(cmd, PrintBlankLine))
+
+    assert print_blank_line_index > render_task_finish_index
 
 
 def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> None:

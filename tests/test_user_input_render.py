@@ -1,6 +1,7 @@
 """Tests for user input inline pattern rendering."""
 
 from rich.console import Console
+from rich.segment import Segment
 from rich.text import Text
 
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
@@ -33,6 +34,11 @@ def rendered_lines(content: str) -> list[str]:
     console = Console(width=200, record=True, theme=get_theme().app_theme)
     console.print(render_user_input(content))
     return [line.rstrip() for line in console.export_text(styles=False).splitlines()]
+
+
+def rendered_segments(content: str, width: int = 200) -> list[list[Segment]]:
+    console = Console(width=width, record=False, theme=get_theme().app_theme)
+    return list(Segment.split_lines(console.render(render_user_input(content), options=console.options)))
 
 
 class TestRenderAtAndSkillPatterns:
@@ -169,3 +175,17 @@ class TestRenderAtAndSkillPatterns:
         rows = build_user_input_rows("first line\nsecond line")
         assert rows[0][0].plain == USER_MESSAGE_MARK
         assert rows[1][0].plain == " " * len(USER_MESSAGE_MARK)
+
+    def test_render_user_input_keeps_prompt_background_on_wrapped_lines(self):
+        lines = rendered_segments(
+            "现在 @dashboard/src/app/(console)/page.tsx @dashboard/src/app/(console)/usage/page.tsx 这个用量表格里，是同一个通用组件吗",
+            width=40,
+        )
+
+        assert len(lines) > 1
+
+        prompt_style = Console(theme=get_theme().app_theme).get_style(ThemeKey.USER_INPUT.value)
+        wrapped_prompt_segments = [line[0] for line in lines[1:]]
+
+        assert all(segment.text == " " * len(USER_MESSAGE_MARK) for segment in wrapped_prompt_segments)
+        assert all(segment.style == prompt_style for segment in wrapped_prompt_segments)
