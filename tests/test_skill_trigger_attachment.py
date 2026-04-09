@@ -228,6 +228,9 @@ def test_available_skills_attachment_hot_reloads_only_new_skills(
 
     second_attachment = _arun(attachments.available_skills_attachment(session))
     assert second_attachment is not None
+    assert second_attachment.ui_extra is not None
+    listing = [item for item in second_attachment.ui_extra.items if isinstance(item, model.SkillListingUIItem)]
+    assert listing == [model.SkillListingUIItem(names=["publish"], incremental=True)]
     second_text = message.join_text_parts(second_attachment.parts)
     assert "The available skill metadata changed" in second_text
     assert "<name>publish</name>" in second_text
@@ -255,10 +258,35 @@ def test_available_skills_attachment_reannounces_skill_when_path_changes(
 
     second_attachment = _arun(attachments.available_skills_attachment(session))
     assert second_attachment is not None
+    assert second_attachment.ui_extra is not None
+    listing = [item for item in second_attachment.ui_extra.items if isinstance(item, model.SkillListingUIItem)]
+    assert listing == [model.SkillListingUIItem(names=["commit"], incremental=True)]
     second_text = message.join_text_parts(second_attachment.parts)
     assert "The available skill metadata changed" in second_text
     assert "<name>commit</name>" in second_text
     assert str(override_root / "commit" / "SKILL.md") in second_text
+
+
+def test_available_skills_attachment_resume_keeps_listing_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    skills = [_make_skill("commit", root=tmp_path, location="system", description="initial commit skill")]
+    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+
+    session = Session(work_dir=tmp_path)
+    session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("help")))
+
+    first_attachment = _arun(attachments.available_skills_attachment(session))
+    assert first_attachment is not None
+
+    session.ensure_meta_exists()
+    resumed = Session.load_meta(session.id, work_dir=tmp_path)
+
+    marker_path = str((tmp_path / attachments.SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
+    assert resumed.file_tracker[marker_path].skill_listing_paths_by_name == {
+        "commit": str((tmp_path / "commit" / "SKILL.md").resolve())
+    }
+    assert _arun(attachments.available_skills_attachment(resumed)) is None
 
 
 def test_last_path_skill_attachment_discovers_nested_project_skill(tmp_path: Path) -> None:

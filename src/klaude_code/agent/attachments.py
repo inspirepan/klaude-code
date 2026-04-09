@@ -584,7 +584,11 @@ def _get_system_skill_listing_marker_path(session: Session) -> str:
 
 def _get_available_skill_paths_by_name(session: Session) -> dict[str, str]:
     status = session.file_tracker.get(_get_system_skill_listing_marker_path(session))
-    if status is None or not status.is_skill_listing or not status.cached_content:
+    if status is None or not status.is_skill_listing:
+        return {}
+    if status.skill_listing_paths_by_name is not None:
+        return dict(status.skill_listing_paths_by_name)
+    if not status.cached_content:
         return {}
     try:
         loaded = json.loads(status.cached_content)
@@ -602,14 +606,14 @@ def _get_available_skill_paths_by_name(session: Session) -> dict[str, str]:
 def _mark_system_skill_listing_loaded(session: Session, skill_paths_by_name: dict[str, str]) -> None:
     marker_path = _get_system_skill_listing_marker_path(session)
     existing = session.file_tracker.get(marker_path)
-    cached_content = json.dumps(skill_paths_by_name, sort_keys=True)
+    serialized_state = json.dumps(skill_paths_by_name, sort_keys=True)
     session.file_tracker[marker_path] = model.FileStatus(
         mtime=0.0,
-        content_sha256=hash_text_sha256(cached_content),
-        cached_content=cached_content,
+        content_sha256=hash_text_sha256(serialized_state),
         is_memory=existing.is_memory if existing else False,
         is_skill=existing.is_skill if existing else False,
         is_skill_listing=True,
+        skill_listing_paths_by_name=dict(skill_paths_by_name),
         skill_attachment_source=existing.skill_attachment_source if existing else None,
         is_directory=existing.is_directory if existing else False,
         read_complete=existing.read_complete if existing else False,
@@ -739,7 +743,12 @@ async def available_skills_attachment(session: Session) -> message.DeveloperMess
         parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
         attachment_position="prepend",
         ui_extra=model.DeveloperUIExtra(
-            items=[model.SkillListingUIItem(names=[skill.name for skill in updated_skills])]
+            items=[
+                model.SkillListingUIItem(
+                    names=[skill.name for skill in updated_skills],
+                    incremental=bool(previous_skill_paths),
+                )
+            ]
         ),
     )
 

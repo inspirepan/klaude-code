@@ -82,3 +82,22 @@ def test_render_developer_message_available_skills_use_skill_style() -> None:
     full_text = "".join(text for text, _ in parts)
     assert full_text == "+ 2 available skills"
     assert all(style == console.get_style(ThemeKey.ATTACHMENT) for _, style in parts if _.strip())
+
+
+def test_render_developer_message_incremental_available_skills_lists_names() -> None:
+    console = Console(width=120, record=False, force_terminal=False, theme=get_theme().app_theme)
+    event = events.DeveloperMessageEvent(
+        session_id="test-session",
+        item=message.DeveloperMessage(
+            parts=[],
+            ui_extra=model.DeveloperUIExtra(
+                items=[model.SkillListingUIItem(names=["commit", "submit-pr"], incremental=True)]
+            ),
+        ),
+    )
+
+    line = console.render_lines(render_developer_message(event), console.options, pad=False)[0]
+    parts: list[tuple[str, object]] = [(segment.text, segment.style) for segment in line]
+    full_text = "".join(text for text, _ in parts)
+    assert full_text == "+ Updated available skills commit, submit-pr"
+    assert all(style == console.get_style(ThemeKey.ATTACHMENT) for _, style in parts if _.strip())
