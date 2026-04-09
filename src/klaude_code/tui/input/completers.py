@@ -31,16 +31,32 @@ from klaude_code.const import COMPLETER_CACHE_TTL_SEC, COMPLETER_CMD_TIMEOUT_SEC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.tui.command.types import CommandInfo
 
+# Allow inline @ and / completion after CJK text so users typing Chinese or
+# Japanese do not need to insert an extra space before the trigger character.
+# Keep English-word boundaries unchanged to avoid matching emails or URLs.
+_CJK_COMPLETION_BOUNDARY_CHARS = (
+    r"\u3005-\u3007"
+    r"\u303b"
+    r"\u3040-\u309f"
+    r"\u30a0-\u30ff"
+    r"\u31f0-\u31ff"
+    r"\u3400-\u4dbf"
+    r"\u4e00-\u9fff"
+    r"\uf900-\ufaff"
+    r"\uff66-\uff9f"
+)
+_INLINE_COMPLETION_BOUNDARY = rf"(^|[\s{_CJK_COMPLETION_BOUNDARY_CHARS}])"
+
 # Pattern to match @token for completion refresh (used by key bindings).
 # Supports both plain tokens like `@src/file.py` and quoted tokens like
 # `@"path with spaces/file.py"` so that filenames with spaces remain a
 # single logical token.
-AT_TOKEN_PATTERN = re.compile(r'(^|\s)@(?P<frag>"[^"]*"|[^\s]*)$')
+AT_TOKEN_PATTERN = re.compile(rf'{_INLINE_COMPLETION_BOUNDARY}@(?P<frag>"[^"]*"|[^\s]*)$')
 
 # Pattern to match inline /skill token for skill completion
 # (used by key bindings).
-# Supports inline matching: after whitespace or at start of line.
-SKILL_TOKEN_PATTERN = re.compile(r"(^|\s)(?P<prefix>//|/)(?P<frag>[^\s/]*)$")
+# Supports inline matching: after whitespace, at start of line, or after CJK text.
+SKILL_TOKEN_PATTERN = re.compile(rf"{_INLINE_COMPLETION_BOUNDARY}(?P<prefix>//|/)(?P<frag>[^\s/]*)$")
 
 _SKILL_PREFIX = "skill:"
 
