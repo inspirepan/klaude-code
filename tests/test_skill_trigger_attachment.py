@@ -1,6 +1,6 @@
 import asyncio
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import pytest
 
@@ -88,11 +88,10 @@ def test_skill_attachment_tracks_skill_file(tmp_path: Path, monkeypatch: pytest.
         base_dir=skill_dir,
     )
 
-    monkeypatch.setattr(
-        attachments,
-        "_resolve_skill_for_input",
-        lambda _session, _name: skill,
-    )
+    def _mock_resolve_skill(_session: Session, _name: str) -> Skill:
+        return skill
+
+    monkeypatch.setattr(attachments, "_resolve_skill_for_input", _mock_resolve_skill)
 
     session = _build_session_with_user_text("/skill:demo")
     attachment = _arun(attachments.skill_attachment(session))
@@ -118,11 +117,10 @@ def test_skill_attachment_loads_multiple_skills(tmp_path: Path, monkeypatch: pyt
             base_dir=skill_dir,
         )
 
-    monkeypatch.setattr(
-        attachments,
-        "_resolve_skill_for_input",
-        lambda _session, name: skills.get(name),
-    )
+    def _mock_resolve_skill(_session: Session, name: str) -> Skill | None:
+        return skills.get(name)
+
+    monkeypatch.setattr(attachments, "_resolve_skill_for_input", _mock_resolve_skill)
 
     session = _build_session_with_user_text("//skill:alpha //skill:beta")
     attachment = _arun(attachments.skill_attachment(session))
@@ -515,7 +513,10 @@ def test_skill_attachment_prefers_dynamic_skill_over_static_with_same_name(
         def get_skill(self, name: str) -> Skill | None:
             return static_skill if name == "commit" else None
 
-    monkeypatch.setattr(attachments, "_get_static_skill_loader_for_session", lambda _session: _Loader())
+    def _mock_loader(_session: Session) -> Any:
+        return _Loader()
+
+    monkeypatch.setattr(attachments, "_get_static_skill_loader_for_session", _mock_loader)
 
     session = Session(work_dir=work_dir)
     session.file_tracker[str(target_file.resolve())] = model.FileStatus(
@@ -566,7 +567,10 @@ def test_skill_attachment_preserves_exact_namespaced_static_skill(
         def get_skill(self, _name: str) -> Skill | None:
             return None
 
-    monkeypatch.setattr(attachments, "_get_static_skill_loader_for_session", lambda _session: _Loader())
+    def _mock_loader(_session: Session) -> Any:
+        return _Loader()
+
+    monkeypatch.setattr(attachments, "_get_static_skill_loader_for_session", _mock_loader)
 
     session = Session(work_dir=work_dir)
     session.file_tracker[str(target_file.resolve())] = model.FileStatus(

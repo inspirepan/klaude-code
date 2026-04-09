@@ -7,7 +7,7 @@ import re
 import shlex
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from klaude_code.agent.attachment_prompts import (
     fmt_auto_memory_hint,
@@ -592,7 +592,11 @@ def _get_available_skill_paths_by_name(session: Session) -> dict[str, str]:
         return {}
     if not isinstance(loaded, dict):
         return {}
-    return {str(name): str(path) for name, path in loaded.items()}
+    loaded_dict = cast(dict[object, object], loaded)
+    result: dict[str, str] = {}
+    for name, path in loaded_dict.items():
+        result[str(name)] = str(path)
+    return result
 
 
 def _mark_system_skill_listing_loaded(session: Session, skill_paths_by_name: dict[str, str]) -> None:
