@@ -99,6 +99,14 @@ The list below is metadata only. The full instructions live in the referenced fi
 </available_skills>"""
 
 
+def fmt_available_skills_added(skills_xml: str) -> str:
+    return f"""The available skill metadata changed. Apply the same skill-loading rules from the earlier skill listing.
+
+<available_skills>
+{skills_xml}
+</available_skills>"""
+
+
 # ---------------------------------------------------------------------------
 # Memory
 # ---------------------------------------------------------------------------

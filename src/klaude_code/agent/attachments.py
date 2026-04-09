@@ -1,6 +1,7 @@
 import asyncio
 import difflib
 import hashlib
+import json
 import logging
 import re
 import shlex
@@ -11,6 +12,7 @@ from typing import Literal
 from klaude_code.agent.attachment_prompts import (
     fmt_auto_memory_hint,
     fmt_available_skills,
+    fmt_available_skills_added,
     fmt_dynamic_available_skills,
     fmt_file_already_in_context,
     fmt_file_changed_externally,
@@ -32,7 +34,6 @@ from klaude_code.agent.memory import (
 )
 from klaude_code.protocol import message, model, tools
 from klaude_code.session import Session
-from klaude_code.skill import get_skill, get_skill_loader
 from klaude_code.skill.loader import Skill, SkillLoader, discover_skills_near_paths
 from klaude_code.skill.system_skills import install_system_skills
 from klaude_code.tool import BashTool, ReadTool, build_todo_context
@@ -461,12 +462,21 @@ def _find_dynamic_skill(session: Session, name: str, *, allow_short_fallback: bo
     return None
 
 
+def _get_static_skill_loader_for_session(session: Session) -> SkillLoader:
+    install_system_skills()
+    loader = SkillLoader()
+    loader.discover_skills(work_dir=session.work_dir)
+    return loader
+
+
 def _resolve_skill_for_input(session: Session, skill_name: str) -> Skill | None:
     dynamic_exact = _find_dynamic_skill(session, skill_name)
     if dynamic_exact is not None:
         return dynamic_exact
 
-    static_exact = get_skill_loader().loaded_skills.get(skill_name)
+    static_loader = _get_static_skill_loader_for_session(session)
+
+    static_exact = static_loader.loaded_skills.get(skill_name)
     if static_exact is not None:
         return static_exact
 
@@ -474,9 +484,9 @@ def _resolve_skill_for_input(session: Session, skill_name: str) -> Skill | None:
         dynamic_short = _find_dynamic_skill(session, skill_name, allow_short_fallback=True)
         if dynamic_short is not None:
             return dynamic_short
-        return get_skill(skill_name.split(":")[-1])
+        return static_loader.get_skill(skill_name.split(":")[-1])
 
-    return get_skill(skill_name)
+    return static_loader.get_skill(skill_name)
 
 
 def _read_skill_content(skill: Skill) -> str | None:
@@ -549,18 +559,18 @@ def _format_skill_block_str(skill: Skill, skill_content: str, *, explicit: bool)
     )
 
 
-def _format_dynamic_available_skills_str(skills: list[Skill]) -> str:
+def _build_skills_xml(skills: Sequence[Skill]) -> str:
     loader = SkillLoader()
     loader.loaded_skills = {skill.name: skill for skill in _sort_skills_for_listing(skills)}
-    skills_xml = loader.get_skills_xml().rstrip()
-    return fmt_dynamic_available_skills(skills_xml)
+    return loader.get_skills_xml().rstrip()
+
+
+def _format_dynamic_available_skills_str(skills: list[Skill]) -> str:
+    return fmt_dynamic_available_skills(_build_skills_xml(skills))
 
 
 def _format_available_skills_str(skills: list[Skill]) -> str:
-    loader = SkillLoader()
-    loader.loaded_skills = {skill.name: skill for skill in _sort_skills_for_listing(skills)}
-    skills_xml = loader.get_skills_xml().rstrip()
-    return fmt_available_skills(skills_xml)
+    return fmt_available_skills(_build_skills_xml(skills))
 
 
 def _sort_skills_for_listing(skills: Sequence[Skill]) -> list[Skill]:
@@ -572,17 +582,27 @@ def _get_system_skill_listing_marker_path(session: Session) -> str:
     return str((session.work_dir / SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
 
 
-def _is_system_skill_listing_loaded(session: Session) -> bool:
+def _get_available_skill_paths_by_name(session: Session) -> dict[str, str]:
     status = session.file_tracker.get(_get_system_skill_listing_marker_path(session))
-    return status is not None and status.is_skill_listing
+    if status is None or not status.is_skill_listing or not status.cached_content:
+        return {}
+    try:
+        loaded = json.loads(status.cached_content)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+    return {str(name): str(path) for name, path in loaded.items()}
 
 
-def _mark_system_skill_listing_loaded(session: Session) -> None:
+def _mark_system_skill_listing_loaded(session: Session, skill_paths_by_name: dict[str, str]) -> None:
     marker_path = _get_system_skill_listing_marker_path(session)
     existing = session.file_tracker.get(marker_path)
+    cached_content = json.dumps(skill_paths_by_name, sort_keys=True)
     session.file_tracker[marker_path] = model.FileStatus(
         mtime=0.0,
-        content_sha256=None,
+        content_sha256=hash_text_sha256(cached_content),
+        cached_content=cached_content,
         is_memory=existing.is_memory if existing else False,
         is_skill=existing.is_skill if existing else False,
         is_skill_listing=True,
@@ -596,7 +616,7 @@ def _get_available_skills_for_session(session: Session) -> list[Skill]:
     install_system_skills()
     loader = SkillLoader()
     loader.discover_skills(work_dir=session.work_dir)
-    return _sort_skills_for_listing(list(loader.loaded_skills.values()))
+    return list(loader.loaded_skills.values())
 
 
 def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bool) -> tuple[list[str], list[Skill]]:
@@ -691,20 +711,28 @@ def _build_dynamic_skill_listing_attachment(session: Session, skills: list[Skill
 
 
 async def available_skills_attachment(session: Session) -> message.DeveloperMessage | None:
-    """Attach the full available-skill listing once per compaction window."""
-    if _is_system_skill_listing_loaded(session):
-        return None
-
+    """Attach the available-skill listing and re-announce static skills when their resolved metadata changes."""
     skills = _sort_skills_for_listing(_get_available_skills_for_session(session))
     if not skills:
         return None
 
-    _mark_system_skill_listing_loaded(session)
-    content = _format_available_skills_str(skills)
+    previous_skill_paths = _get_available_skill_paths_by_name(session)
+    current_skill_paths = {skill.name: str(skill.skill_path) for skill in skills}
+    updated_skills = [skill for skill in skills if previous_skill_paths.get(skill.name) != current_skill_paths[skill.name]]
+    if not updated_skills:
+        return None
+
+    _mark_system_skill_listing_loaded(session, current_skill_paths)
+
+    if previous_skill_paths:
+        content = fmt_available_skills_added(_build_skills_xml(updated_skills))
+    else:
+        content = _format_available_skills_str(skills)
+
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
         attachment_position="prepend",
-        ui_extra=model.DeveloperUIExtra(items=[model.SkillListingUIItem(names=[skill.name for skill in skills])]),
+        ui_extra=model.DeveloperUIExtra(items=[model.SkillListingUIItem(names=[skill.name for skill in updated_skills])]),
     )
 
 
