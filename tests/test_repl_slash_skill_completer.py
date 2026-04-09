@@ -63,6 +63,23 @@ def test_inline_slash_skill_completion_works() -> None:
     assert "/skill:publish " in texts
 
 
+@pytest.mark.parametrize(
+    ("text", "should_match"),
+    [
+        ("请用/pub", True),
+        ("こんにちは/pub", True),
+        ("please/pub", False),
+    ],
+)
+def test_inline_slash_skill_completion_allows_cjk_without_space(text: str, should_match: bool) -> None:
+    completer = _ComboCompleter(command_info_provider=_command_info_provider)
+    doc = Document(text=text, cursor_position=len(text))
+    completions = list(completer.get_completions(doc, cast(Any, None)))
+    texts = {completion.text for completion in completions}
+
+    assert ("/skill:publish " in texts) is should_match
+
+
 def test_skill_display_uses_colored_marker_and_plain_description() -> None:
     completer = _ComboCompleter(command_info_provider=_command_info_provider)
     completions = list(completer.get_completions(Document(text="//", cursor_position=2), cast(Any, None)))

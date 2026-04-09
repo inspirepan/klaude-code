@@ -22,6 +22,8 @@ make format
 make test
 ```
 
+If any of `make lint`, `make format`, or `make test` fails, you must fix the underlying issue before continuing. Re-run the failed check(s) until they pass, then proceed to step 2.
+
 If `make format` changes files, commit them first:
 - jj: `jj describe -m "style: format code" && jj new`
 - git: `git add -A && git commit -m "style: format code"`

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+import pytest
 from prompt_toolkit.document import Document
 
 from klaude_code.tui.input.completers import _AtFilesCompleter, _CmdResult  # pyright: ignore[reportPrivateUsage]
@@ -78,6 +79,46 @@ def test_at_files_completer_preserves_dotfile_prefix(monkeypatch: pytest.MonkeyP
     assert completions
     inserted = {c.text for c in completions}
     assert "@.claude/skills/publish/scripts/update_changelog.py " in inserted
+
+
+@pytest.mark.parametrize(
+    ("text", "should_match"),
+    [
+        ("请看@src", True),
+        ("これは@src", True),
+        ("email@src", False),
+    ],
+)
+def test_at_files_completer_allows_cjk_without_space(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    text: str,
+    should_match: bool,
+) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.py").write_text("print('ok')\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    completer = _AtFilesCompleter()  # pyright: ignore[reportPrivateUsage]
+    call_count = 0
+
+    def fake_git_paths_for_keyword(cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
+        nonlocal call_count
+        call_count += 1
+        assert cwd == tmp_path
+        assert keyword_norm == "src"
+        assert max_results > 0
+        return ["src/", "src/main.py"], False
+
+    monkeypatch.setattr(completer, "_git_paths_for_keyword", fake_git_paths_for_keyword)
+    monkeypatch.setattr(completer, "_has_cmd", lambda _name: False)  # pyright: ignore[reportUnknownLambdaType,reportUnknownArgumentType]
+
+    doc = Document(text=text, cursor_position=len(text))
+    completions = list(completer.get_completions(doc, cast(Any, None)))
+    inserted = {c.text for c in completions}
+
+    assert ("@src/ " in inserted or "@src/main.py " in inserted) is should_match
+    assert call_count == (1 if should_match else 0)
 
 
 def test_at_files_completer_formats_display_labels() -> None:

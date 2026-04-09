@@ -1,6 +1,6 @@
 import asyncio
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import pytest
 
@@ -88,10 +88,10 @@ def test_skill_attachment_tracks_skill_file(tmp_path: Path, monkeypatch: pytest.
         base_dir=skill_dir,
     )
 
-    def _mock_get_skill(_: str) -> Skill | None:
+    def _mock_resolve_skill(_session: Session, _name: str) -> Skill:
         return skill
 
-    monkeypatch.setattr(attachments, "get_skill", _mock_get_skill)
+    monkeypatch.setattr(attachments, "_resolve_skill_for_input", _mock_resolve_skill)
 
     session = _build_session_with_user_text("/skill:demo")
     attachment = _arun(attachments.skill_attachment(session))
@@ -117,10 +117,10 @@ def test_skill_attachment_loads_multiple_skills(tmp_path: Path, monkeypatch: pyt
             base_dir=skill_dir,
         )
 
-    def _mock_get_skill(name: str) -> Skill | None:
+    def _mock_resolve_skill(_session: Session, name: str) -> Skill | None:
         return skills.get(name)
 
-    monkeypatch.setattr(attachments, "get_skill", _mock_get_skill)
+    monkeypatch.setattr(attachments, "_resolve_skill_for_input", _mock_resolve_skill)
 
     session = _build_session_with_user_text("//skill:alpha //skill:beta")
     attachment = _arun(attachments.skill_attachment(session))
@@ -136,6 +136,37 @@ def test_skill_attachment_loads_multiple_skills(tmp_path: Path, monkeypatch: pyt
 
     assert str(skills["alpha"].skill_path) in session.file_tracker
     assert str(skills["beta"].skill_path) in session.file_tracker
+
+
+def test_skill_attachment_hot_reloads_new_static_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    work_dir = tmp_path / "repo"
+    work_dir.mkdir()
+    user_skills_dir = tmp_path / "user-skills"
+    user_skills_dir.mkdir()
+
+    monkeypatch.setattr(attachments.SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
+    monkeypatch.setattr(attachments.SkillLoader, "USER_SKILLS_DIRS", [user_skills_dir])
+    monkeypatch.setattr(attachments.SkillLoader, "PROJECT_SKILLS_DIRS", [])
+
+    session = Session(work_dir=work_dir)
+    session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("/skill:late-skill")))
+
+    assert _arun(attachments.skill_attachment(session)) is None
+
+    skill_dir = user_skills_dir / "late-skill"
+    skill_dir.mkdir()
+    skill_path = skill_dir / "SKILL.md"
+    skill_path.write_text(
+        "---\nname: late-skill\ndescription: added after startup\n---\n# Late skill\n",
+        encoding="utf-8",
+    )
+
+    attachment = _arun(attachments.skill_attachment(session))
+
+    assert attachment is not None
+    text = message.join_text_parts(attachment.parts)
+    assert "# Late skill" in text
+    assert str(skill_path.resolve()) in session.file_tracker
 
 
 def test_available_skills_attachment_injects_listing_once_per_compaction_window(
@@ -174,6 +205,60 @@ def test_available_skills_attachment_injects_listing_once_per_compaction_window(
     second_attachment = _arun(attachments.available_skills_attachment(session))
     assert second_attachment is not None
     assert "<available_skills>" in message.join_text_parts(second_attachment.parts)
+
+
+def test_available_skills_attachment_hot_reloads_only_new_skills(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    skills = [_make_skill("commit", root=tmp_path, location="system", description="initial commit skill")]
+    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+
+    session = Session(work_dir=tmp_path)
+    session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("help")))
+
+    first_attachment = _arun(attachments.available_skills_attachment(session))
+    assert first_attachment is not None
+    first_text = message.join_text_parts(first_attachment.parts)
+    assert "<name>commit</name>" in first_text
+
+    skills[0] = _make_skill("commit", root=tmp_path, location="system", description="updated commit skill")
+    assert _arun(attachments.available_skills_attachment(session)) is None
+
+    skills.append(_make_skill("publish", root=tmp_path, location="user", description="publish skill"))
+
+    second_attachment = _arun(attachments.available_skills_attachment(session))
+    assert second_attachment is not None
+    second_text = message.join_text_parts(second_attachment.parts)
+    assert "The available skill metadata changed" in second_text
+    assert "<name>publish</name>" in second_text
+    assert "<name>commit</name>" not in second_text
+
+    assert _arun(attachments.available_skills_attachment(session)) is None
+
+
+def test_available_skills_attachment_reannounces_skill_when_path_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    initial_root = tmp_path / "initial"
+    override_root = tmp_path / "override"
+    skills = [_make_skill("commit", root=initial_root, location="system", description="initial commit skill")]
+    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+
+    session = Session(work_dir=tmp_path)
+    session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("help")))
+
+    first_attachment = _arun(attachments.available_skills_attachment(session))
+    assert first_attachment is not None
+    assert "<name>commit</name>" in message.join_text_parts(first_attachment.parts)
+
+    skills[0] = _make_skill("commit", root=override_root, location="project", description="override commit skill")
+
+    second_attachment = _arun(attachments.available_skills_attachment(session))
+    assert second_attachment is not None
+    second_text = message.join_text_parts(second_attachment.parts)
+    assert "The available skill metadata changed" in second_text
+    assert "<name>commit</name>" in second_text
+    assert str(override_root / "commit" / "SKILL.md") in second_text
 
 
 def test_last_path_skill_attachment_discovers_nested_project_skill(tmp_path: Path) -> None:
@@ -421,7 +506,17 @@ def test_skill_attachment_prefers_dynamic_skill_over_static_with_same_name(
         base_dir=static_skill_dir,
     )
 
-    monkeypatch.setattr(attachments, "get_skill", lambda _name="": static_skill)
+    class _Loader:
+        def __init__(self) -> None:
+            self.loaded_skills = {"commit": static_skill}
+
+        def get_skill(self, name: str) -> Skill | None:
+            return static_skill if name == "commit" else None
+
+    def _mock_loader(_session: Session) -> Any:
+        return _Loader()
+
+    monkeypatch.setattr(attachments, "_get_static_skill_loader_for_session", _mock_loader)
 
     session = Session(work_dir=work_dir)
     session.file_tracker[str(target_file.resolve())] = model.FileStatus(
@@ -469,8 +564,13 @@ def test_skill_attachment_preserves_exact_namespaced_static_skill(
     class _Loader:
         loaded_skills: ClassVar[dict[str, object]] = {"team:commit": static_skill}
 
-    monkeypatch.setattr(attachments, "get_skill_loader", lambda: _Loader())
-    monkeypatch.setattr(attachments, "get_skill", lambda _name="": None)
+        def get_skill(self, _name: str) -> Skill | None:
+            return None
+
+    def _mock_loader(_session: Session) -> Any:
+        return _Loader()
+
+    monkeypatch.setattr(attachments, "_get_static_skill_loader_for_session", _mock_loader)
 
     session = Session(work_dir=work_dir)
     session.file_tracker[str(target_file.resolve())] = model.FileStatus(
