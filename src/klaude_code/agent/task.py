@@ -327,10 +327,14 @@ class TaskExecutor:
 
             # Threshold-based compaction before starting a new turn.
             # This matters for multi-turn tool loops where no new user input occurs.
-            if ctx.sub_agent_state is None and not skip_threshold_compaction and should_compact_threshold(
-                session=ctx.session,
-                config=None,
-                llm_config=profile.llm_client.get_llm_config(),
+            if (
+                ctx.sub_agent_state is None
+                and not skip_threshold_compaction
+                and should_compact_threshold(
+                    session=ctx.session,
+                    config=None,
+                    llm_config=profile.llm_client.get_llm_config(),
+                )
             ):
                 log_debug("[Compact] start", debug_type=DebugType.RESPONSE)
                 yield events.CompactionStartEvent(
@@ -528,8 +532,7 @@ class TaskExecutor:
                                 will_retry=False,
                             )
                             error_message = (
-                                f"{last_error_message}\n"
-                                f"Compaction failed while recovering from context overflow: {exc}"
+                                f"{last_error_message}\nCompaction failed while recovering from context overflow: {exc}"
                             )
                             yield events.ErrorEvent(
                                 error_message=error_message,

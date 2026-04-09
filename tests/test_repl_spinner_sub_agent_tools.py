@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rich.cells import cell_len
 
-from klaude_code.const import STATUS_COMPACTING_TEXT, STATUS_DEFAULT_TEXT, STATUS_THINKING_TEXT
+from klaude_code.const import STATUS_COMPACTING_TEXT, STATUS_DEFAULT_TEXT
 from klaude_code.protocol import model
 from klaude_code.tui.machine import STATUS_LEFT_MIN_WIDTH_CELLS, SpinnerStatusState
 

@@ -105,7 +105,6 @@ def test_threshold_compaction_failure_emits_error_once_per_task(
     arun(_test())
 
 
-
 def test_threshold_nothing_to_compact_keeps_future_threshold_checks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -210,9 +209,7 @@ def test_overflow_compaction_failure_stops_without_turn_retries(
     arun(_test())
 
 
-def test_overflow_compaction_failure_raises_for_sub_agents(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_overflow_compaction_failure_raises_for_sub_agents(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()
     monkeypatch.chdir(project_dir)
@@ -258,7 +255,9 @@ def test_overflow_compaction_failure_raises_for_sub_agents(
         )
 
         collected: list[events.Event] = []
-        with pytest.raises(RuntimeError, match="Compaction failed while recovering from context overflow: compact boom"):
+        with pytest.raises(
+            RuntimeError, match="Compaction failed while recovering from context overflow: compact boom"
+        ):
             async for event in executor.run(message.UserInputPayload(text="hello")):
                 collected.append(event)
 
