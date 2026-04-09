@@ -21,6 +21,14 @@ def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
 
 
+def _always_compact(**_: Any) -> bool:
+    return True
+
+
+def _never_compact(**_: Any) -> bool:
+    return False
+
+
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
@@ -64,7 +72,7 @@ def test_threshold_compaction_failure_emits_error_once_per_task(
         session = Session.create(work_dir=project_dir)
         session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
 
-        monkeypatch.setattr(task_module, "should_compact_threshold", lambda **_: True)
+        monkeypatch.setattr(task_module, "should_compact_threshold", _always_compact)
 
         compaction_calls = 0
 
@@ -116,7 +124,7 @@ def test_threshold_nothing_to_compact_keeps_future_threshold_checks(
         session = Session.create(work_dir=project_dir)
         session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
 
-        monkeypatch.setattr(task_module, "should_compact_threshold", lambda **_: True)
+        monkeypatch.setattr(task_module, "should_compact_threshold", _always_compact)
 
         compaction_calls = 0
 
@@ -165,7 +173,7 @@ def test_overflow_compaction_failure_stops_without_turn_retries(
         session = Session.create(work_dir=project_dir)
         session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
 
-        monkeypatch.setattr(task_module, "should_compact_threshold", lambda **_: False)
+        monkeypatch.setattr(task_module, "should_compact_threshold", _never_compact)
 
         compaction_calls = 0
 
@@ -217,7 +225,7 @@ def test_overflow_compaction_failure_raises_for_sub_agents(tmp_path: Path, monke
     async def _test() -> None:
         session = Session.create(work_dir=project_dir)
 
-        monkeypatch.setattr(task_module, "should_compact_threshold", lambda **_: False)
+        monkeypatch.setattr(task_module, "should_compact_threshold", _never_compact)
 
         compaction_calls = 0
 
