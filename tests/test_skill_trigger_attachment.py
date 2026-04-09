@@ -289,6 +289,55 @@ def test_available_skills_attachment_resume_keeps_listing_state(
     assert _arun(attachments.available_skills_attachment(resumed)) is None
 
 
+def test_available_skills_attachment_restores_state_from_history_for_legacy_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    skills = [_make_skill("commit", root=tmp_path, location="system", description="initial commit skill")]
+    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+
+    session = Session(work_dir=tmp_path)
+    session.conversation_history.append(
+        message.DeveloperMessage(
+            parts=message.text_parts_from_str(
+                f"<system-reminder>{attachments._format_available_skills_str(skills)}\n</system-reminder>"  # pyright: ignore[reportPrivateUsage]
+            ),
+            attachment_position="prepend",
+            ui_extra=model.DeveloperUIExtra(items=[model.SkillListingUIItem(names=["commit"])]),
+        )
+    )
+    marker_path = str((tmp_path / attachments.SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
+    session.file_tracker[marker_path] = model.FileStatus(mtime=0.0, is_skill_listing=True)
+
+    assert _arun(attachments.available_skills_attachment(session)) is None
+    assert session.file_tracker[marker_path].skill_listing_paths_by_name == {
+        "commit": str((tmp_path / "commit" / "SKILL.md").resolve())
+    }
+
+
+def test_available_skills_attachment_reinjects_after_attachment_flags_reset_even_with_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
+
+    skills = [_make_skill("commit", root=tmp_path, location="system", description="initial commit skill")]
+    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+
+    session = Session(work_dir=tmp_path)
+    session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("help")))
+
+    first_attachment = _arun(attachments.available_skills_attachment(session))
+    assert first_attachment is not None
+    session.conversation_history.append(first_attachment)
+
+    _reset_attachment_loaded_flags(session.file_tracker)
+
+    second_attachment = _arun(attachments.available_skills_attachment(session))
+    assert second_attachment is not None
+    second_text = message.join_text_parts(second_attachment.parts)
+    assert "<available_skills>" in second_text
+    assert "<name>commit</name>" in second_text
+
+
 def test_last_path_skill_attachment_discovers_nested_project_skill(tmp_path: Path) -> None:
     work_dir = tmp_path / "repo"
     target_file = work_dir / "src" / "feature" / "app.py"

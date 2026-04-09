@@ -34,7 +34,12 @@ from klaude_code.agent.memory import (
 )
 from klaude_code.protocol import message, model, tools
 from klaude_code.session import Session
-from klaude_code.skill.loader import Skill, SkillLoader, discover_skills_near_paths
+from klaude_code.skill.loader import (
+    Skill,
+    SkillLoader,
+    discover_skills_near_paths,
+    extract_skill_listing_paths_from_xml,
+)
 from klaude_code.skill.system_skills import install_system_skills
 from klaude_code.tool import BashTool, ReadTool, build_todo_context
 from klaude_code.tool.context import ToolContext
@@ -582,25 +587,76 @@ def _get_system_skill_listing_marker_path(session: Session) -> str:
     return str((session.work_dir / SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
 
 
+def _extract_skill_listing_paths(message_item: message.DeveloperMessage) -> tuple[dict[str, str], bool] | None:
+    if message_item.ui_extra is None:
+        return None
+
+    listing_items = [item for item in message_item.ui_extra.items if isinstance(item, model.SkillListingUIItem)]
+    if not listing_items:
+        return None
+
+    listed_names = {name for item in listing_items for name in item.names}
+    parsed_paths = extract_skill_listing_paths_from_xml(message.join_text_parts(message_item.parts))
+    if not parsed_paths:
+        return None
+
+    filtered_paths = {name: path for name, path in parsed_paths.items() if name in listed_names}
+    if not filtered_paths:
+        return None
+
+    return filtered_paths, any(item.incremental for item in listing_items)
+
+
+def _restore_available_skill_paths_from_history(session: Session) -> dict[str, str]:
+    restored_paths: dict[str, str] = {}
+
+    for item in session.conversation_history:
+        if not isinstance(item, message.DeveloperMessage):
+            continue
+
+        extracted = _extract_skill_listing_paths(item)
+        if extracted is None:
+            continue
+
+        listed_paths, incremental = extracted
+        if incremental:
+            restored_paths.update(listed_paths)
+            continue
+        restored_paths = dict(listed_paths)
+
+    if not restored_paths:
+        return {}
+
+    _mark_system_skill_listing_loaded(session, restored_paths)
+    return restored_paths
+
+
+def _load_cached_skill_listing_paths(cached_content: str | None) -> dict[str, str] | None:
+    if not cached_content:
+        return None
+
+    try:
+        loaded = json.loads(cached_content)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(loaded, dict):
+        return None
+
+    loaded_dict = cast(dict[object, object], loaded)
+    return {str(name): str(path) for name, path in loaded_dict.items()}
+
+
 def _get_available_skill_paths_by_name(session: Session) -> dict[str, str]:
     status = session.file_tracker.get(_get_system_skill_listing_marker_path(session))
     if status is None or not status.is_skill_listing:
         return {}
     if status.skill_listing_paths_by_name is not None:
         return dict(status.skill_listing_paths_by_name)
-    if not status.cached_content:
-        return {}
-    try:
-        loaded = json.loads(status.cached_content)
-    except json.JSONDecodeError:
-        return {}
-    if not isinstance(loaded, dict):
-        return {}
-    loaded_dict = cast(dict[object, object], loaded)
-    result: dict[str, str] = {}
-    for name, path in loaded_dict.items():
-        result[str(name)] = str(path)
-    return result
+
+    cached_paths = _load_cached_skill_listing_paths(status.cached_content)
+    if cached_paths is not None:
+        return cached_paths
+    return _restore_available_skill_paths_from_history(session)
 
 
 def _mark_system_skill_listing_loaded(session: Session, skill_paths_by_name: dict[str, str]) -> None:

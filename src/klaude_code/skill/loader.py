@@ -1,4 +1,6 @@
+import html
 import os
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import lru_cache
@@ -9,6 +11,19 @@ from xml.sax.saxutils import escape
 import yaml
 
 from klaude_code.log import log_debug
+
+SKILL_XML_ENTRY_PATTERN = re.compile(
+    r"<skill>.*?<name>(?P<name>.*?)</name>.*?<location>(?P<location>.*?)</location>.*?</skill>",
+    re.DOTALL,
+)
+
+
+def extract_skill_listing_paths_from_xml(skills_xml: str) -> dict[str, str]:
+    """Extract skill-name to skill-path mappings from serialized skill listing XML."""
+    return {
+        html.unescape(match.group("name")): html.unescape(match.group("location"))
+        for match in SKILL_XML_ENTRY_PATTERN.finditer(skills_xml)
+    }
 
 
 def _find_git_repo_root(start: Path) -> Path | None:
