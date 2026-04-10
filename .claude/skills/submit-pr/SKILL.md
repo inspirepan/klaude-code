@@ -91,32 +91,3 @@ If any check fails:
 
 Repeat until all checks are green. Do not stop or ask the user for help unless you are stuck after multiple attempts on the same failure.
 
-## Multiple independent topics in one jj stack
-
-When the jj commit stack contains multiple independent topics, create one PR per topic. First rebase the commits into a parallel structure so each PR targets `main` directly:
-
-```bash
-# Before: linear stack
-#   main <-- A <-- B <-- @ (empty working copy)
-#
-# Rebase B to also be a child of main (parallel to A):
-jj rebase -r <B-sha> -d main
-
-# After: parallel
-#   main <-- A
-#   main <-- B
-#   main <-- @ (empty working copy)
-```
-
-Then submit each PR independently with `--jj-rev`, all targeting `main`:
-
-```bash
-submit_pr_after_review.sh --title "..." --body-file ... --head fix/topic-a --jj-rev <A-sha>
-submit_pr_after_review.sh --title "..." --body-file ... --head feat/topic-b --jj-rev <B-sha>
-```
-
-PRs are independent and can be merged in any order.
-
-### When NOT to split
-
-If the user wants a single PR for everything in the stack, skip this section and submit normally (the default workflow already includes the full stack).
