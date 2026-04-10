@@ -42,6 +42,45 @@ def _configure_api_key(env_var: str) -> None:
     log((f"{env_var} saved successfully!", "green"))
 
 
+def _configure_aws_bedrock() -> None:
+    import os
+
+    from klaude_code.auth.env import get_auth_env, set_auth_env
+
+    def _mask_secret(value: str, *, head: int = 8, tail: int = 6) -> str:
+        token = value.strip()
+        if not token:
+            return "***"
+        if len(token) <= head + tail:
+            if len(token) <= 4:
+                return "***"
+            return f"{token[:2]}…{token[-2:]}"
+        return f"{token[:head]}…{token[-tail:]}"
+
+    fields: list[tuple[str, str, bool]] = [
+        ("AWS_BEDROCK_ACCESS_KEY_ID", "Enter AWS_BEDROCK_ACCESS_KEY_ID", False),
+        ("AWS_BEDROCK_SECRET_ACCESS_KEY", "Enter AWS_BEDROCK_SECRET_ACCESS_KEY", True),
+        ("AWS_BEDROCK_REGION", "Enter AWS_BEDROCK_REGION (e.g. us-east-1)", False),
+    ]
+
+    for env_var, prompt, is_secret in fields:
+        current_value = os.environ.get(env_var) or get_auth_env(env_var)
+        if current_value:
+            display = _mask_secret(current_value) if is_secret else current_value
+            log(f"Current {env_var}: {display}")
+            if not typer.confirm("Do you want to update it?"):
+                continue
+
+        value = typer.prompt(prompt, hide_input=is_secret)
+        if not value.strip():
+            log((f"Error: {env_var} cannot be empty", "red"))
+            raise typer.Exit(1)
+
+        set_auth_env(env_var, value.strip())
+
+    log(("AWS Bedrock credentials saved successfully!", "green"))
+
+
 def _configure_google_vertex() -> None:
     import os
 
@@ -147,6 +186,8 @@ def execute_login(provider: str) -> None:
             except Exception as e:
                 log((f"Login failed: {e}", "red"))
                 raise typer.Exit(1) from None
+        case "aws-bedrock" | "aws_bedrock" | "bedrock":
+            _configure_aws_bedrock()
         case "google-vertex" | "google_vertex" | "vertex":
             _configure_google_vertex()
         case _:
@@ -169,6 +210,20 @@ def execute_login(provider: str) -> None:
             else:
                 log((f"Error: Unknown provider '{provider}'", "red"))
                 raise typer.Exit(1)
+
+
+def _remove_auth_env(env_var: str, label: str) -> None:
+    """Remove a configured auth env var from klaude-auth.json."""
+    from klaude_code.auth.env import delete_auth_env, get_auth_env
+
+    current_value = get_auth_env(env_var)
+    if not current_value:
+        log(f"No configured {env_var} found.")
+        return
+
+    if typer.confirm(f"Are you sure you want to remove configured {label} ({env_var})?"):
+        delete_auth_env(env_var)
+        log((f"Removed configured {env_var}.", "green"))
 
 
 def execute_logout(provider: str) -> None:
@@ -198,6 +253,60 @@ def execute_logout(provider: str) -> None:
             if typer.confirm("Are you sure you want to logout from GitHub Copilot?"):
                 token_manager.delete()
                 log(("Logged out from GitHub Copilot.", "green"))
+        case "aws-bedrock" | "aws_bedrock" | "bedrock":
+            from klaude_code.auth.env import delete_auth_env, get_auth_env
+
+            bedrock_vars = (
+                "AWS_BEDROCK_ACCESS_KEY_ID",
+                "AWS_BEDROCK_SECRET_ACCESS_KEY",
+                "AWS_BEDROCK_REGION",
+            )
+            has_any = any(get_auth_env(v) for v in bedrock_vars)
+            if not has_any:
+                log("No configured AWS Bedrock credentials found.")
+                return
+
+            if typer.confirm("Are you sure you want to remove configured AWS Bedrock credentials?"):
+                for v in bedrock_vars:
+                    delete_auth_env(v)
+                log(("Removed configured AWS Bedrock credentials.", "green"))
+        case "google-vertex" | "google_vertex" | "vertex":
+            from klaude_code.auth.env import delete_auth_env, get_auth_env
+
+            vertex_vars = (
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "GOOGLE_CLOUD_PROJECT",
+                "GOOGLE_CLOUD_LOCATION",
+            )
+            has_any = any(get_auth_env(v) for v in vertex_vars)
+            if not has_any:
+                log("No configured Google Vertex credentials found.")
+                return
+
+            if typer.confirm("Are you sure you want to remove configured Google Vertex credentials?"):
+                for v in vertex_vars:
+                    delete_auth_env(v)
+                log(("Removed configured Google Vertex credentials.", "green"))
         case _:
-            log((f"Error: Unknown provider '{provider}'. Supported: codex, github-copilot", "red"))
-            raise typer.Exit(1)
+            from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
+
+            env_var: str | None = None
+            label: str | None = None
+            provider_lower = provider.lower()
+            provider_upper = provider.upper()
+            for key_info in SUPPORTED_API_KEYS:
+                name_lower = key_info.name.lower()
+                if key_info.env_var == provider_upper or name_lower == provider_lower:
+                    env_var = key_info.env_var
+                    label = key_info.name
+                    break
+                if name_lower.startswith(provider_lower) or provider_lower in name_lower.split():
+                    env_var = key_info.env_var
+                    label = key_info.name
+                    break
+
+            if env_var and label:
+                _remove_auth_env(env_var, label)
+            else:
+                log((f"Error: Unknown provider '{provider}'", "red"))
+                raise typer.Exit(1)

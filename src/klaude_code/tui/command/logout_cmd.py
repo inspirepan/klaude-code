@@ -40,7 +40,8 @@ class LogoutCommand(CommandABC):
             try:
                 provider = await asyncio.to_thread(
                     select_provider,
-                    include_api_keys=False,
+                    include_api_keys=True,
+                    configured_only=True,
                     prompt="Select provider to logout:",
                 )
             except KeyboardInterrupt:
