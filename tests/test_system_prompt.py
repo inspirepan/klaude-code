@@ -4,9 +4,11 @@ from pathlib import Path
 
 from klaude_code.prompts.system_prompt import (
     _build_env_info,  # pyright: ignore[reportPrivateUsage]
+    build_dynamic_tool_strategy_prompt,
     load_main_base_prompt,
     load_system_prompt,
 )
+from klaude_code.protocol import llm_param, tools
 
 
 def test_build_env_info_handles_missing_work_dir(tmp_path: Path) -> None:
@@ -70,3 +72,14 @@ def test_load_system_prompt_does_not_embed_available_skills_listing(tmp_path: Pa
 
     assert "<available_skills>" not in prompt
     assert "Skills are optional task-specific instructions stored as `SKILL.md` files." not in prompt
+
+
+def test_dynamic_tool_strategy_prompt_prefers_finder_for_multi_step_search() -> None:
+    prompt = build_dynamic_tool_strategy_prompt(
+        [llm_param.ToolSchema(name=tools.AGENT, type="function", description="agent", parameters={})]
+    )
+
+    assert "cross-directory tracing" in prompt
+    assert "concept-based searches" in prompt
+    assert "chain multiple search steps" in prompt
+    assert '`type="finder"`' in prompt

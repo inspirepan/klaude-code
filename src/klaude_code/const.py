@@ -65,7 +65,6 @@ DEFAULT_TEMPERATURE = 1.0  # Default temperature for LLM requests
 DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS = 2048  # Default thinking budget tokens for Anthropic models
 
 
-
 # =============================================================================
 # Tool - Read
 # =============================================================================

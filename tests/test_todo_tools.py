@@ -101,12 +101,3 @@ class TestTodoWriteArguments:
             ]
         )
         assert len(args.todos) == 3
-        assert args.explanation is None
-
-    def test_todos_with_explanation(self):
-        """Test todos with optional explanation."""
-        args = TodoWriteArguments(
-            todos=[TodoItem(content="Task 1", status="pending")],
-            explanation="Starting work on feature",
-        )
-        assert args.explanation == "Starting work on feature"

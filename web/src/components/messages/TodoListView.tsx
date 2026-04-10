@@ -78,7 +78,7 @@ interface TodoListViewProps {
 
 export function TodoListView({ uiExtra }: TodoListViewProps): React.JSX.Element {
   const t = useT();
-  const { todos, new_completed: newCompleted, explanation } = uiExtra.todo_list;
+  const { todos, new_completed: newCompleted } = uiExtra.todo_list;
   const visibleTodos = getVisibleTodos(todos, newCompleted);
 
   return (
@@ -97,7 +97,6 @@ export function TodoListView({ uiExtra }: TodoListViewProps): React.JSX.Element 
           />
         );
       })}
-      {explanation && <p className="mt-1 text-sm italic text-neutral-400">{explanation}</p>}
     </div>
   );
 }

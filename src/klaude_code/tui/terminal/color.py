@@ -17,6 +17,7 @@ BEL: Final[int] = 7
 # Match OSC 11 response like: ESC ] 11 ; <payload> BEL/ST
 _OSC_BG_REGEX = re.compile(r"\x1b]11;([^\x07\x1b\\]*)")
 
+
 def is_light_terminal_background(timeout: float = 0.5) -> bool | None:
     """Detect whether the current terminal background is light.
 

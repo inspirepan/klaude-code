@@ -23,8 +23,7 @@ def _render_tool_result_to_text(event: events.ToolResultEvent) -> str:
     return console.export_text()
 
 
-def test_render_todo_write_tool_call_hides_explanation_details() -> None:
-    explanation = "Scope all references before deleting auth code."
+def test_render_todo_write_tool_call_shows_generic_summary() -> None:
     event = events.ToolCallEvent(
         session_id="s1",
         tool_call_id="tc1",
@@ -32,7 +31,6 @@ def test_render_todo_write_tool_call_hides_explanation_details() -> None:
         arguments=json.dumps(
             {
                 "todos": [{"content": "Locate OAuth references", "status": "in_progress"}],
-                "explanation": explanation,
             }
         ),
     )
@@ -41,11 +39,9 @@ def test_render_todo_write_tool_call_hides_explanation_details() -> None:
 
     assert "◈" in output
     assert "Update To-Dos" in output
-    assert explanation not in output
 
 
-def test_render_todo_result_keeps_explanation_once() -> None:
-    explanation = "Scope all references before deleting auth code."
+def test_render_todo_result_only_shows_todos() -> None:
     todo_content = "Locate OAuth references"
     event = events.ToolResultEvent(
         session_id="s1",
@@ -57,7 +53,6 @@ def test_render_todo_result_keeps_explanation_once() -> None:
             todo_list=model.TodoUIExtra(
                 todos=[model.TodoItem(content=todo_content, status="in_progress")],
                 new_completed=[],
-                explanation=explanation,
             )
         ),
         is_last_in_turn=True,
@@ -66,5 +61,3 @@ def test_render_todo_result_keeps_explanation_once() -> None:
     output = _render_tool_result_to_text(event)
 
     assert todo_content in output
-    assert output.count(explanation) == 1
-    assert output.index(explanation) < output.index(todo_content)
