@@ -8,11 +8,13 @@ from klaude_code.cli import auth_cmd
 
 
 def test_cli_logout_without_provider_uses_selector(monkeypatch: pytest.MonkeyPatch) -> None:
-    selector_calls: list[tuple[bool, str]] = []
+    selector_calls: list[tuple[bool, bool, str]] = []
     logout_calls: list[str] = []
 
-    def _select_provider(*, include_api_keys: bool = True, prompt: str = "") -> str | None:
-        selector_calls.append((include_api_keys, prompt))
+    def _select_provider(
+        *, include_api_keys: bool = True, configured_only: bool = False, prompt: str = ""
+    ) -> str | None:
+        selector_calls.append((include_api_keys, configured_only, prompt))
         return "github-copilot"
 
     def _execute_logout(provider: str) -> None:
@@ -26,15 +28,17 @@ def test_cli_logout_without_provider_uses_selector(monkeypatch: pytest.MonkeyPat
     result = CliRunner().invoke(app, ["auth", "logout"])
 
     assert result.exit_code == 0
-    assert selector_calls == [(False, "Select provider to logout:")]
+    assert selector_calls == [(True, True, "Select provider to logout:")]
     assert logout_calls == ["github-copilot"]
 
 
 def test_cli_logout_cancelled_when_selector_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     logout_calls: list[str] = []
 
-    def _select_provider(*, include_api_keys: bool = True, prompt: str = "") -> str | None:
-        del include_api_keys, prompt
+    def _select_provider(
+        *, include_api_keys: bool = True, configured_only: bool = False, prompt: str = ""
+    ) -> str | None:
+        del include_api_keys, configured_only, prompt
         return None
 
     def _execute_logout(provider: str) -> None:

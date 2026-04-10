@@ -60,6 +60,33 @@ def _format_secret_value_display(value: str | None, *, fallback_name: str) -> Te
     return Text("")
 
 
+def _format_aws_credentials_display(provider: ProviderConfig) -> list[Text]:
+    """Format AWS Bedrock credentials display for provider header."""
+    parts: list[Text] = []
+    for field, label in (
+        (provider.aws_access_key, "AWS_BEDROCK_ACCESS_KEY_ID"),
+        (provider.aws_secret_key, "AWS_BEDROCK_SECRET_ACCESS_KEY"),
+        (provider.aws_region, "AWS_BEDROCK_REGION"),
+    ):
+        display = _format_secret_value_display(field, fallback_name=label)
+        if display.plain:
+            parts.append(display)
+    return parts
+
+
+def _format_google_vertex_credentials_display(provider: ProviderConfig) -> list[Text]:
+    """Format Google Vertex credentials display for provider header."""
+    parts: list[Text] = []
+    for field, label in (
+        (provider.google_cloud_project, "GOOGLE_CLOUD_PROJECT"),
+        (provider.google_cloud_location, "GOOGLE_CLOUD_LOCATION"),
+    ):
+        display = _format_secret_value_display(field, fallback_name=label)
+        if display.plain:
+            parts.append(display)
+    return parts
+
+
 def _build_provider_header(
     provider: ProviderConfig,
     *,
@@ -79,6 +106,10 @@ def _build_provider_header(
         details.append(Text("auth", style=ThemeKey.CONFIG_PARAM_LABEL))
         if usage_summary:
             details.append(Text(f"usage: {usage_summary}", style="blue"))
+    elif provider.protocol == LLMClientProtocol.BEDROCK:
+        details.extend(_format_aws_credentials_display(provider))
+    elif provider.protocol == LLMClientProtocol.GOOGLE_VERTEX:
+        details.extend(_format_google_vertex_credentials_display(provider))
     else:
         api_key_display = _format_secret_value_display(provider.api_key, fallback_name="API_KEY")
         if api_key_display.plain:
