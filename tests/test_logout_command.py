@@ -28,11 +28,13 @@ def arun(coro: Any) -> Any:
 
 def test_logout_command_uses_selector_when_provider_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     session = Session.create(work_dir=Path.cwd())
-    selector_calls: list[tuple[bool, str]] = []
+    selector_calls: list[tuple[bool, bool, str]] = []
     logout_calls: list[str] = []
 
-    def _select_provider(*, include_api_keys: bool = True, prompt: str = "") -> str | None:
-        selector_calls.append((include_api_keys, prompt))
+    def _select_provider(
+        *, include_api_keys: bool = True, configured_only: bool = False, prompt: str = ""
+    ) -> str | None:
+        selector_calls.append((include_api_keys, configured_only, prompt))
         return "codex"
 
     def _execute_logout(provider: str) -> None:
@@ -44,7 +46,7 @@ def test_logout_command_uses_selector_when_provider_missing(monkeypatch: pytest.
     cmd = logout_cmd.LogoutCommand()
     result = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="")))
 
-    assert selector_calls == [(False, "Select provider to logout:")]
+    assert selector_calls == [(True, True, "Select provider to logout:")]
     assert logout_calls == ["codex"]
     assert result.events is not None
     assert result.events[0].content == "Logout flow completed."
@@ -54,8 +56,10 @@ def test_logout_command_returns_cancelled_when_selector_returns_none(monkeypatch
     session = Session.create(work_dir=Path.cwd())
     logout_calls: list[str] = []
 
-    def _select_provider(*, include_api_keys: bool = True, prompt: str = "") -> str | None:
-        del include_api_keys, prompt
+    def _select_provider(
+        *, include_api_keys: bool = True, configured_only: bool = False, prompt: str = ""
+    ) -> str | None:
+        del include_api_keys, configured_only, prompt
         return None
 
     def _execute_logout(provider: str) -> None:

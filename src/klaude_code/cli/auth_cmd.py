@@ -39,14 +39,14 @@ def login_command(
 
 
 def logout_command(
-    provider: str | None = typer.Argument(None, help="Provider to logout (codex|github-copilot|copilot)"),
+    provider: str | None = typer.Argument(None, help=cast(str, _LazyProviderHelp())),
 ) -> None:
     """Logout from a provider."""
     from klaude_code.app.auth_flow import execute_logout
     from klaude_code.tui.command.auth_selector import select_provider
 
     if provider is None:
-        provider = select_provider(include_api_keys=False, prompt="Select provider to logout:")
+        provider = select_provider(include_api_keys=True, configured_only=True, prompt="Select provider to logout:")
         if provider is None:
             return
 
