@@ -33,7 +33,7 @@ def test_render_welcome_shows_skill_warnings_section() -> None:
     assert " | " not in output
 
 
-def test_render_welcome_shows_skills_as_tree_list() -> None:
+def test_render_welcome_merges_memories_and_skills_into_context_tree() -> None:
     llm_config = LLMConfigParameter(
         protocol=LLMClientProtocol.OPENAI,
         provider_name="demo",
@@ -43,6 +43,7 @@ def test_render_welcome_shows_skills_as_tree_list() -> None:
         session_id="s1",
         work_dir="/tmp",
         llm_config=llm_config,
+        loaded_memories={"user": ["/tmp/user.md"], "project": ["/work/project.md"]},
         loaded_skills={"system": ["playwright", "web-search"]},
     )
 
@@ -51,10 +52,41 @@ def test_render_welcome_shows_skills_as_tree_list() -> None:
     console.print(render_welcome(event))
     output = out.getvalue()
 
-    assert "system" in output
+    assert "context" in output
+    assert "user memory" in output
+    assert "project memory" in output
+    assert "system skills" in output
+    assert "skills" not in output.split("context", 1)[0]
+    assert "user.md" in output
+    assert "/work/project.md" in output
     assert "playwright" in output
     assert "web-search" in output
     assert "── playwright" not in output
+
+
+def test_render_welcome_keeps_per_group_multi_column_layout() -> None:
+    llm_config = LLMConfigParameter(
+        protocol=LLMClientProtocol.OPENAI,
+        provider_name="demo",
+        model_id="gpt-demo",
+    )
+    event = events.WelcomeEvent(
+        session_id="s1",
+        work_dir="/tmp",
+        llm_config=llm_config,
+        loaded_memories={
+            "user": ["/very/long/path/to/a/memory/file/that/should/not/force/skills/to_single_column/user-memory.md"]
+        },
+        loaded_skills={"system": ["playwright", "web-search", "render-mermaid", "commit"]},
+    )
+
+    out = io.StringIO()
+    console = Console(file=out, force_terminal=False, width=120, theme=get_theme().app_theme)
+    console.print(render_welcome(event))
+    output = out.getvalue()
+
+    assert "system skills" in output
+    assert "playwright | web-search" in output or "web-search | render-mermaid" in output
 
 
 def test_render_welcome_shows_startup_update_and_shortcuts() -> None:
