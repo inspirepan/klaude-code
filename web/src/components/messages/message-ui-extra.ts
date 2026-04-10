@@ -29,7 +29,6 @@ export interface TodoListUIExtra {
   todo_list: {
     todos: TodoItem[];
     new_completed: string[];
-    explanation?: string | null;
   };
 }
 

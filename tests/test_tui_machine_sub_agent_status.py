@@ -226,7 +226,6 @@ def test_sub_agent_todo_write_result_is_rendered() -> None:
                 todo_list=model.TodoUIExtra(
                     todos=[model.TodoItem(content="Review matches", status="in_progress")],
                     new_completed=[],
-                    explanation="Keep the search scoped.",
                 )
             ),
         )

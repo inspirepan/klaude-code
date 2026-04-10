@@ -225,7 +225,6 @@ class ThemeKey(str, Enum):
     REWIND_USER_MESSAGE = "rewind.user_message"
     REWIND_NOTE = "rewind.note"
     # TODO_ITEM
-    TODO_EXPLANATION = "todo.explanation"
     TODO_PENDING_MARK = "todo.pending.mark"
     TODO_COMPLETED_MARK = "todo.completed.mark"
     TODO_IN_PROGRESS_MARK = "todo.in_progress.mark"
@@ -380,7 +379,6 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.REWIND_USER_MESSAGE.value: palette.cyan,
                 ThemeKey.REWIND_NOTE.value: palette.grey1,
                 # TODO_ITEM
-                ThemeKey.TODO_EXPLANATION.value: "italic " + palette.lavender,
                 ThemeKey.TODO_PENDING_MARK.value: "bold " + palette.grey1,
                 ThemeKey.TODO_COMPLETED_MARK.value: "bold " + palette.grey3,
                 ThemeKey.TODO_IN_PROGRESS_MARK.value: "bold " + palette.blue,

@@ -217,6 +217,7 @@ class FileStatus(BaseModel):
     is_memory: bool = False
     is_skill: bool = False
     is_skill_listing: bool = False
+    skill_listing_paths_by_name: dict[str, str] | None = None
     skill_attachment_source: Literal["dynamic", "explicit"] | None = None
     is_directory: bool = False
     read_complete: bool = False
@@ -225,7 +226,6 @@ class FileStatus(BaseModel):
 class TodoUIExtra(BaseModel):
     todos: list[TodoItem]
     new_completed: list[str]
-    explanation: str | None = None
 
 
 class ToolSideEffect(str, Enum):
@@ -399,6 +399,7 @@ class SkillDiscoveredUIItem(BaseModel):
 class SkillListingUIItem(BaseModel):
     type: Literal["skill_listing"] = "skill_listing"
     names: list[str]
+    incremental: bool = False
 
 
 class AtFileImagesUIItem(BaseModel):

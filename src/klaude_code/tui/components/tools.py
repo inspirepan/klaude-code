@@ -383,11 +383,7 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
         text.stylize(text_style)
         todo_grid.add_row(Text(mark, style=mark_style), text)
 
-    parts: list[RenderableType] = []
-    if ui_extra.explanation:
-        parts.append(Text(ui_extra.explanation, style=ThemeKey.TODO_EXPLANATION))
-    parts.append(todo_grid)
-    return Group(*parts) if len(parts) > 1 else todo_grid
+    return todo_grid
 
 
 def render_generic_tool_result(result: str, *, is_error: bool = False) -> RenderableType:

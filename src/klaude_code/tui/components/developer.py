@@ -15,6 +15,31 @@ def need_render_developer_message(e: events.DeveloperMessageEvent) -> bool:
     return len(e.item.ui_extra.items) > 0
 
 
+def _render_available_skills(names: list[str], *, incremental: bool) -> RenderableType:
+    grid = create_grid()
+
+    if incremental:
+        label = "Updated available skill " if len(names) == 1 else "Updated available skills "
+        grid.add_row(
+            Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+            Text.assemble(
+                (label, ThemeKey.ATTACHMENT),
+                Text(", ", ThemeKey.ATTACHMENT).join(Text(name, ThemeKey.ATTACHMENT) for name in names),
+            ),
+        )
+        return grid
+
+    count = len(names)
+    grid.add_row(
+        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+        Text(
+            f"{count} available skill{'s' if count != 1 else ''}",
+            ThemeKey.ATTACHMENT,
+        ),
+    )
+    return grid
+
+
 def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     """Render developer message details into a single group.
 
@@ -23,6 +48,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     """
     parts: list[RenderableType] = []
     available_skill_names: list[str] = []
+    available_skills_incremental = False
     discovered_skill_names: list[str] = []
 
     if e.item.ui_extra:
@@ -104,6 +130,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                     )
                     parts.append(grid)
                 case model.SkillListingUIItem() as item:
+                    available_skills_incremental = available_skills_incremental or item.incremental
                     for name in item.names:
                         if name not in available_skill_names:
                             available_skill_names.append(name)
@@ -115,16 +142,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                     pass
 
     if available_skill_names:
-        grid = create_grid()
-        count = len(available_skill_names)
-        grid.add_row(
-            Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
-            Text(
-                f"{count} available skill{'s' if count != 1 else ''}",
-                ThemeKey.ATTACHMENT,
-            ),
-        )
-        parts.append(grid)
+        parts.append(_render_available_skills(available_skill_names, incremental=available_skills_incremental))
 
     if discovered_skill_names:
         grid = create_grid()

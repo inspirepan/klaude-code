@@ -66,9 +66,6 @@ class SessionMetaRelayPublisher:
     def publish_upsert(self, session_id: str, meta: dict[str, Any]) -> None:
         self._publish({"kind": "upsert", "session_id": session_id, "meta": meta})
 
-    def publish_delete(self, session_id: str) -> None:
-        self._publish({"kind": "delete", "session_id": session_id, "meta": None})
-
     def close(self) -> None:
         with self._lock:
             if self._closed:

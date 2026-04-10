@@ -41,9 +41,6 @@ SUPPORTED_API_KEYS: tuple[ApiKeyInfo, ...] = (
     ApiKeyInfo("EXA_API_KEY", "Exa Search", "Exa Search API key (for WebSearch tool)"),
 )
 
-# For backwards compatibility
-SUPPORTED_API_KEY_ENVS = [k.env_var for k in SUPPORTED_API_KEYS]
-
 
 @lru_cache(maxsize=1)
 def _load_builtin_yaml() -> dict[str, Any]:

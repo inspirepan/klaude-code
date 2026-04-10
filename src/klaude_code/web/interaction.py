@@ -46,11 +46,3 @@ class WebInteractionHandler(InteractionHandlerABC):
             return False
         pending.future.set_result(response)
         return True
-
-    def cancel_session(self, session_id: str) -> None:
-        for request_id, pending in list(self._pending.items()):
-            if pending.session_id != session_id:
-                continue
-            if not pending.future.done():
-                pending.future.cancel()
-            self._pending.pop(request_id, None)

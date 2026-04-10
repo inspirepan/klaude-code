@@ -30,7 +30,11 @@ BASH_GIT_HISTORY_INST = (
 
 READ_BEFORE_EDIT_INST = """- NEVER propose changes to code you haven't read. Read a file before editing it."""
 
-AGENT_FINDER_INST = """- For broad codebase exploration, use `Agent` with `type="finder"`."""
+AGENT_FINDER_INST = (
+    "- For broad codebase exploration, cross-directory tracing, concept-based searches, or when you "
+    'would otherwise chain multiple search steps, use `Agent` with `type="finder"` instead of '
+    "doing all searches yourself."
+)
 AGENT_FINDER_PARALLEL_INST = """- Launch multiple finder sub-agents in parallel when tasks are independent."""
 
 

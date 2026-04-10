@@ -349,9 +349,6 @@ class SessionActor:
             operation_id=active.operation_id, task_id=task_id, kind=active.kind
         )
 
-    def has_pending_request(self, request_id: str) -> bool:
-        return request_id in self._state.pending_requests
-
     def mark_child_task_started(self, task_id: str) -> None:
         self._state.child_task_ids.add(task_id)
         self._mark_active()

@@ -69,11 +69,10 @@ def _build_multi_column_tree(
     tree = _RoundedTree(Text(title, style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
     # 12 = quote prefix (3) + tree guide indent (4) + margin (3) + item indent (2)
     content_width = shutil.get_terminal_size().columns - 12
-    all_items = [item for _, items in grouped_items for item in items]
-    max_name_width = max(len(item) for item in all_items)
     sep = " | "
-    num_cols = min(4, max(1, (content_width + len(sep)) // (max_name_width + len(sep))))
     for scope, items in grouped_items:
+        max_name_width = max(len(item) for item in items)
+        num_cols = min(4, max(1, (content_width + len(sep)) // (max_name_width + len(sep))))
         # Compute per-column max widths for this group
         col_widths = [0] * num_cols
         for i, item in enumerate(items):
@@ -156,28 +155,24 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
         renderables.append(Text())
         renderables.append(_build_shortcuts_tree())
 
-    # Context tree: loaded memories
+    # Context tree: loaded memories and skills
     work_dir = Path(e.work_dir)
     loaded_memories = e.loaded_memories or {}
-    grouped_memories: list[tuple[str, list[str]]] = []
+    grouped_context: list[tuple[str, list[str]]] = []
     for scope in ("user", "project"):
         paths = loaded_memories.get(scope) or []
         if paths:
-            grouped_memories.append((scope, [_format_memory_path(p, work_dir=work_dir) for p in paths]))
-    if grouped_memories:
-        renderables.append(Text())
-        renderables.append(_build_multi_column_tree("context", grouped_memories))
+            grouped_context.append((f"{scope} memory", [_format_memory_path(p, work_dir=work_dir) for p in paths]))
 
-    # Skills tree
     loaded_skills = e.loaded_skills or {}
-    grouped_skills: list[tuple[str, list[str]]] = []
     for scope in ("user", "project", "system"):
         skills = loaded_skills.get(scope) or []
         if skills:
-            grouped_skills.append((scope, skills))
-    if grouped_skills:
+            grouped_context.append((f"{scope} skills", skills))
+
+    if grouped_context:
         renderables.append(Text())
-        renderables.append(_build_multi_column_tree("skills", grouped_skills))
+        renderables.append(_build_multi_column_tree("context", grouped_context))
 
     loaded_skill_warnings = e.loaded_skill_warnings or {}
     warning_items: list[tuple[str, list[str]]] = []
