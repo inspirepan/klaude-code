@@ -277,6 +277,7 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
         "interaction_handler": None,
         "response": None,
         "saw_group_header": False,
+        "initial_search_text": None,
     }
 
     class _ModelConfig:
@@ -336,6 +337,7 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
                 payload=user_interaction.OperationSelectRequestPayload(
                     header="Model",
                     question="Select a model:",
+                    initial_search_text="sonnet",
                     options=[
                         user_interaction.OperationSelectOption(
                             id="openai@gpt-5",
@@ -388,6 +390,7 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
     def _select_one(**kwargs: Any) -> str:
         items = kwargs["items"]
         state["saw_group_header"] = any(not item.selectable for item in items)
+        state["initial_search_text"] = kwargs.get("initial_search_text")
         return "anthropic@claude-sonnet-4"
 
     monkeypatch.setattr(runner, "select_one", _select_one)
@@ -411,6 +414,7 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
     assert response.payload.kind == "operation_select"
     assert response.payload.selected_option_id == "anthropic@claude-sonnet-4"
     assert state["saw_group_header"] is True
+    assert state["initial_search_text"] == "sonnet"
 
 
 def test_operation_thinking_interaction_uses_selector_style(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -10,6 +10,7 @@ from typing import Any, cast
 from prompt_toolkit.application import Application
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.document import Document
 from prompt_toolkit.filters import Always, Condition
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent, merge_key_bindings
 from prompt_toolkit.key_binding.defaults import load_key_bindings
@@ -264,9 +265,7 @@ def _filter_items[T](
 
     matched_selectable = [i for i, it in enumerate(items) if it.selectable and _is_match(it)]
     if not matched_selectable:
-        # Keep the full list visible so the user can still browse when the filter
-        # doesn't match anything.
-        return list(range(len(items))), False
+        return [], False
 
     matched_set = set(matched_selectable)
     visible: list[int] = []
@@ -322,11 +321,12 @@ def _build_choices_tokens[T](
     pointed_at: int,
     pointer: str,
     *,
+    empty_message: str = "(no items)",
     highlight_pointed_item: bool = True,
 ) -> list[tuple[str, str]]:
     """Build formatted tokens for the choice list."""
     if not visible_indices:
-        return [("class:text", "(no items)\n")]
+        return [("class:text", empty_message + "\n")]
 
     tokens: list[tuple[str, str]] = []
     pointer_pad = " " * (2 + len(pointer))
@@ -452,6 +452,7 @@ def select_one[T](
     style: BaseStyle | None = None,
     use_search_filter: bool = True,
     initial_value: T | None = None,
+    initial_search_text: str | None = None,
     search_placeholder: str = "type to search",
     highlight_pointed_item: bool = True,
 ) -> T | None:
@@ -464,8 +465,11 @@ def select_one[T](
         return None
 
     pointed_at = 0
+    initial_search = initial_search_text or ""
 
-    search_buffer: Buffer | None = Buffer() if use_search_filter else None
+    search_buffer: Buffer | None = (
+        Buffer(document=Document(text=initial_search, cursor_position=len(initial_search))) if use_search_filter else None
+    )
 
     def get_filter_text() -> str:
         return search_buffer.text if (use_search_filter and search_buffer is not None) else ""
@@ -475,7 +479,8 @@ def select_one[T](
 
     def get_choices_tokens() -> list[tuple[str, str]]:
         nonlocal pointed_at
-        indices, _ = _filter_items(items, get_filter_text())
+        filter_text = get_filter_text()
+        indices, matched = _filter_items(items, filter_text)
         if indices:
             pointed_at = _coerce_pointed_at_to_selectable(items, indices, pointed_at)
         return _build_choices_tokens(
@@ -483,6 +488,7 @@ def select_one[T](
             indices,
             pointed_at,
             pointer,
+            empty_message="(no match)" if filter_text and not matched else "(no items)",
             highlight_pointed_item=highlight_pointed_item,
         )
 
@@ -529,7 +535,6 @@ def select_one[T](
     def _(event: KeyPressEvent) -> None:
         indices, _ = _filter_items(items, get_filter_text())
         if not indices:
-            event.app.exit(result=None)
             return
 
         nonlocal pointed_at
@@ -546,7 +551,6 @@ def select_one[T](
         """Accept the currently pointed item."""
         indices, _ = _filter_items(items, get_filter_text())
         if not indices:
-            event.app.exit(result=None)
             return
 
         nonlocal pointed_at
@@ -763,7 +767,6 @@ class SelectOverlay[T]:
         def _(event: KeyPressEvent) -> None:
             indices, _ = self._get_visible_indices()
             if not indices:
-                self.close()
                 return
 
             self._pointed_at = _coerce_pointed_at_to_selectable(self._items, indices, self._pointed_at)
@@ -785,7 +788,6 @@ class SelectOverlay[T]:
         def _(event: KeyPressEvent) -> None:
             indices, _ = self._get_visible_indices()
             if not indices:
-                self.close()
                 return
 
             self._pointed_at = _coerce_pointed_at_to_selectable(self._items, indices, self._pointed_at)
@@ -835,7 +837,8 @@ class SelectOverlay[T]:
             return [("class:question", self._message + " ")]
 
         def get_choices_tokens() -> list[tuple[str, str]]:
-            indices, _ = self._get_visible_indices()
+            filter_text = self._get_filter_text()
+            indices, matched = self._get_visible_indices()
             if indices:
                 self._pointed_at = _coerce_pointed_at_to_selectable(self._items, indices, self._pointed_at)
             return _build_choices_tokens(
@@ -843,6 +846,7 @@ class SelectOverlay[T]:
                 indices,
                 self._pointed_at,
                 self._pointer,
+                empty_message="(no match)" if filter_text and not matched else "(no items)",
                 highlight_pointed_item=self._highlight_pointed_item,
             )
 
@@ -869,7 +873,7 @@ class SelectOverlay[T]:
             # where a fixed list_height would otherwise render extra blank rows.
             indices, _ = self._get_visible_indices()
             if not indices:
-                return max(1, cap)
+                return 1
 
             visible_lines = 0
             for idx in indices:

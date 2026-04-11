@@ -84,6 +84,7 @@ def test_operation_select_payload_model() -> None:
     payload = OperationSelectRequestPayload(
         header="Model",
         question="Select a model",
+        initial_search_text="sonnet",
         options=[
             OperationSelectOption(id="openai@gpt-5", label="openai@gpt-5", description="openai / gpt-5"),
             OperationSelectOption(
@@ -101,6 +102,7 @@ def test_operation_select_payload_model() -> None:
     )
     assert event.payload.kind == "operation_select"
     assert event.payload.options[0].id == "openai@gpt-5"
+    assert event.payload.initial_search_text == "sonnet"
 
     response = UserInteractionResponse(
         status="submitted",

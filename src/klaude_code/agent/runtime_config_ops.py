@@ -237,12 +237,14 @@ class ConfigHandler:
         question: str,
         options: list[user_interaction.OperationSelectOption],
         input_placeholder: str | None = None,
+        initial_search_text: str | None = None,
     ) -> str | None:
         payload = user_interaction.OperationSelectRequestPayload(
             header=header,
             question=question,
             options=options,
             input_placeholder=input_placeholder,
+            initial_search_text=initial_search_text,
         )
         response = await self._request_user_interaction(session_id, uuid4().hex, source, payload)
         if response.status != "submitted" or response.payload is None:
@@ -268,7 +270,11 @@ class ConfigHandler:
 
     async def handle_request_model(self, operation: op.RequestModelOperation) -> None:
         async def _runner() -> None:
-            match = match_model_from_config(operation.preferred)
+            initial_search_text = operation.initial_search_text
+            if initial_search_text is not None:
+                initial_search_text = initial_search_text.strip() or None
+
+            match = match_model_from_config(None if initial_search_text else operation.preferred)
             if match.error_message:
                 await self._emit_event(
                     events.NoticeEvent(
@@ -281,6 +287,16 @@ class ConfigHandler:
 
             selected_model = match.matched_model
             if selected_model is None:
+                if not match.filtered_models:
+                    await self._emit_event(
+                        events.NoticeEvent(
+                            session_id=operation.session_id,
+                            content="(no match)" if match.filter_hint else "No models available.",
+                            is_error=match.filter_hint is None,
+                        )
+                    )
+                    return
+
                 options = [
                     user_interaction.OperationSelectOption(
                         id=entry.selector,
@@ -289,22 +305,14 @@ class ConfigHandler:
                     )
                     for entry in match.filtered_models
                 ]
-                if not options:
-                    await self._emit_event(
-                        events.NoticeEvent(
-                            session_id=operation.session_id,
-                            content="No models available.",
-                            is_error=True,
-                        )
-                    )
-                    return
-                filtered = f" (filtered by '{match.filter_hint}')" if match.filter_hint else ""
+                filter_suffix = f" (filtered by '{match.filter_hint}')" if match.filter_hint else ""
                 selected_model = await self._ask_single_choice(
                     session_id=operation.session_id,
                     source="operation_model",
                     header="Model",
-                    question=f"Select a model ({len(options)}){filtered}:",
+                    question=f"Select a model ({len(options)}){filter_suffix}:",
                     options=options,
+                    initial_search_text=initial_search_text,
                 )
 
             if selected_model is None:
