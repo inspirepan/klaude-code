@@ -59,9 +59,12 @@ class TestCliOptionalValues:
         async def _run_interactive(**_kwargs: object) -> None:
             return None
 
+        def _prepare_debug_logging(_debug: bool) -> tuple[bool, Path | None]:
+            return False, None
+
         monkeypatch.setattr(model_picker_module, "select_model_interactive", _select_model_interactive)
         monkeypatch.setattr(tui_runner, "run_interactive", _run_interactive)
-        monkeypatch.setattr(cli_main, "prepare_debug_logging", lambda _debug: (False, None))
+        monkeypatch.setattr(cli_main, "prepare_debug_logging", _prepare_debug_logging)
         monkeypatch.setattr("klaude_code.tui.terminal.title.update_terminal_title", lambda: None)
         monkeypatch.setattr(cli_main.sys, "stdin", SimpleNamespace(isatty=lambda: True))
         monkeypatch.setattr(cli_main.sys, "stdout", SimpleNamespace(isatty=lambda: True))

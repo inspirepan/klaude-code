@@ -468,7 +468,9 @@ def select_one[T](
     initial_search = initial_search_text or ""
 
     search_buffer: Buffer | None = (
-        Buffer(document=Document(text=initial_search, cursor_position=len(initial_search))) if use_search_filter else None
+        Buffer(document=Document(text=initial_search, cursor_position=len(initial_search)))
+        if use_search_filter
+        else None
     )
 
     def get_filter_text() -> str:
