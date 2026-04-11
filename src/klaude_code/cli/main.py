@@ -194,7 +194,7 @@ def main_callback(
         None,
         "--model",
         "-m",
-        help="Select model by name; use --model with no value to choose interactively",
+        help="Open model picker; pass a value to prefill search, or use --model with no value to start empty",
         rich_help_panel="LLM",
     ),
     continue_: bool = typer.Option(False, "--continue", "-c", help="Resume latest session"),
@@ -284,7 +284,8 @@ def main_callback(
 
         chosen_model = model
         if model or select_model:
-            model_result = select_model_interactive(preferred=model)
+            initial_search_text = (model.strip() or None) if model is not None else None
+            model_result = select_model_interactive(initial_search_text=initial_search_text)
             if model_result.status == ModelSelectStatus.SELECTED and model_result.model is not None:
                 chosen_model = model_result.model
             else:

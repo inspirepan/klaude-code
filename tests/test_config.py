@@ -1070,6 +1070,28 @@ class TestMatchModelFromConfig:
         assert result.filter_hint == "gpt52"
         assert len(result.filtered_models) == 2
 
+    def test_match_model_returns_no_match_instead_of_full_list(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import klaude_code.config.model_matcher as model_matcher_module
+        from klaude_code.config.model_matcher import match_model_from_config
+
+        provider = llm_param.LLMConfigProviderParameter(
+            provider_name="p",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+        )
+        provider_config = ProviderConfig(
+            **provider.model_dump(),
+            model_list=[ModelConfig(model_name="gpt-5.2", model_id="gpt-5.2-2025-12-01")],
+        )
+        config = Config(provider_list=[provider_config], main_model="gpt-5.2")
+
+        monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
+
+        result = match_model_from_config(preferred="does-not-exist")
+        assert result.matched_model is None
+        assert result.filter_hint == "does-not-exist"
+        assert result.filtered_models == []
+
 
 class TestTerminalSelectorFilter:
     def test_type_to_search_supports_normalized_aliases(self) -> None:
@@ -1097,8 +1119,16 @@ class TestTerminalSelectorFilter:
 
         filter_items = selector_module._filter_items  # pyright: ignore[reportPrivateUsage]
         visible_indices, matched = filter_items(items, "does-not-exist")
-        assert visible_indices == [0, 1]
+        assert visible_indices == []
         assert matched is False
+
+    def test_type_to_search_renders_no_match_message(self) -> None:
+        from klaude_code.tui.terminal import selector as selector_module
+
+        build_choices_tokens = selector_module._build_choices_tokens  # pyright: ignore[reportPrivateUsage]
+        tokens = build_choices_tokens([], [], 0, "→", empty_message="(no match)")
+
+        assert tokens == [("class:text", "(no match)\n")]
 
 
 # =============================================================================

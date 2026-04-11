@@ -46,6 +46,7 @@ class OperationSelectRequestPayload(BaseModel):
     question: str
     options: list[OperationSelectOption]
     input_placeholder: str | None = None
+    initial_search_text: str | None = None
 
 
 type UserInteractionRequestPayload = AskUserQuestionRequestPayload | OperationSelectRequestPayload

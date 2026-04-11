@@ -503,13 +503,13 @@ provider_list:
     cost: { input: 0.3, output: 1.2, cache_read: 0.06 }
 
   - model_name: glm
-    model_id: z-ai/glm-5
+    model_id: z-ai/glm-5.1
     context_limit: 202752
     provider_routing:
       only:
       - fireworks
       - z-ai
-    cost: { input: 1, output: 3.2, cache_read: 0.1 }
+    cost: { input: 1.4, output: 4.4, cache_read: 0.26 }
 
 sub_agent_models:
   finder:

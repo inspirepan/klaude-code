@@ -29,6 +29,7 @@ class ModelSelectResult:
 def select_model_interactive(
     preferred: str | None = None,
     keywords: list[str] | None = None,
+    initial_search_text: str | None = None,
 ) -> ModelSelectResult:
     """Interactive single-choice model selector.
 
@@ -37,13 +38,19 @@ def select_model_interactive(
 
     If keywords is provided, preferred is ignored and the model list is pre-filtered by model_id.
 
+    If initial_search_text is provided, preferred is ignored and the full model list is shown
+    with the search input pre-filled.
+
     If preferred is provided:
     - Exact match: return immediately
     - Single partial match (case-insensitive): return immediately
     - Otherwise: fall through to interactive selection
     """
+    if initial_search_text is not None:
+        initial_search_text = initial_search_text.strip() or None
+
     config = load_config()
-    result = match_model_from_config(None if keywords else preferred)
+    result = match_model_from_config(None if keywords or initial_search_text else preferred)
 
     if result.error_message:
         return ModelSelectResult(status=ModelSelectStatus.NO_MODELS)
@@ -53,14 +60,15 @@ def select_model_interactive(
 
     if keywords:
         keywords_lower = [k.lower() for k in keywords]
-        filtered_models = [
+        result.filtered_models = [
             m for m in result.filtered_models if any(kw in (m.model_id or "").lower() for kw in keywords_lower)
         ]
-        if not filtered_models:
-            return ModelSelectResult(status=ModelSelectStatus.NO_MATCH)
-        result.filtered_models = filtered_models
         result.filter_hint = ", ".join(keywords)
         result.matched_model = None
+
+    if result.filter_hint and not result.filtered_models:
+        log("(no match)")
+        return ModelSelectResult(status=ModelSelectStatus.NO_MATCH)
 
     # Non-interactive environments (CI/pipes) should never enter an interactive prompt.
     # If we couldn't resolve to a single model deterministically above, fail with a clear hint.
@@ -102,6 +110,7 @@ def select_model_interactive(
             pointer="→",
             use_search_filter=True,
             initial_value=initial_value,
+            initial_search_text=initial_search_text,
             style=DEFAULT_PICKER_STYLE,
         )
         if isinstance(selected, str) and selected in names:

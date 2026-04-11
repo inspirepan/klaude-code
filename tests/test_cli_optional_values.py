@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
 
@@ -34,3 +37,52 @@ class TestCliOptionalValues:
 
         assert result.exit_code == 2
         assert "requires a TTY" in result.output
+
+    def test_model_value_becomes_initial_search_text(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import klaude_code.tui.command.model_picker as model_picker_module
+        import klaude_code.tui.runner as tui_runner
+        from klaude_code.cli import main as cli_main
+        from klaude_code.tui.command.model_picker import ModelSelectResult, ModelSelectStatus
+
+        captured: dict[str, object] = {}
+
+        def _select_model_interactive(
+            preferred: str | None = None,
+            keywords: list[str] | None = None,
+            initial_search_text: str | None = None,
+        ) -> ModelSelectResult:
+            captured["preferred"] = preferred
+            captured["keywords"] = keywords
+            captured["initial_search_text"] = initial_search_text
+            return ModelSelectResult(status=ModelSelectStatus.SELECTED, model="picked-model")
+
+        async def _run_interactive(**_kwargs: object) -> None:
+            return None
+
+        def _prepare_debug_logging(_debug: bool) -> tuple[bool, Path | None]:
+            return False, None
+
+        monkeypatch.setattr(model_picker_module, "select_model_interactive", _select_model_interactive)
+        monkeypatch.setattr(tui_runner, "run_interactive", _run_interactive)
+        monkeypatch.setattr(cli_main, "prepare_debug_logging", _prepare_debug_logging)
+        monkeypatch.setattr("klaude_code.tui.terminal.title.update_terminal_title", lambda: None)
+        monkeypatch.setattr(cli_main.sys, "stdin", SimpleNamespace(isatty=lambda: True))
+        monkeypatch.setattr(cli_main.sys, "stdout", SimpleNamespace(isatty=lambda: True))
+
+        cli_main.main_callback(
+            ctx=cast(typer.Context, SimpleNamespace(invoked_subcommand=None)),
+            model=" sonnet ",
+            continue_=False,
+            resume=False,
+            resume_by_id=None,
+            select_model=False,
+            debug=False,
+            vanilla=False,
+            version=False,
+        )
+
+        assert captured == {
+            "preferred": None,
+            "keywords": None,
+            "initial_search_text": "sonnet",
+        }

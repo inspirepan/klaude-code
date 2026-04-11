@@ -154,6 +154,107 @@ def test_request_model_operation_cancelled_emits_no_change(monkeypatch: pytest.M
     arun(_test())
 
 
+def test_request_model_operation_no_match_emits_notice(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    async def _test() -> None:
+        session = Session(work_dir=tmp_path)
+        emitted: list[events.Event] = []
+        handler = _build_handler(
+            session=session,
+            emitted=emitted,
+            interaction_response=user_interaction.UserInteractionResponse(status="cancelled", payload=None),
+        )
+
+        def _match_model(_preferred: str | None) -> ModelMatchResult:
+            return ModelMatchResult(
+                matched_model=None,
+                filtered_models=[],
+                filter_hint="does-not-exist",
+            )
+
+        monkeypatch.setattr(runtime_mod, "match_model_from_config", _match_model)
+
+        await handler.handle_request_model(op.RequestModelOperation(session_id=session.id, preferred="does-not-exist"))
+        assert len(emitted) == 1
+        assert isinstance(emitted[0], events.NoticeEvent)
+        assert emitted[0].content == "(no match)"
+        assert emitted[0].is_error is False
+
+    arun(_test())
+
+
+def test_request_model_operation_uses_initial_search_text_for_picker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    async def _test() -> None:
+        session = Session(work_dir=tmp_path)
+        emitted: list[events.Event] = []
+        runner = _FakeAgentRunner(session)
+        request_payloads: list[user_interaction.UserInteractionRequestPayload] = []
+        match_calls: list[str | None] = []
+
+        model_entries = [
+            SimpleNamespace(
+                selector="gpt-5.4@openai",
+                provider="openai",
+                model_id="gpt-5.4",
+                model_name="gpt-5.4",
+            ),
+            SimpleNamespace(
+                selector="claude-sonnet-4-6@anthropic",
+                provider="anthropic",
+                model_id="claude-sonnet-4-6",
+                model_name="sonnet",
+            ),
+        ]
+
+        async def _emit_event(event: events.Event) -> None:
+            emitted.append(event)
+
+        async def _request_user_interaction(
+            _session_id: str,
+            _request_id: str,
+            _source: user_interaction.UserInteractionSource,
+            payload: user_interaction.UserInteractionRequestPayload,
+        ) -> user_interaction.UserInteractionResponse:
+            request_payloads.append(payload)
+            return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
+
+        def _match_model(preferred: str | None) -> ModelMatchResult:
+            match_calls.append(preferred)
+            return ModelMatchResult(
+                matched_model=None,
+                filtered_models=cast(Any, model_entries),
+                filter_hint=None,
+            )
+
+        monkeypatch.setattr(runtime_mod, "match_model_from_config", _match_model)
+
+        handler = runtime_mod.ConfigHandler(
+            agent_runner=cast(Any, runner),
+            model_switcher=cast(Any, object()),
+            emit_event=_emit_event,
+            request_user_interaction=_request_user_interaction,
+            current_session_id=lambda: session.id,
+            on_model_change=None,
+        )
+
+        await handler.handle_request_model(
+            op.RequestModelOperation(session_id=session.id, initial_search_text=" sonnet ")
+        )
+
+        assert match_calls == [None]
+        assert len(request_payloads) == 1
+        payload = cast(user_interaction.OperationSelectRequestPayload, request_payloads[0])
+        assert payload.initial_search_text == "sonnet"
+        assert len(payload.options) == 2
+
+        assert len(emitted) == 1
+        assert isinstance(emitted[0], events.NoticeEvent)
+        assert emitted[0].content == "(no change)"
+
+    arun(_test())
+
+
 def test_request_model_operation_same_runtime_model_still_saves_default(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

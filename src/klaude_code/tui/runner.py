@@ -243,6 +243,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             items=items,
             pointer="→",
             use_search_filter=True,
+            initial_search_text=payload.initial_search_text,
             style=DEFAULT_PICKER_STYLE,
         )
         return selected if isinstance(selected, str) else None
@@ -253,6 +254,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             items=_build_operation_select_items(payload),
             pointer="→",
             use_search_filter=True,
+            initial_search_text=payload.initial_search_text,
             style=DEFAULT_PICKER_STYLE,
         )
         return selected if isinstance(selected, str) else None

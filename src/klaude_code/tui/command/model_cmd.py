@@ -28,12 +28,12 @@ class ModelCommand(CommandABC):
         return "model name"
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
-        preferred = user_input.text.strip() or None
+        initial_search_text = user_input.text.strip() or None
         return CommandResult(
             operations=[
                 op.RequestModelOperation(
                     session_id=agent.session.id,
-                    preferred=preferred,
+                    initial_search_text=initial_search_text,
                     save_as_default=True,
                 )
             ]

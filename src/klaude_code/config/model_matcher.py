@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
 from klaude_code.config.config import ModelEntry, load_config, print_no_available_models_hint
-from klaude_code.log import log
 
 
 def _normalize_model_key(value: str) -> str:
@@ -41,7 +40,7 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
     - Exact match: returns matched_model
     - Single partial match (case-insensitive): returns matched_model
     - Multiple matches: returns filtered_models for interactive selection
-    - No matches: returns all models with filter_hint=None
+    - No matches: returns an empty filtered_models list with filter_hint=preferred
 
     Returns:
         ModelMatchResult with match state.
@@ -147,7 +146,6 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
             return ModelMatchResult(matched_model=matches[0].selector, filtered_models=models, filter_hint=None)
         if matches:
             return ModelMatchResult(matched_model=None, filtered_models=matches, filter_hint=filter_hint)
-        log(("No matching models found. Showing all models.", "yellow"))
-        return ModelMatchResult(matched_model=None, filtered_models=models, filter_hint=None)
+        return ModelMatchResult(matched_model=None, filtered_models=[], filter_hint=filter_hint)
 
     return ModelMatchResult(matched_model=None, filtered_models=models, filter_hint=None)
