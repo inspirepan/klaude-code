@@ -750,8 +750,12 @@ class Session(BaseModel):
                     yield events.ErrorEvent(
                         error_message=se.error, can_retry=False, session_id=self.id, timestamp=msg_ts
                     )
-                case message.InterruptEntry():
-                    yield events.InterruptEvent(session_id=self.id, timestamp=msg_ts)
+                case message.InterruptEntry() as interrupt:
+                    yield events.InterruptEvent(
+                        session_id=self.id,
+                        show_notice=interrupt.show_notice,
+                        timestamp=msg_ts,
+                    )
                 case message.RewindEntry() as be:
                     yield events.RewindEvent(
                         session_id=self.id,

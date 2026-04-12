@@ -699,14 +699,15 @@ class TestSessionPersistence:
             session.append_history(
                 [
                     message.UserMessage(parts=message.text_parts_from_str("hello")),
-                    message.InterruptEntry(),
+                    message.InterruptEntry(show_notice=False),
                 ]
             )
             await session.wait_for_flush()
 
             reloaded = Session.load(session.id, work_dir=project_dir)
             events_list = list(reloaded.get_history_item())
-            assert any(isinstance(e, events.InterruptEvent) for e in events_list)
+            interrupt_event = next(e for e in events_list if isinstance(e, events.InterruptEvent))
+            assert interrupt_event.show_notice is False
             await close_default_store()
 
         arun(_test())

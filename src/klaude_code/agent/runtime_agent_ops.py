@@ -638,11 +638,13 @@ class AgentOperationHandler:
         if runtime is None:
             return
         agent = runtime.get_agent()
+        show_notice = True
         if agent is not None:
             for evt in agent.on_interrupt():
                 await self._emit_event(evt)
+            show_notice = agent.last_interrupt_show_notice
 
-        await self._emit_event(events.InterruptEvent(session_id=session_id))
+        await self._emit_event(events.InterruptEvent(session_id=session_id, show_notice=show_notice))
 
         tasks_to_cancel = self._cancel_tasks_for_sessions({session_id})
 

@@ -51,6 +51,7 @@ class _FakeDisplay:
 
 class _FakePromptToolkitInput:
     payloads: ClassVar[list[UserInputPayload]] = []
+    prefills: ClassVar[list[str | None]] = []
 
     def __init__(self, **_: Any) -> None:
         pass
@@ -61,6 +62,9 @@ class _FakePromptToolkitInput:
     async def iter_inputs(self):
         for payload in list(self.payloads):
             yield payload
+
+    def set_next_prefill(self, text: str | None) -> None:
+        self.prefills.append(text)
 
 
 def _default_question_payload() -> user_interaction.AskUserQuestionRequestPayload:
@@ -82,6 +86,8 @@ def _default_question_payload() -> user_interaction.AskUserQuestionRequestPayloa
 
 def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     import klaude_code.tui.runner as runner
+
+    _FakePromptToolkitInput.prefills = []
 
     def _load_config() -> SimpleNamespace:
         return SimpleNamespace(theme="dark")
@@ -181,6 +187,85 @@ def test_waiting_esc_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatch) 
 
     assert len(runtime.interrupts) == 1
     assert runtime.interrupts[0].session_id == "s1"
+
+
+def test_waiting_esc_restores_prefill_when_no_visible_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    class _FakeAgent:
+        def __init__(self) -> None:
+            self._prefill = "hello"
+
+        def consume_interrupt_prefill_text(self) -> str | None:
+            text = self._prefill
+            self._prefill = None
+            return text
+
+    class _FakeRuntime:
+        def __init__(self) -> None:
+            self.interrupts: list[op.InterruptOperation] = []
+            self._interrupt_received = asyncio.Event()
+            self._agent = _FakeAgent()
+
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> _FakeAgent:
+            return self._agent
+
+        async def wait_for(self, _wait_id: str) -> None:
+            while esc_state["on_interrupt"] is None:
+                await asyncio.sleep(0)
+            await esc_state["on_interrupt"]()
+            await asyncio.wait_for(self._interrupt_received.wait(), timeout=1.0)
+
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            if isinstance(operation, op.InterruptOperation):
+                self.interrupts.append(operation)
+                self._interrupt_received.set()
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+
+    async def _submit_user_input_payload(**_: Any) -> Any:
+        return runner.SubmitUserInputResult(wait_id="wait-1")
+
+    monkeypatch.setattr(
+        runner,
+        "submit_user_input_payload",
+        _submit_user_input_payload,
+    )
+
+    esc_state: dict[str, Any] = {"on_interrupt": None}
+
+    def _start_esc_monitor(
+        on_interrupt: Callable[[], Coroutine[Any, Any, None]],
+    ) -> tuple[threading.Event, asyncio.Task[None]]:
+        esc_state["on_interrupt"] = on_interrupt
+        stop_event = threading.Event()
+
+        async def _wait_stop() -> None:
+            await asyncio.to_thread(stop_event.wait)
+
+        return stop_event, asyncio.create_task(_wait_stop())
+
+    monkeypatch.setattr(runner, "start_esc_interrupt_monitor", _start_esc_monitor)
+
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="hello"), UserInputPayload(text="exit")]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert _FakePromptToolkitInput.prefills == ["hello"]
 
 
 def test_interaction_collection_pauses_esc_monitor(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -32,3 +32,12 @@ def test_rprompt_hidden_outside_bash_mode() -> None:
 
     assert prompt == [("ansicyan bold", USER_MESSAGE_MARK)]
     assert rprompt == []
+
+
+def test_set_next_prefill_stores_text() -> None:
+    prompt_input: Any = _build_input("hello")
+    prompt_input._next_prefill_text = None
+
+    prompt_input.set_next_prefill("retry me")
+
+    assert prompt_input._next_prefill_text == "retry me"

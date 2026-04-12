@@ -231,6 +231,19 @@ class TaskExecutor:
         self._metadata_accumulator: MetadataAccumulator | None = None
         self._rewind_manager: RewindManager | None = None
         self._handoff_manager: HandoffManager | None = None
+        self._current_user_input_text: str | None = None
+        self._task_visible_output_started = False
+        self._last_interrupt_show_notice = True
+        self._last_interrupt_prefill_text: str | None = None
+
+    @property
+    def last_interrupt_show_notice(self) -> bool:
+        return self._last_interrupt_show_notice
+
+    def take_interrupt_prefill_text(self) -> str | None:
+        text = self._last_interrupt_prefill_text
+        self._last_interrupt_prefill_text = None
+        return text
 
     def get_partial_metadata(self) -> model.TaskMetadata | None:
         """Get the currently accumulated metadata without finalizing.
@@ -251,7 +264,9 @@ class TaskExecutor:
         ui_events: list[events.Event] = []
         had_aborted_assistant_message = False
         history_len_before = len(self._context.session.conversation_history)
+        show_notice = self._task_visible_output_started
         if self._current_turn is not None:
+            show_notice = show_notice or getattr(self._current_turn, "should_show_interrupt_notice", True)
             for evt in self._current_turn.on_interrupt():
                 # Collect sub-agent task metadata from cancelled tool results
                 if (
@@ -268,8 +283,14 @@ class TaskExecutor:
                 isinstance(item, message.AssistantMessage) and item.stop_reason == "aborted" for item in new_items
             )
 
+        self._last_interrupt_show_notice = show_notice
+        if not show_notice and self._current_user_input_text and self._current_user_input_text.strip():
+            self._last_interrupt_prefill_text = self._current_user_input_text
+        else:
+            self._last_interrupt_prefill_text = None
+
         if not had_aborted_assistant_message:
-            self._context.session_ctx.append_history([message.InterruptEntry()])
+            self._context.session_ctx.append_history([message.InterruptEntry(show_notice=show_notice)])
 
         # Emit partial metadata on cancellation
         if self._metadata_accumulator is not None and self._started_at > 0:
@@ -288,6 +309,10 @@ class TaskExecutor:
         ctx = self._context
         session_ctx = ctx.session_ctx
         self._started_at = time.perf_counter()
+        self._current_user_input_text = user_input.text
+        self._task_visible_output_started = False
+        self._last_interrupt_show_notice = True
+        self._last_interrupt_prefill_text = None
         has_user_input = bool(user_input.text.strip() or user_input.images)
 
         if ctx.sub_agent_state is None:
@@ -430,6 +455,21 @@ class TaskExecutor:
 
                 try:
                     async for e in turn.run():
+                        match e:
+                            case events.AssistantTextDeltaEvent() if e.content:
+                                self._task_visible_output_started = True
+                            case events.ResponseCompleteEvent() if e.content:
+                                self._task_visible_output_started = True
+                            case (
+                                events.ToolCallStartEvent()
+                                | events.ToolCallEvent()
+                                | events.ToolResultEvent()
+                            ):
+                                self._task_visible_output_started = True
+                            case events.ToolOutputDeltaEvent() if e.content:
+                                self._task_visible_output_started = True
+                            case _:
+                                pass
                         match e:
                             case events.ResponseCompleteEvent() as am:
                                 yield am
