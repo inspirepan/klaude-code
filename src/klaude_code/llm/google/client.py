@@ -3,6 +3,7 @@
 # pyright: reportUnknownArgumentType=false
 # pyright: reportAttributeAccessIssue=false
 
+import warnings
 from base64 import b64encode
 from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any, cast, override
@@ -175,11 +176,35 @@ def _map_finish_reason(reason: str) -> model.StopReason | None:
         "content_filter": "error",
         "blocked": "error",
         "blocklist": "error",
+        "language": "error",
+        "prohibited_content": "error",
+        "spii": "error",
+        "malformed_function_call": "error",
+        "malformed_response": "error",
+        "unexpected_tool_call": "error",
+        "image_safety": "error",
+        "image_prohibited_content": "error",
+        "no_image": "error",
+        "image_recitation": "error",
+        "image_other": "error",
         "cancelled": "aborted",
         "canceled": "aborted",
         "aborted": "aborted",
     }
     return mapping.get(normalized)
+
+
+async def _iter_google_stream_chunks(
+    stream: AsyncIterator[GenerateContentResponse],
+) -> AsyncIterator[GenerateContentResponse]:
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r".* is not a valid FinishReason",
+            category=UserWarning,
+        )
+        async for chunk in stream:
+            yield chunk
 
 
 class GoogleStreamStateManager:
@@ -250,7 +275,7 @@ async def parse_google_stream(
     last_usage_metadata: GenerateContentResponseUsageMetadata | None = None
     metadata_tracker.set_model_name(str(param.model_id))
 
-    async for chunk in stream:
+    async for chunk in _iter_google_stream_chunks(stream):
         log_debug(debug_json(chunk.model_dump(exclude_none=True)), debug_type=DebugType.LLM_STREAM)
 
         if state.response_id is None:
