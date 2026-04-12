@@ -36,9 +36,20 @@ class Agent:
         self.profile: AgentProfile = profile
         self.compact_llm_client: LLMClientABC | None = compact_llm_client
         self._current_task: TaskExecutor | None = None
+        self._last_interrupt_show_notice = True
+        self._last_interrupt_prefill_text: str | None = None
         self.request_user_interaction = request_user_interaction
         if not self.session.model_name:
             self.session.model_name = profile.llm_client.model_name
+
+    @property
+    def last_interrupt_show_notice(self) -> bool:
+        return self._last_interrupt_show_notice
+
+    def consume_interrupt_prefill_text(self) -> str | None:
+        text = self._last_interrupt_prefill_text
+        self._last_interrupt_prefill_text = None
+        return text
 
     def on_interrupt(self) -> Iterable[events.Event]:
         """Handle an interrupt by emitting best-effort cleanup events.
@@ -47,8 +58,12 @@ class Agent:
         needs to cancel the owning asyncio.Task to inject asyncio.CancelledError.
         """
 
+        self._last_interrupt_show_notice = True
+        self._last_interrupt_prefill_text = None
         if self._current_task is not None:
             yield from self._current_task.on_interrupt()
+            self._last_interrupt_show_notice = self._current_task.last_interrupt_show_notice
+            self._last_interrupt_prefill_text = self._current_task.take_interrupt_prefill_text()
             self._current_task = None
 
         log_debug(

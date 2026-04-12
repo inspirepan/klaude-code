@@ -141,6 +141,11 @@ class TurnExecutor:
         self._turn_result: TurnResult | None = None
         self._llm_stream: LLMStreamABC | None = None
         self._accumulated_assistant_text: list[str] = []
+        self._visible_output_started = False
+
+    @property
+    def should_show_interrupt_notice(self) -> bool:
+        return self._visible_output_started
 
     @property
     def task_finished(self) -> bool:
@@ -288,6 +293,7 @@ class TurnExecutor:
                         if delta.content:
                             first_effective_token_received = True
                             self._accumulated_assistant_text.append(delta.content)
+                            self._visible_output_started = True
                         if thinking_active:
                             thinking_active = False
                             yield events.ThinkingEndEvent(
@@ -308,6 +314,12 @@ class TurnExecutor:
                     case message.AssistantMessage() as msg:
                         if msg.parts:
                             first_effective_token_received = True
+                        if any(
+                            (isinstance(part, message.TextPart) and bool(part.text))
+                            or isinstance(part, message.ToolCallPart)
+                            for part in msg.parts
+                        ):
+                            self._visible_output_started = True
                         if thinking_active:
                             thinking_active = False
                             yield events.ThinkingEndEvent(
@@ -342,7 +354,10 @@ class TurnExecutor:
                                 thinking_text=thinking_text or None,
                             )
                         if msg.stop_reason == "aborted":
-                            yield events.InterruptEvent(session_id=session_ctx.session_id)
+                            yield events.InterruptEvent(
+                                session_id=session_ctx.session_id,
+                                show_notice=self.should_show_interrupt_notice,
+                            )
                         if msg.usage:
                             metadata = msg.usage
                             if metadata.response_id is None:
@@ -360,6 +375,7 @@ class TurnExecutor:
                         turn_result.stream_error = msg
                     case message.ToolCallStartDelta() as msg:
                         first_effective_token_received = True
+                        self._visible_output_started = True
                         if thinking_active:
                             thinking_active = False
                             yield events.ThinkingEndEvent(

@@ -938,6 +938,34 @@ class TestLLMConfigParameterIntegration:
 
 
 class TestMatchModelFromConfig:
+    def test_match_model_preserves_config_order_for_filtered_models(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import klaude_code.config.model_matcher as model_matcher_module
+        from klaude_code.config.model_matcher import match_model_from_config
+
+        codex_provider = ProviderConfig(
+            provider_name="codex",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+            model_list=[ModelConfig(model_name="gpt-5-codex", model_id="gpt-5-codex")],
+        )
+        openai_provider = ProviderConfig(
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+            model_list=[ModelConfig(model_name="gpt-5.4", model_id="gpt-5.4")],
+        )
+        config = Config(provider_list=[openai_provider, codex_provider], main_model="gpt-5.4")
+
+        monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
+
+        result = match_model_from_config(preferred="gpt")
+
+        assert result.matched_model is None
+        assert [entry.selector for entry in result.filtered_models] == [
+            "gpt-5.4@openai",
+            "gpt-5-codex@codex",
+        ]
+
     def test_match_model_supports_case_insensitive_exact_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.model_matcher as model_matcher_module
         from klaude_code.config.model_matcher import match_model_from_config

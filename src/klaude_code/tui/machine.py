@@ -1309,7 +1309,8 @@ class DisplayStateMachine:
                                 session_title=self._session_title,
                             )
                         )
-                cmds.append(RenderInterrupt(session_id=e.session_id))
+                if e.show_notice:
+                    cmds.append(RenderInterrupt(session_id=e.session_id))
                 return cmds
 
             case events.ErrorEvent() as e:

@@ -10,7 +10,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from klaude_code.agent.compaction import should_compact_threshold
-from klaude_code.app.ports import DisplayABC, InputProviderABC, InteractionHandlerABC
+from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.app.runtime import (
     AppInitConfig,
     backfill_session_model_config,
@@ -439,7 +439,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             )
         )
 
-    input_provider: InputProviderABC = PromptToolkitInput(
+    input_provider = PromptToolkitInput(
         pre_prompt=_stop_rich_bottom_ui,
         get_current_model_config_name=lambda: (
             components.runtime.current_agent.session.model_config_name
@@ -454,7 +454,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     loop = asyncio.get_running_loop()
 
-    async def _wait_for_with_interrupt(wait_id: str, *, session_id: str) -> None:
+    async def _wait_for_with_interrupt(wait_id: str, *, session_id: str) -> bool:
         nonlocal pause_esc_monitor, resume_esc_monitor
         wait_task = asyncio.create_task(components.runtime.wait_for(wait_id))
         interrupt_requested = False
@@ -514,6 +514,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 wait_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await wait_task
+        return interrupt_requested
 
     exit_hint_printed = False
     pending_web_mode_request: WebModeRequest | None = None
@@ -559,10 +560,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             if active_session_id is None:
                 continue
 
-            await _wait_for_with_interrupt(wait_id, session_id=active_session_id)
+            interrupted = await _wait_for_with_interrupt(wait_id, session_id=active_session_id)
             # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
             # before handing control back to prompt_toolkit.
             await components.wait_for_display_idle()
+            if interrupted and components.runtime.current_agent is not None:
+                input_provider.set_next_prefill(components.runtime.current_agent.consume_interrupt_prefill_text())
 
     except KeyboardInterrupt:
         await handle_keyboard_interrupt(components.runtime)

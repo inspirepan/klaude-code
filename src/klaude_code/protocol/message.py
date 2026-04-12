@@ -57,6 +57,7 @@ class StreamErrorItem(BaseModel):
 
 
 class InterruptEntry(BaseModel):
+    show_notice: bool = True
     created_at: datetime = Field(default_factory=datetime.now)
 
 

@@ -342,7 +342,7 @@ class ErrorEvent(Event):
 
 
 class InterruptEvent(Event):
-    pass
+    show_notice: bool = True
 
 
 class EndEvent(Event):

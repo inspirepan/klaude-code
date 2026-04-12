@@ -340,11 +340,15 @@ class PromptToolkitInput(InputProviderABC):
         self._on_change_thinking = on_change_thinking
         self._get_current_llm_config = get_current_llm_config
         self._command_info_provider = command_info_provider
+        self._next_prefill_text: str | None = None
 
         self._session = self._build_prompt_session(prompt)
         self._setup_model_picker()
         self._setup_thinking_picker()
         self._apply_layout_customizations()
+
+    def set_next_prefill(self, text: str | None) -> None:
+        self._next_prefill_text = text
 
     def _build_prompt_session(self, prompt: str) -> PromptSession[str]:
         """Build the prompt_toolkit PromptSession with key bindings and styles."""
@@ -710,9 +714,12 @@ class PromptToolkitInput(InputProviderABC):
             # This allows Rich-rendered panels (e.g. WelcomeEvent) to display with
             # proper styling instead of showing raw escape codes.
             with patch_stdout(raw=True):
-                line: str = await self._session.prompt_async(
-                    message=self._get_prompt_message,
-                )
+                default_text = self._next_prefill_text
+                self._next_prefill_text = None
+                if default_text is None:
+                    line = await self._session.prompt_async(message=self._get_prompt_message)
+                else:
+                    line = await self._session.prompt_async(message=self._get_prompt_message, default=default_text)
             if self._post_prompt is not None:
                 with contextlib.suppress(Exception):
                     self._post_prompt()

@@ -18,7 +18,9 @@ FORK_SELECT_STYLE = merge_styles(
         DEFAULT_PICKER_STYLE,
         Style(
             [
+                ("msg", "fg:default"),
                 ("separator", "fg:ansibrightblack"),
+                ("separator highlighted", "fg:ansigreen"),
                 ("assistant", "fg:ansiblue"),
             ]
         ),
@@ -270,7 +272,7 @@ def _select_fork_point_sync(fork_points: list[ForkPoint]) -> int | Literal["canc
             pointer="→",
             style=FORK_SELECT_STYLE,
             initial_value=last_value,
-            highlight_pointed_item=False,
+            highlight_pointed_item=True,
         )
         if result is None:
             return "cancelled"
