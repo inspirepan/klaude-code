@@ -460,11 +460,7 @@ class TaskExecutor:
                                 self._task_visible_output_started = True
                             case events.ResponseCompleteEvent() if e.content:
                                 self._task_visible_output_started = True
-                            case (
-                                events.ToolCallStartEvent()
-                                | events.ToolCallEvent()
-                                | events.ToolResultEvent()
-                            ):
+                            case events.ToolCallStartEvent() | events.ToolCallEvent() | events.ToolResultEvent():
                                 self._task_visible_output_started = True
                             case events.ToolOutputDeltaEvent() if e.content:
                                 self._task_visible_output_started = True
