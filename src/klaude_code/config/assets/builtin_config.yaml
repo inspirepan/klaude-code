@@ -65,7 +65,7 @@ provider_list:
     context_limit: 1000000
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
-    model_name: opus
+  - model_name: opus
     model_id: global.anthropic.claude-opus-4-6-v1
     context_limit: 1000000
     verbosity: high
@@ -73,7 +73,7 @@ provider_list:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
-    model_name: haiku
+  - model_name: haiku
     model_id: global.anthropic.claude-haiku-4-5
     context_limit: 200000
     cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
