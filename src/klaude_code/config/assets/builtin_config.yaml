@@ -45,6 +45,38 @@ provider_list:
     model_id: claude-haiku-4-5
     context_limit: 200000
     cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
+# ######################################## aws-bedrock ########################################
+- provider_name: aws-bedrock
+  protocol: bedrock
+  aws_access_key: ${AWS_BEDROCK_ACCESS_KEY_ID}
+  aws_secret_key: ${AWS_BEDROCK_SECRET_ACCESS_KEY}
+  aws_region: ${AWS_BEDROCK_REGION}
+  model_list:
+
+  - model_name: sonnet
+    model_id: global.anthropic.claude-sonnet-4-6
+    context_limit: 1000000
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet:no-thinking
+    model_id: global.anthropic.claude-sonnet-4-6
+    context_limit: 1000000
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+    model_name: opus
+    model_id: global.anthropic.claude-opus-4-6-v1
+    context_limit: 1000000
+    verbosity: high
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
+
+    model_name: haiku
+    model_id: global.anthropic.claude-haiku-4-5
+    context_limit: 200000
+    cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
 
 # ######################################## openai ########################################
 - provider_name: openai
@@ -276,42 +308,6 @@ provider_list:
     max_tokens: 12800
     cost: { input: 2.25, output: 2.75 }
 
-# ######################################## aws-bedrock ########################################
-- provider_name: aws-bedrock
-  protocol: bedrock
-  aws_access_key: ${AWS_BEDROCK_ACCESS_KEY_ID}
-  aws_secret_key: ${AWS_BEDROCK_SECRET_ACCESS_KEY}
-  aws_region: ${AWS_BEDROCK_REGION}
-  model_list:
-
-  - &bedrock_sonnet
-    model_name: sonnet
-    model_id: global.anthropic.claude-sonnet-4-6
-    context_limit: 1000000
-    thinking:
-      type: adaptive
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
-
-  - model_name: sonnet:no-thinking
-    model_id: global.anthropic.claude-sonnet-4-6
-    context_limit: 1000000
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
-
-  - &bedrock_opus
-    model_name: opus
-    model_id: global.anthropic.claude-opus-4-6-v1
-    context_limit: 1000000
-    verbosity: high
-    thinking:
-      type: adaptive
-    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
-
-  - &bedrock_haiku
-    model_name: haiku
-    model_id: global.anthropic.claude-haiku-4-5
-    context_limit: 200000
-    cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
-
 # ######################################## codex ########################################
 - provider_name: codex
   protocol: codex_oauth
@@ -419,16 +415,6 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
-  - model_name: kimi
-    model_id: moonshotai/kimi-k2.5
-    context_limit: 262144
-    provider_routing:
-      only:
-      - fireworks
-      - moonshotai/int4
-      - novita
-    cost: { input: 0.6, output: 3, cache_read: 0.1 }
-
   - model_name: haiku
     model_id: anthropic/claude-haiku-4.5
     context_limit: 200000
@@ -486,15 +472,17 @@ provider_list:
       reasoning_effort: minimal
     cost: { input: 0.25, output: 1.5, cache_read: 0.02 }
 
-  - model_name: grok
-    model_id: x-ai/grok-4.1-fast
-    context_limit: 2000000
-    thinking:
-      type: enabled
-      budget_tokens: 2048
-    cost: { input: 0.2, output: 0.5, cache_read: 0.05 }
+  - model_name: kimi
+    model_id: moonshotai/kimi-k2.5
+    context_limit: 262144
+    provider_routing:
+      only:
+      - fireworks
+      - moonshotai/int4
+      - novita
+    cost: { input: 0.6, output: 3, cache_read: 0.1 }
 
-  - model_name: m2.7
+  - model_name: minimax
     model_id: minimax/minimax-m2.7
     context_limit: 204800
     thinking:
