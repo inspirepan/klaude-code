@@ -3,7 +3,7 @@ https://github.com/openai/openai-cookbook/blob/main/examples/gpt-5/apply_patch.p
 """
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -51,6 +51,49 @@ class PatchAction(BaseModel):
 
 class Patch(BaseModel):
     actions: dict[str, PatchAction] = Field(default_factory=dict)
+
+
+class PatchSection(BaseModel):
+    type: ActionType
+    path: str
+    text: str
+
+
+def _new_patch_section_list() -> list[PatchSection]:
+    return []
+
+
+class PatchGroup(BaseModel):
+    path: str
+    sections: list[PatchSection] = Field(default_factory=_new_patch_section_list)
+
+
+def _new_commit_list() -> list[Commit]:
+    return []
+
+
+class PatchSuccess(BaseModel):
+    path: str
+    change: FileChange
+    commits: list[Commit] = Field(default_factory=_new_commit_list)
+
+
+class PatchFailure(BaseModel):
+    path: str
+    error: str
+
+
+def _new_patch_success_list() -> list[PatchSuccess]:
+    return []
+
+
+def _new_patch_failure_list() -> list[PatchFailure]:
+    return []
+
+
+class PatchResult(BaseModel):
+    successes: list[PatchSuccess] = Field(default_factory=_new_patch_success_list)
+    failures: list[PatchFailure] = Field(default_factory=_new_patch_failure_list)
 
 
 class Parser(BaseModel):
@@ -292,10 +335,77 @@ def peek_next_section(lines: list[str], index: int) -> tuple[list[str], list[Chu
     return old, chunks, index, False
 
 
-def text_to_patch(text: str, orig: dict[str, str]) -> tuple[Patch, int]:
+_PATCH_ACTION_PREFIXES = ("*** Update File: ", "*** Delete File: ", "*** Add File: ")
+
+
+def _duplicate_path_error(action_type: ActionType, path: str) -> "DiffError":
+    prefix = {
+        ActionType.UPDATE: "Update File Error",
+        ActionType.DELETE: "Delete File Error",
+        ActionType.ADD: "Add File Error",
+    }[action_type]
+    return DiffError(f"{prefix}: Duplicate Path: {path}")
+
+
+def _parse_section_header(line: str) -> tuple[ActionType, str]:
+    for prefix, action_type in (
+        ("*** Update File: ", ActionType.UPDATE),
+        ("*** Delete File: ", ActionType.DELETE),
+        ("*** Add File: ", ActionType.ADD),
+    ):
+        if line.startswith(prefix):
+            return action_type, line[len(prefix) :]
+    raise DiffError(f"Unknown Line: {line}")
+
+
+def _patch_lines(text: str) -> list[str]:
     lines = text.strip().split("\n")
     if len(lines) < 2 or not lines[0].startswith("*** Begin Patch") or lines[-1] != "*** End Patch":
         raise DiffError('Invalid patch text, expected "*** Begin Patch" and "*** End Patch"')
+    return lines
+
+
+def split_patch_sections(text: str) -> list[PatchSection]:
+    lines = _patch_lines(text)
+    sections: list[PatchSection] = []
+    index = 1
+
+    while index < len(lines) - 1:
+        line = lines[index]
+        action_type, path = _parse_section_header(line)
+
+        start = index
+        index += 1
+        while index < len(lines) - 1 and not lines[index].startswith(_PATCH_ACTION_PREFIXES):
+            if (
+                lines[index].startswith("***")
+                and lines[index] != "*** End of File"
+                and not lines[index].startswith("*** Move to: ")
+            ):
+                raise DiffError(f"Invalid Line: {lines[index]}")
+            index += 1
+
+        section_lines = ["*** Begin Patch", *lines[start:index], "*** End Patch"]
+        sections.append(PatchSection(type=action_type, path=path, text="\n".join(section_lines)))
+
+    return sections
+
+
+def group_patch_sections(text: str) -> list[PatchGroup]:
+    groups_by_path: dict[str, PatchGroup] = {}
+    for section in split_patch_sections(text):
+        group = groups_by_path.get(section.path)
+        if group is None:
+            group = PatchGroup(path=section.path)
+            groups_by_path[section.path] = group
+        elif section.type != ActionType.UPDATE:
+            raise _duplicate_path_error(section.type, section.path)
+        group.sections.append(section)
+    return list(groups_by_path.values())
+
+
+def text_to_patch(text: str, orig: dict[str, str]) -> tuple[Patch, int]:
+    lines = _patch_lines(text)
 
     parser = Parser(
         current_files=orig,
@@ -375,11 +485,112 @@ class DiffError(ValueError):
     pass
 
 
-def load_files(paths: list[str], open_fn: Callable[[str], str]) -> dict[str, str]:
-    orig: dict[str, str] = {}
-    for path in paths:
-        orig[path] = open_fn(path)
-    return orig
+def _apply_commit_to_contents(commit: Commit, files: dict[str, str]) -> None:
+    def write_fn(path: str, content: str) -> None:
+        files[path] = content
+
+    def remove_fn(path: str) -> None:
+        if path not in files:
+            raise DiffError(f"Missing File: {path}")
+        del files[path]
+
+    apply_commit(commit, write_fn, remove_fn)
+
+
+def _flatten_commits(path: str, commits: list[Commit]) -> FileChange:
+    if not commits:
+        raise DiffError(f"Missing commit for path: {path}")
+
+    first = commits[0].changes[path]
+    last = commits[-1].changes[path]
+    if len(commits) == 1:
+        return last.model_copy(deep=True)
+
+    return FileChange(
+        type=ActionType.UPDATE,
+        old_content=first.old_content,
+        new_content=last.new_content,
+        move_path=last.move_path,
+    )
+
+
+def iter_successful_changes(result: PatchResult):
+    for success in result.successes:
+        yield success.path, success.change
+
+
+def describe_change(path: str, change: FileChange) -> str:
+    if change.type == ActionType.DELETE:
+        return f"deleted {path}"
+    if change.type == ActionType.UPDATE and change.move_path and change.move_path != path:
+        return f"{path} -> {change.move_path}"
+    return path
+
+
+def build_patch_result(text: str, open_fn: Callable[[str], str]) -> PatchResult:
+    result = PatchResult()
+    workspace_files: dict[str, str] = {}
+    missing_files: set[str] = set()
+
+    def load_current_file(path: str) -> str:
+        if path in workspace_files:
+            return workspace_files[path]
+        if path in missing_files:
+            raise DiffError(f"Missing File: {path}")
+        content = open_fn(path)
+        workspace_files[path] = content
+        return content
+
+    def write_workspace(path: str, content: str) -> None:
+        workspace_files[path] = content
+        missing_files.discard(path)
+
+    def remove_workspace(path: str) -> None:
+        workspace_files.pop(path, None)
+        missing_files.add(path)
+
+    for group in group_patch_sections(text):
+        group_files: dict[str, str] = {}
+        group_commits: list[Commit] = []
+        try:
+            for section in group.sections:
+                if section.type != ActionType.ADD and section.path not in group_files:
+                    group_files[section.path] = load_current_file(section.path)
+                patch, _ = text_to_patch(section.text, group_files)
+                commit = patch_to_commit(patch, group_files)
+                _apply_commit_to_contents(commit, group_files)
+                group_commits.append(commit)
+        except DiffError as error:
+            result.failures.append(PatchFailure(path=group.path, error=str(error)))
+            continue
+
+        for commit in group_commits:
+            apply_commit(commit, write_workspace, remove_workspace)
+        result.successes.append(
+            PatchSuccess(path=group.path, change=_flatten_commits(group.path, group_commits), commits=group_commits)
+        )
+
+    return result
+
+
+def iter_commits(result: PatchResult) -> Iterator[Commit]:
+    for success in result.successes:
+        yield from success.commits
+
+
+def format_patch_result(result: PatchResult) -> str:
+    if not result.failures:
+        return "Done!"
+
+    lines: list[str] = []
+    if result.successes:
+        lines.append("Applied changes:")
+        for path, change in iter_successful_changes(result):
+            lines.append(f"- {describe_change(path, change)}")
+    lines.append("Failed changes:")
+    for failure in result.failures:
+        lines.append(f"- {failure.path}: {failure.error}")
+    return "\n".join(lines)
 
 
 def apply_commit(
@@ -413,12 +624,12 @@ def process_patch(
     remove_fn: Callable[[str], None],
 ) -> str:
     assert text.startswith("*** Begin Patch")
-    paths = identify_files_needed(text)
-    orig = load_files(paths, open_fn)
-    patch, _ = text_to_patch(text, orig)
-    commit = patch_to_commit(patch, orig)
-    apply_commit(commit, write_fn, remove_fn)
-    return "Done!"
+    result = build_patch_result(text, open_fn)
+    if not result.successes:
+        raise DiffError(format_patch_result(result))
+    for commit in iter_commits(result):
+        apply_commit(commit, write_fn, remove_fn)
+    return format_patch_result(result)
 
 
 def open_file(path: str) -> str:

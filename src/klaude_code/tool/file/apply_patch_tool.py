@@ -20,7 +20,7 @@ class ApplyPatchHandler:
     @classmethod
     async def handle_apply_patch(cls, patch_text: str, context: ToolContext) -> message.ToolResultMessage:
         try:
-            output, ui_extra = await asyncio.to_thread(
+            status, output, ui_extra = await asyncio.to_thread(
                 cls._apply_patch_in_thread,
                 patch_text,
                 context.file_tracker,
@@ -32,7 +32,7 @@ class ApplyPatchHandler:
         except Exception as error:  # pragma: no cover  # unexpected errors bubbled to tool result
             return message.ToolResultMessage(status="error", output_text=f"Execution error: {error}")
         return message.ToolResultMessage(
-            status="success",
+            status=status,
             output_text=output,
             ui_extra=ui_extra,
         )
@@ -43,7 +43,7 @@ class ApplyPatchHandler:
         file_tracker: FileTracker,
         file_change_summary: model.FileChangeSummary | None,
         work_dir: Path,
-    ) -> tuple[str, model.ToolResultUIExtra]:
+    ) -> tuple[model.ToolStatus, str, model.ToolResultUIExtra | None]:
         ap = apply_patch_module
         normalized_start = patch_text.lstrip()
         if not normalized_start.startswith("*** Begin Patch"):
@@ -62,8 +62,7 @@ class ApplyPatchHandler:
                     raise ap.DiffError(f"Path escapes workspace: {path}")
             return candidate
 
-        orig: dict[str, str] = {}
-        for path in ap.identify_files_needed(patch_text):
+        def open_fn(path: str) -> str:
             resolved = resolve_path(path)
             if not os.path.exists(resolved):
                 raise ap.DiffError(f"Missing File: {path}")
@@ -71,16 +70,21 @@ class ApplyPatchHandler:
                 raise ap.DiffError(f"Cannot apply patch to directory: {path}")
             try:
                 with open(resolved, encoding="utf-8") as handle:
-                    orig[path] = handle.read()
+                    return handle.read()
             except OSError as error:
                 raise ap.DiffError(f"Failed to read {path}: {error}") from error
 
-        patch, _ = ap.text_to_patch(patch_text, orig)
-        commit = ap.patch_to_commit(patch, orig)
-        diff_ui = ApplyPatchHandler._commit_to_structured_diff(commit)
+        patch_result = ap.build_patch_result(patch_text, open_fn)
+        commits = list(ap.iter_commits(patch_result))
+        landed_changes = list(ap.iter_successful_changes(patch_result))
+        output_text = ap.format_patch_result(patch_result)
+        if not commits:
+            raise ap.DiffError(output_text)
+
+        diff_ui = ApplyPatchHandler._changes_to_structured_diff(landed_changes)
 
         if file_change_summary is not None:
-            for change_path, change in commit.changes.items():
+            for change_path, change in landed_changes:
                 resolved = resolve_path(change_path)
                 if change.type == apply_patch_module.ActionType.ADD:
                     file_change_summary.record_created(resolved)
@@ -94,7 +98,7 @@ class ApplyPatchHandler:
                 file_change_summary.add_diff(added=file_diff.stats_add, removed=file_diff.stats_remove, path=resolved)
 
         md_items: list[model.MarkdownDocUIExtra] = []
-        for change_path, change in commit.changes.items():
+        for change_path, change in landed_changes:
             if change.type == apply_patch_module.ActionType.ADD and change_path.endswith(".md"):
                 md_items.append(
                     model.MarkdownDocUIExtra(
@@ -139,7 +143,8 @@ class ApplyPatchHandler:
             with contextlib.suppress(Exception):  # pragma: no cover - file tracker best-effort
                 file_tracker.pop(resolved, None)
 
-        ap.apply_commit(commit, write_fn, remove_fn)
+        for commit in commits:
+            ap.apply_commit(commit, write_fn, remove_fn)
 
         # apply_patch can include multiple operations. If we added markdown files,
         # return a MultiUIExtra so UI can render markdown previews (without showing a diff for those markdown adds).
@@ -148,16 +153,17 @@ class ApplyPatchHandler:
             items.extend(md_items)
             if diff_ui.files:
                 items.append(diff_ui)
-            return "Done!", model.MultiUIExtra(items=items)
+            return "success", output_text, model.MultiUIExtra(items=items)
 
-        return "Done!", diff_ui
+        return "success", output_text, diff_ui if diff_ui.files else None
 
     @staticmethod
-    def _commit_to_structured_diff(commit: apply_patch_module.Commit) -> model.DiffUIExtra:
+    def _changes_to_structured_diff(
+        changes: list[tuple[str, apply_patch_module.FileChange]],
+    ) -> model.DiffUIExtra:
         files: list[model.DiffFileDiff] = []
         raw_chunks: list[str] = []
-        for path in sorted(commit.changes):
-            change = commit.changes[path]
+        for path, change in changes:
             if change.type == apply_patch_module.ActionType.ADD:
                 # For markdown files created via Add File, we render content via MarkdownDocUIExtra instead of a diff.
                 if path.endswith(".md"):
@@ -190,17 +196,6 @@ class ApplyPatchHandler:
 
         raw_unified_diff = "\n".join(raw_chunks) if raw_chunks else ""
         return model.DiffUIExtra(files=files, raw_unified_diff=raw_unified_diff)
-
-    @staticmethod
-    def _commit_diff_totals(commit: apply_patch_module.Commit) -> tuple[int, int]:
-        added = 0
-        removed = 0
-        for path in sorted(commit.changes):
-            change = commit.changes[path]
-            file_diff = build_structured_file_diff(change.old_content or "", change.new_content or "", file_path=path)
-            added += file_diff.stats_add
-            removed += file_diff.stats_remove
-        return added, removed
 
 
 @register(tools.APPLY_PATCH)

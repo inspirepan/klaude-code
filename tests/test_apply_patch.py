@@ -179,8 +179,8 @@ class TestProcessPatch(BaseTempDirTest):
             process_patch(patch_text, self.open_fn, self.write_fn, self.remove_fn)
         self.assertIn("Missing File: nonexistent.txt", str(cm.exception))
 
-    def test_process_patch_duplicate_file_operations(self):
-        """Test error when same file appears multiple times"""
+    def test_process_patch_duplicate_non_update_operations_still_fail(self):
+        """Test conflicting duplicate path operations still error"""
         with open("duplicate.txt", "w", encoding="utf-8") as f:
             f.write("content")
 
@@ -194,6 +194,35 @@ class TestProcessPatch(BaseTempDirTest):
         with self.assertRaises(DiffError) as cm:
             process_patch(patch_text, self.open_fn, self.write_fn, self.remove_fn)
         self.assertIn("Duplicate Path: duplicate.txt", str(cm.exception))
+
+    def test_process_patch_is_atomic_per_file_but_partial_across_files(self):
+        """Test one file failure does not block other files"""
+        with open("file1.txt", "w", encoding="utf-8") as f:
+            f.write("alpha\nbeta\n")
+        with open("file2.txt", "w", encoding="utf-8") as f:
+            f.write("one\ntwo\n")
+
+        patch_text = """*** Begin Patch
+*** Update File: file1.txt
+-alpha
++ALPHA
+ beta
+*** Update File: file1.txt
+-gamma
++GAMMA
+ beta
+*** Update File: file2.txt
+-one
++ONE
+ two
+*** End Patch"""
+
+        process_patch(patch_text, self.open_fn, self.write_fn, self.remove_fn)
+
+        self.assertEqual(Path("file1.txt").read_text(encoding="utf-8"), "alpha\nbeta\n")
+        self.assertEqual(Path("file2.txt").read_text(encoding="utf-8"), "ONE\ntwo\n")
+        self.assertNotIn("file1.txt", self.written_files)
+        self.assertIn("file2.txt", self.written_files)
 
     def test_process_patch_complex_update(self):
         """Test complex file update with multiple chunks"""
