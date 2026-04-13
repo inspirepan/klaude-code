@@ -157,6 +157,124 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertEqual(session.file_change_summary.diff_lines_added, 3)
         self.assertEqual(session.file_change_summary.diff_lines_removed, 1)
 
+    def test_apply_patch_partially_applies_other_files_when_one_file_fails(self) -> None:
+        Path("file1.txt").write_text("alpha\nbeta\n", encoding="utf-8")
+        Path("file2.txt").write_text("one\ntwo\n", encoding="utf-8")
+        session = Session(work_dir=Path.cwd())
+        context = ToolContext(
+            file_tracker=session.file_tracker,
+            todo_context=build_todo_context(session),
+            session_id=session.id,
+            work_dir=Path.cwd(),
+            file_change_summary=session.file_change_summary,
+        )
+
+        patch_content = "\n".join(
+            [
+                "*** Begin Patch",
+                "*** Update File: file1.txt",
+                "-alpha",
+                "+ALPHA",
+                " beta",
+                "*** Update File: file1.txt",
+                "-gamma",
+                "+GAMMA",
+                " beta",
+                "*** Update File: file2.txt",
+                "-one",
+                "+ONE",
+                " two",
+                "*** End Patch",
+            ]
+        )
+
+        result = arun(ApplyPatchTool.call(json.dumps({"patch": patch_content}), context))
+
+        self.assertEqual(result.status, "success")
+        self.assertIn("Applied changes:", result.output_text)
+        self.assertIn("- file2.txt", result.output_text)
+        self.assertIn("Failed changes:", result.output_text)
+        self.assertIn("- file1.txt:", result.output_text)
+        self.assertEqual(Path("file1.txt").read_text(encoding="utf-8"), "alpha\nbeta\n")
+        self.assertEqual(Path("file2.txt").read_text(encoding="utf-8"), "ONE\ntwo\n")
+        self.assertEqual(session.file_change_summary.edited_files, [str(Path("file2.txt").resolve())])
+        self.assertIsInstance(result.ui_extra, DiffUIExtra)
+        assert isinstance(result.ui_extra, DiffUIExtra)
+        self.assertEqual([file.file_path for file in result.ui_extra.files], ["file2.txt"])
+
+    def test_apply_patch_repeated_successful_updates_report_net_file_change(self) -> None:
+        Path("data.txt").write_text("alpha\nbeta\n", encoding="utf-8")
+        session = Session(work_dir=Path.cwd())
+        context = ToolContext(
+            file_tracker=session.file_tracker,
+            todo_context=build_todo_context(session),
+            session_id=session.id,
+            work_dir=Path.cwd(),
+            file_change_summary=session.file_change_summary,
+        )
+
+        patch_content = "\n".join(
+            [
+                "*** Begin Patch",
+                "*** Update File: data.txt",
+                "-alpha",
+                "+ALPHA",
+                " beta",
+                "*** Update File: data.txt",
+                "-ALPHA",
+                "+OMEGA",
+                " beta",
+                "*** End Patch",
+            ]
+        )
+
+        result = arun(ApplyPatchTool.call(json.dumps({"patch": patch_content}), context))
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.output_text, "Done!")
+        self.assertEqual(Path("data.txt").read_text(encoding="utf-8"), "OMEGA\nbeta\n")
+        self.assertEqual(session.file_change_summary.edited_files, [str(Path("data.txt").resolve())])
+        self.assertEqual(session.file_change_summary.diff_lines_added, 1)
+        self.assertEqual(session.file_change_summary.diff_lines_removed, 1)
+        self.assertIsInstance(result.ui_extra, DiffUIExtra)
+        assert isinstance(result.ui_extra, DiffUIExtra)
+        self.assertEqual([file.file_path for file in result.ui_extra.files], ["data.txt"])
+
+    def test_apply_patch_partial_success_reports_renamed_path(self) -> None:
+        Path("rename-me.txt").write_text("alpha\n", encoding="utf-8")
+        Path("broken.txt").write_text("beta\n", encoding="utf-8")
+        session = Session(work_dir=Path.cwd())
+        context = ToolContext(
+            file_tracker=session.file_tracker,
+            todo_context=build_todo_context(session),
+            session_id=session.id,
+            work_dir=Path.cwd(),
+            file_change_summary=session.file_change_summary,
+        )
+
+        patch_content = "\n".join(
+            [
+                "*** Begin Patch",
+                "*** Update File: rename-me.txt",
+                "*** Move to: moved.txt",
+                "-alpha",
+                "+ALPHA",
+                "*** Update File: broken.txt",
+                "-missing",
+                "+BETA",
+                "*** End Patch",
+            ]
+        )
+
+        result = arun(ApplyPatchTool.call(json.dumps({"patch": patch_content}), context))
+
+        self.assertEqual(result.status, "success")
+        self.assertIn("Applied changes:", result.output_text)
+        self.assertIn("- rename-me.txt -> moved.txt", result.output_text)
+        self.assertIn("Failed changes:", result.output_text)
+        self.assertTrue(Path("moved.txt").exists())
+        self.assertFalse(Path("rename-me.txt").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
