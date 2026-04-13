@@ -92,7 +92,9 @@ class ApplyPatchHandler:
                     tracked_path = change.move_path if change.move_path else change_path
                     resolved = resolve_path(tracked_path)
                     file_change_summary.record_edited(resolved)
-                file_diff = build_structured_file_diff(change.old_content or "", change.new_content or "", file_path=change_path)
+                file_diff = build_structured_file_diff(
+                    change.old_content or "", change.new_content or "", file_path=change_path
+                )
                 file_change_summary.add_diff(added=file_diff.stats_add, removed=file_diff.stats_remove, path=resolved)
 
         md_items: list[model.MarkdownDocUIExtra] = []
@@ -182,7 +184,9 @@ class ApplyPatchHandler:
                     display_path = f"{path} → {change.move_path}"
                     to_path = change.move_path
                 files.append(
-                    build_structured_file_diff(change.old_content or "", change.new_content or "", file_path=display_path)
+                    build_structured_file_diff(
+                        change.old_content or "", change.new_content or "", file_path=display_path
+                    )
                 )
                 raw = build_unified_diff_text(
                     change.old_content or "", change.new_content or "", from_file=path, to_file=to_path
@@ -192,6 +196,7 @@ class ApplyPatchHandler:
 
         raw_unified_diff = "\n".join(raw_chunks) if raw_chunks else ""
         return model.DiffUIExtra(files=files, raw_unified_diff=raw_unified_diff)
+
 
 @register(tools.APPLY_PATCH)
 class ApplyPatchTool(ToolABC):

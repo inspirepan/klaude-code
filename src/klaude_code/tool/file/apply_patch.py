@@ -3,7 +3,7 @@ https://github.com/openai/openai-cookbook/blob/main/examples/gpt-5/apply_patch.p
 """
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -59,15 +59,23 @@ class PatchSection(BaseModel):
     text: str
 
 
+def _new_patch_section_list() -> list[PatchSection]:
+    return []
+
+
 class PatchGroup(BaseModel):
     path: str
-    sections: list[PatchSection] = Field(default_factory=list)
+    sections: list[PatchSection] = Field(default_factory=_new_patch_section_list)
+
+
+def _new_commit_list() -> list[Commit]:
+    return []
 
 
 class PatchSuccess(BaseModel):
     path: str
     change: FileChange
-    commits: list[Commit] = Field(default_factory=list)
+    commits: list[Commit] = Field(default_factory=_new_commit_list)
 
 
 class PatchFailure(BaseModel):
@@ -75,9 +83,17 @@ class PatchFailure(BaseModel):
     error: str
 
 
+def _new_patch_success_list() -> list[PatchSuccess]:
+    return []
+
+
+def _new_patch_failure_list() -> list[PatchFailure]:
+    return []
+
+
 class PatchResult(BaseModel):
-    successes: list[PatchSuccess] = Field(default_factory=list)
-    failures: list[PatchFailure] = Field(default_factory=list)
+    successes: list[PatchSuccess] = Field(default_factory=_new_patch_success_list)
+    failures: list[PatchFailure] = Field(default_factory=_new_patch_failure_list)
 
 
 class Parser(BaseModel):
@@ -557,7 +573,7 @@ def build_patch_result(text: str, open_fn: Callable[[str], str]) -> PatchResult:
     return result
 
 
-def iter_commits(result: PatchResult):
+def iter_commits(result: PatchResult) -> Iterator[Commit]:
     for success in result.successes:
         yield from success.commits
 
