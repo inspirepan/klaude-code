@@ -150,10 +150,6 @@ def _build_copilot_dynamic_headers(param: llm_param.LLMCallParameter) -> dict[st
     }
     if _has_copilot_vision_input(param.input):
         headers["Copilot-Vision-Request"] = "true"
-    session_id = param.session_id or ""
-    if session_id:
-        headers["conversation_id"] = session_id
-        headers["session_id"] = session_id
     return headers
 
 
