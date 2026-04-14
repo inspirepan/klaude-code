@@ -88,8 +88,6 @@ class OpenAICompatibleClient(LLMClientABC):
         except (ValueError, OSError) as e:
             return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")
 
-        extra_headers: dict[str, str] = {"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)}
-
         log_debug(
             json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
             debug_type=DebugType.LLM_PAYLOAD,
@@ -99,7 +97,6 @@ class OpenAICompatibleClient(LLMClientABC):
             stream = await self.client.chat.completions.create(
                 **payload,
                 extra_body=extra_body,
-                extra_headers=extra_headers,
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
             return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")

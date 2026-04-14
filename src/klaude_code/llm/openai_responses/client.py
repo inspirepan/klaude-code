@@ -435,7 +435,6 @@ class ResponsesClient(LLMClientABC):
             stream = await self.client.responses.create(
                 **payload,
                 stream=True,
-                extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
             error_message = f"{e.__class__.__name__} {e!s}"
