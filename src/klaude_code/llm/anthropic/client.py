@@ -436,7 +436,6 @@ class AnthropicClient(LLMClientABC):
         try:
             stream = self.client.beta.messages.create(
                 **payload,
-                extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
             )
             return AnthropicLLMStream(stream, param=param, metadata_tracker=metadata_tracker)
         except (APIError, httpx.HTTPError) as e:

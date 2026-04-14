@@ -342,6 +342,40 @@ def normalize_image_data_url(url: str, *, max_dimension: int = MAX_IMAGE_DIMENSI
     return f"data:{mime_type};base64,{encoded}"
 
 
+def freeze_image_for_history(
+    image: message.ImageURLPart | message.ImageFilePart,
+) -> message.ImageURLPart | message.ImageFilePart:
+    """Freeze an image into a stable history representation.
+
+    History images should not be re-encoded on later requests, otherwise prompt
+    prefixes can drift between turns. File-backed images are converted to data
+    URLs once when they enter history. Existing URL-backed images are marked as
+    frozen after a one-time normalization pass for inline data URLs.
+    """
+
+    if isinstance(image, message.ImageURLPart):
+        url = normalize_image_data_url(image.url) if image.url.startswith("data:") else image.url
+        return message.ImageURLPart(
+            url=url,
+            id=image.id,
+            frozen=True,
+            source_file_path=image.source_file_path,
+        )
+
+    url = image_file_to_data_url(image)
+    if url is None:
+        return image
+    return message.ImageURLPart(url=url, frozen=True, source_file_path=image.file_path)
+
+
+def image_url_to_request_url(image: message.ImageURLPart, *, max_dimension: int = MAX_IMAGE_DIMENSION) -> str:
+    """Return the URL to send to the model for an ImageURLPart."""
+
+    if image.frozen:
+        return image.url
+    return normalize_image_data_url(image.url, max_dimension=max_dimension)
+
+
 def image_file_to_data_url(image: message.ImageFilePart, *, max_dimension: int = MAX_IMAGE_DIMENSION) -> str | None:
     """Load an image file from disk and encode it as a base64 data URL.
 

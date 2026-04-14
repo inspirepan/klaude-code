@@ -431,6 +431,8 @@ def get_last_user_message_image_paths(session: Session) -> list[str]:
             for part in item.parts:
                 if isinstance(part, message.ImageFilePart):
                     paths.append(part.file_path)
+                elif isinstance(part, message.ImageURLPart) and part.source_file_path:
+                    paths.append(part.source_file_path)
             return paths
     return []
 

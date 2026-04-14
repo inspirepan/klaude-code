@@ -18,7 +18,12 @@ from anthropic.types.beta.beta_tool_use_block_param import BetaToolUseBlockParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
-from klaude_code.llm.image import MAX_IMAGE_DIMENSION, image_file_to_data_url, normalize_image_data_url, parse_data_url
+from klaude_code.llm.image import (
+    MAX_IMAGE_DIMENSION,
+    image_file_to_data_url,
+    image_url_to_request_url,
+    parse_data_url,
+)
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
     ImagePart,
@@ -55,7 +60,7 @@ def _image_part_to_block(image: ImagePart, *, max_dimension: int) -> BetaImageBl
     url = (
         image_file_to_data_url(image, max_dimension=max_dimension)
         if isinstance(image, message.ImageFilePart)
-        else normalize_image_data_url(image.url, max_dimension=max_dimension)
+        else image_url_to_request_url(image, max_dimension=max_dimension)
     )
     if url is None:
         return None

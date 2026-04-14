@@ -3,9 +3,11 @@ from base64 import b64decode
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from klaude_code.llm import image as image_module
 from klaude_code.llm.anthropic.input import convert_history_to_input as anthropic_history
 
 if TYPE_CHECKING:
@@ -70,6 +72,30 @@ def test_anthropic_history_includes_image_blocks():
     assert first_tool_block["type"] == "text"
     second_tool_block = _ensure_dict(tool_blocks[1])
     assert second_tool_block["type"] == "image"
+
+
+def test_anthropic_history_keeps_frozen_user_images_stable_when_more_images_are_added(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    frozen_old = message.ImageURLPart(url=SAMPLE_DATA_URL, id="old", frozen=True)
+    frozen_new = message.ImageURLPart(url=SAMPLE_DATA_URL, id="new", frozen=True)
+    history: list[message.Message] = [
+        message.UserMessage(parts=_parts(message.TextPart(text="first"), frozen_old)),
+        message.UserMessage(parts=_parts(message.TextPart(text="second"), frozen_new)),
+    ]
+
+    def _fail(_url: str, *, max_dimension: int = image_module.MAX_IMAGE_DIMENSION) -> str:
+        raise AssertionError(
+            f"normalize_image_data_url should not be called for frozen history images: {max_dimension}"
+        )
+
+    monkeypatch.setattr(image_module, "normalize_image_data_url", _fail)
+
+    messages = anthropic_history(history, model_name=None)
+    first = _ensure_dict(messages[0])
+    first_blocks = _ensure_list(first["content"])
+    first_image = _ensure_dict(first_blocks[1])
+    assert _ensure_dict(first_image["source"])["data"] == SAMPLE_IMAGE_BASE64
 
 
 def test_openai_compatible_history_includes_image_url_parts():

@@ -4,7 +4,8 @@ from pathlib import Path
 import pytest
 from prompt_toolkit.document import Document
 
-from klaude_code.agent.attachments import at_file_reader_attachment
+from klaude_code.agent.attachments import at_file_reader_attachment, image_attachment
+from klaude_code.llm import image as image_module
 from klaude_code.protocol import events, message, model
 from klaude_code.session.session import Session
 from klaude_code.tui.components.developer import render_developer_message
@@ -136,3 +137,24 @@ def test_at_file_render_pattern_ignores_mid_word_at() -> None:
     # But it should still match when @ starts a token at line start or after space
     assert INLINE_RENDER_PATTERN.search("@src/file.py") is not None
     assert INLINE_RENDER_PATTERN.search("See @src/file.py for details") is not None
+
+
+def test_image_attachment_keeps_display_paths_for_frozen_history_images(tmp_path: Path) -> None:
+    image_path = tmp_path / "pasted.png"
+    image_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+    image_path.write_bytes(image_bytes)
+
+    frozen = image_module.freeze_image_for_history(
+        message.ImageFilePart(file_path=str(image_path), mime_type="image/png"),
+    )
+    assert isinstance(frozen, message.ImageURLPart)
+
+    session = Session(work_dir=tmp_path)
+    session.conversation_history.append(message.UserMessage(parts=[message.TextPart(text="look"), frozen]))
+
+    attachment = _arun(image_attachment(session))
+    assert attachment is not None
+    assert attachment.ui_extra is not None
+    user_image_items = [item for item in attachment.ui_extra.items if isinstance(item, model.UserImagesUIItem)]
+    assert len(user_image_items) == 1
+    assert user_image_items[0].paths == [str(image_path)]

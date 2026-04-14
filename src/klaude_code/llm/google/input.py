@@ -11,7 +11,7 @@ from typing import Any, cast
 from google.genai import types
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
-from klaude_code.llm.image import image_file_to_data_url, normalize_image_data_url, parse_data_url
+from klaude_code.llm.image import image_file_to_data_url, image_url_to_request_url, parse_data_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
     ImagePart,
@@ -30,11 +30,7 @@ def _data_url_to_blob(url: str) -> types.Blob:
 
 
 def _image_part_to_part(image: ImagePart) -> types.Part | None:
-    url = (
-        image_file_to_data_url(image)
-        if isinstance(image, message.ImageFilePart)
-        else normalize_image_data_url(image.url)
-    )
+    url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image_url_to_request_url(image)
     if url is None:
         return None
     if url.startswith("data:"):
@@ -44,11 +40,7 @@ def _image_part_to_part(image: ImagePart) -> types.Part | None:
 
 
 def _image_part_to_function_response_part(image: ImagePart) -> types.FunctionResponsePart | None:
-    url = (
-        image_file_to_data_url(image)
-        if isinstance(image, message.ImageFilePart)
-        else normalize_image_data_url(image.url)
-    )
+    url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image_url_to_request_url(image)
     if url is None:
         return None
     if url.startswith("data:"):

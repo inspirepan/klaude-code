@@ -125,6 +125,8 @@ class ImageURLPart(BaseModel):
     type: Literal["image_url"] = "image_url"
     url: str
     id: str | None = None
+    frozen: bool = False
+    source_file_path: str | None = None
 
 
 class ImageFilePart(BaseModel):

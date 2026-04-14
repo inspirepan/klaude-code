@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMCallParameter, LLMConfigParameter
 
 from klaude_code.const import DEFAULT_MAX_TOKENS, EMPTY_TOOL_OUTPUT_MESSAGE
-from klaude_code.llm.image import image_file_to_data_url, normalize_image_data_url
+from klaude_code.llm.image import image_file_to_data_url, image_url_to_request_url
 from klaude_code.protocol import message
 
 ImagePart = message.ImageURLPart | message.ImageFilePart
@@ -97,7 +97,7 @@ def build_chat_content_parts(
         if isinstance(part, message.TextPart):
             parts.append({"type": "text", "text": part.text})
         elif isinstance(part, message.ImageURLPart):
-            parts.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(part.url)}})
+            parts.append({"type": "image_url", "image_url": {"url": image_url_to_request_url(part)}})
         elif isinstance(part, message.ImageFilePart) and (url := image_file_to_data_url(part)) is not None:
             parts.append({"type": "image_url", "image_url": {"url": url}})
     if attachment.text:
@@ -106,7 +106,7 @@ def build_chat_content_parts(
         if isinstance(image, message.ImageFilePart) and (url := image_file_to_data_url(image)) is not None:
             parts.append({"type": "image_url", "image_url": {"url": url}})
         elif isinstance(image, message.ImageURLPart):
-            parts.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(image.url)}})
+            parts.append({"type": "image_url", "image_url": {"url": image_url_to_request_url(image)}})
     if not parts:
         parts.append({"type": "text", "text": ""})
     return parts
@@ -130,13 +130,13 @@ def build_tool_message(
             if (url := image_file_to_data_url(part)) is not None:
                 content.append({"type": "image_url", "image_url": {"url": url}})
         elif isinstance(part, message.ImageURLPart):
-            content.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(part.url)}})
+            content.append({"type": "image_url", "image_url": {"url": image_url_to_request_url(part)}})
     for image in attachment.images:
         if isinstance(image, message.ImageFilePart):
             if (url := image_file_to_data_url(image)) is not None:
                 content.append({"type": "image_url", "image_url": {"url": url}})
         else:
-            content.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(image.url)}})
+            content.append({"type": "image_url", "image_url": {"url": image_url_to_request_url(image)}})
     return {
         "role": "tool",
         "content": content,
@@ -170,13 +170,13 @@ def build_tool_message_for_chat_completions(
             if (url := image_file_to_data_url(part)) is not None:
                 image_urls.append({"type": "image_url", "image_url": {"url": url}})
         elif isinstance(part, message.ImageURLPart):
-            image_urls.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(part.url)}})
+            image_urls.append({"type": "image_url", "image_url": {"url": image_url_to_request_url(part)}})
     for image in attachment.images:
         if isinstance(image, message.ImageFilePart):
             if (url := image_file_to_data_url(image)) is not None:
                 image_urls.append({"type": "image_url", "image_url": {"url": url}})
         else:
-            image_urls.append({"type": "image_url", "image_url": {"url": normalize_image_data_url(image.url)}})
+            image_urls.append({"type": "image_url", "image_url": {"url": image_url_to_request_url(image)}})
 
     tool_message: dict[str, object] = {
         "role": "tool",

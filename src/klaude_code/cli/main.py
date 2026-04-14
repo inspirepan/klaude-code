@@ -313,19 +313,23 @@ def main_callback(
 
             session_meta = Session.load_meta(session_id, work_dir=Path.cwd())
             cfg = load_config()
+            main_model = (cfg.main_model.strip() or None) if cfg.main_model else None
 
             if session_meta.model_config_name:
+                session_model = session_meta.model_config_name.strip()
                 try:
-                    model_is_known = cfg.has_model_config_name(session_meta.model_config_name)
+                    model_is_available = (
+                        bool(session_model) and cfg.resolve_model_location_prefer_available(session_model) is not None
+                    )
                 except ValueError:
-                    model_is_known = False
+                    model_is_available = False
 
-                if model_is_known:
-                    chosen_model = session_meta.model_config_name
+                if model_is_available:
+                    chosen_model = session_model
                 else:
                     log(
                         (
-                            f"Warning: session model '{session_meta.model_config_name}' is not defined in config; falling back to default",
+                            f"Warning: session model '{session_meta.model_config_name}' is not currently available",
                             "yellow",
                         )
                     )
@@ -341,12 +345,16 @@ def main_callback(
                     if len(matches) == 1:
                         chosen_model = matches[0]
 
+            if chosen_model is None:
+                chosen_model = main_model
+
         # If still no model, check main_model; if not configured, trigger interactive selection
         if chosen_model is None:
             from klaude_code.config import load_config
 
             cfg = load_config()
-            if cfg.main_model is None:
+            main_model = (cfg.main_model.strip() or None) if cfg.main_model else None
+            if main_model is None:
                 model_result = select_model_interactive()
                 if model_result.status != ModelSelectStatus.SELECTED or model_result.model is None:
                     raise typer.Exit(1)
@@ -358,6 +366,8 @@ def main_callback(
 
                 asyncio.run(cfg.save())
                 log(f"Saved main_model={chosen_model} to {config_path}")
+            else:
+                chosen_model = main_model
 
         debug_enabled, log_path = prepare_debug_logging(debug)
 
