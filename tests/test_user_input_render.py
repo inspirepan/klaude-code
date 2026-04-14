@@ -189,3 +189,12 @@ class TestRenderAtAndSkillPatterns:
 
         assert all(segment.text == " " * len(USER_MESSAGE_MARK) for segment in wrapped_prompt_segments)
         assert all(segment.style == prompt_style for segment in wrapped_prompt_segments)
+
+    def test_render_user_input_keeps_background_for_bash_mode(self):
+        lines = rendered_segments("!pnpm lint [image /tmp/example.png]")
+
+        expected_bg = Console(theme=get_theme().app_theme).get_style(ThemeKey.USER_INPUT.value).bgcolor
+        content_segments = [segment for segment in lines[0][1:] if segment.text]
+
+        assert content_segments
+        assert all(segment.style is not None and segment.style.bgcolor == expected_bg for segment in content_segments)

@@ -22,6 +22,13 @@ INLINE_RENDER_PATTERN = re.compile(
 USER_MESSAGE_MARK = "❯ "
 
 
+def render_bash_input_line(text: str) -> Text:
+    """Render a bash input line with syntax colors on top of the user message background."""
+    highlighted = highlight_bash_command(text)
+    highlighted.style = ThemeKey.USER_INPUT
+    return highlighted
+
+
 def render_at_and_skill_patterns(
     text: str,
     at_style: str = ThemeKey.USER_INPUT_AT_PATTERN,
@@ -65,10 +72,10 @@ def build_user_input_rows(content: str) -> list[tuple[Text, Text]]:
             line = line.expandtabs(TAB_EXPAND_WIDTH)
 
         if is_bash_mode and i == 0:
-            renderables.append(highlight_bash_command(line[1:]))
+            renderables.append(render_bash_input_line(line[1:]))
             continue
         if is_bash_mode and i > 0:
-            renderables.append(highlight_bash_command(line))
+            renderables.append(render_bash_input_line(line))
             continue
 
         if available_skill_names is None and "/" in line:
