@@ -255,3 +255,30 @@ def test_image_file_to_data_url_corrects_wrong_extension(
     assert result is not None
     assert result.startswith("data:image/png;base64,")
     assert _payload_from_data_url(result) == png_bytes
+
+
+def test_freeze_image_for_history_converts_file_part_to_frozen_data_url(tmp_path: Path) -> None:
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+    path = tmp_path / "history.png"
+    path.write_bytes(png_bytes)
+
+    frozen = image_module.freeze_image_for_history(
+        message.ImageFilePart(file_path=str(path), mime_type="image/png"),
+    )
+
+    assert isinstance(frozen, message.ImageURLPart)
+    assert frozen.frozen is True
+    assert frozen.source_file_path == str(path)
+    assert frozen.url.startswith("data:image/png;base64,")
+    assert _payload_from_data_url(frozen.url) == png_bytes
+
+
+def test_image_url_to_request_url_keeps_frozen_data_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    frozen = message.ImageURLPart(url="data:image/png;base64,abc123", frozen=True)
+
+    def _fail(_url: str, *, max_dimension: int = image_module.MAX_IMAGE_DIMENSION) -> str:
+        raise AssertionError(f"normalize_image_data_url should not be called for frozen images: {max_dimension}")
+
+    monkeypatch.setattr(image_module, "normalize_image_data_url", _fail)
+
+    assert image_module.image_url_to_request_url(frozen, max_dimension=2000) == frozen.url

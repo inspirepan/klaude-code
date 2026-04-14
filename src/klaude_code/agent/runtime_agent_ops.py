@@ -26,6 +26,7 @@ from klaude_code.control.event_bus import event_publish_context
 from klaude_code.control.session_actor import SessionActor
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.llm.client import LLMClientABC
+from klaude_code.llm.image import freeze_image_for_history
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, model, op, user_interaction
@@ -391,14 +392,24 @@ class AgentOperationHandler:
     def _should_refresh_session_title_during_task(self, session_id: str) -> bool:
         return self.get_session_llm_clients(session_id).fast is not None
 
+    def _freeze_user_input_for_history(self, user_input: message.UserInputPayload) -> message.UserInputPayload:
+        images = user_input.images
+        if not images:
+            return user_input
+        return message.UserInputPayload(
+            text=user_input.text,
+            images=[freeze_image_for_history(image) for image in images],
+        )
+
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
+        frozen_input = self._freeze_user_input_for_history(operation.input)
         agent.session.append_history(
             [
                 message.UserMessage(
                     parts=message.parts_from_text_and_images(
-                        operation.input.text,
-                        operation.input.images,
+                        frozen_input.text,
+                        frozen_input.images,
                     )
                 )
             ]
@@ -414,7 +425,7 @@ class AgentOperationHandler:
 
         async def _run_with_event_context() -> None:
             with event_publish_context(task_id=task_id):
-                await self._run_agent_task(agent, operation.input, task_id, operation.session_id)
+                await self._run_agent_task(agent, frozen_input, task_id, operation.session_id)
 
         task: asyncio.Task[None] = asyncio.create_task(_run_with_event_context())
         self._register_task(
