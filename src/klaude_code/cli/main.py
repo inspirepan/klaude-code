@@ -318,7 +318,9 @@ def main_callback(
             if session_meta.model_config_name:
                 session_model = session_meta.model_config_name.strip()
                 try:
-                    model_is_available = bool(session_model) and cfg.resolve_model_location_prefer_available(session_model) is not None
+                    model_is_available = (
+                        bool(session_model) and cfg.resolve_model_location_prefer_available(session_model) is not None
+                    )
                 except ValueError:
                     model_is_available = False
 

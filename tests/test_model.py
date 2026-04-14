@@ -3,6 +3,7 @@ from base64 import b64decode
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -74,8 +75,8 @@ def test_anthropic_history_includes_image_blocks():
 
 
 def test_anthropic_history_keeps_frozen_user_images_stable_when_more_images_are_added(
-    monkeypatch,
-):
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     frozen_old = message.ImageURLPart(url=SAMPLE_DATA_URL, id="old", frozen=True)
     frozen_new = message.ImageURLPart(url=SAMPLE_DATA_URL, id="new", frozen=True)
     history: list[message.Message] = [
@@ -84,7 +85,9 @@ def test_anthropic_history_keeps_frozen_user_images_stable_when_more_images_are_
     ]
 
     def _fail(_url: str, *, max_dimension: int = image_module.MAX_IMAGE_DIMENSION) -> str:
-        raise AssertionError(f"normalize_image_data_url should not be called for frozen history images: {max_dimension}")
+        raise AssertionError(
+            f"normalize_image_data_url should not be called for frozen history images: {max_dimension}"
+        )
 
     monkeypatch.setattr(image_module, "normalize_image_data_url", _fail)
 

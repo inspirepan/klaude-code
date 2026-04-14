@@ -30,11 +30,7 @@ def _data_url_to_blob(url: str) -> types.Blob:
 
 
 def _image_part_to_part(image: ImagePart) -> types.Part | None:
-    url = (
-        image_file_to_data_url(image)
-        if isinstance(image, message.ImageFilePart)
-        else image_url_to_request_url(image)
-    )
+    url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image_url_to_request_url(image)
     if url is None:
         return None
     if url.startswith("data:"):
@@ -44,11 +40,7 @@ def _image_part_to_part(image: ImagePart) -> types.Part | None:
 
 
 def _image_part_to_function_response_part(image: ImagePart) -> types.FunctionResponsePart | None:
-    url = (
-        image_file_to_data_url(image)
-        if isinstance(image, message.ImageFilePart)
-        else image_url_to_request_url(image)
-    )
+    url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image_url_to_request_url(image)
     if url is None:
         return None
     if url.startswith("data:"):

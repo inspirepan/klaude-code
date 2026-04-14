@@ -150,9 +150,7 @@ def test_image_attachment_keeps_display_paths_for_frozen_history_images(tmp_path
     assert isinstance(frozen, message.ImageURLPart)
 
     session = Session(work_dir=tmp_path)
-    session.conversation_history.append(
-        message.UserMessage(parts=[message.TextPart(text="look"), frozen])
-    )
+    session.conversation_history.append(message.UserMessage(parts=[message.TextPart(text="look"), frozen]))
 
     attachment = _arun(image_attachment(session))
     assert attachment is not None
