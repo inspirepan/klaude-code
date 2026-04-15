@@ -1,8 +1,5 @@
 import re
 
-# UI markers
-THINKING_MESSAGE_MARK = "∴"
-
 
 def normalize_thinking_content(content: str) -> str:
     """Normalize thinking content for display."""

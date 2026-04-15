@@ -26,6 +26,7 @@ from klaude_code.tui.commands import (
     AppendThinking,
     EndAssistantStream,
     EndThinkingStream,
+    FlushOpenBlocks,
     PrintBlankLine,
     PrintRuleLine,
     RenderBashCommandEnd,
@@ -44,7 +45,6 @@ from klaude_code.tui.commands import (
     RenderTaskStart,
     RenderToolCall,
     RenderToolResult,
-    RenderTurnStart,
     RenderUserMessage,
     RenderWelcome,
     SpinnerStart,
@@ -426,7 +426,7 @@ class SpinnerStatusState:
                 token_parts.append(f"out {format_number(self._token_output)}")
             if self._token_thought and self._token_thought > 0:
                 if compact:
-                    token_parts.append(f"∿{format_number(self._token_thought)}")
+                    token_parts.append(f"∵{format_number(self._token_thought)}")
                 else:
                     token_parts.append(f"thought {format_number(self._token_thought)}")
             parts.append(" ".join(token_parts) if compact else " · ".join(token_parts))
@@ -494,10 +494,6 @@ class _SessionState:
     @property
     def is_sub_agent(self) -> bool:
         return self.sub_agent_state is not None
-
-    @property
-    def should_show_sub_agent_thinking_header(self) -> bool:
-        return False
 
     def should_skip_tool_activity(self, tool_name: str) -> bool:
         """Check if tool activity should be skipped for non-streaming models."""
@@ -932,9 +928,9 @@ class DisplayStateMachine:
                 )
                 return cmds
 
-            case events.TurnStartEvent() as e:
-                cmds.append(RenderTurnStart(e))
+            case events.TurnStartEvent():
                 if not is_replay:
+                    cmds.append(FlushOpenBlocks())
                     if s.is_sub_agent:
                         s.clear_status_activity()
                     else:
@@ -945,13 +941,7 @@ class DisplayStateMachine:
 
             case events.ThinkingStartEvent() as e:
                 if s.is_sub_agent:
-                    if not s.should_show_sub_agent_thinking_header:
-                        return []
-                    s.thinking_stream_active = True
-                    cmds.append(StartThinkingStream(session_id=e.session_id))
-                    if not is_replay:
-                        cmds.extend(self._spinner_update_commands())
-                    return cmds
+                    return []
                 if not self._is_primary(e.session_id):
                     return []
                 s.thinking_stream_active = True
@@ -966,9 +956,6 @@ class DisplayStateMachine:
 
             case events.ThinkingDeltaEvent() as e:
                 if s.is_sub_agent:
-                    if not s.should_show_sub_agent_thinking_header:
-                        return []
-                    cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
                     return cmds
 
                 if not self._is_primary(e.session_id):
@@ -978,13 +965,7 @@ class DisplayStateMachine:
 
             case events.ThinkingEndEvent() as e:
                 if s.is_sub_agent:
-                    if not s.should_show_sub_agent_thinking_header:
-                        return []
-                    s.thinking_stream_active = False
-                    cmds.append(EndThinkingStream(session_id=e.session_id))
-                    if not is_replay:
-                        cmds.extend(self._spinner_update_commands())
-                    return cmds
+                    return []
                 if not self._is_primary(e.session_id):
                     return []
                 s.thinking_stream_active = False
@@ -1315,7 +1296,7 @@ class DisplayStateMachine:
                             )
                         )
                 if e.show_notice:
-                    cmds.append(RenderInterrupt(session_id=e.session_id))
+                    cmds.append(RenderInterrupt())
                 return cmds
 
             case events.ErrorEvent() as e:

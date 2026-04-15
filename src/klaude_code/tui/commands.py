@@ -14,6 +14,11 @@ class RenderCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class FlushOpenBlocks(RenderCommand):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
 class RenderWelcome(RenderCommand):
     event: events.WelcomeEvent
 
@@ -59,11 +64,6 @@ class RenderBashCommandEnd(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
-class RenderTurnStart(RenderCommand):
-    event: events.TurnStartEvent
-
-
-@dataclass(frozen=True, slots=True)
 class RenderToolCall(RenderCommand):
     event: events.ToolCallEvent
 
@@ -86,7 +86,7 @@ class RenderTaskFinish(RenderCommand):
 
 @dataclass(frozen=True, slots=True)
 class RenderInterrupt(RenderCommand):
-    session_id: str
+    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,12 +124,6 @@ class AppendAssistant(RenderCommand):
 @dataclass(frozen=True, slots=True)
 class EndAssistantStream(RenderCommand):
     session_id: str
-
-
-@dataclass(frozen=True, slots=True)
-class RenderThinkingHeader(RenderCommand):
-    session_id: str
-    header: str
 
 
 @dataclass(frozen=True, slots=True)

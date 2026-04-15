@@ -7,13 +7,15 @@ from rich.console import Console
 
 from klaude_code.protocol import events, message, model, tools
 from klaude_code.tui.commands import (
+    FlushOpenBlocks,
+    PrintBlankLine,
     RenderDeveloperMessage,
     RenderError,
     RenderToolCall,
     RenderToolResult,
-    RenderTurnStart,
     RenderUserMessage,
 )
+from klaude_code.tui.machine import DisplayStateMachine
 from klaude_code.tui.renderer import TUICommandRenderer
 
 
@@ -33,7 +35,6 @@ def test_turn_start_does_not_add_extra_blank_line_before_retry_error() -> None:
         renderer.execute(
             [
                 RenderUserMessage(event=events.UserMessageEvent(session_id=session_id, content="retry me")),
-                RenderTurnStart(event=events.TurnStartEvent(session_id=session_id)),
                 RenderError(
                     event=events.ErrorEvent(session_id=session_id, error_message="Retrying 1/10", can_retry=True)
                 ),
@@ -100,7 +101,7 @@ def test_developer_messages_stay_grouped_until_turn_boundary() -> None:
                         ),
                     )
                 ),
-                RenderTurnStart(event=events.TurnStartEvent(session_id=session_id)),
+                PrintBlankLine(),
             ]
         )
     )
@@ -143,3 +144,33 @@ def test_tool_call_and_result_stay_grouped_until_next_visible_block() -> None:
     rendered = output.getvalue()
     assert "next" in rendered
     assert "\n\n└ hi" not in rendered
+
+
+def test_turn_start_flushes_open_tool_block_before_spinner_updates() -> None:
+    renderer, output = _renderer_and_output()
+    machine = DisplayStateMachine()
+    session_id = "main"
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderToolCall(
+                    event=events.ToolCallEvent(
+                        session_id=session_id,
+                        tool_call_id="tool-1",
+                        tool_name=tools.BASH,
+                        arguments='{"command":"echo hi"}',
+                    )
+                )
+            ]
+        )
+    )
+
+    commands = machine.transition(events.TurnStartEvent(session_id=session_id))
+
+    assert any(isinstance(cmd, FlushOpenBlocks) for cmd in commands)
+
+    asyncio.run(renderer.execute(commands))
+
+    assert renderer._tool_block_open is False
+    assert output.getvalue().endswith("\n\n")
