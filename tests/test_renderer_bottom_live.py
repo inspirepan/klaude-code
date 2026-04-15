@@ -139,3 +139,26 @@ def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
     )
 
     assert len(lines) == len(current_stream_lines)
+
+
+def test_bottom_renderable_adds_blank_line_above_bash_live_region() -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer()
+    output = io.StringIO()
+    renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
+    renderer.console.push_theme(renderer.themes.markdown_theme)
+
+    renderer._spinner_visible = True
+    renderer._bash_stream_active = True
+    renderer._stream_renderable = Text("bash output")
+    renderer._stream_last_height = 1
+    renderer._stream_last_width = renderer.console.size.width
+    renderer._stream_max_height = 1
+
+    renderable = renderer._bottom_renderable()
+    lines = renderer.console.render_lines(renderable, renderer.console.options, pad=False)
+    line_text = ["".join(segment.text for segment in line if not segment.control) for line in lines]
+
+    assert line_text[0].strip() == ""
+    assert line_text[1] == "bash output"

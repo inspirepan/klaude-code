@@ -431,11 +431,15 @@ class TUICommandRenderer:
         self._bottom_live.start()
 
     def _bottom_renderable(self) -> RenderableType:
+        top_gap_part: RenderableType = Group()
         stream_part: RenderableType = Group()
         has_stream_renderable = MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._stream_renderable is not None
-        # Keep a visible separation between the bottom status line (spinner)
-        # and the main terminal output.
-        gap_part: RenderableType = Text(" ") if (self._spinner_visible and self._bash_stream_active) else Group()
+        # Keep bash live output visually separated from the main terminal output.
+        if self._spinner_visible and self._bash_stream_active:
+            top_gap_part = Text(" ")
+
+        # Keep a visible separation between live stream content and the bottom status line.
+        gap_part: RenderableType = Group()
 
         if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED:
             stream = self._stream_renderable
@@ -459,14 +463,10 @@ class TUICommandRenderer:
                 if pad_lines:
                     stream = Padding(stream, (0, 0, pad_lines, 0))
                 stream_part = stream
-                gap_part = (
-                    Text(" ")
-                    if (self._spinner_visible and (self._bash_stream_active or self._stream_renderable))
-                    else Group()
-                )
+                gap_part = Text(" ") if self._spinner_visible else Group()
 
         status_part: RenderableType = self._status_spinner if self._spinner_visible else Group()
-        renderable = Group(stream_part, gap_part, status_part)
+        renderable = Group(top_gap_part, stream_part, gap_part, status_part)
         height = len(self.console.render_lines(renderable, self.console.options, pad=False))
         if height <= 0:
             self._bottom_last_height = 0
