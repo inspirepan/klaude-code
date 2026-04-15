@@ -8,6 +8,8 @@ from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code.protocol import events
+
+
 def test_bottom_height_shrink_padding_not_applied_with_live_stream() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 

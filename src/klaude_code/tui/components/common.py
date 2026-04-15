@@ -64,7 +64,9 @@ def truncate_middle(
     if max_lines <= 0:
         truncated_lines = text.split("\n")
         remaining = max(0, len(truncated_lines))
-        return Text(format_more_lines_indicator(remaining, indent=more_lines_indent), style=ThemeKey.TOOL_RESULT_TRUNCATED)
+        return Text(
+            format_more_lines_indicator(remaining, indent=more_lines_indent), style=ThemeKey.TOOL_RESULT_TRUNCATED
+        )
 
     lines = [line for line in text.split("\n") if line.strip()]
     truncated_lines = 0
