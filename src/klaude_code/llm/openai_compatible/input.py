@@ -14,6 +14,7 @@ from klaude_code.llm.input_common import (
     build_tool_message_for_chat_completions,
     collect_text_content,
 )
+from klaude_code.prompts.system_prompt import strip_system_prompt_boundary
 from klaude_code.protocol import llm_param, message
 
 
@@ -35,6 +36,7 @@ def convert_history_to_input(
 ) -> list[chat.ChatCompletionMessageParam]:
     """Convert a list of messages to chat completion params."""
     del model_name
+    system = strip_system_prompt_boundary(system)
     messages: list[chat.ChatCompletionMessageParam] = (
         [cast(chat.ChatCompletionMessageParam, {"role": "system", "content": system})] if system else []
     )

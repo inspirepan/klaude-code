@@ -44,6 +44,7 @@ from klaude_code.llm.openai_responses.input import (
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
+from klaude_code.prompts.system_prompt import strip_system_prompt_boundary
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import is_claude_model_any, supports_adaptive_thinking
 
@@ -65,7 +66,7 @@ def _build_responses_payload(param: llm_param.LLMCallParameter) -> ResponseCreat
         "store": False,
         "stream": True,
         "input": inputs,
-        "instructions": param.system,
+        "instructions": strip_system_prompt_boundary(param.system),
         "tools": tools,
         "prompt_cache_key": param.session_id or "",
         # max_output_token and temperature are not supported by Copilot codex-style endpoint.

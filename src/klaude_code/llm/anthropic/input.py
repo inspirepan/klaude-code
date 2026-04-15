@@ -31,6 +31,7 @@ from klaude_code.llm.input_common import (
     merge_attachment_text,
     split_thinking_parts,
 )
+from klaude_code.prompts.system_prompt import SYSTEM_PROMPT_DYNAMIC_BOUNDARY, split_system_prompt_for_cache
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import model_supports_unsigned_thinking
 
@@ -292,20 +293,37 @@ def convert_history_to_input(
 def convert_system_to_input(
     system: str | None, system_messages: list[message.SystemMessage] | None = None
 ) -> list[BetaTextBlockParam]:
-    parts: list[str] = []
-    if system:
-        parts.append(system)
+    blocks: list[BetaTextBlockParam] = []
+    has_explicit_cache_block = False
+
+    def append_block(text: str, *, cache_control: bool) -> None:
+        nonlocal has_explicit_cache_block
+        block: BetaTextBlockParam = {"type": "text", "text": text}
+        if cache_control:
+            block["cache_control"] = {"type": "ephemeral"}
+            has_explicit_cache_block = True
+        blocks.append(block)
+
+    static_system, dynamic_system = split_system_prompt_for_cache(system)
+    has_boundary = bool(system and SYSTEM_PROMPT_DYNAMIC_BOUNDARY in system)
+    if static_system:
+        append_block(static_system, cache_control=False)
+    if dynamic_system:
+        append_block(dynamic_system, cache_control=True)
+    elif system and not has_boundary:
+        append_block(system, cache_control=True)
+
     if system_messages:
         for msg in system_messages:
-            parts.append("\n".join(part.text for part in msg.parts))
-    if not parts:
+            system_text = "\n".join(part.text for part in msg.parts)
+            if system_text:
+                append_block(system_text, cache_control=False)
+
+    if not blocks:
         return []
-    block: BetaTextBlockParam = {
-        "type": "text",
-        "text": "\n".join(parts),
-        "cache_control": {"type": "ephemeral"},
-    }
-    return [block]
+    if not has_explicit_cache_block:
+        blocks[-1]["cache_control"] = {"type": "ephemeral"}
+    return blocks
 
 
 def convert_tool_schema(

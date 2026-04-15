@@ -54,6 +54,8 @@ REWIND_CHECKPOINT_INST = """- After each new user message, the system automatica
 
 EXTERNAL_REFS_INST = """- Pull in external references when uncertainty or risk is meaningful: unclear APIs/behavior, security-sensitive flows, migrations, performance-critical paths, or best-in-class patterns proven in open source or other language ecosystems. Prefer official docs first, then source."""
 
+SYSTEM_PROMPT_DYNAMIC_BOUNDARY = "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__"
+
 
 @cache
 def load_prompt_by_path(prompt_path: str) -> str:
@@ -123,6 +125,30 @@ def build_main_system_prompt(model_name: str, available_tools: list[llm_param.To
 
     base_prompt = load_main_base_prompt(model_name)
     return base_prompt + build_dynamic_tool_strategy_prompt(available_tools)
+
+
+def split_system_prompt_for_cache(system_prompt: str | None) -> tuple[str | None, str | None]:
+    """Split a system prompt into static and dynamic sections for cache-aware clients."""
+
+    if not system_prompt:
+        return None, None
+
+    static_part, marker, dynamic_part = system_prompt.partition(SYSTEM_PROMPT_DYNAMIC_BOUNDARY)
+    if not marker:
+        return system_prompt, None
+
+    static_text = static_part.rstrip("\n") or None
+    dynamic_text = dynamic_part.lstrip("\n") or None
+    return static_text, dynamic_text
+
+
+def strip_system_prompt_boundary(system_prompt: str | None) -> str | None:
+    """Remove the internal cache boundary marker before sending text to providers."""
+
+    static_part, dynamic_part = split_system_prompt_for_cache(system_prompt)
+    if static_part and dynamic_part:
+        return static_part + "\n\n" + dynamic_part
+    return static_part or dynamic_part
 
 
 def _get_available_commands() -> list[str]:
@@ -225,12 +251,13 @@ def load_system_prompt(
         else ""
     )
     auto_memory_prompt = _build_auto_memory_prompt(work_dir)
+    dynamic_prompt = auto_memory_prompt + _build_env_info(model_name, work_dir)
 
     return (
         base_prompt
         + git_hygiene_prompt
         + conventions_prompt
         + extended_thinking_prompt
-        + auto_memory_prompt
-        + _build_env_info(model_name, work_dir)
+        + f"\n\n{SYSTEM_PROMPT_DYNAMIC_BOUNDARY}"
+        + dynamic_prompt
     )

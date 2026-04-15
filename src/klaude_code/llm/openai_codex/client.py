@@ -25,6 +25,7 @@ from klaude_code.llm.openai_responses.input import convert_history_to_input, con
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
+from klaude_code.prompts.system_prompt import strip_system_prompt_boundary
 from klaude_code.protocol import llm_param
 
 
@@ -47,8 +48,9 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
         # max_output_token and temperature is not supported in Codex API
     }
 
-    if param.system:
-        payload["instructions"] = param.system
+    instructions = strip_system_prompt_boundary(param.system)
+    if instructions:
+        payload["instructions"] = instructions
 
     if session_id:
         payload["prompt_cache_key"] = session_id

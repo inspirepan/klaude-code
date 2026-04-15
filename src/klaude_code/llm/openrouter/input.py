@@ -18,6 +18,11 @@ from klaude_code.llm.input_common import (
     collect_text_content,
     split_thinking_parts,
 )
+from klaude_code.prompts.system_prompt import (
+    SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
+    split_system_prompt_for_cache,
+    strip_system_prompt_boundary,
+)
 from klaude_code.protocol import message
 from klaude_code.protocol.model_id import is_claude_model as is_claude_model
 from klaude_code.protocol.model_id import is_glm_model as is_glm_model
@@ -110,51 +115,49 @@ def convert_history_to_input(
     """Convert a list of messages to chat completion params."""
     use_cache_control = is_claude_model(model_name)
 
-    messages: list[chat.ChatCompletionMessageParam] = (
-        [
-            cast(
-                chat.ChatCompletionMessageParam,
-                {
-                    "role": "system",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": system,
-                            "cache_control": {"type": "ephemeral"},
-                        }
-                    ],
-                },
+    messages: list[chat.ChatCompletionMessageParam] = []
+    has_explicit_system_cache_control = False
+
+    def append_system_message(text: str, *, cache_control: bool) -> None:
+        nonlocal has_explicit_system_cache_control
+        if use_cache_control:
+            block: dict[str, object] = {"type": "text", "text": text}
+            if cache_control:
+                block["cache_control"] = {"type": "ephemeral"}
+                has_explicit_system_cache_control = True
+            messages.append(
+                cast(
+                    chat.ChatCompletionMessageParam,
+                    {
+                        "role": "system",
+                        "content": [block],
+                    },
+                )
             )
-        ]
-        if system and use_cache_control
-        else ([cast(chat.ChatCompletionMessageParam, {"role": "system", "content": system})] if system else [])
-    )
+            return
+
+        messages.append(cast(chat.ChatCompletionMessageParam, {"role": "system", "content": text}))
+
+    static_system, dynamic_system = split_system_prompt_for_cache(system)
+    has_boundary = bool(system and SYSTEM_PROMPT_DYNAMIC_BOUNDARY in system)
+    if use_cache_control:
+        if static_system:
+            append_system_message(static_system, cache_control=False)
+        if dynamic_system:
+            append_system_message(dynamic_system, cache_control=True)
+        elif system and not has_boundary:
+            append_system_message(system, cache_control=True)
+    else:
+        flattened_system = strip_system_prompt_boundary(system)
+        if flattened_system:
+            append_system_message(flattened_system, cache_control=False)
 
     for msg, attachment in attach_developer_messages(history):
         match msg:
             case message.SystemMessage():
                 system_text = "\n".join(part.text for part in msg.parts)
                 if system_text:
-                    if use_cache_control:
-                        messages.append(
-                            cast(
-                                chat.ChatCompletionMessageParam,
-                                {
-                                    "role": "system",
-                                    "content": [
-                                        {
-                                            "type": "text",
-                                            "text": system_text,
-                                            "cache_control": {"type": "ephemeral"},
-                                        }
-                                    ],
-                                },
-                            )
-                        )
-                    else:
-                        messages.append(
-                            cast(chat.ChatCompletionMessageParam, {"role": "system", "content": system_text})
-                        )
+                    append_system_message(system_text, cache_control=False)
             case message.UserMessage():
                 parts = build_chat_content_parts(msg, attachment)
                 messages.append(cast(chat.ChatCompletionMessageParam, {"role": "user", "content": parts}))
@@ -169,6 +172,15 @@ def convert_history_to_input(
                 messages.append(_assistant_message_to_openrouter(msg, model_name))
             case _:
                 continue
+
+    if use_cache_control and not has_explicit_system_cache_control:
+        for msg in reversed(messages):
+            if msg.get("role") != "system":
+                continue
+            content = msg.get("content")
+            if isinstance(content, list) and len(content) > 0 and isinstance(content[-1], dict):
+                content[-1]["cache_control"] = {"type": "ephemeral"}
+                break
 
     _add_cache_control(messages, use_cache_control)
     return messages
