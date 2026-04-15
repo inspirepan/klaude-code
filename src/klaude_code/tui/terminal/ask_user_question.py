@@ -21,6 +21,7 @@ from prompt_toolkit.styles.base import BaseStyle
 from prompt_toolkit.utils import get_cwidth
 from rich.console import Console
 
+from klaude_code.tui.components.common import format_more_lines_indicator
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.terminal.selector import (
     QuestionPrompt,
@@ -584,7 +585,7 @@ def select_questions[T](
             tokens.append(("class:preview_border", padding + " │\n"))
 
         if hidden_count > 0:
-            label = f"... {hidden_count} lines hidden"
+            label = format_more_lines_indicator(hidden_count)
             trimmed = _trim_to_display_width(label, inner_width)
             padding = " " * max(0, inner_width - _display_width(trimmed))
             tokens.append(("class:preview_border", f"{indent}│ "))

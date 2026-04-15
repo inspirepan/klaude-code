@@ -74,7 +74,7 @@ from klaude_code.tui.components import thinking as c_thinking
 from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components import user_input as c_user_input
 from klaude_code.tui.components import welcome as c_welcome
-from klaude_code.tui.components.common import truncate_head
+from klaude_code.tui.components.common import format_more_lines_indicator, truncate_head
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.live import CropAboveLive
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
@@ -431,11 +431,15 @@ class TUICommandRenderer:
         self._bottom_live.start()
 
     def _bottom_renderable(self) -> RenderableType:
+        top_gap_part: RenderableType = Group()
         stream_part: RenderableType = Group()
         has_stream_renderable = MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._stream_renderable is not None
-        # Keep a visible separation between the bottom status line (spinner)
-        # and the main terminal output.
-        gap_part: RenderableType = Text(" ") if (self._spinner_visible and self._bash_stream_active) else Group()
+        # Keep bash live output visually separated from the main terminal output.
+        if self._spinner_visible and self._bash_stream_active:
+            top_gap_part = Text(" ")
+
+        # Keep a visible separation between live stream content and the bottom status line.
+        gap_part: RenderableType = Group()
 
         if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED:
             stream = self._stream_renderable
@@ -459,14 +463,10 @@ class TUICommandRenderer:
                 if pad_lines:
                     stream = Padding(stream, (0, 0, pad_lines, 0))
                 stream_part = stream
-                gap_part = (
-                    Text(" ")
-                    if (self._spinner_visible and (self._bash_stream_active or self._stream_renderable))
-                    else Group()
-                )
+                gap_part = Text(" ") if self._spinner_visible else Group()
 
         status_part: RenderableType = self._status_spinner if self._spinner_visible else Group()
-        renderable = Group(stream_part, gap_part, status_part)
+        renderable = Group(top_gap_part, stream_part, gap_part, status_part)
         height = len(self.console.render_lines(renderable, self.console.options, pad=False))
         if height <= 0:
             self._bottom_last_height = 0
@@ -622,14 +622,14 @@ class TUICommandRenderer:
         rendered = Text(style=ThemeKey.TOOL_RESULT)
         if self._bash_live_hidden_lines > 0:
             rendered.append(
-                f"  … (more {self._bash_live_hidden_lines} lines)",
+                format_more_lines_indicator(self._bash_live_hidden_lines),
                 style=ThemeKey.TOOL_RESULT_TRUNCATED,
             )
             if lines:
                 rendered.append("\n")
 
         rendered.append("\n".join(lines))
-        self.set_stream_renderable(rendered, preserve_height=False)
+        self.set_stream_renderable(c_tools.indent_bash_output(rendered), preserve_height=False)
 
     def display_bash_command_delta(self, e: events.BashCommandOutputDeltaEvent) -> None:
         if not self._bash_stream_active:
@@ -669,6 +669,7 @@ class TUICommandRenderer:
                     c_sub_agent.render_sub_agent_call(
                         event.sub_agent_state,
                         self._get_session_sub_agent_color(event.session_id),
+                        code_theme=self.themes.code_theme,
                     )
                 )
                 self.print()
@@ -1054,7 +1055,7 @@ class TUICommandRenderer:
                     self._clear_open_blocks()
                     self.print()
                 case PrintRuleLine():
-                    self.console.print(Rule(characters="▰", style=ThemeKey.USER_INPUT_RULE))
+                    self.console.print(Rule(characters="◼", style=ThemeKey.USER_INPUT_RULE))
                 case TaskClockStart():
                     set_task_start()
                 case TaskClockClear():

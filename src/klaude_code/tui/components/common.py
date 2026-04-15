@@ -42,12 +42,17 @@ def create_grid(*, overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "fo
     return grid
 
 
+def format_more_lines_indicator(hidden_lines: int, *, indent: int = 0) -> str:
+    return f"{' ' * max(0, indent)}… (more {hidden_lines} lines)"
+
+
 def truncate_middle(
     text: str,
     max_lines: int = TRUNCATE_DISPLAY_MAX_LINES,
     max_line_length: int = TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
     *,
     base_style: str | Style | None = None,
+    more_lines_indent: int = 0,
 ) -> Text:
     """Truncate long text for terminal display.
 
@@ -59,7 +64,9 @@ def truncate_middle(
     if max_lines <= 0:
         truncated_lines = text.split("\n")
         remaining = max(0, len(truncated_lines))
-        return Text(f"  … (more {remaining} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED)
+        return Text(
+            format_more_lines_indicator(remaining, indent=more_lines_indent), style=ThemeKey.TOOL_RESULT_TRUNCATED
+        )
 
     lines = [line for line in text.split("\n") if line.strip()]
     truncated_lines = 0
@@ -105,7 +112,12 @@ def truncate_middle(
             out.append("\n")
 
     if truncated_lines > 0:
-        out.append_text(Text(f"  … (more {truncated_lines} lines)\n", style=ThemeKey.TOOL_RESULT_TRUNCATED))
+        out.append_text(
+            Text(
+                f"{format_more_lines_indicator(truncated_lines, indent=more_lines_indent)}\n",
+                style=ThemeKey.TOOL_RESULT_TRUNCATED,
+            )
+        )
 
     for idx, line in enumerate(tail_lines):
         append_line(out, line)
@@ -122,6 +134,7 @@ def truncate_head(
     *,
     base_style: str | Style | None = None,
     truncated_style: str | Style | None = None,
+    more_lines_indent: int = 0,
 ) -> Text:
     """Truncate text to show only the first N lines."""
     text = text.expandtabs(TAB_EXPAND_WIDTH)
@@ -162,6 +175,11 @@ def truncate_head(
         out.append("\n")
 
     remaining = len(lines) - max_lines
-    out.append_text(Text(f"  … (more {remaining} lines)", style=truncated_style or ThemeKey.TOOL_RESULT_TRUNCATED))
+    out.append_text(
+        Text(
+            format_more_lines_indicator(remaining, indent=more_lines_indent),
+            style=truncated_style or ThemeKey.TOOL_RESULT_TRUNCATED,
+        )
+    )
 
     return out

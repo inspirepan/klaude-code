@@ -8,7 +8,6 @@ from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code.protocol import events
-from klaude_code.tui.components.rich.theme import ThemeKey
 
 
 def test_bottom_height_shrink_padding_not_applied_with_live_stream() -> None:
@@ -76,12 +75,13 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail
     )
 
     assert renderer._stream_renderable is not None
-    assert isinstance(renderer._stream_renderable, Text)
-    lines = renderer._stream_renderable.plain.splitlines()
+    lines = [
+        "".join(segment.text for segment in line if not segment.control).rstrip()
+        for line in renderer.console.render_lines(renderer._stream_renderable, renderer.console.options, pad=False)
+    ]
     hidden = 12 - BASH_LIVE_TAIL_MAX_LINES
-    assert lines[0] == f"  … (more {hidden} lines)"
-    assert lines[1:] == [f"line-{i}" for i in range(hidden, 12)]
-    assert any(str(span.style) == str(ThemeKey.TOOL_RESULT_TRUNCATED) for span in renderer._stream_renderable.spans)
+    assert lines[0] == f"{' ' * 5}… (more {hidden} lines)"
+    assert lines[1:] == [f"{' ' * 5}line-{i}" for i in range(hidden, 12)]
 
 
 def test_display_bash_command_end_clears_live_tail() -> None:
@@ -112,8 +112,12 @@ def test_bash_mode_delta_uses_live_tail_renderable() -> None:
     renderer.display_bash_command_start(events.BashCommandStartEvent(session_id="s", command="echo hi"))
     renderer.display_bash_command_delta(events.BashCommandOutputDeltaEvent(session_id="s", content="hello\n"))
 
-    assert isinstance(renderer._stream_renderable, Text)
-    assert renderer._stream_renderable.plain == "hello"
+    assert renderer._stream_renderable is not None
+    lines = [
+        "".join(segment.text for segment in line if not segment.control).rstrip()
+        for line in renderer.console.render_lines(renderer._stream_renderable, renderer.console.options, pad=False)
+    ]
+    assert lines == ["     hello"]
 
 
 def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
@@ -139,3 +143,26 @@ def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
     )
 
     assert len(lines) == len(current_stream_lines)
+
+
+def test_bottom_renderable_adds_blank_line_above_bash_live_region() -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer()
+    output = io.StringIO()
+    renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
+    renderer.console.push_theme(renderer.themes.markdown_theme)
+
+    renderer._spinner_visible = True
+    renderer._bash_stream_active = True
+    renderer._stream_renderable = Padding(Text("bash output"), (0, 0, 0, 5))
+    renderer._stream_last_height = 1
+    renderer._stream_last_width = renderer.console.size.width
+    renderer._stream_max_height = 1
+
+    renderable = renderer._bottom_renderable()
+    lines = renderer.console.render_lines(renderable, renderer.console.options, pad=False)
+    line_text = ["".join(segment.text for segment in line if not segment.control).rstrip() for line in lines]
+
+    assert line_text[0].strip() == ""
+    assert line_text[1] == "     bash output"

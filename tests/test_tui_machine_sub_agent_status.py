@@ -364,7 +364,7 @@ def test_sub_agent_status_lines_cap_with_more_indicator() -> None:
     assert len(lines) == 6
     assert lines[0] == "Finding: searching 0 | Running…"
     assert lines[4] == "Finding: searching 4 | Running…"
-    assert lines[5] == "+2 more..."
+    assert lines[5] == "… (more 2 lines)"
 
 
 def test_sub_agent_finish_triggers_bottom_height_reset() -> None:

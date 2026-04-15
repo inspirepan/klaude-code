@@ -59,6 +59,7 @@ from klaude_code.tui.commands import (
     TaskClockStart,
     UpdateTerminalTitlePrefix,
 )
+from klaude_code.tui.components.common import format_more_lines_indicator
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import get_agent_active_form, get_tool_active_form, is_sub_agent_tool
@@ -651,7 +652,7 @@ class DisplayStateMachine:
 
         hidden = len(lines) - SUB_AGENT_STATUS_MAX_LINES
         visible = lines[:SUB_AGENT_STATUS_MAX_LINES]
-        visible.append(SpinnerStatusLine(text=Text(f"+{hidden} more...", style=ThemeKey.STATUS_HINT)))
+        visible.append(SpinnerStatusLine(text=Text(format_more_lines_indicator(hidden), style=ThemeKey.STATUS_HINT)))
         return tuple(visible)
 
     def _spinner_update_commands(self) -> list[RenderCommand]:
