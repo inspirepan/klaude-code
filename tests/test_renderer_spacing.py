@@ -172,5 +172,5 @@ def test_turn_start_flushes_open_tool_block_before_spinner_updates() -> None:
 
     asyncio.run(renderer.execute(commands))
 
-    assert renderer._tool_block_open is False
+    assert renderer._tool_block_open is False  # type: ignore[reportPrivateUsage]
     assert output.getvalue().endswith("\n\n")
