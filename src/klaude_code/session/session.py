@@ -177,9 +177,7 @@ class Session(BaseModel):
         if raw is not None:
             user_messages_raw = raw.get("user_messages")
             if isinstance(user_messages_raw, list):
-                return any(
-                    isinstance(msg, str) and bool(msg.strip()) for msg in cast(list[object], user_messages_raw)
-                )
+                return any(isinstance(msg, str) and bool(msg.strip()) for msg in cast(list[object], user_messages_raw))
 
         try:
             return bool(cls.load(id, work_dir=work_dir).user_messages)

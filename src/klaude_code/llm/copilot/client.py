@@ -44,9 +44,9 @@ from klaude_code.llm.openai_responses.input import (
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
-from klaude_code.prompts.system_prompt import strip_system_prompt_boundary
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import is_claude_model_any, supports_adaptive_thinking
+from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
 
 def _is_copilot_anthropic_model(model_id: str | None) -> bool:

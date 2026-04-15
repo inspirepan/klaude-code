@@ -1243,6 +1243,7 @@ class DisplayStateMachine:
                 return []
 
             case events.TaskFinishEvent() as e:
+                was_active = s.task_active
                 s.task_active = False
                 s.clear_status_activity()
                 cmds.append(RenderTaskFinish(e))
@@ -1286,7 +1287,7 @@ class DisplayStateMachine:
                     )
                 elif not is_replay:
                     cmds.extend(self._spinner_update_commands())
-                if not s.is_sub_agent:
+                if not s.is_sub_agent and was_active:
                     cmds.append(PrintRuleLine())
                     cmds.append(PrintBlankLine())
                 return cmds

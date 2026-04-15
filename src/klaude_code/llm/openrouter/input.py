@@ -18,16 +18,16 @@ from klaude_code.llm.input_common import (
     collect_text_content,
     split_thinking_parts,
 )
-from klaude_code.prompts.system_prompt import (
-    SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
-    split_system_prompt_for_cache,
-    strip_system_prompt_boundary,
-)
 from klaude_code.protocol import message
 from klaude_code.protocol.model_id import is_claude_model as is_claude_model
 from klaude_code.protocol.model_id import is_glm_model as is_glm_model
 from klaude_code.protocol.model_id import is_gpt5_model as is_gpt5_model
 from klaude_code.protocol.model_id import is_xai_model as is_xai_model
+from klaude_code.protocol.system_prompt import (
+    SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
+    split_system_prompt_for_cache,
+    strip_system_prompt_boundary,
+)
 
 
 def _assistant_message_to_openrouter(

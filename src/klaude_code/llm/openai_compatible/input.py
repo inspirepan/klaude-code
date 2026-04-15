@@ -14,8 +14,8 @@ from klaude_code.llm.input_common import (
     build_tool_message_for_chat_completions,
     collect_text_content,
 )
-from klaude_code.prompts.system_prompt import strip_system_prompt_boundary
 from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
 
 def _assistant_message_to_openai(msg: message.AssistantMessage) -> chat.ChatCompletionMessageParam:

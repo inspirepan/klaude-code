@@ -9,6 +9,18 @@ from pathlib import Path
 from klaude_code.const import ProjectPaths, find_git_repo_root, project_key_from_path
 from klaude_code.protocol import llm_param, model_id, tools
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
+from klaude_code.protocol.system_prompt import (
+    SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
+)
+from klaude_code.protocol.system_prompt import (
+    split_system_prompt_for_cache as _split_system_prompt_for_cache,
+)
+from klaude_code.protocol.system_prompt import (
+    strip_system_prompt_boundary as _strip_system_prompt_boundary,
+)
+
+split_system_prompt_for_cache = _split_system_prompt_for_cache
+strip_system_prompt_boundary = _strip_system_prompt_boundary
 
 COMMAND_DESCRIPTIONS: dict[str, str] = {
     "rg": "ripgrep - fast text search",
@@ -53,8 +65,6 @@ WRITE_CREATE_WHEN_NEEDED_INST = """- NEVER create files unless necessary for the
 REWIND_CHECKPOINT_INST = """- After each new user message, the system automatically injects a `<system-reminder>Checkpoint N</system-reminder>` marker into the conversation. These markers are rewind targets -- use the `Rewind` tool with a checkpoint ID to roll back conversation history to that point."""
 
 EXTERNAL_REFS_INST = """- Pull in external references when uncertainty or risk is meaningful: unclear APIs/behavior, security-sensitive flows, migrations, performance-critical paths, or best-in-class patterns proven in open source or other language ecosystems. Prefer official docs first, then source."""
-
-SYSTEM_PROMPT_DYNAMIC_BOUNDARY = "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__"
 
 
 @cache
@@ -125,30 +135,6 @@ def build_main_system_prompt(model_name: str, available_tools: list[llm_param.To
 
     base_prompt = load_main_base_prompt(model_name)
     return base_prompt + build_dynamic_tool_strategy_prompt(available_tools)
-
-
-def split_system_prompt_for_cache(system_prompt: str | None) -> tuple[str | None, str | None]:
-    """Split a system prompt into static and dynamic sections for cache-aware clients."""
-
-    if not system_prompt:
-        return None, None
-
-    static_part, marker, dynamic_part = system_prompt.partition(SYSTEM_PROMPT_DYNAMIC_BOUNDARY)
-    if not marker:
-        return system_prompt, None
-
-    static_text = static_part.rstrip("\n") or None
-    dynamic_text = dynamic_part.lstrip("\n") or None
-    return static_text, dynamic_text
-
-
-def strip_system_prompt_boundary(system_prompt: str | None) -> str | None:
-    """Remove the internal cache boundary marker before sending text to providers."""
-
-    static_part, dynamic_part = split_system_prompt_for_cache(system_prompt)
-    if static_part and dynamic_part:
-        return static_part + "\n\n" + dynamic_part
-    return static_part or dynamic_part
 
 
 def _get_available_commands() -> list[str]:

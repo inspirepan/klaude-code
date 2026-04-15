@@ -40,9 +40,9 @@ from klaude_code.llm.stream_parts import (
 )
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, debug_json, log_debug
-from klaude_code.prompts.system_prompt import strip_system_prompt_boundary
 from klaude_code.protocol import llm_param, message, model
 from klaude_code.protocol.model_id import supports_google_thinking
+from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
 # Unified format for Google thought signatures
 GOOGLE_THOUGHT_SIGNATURE_FORMAT = "google"

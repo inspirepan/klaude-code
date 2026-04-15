@@ -31,9 +31,9 @@ from klaude_code.llm.input_common import (
     merge_attachment_text,
     split_thinking_parts,
 )
-from klaude_code.prompts.system_prompt import SYSTEM_PROMPT_DYNAMIC_BOUNDARY, split_system_prompt_for_cache
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import model_supports_unsigned_thinking
+from klaude_code.protocol.system_prompt import SYSTEM_PROMPT_DYNAMIC_BOUNDARY, split_system_prompt_for_cache
 
 AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
 _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (

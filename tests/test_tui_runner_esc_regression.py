@@ -6,7 +6,7 @@ from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar, TypeVar, cast
 
 import pytest
 
@@ -721,6 +721,7 @@ def test_keyboard_interrupt_without_user_messages_skips_resume_hint(
     del isolated_home
 
     from klaude_code.app import runtime as app_runtime
+    from klaude_code.app.runtime_facade import RuntimeFacade
 
     session = Session.create(id="s1", work_dir=Path.cwd())
     session.ensure_meta_exists()
@@ -739,7 +740,7 @@ def test_keyboard_interrupt_without_user_messages_skips_resume_hint(
         def has_running_tasks(self) -> bool:
             return False
 
-    arun(app_runtime.handle_keyboard_interrupt(_FakeRuntime()))
+    arun(app_runtime.handle_keyboard_interrupt(cast(RuntimeFacade, _FakeRuntime())))
 
     assert any(message == "Bye!" for message in log_messages)
     assert not any(message.startswith("Resume with:") for message in log_messages)
