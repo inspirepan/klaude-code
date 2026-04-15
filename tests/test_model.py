@@ -9,6 +9,7 @@ from hypothesis import strategies as st
 
 from klaude_code.llm import image as image_module
 from klaude_code.llm.anthropic.input import convert_history_to_input as anthropic_history
+from klaude_code.llm.anthropic.input import convert_system_to_input as anthropic_system_input
 
 if TYPE_CHECKING:
     from klaude_code.protocol import message, model
@@ -72,6 +73,17 @@ def test_anthropic_history_includes_image_blocks():
     assert first_tool_block["type"] == "text"
     second_tool_block = _ensure_dict(tool_blocks[1])
     assert second_tool_block["type"] == "image"
+
+
+def test_anthropic_system_input_splits_static_and_dynamic_blocks() -> None:
+    blocks = anthropic_system_input(
+        "static\n\n__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\n\ndynamic",
+    )
+
+    assert blocks == [
+        {"type": "text", "text": "static"},
+        {"type": "text", "text": "dynamic", "cache_control": {"type": "ephemeral"}},
+    ]
 
 
 def test_anthropic_history_keeps_frozen_user_images_stable_when_more_images_are_added(

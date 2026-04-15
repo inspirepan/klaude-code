@@ -410,7 +410,7 @@ class PromptToolkitInput(InputProviderABC):
                     "question": "bold",
                     "msg": "",
                     "meta": "fg:ansibrightblack",
-                    "frame.border": "fg:ansibrightblack dim",
+                    "frame.border": "fg:ansibrightblack",
                     "search_prefix": "ansibrightblack",
                     "search_placeholder": "fg:ansibrightblack italic",
                     "search_input": "",

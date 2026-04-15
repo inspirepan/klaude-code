@@ -11,6 +11,8 @@ from klaude_code.session.session import Session
 from klaude_code.skill.loader import Skill, get_candidate_skill_dirs_for_anchor
 from klaude_code.tool.file._utils import hash_text_sha256
 
+pytestmark = pytest.mark.usefixtures("isolated_home")
+
 
 def _arun(coro):  # type: ignore
     return asyncio.run(coro)  # type: ignore

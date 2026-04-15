@@ -126,6 +126,16 @@ def test_openrouter_non_claude_keeps_tool_content_as_string() -> None:
     assert messages[0]["content"] == "plain tool result"
 
 
+def test_openrouter_non_claude_strips_internal_system_boundary() -> None:
+    messages = convert_history_to_input(
+        [],
+        system="static\n\n__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\n\ndynamic",
+        model_name="gpt-5.4",
+    )
+
+    assert messages == [{"role": "system", "content": "static\n\ndynamic"}]
+
+
 def test_openrouter_claude_rewrites_tool_content_to_list_with_cache_control() -> None:
     history: list[message.Message] = [_make_tool_result("claude tool result")]
 
@@ -134,6 +144,22 @@ def test_openrouter_claude_rewrites_tool_content_to_list_with_cache_control() ->
     assert messages[0]["role"] == "tool"
     assert messages[0]["content"] == [
         {"type": "text", "text": "claude tool result", "cache_control": {"type": "ephemeral"}}
+    ]
+
+
+def test_openrouter_claude_splits_system_prompt_cache_boundary() -> None:
+    messages = convert_history_to_input(
+        [],
+        system="static\n\n__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\n\ndynamic",
+        model_name="anthropic/claude-3-7-sonnet",
+    )
+
+    assert messages == [
+        {"role": "system", "content": [{"type": "text", "text": "static"}]},
+        {
+            "role": "system",
+            "content": [{"type": "text", "text": "dynamic", "cache_control": {"type": "ephemeral"}}],
+        },
     ]
 
 

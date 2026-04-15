@@ -3,10 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from klaude_code.prompts.system_prompt import (
+    SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
     _build_env_info,  # pyright: ignore[reportPrivateUsage]
     build_dynamic_tool_strategy_prompt,
     load_main_base_prompt,
     load_system_prompt,
+    split_system_prompt_for_cache,
+    strip_system_prompt_boundary,
 )
 from klaude_code.protocol import llm_param, tools
 
@@ -52,6 +55,21 @@ def test_load_system_prompt_includes_conventions_for_main_agent(tmp_path: Path) 
 
     assert "# Following Conventions" in prompt
     assert "NEVER assume a given library is available" in prompt
+
+
+def test_load_system_prompt_inserts_dynamic_boundary_before_auto_memory(tmp_path: Path) -> None:
+    prompt = load_system_prompt("claude-opus-4.6", available_tools=[], work_dir=tmp_path)
+    static_prompt, dynamic_prompt = split_system_prompt_for_cache(prompt)
+
+    assert SYSTEM_PROMPT_DYNAMIC_BOUNDARY in prompt
+    assert static_prompt is not None and "# auto memory" not in static_prompt
+    assert dynamic_prompt is not None and dynamic_prompt.startswith("# auto memory")
+
+
+def test_strip_system_prompt_boundary_restores_plain_prompt_text() -> None:
+    prompt = "static\n\n__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\n\ndynamic"
+
+    assert strip_system_prompt_boundary(prompt) == "static\n\ndynamic"
 
 
 def test_load_system_prompt_includes_extended_thinking_for_adaptive_models(tmp_path: Path) -> None:

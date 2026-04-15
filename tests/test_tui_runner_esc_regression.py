@@ -6,7 +6,7 @@ from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar, TypeVar, cast
 
 import pytest
 
@@ -667,6 +667,83 @@ def test_exit_keeps_non_empty_session(monkeypatch: pytest.MonkeyPatch, isolated_
     arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
 
     assert Session.exists("s1", work_dir=Path.cwd())
+
+
+def test_exit_without_user_messages_skips_resume_hint(monkeypatch: pytest.MonkeyPatch, isolated_home: Path) -> None:
+    del isolated_home
+    runner = _patch_runner_basics(monkeypatch)
+
+    session = Session.create(id="s1", work_dir=Path.cwd())
+
+    async def _seed_session() -> None:
+        session.append_history([message.AssistantMessage(parts=message.text_parts_from_str("hello"))])
+        await session.wait_for_flush()
+
+    arun(_seed_session())
+    assert Session.exists("s1", work_dir=Path.cwd())
+
+    class _FakeRuntime:
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> None:
+            return None
+
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=_FakeRuntime(),
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    log_messages: list[str] = []
+
+    def _log(*parts: object) -> None:
+        log_messages.append(" ".join(str(part) for part in parts))
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+    monkeypatch.setattr(runner, "log", _log)
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="exit")]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert Session.exists("s1", work_dir=Path.cwd())
+    assert not any(message.startswith("Session ID:") for message in log_messages)
+    assert not any(message.startswith("Resume with:") for message in log_messages)
+
+
+def test_keyboard_interrupt_without_user_messages_skips_resume_hint(
+    monkeypatch: pytest.MonkeyPatch, isolated_home: Path
+) -> None:
+    del isolated_home
+
+    from klaude_code.app import runtime as app_runtime
+    from klaude_code.app.runtime_facade import RuntimeFacade
+
+    session = Session.create(id="s1", work_dir=Path.cwd())
+    session.ensure_meta_exists()
+
+    log_messages: list[str] = []
+
+    def _log(*parts: object) -> None:
+        log_messages.append(" ".join(str(part) for part in parts))
+
+    monkeypatch.setattr(app_runtime, "log", _log)
+
+    class _FakeRuntime:
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        def has_running_tasks(self) -> bool:
+            return False
+
+    arun(app_runtime.handle_keyboard_interrupt(cast(RuntimeFacade, _FakeRuntime())))
+
+    assert any(message == "Bye!" for message in log_messages)
+    assert not any(message.startswith("Resume with:") for message in log_messages)
 
 
 def test_web_mode_transition_skips_exit_hint(monkeypatch: pytest.MonkeyPatch) -> None:

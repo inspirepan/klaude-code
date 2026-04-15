@@ -27,14 +27,14 @@ def select_session_sync(session_ids: list[str] | None = None) -> str | None:
         if opt.title:
             title.append(("fg:ansicyan bold", f"{opt.title} "))
         title.append(("class:meta", f"{opt.relative_time} · {opt.messages_count} · {opt.model_name}"))
-        title.append(("fg:ansibrightblack dim", f" · {opt.session_id}\n"))
+        title.append(("fg:ansibrightblack", f" · {opt.session_id}\n"))
         for i, msg in enumerate(display_msgs):
             is_last = i == len(display_msgs) - 1
             if msg == "⋮":
                 title.append(("class:msg", f"    {msg}\n"))
             else:
                 prefix = "╰─" if is_last else "├─"
-                title.append(("fg:ansibrightblack dim", f"    {prefix} "))
+                title.append(("fg:ansibrightblack", f"    {prefix} "))
                 title.append(("class:msg", f"{msg}\n"))
         title.append(("", "\n"))
 

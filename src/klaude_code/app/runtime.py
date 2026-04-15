@@ -337,7 +337,11 @@ async def handle_keyboard_interrupt(runtime: RuntimeFacade) -> None:
     """Handle Ctrl+C by logging and interrupting only if a task is running."""
     log("Bye!")
     session_id = runtime.current_session_id()
-    if session_id and Session.exists(session_id, work_dir=Path.cwd()):
+    if (
+        session_id
+        and Session.exists(session_id, work_dir=Path.cwd())
+        and Session.has_user_messages(session_id, work_dir=Path.cwd())
+    ):
         short_id = Session.shortest_unique_prefix(session_id, work_dir=Path.cwd())
         log(("Resume with:", "dim"), (f"klaude -r {short_id}", "green"))
     if not runtime.has_running_tasks():

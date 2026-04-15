@@ -6,8 +6,7 @@ from rich.text import Text
 
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.components.user_input import (
-    USER_MESSAGE_MARK,
-    build_user_input_rows,
+    build_user_input_lines,
     render_at_and_skill_patterns,
     render_user_input,
 )
@@ -27,7 +26,7 @@ def has_style(text: Text, style: str) -> bool:
 
 
 def first_line_text(content: str) -> Text:
-    return build_user_input_rows(content)[0][1]
+    return build_user_input_lines(content)[0]
 
 
 def rendered_lines(content: str) -> list[str]:
@@ -168,33 +167,11 @@ class TestRenderAtAndSkillPatterns:
         line = first_line_text("/Users/root/code/project")
         assert not has_style(line, ThemeKey.USER_INPUT_SLASH_COMMAND)
 
-    def test_render_user_input_renders_prompt_and_indents_following_lines(self):
-        assert rendered_lines("first line\nsecond line") == ["❯ first line", "  second line"]
-
-    def test_render_user_input_keeps_prompt_spacing_in_first_column(self):
-        rows = build_user_input_rows("first line\nsecond line")
-        assert rows[0][0].plain == USER_MESSAGE_MARK
-        assert rows[1][0].plain == " " * len(USER_MESSAGE_MARK)
-
-    def test_render_user_input_keeps_prompt_background_on_wrapped_lines(self):
-        lines = rendered_segments(
-            "现在 @dashboard/src/app/(console)/page.tsx @dashboard/src/app/(console)/usage/page.tsx 这个用量表格里，是同一个通用组件吗",
-            width=40,
-        )
-
-        assert len(lines) > 1
-
-        prompt_style = Console(theme=get_theme().app_theme).get_style(ThemeKey.USER_INPUT.value)
-        wrapped_prompt_segments = [line[0] for line in lines[1:]]
-
-        assert all(segment.text == " " * len(USER_MESSAGE_MARK) for segment in wrapped_prompt_segments)
-        assert all(segment.style == prompt_style for segment in wrapped_prompt_segments)
-
     def test_render_user_input_keeps_background_for_bash_mode(self):
         lines = rendered_segments("!pnpm lint [image /tmp/example.png]")
 
         expected_bg = Console(theme=get_theme().app_theme).get_style(ThemeKey.USER_INPUT.value).bgcolor
-        content_segments = [segment for segment in lines[0][1:] if segment.text]
+        content_segments = [segment for segment in lines[0][1:] if segment.text.strip()]
 
         assert content_segments
         assert all(segment.style is not None and segment.style.bgcolor == expected_bg for segment in content_segments)

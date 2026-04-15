@@ -9,6 +9,18 @@ from pathlib import Path
 from klaude_code.const import ProjectPaths, find_git_repo_root, project_key_from_path
 from klaude_code.protocol import llm_param, model_id, tools
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
+from klaude_code.protocol.system_prompt import (
+    SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
+)
+from klaude_code.protocol.system_prompt import (
+    split_system_prompt_for_cache as _split_system_prompt_for_cache,
+)
+from klaude_code.protocol.system_prompt import (
+    strip_system_prompt_boundary as _strip_system_prompt_boundary,
+)
+
+split_system_prompt_for_cache = _split_system_prompt_for_cache
+strip_system_prompt_boundary = _strip_system_prompt_boundary
 
 COMMAND_DESCRIPTIONS: dict[str, str] = {
     "rg": "ripgrep - fast text search",
@@ -225,12 +237,13 @@ def load_system_prompt(
         else ""
     )
     auto_memory_prompt = _build_auto_memory_prompt(work_dir)
+    dynamic_prompt = auto_memory_prompt + _build_env_info(model_name, work_dir)
 
     return (
         base_prompt
         + git_hygiene_prompt
         + conventions_prompt
         + extended_thinking_prompt
-        + auto_memory_prompt
-        + _build_env_info(model_name, work_dir)
+        + f"\n\n{SYSTEM_PROMPT_DYNAMIC_BOUNDARY}"
+        + dynamic_prompt
     )

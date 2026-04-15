@@ -32,7 +32,7 @@ from klaude_code.tui.terminal.selector import (
 def _restyle_title(title: list[tuple[str, str]], cls: str) -> list[tuple[str, str]]:
     """Re-apply a style class while keeping existing style tokens."""
 
-    keep_attrs = {"bold", "italic", "underline", "reverse", "blink", "strike", "dim"}
+    keep_attrs = {"bold", "italic", "underline", "reverse", "blink", "strike"}
     restyled: list[tuple[str, str]] = []
     for old_style, text in title:
         tokens = old_style.split()
@@ -572,7 +572,7 @@ def select_questions[T](
         top = f"{indent}╭{'─' * (box_width - 2)}╮"
         bottom = f"{indent}╰{'─' * (box_width - 2)}╯"
         tokens: list[tuple[str, str]] = [
-            ("class:preview_border dim", separator + "\n"),
+            ("class:preview_border", separator + "\n"),
             ("class:preview_border", top + "\n"),
         ]
 
@@ -942,14 +942,14 @@ def select_questions[T](
 
     base_style = Style(
         [
-            ("frame.border", "fg:ansibrightblack dim"),
+            ("frame.border", "fg:ansibrightblack"),
             ("frame.label", "fg:ansibrightblack italic"),
             ("search_placeholder", "fg:ansibrightblack italic"),
             ("question_tab_inactive", "reverse fg:ansibrightblack"),
             ("question_tab_active", "reverse fg:ansigreen bold"),
             ("warning", "fg:ansiyellow"),
             ("submit_option", "bold"),
-            ("preview_border", "fg:ansibrightblack dim"),
+            ("preview_border", "fg:ansibrightblack"),
             ("preview_content", ""),
         ]
     )

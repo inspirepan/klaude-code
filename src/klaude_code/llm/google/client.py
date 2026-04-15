@@ -42,6 +42,7 @@ from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param, message, model
 from klaude_code.protocol.model_id import supports_google_thinking
+from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
 # Unified format for Google thought signatures
 GOOGLE_THOUGHT_SIGNATURE_FORMAT = "google"
@@ -90,7 +91,7 @@ def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
                 thinking_config.thinking_level = convert_gemini_thinking_level(param.thinking.reasoning_effort)
 
     return GenerateContentConfig(
-        system_instruction=param.system,
+        system_instruction=strip_system_prompt_boundary(param.system),
         temperature=param.temperature,
         max_output_tokens=param.max_tokens,
         tools=cast(Any, tool_list) if tool_list else None,

@@ -22,6 +22,7 @@ from klaude_code.llm.stream_parts import (
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
 
 def _merge_assistant_phase(
@@ -57,7 +58,7 @@ def build_payload(
         "temperature": param.temperature,
         "max_output_tokens": param.max_tokens,
         "input": inputs,
-        "instructions": param.system,
+        "instructions": strip_system_prompt_boundary(param.system),
         "tools": tools,
     }
 

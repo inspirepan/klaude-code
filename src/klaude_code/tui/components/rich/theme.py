@@ -47,13 +47,13 @@ class Palette:
 
 
 LIGHT_PALETTE = Palette(
-    red="red",
-    yellow="yellow",
+    red="#b83838",
+    yellow="#b8860b",
     green="#00875f",
-    cyan="cyan",
-    blue="#3078C5",
+    cyan="#2a9090",
+    blue="#2d6ba8",
     orange="#c96542",
-    magenta="magenta",
+    magenta="#9a508a",
     grey1="#667e90",
     grey2="#93a4b1",
     grey3="#c4ced4",
@@ -80,46 +80,46 @@ LIGHT_PALETTE = Palette(
     orange_background="#f9f3ec",
     red_background="#f9ecec",
     grey_background="#f0f0f0",
-    yellow_background="#f9f9ec",
+    yellow_background="#fdf0d8",
     user_message_background="#f0f0f0",
 )
 
 DARK_PALETTE = Palette(
     red="#d75f5f",
-    yellow="yellow",
-    green="#5fd787",
-    cyan="cyan",
-    blue="#00afff",
-    orange="#e6704e",
-    magenta="magenta",
+    yellow="#e8b040",
+    green="#4fb06c",
+    cyan="#4db8b8",
+    blue="#5b9fd4",
+    orange="#e69a4a",
+    magenta="#b87ab0",
     grey1="#99aabb",
     grey2="#778899",
     grey3="#545c6c",
     grey_green="#6d8672",
-    purple="#afbafe",
+    purple="#9090cc",
     lavender="#9898b8",
     black="white",
     dim_red="#9a4545",
     dim_grey1="#6e7b89",
     dim_grey2="#576574",
     dim_grey3="#3e444f",
-    diff_add="#c8e6c9 on #1b3928",
-    diff_add_char="#c8e6c9 on #2d6b42",
-    diff_remove="#ffcdd2 on #3d1f23",
-    diff_remove_char="#ffcdd2 on #7a3a42",
+    diff_add="#c8e6c9 on #2b4938",
+    diff_add_char="#c8e6c9 on #3d7b52",
+    diff_remove="#ffcdd2 on #4d2f33",
+    diff_remove_char="#ffcdd2 on #8a4a52",
     code_theme="ansi_dark",
-    code_background="#141720",
-    green_background="#1a2721",
-    blue_grey_background="#1c222c",
-    cyan_background="#142626",
-    green_sub_background="#142b1e",
-    blue_sub_background="#14202e",
-    purple_background="#201c30",
-    orange_background="#2e2014",
-    red_background="#2e171a",
-    grey_background="#202224",
-    yellow_background="#2e2c14",
-    user_message_background="#202224",
+    code_background="#303440",
+    green_background="#42554b",
+    blue_grey_background="#3c424c",
+    cyan_background="#344646",
+    green_sub_background="#344b3e",
+    blue_sub_background="#34404e",
+    purple_background="#403c50",
+    orange_background="#4e4034",
+    red_background="#4e373a",
+    grey_background="#404244",
+    yellow_background="#4a3f28",
+    user_message_background="#4f565d",
 )
 
 
@@ -173,7 +173,7 @@ class ThemeKey(str, Enum):
     STATUS_HINT = "status.hint"
     # USER_INPUT
     USER_INPUT = "user.input"
-    USER_INPUT_PROMPT = "user.input.prompt"
+    USER_INPUT_PANEL = "user.input.panel"
     USER_INPUT_AT_PATTERN = "user.at_pattern"
     USER_INPUT_SLASH_COMMAND = "user.slash_command"
     USER_INPUT_SKILL = "user.skill"
@@ -302,11 +302,11 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.WARN_BOLD.value: "bold " + palette.yellow,
                 ThemeKey.INTERRUPT.value: palette.red,
                 # USER_INPUT
-                ThemeKey.USER_INPUT.value: f"bold {palette.cyan} on {palette.user_message_background}",
-                ThemeKey.USER_INPUT_PROMPT.value: f"bold {palette.cyan} on {palette.user_message_background}",
-                ThemeKey.USER_INPUT_AT_PATTERN.value: f"bold {palette.purple} on {palette.user_message_background}",
-                ThemeKey.USER_INPUT_SLASH_COMMAND.value: f"bold {palette.blue} on {palette.user_message_background}",
-                ThemeKey.USER_INPUT_SKILL.value: f"bold {palette.blue} on {palette.user_message_background}",
+                ThemeKey.USER_INPUT.value: f"{palette.magenta}",
+                ThemeKey.USER_INPUT_PANEL.value: f"{palette.magenta}",
+                ThemeKey.USER_INPUT_AT_PATTERN.value: f"italic {palette.blue}",
+                ThemeKey.USER_INPUT_SLASH_COMMAND.value: f"bold {palette.blue}",
+                ThemeKey.USER_INPUT_SKILL.value: f"bold {palette.blue}",
                 # ASSISTANT
                 ThemeKey.ASSISTANT_MESSAGE_MARK.value: "bold",
                 # METADATA
@@ -415,7 +415,7 @@ def get_theme(theme: str | None = None) -> Themes:
         ),
         markdown_theme=Theme(
             styles={
-                "markdown.code": palette.cyan,
+                "markdown.code": palette.purple,
                 # Render degraded `<thinking>...</thinking>` blocks inside assistant markdown.
                 # This must live in markdown_theme (not just thinking_markdown_theme) because
                 # it is used while rendering assistant output.
