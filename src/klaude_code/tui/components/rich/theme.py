@@ -119,7 +119,7 @@ DARK_PALETTE = Palette(
     red_background="#4e373a",
     grey_background="#404244",
     yellow_background="#4a3f28",
-    user_message_background="#4f565d",
+    user_message_background="#27313b",
 )
 
 
@@ -173,7 +173,7 @@ class ThemeKey(str, Enum):
     STATUS_HINT = "status.hint"
     # USER_INPUT
     USER_INPUT = "user.input"
-    USER_INPUT_PANEL = "user.input.panel"
+    USER_INPUT_RULE = "user.input.rule"
     USER_INPUT_AT_PATTERN = "user.at_pattern"
     USER_INPUT_SLASH_COMMAND = "user.slash_command"
     USER_INPUT_SKILL = "user.skill"
@@ -302,11 +302,11 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.WARN_BOLD.value: "bold " + palette.yellow,
                 ThemeKey.INTERRUPT.value: palette.red,
                 # USER_INPUT
-                ThemeKey.USER_INPUT.value: f"{palette.magenta}",
-                ThemeKey.USER_INPUT_PANEL.value: f"{palette.magenta}",
-                ThemeKey.USER_INPUT_AT_PATTERN.value: f"italic {palette.blue}",
-                ThemeKey.USER_INPUT_SLASH_COMMAND.value: f"bold {palette.blue}",
-                ThemeKey.USER_INPUT_SKILL.value: f"bold {palette.blue}",
+                ThemeKey.USER_INPUT.value: f"{palette.magenta} on {palette.user_message_background}",
+                ThemeKey.USER_INPUT_RULE.value: f"{palette.magenta}",
+                ThemeKey.USER_INPUT_AT_PATTERN.value: f"italic {palette.purple} on {palette.user_message_background}",
+                ThemeKey.USER_INPUT_SLASH_COMMAND.value: f"bold {palette.purple} on {palette.user_message_background}",
+                ThemeKey.USER_INPUT_SKILL.value: f"bold {palette.purple} on {palette.user_message_background}",
                 # ASSISTANT
                 ThemeKey.ASSISTANT_MESSAGE_MARK.value: "bold",
                 # METADATA

@@ -32,6 +32,7 @@ from klaude_code.tui.commands import (
     AppendThinking,
     EndAssistantStream,
     EndThinkingStream,
+    FlushOpenBlocks,
     PrintBlankLine,
     PrintRuleLine,
     RenderBashCommandEnd,
@@ -48,10 +49,8 @@ from klaude_code.tui.commands import (
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
-    RenderThinkingHeader,
     RenderToolCall,
     RenderToolResult,
-    RenderTurnStart,
     RenderUserMessage,
     RenderWelcome,
     SpinnerStart,
@@ -75,7 +74,7 @@ from klaude_code.tui.components import thinking as c_thinking
 from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components import user_input as c_user_input
 from klaude_code.tui.components import welcome as c_welcome
-from klaude_code.tui.components.common import create_grid, truncate_head
+from klaude_code.tui.components.common import truncate_head
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.live import CropAboveLive
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
@@ -200,7 +199,6 @@ class TUICommandRenderer:
         self._sessions: dict[str, _SessionStatus] = {}
         self._current_sub_agent_color: Style | None = None
         self._sub_agent_color_index = 0
-        self._sub_agent_thinking_buffers: dict[str, str] = {}
         self._developer_block_open: bool = False
         self._tool_block_open: bool = False
 
@@ -506,7 +504,7 @@ class TUICommandRenderer:
             theme=self.themes.thinking_markdown_theme,
             console=self.console,
             live_sink=None,
-            mark=c_thinking.THINKING_MESSAGE_MARK,
+            mark="∵",
             mark_style=ThemeKey.THINKING,
             left_margin=MARKDOWN_LEFT_MARGIN,
             right_margin=MARKDOWN_RIGHT_MARGIN,
@@ -520,6 +518,7 @@ class TUICommandRenderer:
             theme=self.themes.markdown_theme,
             console=self.console,
             live_sink=live_sink,
+            mark="●",
             left_margin=MARKDOWN_LEFT_MARGIN,
             right_margin=MARKDOWN_RIGHT_MARGIN,
             image_callback=self.display_image,
@@ -530,19 +529,6 @@ class TUICommandRenderer:
 
     def _flush_assistant(self) -> None:
         self._assistant_stream.render()
-
-    def _render_sub_agent_thinking(self, content: str) -> None:
-        """Render sub-agent thinking content as a single block."""
-        normalized = c_thinking.normalize_thinking_content(content)
-        if not normalized.strip():
-            return
-        md = ThinkingMarkdown(normalized, code_theme=self.themes.code_theme, style=ThemeKey.THINKING)
-        self.console.push_theme(self.themes.thinking_markdown_theme)
-        grid = create_grid()
-        grid.add_row(Text(c_thinking.THINKING_MESSAGE_MARK, style=ThemeKey.THINKING), md)
-        self.print(grid)
-        self.console.pop_theme()
-        self.print()
 
     # ---------------------------------------------------------------------
     # Event-specific rendering helpers
@@ -574,18 +560,6 @@ class TUICommandRenderer:
             self.print(renderable)
             return True
         return False
-
-    def display_thinking_header(self, header: str) -> None:
-        stripped = header.strip()
-        if not stripped:
-            return
-        self.print(
-            Text.assemble(
-                (c_thinking.THINKING_MESSAGE_MARK, ThemeKey.THINKING),
-                " ",
-                (stripped, ThemeKey.THINKING),
-            )
-        )
 
     def display_developer_message(self, e: events.DeveloperMessageEvent) -> bool:
         if not c_developer.need_render_developer_message(e):
@@ -739,8 +713,11 @@ class TUICommandRenderer:
 
     def display_task_finish(self, event: events.TaskFinishEvent) -> None:
         if self.is_sub_agent_session(event.session_id):
-            st = self._sessions.get(event.session_id)
-            description = st.sub_agent_state.sub_agent_desc if st and st.sub_agent_state else None
+            st = self._sessions[event.session_id]
+            sub_agent_state = st.sub_agent_state
+            if sub_agent_state is None:
+                return
+            description = sub_agent_state.sub_agent_desc
             with self.session_print_context(event.session_id):
                 self.print(
                     c_sub_agent.render_sub_agent_result(
@@ -983,37 +960,24 @@ class TUICommandRenderer:
                     self.display_bash_command_delta(event)
                 case RenderBashCommandEnd(event=event):
                     self.display_bash_command_end(event)
-                case RenderTurnStart(event=event):
-                    self.display_turn_start(event)
-                case StartThinkingStream(session_id=session_id):
-                    if self.is_sub_agent_session(session_id):
-                        self._sub_agent_thinking_buffers[session_id] = ""
-                    elif not self._thinking_stream.is_active:
+                case StartThinkingStream(session_id=_):
+                    if not self._thinking_stream.is_active:
                         self._thinking_stream.start(self._new_thinking_mdstream())
                         if not self._replay_mode:
                             self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
-                case AppendThinking(session_id=session_id, content=content):
-                    if self.is_sub_agent_session(session_id):
-                        if session_id in self._sub_agent_thinking_buffers:
-                            self._sub_agent_thinking_buffers[session_id] += content
-                    elif self._thinking_stream.is_active:
+                case AppendThinking(session_id=_, content=content):
+                    if self._thinking_stream.is_active:
                         self._thinking_stream.append(content)
                         if not self._replay_mode:
                             first_delta = self._thinking_stream.buffer == ""
                             if first_delta:
                                 self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
                             self._flush_thinking()
-                case EndThinkingStream(session_id=session_id):
-                    if self.is_sub_agent_session(session_id):
-                        buf = self._sub_agent_thinking_buffers.pop(session_id, "")
-                        if buf.strip():
-                            with self.session_print_context(session_id):
-                                self._render_sub_agent_thinking(buf)
-                    else:
-                        had_content = bool(self._thinking_stream.buffer.strip())
-                        finalized = self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
-                        if finalized and had_content:
-                            self.print()
+                case EndThinkingStream(session_id=_):
+                    had_content = bool(self._thinking_stream.buffer.strip())
+                    finalized = self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
+                    if finalized and had_content:
+                        self.print()
                 case StartAssistantStream(session_id=_):
                     if not self._assistant_stream.is_active:
                         self._assistant_stream.start(self._new_assistant_mdstream())
@@ -1030,9 +994,6 @@ class TUICommandRenderer:
                     finalized = self._assistant_stream.finalize()
                     if finalized and had_content:
                         self.print()
-                case RenderThinkingHeader(session_id=session_id, header=header):
-                    with self.session_print_context(session_id):
-                        self.display_thinking_header(header)
                 case RenderToolCall(event=event):
                     with self.session_print_context(event.session_id):
                         rendered = self.display_tool_call(event)
@@ -1087,11 +1048,13 @@ class TUICommandRenderer:
                     leading_blank_line=leading_blank_line,
                 ):
                     self.spinner_update(todo_text, metadata_text, status_lines, reset_bottom_height, leading_blank_line)
+                case FlushOpenBlocks():
+                    continue
                 case PrintBlankLine():
                     self._clear_open_blocks()
                     self.print()
                 case PrintRuleLine():
-                    self.console.print(Rule(characters="-", style=ThemeKey.LINES))
+                    self.console.print(Rule(characters="▰", style=ThemeKey.USER_INPUT_RULE))
                 case TaskClockStart():
                     set_task_start()
                 case TaskClockClear():
