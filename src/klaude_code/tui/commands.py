@@ -149,6 +149,7 @@ class SpinnerUpdate(RenderCommand):
     status_lines: tuple[SpinnerStatusLine, ...] = ()
     reset_bottom_height: bool = False
     leading_blank_line: bool = False
+    top_blank_line: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -447,6 +447,25 @@ def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> N
     assert _line_plain(update.status_lines[0]).startswith("Running Task")
 
 
+def test_main_bash_tool_call_adds_blank_line_before_stream_starts() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    cmds = machine.transition(
+        events.ToolCallStartEvent(
+            session_id=main_session,
+            tool_call_id="tc-bash-1",
+            tool_name=tools.BASH,
+        )
+    )
+
+    update = _last_spinner_update(cmds)
+    assert update.leading_blank_line is False
+    assert update.top_blank_line is True
+    assert len(update.status_lines) == 1
+    assert _line_plain(update.status_lines[0]).startswith("Bashing")
+
 def test_main_session_composing_keeps_sub_agent_activity_priority() -> None:
     machine = DisplayStateMachine()
     main_session = "main"

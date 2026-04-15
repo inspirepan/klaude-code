@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.padding import Padding
 from rich.text import Text
 
+from klaude_code.const import STATUS_DEFAULT_TEXT
 from klaude_code.protocol import events
 
 
@@ -61,6 +62,7 @@ def test_display_image_prints_caption_then_image(monkeypatch: pytest.MonkeyPatch
 
 def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail_lines() -> None:
     from klaude_code.tui.renderer import BASH_LIVE_TAIL_MAX_LINES, TUICommandRenderer
+    from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
 
     renderer = TUICommandRenderer()
     output = io.StringIO()
@@ -80,8 +82,8 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail
         for line in renderer.console.render_lines(renderer._stream_renderable, renderer.console.options, pad=False)
     ]
     hidden = 12 - BASH_LIVE_TAIL_MAX_LINES
-    assert lines[0] == f"{' ' * 5}… (more {hidden} lines)"
-    assert lines[1:] == [f"{' ' * 5}line-{i}" for i in range(hidden, 12)]
+    assert lines[0] == f"{' ' * BASH_OUTPUT_LEFT_PADDING}… (more {hidden} lines)"
+    assert lines[1:] == [f"{' ' * BASH_OUTPUT_LEFT_PADDING}line-{i}" for i in range(hidden, 12)]
 
 
 def test_display_bash_command_end_clears_live_tail() -> None:
@@ -103,6 +105,7 @@ def test_display_bash_command_end_clears_live_tail() -> None:
 
 def test_bash_mode_delta_uses_live_tail_renderable() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
+    from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
 
     renderer = TUICommandRenderer()
     output = io.StringIO()
@@ -117,7 +120,7 @@ def test_bash_mode_delta_uses_live_tail_renderable() -> None:
         "".join(segment.text for segment in line if not segment.control).rstrip()
         for line in renderer.console.render_lines(renderer._stream_renderable, renderer.console.options, pad=False)
     ]
-    assert lines == ["     hello"]
+    assert lines == [f"{' ' * BASH_OUTPUT_LEFT_PADDING}hello"]
 
 
 def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
@@ -145,8 +148,9 @@ def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
     assert len(lines) == len(current_stream_lines)
 
 
-def test_bottom_renderable_adds_blank_line_above_bash_live_region() -> None:
+def test_bottom_renderable_keeps_blank_line_between_bash_live_region_and_status() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
+    from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
 
     renderer = TUICommandRenderer()
     output = io.StringIO()
@@ -155,7 +159,8 @@ def test_bottom_renderable_adds_blank_line_above_bash_live_region() -> None:
 
     renderer._spinner_visible = True
     renderer._bash_stream_active = True
-    renderer._stream_renderable = Padding(Text("bash output"), (0, 0, 0, 5))
+    renderer._status_top_blank_line = True
+    renderer._stream_renderable = Padding(Text("bash output"), (0, 0, 0, BASH_OUTPUT_LEFT_PADDING))
     renderer._stream_last_height = 1
     renderer._stream_last_width = renderer.console.size.width
     renderer._stream_max_height = 1
@@ -164,5 +169,25 @@ def test_bottom_renderable_adds_blank_line_above_bash_live_region() -> None:
     lines = renderer.console.render_lines(renderable, renderer.console.options, pad=False)
     line_text = ["".join(segment.text for segment in line if not segment.control).rstrip() for line in lines]
 
+    assert line_text[0] == f"{' ' * BASH_OUTPUT_LEFT_PADDING}bash output"
+    assert line_text[1].strip() == ""
+    assert line_text[2].startswith(STATUS_DEFAULT_TEXT)
+
+
+def test_bottom_renderable_adds_blank_line_above_status_before_bash_stream_starts() -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer()
+    output = io.StringIO()
+    renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
+    renderer.console.push_theme(renderer.themes.markdown_theme)
+
+    renderer._spinner_visible = True
+    renderer._status_top_blank_line = True
+
+    renderable = renderer._bottom_renderable()
+    lines = renderer.console.render_lines(renderable, renderer.console.options, pad=False)
+    line_text = ["".join(segment.text for segment in line if not segment.control).rstrip() for line in lines]
+
     assert line_text[0].strip() == ""
-    assert line_text[1] == "     bash output"
+    assert line_text[1].startswith(STATUS_DEFAULT_TEXT)
