@@ -4,7 +4,7 @@ from rich.text import Text
 
 from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
 from klaude_code.protocol import model
-from klaude_code.tui.components.common import format_pascal_case, truncate_head
+from klaude_code.tui.components.common import format_more_lines_indicator, format_pascal_case, truncate_head
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 
@@ -50,7 +50,7 @@ def render_sub_agent_result(
     if len(lines) > SUB_AGENT_RESULT_MAX_LINES:
         hidden_count = len(lines) - SUB_AGENT_RESULT_MAX_LINES
         elements.append(Text("\n".join(lines[:SUB_AGENT_RESULT_MAX_LINES]), style=ThemeKey.TOOL_RESULT))
-        elements.append(Text(f"( ... more {hidden_count} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED))
+        elements.append(Text(format_more_lines_indicator(hidden_count), style=ThemeKey.TOOL_RESULT_TRUNCATED))
     else:
         elements.append(Text(stripped_result, style=ThemeKey.TOOL_RESULT))
 

@@ -440,12 +440,15 @@ def render_read_preview(ui_extra: model.ReadPreviewUIExtra) -> RenderableType:
         content = line.content.expandtabs(TAB_EXPAND_WIDTH)
         grid.add_row(Text(prefix, ThemeKey.TOOL_RESULT), Text(content, ThemeKey.TOOL_RESULT))
 
-    if ui_extra.remaining_lines > 0:
-        remaining_prefix = f"{'⋮':>{DIFF_PREFIX_WIDTH}}  "
-        remaining_text = Text(f"(more {ui_extra.remaining_lines} lines)", ThemeKey.TOOL_RESULT_TRUNCATED)
-        grid.add_row(Text(remaining_prefix, ThemeKey.TOOL_RESULT_TRUNCATED), remaining_text)
+    if ui_extra.remaining_lines <= 0:
+        return grid
 
-    return grid
+    remaining_prefix = f"{'…':>{DIFF_PREFIX_WIDTH}}  "
+    remaining_text = Text(
+        f"{remaining_prefix}(more {ui_extra.remaining_lines} lines)",
+        ThemeKey.TOOL_RESULT_TRUNCATED,
+    )
+    return Group(grid, remaining_text)
 
 
 def _truncate_url(url: str, max_length: int = URL_TRUNCATE_MAX_LENGTH) -> str:

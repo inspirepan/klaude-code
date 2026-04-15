@@ -74,7 +74,7 @@ from klaude_code.tui.components import thinking as c_thinking
 from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components import user_input as c_user_input
 from klaude_code.tui.components import welcome as c_welcome
-from klaude_code.tui.components.common import truncate_head
+from klaude_code.tui.components.common import format_more_lines_indicator, truncate_head
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.live import CropAboveLive
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
@@ -622,7 +622,7 @@ class TUICommandRenderer:
         rendered = Text(style=ThemeKey.TOOL_RESULT)
         if self._bash_live_hidden_lines > 0:
             rendered.append(
-                f"  … (more {self._bash_live_hidden_lines} lines)",
+                format_more_lines_indicator(self._bash_live_hidden_lines),
                 style=ThemeKey.TOOL_RESULT_TRUNCATED,
             )
             if lines:

@@ -79,7 +79,7 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail
     assert isinstance(renderer._stream_renderable, Text)
     lines = renderer._stream_renderable.plain.splitlines()
     hidden = 12 - BASH_LIVE_TAIL_MAX_LINES
-    assert lines[0] == f"  … (more {hidden} lines)"
+    assert lines[0] == f"… (more {hidden} lines)"
     assert lines[1:] == [f"line-{i}" for i in range(hidden, 12)]
     assert any(str(span.style) == str(ThemeKey.TOOL_RESULT_TRUNCATED) for span in renderer._stream_renderable.spans)
 
