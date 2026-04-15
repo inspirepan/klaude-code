@@ -51,7 +51,7 @@ from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_m
 
 COMPLETION_SELECTED_BG = "ansigreen"
 COMPLETION_MENU = "ansibrightblack"
-INPUT_PROMPT_STYLE = "ansicyan bold"
+INPUT_PROMPT_STYLE = "ansimagenta bold"
 INPUT_PROMPT_BASH_STYLE = "ansigreen"
 COMPLETION_TRUNCATION_SYMBOL = "…"
 

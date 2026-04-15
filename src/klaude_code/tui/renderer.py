@@ -1091,7 +1091,7 @@ class TUICommandRenderer:
                     self._clear_open_blocks()
                     self.print()
                 case PrintRuleLine():
-                    self.console.print(Rule(characters="-", style=ThemeKey.LINES))
+                    self.console.print(Rule(characters="▰", style=ThemeKey.USER_INPUT_RULE))
                 case TaskClockStart():
                     set_task_start()
                 case TaskClockClear():
