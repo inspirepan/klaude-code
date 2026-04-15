@@ -629,7 +629,7 @@ class TUICommandRenderer:
                 rendered.append("\n")
 
         rendered.append("\n".join(lines))
-        self.set_stream_renderable(rendered, preserve_height=False)
+        self.set_stream_renderable(c_tools.indent_bash_output(rendered), preserve_height=False)
 
     def display_bash_command_delta(self, e: events.BashCommandOutputDeltaEvent) -> None:
         if not self._bash_stream_active:
@@ -669,6 +669,7 @@ class TUICommandRenderer:
                     c_sub_agent.render_sub_agent_call(
                         event.sub_agent_state,
                         self._get_session_sub_agent_color(event.session_id),
+                        code_theme=self.themes.code_theme,
                     )
                 )
                 self.print()
@@ -1054,7 +1055,7 @@ class TUICommandRenderer:
                     self._clear_open_blocks()
                     self.print()
                 case PrintRuleLine():
-                    self.console.print(Rule(characters="▰", style=ThemeKey.USER_INPUT_RULE))
+                    self.console.print(Rule(characters="◼", style=ThemeKey.USER_INPUT_RULE))
                 case TaskClockStart():
                     set_task_start()
                 case TaskClockClear():

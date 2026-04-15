@@ -64,8 +64,11 @@ def test_render_ask_user_question_tool_result_uses_structured_summary_ui_extra()
 
     output = _render_event_to_text(event)
 
+    assert "╭" in output
+    assert "---" not in output
     assert "● Which stack should we use?" in output
     assert "  → FastAPI, PostgreSQL" in output
     assert "● How should we deploy?" in output
     assert "  → (No answer provided)" in output
     assert "legacy text should not be rendered" not in output
+    assert "└" not in output

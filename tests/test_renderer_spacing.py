@@ -15,6 +15,7 @@ from klaude_code.tui.commands import (
     RenderToolResult,
     RenderUserMessage,
 )
+from klaude_code.tui.components.sub_agent import render_sub_agent_call
 from klaude_code.tui.machine import DisplayStateMachine
 from klaude_code.tui.renderer import TUICommandRenderer
 
@@ -174,3 +175,24 @@ def test_turn_start_flushes_open_tool_block_before_spinner_updates() -> None:
 
     assert renderer._tool_block_open is False  # type: ignore[reportPrivateUsage]
     assert output.getvalue().endswith("\n\n")
+
+
+def test_sub_agent_call_prompt_renders_as_markdown() -> None:
+    output = io.StringIO()
+    console = Console(file=output, width=100, force_terminal=False)
+
+    console.print(
+        render_sub_agent_call(
+            model.SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="searching",
+                sub_agent_prompt="## Plan\n\n- item",
+            ),
+            code_theme="monokai",
+        )
+    )
+
+    rendered = output.getvalue()
+    assert "## Plan" not in rendered
+    assert "Plan" in rendered
+    assert " • item" in rendered

@@ -6,6 +6,7 @@ from rich import box
 from rich.console import Group, RenderableType
 from rich.padding import Padding
 from rich.panel import Panel
+from rich.rule import Rule
 from rich.text import Text
 
 from klaude_code.const import (
@@ -36,6 +37,8 @@ MARK_WEB_FETCH = "→"
 MARK_WEB_SEARCH = "✱"
 MARK_REWIND = "↶"
 MARK_QUESTION = "◉"
+
+BASH_OUTPUT_LEFT_PADDING = 5
 
 _EXTERNAL_CONTENT_START = "<<<EXTERNAL_UNTRUSTED_CONTENT>>>"
 _EXTERNAL_CONTENT_END = "<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>"
@@ -383,7 +386,58 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
         text.stylize(text_style)
         todo_grid.add_row(Text(mark, style=mark_style), text)
 
-    return todo_grid
+    return Panel(
+        Padding(todo_grid, (0, 0, 0, 1)),
+        title=Text("Update To-Dos", style="default bold"),
+        title_align="left",
+        box=box.ROUNDED,
+        border_style=ThemeKey.LINES,
+        expand=False,
+    )
+
+
+def render_todo_message(result: str, *, is_error: bool = False) -> RenderableType:
+    style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT
+    return Panel(
+        Padding(Text(result.expandtabs(TAB_EXPAND_WIDTH), style=style, overflow="fold"), (0, 0, 0, 1)),
+        title=Text("Update To-Dos", style="default bold"),
+        title_align="left",
+        box=box.ROUNDED,
+        border_style=ThemeKey.LINES,
+        expand=False,
+    )
+
+
+def _tool_result_display_name(tool_name: str) -> str:
+    match tool_name:
+        case tools.BASH:
+            return "Bash"
+        case tools.APPLY_PATCH:
+            return "Patch"
+        case tools.EDIT:
+            return "Edit"
+        case tools.READ:
+            return "Read"
+        case tools.WRITE:
+            return "Write"
+        case tools.TODO_WRITE:
+            return "Update To-Dos"
+        case tools.WEB_FETCH:
+            return "Fetch Web"
+        case tools.WEB_SEARCH:
+            return "Search Web"
+        case tools.REWIND:
+            return "Rewind"
+        case tools.ASK_USER_QUESTION:
+            return "Agent has a question for you"
+        case _:
+            return tool_name
+
+
+def _tool_result_content_indent(tool_name: str) -> int:
+    if tool_name in {tools.TODO_WRITE, tools.ASK_USER_QUESTION}:
+        return 0
+    return len(_tool_result_display_name(tool_name)) + 1
 
 
 def render_generic_tool_result(result: str, *, is_error: bool = False) -> RenderableType:
@@ -394,6 +448,15 @@ def render_generic_tool_result(result: str, *, is_error: bool = False) -> Render
     text.no_wrap = True
     text.overflow = "ellipsis"
     return text
+
+
+def render_fallback_tool_result(tool_name: str, result: str, *, is_error: bool = False) -> RenderableType:
+    del tool_name
+    return render_generic_tool_result(result, is_error=is_error)
+
+
+def indent_bash_output(content: RenderableType) -> RenderableType:
+    return Padding(content, (0, 0, 0, BASH_OUTPUT_LEFT_PADDING))
 
 
 def render_ask_user_question_tool_result(result: str, *, is_error: bool = False) -> RenderableType:
@@ -407,9 +470,12 @@ def render_ask_user_question_summary(ui_extra: model.AskUserQuestionSummaryUIExt
     if not ui_extra.items:
         return Text("(No answer provided)", style=ThemeKey.WARN)
 
-    grid = create_grid(overflow="fold")
-    for item in ui_extra.items:
-        grid.add_row(Text(""), Text("---", style=ThemeKey.LINES))
+    sections: list[RenderableType] = []
+    for idx, item in enumerate(ui_extra.items):
+        if idx > 0:
+            sections.append(Rule(style=ThemeKey.LINES))
+
+        grid = create_grid(overflow="fold")
         grid.add_row(
             Text("●", style=ThemeKey.TOOL_RESULT_QUESTION_PROMPT),
             Text(
@@ -427,26 +493,35 @@ def render_ask_user_question_summary(ui_extra: model.AskUserQuestionSummaryUIExt
                 answer_text,
             )
 
-    return grid
+        sections.append(grid)
+
+    return Panel(
+        Padding(Group(*sections), (0, 0, 0, 1)),
+        box=box.ROUNDED,
+        border_style=ThemeKey.LINES,
+        expand=False,
+    )
 
 
 def render_read_preview(ui_extra: model.ReadPreviewUIExtra) -> RenderableType:
     """Render read preview with line numbers aligned to diff style."""
-    grid = create_grid()
+    grid = create_grid(overflow="ellipsis")
     grid.padding = (0, 0)
 
     for line in ui_extra.lines:
-        prefix = f"{line.line_no:>{DIFF_PREFIX_WIDTH}}  "
+        prefix = f"{line.line_no:>{DIFF_PREFIX_WIDTH}} "
         content = line.content.expandtabs(TAB_EXPAND_WIDTH)
         grid.add_row(Text(prefix, ThemeKey.TOOL_RESULT), Text(content, ThemeKey.TOOL_RESULT))
 
     if ui_extra.remaining_lines <= 0:
         return grid
 
-    remaining_prefix = f"{'…':>{DIFF_PREFIX_WIDTH}}  "
+    remaining_prefix = f"{'…':>{DIFF_PREFIX_WIDTH}} "
     remaining_text = Text(
         f"{remaining_prefix}(more {ui_extra.remaining_lines} lines)",
         ThemeKey.TOOL_RESULT_TRUNCATED,
+        overflow="ellipsis",
+        no_wrap=True,
     )
     return Group(grid, remaining_text)
 
@@ -652,7 +727,7 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
         case tools.APPLY_PATCH:
             return render_apply_patch_tool_call(e.arguments)
         case tools.TODO_WRITE:
-            return render_todo_write_tool_call(e.arguments)
+            return None
         case tools.REWIND:
             return render_rewind_tool_call(e.arguments)
         case tools.WEB_FETCH:
@@ -719,11 +794,18 @@ def render_tool_result(
         return None
 
     def wrap(content: RenderableType) -> TreeQuote:
-        return TreeQuote.for_tool_result(content, is_last=e.is_last_in_turn)
+        return TreeQuote.for_tool_result(
+            content,
+            is_last=e.is_last_in_turn,
+            content_indent=_tool_result_content_indent(e.tool_name),
+        )
 
     # Handle error case
     if e.is_error and e.ui_extra is None:
-        return wrap(render_generic_tool_result(e.result, is_error=True))
+        if e.tool_name == tools.TODO_WRITE:
+            result = e.result if len(e.result.strip()) > 0 else "(no content)"
+            return render_todo_message(result, is_error=True)
+        return wrap(render_fallback_tool_result(e.tool_name, e.result, is_error=True))
 
     # Render multiple ui blocks if present
     if isinstance(e.ui_extra, model.MultiUIExtra) and e.ui_extra.items:
@@ -742,8 +824,8 @@ def render_tool_result(
 
     def _render_fallback() -> TreeQuote:
         if len(e.result.strip()) == 0:
-            return wrap(render_generic_tool_result("(no content)"))
-        return wrap(render_generic_tool_result(e.result, is_error=e.is_error))
+            return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
+        return wrap(render_fallback_tool_result(e.tool_name, e.result, is_error=e.is_error))
 
     match e.tool_name:
         case tools.READ:
@@ -765,19 +847,22 @@ def render_tool_result(
                 return wrap(r_diffs.render_structured_diff(diff_ui, show_file_name=True))
             return _render_fallback()
         case tools.TODO_WRITE:
-            return wrap(render_todo(e))
+            if isinstance(e.ui_extra, model.TodoListUIExtra):
+                return render_todo(e)
+            result = e.result if len(e.result.strip()) > 0 else "(no content)"
+            return render_todo_message(result, is_error=e.is_error)
         case tools.BASH:
-            return _render_fallback()
+            return wrap(render_fallback_tool_result(e.tool_name, e.result, is_error=e.is_error))
         case tools.WEB_FETCH | tools.WEB_SEARCH:
             display_result = _extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:
-                return wrap(render_generic_tool_result("(no content)"))
-            return wrap(render_generic_tool_result(display_result, is_error=e.is_error))
+                return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
+            return wrap(render_fallback_tool_result(e.tool_name, display_result, is_error=e.is_error))
         case tools.ASK_USER_QUESTION:
             if isinstance(e.ui_extra, model.AskUserQuestionSummaryUIExtra):
-                return wrap(render_ask_user_question_summary(e.ui_extra))
+                return render_ask_user_question_summary(e.ui_extra)
             if len(e.result.strip()) == 0:
-                return wrap(render_generic_tool_result("(no content)"))
+                return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
             return wrap(render_ask_user_question_tool_result(e.result, is_error=e.is_error))
         case _:
             return _render_fallback()

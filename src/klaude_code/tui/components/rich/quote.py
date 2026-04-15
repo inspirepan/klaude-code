@@ -10,6 +10,9 @@ if TYPE_CHECKING:
     from rich.console import RenderableType
 
 
+_MIN_CONTENT_WIDTH = 4
+
+
 class Quote:
     """Wrapper to add quote prefix to any content"""
 
@@ -61,6 +64,7 @@ class TreeQuote:
         prefix_first: str | None = None,
         prefix_middle: str = "│ ",
         prefix_last: str = "└ ",
+        content_indent: int = 0,
         style: str | Style = "magenta",
         style_first: str | Style | None = None,
     ):
@@ -68,6 +72,7 @@ class TreeQuote:
         self.prefix_first = prefix_first
         self.prefix_middle = prefix_middle
         self.prefix_last = prefix_last
+        self.content_indent = content_indent
         self.style = style
         self.style_first = style_first
 
@@ -77,12 +82,17 @@ class TreeQuote:
             cell_len(self.prefix_last),
             cell_len(self.prefix_first) if self.prefix_first is not None else 0,
         )
-        available_width = max(1, options.max_width - prefix_width)
+        effective_indent = self._effective_content_indent(options.max_width, prefix_width)
+        available_width = max(1, options.max_width - prefix_width - effective_indent)
         content_measurement = Measurement.get(console, options.update(width=available_width), self.content)
 
-        minimum = min(options.max_width, content_measurement.minimum + prefix_width)
-        maximum = min(options.max_width, content_measurement.maximum + prefix_width)
+        minimum = min(options.max_width, content_measurement.minimum + prefix_width + effective_indent)
+        maximum = min(options.max_width, content_measurement.maximum + prefix_width + effective_indent)
         return Measurement(minimum, maximum)
+
+    def _effective_content_indent(self, max_width: int, prefix_width: int) -> int:
+        max_indent = max(0, max_width - prefix_width - _MIN_CONTENT_WIDTH)
+        return min(self.content_indent, max_indent)
 
     @classmethod
     def for_tool_call(cls, content: "RenderableType", *, mark: str, style: str, style_first: str) -> Self:
@@ -101,13 +111,18 @@ class TreeQuote:
 
     @classmethod
     def for_tool_result(
-        cls, content: "RenderableType", *, is_last: bool, style: str = "tool.result.tree_prefix"
+        cls,
+        content: "RenderableType",
+        *,
+        is_last: bool,
+        content_indent: int = 0,
+        style: str = "tool.result.tree_prefix",
     ) -> Self:
         """Create a tree quote for tool result display.
 
         Uses "└ " for the last result in a turn, "│ " otherwise.
         """
-        return cls(content, prefix_last="└ " if is_last else "│ ", style=style)
+        return cls(content, prefix_last="└ " if is_last else "│ ", content_indent=content_indent, style=style)
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         # Reduce width to leave space for prefix
@@ -116,11 +131,13 @@ class TreeQuote:
             cell_len(self.prefix_last),
             cell_len(self.prefix_first) if self.prefix_first is not None else 0,
         )
-        available_width = max(1, options.max_width - prefix_width)
+        effective_indent = self._effective_content_indent(options.max_width, prefix_width)
+        available_width = max(1, options.max_width - prefix_width - effective_indent)
         render_options = options.update(width=available_width)
 
         quote_style = console.get_style(self.style) if isinstance(self.style, str) else self.style
         first_style = console.get_style(self.style_first) if isinstance(self.style_first, str) else self.style_first
+        indent_segment = Segment(" " * effective_indent)
 
         new_line = Segment("\n")
         lines = console.render_lines(self.content, render_options, pad=False)
@@ -133,5 +150,7 @@ class TreeQuote:
                 is_last = idx == line_count - 1
                 prefix = self.prefix_last if is_last else self.prefix_middle
                 yield Segment(prefix, quote_style)
+            if effective_indent > 0:
+                yield indent_segment
             yield from line
             yield new_line
