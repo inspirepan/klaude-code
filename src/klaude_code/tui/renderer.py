@@ -168,8 +168,9 @@ class TUICommandRenderer:
         self._stream_last_height: int = 0
         self._stream_last_width: int = 0
         self._spinner_visible: bool = False
-        self._spinner_last_update_key: tuple[object, object, object, object, object] | None = None
+        self._spinner_last_update_key: tuple[object, object, object, object, object, object] | None = None
         self._bottom_last_height: int = 0
+        self._status_top_blank_line: bool = False
 
         self._status_text: StackedStatusText = StackedStatusText(
             "",
@@ -331,6 +332,7 @@ class TUICommandRenderer:
         status_lines: tuple[SpinnerStatusLine, ...] = (),
         reset_bottom_height: bool = False,
         leading_blank_line: bool = False,
+        top_blank_line: bool = False,
     ) -> None:
         if reset_bottom_height:
             self._bottom_last_height = 0
@@ -341,10 +343,12 @@ class TUICommandRenderer:
             tuple((line.session_id, self._spinner_text_key(line.text)) for line in status_lines),
             reset_bottom_height,
             leading_blank_line,
+            top_blank_line,
         )
         if self._spinner_last_update_key == new_key:
             return
         self._spinner_last_update_key = new_key
+        self._status_top_blank_line = top_blank_line
 
         rendered_status_lines = tuple(self._render_status_line(line) for line in status_lines)
 
@@ -434,8 +438,8 @@ class TUICommandRenderer:
         top_gap_part: RenderableType = Group()
         stream_part: RenderableType = Group()
         has_stream_renderable = MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._stream_renderable is not None
-        # Keep bash live output visually separated from the main terminal output.
-        if self._spinner_visible and self._bash_stream_active:
+        # Keep the bottom live region visually separated from terminal history when needed.
+        if self._spinner_visible and (self._status_top_blank_line or self._bash_stream_active):
             top_gap_part = Text(" ")
 
         # Keep a visible separation between live stream content and the bottom status line.
@@ -1047,8 +1051,16 @@ class TUICommandRenderer:
                     status_lines=status_lines,
                     reset_bottom_height=reset_bottom_height,
                     leading_blank_line=leading_blank_line,
+                    top_blank_line=top_blank_line,
                 ):
-                    self.spinner_update(todo_text, metadata_text, status_lines, reset_bottom_height, leading_blank_line)
+                    self.spinner_update(
+                        todo_text,
+                        metadata_text,
+                        status_lines,
+                        reset_bottom_height,
+                        leading_blank_line,
+                        top_blank_line,
+                    )
                 case FlushOpenBlocks():
                     continue
                 case PrintBlankLine():
