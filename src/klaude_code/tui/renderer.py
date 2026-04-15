@@ -438,12 +438,12 @@ class TUICommandRenderer:
         top_gap_part: RenderableType = Group()
         stream_part: RenderableType = Group()
         has_stream_renderable = MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._stream_renderable is not None
-        # Keep the bottom live region visually separated from terminal history when needed.
-        if self._spinner_visible and (self._status_top_blank_line or self._bash_stream_active):
+        if self._spinner_visible and self._status_top_blank_line and not has_stream_renderable:
             top_gap_part = Text(" ")
 
-        # Keep a visible separation between live stream content and the bottom status line.
-        gap_part: RenderableType = Group()
+        # Keep a visible separation between the bottom status line (spinner)
+        # and the main terminal output.
+        gap_part: RenderableType = Text(" ") if (self._spinner_visible and self._bash_stream_active) else Group()
 
         if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED:
             stream = self._stream_renderable
@@ -467,7 +467,11 @@ class TUICommandRenderer:
                 if pad_lines:
                     stream = Padding(stream, (0, 0, pad_lines, 0))
                 stream_part = stream
-                gap_part = Text(" ") if self._spinner_visible else Group()
+                gap_part = (
+                    Text(" ")
+                    if (self._spinner_visible and (self._bash_stream_active or self._stream_renderable))
+                    else Group()
+                )
 
         status_part: RenderableType = self._status_spinner if self._spinner_visible else Group()
         renderable = Group(top_gap_part, stream_part, gap_part, status_part)

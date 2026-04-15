@@ -148,7 +148,7 @@ def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
     assert len(lines) == len(current_stream_lines)
 
 
-def test_bottom_renderable_adds_blank_line_above_bash_live_region() -> None:
+def test_bottom_renderable_keeps_blank_line_between_bash_live_region_and_status() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
     from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
 
@@ -159,6 +159,7 @@ def test_bottom_renderable_adds_blank_line_above_bash_live_region() -> None:
 
     renderer._spinner_visible = True
     renderer._bash_stream_active = True
+    renderer._status_top_blank_line = True
     renderer._stream_renderable = Padding(Text("bash output"), (0, 0, 0, BASH_OUTPUT_LEFT_PADDING))
     renderer._stream_last_height = 1
     renderer._stream_last_width = renderer.console.size.width
@@ -168,11 +169,12 @@ def test_bottom_renderable_adds_blank_line_above_bash_live_region() -> None:
     lines = renderer.console.render_lines(renderable, renderer.console.options, pad=False)
     line_text = ["".join(segment.text for segment in line if not segment.control).rstrip() for line in lines]
 
-    assert line_text[0].strip() == ""
-    assert line_text[1] == f"{' ' * BASH_OUTPUT_LEFT_PADDING}bash output"
+    assert line_text[0] == f"{' ' * BASH_OUTPUT_LEFT_PADDING}bash output"
+    assert line_text[1].strip() == ""
+    assert line_text[2].startswith(STATUS_DEFAULT_TEXT)
 
 
-def test_bottom_renderable_adds_blank_line_above_status_without_stream() -> None:
+def test_bottom_renderable_adds_blank_line_above_status_before_bash_stream_starts() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
     renderer = TUICommandRenderer()
