@@ -170,6 +170,23 @@ class Session(BaseModel):
         return paths.meta_file(id).exists() or paths.events_file(id).exists()
 
     @classmethod
+    def has_user_messages(cls, id: str, work_dir: Path) -> bool:
+        """Return True when the session contains at least one non-empty user message."""
+
+        raw = _read_json_dict(cls.paths(work_dir).meta_file(id))
+        if raw is not None:
+            user_messages_raw = raw.get("user_messages")
+            if isinstance(user_messages_raw, list):
+                return any(
+                    isinstance(msg, str) and bool(msg.strip()) for msg in cast(list[object], user_messages_raw)
+                )
+
+        try:
+            return bool(cls.load(id, work_dir=work_dir).user_messages)
+        except (OSError, json.JSONDecodeError, ValidationError, ValueError):
+            return False
+
+    @classmethod
     def create(cls, id: str | None = None, *, work_dir: Path) -> Session:
         return Session(id=id or uuid.uuid4().hex, work_dir=work_dir)
 
@@ -605,6 +622,8 @@ class Session(BaseModel):
         prev_item: message.HistoryEvent | None = None
         last_assistant_content: str = ""
         pending_tool_calls: dict[str, events.ToolCallEvent] = {}
+        had_any_turn = False
+        prev_turn_interrupted = False
         history = self.conversation_history
         history_len = len(history)
         yield events.TaskStartEvent(
@@ -622,10 +641,28 @@ class Session(BaseModel):
             if pending_tool_calls and not isinstance(it, message.ToolResultMessage):
                 yield from pending_tool_calls.values()
                 pending_tool_calls.clear()
+
+            # Emit task boundary before user message to produce inter-turn separators during replay
+            if isinstance(it, message.UserMessage) and had_any_turn:
+                if not prev_turn_interrupted:
+                    yield events.TaskFinishEvent(
+                        session_id=self.id,
+                        task_result=last_assistant_content or "",
+                        timestamp=msg_ts,
+                    )
+                prev_turn_interrupted = False
+                last_assistant_content = ""
+                yield events.TaskStartEvent(
+                    session_id=self.id,
+                    sub_agent_state=self.sub_agent_state,
+                    timestamp=msg_ts,
+                )
+
             if self.need_turn_start(prev_item, it):
                 yield events.TurnStartEvent(session_id=self.id, timestamp=msg_ts)
             match it:
                 case message.AssistantMessage() as am:
+                    had_any_turn = True
                     last_assistant_content = message.join_text_parts(am.parts)
 
                     # Reconstruct streaming boundaries from saved parts.
@@ -703,6 +740,7 @@ class Session(BaseModel):
                             timestamp=msg_ts,
                         )
                     if am.stop_reason == "aborted":
+                        prev_turn_interrupted = True
                         yield events.InterruptEvent(session_id=self.id, timestamp=msg_ts)
                     if am.usage is not None:
                         yield events.UsageEvent(
@@ -746,11 +784,10 @@ class Session(BaseModel):
                     )
                 case message.DeveloperMessage() as dm:
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm, timestamp=msg_ts)
-                case message.StreamErrorItem() as se:
-                    yield events.ErrorEvent(
-                        error_message=se.error, can_retry=False, session_id=self.id, timestamp=msg_ts
-                    )
+                case message.StreamErrorItem():
+                    pass  # skip errors during replay
                 case message.InterruptEntry() as interrupt:
+                    prev_turn_interrupted = True
                     yield events.InterruptEvent(
                         session_id=self.id,
                         show_notice=interrupt.show_notice,
@@ -798,7 +835,7 @@ class Session(BaseModel):
             yield from pending_tool_calls.values()
             pending_tool_calls.clear()
 
-        if emit_finish:
+        if emit_finish and not prev_turn_interrupted:
             yield events.TaskFinishEvent(
                 session_id=self.id,
                 task_result=last_assistant_content or "",

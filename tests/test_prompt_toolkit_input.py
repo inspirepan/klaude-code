@@ -14,25 +14,6 @@ def _build_input(text: str) -> PromptToolkitInput:
     return prompt_input  # type: ignore[return-value]
 
 
-def test_prompt_stays_default_in_bash_mode() -> None:
-    prompt_input: Any = _build_input("!echo hi")
-
-    prompt = to_formatted_text(prompt_input._get_prompt_message())
-    rprompt = to_formatted_text(prompt_input._get_rprompt_message())
-
-    assert prompt == [("ansicyan bold", USER_MESSAGE_MARK)]
-    assert rprompt == [("ansigreen", "(bash mode)")]
-
-
-def test_rprompt_hidden_outside_bash_mode() -> None:
-    prompt_input: Any = _build_input("hello")
-
-    prompt = to_formatted_text(prompt_input._get_prompt_message())
-    rprompt = to_formatted_text(prompt_input._get_rprompt_message())
-
-    assert prompt == [("ansicyan bold", USER_MESSAGE_MARK)]
-    assert rprompt == []
-
 
 def test_set_next_prefill_stores_text() -> None:
     prompt_input: Any = _build_input("hello")

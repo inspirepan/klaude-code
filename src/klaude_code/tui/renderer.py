@@ -269,7 +269,9 @@ class TUICommandRenderer:
         if self._current_sub_agent_color:
             if objects:
                 content = objects[0] if len(objects) == 1 else objects
-                self.console.print(Quote(content, style=self._current_sub_agent_color), overflow="ellipsis")
+                self.console.print(
+                    Quote(content, style=self._current_sub_agent_color, prefix="▌ "), overflow="ellipsis"
+                )
             return
         self.console.print(*objects, style=style, end=end, overflow="ellipsis")
 
@@ -1089,7 +1091,7 @@ class TUICommandRenderer:
                     self._clear_open_blocks()
                     self.print()
                 case PrintRuleLine():
-                    self.console.print(Rule(characters="─", style=ThemeKey.LINES_DIM))
+                    self.console.print(Rule(characters="-", style=ThemeKey.LINES))
                 case TaskClockStart():
                     set_task_start()
                 case TaskClockClear():

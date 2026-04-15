@@ -27,6 +27,7 @@ from klaude_code.tui.commands import (
     EndAssistantStream,
     EndThinkingStream,
     PrintBlankLine,
+    PrintRuleLine,
     RenderBashCommandEnd,
     RenderBashCommandStart,
     RenderCommand,
@@ -1285,6 +1286,9 @@ class DisplayStateMachine:
                     )
                 elif not is_replay:
                     cmds.extend(self._spinner_update_commands())
+                if not s.is_sub_agent:
+                    cmds.append(PrintRuleLine())
+                    cmds.append(PrintBlankLine())
                 return cmds
 
             case events.InterruptEvent() as e:

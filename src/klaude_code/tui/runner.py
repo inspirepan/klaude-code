@@ -573,11 +573,13 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     finally:
         active_session_id = components.runtime.current_session_id()
         work_dir = Path.cwd()
+        should_show_resume_hint = False
         await cleanup_app_components(components)
 
         if active_session_id and Session.exists(active_session_id, work_dir=work_dir):
             with contextlib.suppress(Exception):
                 session = Session.load(active_session_id, work_dir=work_dir)
+                should_show_resume_hint = bool(session.user_messages)
                 if session.messages_count == 0:
                     shutil.rmtree(Session.paths(work_dir).session_dir(active_session_id), ignore_errors=True)
 
@@ -585,6 +587,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             pending_web_mode_request is None
             and not exit_hint_printed
             and active_session_id
+            and should_show_resume_hint
             and Session.exists(active_session_id, work_dir=work_dir)
         ):
             short_id = Session.shortest_unique_prefix(active_session_id, work_dir=work_dir)

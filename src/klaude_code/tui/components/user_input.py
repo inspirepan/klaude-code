@@ -1,13 +1,13 @@
 import re
 
-from rich.console import RenderableType
-from rich.table import Table
+from rich.console import Group, RenderableType
 from rich.text import Text
 
 from klaude_code.const import TAB_EXPAND_WIDTH
 from klaude_code.skill import list_skill_names
 from klaude_code.tui.command import is_slash_command_name
 from klaude_code.tui.components.bash_syntax import highlight_bash_command
+from klaude_code.tui.components.rich.quote import TreeQuote
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 # Match inline patterns only when they appear at the beginning of the line
@@ -56,8 +56,8 @@ def render_at_and_skill_patterns(
     return result
 
 
-def build_user_input_rows(content: str) -> list[tuple[Text, Text]]:
-    """Build prompt/content rows for user input rendering."""
+def build_user_input_lines(content: str) -> list[Text]:
+    """Build rendered lines for user input."""
 
     lines = content.strip().split("\n")
     is_bash_mode = bool(lines) and lines[0].startswith("!")
@@ -66,8 +66,6 @@ def build_user_input_rows(content: str) -> list[tuple[Text, Text]]:
 
     renderables: list[Text] = []
     for i, line in enumerate(lines):
-        if not line.strip():
-            continue
         if "\t" in line:
             line = line.expandtabs(TAB_EXPAND_WIDTH)
 
@@ -107,14 +105,7 @@ def build_user_input_rows(content: str) -> list[tuple[Text, Text]]:
             )
         )
 
-    if not renderables:
-        return []
-
-    rows = [(Text(USER_MESSAGE_MARK, style=ThemeKey.USER_INPUT_PROMPT), renderables[0])]
-    indent = Text(" " * len(USER_MESSAGE_MARK), style=ThemeKey.USER_INPUT)
-    for line_text in renderables[1:]:
-        rows.append((indent.copy(), line_text))
-    return rows
+    return renderables
 
 
 def render_user_input(content: str) -> RenderableType:
@@ -123,18 +114,19 @@ def render_user_input(content: str) -> RenderableType:
     - Highlights slash command token on the first line
     - Highlights @file and /skill patterns in all lines
     """
-    rows = build_user_input_rows(content)
+    renderables = build_user_input_lines(content)
 
-    if not rows:
+    if not renderables:
         return Text("", style=ThemeKey.USER_INPUT)
 
-    grid = Table.grid(padding=0)
-    grid.add_column(no_wrap=True, style=ThemeKey.USER_INPUT)
-    grid.add_column(overflow="fold")
-    for prompt_text, line_text in rows:
-        grid.add_row(prompt_text, line_text)
-
-    return grid
+    return TreeQuote(
+        Group(*renderables),
+        prefix_first=USER_MESSAGE_MARK,
+        prefix_middle=" " * len(USER_MESSAGE_MARK),
+        prefix_last=" " * len(USER_MESSAGE_MARK),
+        style=ThemeKey.USER_INPUT,
+        style_first=ThemeKey.USER_INPUT,
+    )
 
 
 def render_interrupt() -> RenderableType:

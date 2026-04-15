@@ -19,7 +19,7 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
         header.append(" [fork]", style=ThemeKey.STATUS_HINT)
     elements: list[RenderableType] = [
         header,
-        truncate_head(e.sub_agent_prompt, base_style=style or "", truncated_style=ThemeKey.STATUS_HINT, max_lines=10),
+        truncate_head(e.sub_agent_prompt, base_style=style or "", truncated_style=ThemeKey.STATUS_HINT, max_lines=20),
     ]
     return Group(*elements)
 

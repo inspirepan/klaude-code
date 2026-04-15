@@ -113,7 +113,7 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
                 title=[
                     ("class:meta ansiyellow", group_text + " "),
                     ("class:meta ansibrightblack", count_text + " "),
-                    ("class:meta ansibrightblack dim", separator),
+                    ("class:meta ansibrightblack", separator),
                     ("class:meta", "\n"),
                 ],
                 value=None,
@@ -132,12 +132,12 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
             title: list[tuple[str, str]] = [
                 ("class:meta", f"{model_idx:>{num_width}}. "),
                 ("class:msg", first_line_prefix),
-                ("class:msg dim", " → "),
+                ("class:msg", " → "),
                 ("class:msg ansiblue", model_id_str),
             ]
 
             if meta_str:
-                title.append(("class:msg dim", " · "))
+                title.append(("class:msg", " · "))
                 title.append(("class:meta", meta_str))
 
             title.append(("class:meta", "\n"))
@@ -163,7 +163,7 @@ def _restyle_title(title: list[tuple[str, str]], cls: str) -> list[tuple[str, st
     - preserve text attributes like bold/italic/dim
     """
 
-    keep_attrs = {"bold", "italic", "underline", "reverse", "blink", "strike", "dim"}
+    keep_attrs = {"bold", "italic", "underline", "reverse", "blink", "strike"}
     restyled: list[tuple[str, str]] = []
     for old_style, text in title:
         tokens = old_style.split()
@@ -619,7 +619,7 @@ def select_one[T](
 
     base_style = Style(
         [
-            ("frame.border", "fg:ansibrightblack dim"),
+            ("frame.border", "fg:ansibrightblack"),
             ("frame.label", "fg:ansibrightblack italic"),
             ("search_prefix", "fg:ansibrightblack"),
             ("search_placeholder", "fg:ansibrightblack italic"),

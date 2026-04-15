@@ -18,6 +18,7 @@ from klaude_code.const import (
     READ_GLOBAL_LINE_CAP,
     READ_MAX_CHARS,
     READ_MAX_IMAGE_BYTES,
+    READ_PARTIAL_PREVIEW_MAX_LINES,
 )
 from klaude_code.llm.image import detect_mime_type_from_bytes
 from klaude_code.protocol import llm_param, message, model, tools
@@ -451,10 +452,10 @@ class ReadTool(ToolABC):
             read_complete=is_full_read,
         )
 
-        # When offset > 1, show a preview of the first 5 lines in UI
+        # When offset/limit is provided, keep the UI preview compact.
         ui_extra = None
-        if args.offset is not None and args.offset > 1:
-            preview_count = 5
+        if args.offset is not None or args.limit is not None:
+            preview_count = READ_PARTIAL_PREVIEW_MAX_LINES
             preview_lines = [
                 ReadPreviewLine(line_no=line_no, content=content)
                 for line_no, content in read_result.selected_lines[:preview_count]
