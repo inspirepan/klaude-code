@@ -18,7 +18,6 @@ from klaude_code.agent.attachments import (
     memory_attachment,
     paste_file_attachment,
     skill_attachment,
-    todo_attachment,
 )
 from klaude_code.llm import LLMClientABC
 from klaude_code.prompts.system_prompt import load_system_prompt
@@ -99,8 +98,7 @@ def load_agent_attachments(
 
     del model_name
     del sub_agent_type
-
-    has_todo_tool = available_tools is not None and any(t.name == tools.TODO_WRITE for t in available_tools)
+    del available_tools
 
     attachments: list[Attachment] = [
         memory_attachment,
@@ -113,8 +111,6 @@ def load_agent_attachments(
         paste_file_attachment,
         skill_attachment,
     ]
-    if has_todo_tool:
-        attachments.append(todo_attachment)
     return attachments
 
 
