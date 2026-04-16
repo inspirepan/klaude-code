@@ -39,6 +39,8 @@ MARK_REWIND = "↶"
 MARK_QUESTION = "◉"
 
 BASH_OUTPUT_LEFT_PADDING = 7
+BASH_TOOL_CALL_DIVIDER_THRESHOLD = 10
+BASH_TOOL_CALL_DIVIDER_WIDTH = 12
 
 _EXTERNAL_CONTENT_START = "<<<EXTERNAL_UNTRUSTED_CONTENT>>>"
 _EXTERNAL_CONTENT_END = "<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>"
@@ -166,11 +168,18 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
     payload: dict[str, object] = cast(dict[str, object], payload_raw)
 
     command = payload.get("command")
+    description = payload.get("description")
     if isinstance(command, str) and command.strip():
         cmd_str = command.strip()
         highlighted = highlight_bash_command(cmd_str)
-        padded = Padding(highlighted, pad=0, style=ThemeKey.CODE_BACKGROUND, expand=False)
-        return _render_tool_call_tree(mark=MARK_BASH, tool_name=tool_name, details=padded)
+        sections: list[RenderableType] = []
+        if isinstance(description, str) and description.strip():
+            description_text = Text(f"# {description.strip()}", style=ThemeKey.BASH_TOOL_DESCRIPTION, overflow="fold")
+            sections.append(description_text)
+        sections.append(Padding(highlighted, pad=0, style=ThemeKey.CODE_BACKGROUND, expand=False))
+        if len(cmd_str.splitlines()) > BASH_TOOL_CALL_DIVIDER_THRESHOLD:
+            sections.append(Text("─" * BASH_TOOL_CALL_DIVIDER_WIDTH, style=ThemeKey.LINES_DIM))
+        return _render_tool_call_tree(mark=MARK_BASH, tool_name=tool_name, details=Group(*sections))
 
     return _render_tool_call_tree(mark=MARK_BASH, tool_name=tool_name, details=None)
 

@@ -205,6 +205,7 @@ class ThemeKey(str, Enum):
     TOOL_REJECTED = "tool.rejected"
     TOOL_TIMEOUT = "tool.timeout"
     # BASH SYNTAX
+    BASH_TOOL_DESCRIPTION = "bash.tool_description"
     BASH_COMMAND = "bash.command"
     BASH_ARGUMENT = "bash.argument"
     BASH_OPERATOR = "bash.operator"
@@ -303,7 +304,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.INTERRUPT.value: palette.red,
                 # USER_INPUT
                 ThemeKey.USER_INPUT.value: f"{palette.magenta} on {palette.user_message_background}",
-                ThemeKey.USER_INPUT_RULE.value: f"{palette.magenta}",
+                ThemeKey.USER_INPUT_RULE.value: f"bold {palette.grey2} on {palette.blue_sub_background}",
                 ThemeKey.USER_INPUT_AT_PATTERN.value: f"italic {palette.purple} on {palette.user_message_background}",
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: f"bold {palette.purple} on {palette.user_message_background}",
                 ThemeKey.USER_INPUT_SKILL.value: f"bold {palette.purple} on {palette.user_message_background}",
@@ -359,6 +360,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",
                 ThemeKey.TOOL_TIMEOUT.value: palette.grey2,
                 # BASH SYNTAX
+                ThemeKey.BASH_TOOL_DESCRIPTION.value: "bold " + palette.blue + " on " + palette.blue_sub_background,
                 ThemeKey.BASH_COMMAND.value: "bold " + palette.green,
                 ThemeKey.BASH_ARGUMENT.value: palette.green,
                 ThemeKey.BASH_OPERATOR.value: palette.grey2,

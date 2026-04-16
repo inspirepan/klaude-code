@@ -59,6 +59,15 @@ class BashTool(ToolABC):
                         "type": "string",
                         "description": "The bash command to run",
                     },
+                    "description": {
+                        "type": "string",
+                        "description": (
+                            "Clear, concise description of what this command does in active voice. "
+                            "Use the same language as the user. "
+                            'Never use words like "complex" or "risk" in the description - just describe '
+                            "what it does."
+                        ),
+                    },
                     "timeout_ms": {
                         "type": "integer",
                         "description": f"The timeout for the command in milliseconds, default is {BASH_DEFAULT_TIMEOUT_MS}",
@@ -71,6 +80,7 @@ class BashTool(ToolABC):
 
     class BashArguments(BaseModel):
         command: str
+        description: str | None = None
         timeout_ms: int = BASH_DEFAULT_TIMEOUT_MS
 
     @classmethod

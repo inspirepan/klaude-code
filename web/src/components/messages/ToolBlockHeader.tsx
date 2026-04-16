@@ -11,6 +11,7 @@ const FILE_PATH_TOOLS = new Set(["Read", "Edit", "Write"]);
 interface ToolBlockHeaderProps {
   item: ToolBlockItem;
   detail: string;
+  description: string;
   detailColor: string;
   workDir?: string;
   headerDetailTextClass: string;
@@ -20,6 +21,7 @@ interface ToolBlockHeaderProps {
 export function ToolBlockHeader({
   item,
   detail,
+  description,
   detailColor,
   workDir,
   headerDetailTextClass,
@@ -42,7 +44,7 @@ export function ToolBlockHeader({
   }
 
   return (
-    <div className="flex min-h-6 min-w-0 items-center gap-1.5 font-mono text-sm leading-5">
+    <div className="grid min-w-0 grid-cols-[auto,minmax(0,1fr)] items-start gap-x-1.5 gap-y-1 font-mono text-sm leading-5">
       <span
         className={cn(
           "shrink-0 whitespace-nowrap font-medium text-neutral-700",
@@ -51,12 +53,42 @@ export function ToolBlockHeader({
       >
         {item.toolName}
       </span>
-      {detailContent ? (
+      {description ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className={`min-w-0 truncate ${detailClass}`} title={detail}>
-              {detailContent}
-            </span>
+            <div className="min-w-0 rounded-md bg-sky-50/80 px-2 py-1.5 font-sans text-sm text-sky-900 ring-1 ring-inset ring-sky-200/70">
+              <div className="flex items-start gap-2">
+                <span className="shrink-0 font-mono text-sm font-medium text-sky-700">#</span>
+                <span className="line-clamp-2 min-w-0 flex-1 text-pretty text-sky-900">
+                  <HighlightText>{description}</HighlightText>
+                </span>
+              </div>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-lg p-0">
+            <ScrollArea className="w-full" viewportClassName="max-h-[60vh]" type="auto">
+              <div className="whitespace-pre-wrap break-words px-3 py-2 text-sm text-neutral-800">
+                {description}
+              </div>
+            </ScrollArea>
+          </TooltipContent>
+        </Tooltip>
+      ) : detailContent ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={`min-w-0 truncate ${detailClass}`}>{detailContent}</span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-lg p-0 font-mono">
+            <ScrollArea className="w-full" viewportClassName="max-h-[60vh]" type="auto">
+              <div className="whitespace-pre-wrap break-all px-3 py-1.5">{detail}</div>
+            </ScrollArea>
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+      {description && detailContent ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={`col-start-2 min-w-0 truncate ${detailClass}`}>{detailContent}</span>
           </TooltipTrigger>
           <TooltipContent className="max-w-lg p-0 font-mono">
             <ScrollArea className="w-full" viewportClassName="max-h-[60vh]" type="auto">

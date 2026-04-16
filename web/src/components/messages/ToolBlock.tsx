@@ -15,18 +15,35 @@ import { useStreamThrottle } from "./useStreamThrottle";
 
 const DEFAULT_EXPANDED_TOOLS = new Set(["apply_patch", "Edit", "Write"]);
 
-function extractHeaderDetail(toolName: string, args: string): string {
+interface ToolHeaderMeta {
+  detail: string;
+  description: string;
+}
+
+function extractHeaderMeta(toolName: string, args: string): ToolHeaderMeta {
   try {
     const parsed = JSON.parse(args) as Record<string, unknown>;
     switch (toolName) {
       case "Bash":
-        return typeof parsed.command === "string" ? parsed.command : "";
+        return {
+          detail: typeof parsed.command === "string" ? parsed.command : "",
+          description: typeof parsed.description === "string" ? parsed.description : "",
+        };
       case "Read":
-        return typeof parsed.file_path === "string" ? parsed.file_path : "";
+        return {
+          detail: typeof parsed.file_path === "string" ? parsed.file_path : "",
+          description: "",
+        };
       case "Edit":
-        return typeof parsed.file_path === "string" ? parsed.file_path : "";
+        return {
+          detail: typeof parsed.file_path === "string" ? parsed.file_path : "",
+          description: "",
+        };
       case "Write":
-        return typeof parsed.file_path === "string" ? parsed.file_path : "";
+        return {
+          detail: typeof parsed.file_path === "string" ? parsed.file_path : "",
+          description: "",
+        };
       case "apply_patch": {
         const patch = typeof parsed.patch === "string" ? parsed.patch : "";
         const updates: string[] = [];
@@ -41,17 +58,23 @@ function extractHeaderDetail(toolName: string, args: string): string {
         if (updates.length) parts.push(`Edit x${updates.length}`);
         if (adds.length) parts.push(`Create x${adds.length}`);
         if (deletes.length) parts.push(`Delete x${deletes.length}`);
-        return parts.join(", ");
+        return { detail: parts.join(", "), description: "" };
       }
       case "WebFetch":
-        return typeof parsed.url === "string" ? parsed.url : "";
+        return {
+          detail: typeof parsed.url === "string" ? parsed.url : "",
+          description: "",
+        };
       case "WebSearch":
-        return typeof parsed.query === "string" ? parsed.query : "";
+        return {
+          detail: typeof parsed.query === "string" ? parsed.query : "",
+          description: "",
+        };
       default:
-        return "";
+        return { detail: "", description: "" };
     }
   } catch {
-    return "";
+    return { detail: "", description: "" };
   }
 }
 
@@ -159,7 +182,7 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): React.JSX.Element 
     return <QuestionBlock item={item} />;
   }
 
-  const detail = extractHeaderDetail(item.toolName, item.arguments);
+  const { detail, description } = extractHeaderMeta(item.toolName, item.arguments);
   const hasResult = item.result !== null && item.result.length > 0;
   const isEmptyResult = item.result !== null && item.result.length === 0;
   const isError = item.resultStatus === "error";
@@ -183,6 +206,7 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): React.JSX.Element 
       <ToolBlockHeader
         item={item}
         detail={detail}
+        description={description}
         detailColor={detailColor}
         workDir={workDir}
         headerDetailTextClass={headerDetailTextClass}
