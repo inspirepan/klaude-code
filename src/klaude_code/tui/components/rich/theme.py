@@ -383,12 +383,12 @@ def get_theme(theme: str | None = None) -> Themes:
                 # TODO_ITEM
                 ThemeKey.TODO_PENDING_MARK.value: "bold " + palette.grey1,
                 ThemeKey.TODO_COMPLETED_MARK.value: "bold " + palette.grey3,
-                ThemeKey.TODO_IN_PROGRESS_MARK.value: "bold " + palette.blue,
-                ThemeKey.TODO_NEW_COMPLETED_MARK.value: "bold " + palette.green,
+                ThemeKey.TODO_IN_PROGRESS_MARK.value: "bold " + palette.blue + " on " + palette.blue_sub_background,
+                ThemeKey.TODO_NEW_COMPLETED_MARK.value: "bold " + palette.green + " on " + palette.green_background,
                 ThemeKey.TODO_PENDING.value: palette.grey1,
                 ThemeKey.TODO_COMPLETED.value: palette.grey3 + " strike",
-                ThemeKey.TODO_IN_PROGRESS.value: "bold " + palette.blue,
-                ThemeKey.TODO_NEW_COMPLETED.value: "bold strike " + palette.green,
+                ThemeKey.TODO_IN_PROGRESS.value: "bold " + palette.blue + " on " + palette.blue_sub_background,
+                ThemeKey.TODO_NEW_COMPLETED.value: "bold strike " + palette.green + " on " + palette.green_background,
                 # WELCOME
                 ThemeKey.WELCOME_HIGHLIGHT_BOLD.value: "bold",
                 ThemeKey.WELCOME_HIGHLIGHT.value: palette.blue,
