@@ -106,7 +106,9 @@ def render_web_search_tool_call(arguments: str) -> RenderableType:
     if query:
         # Truncate long queries
         display_query = (
-            query if len(query) <= QUERY_DISPLAY_TRUNCATE_LENGTH else query[: QUERY_DISPLAY_TRUNCATE_LENGTH - 1] + "\u2026"
+            query
+            if len(query) <= QUERY_DISPLAY_TRUNCATE_LENGTH
+            else query[: QUERY_DISPLAY_TRUNCATE_LENGTH - 1] + "\u2026"
         )
         summary.append(display_query, ThemeKey.TOOL_PARAM)
     else:

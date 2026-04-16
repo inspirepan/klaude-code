@@ -17,6 +17,7 @@ class CommandName(str, Enum):
     LOGIN = "login"
     LOGOUT = "logout"
     DEBUG = "debug"
+    EXPORT_SESSION = "export-session"
     MODEL = "model"
     SUB_AGENT_MODEL = "sub-agent-model"
     COMPACT = "compact"

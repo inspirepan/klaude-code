@@ -87,7 +87,8 @@ def test_build_payload_enables_eager_input_streaming_for_claude_tools() -> None:
 
     payload = build_payload(param)
 
-    assert payload["tools"][0]["eager_input_streaming"] is True
+    tools = list(payload.get("tools", []))
+    assert tools[0]["eager_input_streaming"] is True  # type: ignore[typeddict-item]
 
 
 def test_build_payload_does_not_enable_eager_input_streaming_for_non_claude_models() -> None:
@@ -99,7 +100,8 @@ def test_build_payload_does_not_enable_eager_input_streaming_for_non_claude_mode
 
     payload = build_payload(param)
 
-    assert "eager_input_streaming" not in payload["tools"][0]
+    tools = list(payload.get("tools", []))
+    assert "eager_input_streaming" not in tools[0]
 
 
 def test_parse_anthropic_stream_reads_stop_reason_from_nested_delta() -> None:
