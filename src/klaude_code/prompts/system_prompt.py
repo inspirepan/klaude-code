@@ -62,6 +62,17 @@ EDIT_PARALLELIZE_INST = """- Parallelize independent work when safe, such as rea
 
 WRITE_CREATE_WHEN_NEEDED_INST = """- NEVER create files unless necessary for the task. Prefer editing existing files."""
 
+WRITE_SMALL_PAYLOAD_INST = (
+    "- Avoid writing an entire large file in one `Write` call. "
+    "For existing files, prefer multiple targeted `Edit` calls over a single `Write` that replaces the whole file. "
+    "When creating a new large file, split the work into an initial `Write` of the skeleton followed by `Edit` calls to fill in sections."
+)
+
+APPLY_PATCH_SMALL_PAYLOAD_INST = (
+    "- Avoid giant patches. Split large multi-file patches into several smaller `apply_patch` calls "
+    "rather than one massive patch. Each call should cover a small, cohesive set of changes."
+)
+
 REWIND_CHECKPOINT_INST = """- After each new user message, the system automatically injects a `<system-reminder>Checkpoint N</system-reminder>` marker into the conversation. These markers are rewind targets -- use the `Rewind` tool with a checkpoint ID to roll back conversation history to that point."""
 
 EXTERNAL_REFS_INST = """- Pull in external references when uncertainty or risk is meaningful: unclear APIs/behavior, security-sensitive flows, migrations, performance-critical paths, or best-in-class patterns proven in open source or other language ecosystems. Prefer official docs first, then source."""
@@ -121,6 +132,12 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
 
     if tools.WRITE in tool_name_set:
         strategy_lines.append(WRITE_CREATE_WHEN_NEEDED_INST)
+
+    if tools.WRITE in tool_name_set:
+        strategy_lines.append(WRITE_SMALL_PAYLOAD_INST)
+
+    if tools.APPLY_PATCH in tool_name_set:
+        strategy_lines.append(APPLY_PATCH_SMALL_PAYLOAD_INST)
 
     if tools.REWIND in tool_name_set:
         strategy_lines.append(REWIND_CHECKPOINT_INST)

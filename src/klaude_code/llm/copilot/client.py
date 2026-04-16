@@ -87,7 +87,7 @@ def _build_responses_payload(param: llm_param.LLMCallParameter) -> ResponseCreat
 def _build_anthropic_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStreaming:
     """Build Copilot Anthropic Messages API request payload."""
     messages_input = convert_anthropic_history_to_input(param.input, param.model_id)
-    tools = convert_anthropic_tool_schema(param.tools)
+    tools = convert_anthropic_tool_schema(param.tools, param.model_id)
     system_messages = [msg for msg in param.input if isinstance(msg, message.SystemMessage)]
     system = convert_system_to_input(param.system, system_messages)
 
