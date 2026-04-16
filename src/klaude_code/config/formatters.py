@@ -1,7 +1,5 @@
 from typing import TYPE_CHECKING
 
-from klaude_code.protocol.model_id import is_claude_model_any
-
 if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMConfigModelParameter, OpenRouterProviderRouting
 
@@ -35,9 +33,11 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
         if model_params.thinking.budget_tokens:
             parts.append(f"thinking budget {model_params.thinking.budget_tokens}")
 
+    if model_params.effort:
+        parts.append(f"effort {model_params.effort}")
+
     if model_params.verbosity:
-        label = "effort" if is_claude_model_any(model_params.model_id) else "verbosity"
-        parts.append(f"{label} {model_params.verbosity}")
+        parts.append(f"verbosity {model_params.verbosity}")
 
     if model_params.fast_mode:
         parts.append("fast mode")

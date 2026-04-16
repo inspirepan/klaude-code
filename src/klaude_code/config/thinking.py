@@ -13,6 +13,7 @@ from klaude_code.protocol.model_id import (
     is_gpt51_model,
     is_gpt52_model,
     is_openrouter_model_with_reasoning_effort,
+    is_opus_47_model,
     supports_adaptive_thinking,
 )
 
@@ -159,6 +160,14 @@ def _build_budget_with_adaptive_options() -> list[ThinkingOption]:
     return options
 
 
+def _build_adaptive_only_options() -> list[ThinkingOption]:
+    """Build options for models that only support adaptive thinking (e.g. Opus 4.7)."""
+    return [
+        ThinkingOption(label="off", value="adaptive:disabled"),
+        ThinkingOption(label="adaptive", value="adaptive:adaptive"),
+    ]
+
+
 def _get_current_effort_value(thinking: llm_param.Thinking | None) -> str | None:
     """Get current value for effort-based thinking."""
     if thinking and thinking.reasoning_effort:
@@ -211,6 +220,12 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
 
     if protocol == llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH:
         if is_claude_model_any(model_name):
+            if is_opus_47_model(model_name):
+                return ThinkingPickerData(
+                    options=_build_adaptive_only_options(),
+                    message="Select thinking level:",
+                    current_value=_get_current_budget_or_adaptive_value(thinking),
+                )
             if supports_adaptive_thinking(model_name):
                 return ThinkingPickerData(
                     options=_build_budget_with_adaptive_options(),
@@ -231,6 +246,12 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
         )
 
     if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
+        if is_opus_47_model(model_name):
+            return ThinkingPickerData(
+                options=_build_adaptive_only_options(),
+                message="Select thinking level:",
+                current_value=_get_current_budget_or_adaptive_value(thinking),
+            )
         if supports_adaptive_thinking(model_name):
             return ThinkingPickerData(
                 options=_build_budget_with_adaptive_options(),
@@ -250,6 +271,12 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
                 options=_build_effort_options(levels),
                 message="Select reasoning effort:",
                 current_value=_get_current_effort_value(thinking),
+            )
+        if is_opus_47_model(model_name):
+            return ThinkingPickerData(
+                options=_build_adaptive_only_options(),
+                message="Select thinking level:",
+                current_value=_get_current_budget_or_adaptive_value(thinking),
             )
         if supports_adaptive_thinking(model_name):
             return ThinkingPickerData(

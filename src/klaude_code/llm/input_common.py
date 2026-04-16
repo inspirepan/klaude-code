@@ -283,6 +283,8 @@ def apply_config_defaults(param: "LLMCallParameter", config: "LLMConfigParameter
         param.max_tokens = DEFAULT_MAX_TOKENS
     if param.context_limit is None:
         param.context_limit = config.context_limit
+    if param.effort is None:
+        param.effort = config.effort
     if param.verbosity is None:
         param.verbosity = config.verbosity
     if param.thinking is None:

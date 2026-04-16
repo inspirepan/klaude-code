@@ -43,7 +43,7 @@ from klaude_code.llm.stream_parts import (
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message, model
-from klaude_code.protocol.model_id import supports_adaptive_thinking
+from klaude_code.protocol.model_id import is_opus_47_model, supports_adaptive_thinking
 
 
 def _map_anthropic_stop_reason(reason: str) -> model.StopReason | None:
@@ -193,10 +193,11 @@ def build_payload(
     system = [identity_block, *system]
 
     # Models with adaptive thinking have interleaved thinking built-in; no beta header needed
-    _is_opus46_adaptive = (
+    _is_adaptive_builtin = (
         supports_adaptive_thinking(str(param.model_id)) and param.thinking and param.thinking.type == "adaptive"
     )
-    betas = [] if _is_opus46_adaptive else [ANTHROPIC_BETA_INTERLEAVED_THINKING]
+    _is_opus47 = is_opus_47_model(str(param.model_id))
+    betas = [] if _is_adaptive_builtin else [ANTHROPIC_BETA_INTERLEAVED_THINKING]
     if extra_betas:
         # Prepend extra betas, avoiding duplicates
         betas = [b for b in extra_betas if b not in betas] + betas
@@ -211,25 +212,32 @@ def build_payload(
         "tool_choice": tool_choice,
         "stream": True,
         "max_tokens": param.max_tokens or DEFAULT_MAX_TOKENS,
-        "temperature": param.temperature or DEFAULT_TEMPERATURE,
         "messages": messages,
         "system": system,
         "tools": tools,
     }
 
+    # Opus 4.7 rejects non-default temperature/top_p/top_k with 400
+    if not _is_opus47:
+        payload["temperature"] = param.temperature or DEFAULT_TEMPERATURE
+
     if betas:
         payload["betas"] = betas
 
     if param.thinking and param.thinking.type == "adaptive":
-        payload["thinking"] = {"type": "adaptive"}  # type: ignore[typeddict-item]
+        thinking_config: dict[str, str] = {"type": "adaptive"}
+        # Opus 4.7 omits thinking content by default; restore it for UI streaming
+        if _is_opus47:
+            thinking_config["display"] = "summarized"
+        payload["thinking"] = thinking_config  # type: ignore[typeddict-item]
     elif param.thinking and param.thinking.type == "enabled":
         payload["thinking"] = anthropic.types.ThinkingConfigEnabledParam(
             type="enabled",
             budget_tokens=param.thinking.budget_tokens or DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
         )
 
-    if param.verbosity:
-        payload["output_config"] = {"effort": param.verbosity}  # type: ignore[typeddict-item]
+    if param.effort:
+        payload["output_config"] = {"effort": param.effort}  # type: ignore[typeddict-item]
 
     if param.fast_mode:
         payload["speed"] = "fast"  # type: ignore[typeddict-item]

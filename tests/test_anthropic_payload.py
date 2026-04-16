@@ -66,6 +66,59 @@ def test_build_payload_omits_empty_betas_for_adaptive_sonnet_46() -> None:
     assert "betas" not in payload
 
 
+def test_build_payload_omits_temperature_for_opus_47() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-opus-4-7",
+        thinking=llm_param.Thinking(type="adaptive"),
+    )
+
+    payload = build_payload(param)
+
+    assert "temperature" not in payload
+
+
+def test_build_payload_includes_temperature_for_opus_46() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-opus-4-6",
+        thinking=llm_param.Thinking(type="adaptive"),
+    )
+
+    payload = build_payload(param)
+
+    assert "temperature" in payload
+
+
+def test_build_payload_sets_thinking_display_summarized_for_opus_47() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-opus-4-7",
+        thinking=llm_param.Thinking(type="adaptive"),
+    )
+
+    payload = build_payload(param)
+
+    thinking = payload.get("thinking")
+    assert thinking is not None
+    assert thinking["type"] == "adaptive"  # type: ignore[index]
+    assert thinking["display"] == "summarized"  # type: ignore[index]
+
+
+def test_build_payload_no_thinking_display_for_opus_46() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-opus-4-6",
+        thinking=llm_param.Thinking(type="adaptive"),
+    )
+
+    payload = build_payload(param)
+
+    thinking = payload.get("thinking")
+    assert thinking is not None
+    assert "display" not in thinking  # type: ignore[operator]
+
+
 def test_build_payload_includes_interleaved_beta_when_needed() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
@@ -89,6 +142,19 @@ def test_build_payload_enables_eager_input_streaming_for_claude_tools() -> None:
 
     tools = list(payload.get("tools", []))
     assert tools[0]["eager_input_streaming"] is True  # type: ignore[typeddict-item]
+
+
+def test_build_payload_does_not_enable_eager_input_streaming_for_opus_47() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-opus-4-7",
+        tools=_dummy_tools(),
+    )
+
+    payload = build_payload(param)
+
+    tools = list(payload.get("tools", []))
+    assert "eager_input_streaming" not in tools[0]
 
 
 def test_build_payload_does_not_enable_eager_input_streaming_for_non_claude_models() -> None:

@@ -36,3 +36,29 @@ def test_format_current_thinking_for_github_copilot_claude_budget() -> None:
     )
 
     assert format_current_thinking(config) == "enabled (budget_tokens=2048)"
+
+
+def test_opus_47_picker_only_shows_adaptive_options() -> None:
+    config = llm_param.LLMConfigParameter(
+        protocol=llm_param.LLMClientProtocol.ANTHROPIC,
+        model_id="claude-opus-4-7",
+    )
+
+    picker = get_thinking_picker_data(config)
+
+    assert picker is not None
+    values = [opt.value for opt in picker.options]
+    assert values == ["adaptive:disabled", "adaptive:adaptive"]
+
+
+def test_opus_47_openrouter_picker_only_shows_adaptive_options() -> None:
+    config = llm_param.LLMConfigParameter(
+        protocol=llm_param.LLMClientProtocol.OPENROUTER,
+        model_id="anthropic/claude-opus-4.7",
+    )
+
+    picker = get_thinking_picker_data(config)
+
+    assert picker is not None
+    values = [opt.value for opt in picker.options]
+    assert values == ["adaptive:disabled", "adaptive:adaptive"]
