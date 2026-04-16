@@ -29,7 +29,7 @@ def test_load_main_base_prompt_routes_gpt5_to_gpt_prompt() -> None:
     assert "Autonomy and Persistence" in gpt_prompt
     assert "## Response Channels" in gpt_prompt
 
-    default_prompt = load_main_base_prompt("claude-opus-4.6")
+    default_prompt = load_main_base_prompt("claude-opus-4.7")
     assert "Pragmatism and Scope" not in default_prompt
     assert "## Response Channels" not in default_prompt
 
@@ -45,20 +45,20 @@ def test_gpt5_prompt_includes_response_channels_from_base(tmp_path: Path) -> Non
 
 
 def test_load_system_prompt_excludes_channels_for_non_gpt5_models(tmp_path: Path) -> None:
-    prompt = load_system_prompt("claude-opus-4.6", available_tools=[], work_dir=tmp_path)
+    prompt = load_system_prompt("claude-opus-4.7", available_tools=[], work_dir=tmp_path)
 
     assert "## Response Channels" not in prompt
 
 
 def test_load_system_prompt_includes_conventions_for_main_agent(tmp_path: Path) -> None:
-    prompt = load_system_prompt("claude-opus-4.6", available_tools=[], work_dir=tmp_path)
+    prompt = load_system_prompt("claude-opus-4.7", available_tools=[], work_dir=tmp_path)
 
     assert "# Following Conventions" in prompt
     assert "NEVER assume a given library is available" in prompt
 
 
 def test_load_system_prompt_inserts_dynamic_boundary_before_auto_memory(tmp_path: Path) -> None:
-    prompt = load_system_prompt("claude-opus-4.6", available_tools=[], work_dir=tmp_path)
+    prompt = load_system_prompt("claude-opus-4.7", available_tools=[], work_dir=tmp_path)
     static_prompt, dynamic_prompt = split_system_prompt_for_cache(prompt)
 
     assert SYSTEM_PROMPT_DYNAMIC_BOUNDARY in prompt
@@ -73,8 +73,11 @@ def test_strip_system_prompt_boundary_restores_plain_prompt_text() -> None:
 
 
 def test_load_system_prompt_includes_extended_thinking_for_adaptive_models(tmp_path: Path) -> None:
-    opus_prompt = load_system_prompt("claude-opus-4-6", available_tools=[], work_dir=tmp_path)
-    assert "# Extended Thinking" in opus_prompt
+    opus47_prompt = load_system_prompt("claude-opus-4-7", available_tools=[], work_dir=tmp_path)
+    assert "# Extended Thinking" in opus47_prompt
+
+    opus46_prompt = load_system_prompt("claude-opus-4-6", available_tools=[], work_dir=tmp_path)
+    assert "# Extended Thinking" in opus46_prompt
 
     sonnet_prompt = load_system_prompt("claude-sonnet-4-6", available_tools=[], work_dir=tmp_path)
     assert "# Extended Thinking" in sonnet_prompt
@@ -86,7 +89,7 @@ def test_load_system_prompt_excludes_extended_thinking_for_non_adaptive_models(t
 
 
 def test_load_system_prompt_does_not_embed_available_skills_listing(tmp_path: Path) -> None:
-    prompt = load_system_prompt("claude-opus-4.6", available_tools=[], work_dir=tmp_path)
+    prompt = load_system_prompt("claude-opus-4.7", available_tools=[], work_dir=tmp_path)
 
     assert "<available_skills>" not in prompt
     assert "Skills are optional task-specific instructions stored as `SKILL.md` files." not in prompt

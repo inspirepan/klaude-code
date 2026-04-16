@@ -45,7 +45,7 @@ from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message
-from klaude_code.protocol.model_id import is_claude_model_any, supports_adaptive_thinking
+from klaude_code.protocol.model_id import is_claude_model_any, is_opus_47_model, supports_adaptive_thinking
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
 
@@ -97,6 +97,7 @@ def _build_anthropic_payload(param: llm_param.LLMCallParameter) -> MessageCreate
     }
 
     betas: list[str] = []
+    _is_opus47 = is_opus_47_model(str(param.model_id))
     if param.thinking and param.thinking.type in ("enabled", "adaptive"):
         is_builtin_adaptive = supports_adaptive_thinking(str(param.model_id)) and param.thinking.type == "adaptive"
         if not is_builtin_adaptive:
@@ -107,23 +108,29 @@ def _build_anthropic_payload(param: llm_param.LLMCallParameter) -> MessageCreate
         "tool_choice": tool_choice,
         "stream": True,
         "max_tokens": param.max_tokens or DEFAULT_MAX_TOKENS,
-        "temperature": param.temperature or DEFAULT_TEMPERATURE,
         "messages": messages_input,
         "system": system,
         "tools": tools,
         "betas": betas,
     }
 
+    # Opus 4.7 rejects non-default temperature/top_p/top_k with 400
+    if not _is_opus47:
+        payload["temperature"] = param.temperature or DEFAULT_TEMPERATURE
+
     if param.thinking and param.thinking.type == "adaptive":
-        payload["thinking"] = {"type": "adaptive"}  # type: ignore[typeddict-item]
+        thinking_config: dict[str, str] = {"type": "adaptive"}
+        if _is_opus47:
+            thinking_config["display"] = "summarized"
+        payload["thinking"] = thinking_config  # type: ignore[typeddict-item]
     elif param.thinking and param.thinking.type == "enabled":
         payload["thinking"] = anthropic.types.ThinkingConfigEnabledParam(
             type="enabled",
             budget_tokens=param.thinking.budget_tokens or DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
         )
 
-    if param.verbosity:
-        payload["output_config"] = {"effort": param.verbosity}  # type: ignore[typeddict-item]
+    if param.effort:
+        payload["output_config"] = {"effort": param.effort}  # type: ignore[typeddict-item]
 
     return payload
 

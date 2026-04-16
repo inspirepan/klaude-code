@@ -131,7 +131,10 @@ class LLMConfigModelParameter(BaseModel):
     max_tokens: int | None = None
     context_limit: int | None = None
 
-    # OpenAI GPT-5 / OpenRouter output_config.effort
+    # Anthropic output_config.effort (controls intelligence vs cost tradeoff)
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None = None
+
+    # OpenAI GPT-5 text verbosity (controls response length/detail)
     verbosity: Literal["low", "medium", "high", "max"] | None = None
 
     # Unified Thinking & Reasoning

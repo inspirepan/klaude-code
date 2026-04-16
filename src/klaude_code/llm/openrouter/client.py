@@ -6,7 +6,6 @@ import openai
 from openai.types.chat.completion_create_params import CompletionCreateParamsStreaming
 
 from klaude_code.const import (
-    ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING,
     ANTHROPIC_BETA_INTERLEAVED_THINKING,
     LLM_HTTP_TIMEOUT_CONNECT,
     LLM_HTTP_TIMEOUT_READ,
@@ -23,7 +22,7 @@ from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, is_debug_enabled, log_debug
 from klaude_code.protocol import llm_param
-from klaude_code.protocol.model_id import supports_adaptive_thinking
+from klaude_code.protocol.model_id import is_opus_47_model, supports_adaptive_thinking
 
 
 def build_payload(
@@ -64,15 +63,11 @@ def build_payload(
 
     if is_claude_model(param.model_id):
         # Models with adaptive thinking have interleaved thinking built-in; no beta header needed
-        _is_opus46_adaptive = (
+        _is_adaptive_builtin = (
             supports_adaptive_thinking(str(param.model_id)) and param.thinking and param.thinking.type == "adaptive"
         )
-        if _is_opus46_adaptive:
-            extra_headers["x-anthropic-beta"] = ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING
-        else:
-            extra_headers["x-anthropic-beta"] = (
-                f"{ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING},{ANTHROPIC_BETA_INTERLEAVED_THINKING}"
-            )
+        if not _is_adaptive_builtin:
+            extra_headers["x-anthropic-beta"] = ANTHROPIC_BETA_INTERLEAVED_THINKING
 
     if is_xai_model(param.model_id):
         extra_body["plugins"] = [{"id": "web", "engine": "native"}]
@@ -82,17 +77,23 @@ def build_payload(
         thinking_cfg["clear_thinking"] = False
         extra_body["thinking"] = thinking_cfg
 
+    # OpenRouter maps "verbosity" to output_config.effort for Claude models
+    _or_verbosity = param.effort if is_claude_model(param.model_id) else param.verbosity
+
     payload: CompletionCreateParamsStreaming = {
         "model": str(param.model_id),
         "tool_choice": "auto",
         "parallel_tool_calls": True,
         "stream": True,
         "messages": messages,
-        "temperature": param.temperature,
         "max_tokens": param.max_tokens,
         "tools": tools,
-        "verbosity": param.verbosity,  # type: ignore[typeddict-item]
+        "verbosity": _or_verbosity,  # type: ignore[typeddict-item]
     }
+
+    # Opus 4.7 ignores temperature; omit for cleanliness
+    if not is_opus_47_model(str(param.model_id)):
+        payload["temperature"] = param.temperature
 
     return payload, extra_body, extra_headers
 
