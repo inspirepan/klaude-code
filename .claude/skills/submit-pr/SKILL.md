@@ -68,11 +68,7 @@ EOF
 
 `--head` is required in jj mode, auto-detected in git mode.
 
-Extract the PR number and URL from the script output (shown in `PR_URL`). Open it in the browser and report to the user:
-
-```bash
-open <PR_URL>
-```
+Extract the PR number and URL from the script output (shown in `PR_URL`) for use in the next step.
 
 ### 4. Fix until CI passes
 
@@ -82,12 +78,18 @@ Use the PR number from step 3. Loop until all CI checks pass:
 gh pr checks <pr-number> --watch
 ```
 
-If all checks pass, report success to the user and stop.
-
 If any check fails:
 1. Read the failed check's logs to identify the root cause.
 2. Fix the issue, commit, and push the fix.
 3. Run `gh pr checks <pr-number> --watch` again.
 
 Repeat until all checks are green. Do not stop or ask the user for help unless you are stuck after multiple attempts on the same failure.
+
+### 5. Open PR in browser
+
+Once all checks pass, open the PR URL from step 3 and report success to the user:
+
+```bash
+open <PR_URL>
+```
 
