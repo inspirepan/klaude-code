@@ -180,7 +180,7 @@ def build_payload(
         extra_betas: Additional beta flags to prepend to the betas list.
     """
     messages = convert_history_to_input(param.input, param.model_id)
-    tools = convert_tool_schema(param.tools)
+    tools = convert_tool_schema(param.tools, str(param.model_id))
     system_messages = [msg for msg in param.input if isinstance(msg, message.SystemMessage)]
     system = convert_system_to_input(param.system, system_messages)
 
@@ -323,7 +323,7 @@ async def parse_anthropic_stream(
                         max_tokens=param.max_tokens,
                     )
                 )
-                raw_stop_reason = getattr(event, "stop_reason", None)
+                raw_stop_reason = event.delta.stop_reason
                 if isinstance(raw_stop_reason, str):
                     state.stop_reason = _map_anthropic_stop_reason(raw_stop_reason)
             case _:
