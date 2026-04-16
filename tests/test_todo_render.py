@@ -97,3 +97,43 @@ def test_render_bash_tool_result_adds_left_padding() -> None:
     output = _render_tool_result_to_text(event)
 
     assert output.rstrip("\n").rstrip() == "└      hi"
+
+
+def test_render_bash_tool_call_shows_description_callout() -> None:
+    event = events.ToolCallEvent(
+        session_id="s1",
+        tool_call_id="tc1",
+        tool_name=tools.BASH,
+        arguments=json.dumps(
+            {
+                "command": "git status --short",
+                "description": "Show tracked file changes in short format",
+            }
+        ),
+    )
+
+    output = _render_tool_call_to_text(event)
+
+    assert output is not None
+    description_idx = output.find("# Show tracked file changes in short format")
+    command_idx = output.find("git status --short")
+
+    assert description_idx != -1
+    assert command_idx != -1
+    assert description_idx < command_idx
+
+
+def test_render_bash_tool_call_adds_divider_for_long_multiline_command() -> None:
+    command = "\n".join(f"echo {i}" for i in range(11))
+    event = events.ToolCallEvent(
+        session_id="s1",
+        tool_call_id="tc1",
+        tool_name=tools.BASH,
+        arguments=json.dumps({"command": command}),
+    )
+
+    output = _render_tool_call_to_text(event)
+
+    assert output is not None
+    assert "echo 10" in output
+    assert "────────────" in output
