@@ -466,6 +466,7 @@ def test_main_bash_tool_call_adds_blank_line_before_stream_starts() -> None:
     assert len(update.status_lines) == 1
     assert _line_plain(update.status_lines[0]).startswith("Bashing")
 
+
 def test_main_session_composing_keeps_sub_agent_activity_priority() -> None:
     machine = DisplayStateMachine()
     main_session = "main"

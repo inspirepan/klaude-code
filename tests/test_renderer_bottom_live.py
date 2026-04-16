@@ -61,8 +61,8 @@ def test_display_image_prints_caption_then_image(monkeypatch: pytest.MonkeyPatch
 
 
 def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail_lines() -> None:
-    from klaude_code.tui.renderer import BASH_LIVE_TAIL_MAX_LINES, TUICommandRenderer
     from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
+    from klaude_code.tui.renderer import BASH_LIVE_TAIL_MAX_LINES, TUICommandRenderer
 
     renderer = TUICommandRenderer()
     output = io.StringIO()
@@ -104,8 +104,8 @@ def test_display_bash_command_end_clears_live_tail() -> None:
 
 
 def test_bash_mode_delta_uses_live_tail_renderable() -> None:
-    from klaude_code.tui.renderer import TUICommandRenderer
     from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
+    from klaude_code.tui.renderer import TUICommandRenderer
 
     renderer = TUICommandRenderer()
     output = io.StringIO()
@@ -149,8 +149,8 @@ def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
 
 
 def test_bottom_renderable_keeps_blank_line_between_bash_live_region_and_status() -> None:
-    from klaude_code.tui.renderer import TUICommandRenderer
     from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
+    from klaude_code.tui.renderer import TUICommandRenderer
 
     renderer = TUICommandRenderer()
     output = io.StringIO()

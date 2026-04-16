@@ -190,6 +190,7 @@ class ActivityState:
     def has_activity_label(self, label: str) -> bool:
         return label in self._tool_calls
 
+
 class SpinnerStatusState:
     """State machine for spinner status plus task/session metadata."""
 
@@ -665,7 +666,9 @@ class DisplayStateMachine:
         status_lines = sub_agent_lines if sub_agent_lines else (SpinnerStatusLine(text=self._spinner.get_status()),)
         reset_bottom_height = self._had_sub_agent_status_lines and not sub_agent_lines
         self._had_sub_agent_status_lines = bool(sub_agent_lines)
-        top_blank_line = self._spinner.has_activity_label(get_tool_active_form(tools.BASH)) and not self._live_bash_tool_call_ids
+        top_blank_line = (
+            self._spinner.has_activity_label(get_tool_active_form(tools.BASH)) and not self._live_bash_tool_call_ids
+        )
         return [
             SpinnerUpdate(
                 status_text=self._spinner.get_todo_status(),
