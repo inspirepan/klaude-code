@@ -40,6 +40,16 @@ def is_claude_model_any(model_name: str | None) -> bool:
     return model_name is not None and "claude" in model_name.lower()
 
 
+def model_supports_eager_input_streaming(model_name: str | None) -> bool:
+    """Check if the model supports the eager_input_streaming tool parameter.
+
+    Only models at claude-sonnet-4-6 / claude-opus-4-6 or newer are known to accept
+    this beta field on both the Anthropic API and AWS Bedrock. Older models such as
+    claude-haiku-4-5 return a 400 'Extra inputs are not permitted' error on Bedrock.
+    """
+    return supports_adaptive_thinking(model_name)
+
+
 def model_supports_unsigned_thinking(model_name: str | None) -> bool:
     """Check if the model supports thinking blocks without signature (e.g., kimi, deepseek)."""
     if not model_name:

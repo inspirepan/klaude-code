@@ -129,6 +129,27 @@ def fmt_todo_items(todo_items_str: str) -> str:
     return f"\n\nHere are the existing contents of your todo list:\n\n[{todo_items_str}]"
 
 
+# ---------------------------------------------------------------------------
+# Paste files
+# ---------------------------------------------------------------------------
+
+
+def fmt_paste_file_hint(pasted_files: dict[str, str]) -> str:
+    mapping = "\n".join(f"- <{tag}> saved to: {path}" for tag, path in pasted_files.items())
+    return (
+        "The user's message contains pasted content wrapped in XML tags. "
+        "Each paste has been saved to a file for convenient editing:\n"
+        f"{mapping}\n\n"
+        "When you need to execute the pasted content in Bash or write it into a code file, "
+        "use Bash commands (cp, mv, cat, etc.) to operate on the file directly instead of repeating it."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Todo nudge
+# ---------------------------------------------------------------------------
+
+
 def fmt_todo_nudge(todo_str: str) -> str:
     return (
         "The TodoWrite tool hasn't been used recently. If you're working on tasks that would benefit "

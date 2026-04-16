@@ -17,6 +17,17 @@ from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
 _DEFAULT_STORES: dict[str, JsonlSessionStore] = {}
 
 _CHECKPOINT_RE = re.compile(r"<system-reminder>Checkpoint (\d+)</system-reminder>")
+_XML_TAG_RE_CACHE: dict[str, re.Pattern[str]] = {}
+
+
+def _extract_xml_tag(text: str, tag: str) -> str:
+    """Extract content between <tag>...</tag>."""
+    pat = _XML_TAG_RE_CACHE.get(tag)
+    if pat is None:
+        pat = re.compile(rf"<{re.escape(tag)}>(.*?)</{re.escape(tag)}>", re.DOTALL)
+        _XML_TAG_RE_CACHE[tag] = pat
+    match = pat.search(text)
+    return match.group(1) if match else ""
 
 
 def _extract_checkpoint_id(text: str) -> int | None:
@@ -767,15 +778,37 @@ class Session(BaseModel):
                     )
                     yield from self._iter_sub_agent_history(tr, seen_sub_agent_sessions)
                 case message.UserMessage() as um:
-                    images = [
-                        part for part in um.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))
-                    ]
-                    yield events.UserMessageEvent(
-                        content=message.join_text_parts(um.parts),
-                        session_id=self.id,
-                        images=images or None,
-                        timestamp=msg_ts,
-                    )
+                    if um.source == "bash_mode":
+                        text = message.join_text_parts(um.parts)
+                        cmd = _extract_xml_tag(text, "bash-input")
+                        if cmd:
+                            yield events.UserMessageEvent(
+                                content=f"!{cmd}",
+                                session_id=self.id,
+                                timestamp=msg_ts,
+                            )
+                            yield events.BashCommandStartEvent(session_id=self.id, command=cmd, timestamp=msg_ts)
+                        stdout = _extract_xml_tag(text, "bash-stdout")
+                        if stdout and stdout != "(no output)":
+                            yield events.BashCommandOutputDeltaEvent(
+                                session_id=self.id, content=stdout, timestamp=msg_ts
+                            )
+                        yield events.BashCommandEndEvent(
+                            session_id=self.id,
+                            exit_code=None,
+                            cancelled="(command cancelled)" in (stdout or ""),
+                            timestamp=msg_ts,
+                        )
+                    else:
+                        images = [
+                            part for part in um.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))
+                        ]
+                        yield events.UserMessageEvent(
+                            content=message.join_text_parts(um.parts),
+                            session_id=self.id,
+                            images=images or None,
+                            timestamp=msg_ts,
+                        )
                 case model.TaskMetadataItem() as mt:
                     yield events.TaskMetadataEvent(
                         session_id=self.id, metadata=mt, is_partial=mt.is_partial, timestamp=msg_ts

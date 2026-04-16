@@ -407,6 +407,11 @@ class AtFileImagesUIItem(BaseModel):
     paths: list[str]
 
 
+class PasteFilesUIItem(BaseModel):
+    type: Literal["paste_files"] = "paste_files"
+    tags: dict[str, str]  # tag name -> file path
+
+
 type DeveloperUIItem = (
     MemoryLoadedUIItem
     | ExternalFileChangesUIItem
@@ -417,6 +422,7 @@ type DeveloperUIItem = (
     | SkillDiscoveredUIItem
     | SkillListingUIItem
     | AtFileImagesUIItem
+    | PasteFilesUIItem
 )
 
 

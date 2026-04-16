@@ -69,29 +69,27 @@ def test_truncate_status_when_pipe_right_part_too_long() -> None:
     assert result.plain == "todo | super long t…"
 
 
-def test_shimmer_status_with_right_text_renders_three_lines() -> None:
+def test_shimmer_status_with_right_text_renders_two_lines() -> None:
     console = Console(file=io.StringIO(), force_terminal=True, width=120, theme=get_theme().app_theme)
     status = StackedStatusText(
-        "Thinking",
-        Text("95.1%", style=ThemeKey.METADATA_DIM),
-        (Text("Loading…", style=ThemeKey.STATUS_TEXT),),
+        metadata_text=Text("95.1%", style=ThemeKey.METADATA_DIM),
+        status_lines=(Text("Loading…", style=ThemeKey.STATUS_TEXT),),
     )
     lines = console.render_lines(status, console.options.update(no_wrap=True, overflow="ellipsis"), pad=False)
-    assert len(lines) == 3
+    assert len(lines) == 2
 
     first_line = "".join(segment.text for segment in lines[0] if segment.text)
     second_line = "".join(segment.text for segment in lines[1] if segment.text)
-    third_line = "".join(segment.text for segment in lines[2] if segment.text)
 
     assert "Loading…" in first_line
-    assert "Thinking" in second_line
-    assert "95.1% · esc to interrupt" in third_line
+    assert "95.1% · esc to interrupt" in second_line
 
 
-def test_shimmer_status_without_primary_line_renders_only_second_and_third() -> None:
+def test_shimmer_status_without_primary_line_renders_status_and_metadata() -> None:
     console = Console(file=io.StringIO(), force_terminal=True, width=120, theme=get_theme().app_theme)
     status = StackedStatusText(
-        "", Text("95.1%", style=ThemeKey.METADATA_DIM), (Text("Typing…", style=ThemeKey.STATUS_TEXT),)
+        metadata_text=Text("95.1%", style=ThemeKey.METADATA_DIM),
+        status_lines=(Text("Typing…", style=ThemeKey.STATUS_TEXT),),
     )
     lines = console.render_lines(status, console.options.update(no_wrap=True, overflow="ellipsis"), pad=False)
 
@@ -105,9 +103,8 @@ def test_shimmer_status_without_primary_line_renders_only_second_and_third() -> 
 def test_stacked_status_adds_leading_blank_line_when_enabled() -> None:
     console = Console(file=io.StringIO(), force_terminal=True, width=120, theme=get_theme().app_theme)
     status = StackedStatusText(
-        "",
-        Text("95.1%", style=ThemeKey.METADATA_DIM),
-        (Text("Finding searching", style=ThemeKey.STATUS_TEXT),),
+        metadata_text=Text("95.1%", style=ThemeKey.METADATA_DIM),
+        status_lines=(Text("Finding searching", style=ThemeKey.STATUS_TEXT),),
         leading_blank_line=True,
     )
     lines = console.render_lines(status, console.options.update(no_wrap=True, overflow="ellipsis"), pad=False)
@@ -136,7 +133,7 @@ def test_third_line_drops_hint_before_compact_when_full_metadata_fits() -> None:
 
     width = cell_len(right_text.plain)
     console = Console(file=io.StringIO(), force_terminal=True, width=width, theme=get_theme().app_theme)
-    status = StackedStatusText("", right_text, (Text("Loading…", style=ThemeKey.STATUS_TEXT),))
+    status = StackedStatusText(metadata_text=right_text, status_lines=(Text("Loading…", style=ThemeKey.STATUS_TEXT),))
     lines = console.render_lines(
         status,
         console.options.update(no_wrap=True, overflow="ellipsis", max_width=width),
@@ -170,7 +167,7 @@ def test_third_line_compacts_tokens_after_dropping_hint() -> None:
 
     width = cell_len(compact_plain)
     console = Console(file=io.StringIO(), force_terminal=True, width=width, theme=get_theme().app_theme)
-    status = StackedStatusText("", right_text, (Text("Loading…", style=ThemeKey.STATUS_TEXT),))
+    status = StackedStatusText(metadata_text=right_text, status_lines=(Text("Loading…", style=ThemeKey.STATUS_TEXT),))
     lines = console.render_lines(
         status,
         console.options.update(no_wrap=True, overflow="ellipsis", max_width=width),
@@ -208,7 +205,7 @@ def test_third_line_shows_compact_with_hint_when_only_that_fits() -> None:
     assert cell_len(full_plain) > width
 
     console = Console(file=io.StringIO(), force_terminal=True, width=width, theme=get_theme().app_theme)
-    status = StackedStatusText("", right_text, (Text("Loading…", style=ThemeKey.STATUS_TEXT),))
+    status = StackedStatusText(metadata_text=right_text, status_lines=(Text("Loading…", style=ThemeKey.STATUS_TEXT),))
     lines = console.render_lines(
         status,
         console.options.update(no_wrap=True, overflow="ellipsis", max_width=width),
@@ -241,7 +238,7 @@ def test_third_line_avoids_compact_when_full_metadata_still_fits() -> None:
     assert cell_len(full_plain) > width - 4
 
     console = Console(file=io.StringIO(), force_terminal=True, width=width, theme=get_theme().app_theme)
-    status = StackedStatusText("", right_text, (Text("Loading…", style=ThemeKey.STATUS_TEXT),))
+    status = StackedStatusText(metadata_text=right_text, status_lines=(Text("Loading…", style=ThemeKey.STATUS_TEXT),))
     lines = console.render_lines(
         status,
         console.options.update(no_wrap=True, overflow="ellipsis", max_width=width),

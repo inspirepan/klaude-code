@@ -16,6 +16,7 @@ from klaude_code.agent.attachments import (
     last_path_memory_attachment,
     last_path_skill_attachment,
     memory_attachment,
+    paste_file_attachment,
     skill_attachment,
     todo_attachment,
 )
@@ -109,6 +110,7 @@ def load_agent_attachments(
         last_path_memory_attachment,
         last_path_skill_attachment,
         image_attachment,
+        paste_file_attachment,
         skill_attachment,
     ]
     if has_todo_tool:

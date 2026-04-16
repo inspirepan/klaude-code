@@ -195,7 +195,6 @@ class SpinnerStatusState:
     """State machine for spinner status plus task/session metadata."""
 
     def __init__(self) -> None:
-        self._todo_status: str | None = None
         self._phase = SpinnerPhase.WAITING
         self._custom_status: str | None = None
         self._toast_status: str | None = None
@@ -214,7 +213,6 @@ class SpinnerStatusState:
         self._cost_currency: str = "USD"
 
     def reset(self) -> None:
-        self._todo_status = None
         self._enter_phase(SpinnerPhase.WAITING)
         self._toast_status = None
         self._activity.reset()
@@ -233,7 +231,6 @@ class SpinnerStatusState:
     def clear_task_state(self) -> None:
         """Clear task-scoped spinner state while keeping session metadata."""
 
-        self._todo_status = None
         self._enter_phase(SpinnerPhase.WAITING)
         self._toast_status = None
         self._activity.reset()
@@ -257,9 +254,6 @@ class SpinnerStatusState:
 
     def set_toast_status(self, status: str | None) -> None:
         self._toast_status = status
-
-    def set_todo_status(self, status: str | None) -> None:
-        self._todo_status = status
 
     def set_reasoning_status(self, status: str | None) -> None:
         if status is None:
@@ -368,17 +362,6 @@ class SpinnerStatusState:
             case SpinnerPhase.CUSTOM:
                 return Text(self._custom_status or "", style=ThemeKey.STATUS_TEXT)
         return None
-
-    def get_todo_status(self) -> Text:
-        todo_status = self._todo_status
-        if todo_status is None:
-            return Text("")
-
-        todo_status_cells = cell_len(todo_status)
-        min_status_cells = STATUS_LEFT_MIN_WIDTH_CELLS
-        if todo_status_cells < min_status_cells:
-            todo_status = todo_status + " " * (min_status_cells - todo_status_cells)
-        return Text(todo_status, style=ThemeKey.STATUS_TODO)
 
     def get_status(self) -> Text:
         if self._toast_status:
@@ -671,7 +654,6 @@ class DisplayStateMachine:
         )
         return [
             SpinnerUpdate(
-                status_text=self._spinner.get_todo_status(),
                 right_text=self._spinner.get_right_text(),
                 status_lines=status_lines,
                 reset_bottom_height=reset_bottom_height,
@@ -1202,14 +1184,6 @@ class DisplayStateMachine:
                 cmds.append(RenderTaskMetadata(e))
                 return cmds
 
-            case events.TodoChangeEvent() as e:
-                todo_text = _extract_active_form_text(e)
-                if not is_replay:
-                    self._spinner.set_todo_status(todo_text)
-                    self._spinner.clear_for_new_turn()
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
-
             case events.UsageEvent() as e:
                 # UsageEvent is not rendered, but it drives context % display.
                 if s.is_sub_agent:
@@ -1340,16 +1314,3 @@ class DisplayStateMachine:
 
             case _:
                 return []
-
-
-def _extract_active_form_text(todo_event: events.TodoChangeEvent) -> str | None:
-    status_text: str | None = None
-    for todo in todo_event.todos:
-        if todo.status == "in_progress" and todo.content:
-            status_text = todo.content
-
-    if status_text is None:
-        return None
-
-    normalized = status_text.replace("\n", " ").strip()
-    return normalized if normalized else None

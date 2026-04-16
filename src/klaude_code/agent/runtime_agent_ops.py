@@ -399,6 +399,7 @@ class AgentOperationHandler:
         return message.UserInputPayload(
             text=user_input.text,
             images=[freeze_image_for_history(image) for image in images],
+            pasted_files=user_input.pasted_files,
         )
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
@@ -410,7 +411,8 @@ class AgentOperationHandler:
                     parts=message.parts_from_text_and_images(
                         frozen_input.text,
                         frozen_input.images,
-                    )
+                    ),
+                    pasted_files=frozen_input.pasted_files,
                 )
             ]
         )

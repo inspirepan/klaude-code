@@ -74,6 +74,11 @@ class Agent:
     async def run_task(
         self, user_input: UserInputPayload, *, run_subtask: RunSubtask | None = None
     ) -> AsyncGenerator[events.Event]:
+        available_tool_names = {tool.name for tool in self.profile.tools}
+        tool_registry = {
+            name: tool_class for name, tool_class in get_registry().items() if name in available_tool_names
+        }
+
         session_ctx = SessionContext(
             session_id=self.session.id,
             work_dir=self.session.work_dir,
@@ -89,7 +94,7 @@ class Agent:
             session=self.session,
             session_ctx=session_ctx,
             profile=self.profile,
-            tool_registry=get_registry(),
+            tool_registry=tool_registry,
             sub_agent_state=self.session.sub_agent_state,
             compact_llm_client=self.compact_llm_client,
         )

@@ -168,12 +168,11 @@ class TUICommandRenderer:
         self._stream_last_height: int = 0
         self._stream_last_width: int = 0
         self._spinner_visible: bool = False
-        self._spinner_last_update_key: tuple[object, object, object, object, object, object] | None = None
+        self._spinner_last_update_key: tuple[object, object, object, object, object] | None = None
         self._bottom_last_height: int = 0
         self._status_top_blank_line: bool = False
 
         self._status_text: StackedStatusText = StackedStatusText(
-            "",
             None,
             (Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT),),
         )
@@ -328,7 +327,6 @@ class TUICommandRenderer:
 
     def spinner_update(
         self,
-        todo_text: str | Text,
         metadata_text: RenderableType | None = None,
         status_lines: tuple[SpinnerStatusLine, ...] = (),
         reset_bottom_height: bool = False,
@@ -339,7 +337,6 @@ class TUICommandRenderer:
             self._bottom_last_height = 0
 
         new_key = (
-            self._spinner_text_key(todo_text),
             self._spinner_right_text_key(metadata_text),
             tuple((line.session_id, self._spinner_text_key(line.text)) for line in status_lines),
             reset_bottom_height,
@@ -354,7 +351,6 @@ class TUICommandRenderer:
         rendered_status_lines = tuple(self._render_status_line(line) for line in status_lines)
 
         self._status_text = StackedStatusText(
-            todo_text=todo_text,
             metadata_text=metadata_text,
             status_lines=rendered_status_lines,
             leading_blank_line=leading_blank_line,
@@ -1052,7 +1048,6 @@ class TUICommandRenderer:
                 case SpinnerStop():
                     self.spinner_stop()
                 case SpinnerUpdate(
-                    status_text=todo_text,
                     right_text=metadata_text,
                     status_lines=status_lines,
                     reset_bottom_height=reset_bottom_height,
@@ -1060,7 +1055,6 @@ class TUICommandRenderer:
                     top_blank_line=top_blank_line,
                 ):
                     self.spinner_update(
-                        todo_text,
                         metadata_text,
                         status_lines,
                         reset_bottom_height,

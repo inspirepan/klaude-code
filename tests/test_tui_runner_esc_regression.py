@@ -66,6 +66,9 @@ class _FakePromptToolkitInput:
     def set_next_prefill(self, text: str | None) -> None:
         self.prefills.append(text)
 
+    def set_session_dir(self, session_dir: Any) -> None:
+        pass
+
 
 def _default_question_payload() -> user_interaction.AskUserQuestionRequestPayload:
     return user_interaction.AskUserQuestionRequestPayload(
