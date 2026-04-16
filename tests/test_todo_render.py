@@ -99,6 +99,21 @@ def test_render_bash_tool_result_adds_left_padding() -> None:
     assert output.rstrip("\n").rstrip() == "└      hi"
 
 
+def test_render_bash_tool_result_shows_no_content_for_empty_output() -> None:
+    event = events.ToolResultEvent(
+        session_id="s1",
+        tool_call_id="tc1",
+        tool_name=tools.BASH,
+        result="",
+        status="success",
+        is_last_in_turn=True,
+    )
+
+    output = _render_tool_result_to_text(event)
+
+    assert output.rstrip("\n").rstrip() == "└      (no content)"
+
+
 def test_render_bash_tool_call_shows_description_callout() -> None:
     event = events.ToolCallEvent(
         session_id="s1",

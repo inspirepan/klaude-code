@@ -178,10 +178,9 @@ def test_turn_start_flushes_open_tool_block_before_spinner_updates() -> None:
 
 
 def test_sub_agent_call_prompt_renders_as_markdown() -> None:
-    output = io.StringIO()
-    console = Console(file=output, width=100, force_terminal=False)
+    renderer, output = _renderer_and_output()
 
-    console.print(
+    renderer.console.print(
         render_sub_agent_call(
             model.SubAgentState(
                 sub_agent_type="finder",

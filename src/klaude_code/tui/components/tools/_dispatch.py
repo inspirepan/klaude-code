@@ -238,7 +238,7 @@ def render_tool_result(
             result = e.result if len(e.result.strip()) > 0 else "(no content)"
             return render_todo_message(result, is_error=e.is_error)
         case tools.BASH:
-            return wrap(render_fallback_tool_result(e.tool_name, e.result, is_error=e.is_error))
+            return _render_fallback()
         case tools.WEB_FETCH | tools.WEB_SEARCH:
             display_result = extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:
