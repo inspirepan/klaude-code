@@ -43,48 +43,37 @@ def test_sub_agent_tool_calls_decrement_by_tool_call_id() -> None:
     assert "x 2" not in activity.plain
 
 
-def test_todo_status_takes_priority_over_default_thinking() -> None:
+def test_reasoning_status_overrides_default_status() -> None:
     state = SpinnerStatusState()
-    state.set_todo_status("Write tests")
     state.set_reasoning_status("Thinking…")
 
-    todo_status = state.get_todo_status()
     status = state.get_status()
-    assert todo_status.plain == "Write tests"
     assert status.plain.startswith("Thinking…")
 
 
-def test_custom_reasoning_is_shown_on_second_line_when_todo_present() -> None:
+def test_custom_reasoning_status_is_shown() -> None:
     state = SpinnerStatusState()
-    state.set_todo_status("Implement feature")
     state.set_reasoning_status("Plan")
 
-    todo_status = state.get_todo_status()
     status = state.get_status()
-    assert todo_status.plain == "Implement feature"
     assert status.plain.startswith("Plan")
 
 
-def test_activity_moves_to_separate_status_line_when_base_present() -> None:
+def test_activity_status_is_shown_when_present() -> None:
     state = SpinnerStatusState()
-    state.set_todo_status("Implement feature")
     state.add_tool_call("Finding")
 
-    todo_status = state.get_todo_status()
     status = state.get_status()
 
-    assert todo_status.plain == "Implement feature"
     assert status.plain.startswith("Finding")
 
 
-def test_activity_is_shown_on_secondary_line_when_no_base_status() -> None:
+def test_composing_status_is_shown() -> None:
     state = SpinnerStatusState()
     state.set_composing(True)
 
-    todo_status = state.get_todo_status()
     status = state.get_status()
 
-    assert todo_status.plain == ""
     assert status.plain.startswith("Typing…")
 
 
@@ -97,14 +86,12 @@ def test_short_reasoning_status_keeps_min_loading_width() -> None:
     assert status.plain.startswith("Typing")
 
 
-def test_reasoning_on_first_line_and_default_on_secondary_line() -> None:
+def test_thinking_status_is_shown() -> None:
     state = SpinnerStatusState()
     state.set_reasoning_status("Thinking…")
 
-    todo_status = state.get_todo_status()
     status = state.get_status()
 
-    assert todo_status.plain == ""
     assert status.plain.startswith("Thinking…")
 
 
@@ -122,10 +109,8 @@ def test_composing_status_keeps_min_loading_width() -> None:
     state = SpinnerStatusState()
     state.set_composing(True)
 
-    todo_status = state.get_todo_status()
     status = state.get_status()
 
-    assert todo_status.plain == ""
     assert status.plain.startswith("Typing…")
     assert cell_len(status.plain) == STATUS_LEFT_MIN_WIDTH_CELLS
 
@@ -144,24 +129,19 @@ def test_stopping_composing_returns_to_default_status() -> None:
 def test_default_status_keeps_min_thinking_width() -> None:
     state = SpinnerStatusState()
 
-    todo_status = state.get_todo_status()
     status = state.get_status()
 
-    assert todo_status.plain == ""
     assert status.plain.startswith(STATUS_DEFAULT_TEXT)
     assert cell_len(status.plain) == STATUS_LEFT_MIN_WIDTH_CELLS
 
 
-def test_toast_is_shown_on_secondary_line_with_highest_priority() -> None:
+def test_toast_has_highest_priority() -> None:
     state = SpinnerStatusState()
-    state.set_todo_status("Implement feature")
     state.add_tool_call("Finding")
     state.set_toast_status("Press ctrl+c again to exit")
 
-    todo_status = state.get_todo_status()
     status = state.get_status()
 
-    assert todo_status.plain == "Implement feature"
     assert status.plain == "Press ctrl+c again to exit"
 
 

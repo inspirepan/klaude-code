@@ -144,7 +144,6 @@ class SpinnerStatusLine:
 
 @dataclass(frozen=True, slots=True)
 class SpinnerUpdate(RenderCommand):
-    status_text: str | Text
     right_text: RenderableType | None
     status_lines: tuple[SpinnerStatusLine, ...] = ()
     reset_bottom_height: bool = False

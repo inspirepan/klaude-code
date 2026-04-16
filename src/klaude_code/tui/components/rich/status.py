@@ -231,23 +231,14 @@ def truncate_status(text: Text, max_cells: int, *, console: Console, ellipsis: s
 
 
 class StackedStatusText:
-    """Renderable [todo, status..., metadata] with shimmer on todo/status lines."""
+    """Renderable [status..., metadata] with shimmer on status lines."""
 
     def __init__(
         self,
-        todo_text: str | Text,
         metadata_text: RenderableType | None = None,
         status_lines: tuple[RenderableType, ...] = (),
         leading_blank_line: bool = False,
-        main_style: ThemeKey = ThemeKey.STATUS_TEXT,
     ) -> None:
-        if isinstance(todo_text, Text):
-            text = todo_text.copy()
-            if not text.style:
-                text.style = str(main_style)
-            self._todo_text = text
-        else:
-            self._todo_text = Text(todo_text, style=main_style)
         self._metadata_line = StatusMetadataLine(metadata_text, hint_style=ThemeKey.STATUS_HINT)
         self._status_lines = status_lines
         self._leading_blank_line = leading_blank_line
@@ -255,12 +246,6 @@ class StackedStatusText:
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         max_width = max(1, getattr(options, "max_width", options.size.width))
         line_options = options.update(no_wrap=True, overflow="ellipsis", height=1)
-
-        todo_line = _render_single_line_text(
-            _StatusShimmerLine(main=self._todo_text),
-            console=console,
-            options=line_options.update(max_width=max_width),
-        )
 
         rendered_status_lines: list[Text] = []
         for status_line in self._status_lines:
@@ -283,8 +268,6 @@ class StackedStatusText:
         if self._leading_blank_line and rendered_status_lines:
             lines.append(Text(""))
         lines.extend(rendered_status_lines)
-        if todo_line.plain:
-            lines.append(todo_line)
         lines.append(metadata_line)
 
         if len(lines) == 1:
