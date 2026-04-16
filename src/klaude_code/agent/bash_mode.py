@@ -228,9 +228,7 @@ async def run_bash_command(
             stdout_content = ""
             try:
                 if log_path.exists() and log_path.stat().st_size > BASH_MODE_SESSION_OUTPUT_MAX_BYTES:
-                    stdout_content = (
-                        f"Output truncated due to length. Full output saved to: {log_path}"
-                    )
+                    stdout_content = f"Output truncated due to length. Full output saved to: {log_path}"
                     output_note_added = True
                 else:
                     output_text = log_path.read_text("utf-8", errors="replace") if log_path.exists() else ""
@@ -240,9 +238,7 @@ async def run_bash_command(
             if not output_note_added:
                 if output_text.strip() == "":
                     stdout_content = "(no output)"
-                    await emit_event(
-                        events.BashCommandOutputDeltaEvent(session_id=session_id, content="(no output)\n")
-                    )
+                    await emit_event(events.BashCommandOutputDeltaEvent(session_id=session_id, content="(no output)\n"))
                 else:
                     offloaded = offload_tool_output(output_text, _BashModeToolCall())
                     stdout_content = offloaded.output
@@ -267,9 +263,11 @@ async def run_bash_command(
             f"<bash-input>{_escape_xml(command)}</bash-input>\n"
             f"<bash-stdout>{_escape_xml(stdout_content)}</bash-stdout>"
         )
-        session.append_history([
-            message.UserMessage(
-                source="bash_mode",
-                parts=[message.TextPart(text=bash_text)],
-            )
-        ])
+        session.append_history(
+            [
+                message.UserMessage(
+                    source="bash_mode",
+                    parts=[message.TextPart(text=bash_text)],
+                )
+            ]
+        )

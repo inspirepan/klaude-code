@@ -787,9 +787,7 @@ class Session(BaseModel):
                                 session_id=self.id,
                                 timestamp=msg_ts,
                             )
-                            yield events.BashCommandStartEvent(
-                                session_id=self.id, command=cmd, timestamp=msg_ts
-                            )
+                            yield events.BashCommandStartEvent(session_id=self.id, command=cmd, timestamp=msg_ts)
                         stdout = _extract_xml_tag(text, "bash-stdout")
                         if stdout and stdout != "(no output)":
                             yield events.BashCommandOutputDeltaEvent(
@@ -803,9 +801,7 @@ class Session(BaseModel):
                         )
                     else:
                         images = [
-                            part
-                            for part in um.parts
-                            if isinstance(part, (message.ImageURLPart, message.ImageFilePart))
+                            part for part in um.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))
                         ]
                         yield events.UserMessageEvent(
                             content=message.join_text_parts(um.parts),

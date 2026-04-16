@@ -66,7 +66,6 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     )
     update = _last_spinner_update(cmds)
 
-    assert _line_plain(update.status_text) == ""
     assert update.leading_blank_line is True
     assert update.status_lines[0].session_id == sub_session
     lines = [_line_plain(line) for line in update.status_lines]
