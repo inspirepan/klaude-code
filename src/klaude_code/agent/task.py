@@ -236,6 +236,9 @@ class TaskExecutor:
         self._last_interrupt_show_notice = True
         self._last_interrupt_prefill_text: str | None = None
 
+    def _has_tool(self, tool_name: str) -> bool:
+        return any(tool.name == tool_name for tool in self._context.profile.tools)
+
     @property
     def last_interrupt_show_notice(self) -> bool:
         return self._last_interrupt_show_notice
@@ -316,7 +319,7 @@ class TaskExecutor:
         has_user_input = bool(user_input.text.strip() or user_input.images)
 
         if ctx.sub_agent_state is None:
-            if tools.REWIND in ctx.tool_registry:
+            if self._has_tool(tools.REWIND):
                 self._rewind_manager = RewindManager()
                 self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
                 self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
