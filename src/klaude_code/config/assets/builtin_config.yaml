@@ -74,7 +74,7 @@ provider_list:
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: haiku
-    model_id: global.anthropic.claude-haiku-4-5
+    model_id: global.anthropic.claude-haiku-4-5-20251001-v1:0
     context_limit: 200000
     cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
 
