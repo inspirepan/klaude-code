@@ -32,7 +32,7 @@ from klaude_code.llm.input_common import (
     split_thinking_parts,
 )
 from klaude_code.protocol import llm_param, message
-from klaude_code.protocol.model_id import is_claude_model_any, model_supports_unsigned_thinking
+from klaude_code.protocol.model_id import model_supports_eager_input_streaming, model_supports_unsigned_thinking
 from klaude_code.protocol.system_prompt import SYSTEM_PROMPT_DYNAMIC_BOUNDARY, split_system_prompt_for_cache
 
 AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
@@ -332,7 +332,7 @@ def convert_tool_schema(
 ) -> list[BetaToolParam]:
     if tools is None:
         return []
-    enable_eager_input_streaming = is_claude_model_any(model_name)
+    enable_eager_input_streaming = model_supports_eager_input_streaming(model_name)
     return [
         cast(
             BetaToolParam,
