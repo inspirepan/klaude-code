@@ -203,6 +203,10 @@ class DeveloperMessage(MessageBase):
 class UserMessage(MessageBase):
     role: Literal["user"] = "user"
     parts: list[Part]
+    # Tag the origin of this message for replay rendering
+    source: Literal["user", "bash_mode"] | None = None
+    # Paste tag -> file path mapping (e.g. {"paste1": "/path/to/paste.txt"})
+    pasted_files: dict[str, str] | None = None
 
 
 class AssistantMessage(MessageBase):
@@ -265,6 +269,7 @@ class UserInputPayload(BaseModel):
 
     text: str
     images: Sequence[ImageURLPart | ImageFilePart] | None = None
+    pasted_files: dict[str, str] | None = None
 
 
 # Helper functions

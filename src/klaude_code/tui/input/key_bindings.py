@@ -25,7 +25,7 @@ from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.keys import Keys
 
 from klaude_code.tui.input.drag_drop import convert_dropped_text
-from klaude_code.tui.input.paste import expand_paste_markers, store_paste
+from klaude_code.tui.input.paste import store_paste
 
 
 def copy_to_clipboard(text: str) -> None:
@@ -504,16 +504,14 @@ def create_key_bindings(
         ):
             return
 
-        # Before submitting, expand any folded paste markers so that:
-        # - the actual request contains the full pasted content
-        # - prompt_toolkit history stores the expanded content
-        # Also convert any remaining file:// drops that bypassed bracketed paste.
+        # Convert any remaining file:// drops that bypassed bracketed paste.
+        # Paste markers are NOT expanded here -- iter_inputs() handles expansion
+        # so that large pastes can be saved to session files.
         try:
             current_text = buf.text  # type: ignore[reportUnknownMemberType]
         except Exception:
             current_text = ""
-        prepared = expand_paste_markers(current_text)
-        prepared = convert_dropped_text(prepared, cwd=Path.cwd())
+        prepared = convert_dropped_text(current_text, cwd=Path.cwd())
         if prepared != current_text:
             with contextlib.suppress(Exception):
                 buf.text = prepared  # type: ignore[reportUnknownMemberType]

@@ -46,7 +46,7 @@ from klaude_code.tui.input.images import (
     extract_images_from_text,
 )
 from klaude_code.tui.input.key_bindings import create_key_bindings
-from klaude_code.tui.input.paste import expand_paste_markers
+from klaude_code.tui.input.paste import expand_paste_markers, expand_paste_markers_with_file_save
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 
 COMPLETION_SELECTED_BG = "ansigreen"
@@ -341,6 +341,7 @@ class PromptToolkitInput(InputProviderABC):
         self._get_current_llm_config = get_current_llm_config
         self._command_info_provider = command_info_provider
         self._next_prefill_text: str | None = None
+        self._session_dir: Path | None = None
 
         self._session = self._build_prompt_session(prompt)
         self._setup_model_picker()
@@ -349,6 +350,9 @@ class PromptToolkitInput(InputProviderABC):
 
     def set_next_prefill(self, text: str | None) -> None:
         self._next_prefill_text = text
+
+    def set_session_dir(self, session_dir: Path | None) -> None:
+        self._session_dir = session_dir
 
     def _build_prompt_session(self, prompt: str) -> PromptSession[str]:
         """Build the prompt_toolkit PromptSession with key bindings and styles."""
@@ -725,7 +729,13 @@ class PromptToolkitInput(InputProviderABC):
                     self._post_prompt()
 
             # Expand folded paste markers back into the original content.
-            line = expand_paste_markers(line)
+            # Save large pastes to files when session directory is available.
+            pasted_files: dict[str, str] | None = None
+            if self._session_dir is not None:
+                line, pasted_file_map = expand_paste_markers_with_file_save(line, self._session_dir)
+                pasted_files = pasted_file_map or None
+            else:
+                line = expand_paste_markers(line)
 
             # Convert drag-and-drop file:// URIs that may have bypassed bracketed paste.
             line = convert_dropped_text(line, cwd=Path.cwd())
@@ -733,7 +743,7 @@ class PromptToolkitInput(InputProviderABC):
             # Extract images referenced in the input text
             images = extract_images_from_text(line)
 
-            yield UserInputPayload(text=line, images=images if images else None)
+            yield UserInputPayload(text=line, images=images if images else None, pasted_files=pasted_files)
 
     # Note: Mouse support is intentionally disabled at the PromptSession
     # level so that terminals retain their native scrollback behavior.

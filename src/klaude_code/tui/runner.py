@@ -534,6 +534,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             is_new_session=session_id is None,
         )
 
+        # Provide session directory so large pastes can be saved to files
+        agent = components.runtime.current_agent
+        if agent is not None and hasattr(agent, "session"):
+            agent_session = agent.session
+            input_provider.set_session_dir(Session.paths(agent_session.work_dir).session_dir(agent_session.id))
+
         await input_provider.start()
         async for user_input in input_provider.iter_inputs():
             if user_input.text.strip().lower() in {"exit", ":q", "quit"}:

@@ -17,6 +17,7 @@ from klaude_code.agent.attachment_prompts import (
     fmt_file_already_in_context,
     fmt_file_changed_externally,
     fmt_memory_truncated,
+    fmt_paste_file_hint,
     fmt_skill_block,
     fmt_todo_items,
     fmt_todo_nudge,
@@ -447,6 +448,21 @@ async def image_attachment(session: Session) -> message.DeveloperMessage | None:
         parts=[],
         ui_extra=model.DeveloperUIExtra(items=[model.UserImagesUIItem(count=len(image_paths), paths=image_paths)]),
     )
+
+
+async def paste_file_attachment(session: Session) -> message.DeveloperMessage | None:
+    """Remind agent about paste files the user provided."""
+    for item in reversed(session.conversation_history):
+        if isinstance(item, message.ToolResultMessage):
+            return None
+        if isinstance(item, message.UserMessage) and item.pasted_files:
+            return message.DeveloperMessage(
+                parts=message.text_parts_from_str(
+                    f"<system-reminder>{fmt_paste_file_hint(item.pasted_files)}\n</system-reminder>"
+                ),
+                ui_extra=model.DeveloperUIExtra(items=[model.PasteFilesUIItem(tags=item.pasted_files)]),
+            )
+    return None
 
 
 def _get_dynamic_skills_for_session(session: Session) -> list[Skill]:

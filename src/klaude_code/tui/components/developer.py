@@ -140,6 +140,17 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                 case model.AtFileImagesUIItem():
                     # Image display is handled by renderer.display_developer_message
                     pass
+                case model.PasteFilesUIItem() as item:
+                    grid = create_grid()
+                    count = len(item.tags)
+                    grid.add_row(
+                        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+                        Text(
+                            f"Saved {count} paste{'s' if count > 1 else ''} to file",
+                            style=ThemeKey.ATTACHMENT,
+                        ),
+                    )
+                    parts.append(grid)
 
     if available_skill_names:
         parts.append(_render_available_skills(available_skill_names, incremental=available_skills_incremental))

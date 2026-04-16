@@ -373,6 +373,9 @@ type ReplayEventUnion = (
     | CompactionEndEvent
     | RewindEvent
     | CacheHitRateEvent
+    | BashCommandStartEvent
+    | BashCommandOutputDeltaEvent
+    | BashCommandEndEvent
 )
 
 
