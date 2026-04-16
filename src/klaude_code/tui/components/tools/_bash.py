@@ -45,7 +45,8 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
         highlighted = highlight_bash_command(cmd_str)
         sections: list[RenderableType] = []
         if isinstance(description, str) and description.strip():
-            description_text = Text(f"# {description.strip()}", style=ThemeKey.BASH_TOOL_DESCRIPTION, overflow="fold")
+            description_text = Text(overflow="fold")
+            description_text.append(f"# {description.strip()}", style=ThemeKey.BASH_TOOL_DESCRIPTION)
             sections.append(description_text)
         sections.append(Padding(highlighted, pad=0, style=ThemeKey.CODE_BACKGROUND, expand=False))
         if len(cmd_str.splitlines()) > BASH_TOOL_CALL_DIVIDER_THRESHOLD:

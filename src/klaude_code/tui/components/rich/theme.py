@@ -108,18 +108,18 @@ DARK_PALETTE = Palette(
     diff_remove="#ffcdd2 on #4d2f33",
     diff_remove_char="#ffcdd2 on #8a4a52",
     code_theme="ansi_dark",
-    code_background="#303440",
-    green_background="#42554b",
-    blue_grey_background="#3c424c",
-    cyan_background="#344646",
-    green_sub_background="#344b3e",
-    blue_sub_background="#34404e",
-    purple_background="#403c50",
-    orange_background="#4e4034",
-    red_background="#4e373a",
-    grey_background="#404244",
-    yellow_background="#4a3f28",
-    user_message_background="#27313b",
+    code_background="#282c38",
+    green_background="#3a4d43",
+    blue_grey_background="#343a44",
+    cyan_background="#2c3e3e",
+    green_sub_background="#2c4336",
+    blue_sub_background="#2c3846",
+    purple_background="#383448",
+    orange_background="#46382c",
+    red_background="#462f32",
+    grey_background="#383a3c",
+    yellow_background="#423720",
+    user_message_background="#1f2933",
 )
 
 
@@ -269,8 +269,7 @@ class Themes:
     markdown_theme: Theme
     thinking_markdown_theme: Theme
     code_theme: str
-    sub_agent_colors: list[Style]
-    sub_agent_backgrounds: list[Style]
+    sub_agent_styles: list[Style]
 
 
 def get_theme(theme: str | None = None) -> Themes:
@@ -383,8 +382,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 # TODO_ITEM
                 ThemeKey.TODO_PENDING_MARK.value: "bold " + palette.grey1,
                 ThemeKey.TODO_COMPLETED_MARK.value: "bold " + palette.grey3,
-                ThemeKey.TODO_IN_PROGRESS_MARK.value: "bold " + palette.blue + " on " + palette.blue_sub_background,
-                ThemeKey.TODO_NEW_COMPLETED_MARK.value: "bold " + palette.green + " on " + palette.green_background,
+                ThemeKey.TODO_IN_PROGRESS_MARK.value: "bold " + palette.blue,
+                ThemeKey.TODO_NEW_COMPLETED_MARK.value: "bold " + palette.green,
                 ThemeKey.TODO_PENDING.value: palette.grey1,
                 ThemeKey.TODO_COMPLETED.value: palette.grey3 + " strike",
                 ThemeKey.TODO_IN_PROGRESS.value: "bold " + palette.blue + " on " + palette.blue_sub_background,
@@ -472,22 +471,13 @@ def get_theme(theme: str | None = None) -> Themes:
             }
         ),
         code_theme=palette.code_theme,
-        sub_agent_colors=[
-            Style(color=palette.cyan),
-            Style(color=palette.green),
-            Style(color=palette.blue),
-            Style(color=palette.purple),
-            Style(color=palette.orange),
-            Style(color=palette.grey1),
-            Style(color=palette.yellow),
-        ],
-        sub_agent_backgrounds=[
-            Style(bgcolor=palette.cyan_background),
-            Style(bgcolor=palette.green_sub_background),
-            Style(bgcolor=palette.blue_sub_background),
-            Style(bgcolor=palette.purple_background),
-            Style(bgcolor=palette.orange_background),
-            Style(bgcolor=palette.grey_background),
-            Style(bgcolor=palette.yellow_background),
+        sub_agent_styles=[
+            Style(color=palette.cyan, bgcolor=palette.cyan_background),
+            Style(color=palette.green, bgcolor=palette.green_sub_background),
+            Style(color=palette.blue, bgcolor=palette.blue_sub_background),
+            Style(color=palette.purple, bgcolor=palette.purple_background),
+            Style(color=palette.orange, bgcolor=palette.orange_background),
+            Style(color=palette.grey1, bgcolor=palette.grey_background),
+            Style(color=palette.yellow, bgcolor=palette.yellow_background),
         ],
     )

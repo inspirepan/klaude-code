@@ -229,7 +229,7 @@ class TUICommandRenderer:
         return session_id in self._sessions and self._sessions[session_id].sub_agent_state is not None
 
     def _advance_sub_agent_color_index(self) -> None:
-        palette_size = len(self.themes.sub_agent_colors)
+        palette_size = len(self.themes.sub_agent_styles)
         if palette_size == 0:
             self._sub_agent_color_index = 0
             return
@@ -237,7 +237,7 @@ class TUICommandRenderer:
 
     def _pick_sub_agent_color(self) -> tuple[Style, int]:
         self._advance_sub_agent_color_index()
-        palette = self.themes.sub_agent_colors
+        palette = self.themes.sub_agent_styles
         if not palette:
             return Style(), 0
         return palette[self._sub_agent_color_index], self._sub_agent_color_index
@@ -269,7 +269,8 @@ class TUICommandRenderer:
             if objects:
                 content = objects[0] if len(objects) == 1 else objects
                 self.console.print(
-                    Quote(content, style=self._current_sub_agent_color, prefix="▌ "), overflow="ellipsis"
+                    Quote(content, style=Style(color=self._current_sub_agent_color.color), prefix="▌ "),
+                    overflow="ellipsis",
                 )
             return
         self.console.print(*objects, style=style, end=end, overflow="ellipsis")
@@ -368,12 +369,13 @@ class TUICommandRenderer:
             return text
 
         color = self._get_session_sub_agent_color(session_id)
+        fg_only = Style(color=color.color)
         if isinstance(text, Text):
             colored = text.copy()
             if colored.plain:
-                colored.stylize(color, 0, len(colored))
+                colored.stylize(fg_only, 0, len(colored))
             return colored
-        return Text(text, style=color)
+        return Text(text, style=fg_only)
 
     @staticmethod
     def _spinner_text_key(text: str | Text) -> object:

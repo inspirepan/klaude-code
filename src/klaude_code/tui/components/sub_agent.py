@@ -1,4 +1,6 @@
+from rich import box
 from rich.console import Group, RenderableType
+from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
 
@@ -18,11 +20,11 @@ def render_sub_agent_call(
     code_theme: str = "monokai",
 ) -> RenderableType:
     """Render sub-agent tool call header and prompt body."""
-    desc = Text(
-        f" {e.sub_agent_desc} ",
-        style=Style(color=style.color if style else None, bold=True, reverse=True),
-    )
-    header = Text.assemble((format_pascal_case(e.sub_agent_type), ThemeKey.TOOL_NAME), " ", desc)
+    name_style = Style(color=style.color if style else None, bold=True, reverse=True)
+    desc_style = Style(color=style.color if style else None, bgcolor=style.bgcolor if style else None)
+    name = Text(f" {format_pascal_case(e.sub_agent_type)} ", style=name_style)
+    desc = Text(f" {e.sub_agent_desc} ", style=desc_style)
+    header = Text.assemble(name, " ", desc)
     if e.fork_context:
         header.append(" [fork]", style=ThemeKey.STATUS_HINT)
 
@@ -33,12 +35,18 @@ def render_sub_agent_call(
         hidden_count = len(prompt_lines) - _SUB_AGENT_PROMPT_MAX_LINES
         prompt_source = "\n".join(prompt_lines[:_SUB_AGENT_PROMPT_MAX_LINES])
 
+    prompt_content: RenderableType = NoInsetMarkdown(
+        prompt_source, code_theme=code_theme, style=Style(color=style.color) if style else ""
+    )
+    if hidden_count > 0:
+        prompt_content = Group(
+            prompt_content,
+            Text(format_more_lines_indicator(hidden_count), style=ThemeKey.STATUS_HINT),
+        )
     elements: list[RenderableType] = [
         header,
-        NoInsetMarkdown(prompt_source, code_theme=code_theme, style=style or ""),
+        Panel(prompt_content, box=box.ROUNDED, border_style=ThemeKey.LINES),
     ]
-    if hidden_count > 0:
-        elements.append(Text(format_more_lines_indicator(hidden_count), style=ThemeKey.STATUS_HINT))
 
     elements.append(Text())
     return Group(*elements)
@@ -56,8 +64,8 @@ def render_sub_agent_result(
     if description:
         elements.append(
             Text(
-                description,
-                style=Style(bold=True, color=sub_agent_color.color, frame=True)
+                f" {description} ",
+                style=Style(bold=True, color=sub_agent_color.color, bgcolor=sub_agent_color.bgcolor)
                 if sub_agent_color
                 else ThemeKey.TOOL_RESULT_BOLD,
             )
