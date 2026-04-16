@@ -63,7 +63,9 @@ class BashTool(ToolABC):
                         "type": "string",
                         "description": (
                             "Clear, concise description of what this command does in active voice. "
-                            "Use the same language as the user. "
+                            "This field is displayed to the user, so write it in the same language "
+                            "the user is using (e.g. Chinese if the user writes in Chinese, "
+                            "Japanese if the user writes in Japanese). "
                             'Never use words like "complex" or "risk" in the description - just describe '
                             "what it does."
                         ),
