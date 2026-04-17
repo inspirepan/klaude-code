@@ -207,14 +207,14 @@ provider_list:
   model_list:
 
   - model_name: gemini-pro
-    model_id: gemini-pro-latest
+    model_id: gemini-3.1-pro-preview
     context_limit: 1048576
     thinking:
       reasoning_effort: high
     cost: { input: 2, output: 12, cache_read: 0.2 }
 
   - model_name: gemini-flash
-    model_id: gemini-flash-latest
+    model_id: gemini-3-flash-preview
     context_limit: 1048576
     thinking:
       reasoning_effort: medium
@@ -222,7 +222,7 @@ provider_list:
 
   - &gemini_flash_minimal
     model_name: gemini-flash:minimal
-    model_id: gemini-flash-latest
+    model_id: gemini-3-flash-preview
     context_limit: 1048576
     thinking:
       reasoning_effort: minimal
