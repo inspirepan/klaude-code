@@ -51,8 +51,8 @@ def is_claude_model_any(model_name: str | None) -> bool:
 def model_supports_eager_input_streaming(model_name: str | None) -> bool:
     """Check if the model supports the eager_input_streaming tool parameter.
 
-    Opus 4.6 and Sonnet 4.6 accept this field. Opus 4.7 rejects it on Bedrock
-    with 'Extra inputs are not permitted', so we exclude it.
+    Opus 4.6 and Sonnet 4.6 accept this field.
+    # TODO: Weird！ Opus 4.7 rejects it on Bedrock with 'Extra inputs are not permitted', so we exclude it.
     """
     return (is_opus_46_model(model_name) or is_sonnet_46_model(model_name)) and not is_opus_47_model(model_name)
 

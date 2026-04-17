@@ -53,7 +53,7 @@ class BedrockClient(LLMClientABC):
 
         payload = build_payload(param)
 
-        # Workaround: Bedrock Opus 4.7 hangs (no message_stop) when thinking.display
+        # TODO: Weird workaround: Bedrock Opus 4.7 hangs (no message_stop) when thinking.display
         # is set to "summarized" and the model uses tool calls. Strip the display field.
         thinking = payload.get("thinking")
         if thinking and "display" in thinking:
