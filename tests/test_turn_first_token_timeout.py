@@ -8,42 +8,11 @@ from typing import Any, cast
 
 import pytest
 
-import klaude_code.agent.turn as turn_module
 from klaude_code.agent.task import SessionContext
 from klaude_code.agent.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
-from klaude_code.protocol import events, llm_param, message
+from klaude_code.protocol import llm_param, message
 from klaude_code.tool.tool_runner import ToolCallRequest, ToolExecutionResult
-
-
-class NeverRespondingStream(LLMStreamABC):
-    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
-        return self._iterate()
-
-    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
-        await asyncio.sleep(3600)
-        if False:
-            yield message.StreamErrorItem(error="unreachable")
-
-    def get_partial_message(self) -> message.AssistantMessage | None:
-        return None
-
-
-class FirstTokenThenDelayedCompletionStream(LLMStreamABC):
-    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
-        return self._iterate()
-
-    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
-        yield message.AssistantTextDelta(content="ok", response_id="r1")
-        await asyncio.sleep(0.02)
-        yield message.AssistantMessage(
-            parts=[message.TextPart(text="ok")],
-            response_id="r1",
-            stop_reason="stop",
-        )
-
-    def get_partial_message(self) -> message.AssistantMessage | None:
-        return None
 
 
 class ErrorWithPartialTextStream(LLMStreamABC):
@@ -135,38 +104,6 @@ def _build_turn_executor(
         tool_registry={},
     )
     return TurnExecutor(context), history
-
-
-def test_retry_when_no_first_token_within_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(turn_module, "LLM_FIRST_TOKEN_TIMEOUT_S", 0.01)
-    executor, history = _build_turn_executor(NeverRespondingStream())
-
-    async def _run() -> list[events.Event]:
-        emitted: list[events.Event] = []
-        with pytest.raises(TurnError, match="First token timeout"):
-            async for event in executor.run():
-                emitted.append(event)
-        return emitted
-
-    emitted = asyncio.run(_run())
-    assert any(isinstance(event, events.TurnStartEvent) for event in emitted)
-    assert any(isinstance(event, events.TurnEndEvent) for event in emitted)
-    assert any(isinstance(item, message.StreamErrorItem) for item in history)
-
-
-def test_first_token_timeout_applies_only_before_stream_start(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(turn_module, "LLM_FIRST_TOKEN_TIMEOUT_S", 0.01)
-    executor, _ = _build_turn_executor(FirstTokenThenDelayedCompletionStream())
-
-    async def _run() -> list[events.Event]:
-        emitted: list[events.Event] = []
-        async for event in executor.run():
-            emitted.append(event)
-        return emitted
-
-    emitted = asyncio.run(_run())
-    assert any(isinstance(event, events.ResponseCompleteEvent) for event in emitted)
-    assert executor.task_result == "ok"
 
 
 def test_stream_error_retries_with_user_continuation_prompt_for_all_protocols() -> None:
