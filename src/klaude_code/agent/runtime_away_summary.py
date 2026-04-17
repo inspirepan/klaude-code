@@ -16,19 +16,27 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from typing import Protocol
 
-from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import op
 
 DEFAULT_IDLE_DELAY_SECONDS = 30
 
 
+class AwaySummaryRuntime(Protocol):
+    def current_session_id(self) -> str | None: ...
+
+    def has_running_tasks(self) -> bool: ...
+
+    async def submit(self, operation: op.Operation) -> str: ...
+
+
 class AwaySummaryCoordinator:
     def __init__(
         self,
         *,
-        runtime: RuntimeFacade,
+        runtime: AwaySummaryRuntime,
         idle_delay_seconds: float = DEFAULT_IDLE_DELAY_SECONDS,
     ) -> None:
         self._runtime = runtime

@@ -104,6 +104,7 @@ def test_copy_command_nth_latest(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
     copied: list[str] = []
+
     def _copy(text: str) -> None:
         copied.append(text)
 
@@ -122,6 +123,7 @@ def test_copy_command_invalid_n(monkeypatch: pytest.MonkeyPatch) -> None:
     session.conversation_history = [message.AssistantMessage(parts=message.text_parts_from_str("a1"))]
 
     copied: list[str] = []
+
     def _copy(text: str) -> None:
         copied.append(text)
 

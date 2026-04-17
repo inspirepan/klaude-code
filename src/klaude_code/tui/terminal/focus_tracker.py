@@ -77,11 +77,8 @@ class FocusTracker:
             self._subscribers.append(cb)
 
         def _unsubscribe() -> None:
-            with self._lock:
-                try:
-                    self._subscribers.remove(cb)
-                except ValueError:
-                    pass
+            with self._lock, contextlib.suppress(ValueError):
+                self._subscribers.remove(cb)
 
         return _unsubscribe
 

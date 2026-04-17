@@ -31,9 +31,13 @@ class CopyCommand(CommandABC):
             try:
                 n = int(arg)
             except ValueError:
-                return _command_output(agent, f"Invalid /copy argument: {arg!r} (expected a positive integer).", is_error=True)
+                return _command_output(
+                    agent, f"Invalid /copy argument: {arg!r} (expected a positive integer).", is_error=True
+                )
             if n < 1:
-                return _command_output(agent, f"Invalid /copy argument: {n} (expected a positive integer).", is_error=True)
+                return _command_output(
+                    agent, f"Invalid /copy argument: {n} (expected a positive integer).", is_error=True
+                )
 
         text = _collect_assistant_text(agent.session.conversation_history, n)
         if not text:

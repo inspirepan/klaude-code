@@ -275,9 +275,7 @@ def test_stream_error_triggers_retry(tmp_path: Path, monkeypatch: pytest.MonkeyP
     arun(_test())
 
 
-def test_stream_error_does_not_trigger_cache_break(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Stream-error turns must not emit UsageEvent: empty usage would otherwise
     show up as a false prompt-cache-break alert (cached tokens dropping to 0)."""
     project_dir = tmp_path / "project"
@@ -295,9 +293,7 @@ def test_stream_error_does_not_trigger_cache_break(
     )
 
     async def _test() -> None:
-        harness = await create_harness(
-            work_dir=project_dir, tools={"echo": MockEchoTool}, monkeypatch=monkeypatch
-        )
+        harness = await create_harness(work_dir=project_dir, tools={"echo": MockEchoTool}, monkeypatch=monkeypatch)
 
         # Turn 1: healthy response establishes cached-token baseline via tool call.
         harness.fake_llm.enqueue(
@@ -336,9 +332,7 @@ def test_stream_error_does_not_trigger_cache_break(
 
         collected = await harness.run_task("try again")
 
-        error_messages = [
-            e.error_message for e in collected if isinstance(e, events.ErrorEvent)
-        ]
+        error_messages = [e.error_message for e in collected if isinstance(e, events.ErrorEvent)]
         # Retry happened.
         assert any("Retrying" in msg for msg in error_messages)
         # But no false cache-break alert despite cached 52,000 -> 0 on the error turn.
