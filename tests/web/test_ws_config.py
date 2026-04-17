@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+import pytest
+
+from klaude_code.config import load_config
+
 from .conftest import AppEnv, consume_ws_handshake, wait_for_event
 
 
@@ -24,7 +28,10 @@ def test_change_thinking_via_ws(app_env: AppEnv) -> None:
     assert "current" in event["event"]
 
 
-def test_change_model_via_ws(app_env: AppEnv) -> None:
+def test_change_model_via_ws(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    load_config.cache_clear()
+
     models_response = app_env.client.get("/api/config/models")
     assert models_response.status_code == 200
     response_obj = models_response.json()
