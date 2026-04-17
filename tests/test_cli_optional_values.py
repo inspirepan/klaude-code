@@ -51,11 +51,9 @@ class TestCliOptionalValues:
         captured: dict[str, object] = {}
 
         def _select_model_interactive(
-            preferred: str | None = None,
             keywords: list[str] | None = None,
             initial_search_text: str | None = None,
         ) -> ModelSelectResult:
-            captured["preferred"] = preferred
             captured["keywords"] = keywords
             captured["initial_search_text"] = initial_search_text
             return ModelSelectResult(status=ModelSelectStatus.SELECTED, model="picked-model")
@@ -86,7 +84,6 @@ class TestCliOptionalValues:
         )
 
         assert captured == {
-            "preferred": None,
             "keywords": None,
             "initial_search_text": "sonnet",
         }

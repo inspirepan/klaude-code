@@ -242,6 +242,61 @@ def _normalize_search_key(value: str) -> str:
     return "".join(ch for ch in value.casefold() if ch.isalnum())
 
 
+def _matches_search_component(haystack: str, needle: str) -> bool:
+    component = needle.casefold().strip()
+    if not component:
+        return False
+    if component in haystack:
+        return True
+
+    component_norm = _normalize_search_key(component)
+    if not component_norm:
+        return False
+    return component_norm in _normalize_search_key(haystack)
+
+
+def _extract_selector_parts(search_text: str) -> tuple[str, str] | None:
+    selector = search_text.split(None, 1)[0].strip()
+    if "@" not in selector:
+        return None
+
+    model_name, provider_name = selector.rsplit("@", 1)
+    model_name = model_name.strip()
+    provider_name = provider_name.strip()
+    if not model_name or not provider_name:
+        return None
+    return model_name, provider_name
+
+
+def _matches_generic_search(haystack: str, needle: str) -> bool:
+    if needle in haystack:
+        return True
+
+    needle_norm = _normalize_search_key(needle)
+    if not needle_norm:
+        return False
+    return needle_norm in _normalize_search_key(haystack)
+
+
+def _matches_search_token(search_text: str, token: str) -> bool:
+    haystack = search_text.casefold()
+    normalized_token = token.casefold().strip()
+    if not normalized_token:
+        return False
+
+    if "@" in normalized_token:
+        left, right = normalized_token.rsplit("@", 1)
+        if left.strip() and right.strip():
+            selector_parts = _extract_selector_parts(search_text)
+            if selector_parts is None:
+                return False
+
+            model_name, provider_name = selector_parts
+            return _matches_search_component(model_name, left) and _matches_search_component(provider_name, right)
+
+    return _matches_generic_search(haystack, normalized_token)
+
+
 def _filter_items[T](
     items: list[SelectItem[T]],
     filter_text: str,
@@ -252,16 +307,12 @@ def _filter_items[T](
     if not filter_text:
         return list(range(len(items))), True
 
-    needle = filter_text.casefold()
-    needle_norm = _normalize_search_key(filter_text)
+    tokens = filter_text.split()
+    if not tokens:
+        return list(range(len(items))), True
 
     def _is_match(it: SelectItem[T]) -> bool:
-        haystack = it.search_text.casefold()
-        if needle in haystack:
-            return True
-        if needle_norm:
-            return needle_norm in _normalize_search_key(it.search_text)
-        return False
+        return all(_matches_search_token(it.search_text, token) for token in tokens)
 
     matched_selectable = [i for i, it in enumerate(items) if it.selectable and _is_match(it)]
     if not matched_selectable:

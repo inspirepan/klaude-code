@@ -173,7 +173,6 @@ class RequestModelOperation(Operation):
 
     type: OperationType = OperationType.REQUEST_MODEL
     session_id: str
-    preferred: str | None = None
     initial_search_text: str | None = None
     save_as_default: bool = True
     defer_thinking_selection: bool = False

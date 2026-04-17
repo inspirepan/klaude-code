@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import pytest
 
-from .conftest import AppEnv, consume_ws_handshake, receive_events, wait_for_event
+from .conftest import AppEnv, consume_ws_handshake, wait_for_event
 
 
 def test_change_thinking_via_ws(app_env: AppEnv) -> None:
@@ -26,7 +26,7 @@ def test_change_thinking_via_ws(app_env: AppEnv) -> None:
     assert "current" in event["event"]
 
 
-def test_request_model_via_ws(app_env: AppEnv) -> None:
+def test_change_model_via_ws(app_env: AppEnv) -> None:
     models_response = app_env.client.get("/api/config/models")
     assert models_response.status_code == 200
     response_obj = models_response.json()
@@ -34,36 +34,38 @@ def test_request_model_via_ws(app_env: AppEnv) -> None:
     models_obj = response_payload.get("models", [])
     assert isinstance(models_obj, list)
     models = cast(list[object], models_obj)
-    preferred = "fake"
-    if models:
-        first_model_obj = models[0]
-        assert isinstance(first_model_obj, dict)
-        first_model = cast(dict[str, object], first_model_obj)
-        preferred = str(first_model.get("name", "")).strip()
-        assert preferred
 
     session_id = app_env.create_session()
+
+    sessions_response = app_env.client.get("/api/sessions")
+    assert sessions_response.status_code == 200
+    sessions_payload = sessions_response.json()
+    groups = cast(list[dict[str, Any]], sessions_payload.get("groups", []))
+    session_summary = next(
+        session
+        for group in groups
+        for session in cast(list[dict[str, Any]], group.get("sessions", []))
+        if session.get("id") == session_id
+    )
+    current_model_name = str(session_summary.get("model_name") or "")
+
+    model_name = next(
+        (
+            str(cast(dict[str, object], model).get("name", "")).strip()
+            for model in models
+            if isinstance(model, dict) and str(cast(dict[str, object], model).get("name", "")).strip() != current_model_name
+        ),
+        "",
+    )
+    assert model_name
+
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
-        websocket.send_json({"type": "model_request", "preferred": preferred, "save_as_default": False})
+        websocket.send_json({"type": "model", "model_name": model_name, "save_as_default": False})
+        event = wait_for_event(websocket, "model.changed")
 
-        finished = None
-        for _ in range(200):
-            for frame in receive_events(websocket):
-                if frame.get("type") == "error":
-                    pytest.fail(f"unexpected ws error frame: {frame}")
-                if frame.get("event_type") != "operation.finished":
-                    continue
-                payload_obj = frame.get("event")
-                payload = cast(dict[str, Any], payload_obj) if isinstance(payload_obj, dict) else None
-                if payload is not None and payload.get("operation_type") == "request_model":
-                    finished = frame
-                    break
-            if finished is not None:
-                break
-
-    assert finished is not None
-    assert finished["event"]["status"] == "completed"
+    assert event["event_type"] == "model.changed"
+    assert event["event"]["model_id"]
 
 
 def test_get_models(app_env: AppEnv) -> None:
@@ -78,7 +80,7 @@ def test_request_model_operation_via_http(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
     response = app_env.client.post(
         f"/api/sessions/{session_id}/model/request",
-        json={"preferred": "fake", "save_as_default": False},
+        json={"initial_search_text": "fake", "save_as_default": False},
     )
     assert response.status_code == 200
     payload = response.json()
