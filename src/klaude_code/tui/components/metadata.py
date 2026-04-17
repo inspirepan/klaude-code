@@ -11,8 +11,6 @@ from klaude_code.protocol import events, model
 from klaude_code.tui.components.common import create_grid, format_elapsed_compact
 from klaude_code.tui.components.rich.theme import ThemeKey
 
-WORKED_LINE_DURATION_THRESHOLD_S = 60
-WORKED_LINE_TURN_COUNT_THRESHOLD = 4
 METADATA_MIN_DETAILS_WIDTH_FOR_SINGLE_LINE_IDENTITY = 60
 
 
@@ -233,30 +231,13 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     """Render task metadata including main agent and sub-agents."""
     renderables: list[RenderableType] = []
 
-    # "Worked for Xs, N steps" line
     main = e.metadata.main_agent
-    duration_s = main.task_duration_s
-    should_show_worked_line = duration_s is not None and (
-        duration_s > WORKED_LINE_DURATION_THRESHOLD_S or main.turn_count > WORKED_LINE_TURN_COUNT_THRESHOLD
-    )
-    if should_show_worked_line and duration_s is not None:
-        parts: list[tuple[str, ThemeKey]] = [
-            ("✔ ", ThemeKey.METADATA_GREEN),
-            ("Worked for ", ThemeKey.METADATA_GREEN),
-            (format_elapsed_compact(duration_s), ThemeKey.METADATA_GREEN),
-        ]
-        if main.turn_count > 0:
-            suffix = "step" if main.turn_count == 1 else "steps"
-            parts.append((f" in {main.turn_count} {suffix}", ThemeKey.METADATA_GREEN_DIM))
-        renderables.append(Text.assemble(*parts))
-        renderables.append(Text(""))
-
     has_sub_agents = len(e.metadata.sub_agent_task_metadata) > 0
     main_content = _build_metadata_content_renderable(
         main,
         show_context_and_time=True,
-        show_turn_count=not should_show_worked_line,
-        show_duration=not should_show_worked_line,
+        show_turn_count=True,
+        show_duration=True,
     )
 
     if has_sub_agents:
