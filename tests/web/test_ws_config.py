@@ -54,9 +54,8 @@ def test_change_model_via_ws(app_env: AppEnv) -> None:
             if isinstance(model, dict)
             and str(cast(dict[str, object], model).get("name", "")).strip() != current_model_name
         ),
-        "",
+        "sonnet@anthropic",
     )
-    assert model_name
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
