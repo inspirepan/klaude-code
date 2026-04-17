@@ -126,6 +126,7 @@ class JsonlSessionWriter:
                     for key in _RUNTIME_META_KEYS:
                         if key in current_meta:
                             meta[key] = current_meta[key]
+            meta = {k: v for k, v in meta.items() if v is not None}
 
             tmp_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
             tmp_path.replace(meta_path)
@@ -171,6 +172,7 @@ class JsonlSessionStore:
 
             data = cast(dict[str, Any], raw)
             data.update(updates)
+            data = {k: v for k, v in data.items() if v is not None}
 
             try:
                 # Use a per-write temp name to avoid concurrent replace races.
@@ -273,7 +275,7 @@ def build_meta_snapshot(
     model_thinking: llm_param.Thinking | None,
     next_checkpoint_id: int = 0,
 ) -> dict[str, Any]:
-    return {
+    snapshot: dict[str, Any] = {
         "id": session_id,
         "work_dir": str(work_dir),
         "title": title,
@@ -297,3 +299,4 @@ def build_meta_snapshot(
         else None,
         "next_checkpoint_id": next_checkpoint_id,
     }
+    return {k: v for k, v in snapshot.items() if v is not None}

@@ -31,7 +31,7 @@ _CONVERSATION_ITEM_TYPES: dict[str, type[BaseModel]] = _build_type_registry()
 
 
 def encode_conversation_item(item: message.HistoryEvent) -> dict[str, Any]:
-    return {"type": item.__class__.__name__, "data": item.model_dump(mode="json")}
+    return {"type": item.__class__.__name__, "data": item.model_dump(mode="json", exclude_none=True)}
 
 
 def decode_conversation_item(obj: dict[str, Any]) -> message.HistoryEvent | None:
