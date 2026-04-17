@@ -9,6 +9,7 @@ from klaude_code.protocol import events, message, model, tools
 from klaude_code.tui.commands import (
     FlushOpenBlocks,
     PrintBlankLine,
+    RenderNotice,
     RenderDeveloperMessage,
     RenderError,
     RenderToolCall,
@@ -45,6 +46,24 @@ def test_turn_start_does_not_add_extra_blank_line_before_retry_error() -> None:
 
     rendered = output.getvalue()
     assert "✘ Retrying 1/10" in rendered
+
+
+def test_notice_leaves_blank_line_before_next_input() -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "main"
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderUserMessage(event=events.UserMessageEvent(session_id=session_id, content="/debug")),
+                RenderNotice(event=events.NoticeEvent(session_id=session_id, content="Log file: /tmp/debug.log")),
+                RenderUserMessage(event=events.UserMessageEvent(session_id=session_id, content="next")),
+            ]
+        )
+    )
+
+    rendered = output.getvalue()
+    assert "Log file: /tmp/debug.log\n\n❯ next" in rendered
 
 
 def test_multiline_error_continuation_uses_single_grid_indent() -> None:
