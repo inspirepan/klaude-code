@@ -358,7 +358,10 @@ class TurnExecutor:
                                 session_id=session_ctx.session_id,
                                 show_notice=self.should_show_interrupt_notice,
                             )
-                        if msg.usage:
+                        # Skip usage emission for error turns: the stream aborted before
+                        # the provider sent final usage, so counts are often all-zero and
+                        # would trigger a false prompt-cache-break alert (and skew hit rate).
+                        if msg.usage and msg.stop_reason != "error":
                             metadata = msg.usage
                             if metadata.response_id is None:
                                 metadata.response_id = msg.response_id

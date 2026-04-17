@@ -275,6 +275,84 @@ def test_stream_error_triggers_retry(tmp_path: Path, monkeypatch: pytest.MonkeyP
     arun(_test())
 
 
+def test_stream_error_does_not_trigger_cache_break(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stream-error turns must not emit UsageEvent: empty usage would otherwise
+    show up as a false prompt-cache-break alert (cached tokens dropping to 0)."""
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    # Usage with a real cached-token baseline, mimicking a healthy cached turn.
+    cached_usage = model.Usage(
+        input_tokens=60_000,
+        cached_tokens=52_000,
+        output_tokens=5,
+        context_size=60_005,
+        context_limit=200_000,
+        model_name="fake-model",
+        provider="test",
+    )
+
+    async def _test() -> None:
+        harness = await create_harness(
+            work_dir=project_dir, tools={"echo": MockEchoTool}, monkeypatch=monkeypatch
+        )
+
+        # Turn 1: healthy response establishes cached-token baseline via tool call.
+        harness.fake_llm.enqueue(
+            message.AssistantMessage(
+                parts=[message.ToolCallPart(call_id="call-1", tool_name="echo", arguments_json='{"text": "hi"}')],
+                stop_reason="tool_use",
+                usage=cached_usage,
+            ),
+        )
+        # Turn 2: LLM client signals a mid-stream network failure. Matches real
+        # client behavior: StreamErrorItem + AssistantMessage(stop_reason="error",
+        # usage=<empty>). Retry attempt 1 emits the StreamErrorItem again, retry
+        # attempt 2 recovers.
+        harness.fake_llm.enqueue(
+            message.StreamErrorItem(error="RemoteProtocolError peer closed connection"),
+            message.AssistantMessage(parts=[], stop_reason="error", usage=model.Usage()),
+        )
+        # Turn 2 recovery: same prompt, cache still warm.
+        recovered_usage = model.Usage(
+            input_tokens=60_100,
+            cached_tokens=52_000,
+            output_tokens=5,
+            context_size=60_105,
+            context_limit=200_000,
+            model_name="fake-model",
+            provider="test",
+        )
+        harness.fake_llm.enqueue(
+            message.AssistantTextDelta(content="recovered"),
+            message.AssistantMessage(
+                parts=[message.TextPart(text="recovered")],
+                stop_reason="stop",
+                usage=recovered_usage,
+            ),
+        )
+
+        collected = await harness.run_task("try again")
+
+        error_messages = [
+            e.error_message for e in collected if isinstance(e, events.ErrorEvent)
+        ]
+        # Retry happened.
+        assert any("Retrying" in msg for msg in error_messages)
+        # But no false cache-break alert despite cached 52,000 -> 0 on the error turn.
+        assert not any("cache break" in msg.lower() for msg in error_messages)
+
+        # Error turn's empty usage was not surfaced as a UsageEvent.
+        usage_events = [e for e in collected if isinstance(e, events.UsageEvent)]
+        assert usage_events, "expected successful turns to still emit UsageEvent"
+        for ue in usage_events:
+            assert ue.usage.input_tokens > 0 or ue.usage.cached_tokens > 0
+
+    arun(_test())
+
+
 def test_task_lifecycle_events(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """All lifecycle events are emitted."""
     project_dir = tmp_path / "project"
