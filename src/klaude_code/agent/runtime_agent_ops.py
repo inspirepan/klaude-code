@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
+from klaude_code.agent.away_summary import generate_away_summary
 from klaude_code.agent.bash_mode import run_bash_command
 from klaude_code.agent.compaction import CompactionReason, run_compaction
 from klaude_code.agent.loaded_skills import (
@@ -33,6 +34,19 @@ from klaude_code.protocol import events, message, model, op, user_interaction
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
 from klaude_code.update import get_startup_update_summary
+
+
+def _has_summary_since_last_user_turn(session: Session) -> bool:
+    """Return True if an AwaySummaryEntry appears before the most recent
+    UserMessage (ignoring bash-mode user entries) in the session history.
+    Used to dedup repeated recaps when no new user turn has occurred.
+    """
+    for item in reversed(session.conversation_history):
+        if isinstance(item, message.UserMessage) and item.source != "bash_mode":
+            return False
+        if isinstance(item, message.AwaySummaryEntry):
+            return True
+    return False
 
 
 @dataclass
@@ -541,6 +555,49 @@ class AgentOperationHandler:
             session_id=operation.session_id,
         )
 
+    async def generate_away_summary(self, operation: op.GenerateAwaySummaryOperation) -> None:
+        """Produce a 'while you were away' recap and emit AwaySummaryEvent.
+
+        Dedup: skip if a recap was already appended since the last user turn —
+        avoids back-to-back recaps when blur/focus cycles repeat or when
+        /recap is run multiple times without new user input.
+
+        Skipped silently when the session is missing or has no content yet.
+        Uses the session's fast LLM client; runs non-streaming.
+        """
+        agent = await self.ensure_agent(operation.session_id)
+
+        if _has_summary_since_last_user_turn(agent.session):
+            log_debug(
+                f"[AwaySummary] skip (dedup, source={operation.source})",
+                debug_type=DebugType.EXECUTION,
+            )
+            return
+
+        clients = self.get_session_llm_clients(operation.session_id)
+        fast_client = clients.get_fast_client()
+
+        show_spinner = operation.source == "manual"
+        if show_spinner:
+            await self._emit_event(events.AwaySummaryStartEvent(session_id=agent.session.id))
+        try:
+            text = await generate_away_summary(llm_client=fast_client, session=agent.session)
+            if not text:
+                log_debug(
+                    f"[AwaySummary] skip (empty result, source={operation.source})",
+                    debug_type=DebugType.EXECUTION,
+                )
+                return
+
+            entry = message.AwaySummaryEntry(text=text, source=operation.source)
+            agent.session.append_history([entry])
+            await self._emit_event(
+                events.AwaySummaryEvent(session_id=agent.session.id, text=text),
+            )
+        finally:
+            if show_spinner:
+                await self._emit_event(events.AwaySummaryEndEvent(session_id=agent.session.id))
+
     async def clear_session(self, session_id: str) -> None:
         agent = await self.ensure_agent(session_id)
         old_session_id = agent.session.id
@@ -858,6 +915,9 @@ class AgentRunner:
 
     async def compact_session(self, operation: op.CompactSessionOperation) -> None:
         await self._operation_handler.compact_session(operation)
+
+    async def generate_away_summary(self, operation: op.GenerateAwaySummaryOperation) -> None:
+        await self._operation_handler.generate_away_summary(operation)
 
     async def clear_session(self, session_id: str) -> None:
         await self._operation_handler.clear_session(session_id)

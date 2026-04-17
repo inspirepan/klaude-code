@@ -14,6 +14,9 @@ __all__ = [
     "AssistantTextDeltaEvent",
     "AssistantTextEndEvent",
     "AssistantTextStartEvent",
+    "AwaySummaryEndEvent",
+    "AwaySummaryEvent",
+    "AwaySummaryStartEvent",
     "BashCommandEndEvent",
     "BashCommandOutputDeltaEvent",
     "BashCommandStartEvent",
@@ -101,6 +104,7 @@ DURABLE_EVENT_TYPES = frozenset(
         "rewind",
         "compaction.end",
         "task.finish",
+        "away.summary",
     }
 )
 
@@ -143,6 +147,29 @@ class NoticeEvent(Event):
     ui_extra: model.ToolResultUIExtra | None = None
     is_error: bool = False
     style: str | None = None
+
+
+class AwaySummaryEvent(Event):
+    """'While you were away' recap generated after prompt idle, or triggered
+    manually via /recap. Persisted via AwaySummaryEntry for dedup and replay.
+    """
+
+    text: str
+
+
+class AwaySummaryStartEvent(Event):
+    """Fired before a manual away-summary LLM call begins so the TUI can
+    surface a 'Recapping…' spinner status. Ephemeral — UI only."""
+
+    pass
+
+
+class AwaySummaryEndEvent(Event):
+    """Fired after a manual away-summary LLM call completes (success or
+    empty/error) so the TUI can exit the 'Recapping…' spinner status.
+    Ephemeral — UI only."""
+
+    pass
 
 
 class ModelChangedEvent(Event):
@@ -376,6 +403,7 @@ type ReplayEventUnion = (
     | BashCommandStartEvent
     | BashCommandOutputDeltaEvent
     | BashCommandEndEvent
+    | AwaySummaryEvent
 )
 
 

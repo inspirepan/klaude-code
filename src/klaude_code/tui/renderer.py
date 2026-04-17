@@ -35,6 +35,7 @@ from klaude_code.tui.commands import (
     FlushOpenBlocks,
     PrintBlankLine,
     PrintRuleLine,
+    RenderAwaySummary,
     RenderBashCommandEnd,
     RenderBashCommandStart,
     RenderCommand,
@@ -65,6 +66,7 @@ from klaude_code.tui.commands import (
     TaskClockStart,
     UpdateTerminalTitlePrefix,
 )
+from klaude_code.tui.components import away_summary as c_away_summary
 from klaude_code.tui.components import command_output as c_command_output
 from klaude_code.tui.components import developer as c_developer
 from klaude_code.tui.components import errors as c_errors
@@ -584,6 +586,11 @@ class TUICommandRenderer:
     def display_notice(self, e: events.NoticeEvent) -> None:
         with self.session_print_context(e.session_id):
             self.print(c_command_output.render_notice(e))
+
+    def display_away_summary(self, e: events.AwaySummaryEvent) -> None:
+        with self.session_print_context(e.session_id):
+            self.print(c_away_summary.render_away_summary(e))
+            self.print()
             self.print()
 
     def display_session_stats(self, e: events.SessionStatsEvent) -> None:
@@ -959,6 +966,8 @@ class TUICommandRenderer:
                         self._tool_block_open = False
                 case RenderNotice(event=event):
                     self.display_notice(event)
+                case RenderAwaySummary(event=event):
+                    self.display_away_summary(event)
                 case RenderSessionStats(event=event):
                     self.display_session_stats(event)
                 case RenderBashCommandStart(event=event):

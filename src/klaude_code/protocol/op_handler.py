@@ -19,6 +19,7 @@ if TYPE_CHECKING:
         CompactSessionOperation,
         ContinueAgentOperation,
         ForkAndSwitchSessionOperation,
+        GenerateAwaySummaryOperation,
         GetSessionStatsOperation,
         InitAgentOperation,
         InterruptOperation,
@@ -104,4 +105,8 @@ class OperationHandler(Protocol):
 
     async def handle_init_agent(self, operation: InitAgentOperation) -> None:
         """Handle an init agent operation."""
+        ...
+
+    async def handle_generate_away_summary(self, operation: GenerateAwaySummaryOperation) -> None:
+        """Handle a generate-away-summary operation (while-you-were-away recap)."""
         ...

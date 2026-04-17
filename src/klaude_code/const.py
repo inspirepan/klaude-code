@@ -189,6 +189,7 @@ STATUS_WAITING_TEXT = "Loading…"
 STATUS_THINKING_TEXT = "Thinking…"
 STATUS_COMPOSING_TEXT = "Typing…"
 STATUS_COMPACTING_TEXT = "Compacting…"
+STATUS_RECAPPING_TEXT = "Recapping…"
 STATUS_RUNNING_TEXT = "Running…"
 
 # Backwards-compatible alias for the default spinner status text.

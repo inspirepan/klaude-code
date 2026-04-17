@@ -99,6 +99,19 @@ class CacheHitRateEntry(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class AwaySummaryEntry(BaseModel):
+    """Persistent 'while you were away' recap entry.
+
+    Not a Message (LLM-turn payload) — sits alongside UserMessage/etc. in
+    session.conversation_history as a sidecar event. LLM-input paths filter
+    by Message types, so the recap never leaks into model context.
+    """
+
+    text: str
+    source: Literal["auto", "manual"] = "auto"
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class SpawnSubAgentEntry(BaseModel):
     """Recorded in the parent session when a sub-agent is spawned.
 
@@ -250,6 +263,7 @@ HistoryEvent = (
     | RewindEntry
     | CacheHitRateEntry
     | SpawnSubAgentEntry
+    | AwaySummaryEntry
 )
 
 StreamItem = AssistantTextDelta | ThinkingTextDelta | ToolCallStartDelta

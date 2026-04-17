@@ -632,6 +632,7 @@ class Session(BaseModel):
         last_assistant_content: str = ""
         pending_tool_calls: dict[str, events.ToolCallEvent] = {}
         had_any_turn = False
+        task_finish_pending = False
         prev_turn_interrupted = False
         history = self.conversation_history
         history_len = len(history)
@@ -641,6 +642,21 @@ class Session(BaseModel):
             timestamp=self.created_at if self.created_at > 0 else time.time(),
         )
         msg_ts: float = 0.0
+
+        def _flush_task_finish(timestamp: float) -> Iterable[events.TaskFinishEvent]:
+            nonlocal prev_turn_interrupted, last_assistant_content, task_finish_pending
+            if not task_finish_pending:
+                return
+            if not prev_turn_interrupted:
+                yield events.TaskFinishEvent(
+                    session_id=self.id,
+                    task_result=last_assistant_content or "",
+                    timestamp=timestamp,
+                )
+            prev_turn_interrupted = False
+            last_assistant_content = ""
+            task_finish_pending = False
+
         for idx, it in enumerate(history):
             # Track the original message creation time
             if hasattr(it, "created_at"):
@@ -653,14 +669,7 @@ class Session(BaseModel):
 
             # Emit task boundary before user message to produce inter-turn separators during replay
             if isinstance(it, message.UserMessage) and had_any_turn:
-                if not prev_turn_interrupted:
-                    yield events.TaskFinishEvent(
-                        session_id=self.id,
-                        task_result=last_assistant_content or "",
-                        timestamp=msg_ts,
-                    )
-                prev_turn_interrupted = False
-                last_assistant_content = ""
+                yield from _flush_task_finish(msg_ts)
                 yield events.TaskStartEvent(
                     session_id=self.id,
                     sub_agent_state=self.sub_agent_state,
@@ -672,6 +681,7 @@ class Session(BaseModel):
             match it:
                 case message.AssistantMessage() as am:
                     had_any_turn = True
+                    task_finish_pending = True
                     last_assistant_content = message.join_text_parts(am.parts)
 
                     # Reconstruct streaming boundaries from saved parts.
@@ -855,6 +865,10 @@ class Session(BaseModel):
                         prev_turn_input_tokens=cr.prev_turn_input_tokens,
                         timestamp=msg_ts,
                     )
+                case message.AwaySummaryEntry() as aw:
+                    if had_any_turn:
+                        yield from _flush_task_finish(msg_ts)
+                    yield events.AwaySummaryEvent(session_id=self.id, text=aw.text, timestamp=msg_ts)
                 case message.SpawnSubAgentEntry() as sa:
                     yield from self._iter_sub_agent_history_by_id(sa.session_id, seen_sub_agent_sessions)
                 case message.SystemMessage():
@@ -866,12 +880,8 @@ class Session(BaseModel):
             yield from pending_tool_calls.values()
             pending_tool_calls.clear()
 
-        if emit_finish and not prev_turn_interrupted:
-            yield events.TaskFinishEvent(
-                session_id=self.id,
-                task_result=last_assistant_content or "",
-                timestamp=msg_ts,
-            )
+        if emit_finish and had_any_turn and task_finish_pending:
+            yield from _flush_task_finish(msg_ts)
 
     def _iter_sub_agent_history_by_id(
         self, session_id: str, seen_sub_agent_sessions: set[str]
