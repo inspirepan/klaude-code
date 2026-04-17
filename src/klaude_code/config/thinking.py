@@ -197,6 +197,16 @@ def _get_current_budget_or_adaptive_value(thinking: llm_param.Thinking | None) -
     return None
 
 
+def _get_current_adaptive_only_value(thinking: llm_param.Thinking | None) -> str | None:
+    """Get current value for models that only allow off or adaptive."""
+    if thinking:
+        if thinking.type == "adaptive":
+            return "adaptive:adaptive"
+        if thinking.type == "disabled":
+            return "adaptive:disabled"
+    return None
+
+
 def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPickerData | None:
     """Get thinking picker data based on LLM config.
 
@@ -245,12 +255,12 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
             current_value=_get_current_effort_value(thinking),
         )
 
-    if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
+    if protocol in (llm_param.LLMClientProtocol.ANTHROPIC, llm_param.LLMClientProtocol.BEDROCK):
         if is_opus_47_model(model_name):
             return ThinkingPickerData(
                 options=_build_adaptive_only_options(),
                 message="Select thinking level:",
-                current_value=_get_current_budget_or_adaptive_value(thinking),
+                current_value=_get_current_adaptive_only_value(thinking),
             )
         if supports_adaptive_thinking(model_name):
             return ThinkingPickerData(

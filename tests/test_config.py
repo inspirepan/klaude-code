@@ -1098,6 +1098,80 @@ class TestMatchModelFromConfig:
         assert result.filter_hint == "gpt52"
         assert len(result.filtered_models) == 2
 
+    def test_match_model_filters_by_provider_qualified_model_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import klaude_code.config.model_matcher as model_matcher_module
+        from klaude_code.config.model_matcher import match_model_from_config
+
+        openai_provider = ProviderConfig(
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+            model_list=[
+                ModelConfig(model_name="gpt-5.4", model_id="gpt-5.4"),
+                ModelConfig(model_name="gpt-5.4-mini", model_id="gpt-5.4-mini"),
+            ],
+        )
+        codex_provider = ProviderConfig(
+            provider_name="codex",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+            model_list=[
+                ModelConfig(model_name="gpt-5.3-codex", model_id="gpt-5.3-codex"),
+                ModelConfig(model_name="gpt-5.4", model_id="gpt-5.4"),
+                ModelConfig(model_name="gpt-5.4-mini", model_id="gpt-5.4-mini"),
+            ],
+        )
+        config = Config(provider_list=[openai_provider, codex_provider], main_model="gpt-5.4")
+
+        monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
+
+        result = match_model_from_config(preferred="gpt@codex")
+
+        assert result.matched_model is None
+        assert result.filter_hint == "gpt@codex"
+        assert [entry.selector for entry in result.filtered_models] == [
+            "gpt-5.3-codex@codex",
+            "gpt-5.4@codex",
+            "gpt-5.4-mini@codex",
+        ]
+
+    def test_match_model_filters_by_provider_partial_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import klaude_code.config.model_matcher as model_matcher_module
+        from klaude_code.config.model_matcher import match_model_from_config
+
+        openai_provider = ProviderConfig(
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+            model_list=[
+                ModelConfig(model_name="gpt-5.4", model_id="gpt-5.4"),
+                ModelConfig(model_name="gpt-5.4-mini", model_id="gpt-5.4-mini"),
+            ],
+        )
+        codex_provider = ProviderConfig(
+            provider_name="codex",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+            model_list=[
+                ModelConfig(model_name="gpt-5.3-codex", model_id="gpt-5.3-codex"),
+                ModelConfig(model_name="gpt-5.4", model_id="gpt-5.4"),
+                ModelConfig(model_name="gpt-5.4-mini", model_id="gpt-5.4-mini"),
+            ],
+        )
+        config = Config(provider_list=[openai_provider, codex_provider], main_model="gpt-5.4")
+
+        monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
+
+        result = match_model_from_config(preferred="gpt@cod")
+
+        assert result.matched_model is None
+        assert result.filter_hint == "gpt@cod"
+        assert [entry.selector for entry in result.filtered_models] == [
+            "gpt-5.3-codex@codex",
+            "gpt-5.4@codex",
+            "gpt-5.4-mini@codex",
+        ]
+
     def test_match_model_returns_no_match_instead_of_full_list(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.model_matcher as model_matcher_module
         from klaude_code.config.model_matcher import match_model_from_config
@@ -1135,6 +1209,102 @@ class TestTerminalSelectorFilter:
         filter_items = selector_module._filter_items  # pyright: ignore[reportPrivateUsage]
         visible_indices, matched = filter_items(items, "gpt52")
         assert visible_indices == [0]
+        assert matched is True
+
+    def test_type_to_search_supports_provider_qualified_model_family(self) -> None:
+        from klaude_code.tui.terminal import selector as selector_module
+
+        items = [
+            selector_module.SelectItem(
+                title=[("", "")],
+                value="gpt-5.4@openai",
+                search_text="gpt-5.4@openai gpt-5.4 gpt-5.4 openai",
+            ),
+            selector_module.SelectItem(
+                title=[("", "")],
+                value="gpt-5.3-codex@openai",
+                search_text="gpt-5.3-codex@openai gpt-5.3-codex gpt-5.3-codex openai",
+            ),
+            selector_module.SelectItem(
+                title=[("", "")],
+                value="gpt-5.4@codex",
+                search_text="gpt-5.4@codex gpt-5.4 gpt-5.4 codex",
+            ),
+            selector_module.SelectItem(
+                title=[("", "")],
+                value="gpt-5.3-codex@codex",
+                search_text="gpt-5.3-codex@codex gpt-5.3-codex gpt-5.3-codex codex",
+            ),
+        ]
+
+        filter_items = selector_module._filter_items  # pyright: ignore[reportPrivateUsage]
+        visible_indices, matched = filter_items(items, "gpt@codex")
+
+        assert visible_indices == [2, 3]
+        assert matched is True
+
+    def test_type_to_search_supports_provider_partial_name(self) -> None:
+        from klaude_code.tui.terminal import selector as selector_module
+
+        items = [
+            selector_module.SelectItem(
+                title=[("", "")],
+                value="gpt-5.4@openai",
+                search_text="gpt-5.4@openai gpt-5.4 gpt-5.4 openai",
+            ),
+            selector_module.SelectItem(
+                title=[("", "")],
+                value="gpt-5.3-codex@openai",
+                search_text="gpt-5.3-codex@openai gpt-5.3-codex gpt-5.3-codex openai",
+            ),
+            selector_module.SelectItem(
+                title=[("", "")],
+                value="gpt-5.4@codex",
+                search_text="gpt-5.4@codex gpt-5.4 gpt-5.4 codex",
+            ),
+            selector_module.SelectItem(
+                title=[("", "")],
+                value="gpt-5.3-codex@codex",
+                search_text="gpt-5.3-codex@codex gpt-5.3-codex gpt-5.3-codex codex",
+            ),
+        ]
+
+        filter_items = selector_module._filter_items  # pyright: ignore[reportPrivateUsage]
+        visible_indices, matched = filter_items(items, "gpt@cod")
+
+        assert visible_indices == [2, 3]
+        assert matched is True
+
+    def test_type_to_search_splits_space_terms_with_and_semantics(self) -> None:
+        from klaude_code.tui.terminal import selector as selector_module
+
+        items = [
+            selector_module.SelectItem(
+                title=[("", "")],
+                value="gpt-5.4@openai",
+                search_text="gpt-5.4@openai gpt-5.4 gpt-5.4 openai",
+            ),
+            selector_module.SelectItem(
+                title=[("", "")],
+                value="gpt-5.3-codex@openai",
+                search_text="gpt-5.3-codex@openai gpt-5.3-codex gpt-5.3-codex openai",
+            ),
+            selector_module.SelectItem(
+                title=[("", "")],
+                value="gpt-5.4@codex",
+                search_text="gpt-5.4@codex gpt-5.4 gpt-5.4 codex",
+            ),
+            selector_module.SelectItem(
+                title=[("", "")],
+                value="haiku@codex",
+                search_text="haiku@codex haiku claude-haiku codex",
+            ),
+        ]
+
+        filter_items = selector_module._filter_items  # pyright: ignore[reportPrivateUsage]
+        visible_indices, matched = filter_items(items, "gpt codex")
+
+        assert visible_indices == [1, 2]
         assert matched is True
 
     def test_type_to_search_reports_no_match(self) -> None:

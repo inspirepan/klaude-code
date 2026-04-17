@@ -112,7 +112,7 @@ def test_request_model_operation_single_match_dispatches_change(
 
         monkeypatch.setattr(handler, "handle_change_model", _capture_change)
 
-        await handler.handle_request_model(op.RequestModelOperation(session_id=session.id, preferred="new"))
+        await handler.handle_request_model(op.RequestModelOperation(session_id=session.id))
         assert len(captured) == 1
         assert captured[0].model_name == "new-model"
         assert emitted == []
@@ -173,7 +173,7 @@ def test_request_model_operation_no_match_emits_notice(monkeypatch: pytest.Monke
 
         monkeypatch.setattr(runtime_mod, "match_model_from_config", _match_model)
 
-        await handler.handle_request_model(op.RequestModelOperation(session_id=session.id, preferred="does-not-exist"))
+        await handler.handle_request_model(op.RequestModelOperation(session_id=session.id))
         assert len(emitted) == 1
         assert isinstance(emitted[0], events.NoticeEvent)
         assert emitted[0].content == "(no match)"
@@ -292,7 +292,7 @@ def test_request_model_operation_same_runtime_model_still_saves_default(
 
         monkeypatch.setattr(handler, "handle_change_model", _unexpected_change)
 
-        await handler.handle_request_model(op.RequestModelOperation(session_id=session.id, preferred="gpt"))
+        await handler.handle_request_model(op.RequestModelOperation(session_id=session.id))
 
         assert fake_config.main_model == "gpt@openai"
         assert fake_config.saved is True

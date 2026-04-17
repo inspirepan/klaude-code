@@ -27,7 +27,6 @@ class ModelSelectResult:
 
 
 def select_model_interactive(
-    preferred: str | None = None,
     keywords: list[str] | None = None,
     initial_search_text: str | None = None,
 ) -> ModelSelectResult:
@@ -36,21 +35,15 @@ def select_model_interactive(
     This function combines matching logic with interactive UI selection.
     For CLI usage.
 
-    If keywords is provided, preferred is ignored and the model list is pre-filtered by model_id.
+    If keywords is provided, the model list is pre-filtered by model_id.
 
-    If initial_search_text is provided, preferred is ignored and the full model list is shown
-    with the search input pre-filled.
-
-    If preferred is provided:
-    - Exact match: return immediately
-    - Single partial match (case-insensitive): return immediately
-    - Otherwise: fall through to interactive selection
+    If initial_search_text is provided, the full model list is shown with the search input pre-filled.
     """
     if initial_search_text is not None:
         initial_search_text = initial_search_text.strip() or None
 
     config = load_config()
-    result = match_model_from_config(None if keywords or initial_search_text else preferred)
+    result = match_model_from_config(None)
 
     if result.error_message:
         return ModelSelectResult(status=ModelSelectStatus.NO_MODELS)
@@ -75,8 +68,6 @@ def select_model_interactive(
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         log(("Error: cannot use interactive model selection without a TTY", "red"))
         log(("Hint: pass --model <config-name> or set main_model in ~/.klaude/klaude-config.yaml", "yellow"))
-        if preferred and not keywords:
-            log((f"Hint: '{preferred}' did not resolve to a single configured model", "yellow"))
         return ModelSelectResult(status=ModelSelectStatus.NON_TTY)
 
     # Interactive selection

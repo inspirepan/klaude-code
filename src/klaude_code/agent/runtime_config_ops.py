@@ -274,7 +274,7 @@ class ConfigHandler:
             if initial_search_text is not None:
                 initial_search_text = initial_search_text.strip() or None
 
-            match = match_model_from_config(None if initial_search_text else operation.preferred)
+            match = match_model_from_config(None)
             if match.error_message:
                 await self._emit_event(
                     events.NoticeEvent(

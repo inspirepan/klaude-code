@@ -79,7 +79,7 @@ class ModelRequest(BaseModel):
 
 
 class RequestModelRequest(BaseModel):
-    preferred: str | None = None
+    initial_search_text: str | None = None
     save_as_default: bool = False
 
 
@@ -462,7 +462,7 @@ async def request_model(
     operation_id = await state.runtime.submit(
         op.RequestModelOperation(
             session_id=session_id,
-            preferred=payload.preferred,
+            initial_search_text=payload.initial_search_text,
             save_as_default=payload.save_as_default,
         )
     )

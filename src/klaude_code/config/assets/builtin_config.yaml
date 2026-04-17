@@ -17,11 +17,6 @@ provider_list:
       type: adaptive
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
-  - model_name: sonnet:no-thinking
-    model_id: claude-sonnet-4-6
-    context_limit: 1000000
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
-
   - &opus
     model_name: opus
     model_id: claude-opus-4-7
@@ -70,11 +65,6 @@ provider_list:
     context_limit: 1000000
     thinking:
       type: adaptive
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
-
-  - model_name: sonnet:no-thinking
-    model_id: global.anthropic.claude-sonnet-4-6
-    context_limit: 1000000
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
@@ -217,14 +207,14 @@ provider_list:
   model_list:
 
   - model_name: gemini-pro
-    model_id: gemini-pro-latest
+    model_id: gemini-3.1-pro-preview
     context_limit: 1048576
     thinking:
       reasoning_effort: high
     cost: { input: 2, output: 12, cache_read: 0.2 }
 
   - model_name: gemini-flash
-    model_id: gemini-flash-latest
+    model_id: gemini-3-flash-preview
     context_limit: 1048576
     thinking:
       reasoning_effort: medium
@@ -232,7 +222,7 @@ provider_list:
 
   - &gemini_flash_minimal
     model_name: gemini-flash:minimal
-    model_id: gemini-flash-latest
+    model_id: gemini-3-flash-preview
     context_limit: 1048576
     thinking:
       reasoning_effort: minimal
@@ -459,13 +449,6 @@ provider_list:
       type: adaptive
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
-  - model_name: sonnet:no-thinking
-    model_id: anthropic/claude-sonnet-4.6
-    context_limit: 1000000
-    provider_routing:
-      sort: throughput
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
-
   - model_name: opus
     model_id: anthropic/claude-opus-4.7
     max_tokens: 64000
@@ -550,8 +533,8 @@ sub_agent_models:
 
 compact_model:
 - gemini-flash
-- sonnet:no-thinking
 - gpt-5.4-mini
+- sonnet
 fast_model:
 - gpt-5.4-nano
 - gemini-flash-lite

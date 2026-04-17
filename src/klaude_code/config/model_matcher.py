@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from klaude_code.config.config import ModelEntry, load_config, print_no_available_models_hint
+from klaude_code.config.config import ModelEntry, load_config, normalize_provider_name, print_no_available_models_hint
 
 
 def _normalize_model_key(value: str) -> str:
@@ -14,6 +14,41 @@ def _normalize_model_key(value: str) -> str:
     """
 
     return "".join(ch for ch in value.casefold() if ch.isalnum())
+
+
+def _matches_query(value: str, query: str) -> bool:
+    value_lower = value.casefold()
+    query_lower = query.casefold()
+    if query_lower in value_lower:
+        return True
+
+    query_norm = _normalize_model_key(query)
+    if not query_norm:
+        return False
+    return query_norm in _normalize_model_key(value)
+
+
+def _match_provider_qualified_query(models: list[ModelEntry], preferred: str) -> list[ModelEntry]:
+    if "@" not in preferred:
+        return []
+
+    model_query, provider_query = preferred.rsplit("@", 1)
+    model_query = model_query.strip()
+    provider_query = provider_query.strip()
+    if not model_query or not provider_query:
+        return []
+
+    provider_queries = {provider_query}
+    normalized_provider = normalize_provider_name(provider_query)
+    if normalized_provider:
+        provider_queries.add(normalized_provider)
+
+    return [
+        model
+        for model in models
+        if any(_matches_query(model.provider, query) for query in provider_queries)
+        and (_matches_query(model.model_name, model_query) or _matches_query(model.model_id or "", model_query))
+    ]
 
 
 @dataclass
@@ -95,6 +130,20 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
                 matched_model=exact_ci_matches[0].selector,
                 filtered_models=models,
                 filter_hint=None,
+            )
+
+        provider_qualified_matches = _match_provider_qualified_query(models, preferred)
+        if len(provider_qualified_matches) == 1:
+            return ModelMatchResult(
+                matched_model=provider_qualified_matches[0].selector,
+                filtered_models=models,
+                filter_hint=None,
+            )
+        if provider_qualified_matches:
+            return ModelMatchResult(
+                matched_model=None,
+                filtered_models=provider_qualified_matches,
+                filter_hint=filter_hint,
             )
 
         # Normalized matching (e.g. gpt52 == gpt-5.2, gpt52 in gpt-5.2-2025-...)

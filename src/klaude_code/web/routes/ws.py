@@ -54,7 +54,7 @@ class ModelFrame(BaseModel):
 
 class RequestModelFrame(BaseModel):
     type: Literal["model_request"]
-    preferred: str | None = None
+    initial_search_text: str | None = None
     save_as_default: bool = False
 
 
@@ -206,7 +206,7 @@ async def _handle_incoming_frame(
             await runtime.submit(
                 op.RequestModelOperation(
                     session_id=session_id,
-                    preferred=frame.preferred,
+                    initial_search_text=frame.initial_search_text,
                     save_as_default=frame.save_as_default,
                 )
             )

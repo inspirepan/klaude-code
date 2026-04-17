@@ -115,3 +115,16 @@ def test_task_metadata_shows_cache_write_tokens() -> None:
     assert "in 5k" in output
     assert "cache 20k" in output
     assert "cache write 5k" in output
+
+
+def test_task_metadata_keeps_duration_and_steps_inline_without_worked_summary() -> None:
+    metadata = model.TaskMetadata(model_name="claude-sonnet-4-6", turn_count=2, task_duration_s=288)
+    event = events.TaskMetadataEvent(session_id="test", metadata=model.TaskMetadataItem(main_agent=metadata))
+
+    console = Console(width=120, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_task_metadata(event))
+    output = console.export_text(styles=False)
+
+    assert "Worked for" not in output
+    assert "4m48s" in output
+    assert "2 steps" in output

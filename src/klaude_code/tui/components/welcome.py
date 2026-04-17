@@ -110,8 +110,8 @@ def _build_shortcuts_tree() -> Tree:
         ("/", "commands"),
         ("//", "skills"),
         ("!", "shell"),
-        ("ctrl-l", "models"),
-        ("ctrl-t", "think"),
+        ("ctrl-l", "change model (this chat)"),
+        ("ctrl-t", "change thinking level"),
         ("ctrl-v", "paste image"),
     ]
     for key, desc in items:

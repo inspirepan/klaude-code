@@ -63,7 +63,7 @@ export interface SessionStoreState {
     modelName?: string | null,
     images?: MessageImagePart[],
   ) => Promise<string>;
-  requestModel: (sessionId: string, preferred: string, saveAsDefault?: boolean) => Promise<void>;
+  requestModel: (sessionId: string, modelName: string, saveAsDefault?: boolean) => Promise<void>;
   sendMessage: (sessionId: string, text: string, images?: MessageImagePart[]) => Promise<void>;
   compactSession: (sessionId: string, focus: string | null) => Promise<void>;
   interruptSession: (sessionId: string) => Promise<void>;
@@ -367,8 +367,8 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     const selectedModel = modelName?.trim() ?? "";
     if (selectedModel.length > 0) {
       getActiveConnection()?.connection.send({
-        type: "model_request",
-        preferred: selectedModel,
+        type: "model",
+        model_name: selectedModel,
         save_as_default: false,
       });
     }
@@ -379,17 +379,17 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     });
     return sessionId;
   },
-  requestModel: (sessionId: string, preferred: string, saveAsDefault = false): Promise<void> => {
-    const normalizedPreferred = preferred.trim();
-    if (normalizedPreferred.length === 0) {
+  requestModel: (sessionId: string, modelName: string, saveAsDefault = false): Promise<void> => {
+    const normalizedModelName = modelName.trim();
+    if (normalizedModelName.length === 0) {
       return Promise.resolve();
     }
     if (getActiveConnection()?.sessionId !== sessionId) {
       openSessionWs(sessionId, get, set);
     }
     getActiveConnection()?.connection.send({
-      type: "model_request",
-      preferred: normalizedPreferred,
+      type: "model",
+      model_name: normalizedModelName,
       save_as_default: saveAsDefault,
     });
     return Promise.resolve();

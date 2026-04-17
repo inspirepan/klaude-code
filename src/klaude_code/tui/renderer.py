@@ -586,6 +586,7 @@ class TUICommandRenderer:
     def display_notice(self, e: events.NoticeEvent) -> None:
         with self.session_print_context(e.session_id):
             self.print(c_command_output.render_notice(e))
+            self.print()
 
     def display_away_summary(self, e: events.AwaySummaryEvent) -> None:
         with self.session_print_context(e.session_id):

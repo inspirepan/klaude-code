@@ -21,7 +21,7 @@ from typing import Protocol
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import op
 
-DEFAULT_IDLE_DELAY_SECONDS = 30
+DEFAULT_IDLE_DELAY_SECONDS = 120
 
 
 class AwaySummaryRuntime(Protocol):
