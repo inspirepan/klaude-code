@@ -9,9 +9,9 @@ from klaude_code.protocol import events, message, model, tools
 from klaude_code.tui.commands import (
     FlushOpenBlocks,
     PrintBlankLine,
-    RenderNotice,
     RenderDeveloperMessage,
     RenderError,
+    RenderNotice,
     RenderToolCall,
     RenderToolResult,
     RenderUserMessage,

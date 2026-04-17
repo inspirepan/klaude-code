@@ -47,10 +47,7 @@ def _match_provider_qualified_query(models: list[ModelEntry], preferred: str) ->
         model
         for model in models
         if any(_matches_query(model.provider, query) for query in provider_queries)
-        and (
-            _matches_query(model.model_name, model_query)
-            or _matches_query(model.model_id or "", model_query)
-        )
+        and (_matches_query(model.model_name, model_query) or _matches_query(model.model_id or "", model_query))
     ]
 
 

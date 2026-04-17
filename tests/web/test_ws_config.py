@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-import pytest
-
 from .conftest import AppEnv, consume_ws_handshake, wait_for_event
 
 
@@ -53,7 +51,8 @@ def test_change_model_via_ws(app_env: AppEnv) -> None:
         (
             str(cast(dict[str, object], model).get("name", "")).strip()
             for model in models
-            if isinstance(model, dict) and str(cast(dict[str, object], model).get("name", "")).strip() != current_model_name
+            if isinstance(model, dict)
+            and str(cast(dict[str, object], model).get("name", "")).strip() != current_model_name
         ),
         "",
     )
