@@ -24,3 +24,4 @@ package-lock.json
 *.tsbuildinfo
 .pnpm-store/
 web/.vite
+.claude/settings.local.json

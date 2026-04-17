@@ -181,6 +181,8 @@ class ThemeKey(str, Enum):
     # ATTACHMENT
     ATTACHMENT = "attachment"
     ATTACHMENT_BOLD = "attachment.bold"
+    RECAP_LABEL = "recap.label"
+    RECAP_TEXT = "recap.text"
     # TOOL
     INVALID_TOOL_CALL_ARGS = "tool.invalid_tool_call_args"
     TOOL_NAME = "tool.name"
@@ -331,6 +333,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 # ATTACHMENT
                 ThemeKey.ATTACHMENT.value: palette.grey1,
                 ThemeKey.ATTACHMENT_BOLD.value: palette.grey1,
+                ThemeKey.RECAP_LABEL.value: "bold " + palette.grey1,
+                ThemeKey.RECAP_TEXT.value: "italic " + palette.grey1,
                 # TOOL
                 ThemeKey.INVALID_TOOL_CALL_ARGS.value: palette.yellow,
                 ThemeKey.TOOL_NAME.value: "bold",

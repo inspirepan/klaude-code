@@ -13,6 +13,7 @@ from klaude_code.const import (
     STATUS_COMPACTING_TEXT,
     STATUS_COMPOSING_TEXT,
     STATUS_DEFAULT_TEXT,
+    STATUS_RECAPPING_TEXT,
     STATUS_RUNNING_TEXT,
     STATUS_SHOW_BUFFER_LENGTH,
     STATUS_THINKING_TEXT,
@@ -29,6 +30,7 @@ from klaude_code.tui.commands import (
     FlushOpenBlocks,
     PrintBlankLine,
     PrintRuleLine,
+    RenderAwaySummary,
     RenderBashCommandEnd,
     RenderBashCommandStart,
     RenderCommand,
@@ -115,6 +117,7 @@ class SpinnerPhase(Enum):
     THINKING = auto()
     COMPOSING = auto()
     COMPACTING = auto()
+    RECAPPING = auto()
     RUNNING = auto()
     CUSTOM = auto()
 
@@ -249,6 +252,9 @@ class SpinnerStatusState:
     def enter_compacting(self) -> None:
         self._enter_phase(SpinnerPhase.COMPACTING)
 
+    def enter_recapping(self) -> None:
+        self._enter_phase(SpinnerPhase.RECAPPING)
+
     def enter_running(self) -> None:
         self._enter_phase(SpinnerPhase.RUNNING)
 
@@ -357,11 +363,12 @@ class SpinnerStatusState:
                 return text
             case SpinnerPhase.COMPACTING:
                 return Text(STATUS_COMPACTING_TEXT, style=ThemeKey.STATUS_TEXT)
+            case SpinnerPhase.RECAPPING:
+                return Text(STATUS_RECAPPING_TEXT, style=ThemeKey.STATUS_TEXT)
             case SpinnerPhase.RUNNING:
                 return Text(STATUS_RUNNING_TEXT, style=ThemeKey.STATUS_TEXT)
             case SpinnerPhase.CUSTOM:
                 return Text(self._custom_status or "", style=ThemeKey.STATUS_TEXT)
-        return None
 
     def get_status(self) -> Text:
         if self._toast_status:
@@ -884,6 +891,26 @@ class DisplayStateMachine:
 
             case events.NoticeEvent() as e:
                 cmds.append(RenderNotice(e))
+                return cmds
+
+            case events.AwaySummaryEvent() as e:
+                cmds.append(RenderAwaySummary(e))
+                return cmds
+
+            case events.AwaySummaryStartEvent():
+                if not is_replay:
+                    self._spinner.enter_recapping()
+                    if not s.task_active:
+                        cmds.append(SpinnerStart())
+                    cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.AwaySummaryEndEvent():
+                if not is_replay:
+                    self._spinner.enter_waiting()
+                    if not s.task_active:
+                        cmds.append(SpinnerStop())
+                    cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.SessionStatsEvent() as e:

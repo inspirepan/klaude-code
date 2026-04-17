@@ -27,6 +27,7 @@ class _FakeComponents:
     config: Any
     runtime: Any
     display: Any
+    event_bus: Any = None
 
     async def wait_for_display_idle(self) -> None:
         return None

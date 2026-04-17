@@ -326,6 +326,9 @@ class PromptToolkitInput(InputProviderABC):
         prompt: str = USER_MESSAGE_MARK,
         pre_prompt: Callable[[], None] | None = None,
         post_prompt: Callable[[], None] | None = None,
+        on_prompt_start: Callable[[], None] | None = None,
+        on_prompt_end: Callable[[], None] | None = None,
+        on_user_activity: Callable[[], None] | None = None,
         on_change_model: Callable[[str], Awaitable[None]] | None = None,
         get_current_model_config_name: Callable[[], str | None] | None = None,
         on_change_thinking: Callable[[llm_param.Thinking], Awaitable[None]] | None = None,
@@ -335,6 +338,9 @@ class PromptToolkitInput(InputProviderABC):
         self._prompt_text = prompt
         self._pre_prompt = pre_prompt
         self._post_prompt = post_prompt
+        self._on_prompt_start = on_prompt_start
+        self._on_prompt_end = on_prompt_end
+        self._on_user_activity = on_user_activity
         self._on_change_model = on_change_model
         self._get_current_model_config_name = get_current_model_config_name
         self._on_change_thinking = on_change_thinking
@@ -344,9 +350,14 @@ class PromptToolkitInput(InputProviderABC):
         self._session_dir: Path | None = None
 
         self._session = self._build_prompt_session(prompt)
+        self._session.app.key_processor.before_key_press += self._handle_user_activity
         self._setup_model_picker()
         self._setup_thinking_picker()
         self._apply_layout_customizations()
+
+    def _handle_user_activity(self, _sender: object) -> None:
+        if self._on_user_activity is not None:
+            self._on_user_activity()
 
     def set_next_prefill(self, text: str | None) -> None:
         self._next_prefill_text = text
@@ -717,13 +728,21 @@ class PromptToolkitInput(InputProviderABC):
             # Keep ANSI escape sequences intact while prompt_toolkit is active.
             # This allows Rich-rendered panels (e.g. WelcomeEvent) to display with
             # proper styling instead of showing raw escape codes.
-            with patch_stdout(raw=True):
-                default_text = self._next_prefill_text
-                self._next_prefill_text = None
-                if default_text is None:
-                    line = await self._session.prompt_async(message=self._get_prompt_message)
-                else:
-                    line = await self._session.prompt_async(message=self._get_prompt_message, default=default_text)
+            if self._on_prompt_start is not None:
+                with contextlib.suppress(Exception):
+                    self._on_prompt_start()
+            try:
+                with patch_stdout(raw=True):
+                    default_text = self._next_prefill_text
+                    self._next_prefill_text = None
+                    if default_text is None:
+                        line = await self._session.prompt_async(message=self._get_prompt_message)
+                    else:
+                        line = await self._session.prompt_async(message=self._get_prompt_message, default=default_text)
+            finally:
+                if self._on_prompt_end is not None:
+                    with contextlib.suppress(Exception):
+                        self._on_prompt_end()
             if self._post_prompt is not None:
                 with contextlib.suppress(Exception):
                     self._post_prompt()

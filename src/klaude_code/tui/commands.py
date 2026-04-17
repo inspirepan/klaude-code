@@ -44,6 +44,11 @@ class RenderNotice(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderAwaySummary(RenderCommand):
+    event: events.AwaySummaryEvent
+
+
+@dataclass(frozen=True, slots=True)
 class RenderSessionStats(RenderCommand):
     event: events.SessionStatsEvent
 

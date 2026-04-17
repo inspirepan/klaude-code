@@ -10,6 +10,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from klaude_code.agent.compaction import should_compact_threshold
+from klaude_code.agent.runtime_away_summary import AwaySummaryCoordinator
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.app.runtime import (
     AppInitConfig,
@@ -439,8 +440,13 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             )
         )
 
+    away_summary_coordinator = AwaySummaryCoordinator(runtime=components.runtime)
+
     input_provider = PromptToolkitInput(
         pre_prompt=_stop_rich_bottom_ui,
+        on_prompt_start=away_summary_coordinator.notify_prompt_started,
+        on_prompt_end=away_summary_coordinator.notify_prompt_ended,
+        on_user_activity=away_summary_coordinator.notify_user_activity,
         get_current_model_config_name=lambda: (
             components.runtime.current_agent.session.model_config_name
             if components.runtime.current_agent is not None
@@ -520,6 +526,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     pending_web_mode_request: WebModeRequest | None = None
 
     try:
+        await away_summary_coordinator.start()
+
         tui_holder_key = uuid4().hex
         await initialize_session(
             components.runtime,
@@ -570,6 +578,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
             # before handing control back to prompt_toolkit.
             await components.wait_for_display_idle()
+            away_summary_coordinator.notify_task_finished()
             if interrupted and components.runtime.current_agent is not None:
                 input_provider.set_next_prefill(components.runtime.current_agent.consume_interrupt_prefill_text())
 
@@ -577,6 +586,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         await handle_keyboard_interrupt(components.runtime)
         exit_hint_printed = True
     finally:
+        with contextlib.suppress(Exception):
+            await away_summary_coordinator.stop()
+
         active_session_id = components.runtime.current_session_id()
         work_dir = Path.cwd()
         should_show_resume_hint = False

@@ -43,6 +43,7 @@ class OperationType(Enum):
     CLOSE_SESSION = "close_session"
     USER_INTERACTION_RESPOND = "user_interaction_respond"
     INIT_AGENT = "init_agent"
+    GENERATE_AWAY_SUMMARY = "generate_away_summary"
 
 
 class Operation(BaseModel):
@@ -285,3 +286,20 @@ class InitAgentOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_init_agent(self)
+
+
+class GenerateAwaySummaryOperation(Operation):
+    """Operation for generating a "while you were away" recap.
+
+    Triggered either by the /recap slash command (source="manual") or by the
+    prompt-idle coordinator after a task finishes and the prompt stays idle
+    for a while (source="auto"). The handler runs a small-fast model query
+    over recent history and emits an AwaySummaryEvent.
+    """
+
+    type: OperationType = OperationType.GENERATE_AWAY_SUMMARY
+    session_id: str
+    source: Literal["auto", "manual"] = "auto"
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_generate_away_summary(self)

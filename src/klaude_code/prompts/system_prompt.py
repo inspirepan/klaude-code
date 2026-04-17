@@ -40,7 +40,11 @@ BASH_GIT_HISTORY_INST = (
     """- Use `git log` and `git blame` to search codebase history when additional context is required."""
 )
 
-READ_BEFORE_EDIT_INST = """- NEVER propose changes to code you haven't read. Read a file before editing it."""
+READ_BEFORE_EDIT_INST = """- NEVER propose changes to or answer questions about code you haven't read. Investigate by reading relevant files before responding. If the user references a specific file, read it first -- do not speculate."""
+
+PREFER_TOOL_OVER_SPECULATION_INST = (
+    """- When information about the codebase is incomplete, prefer opening a file or running a tool over speculating."""
+)
 
 AGENT_FINDER_INST = (
     "- For broad codebase exploration, cross-directory tracing, concept-based searches, or when you "
@@ -101,7 +105,7 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
 
     tool_name_set = {tool_schema.name for tool_schema in available_tools}
 
-    strategy_lines: list[str] = [PARALLEL_TOOL_CALLS_INST, EXTERNAL_REFS_INST]
+    strategy_lines: list[str] = [PARALLEL_TOOL_CALLS_INST, PREFER_TOOL_OVER_SPECULATION_INST, EXTERNAL_REFS_INST]
 
     if tools.BASH in tool_name_set:
         strategy_lines.extend(

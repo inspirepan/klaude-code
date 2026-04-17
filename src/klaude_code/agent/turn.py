@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -8,8 +7,6 @@ from typing import TYPE_CHECKING
 from klaude_code.agent.handoff import HandoffManager
 from klaude_code.agent.rewind import RewindManager
 from klaude_code.const import (
-    FIRST_TOKEN_TIMEOUT_NO_RETRY_INPUT_TOKENS,
-    LLM_FIRST_TOKEN_TIMEOUT_S,
     RETRY_PRESERVE_PARTIAL_MESSAGE,
 )
 from klaude_code.tool import ToolABC
@@ -249,24 +246,12 @@ class TurnExecutor:
         )
 
         self._llm_stream = await ctx.llm_client.call(call_param)
-        first_effective_token_received = False
         try:
             stream_iter = self._llm_stream.__aiter__()
             while True:
                 try:
-                    if first_effective_token_received:
-                        delta = await anext(stream_iter)
-                    elif ctx.prev_turn_input_tokens >= FIRST_TOKEN_TIMEOUT_NO_RETRY_INPUT_TOKENS:
-                        # Large context: skip first-token timeout since slow processing is expected
-                        delta = await anext(stream_iter)
-                    else:
-                        delta = await asyncio.wait_for(anext(stream_iter), timeout=LLM_FIRST_TOKEN_TIMEOUT_S)
+                    delta = await anext(stream_iter)
                 except StopAsyncIteration:
-                    break
-                except TimeoutError:
-                    turn_result.stream_error = message.StreamErrorItem(
-                        error=f"First token timeout after {LLM_FIRST_TOKEN_TIMEOUT_S:.1f}s"
-                    )
                     break
 
                 log_debug(
@@ -276,8 +261,6 @@ class TurnExecutor:
                 )
                 match delta:
                     case message.ThinkingTextDelta() as delta:
-                        if delta.content:
-                            first_effective_token_received = True
                         if not thinking_active:
                             thinking_active = True
                             yield events.ThinkingStartEvent(
@@ -291,7 +274,6 @@ class TurnExecutor:
                         )
                     case message.AssistantTextDelta() as delta:
                         if delta.content:
-                            first_effective_token_received = True
                             self._accumulated_assistant_text.append(delta.content)
                             self._visible_output_started = True
                         if thinking_active:
@@ -312,8 +294,6 @@ class TurnExecutor:
                             session_id=session_ctx.session_id,
                         )
                     case message.AssistantMessage() as msg:
-                        if msg.parts:
-                            first_effective_token_received = True
                         if any(
                             (isinstance(part, message.TextPart) and bool(part.text))
                             or isinstance(part, message.ToolCallPart)
@@ -358,7 +338,10 @@ class TurnExecutor:
                                 session_id=session_ctx.session_id,
                                 show_notice=self.should_show_interrupt_notice,
                             )
-                        if msg.usage:
+                        # Skip usage emission for error turns: the stream aborted before
+                        # the provider sent final usage, so counts are often all-zero and
+                        # would trigger a false prompt-cache-break alert (and skew hit rate).
+                        if msg.usage and msg.stop_reason != "error":
                             metadata = msg.usage
                             if metadata.response_id is None:
                                 metadata.response_id = msg.response_id
@@ -374,7 +357,6 @@ class TurnExecutor:
                         log_debug(msg.error, debug_type=DebugType.LLM_STREAM)
                         turn_result.stream_error = msg
                     case message.ToolCallStartDelta() as msg:
-                        first_effective_token_received = True
                         self._visible_output_started = True
                         if thinking_active:
                             thinking_active = False

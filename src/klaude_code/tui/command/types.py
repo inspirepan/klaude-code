@@ -29,6 +29,7 @@ class CommandName(str, Enum):
     COPY = "copy"
     CONTINUE = "continue"
     WEB = "web"
+    RECAP = "recap"
 
     def __str__(self) -> str:
         return self.value

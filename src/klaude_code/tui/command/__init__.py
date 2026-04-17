@@ -39,6 +39,7 @@ def ensure_commands_loaded() -> None:
     from .logout_cmd import LogoutCommand
     from .model_cmd import ModelCommand
     from .new_cmd import NewCommand
+    from .recap_cmd import RecapCommand
     from .refresh_cmd import RefreshTerminalCommand
     from .status_cmd import StatusCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
@@ -60,6 +61,7 @@ def ensure_commands_loaded() -> None:
     register(LoginCommand())
     register(LogoutCommand())
     register(ContinueCommand())
+    register(RecapCommand())
     register(DebugCommand())
 
 
@@ -76,6 +78,7 @@ def __getattr__(name: str) -> object:
         "LoginCommand": "login_cmd",
         "LogoutCommand": "logout_cmd",
         "ModelCommand": "model_cmd",
+        "RecapCommand": "recap_cmd",
         "RefreshTerminalCommand": "refresh_cmd",
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",

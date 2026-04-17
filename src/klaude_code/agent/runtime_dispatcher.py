@@ -224,6 +224,9 @@ class OperationDispatcher:
     async def handle_compact_session(self, operation: op.CompactSessionOperation) -> None:
         await self._agent_runner.compact_session(operation)
 
+    async def handle_generate_away_summary(self, operation: op.GenerateAwaySummaryOperation) -> None:
+        await self._agent_runner.generate_away_summary(operation)
+
     async def handle_change_model(self, operation: op.ChangeModelOperation) -> None:
         await self._config_handler.handle_change_model(operation)
 

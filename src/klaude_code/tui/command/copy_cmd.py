@@ -6,7 +6,7 @@ from .types import CommandName
 
 
 class CopyCommand(CommandABC):
-    """Copy the last assistant message to system clipboard."""
+    """Copy an assistant message to system clipboard."""
 
     @property
     def name(self) -> CommandName:
@@ -14,34 +14,55 @@ class CopyCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Copy last assistant message to clipboard"
+        return "Copy last response to clipboard (or /copy N for the Nth-latest)"
+
+    @property
+    def support_addition_params(self) -> bool:
+        return True
+
+    @property
+    def placeholder(self) -> str:
+        return "N"
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
-        del user_input  # unused
+        arg = user_input.text.strip()
+        n = 1
+        if arg:
+            try:
+                n = int(arg)
+            except ValueError:
+                return _command_output(
+                    agent, f"Invalid /copy argument: {arg!r} (expected a positive integer).", is_error=True
+                )
+            if n < 1:
+                return _command_output(
+                    agent, f"Invalid /copy argument: {n} (expected a positive integer).", is_error=True
+                )
 
-        last = _collect_assistant_text(agent.session.conversation_history)
-        if not last:
-            return _command_output(agent, "(no assistant message to copy)", is_error=True)
+        text = _collect_assistant_text(agent.session.conversation_history, n)
+        if not text:
+            suffix = "" if n == 1 else f" (only {_count_assistant(agent.session.conversation_history)} available)"
+            return _command_output(agent, f"(no assistant message to copy{suffix})", is_error=True)
 
-        copy_to_clipboard(last)
-        return _command_output(agent, "Copied last assistant message to clipboard.")
+        copy_to_clipboard(text)
+        label = "last assistant message" if n == 1 else f"assistant message #{n} from the end"
+        return _command_output(agent, f"Copied {label} to clipboard.")
 
 
-def _collect_assistant_text(history: list[message.HistoryEvent]) -> str:
-    """Collect the last assistant response."""
-    # Find the last AssistantMessage
-    last_idx = -1
+def _collect_assistant_text(history: list[message.HistoryEvent], n: int) -> str:
+    """Collect the Nth-latest assistant response (n=1 is the most recent)."""
+    seen = 0
     for i in range(len(history) - 1, -1, -1):
-        if isinstance(history[i], message.AssistantMessage):
-            last_idx = i
-            break
+        msg = history[i]
+        if isinstance(msg, message.AssistantMessage):
+            seen += 1
+            if seen == n:
+                return _format_assistant(msg)
+    return ""
 
-    if last_idx < 0:
-        return ""
 
-    last_msg = history[last_idx]
-    assert isinstance(last_msg, message.AssistantMessage)
-    return _format_assistant(last_msg)
+def _count_assistant(history: list[message.HistoryEvent]) -> int:
+    return sum(1 for m in history if isinstance(m, message.AssistantMessage))
 
 
 def _format_assistant(msg: message.AssistantMessage) -> str:

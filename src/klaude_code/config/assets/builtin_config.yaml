@@ -27,6 +27,16 @@ provider_list:
     model_id: claude-opus-4-7
     max_tokens: 64000
     context_limit: 1000000
+    effort: high
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
+
+  - &opus_xhigh
+    model_name: opus:xhigh
+    model_id: claude-opus-4-7
+    max_tokens: 64000
+    context_limit: 1000000
     effort: xhigh
     thinking:
       type: adaptive
@@ -36,7 +46,7 @@ provider_list:
     model_id: claude-opus-4-7
     max_tokens: 64000
     context_limit: 1000000
-    effort: xhigh
+    effort: high
     fast_mode: true
     thinking:
       type: adaptive
@@ -68,6 +78,15 @@ provider_list:
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
+    model_id: global.anthropic.claude-opus-4-7
+    max_tokens: 64000
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: opus:xhigh
     model_id: global.anthropic.claude-opus-4-7
     max_tokens: 64000
     context_limit: 1000000
@@ -103,7 +122,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: none
-      reasoning_summary: concise
+      reasoning_summary: detailed
     cost: { input: 0.2, output: 1.25, cache_read: 0.02 }
 
   - &gpt54mini
@@ -114,7 +133,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: none
-      reasoning_summary: concise
+      reasoning_summary: detailed
     cost: { input: 0.75, output: 4.5, cache_read: 0.075 }
 
   - model_name: gpt-5.4-mini:fast
@@ -125,7 +144,7 @@ provider_list:
     fast_mode: true
     thinking:
       reasoning_effort: none
-      reasoning_summary: concise
+      reasoning_summary: detailed
     cost: { input: 1.5, output: 9, cache_read: 0.15 }
 
   - &gpt54
@@ -136,7 +155,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: high
-      reasoning_summary: concise
+      reasoning_summary: detailed
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
   - &gpt54_xhigh
@@ -147,7 +166,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: xhigh
-      reasoning_summary: concise
+      reasoning_summary: detailed
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
   - model_name: gpt-5.4:fast
@@ -158,7 +177,7 @@ provider_list:
     fast_mode: true
     thinking:
       reasoning_effort: high
-      reasoning_summary: concise
+      reasoning_summary: detailed
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
   - model_name: gpt-5.4:xhigh:fast
@@ -169,7 +188,7 @@ provider_list:
     fast_mode: true
     thinking:
       reasoning_effort: xhigh
-      reasoning_summary: concise
+      reasoning_summary: detailed
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
   - &gpt53codex
@@ -393,7 +412,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: none
-      reasoning_summary: concise
+      reasoning_summary: detailed
     cost: { input: 0.2, output: 1.25, cache_read: 0.02 }
 
   - model_name: gpt-5.4-mini
@@ -403,7 +422,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: none
-      reasoning_summary: concise
+      reasoning_summary: detailed
     cost: { input: 0.75, output: 4.5, cache_read: 0.075 }
 
   - model_name: gpt-5.4
@@ -413,7 +432,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: high
-      reasoning_summary: concise
+      reasoning_summary: detailed
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
   - model_name: gpt-5.4:xhigh
@@ -423,7 +442,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: xhigh
-      reasoning_summary: concise
+      reasoning_summary: detailed
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
   - model_name: haiku
@@ -448,6 +467,15 @@ provider_list:
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
+    model_id: anthropic/claude-opus-4.7
+    max_tokens: 64000
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: opus:xhigh
     model_id: anthropic/claude-opus-4.7
     max_tokens: 64000
     context_limit: 1000000
