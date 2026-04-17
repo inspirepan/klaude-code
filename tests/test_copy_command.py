@@ -94,6 +94,49 @@ def test_copy_command_uses_last_assistant_message(monkeypatch: pytest.MonkeyPatc
     assert copied == ["after"]
 
 
+def test_copy_command_nth_latest(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = Session.create(work_dir=Path.cwd())
+    session.conversation_history = [
+        message.AssistantMessage(parts=message.text_parts_from_str("a1")),
+        message.UserMessage(parts=message.text_parts_from_str("q")),
+        message.AssistantMessage(parts=message.text_parts_from_str("a2")),
+        message.AssistantMessage(parts=message.text_parts_from_str("a3")),
+    ]
+
+    copied: list[str] = []
+    def _copy(text: str) -> None:
+        copied.append(text)
+
+    monkeypatch.setattr(copy_cmd, "copy_to_clipboard", _copy)
+
+    cmd = copy_cmd.CopyCommand()
+    _ = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="1")))
+    _ = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="2")))
+    _ = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="3")))
+
+    assert copied == ["a3", "a2", "a1"]
+
+
+def test_copy_command_invalid_n(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = Session.create(work_dir=Path.cwd())
+    session.conversation_history = [message.AssistantMessage(parts=message.text_parts_from_str("a1"))]
+
+    copied: list[str] = []
+    def _copy(text: str) -> None:
+        copied.append(text)
+
+    monkeypatch.setattr(copy_cmd, "copy_to_clipboard", _copy)
+
+    cmd = copy_cmd.CopyCommand()
+    result = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="abc")))
+    assert copied == []
+    assert result.events is not None
+
+    result = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="5")))
+    assert copied == []
+    assert result.events is not None
+
+
 def test_copy_command_no_assistant_message(monkeypatch: pytest.MonkeyPatch) -> None:
     session = Session.create(work_dir=Path.cwd())
     session.conversation_history = [message.UserMessage(parts=message.text_parts_from_str("hi"))]
