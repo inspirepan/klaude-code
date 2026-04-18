@@ -11,7 +11,7 @@ const iconSize = "h-3.5 w-3.5 shrink-0";
 const statusConfig = {
   pending: { iconClass: `${iconSize} text-neutral-300`, textClass: "text-neutral-500" },
   in_progress: {
-    iconClass: `${iconSize} text-sky-600 animate-spin-slow`,
+    iconClass: `${iconSize} text-sky-600`,
     textClass: "text-sky-600",
   },
   completed: {

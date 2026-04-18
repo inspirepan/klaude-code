@@ -15,7 +15,7 @@ const SHADOW_ICON_CSS = `
 
 [data-header-content] [data-prev-name],
 [data-header-content] [data-title] {
-  font-family: var(--diffs-header-font-family, "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif) !important;
+  font-family: var(--diffs-header-font-family, "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif) !important;
 }
 
 [data-diffs-header] {
@@ -87,7 +87,7 @@ interface DiffViewProps {
 const COLLAPSED_DIFF_MAX_HEIGHT = 420;
 const DIFF_BACKGROUND = "hsl(var(--surface))";
 const DIFF_HEADER_SANS =
-  '"Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif';
+  '"InterVariable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif';
 
 export function DiffView({ item, uiExtra }: DiffViewProps): React.JSX.Element | null {
   const t = useT();
@@ -172,7 +172,7 @@ export function DiffView({ item, uiExtra }: DiffViewProps): React.JSX.Element | 
 
   return (
     <div
-      className="diff-view rounded-lg bg-surface [--diffs-font-size:0.875rem]"
+      className="diff-view overflow-hidden rounded-lg border border-neutral-200 bg-surface shadow-sm [--diffs-font-size:0.73rem] [--diffs-line-height:1.575rem]"
       ref={containerRef}
     >
       <div className="flex flex-col">

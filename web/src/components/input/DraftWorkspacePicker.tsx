@@ -115,7 +115,7 @@ export function DraftWorkspacePicker({
       <div ref={workspacePickerRef} className="relative">
         <div
           className={[
-            "flex items-center rounded-lg bg-card shadow-sm ring-1 ring-black/5 transition-colors",
+            "flex items-center rounded-lg bg-card shadow-sm ring-1 ring-black/10 transition-colors",
             workspaceMenuOpen ? "bg-card" : "hover:bg-card",
           ].join(" ")}
         >

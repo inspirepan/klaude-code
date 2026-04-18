@@ -223,7 +223,7 @@ const en = {
   "developer.summarySkill": (name: string) => `skill:${name}`,
   "developer.summaryDiscoveredSkill": (name: string) => `skill:${name} (discovered)`,
   "developer.summaryFolderList": (n: number) => `${n} folder ${n === 1 ? "list" : "lists"}`,
-  "developer.summaryReread": (n: number) => `${n} re-read ${n === 1 ? "file" : "files"}`,
+  "developer.summaryReread": (n: number) => `${n} file ${n === 1 ? "diff" : "diffs"}`,
 
   // Plurals
   "plural.memory": (n: number) => `${n} ${n === 1 ? "memory" : "memories"}`,

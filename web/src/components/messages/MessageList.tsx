@@ -63,15 +63,12 @@ const RAIL_CONTENT_OFFSET = "pl-[22px]";
 
 function blockSpacingClass(block: SectionBlock, isFirst: boolean): string {
   if (isFirst) return "";
-  if (block.type === "collapse_group") return "mt-3";
+  if (block.type === "collapse_group") return "my-5";
   if (block.type === "item" && block.item.type === "tool_block") return "mt-3";
   return "mt-3";
 }
 
-const OFFSCREEN_BLOCK_STYLE: CSSProperties = {
-  contentVisibility: "auto",
-  containIntrinsicSize: "auto 160px",
-};
+const OFFSCREEN_BLOCK_STYLE: CSSProperties | undefined = undefined;
 const EMPTY_GROUP_IDS = new Set<string>();
 const EMPTY_MATCH_ITEM_IDS: string[] = [];
 
@@ -85,26 +82,26 @@ function AnimatedDiv({
   className,
   style,
   children,
+  skipAnimation,
 }: {
   className: string;
   style?: CSSProperties;
   children: ReactNode;
+  skipAnimation?: boolean;
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
+    if (skipAnimation) return;
     const el = ref.current;
     if (!el) return;
     const container = el.closest("[data-message-scroll-container]");
     if (!container?.classList.contains("message-list-ready")) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    el.animate(
-      [
-        { opacity: 0, transform: "translateY(4px)" },
-        { opacity: 1, transform: "translateY(0)" },
-      ],
-      { duration: 200, easing: "cubic-bezier(0.23, 1, 0.32, 1)" },
-    );
-  }, []);
+    el.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: 160,
+      easing: "cubic-bezier(0.23, 1, 0.32, 1)",
+    });
+  }, [skipAnimation]);
   return (
     <div ref={ref} className={className} style={style}>
       {children}
@@ -159,14 +156,12 @@ const SectionView = memo(function SectionView({
   onEnterSubAgent,
 }: SectionViewProps): React.JSX.Element {
   const blockStyle = isHistorical ? OFFSCREEN_BLOCK_STYLE : undefined;
+  const skipAnimation = isLastSection && isEffectiveRunning;
 
   const isCollapseGroupCollapsed = (groupId: string): boolean => {
     if (activeCollapseGroupId === groupId) return false;
     if (groupId in collapsedCollapseGroups) return collapsedCollapseGroups[groupId];
-    if (isEffectiveRunning) {
-      return !(isLastSection && lastSectionCollapseGroupIds.has(groupId));
-    }
-    return true;
+    return false;
   };
 
   return (
@@ -176,7 +171,12 @@ const SectionView = memo(function SectionView({
 
         if (block.type === "dev_group") {
           return (
-            <AnimatedDiv key={block.id} className={spacing} style={blockStyle}>
+            <AnimatedDiv
+              key={block.id}
+              className={spacing}
+              style={blockStyle}
+              skipAnimation={skipAnimation}
+            >
               <DeveloperMessage items={block.items} />
             </AnimatedDiv>
           );
@@ -185,7 +185,12 @@ const SectionView = memo(function SectionView({
         if (block.type === "collapse_group") {
           const collapsed = isCollapseGroupCollapsed(block.id);
           return (
-            <AnimatedDiv key={block.id} className={spacing} style={blockStyle}>
+            <AnimatedDiv
+              key={block.id}
+              className={spacing}
+              style={blockStyle}
+              skipAnimation={skipAnimation}
+            >
               <CollapseGroupBlock
                 entries={block.entries}
                 collapsed={collapsed}
@@ -215,7 +220,12 @@ const SectionView = memo(function SectionView({
 
         if (block.type === "sub_agent_group") {
           return (
-            <AnimatedDiv key={block.groupId} className={spacing} style={blockStyle}>
+            <AnimatedDiv
+              key={block.groupId}
+              className={spacing}
+              style={blockStyle}
+              skipAnimation={skipAnimation}
+            >
               <SubAgentGroupCard
                 parentSessionId={sessionId}
                 sourceSessionId={block.sourceSessionId}
@@ -234,7 +244,12 @@ const SectionView = memo(function SectionView({
           !(item.type === "tool_block" && CARD_TOOL_NAMES.has(item.toolName));
         const itemOffset = item.type !== "user_message" && !hasRailGrid ? RAIL_CONTENT_OFFSET : "";
         return (
-          <AnimatedDiv key={item.id} className={`${spacing} ${itemOffset}`} style={blockStyle}>
+          <AnimatedDiv
+            key={item.id}
+            className={`${spacing} ${itemOffset}`}
+            style={blockStyle}
+            skipAnimation={skipAnimation}
+          >
             <MessageRow
               item={item}
               workDir={workspacePath}
@@ -937,15 +952,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
                 {hasItems ? (
                   <>
                     {sections.map((section, sectionIndex) => (
-                      <div
-                        key={section[0].id}
-                        className="group/section"
-                        style={
-                          sectionIndex < sections.length - 1
-                            ? { contentVisibility: "auto", containIntrinsicSize: "auto 200px" }
-                            : undefined
-                        }
-                      >
+                      <div key={section[0].id} className="group/section">
                         <SectionView
                           sessionId={sessionId}
                           isHistorical={sectionIndex < sections.length - 1}
@@ -971,10 +978,6 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
                     ))}
                     <div aria-hidden="true" className="h-12" />
                   </>
-                ) : runtime?.wsState === "connecting" ? (
-                  <div className="flex min-h-[240px] items-center justify-center">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-neutral-400" />
-                  </div>
                 ) : null}
               </div>
               <div className="mx-auto max-w-4xl px-4 pb-4 sm:px-6">

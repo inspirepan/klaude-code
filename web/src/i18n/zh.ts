@@ -222,7 +222,7 @@ const zh: Translations = {
   "developer.summarySkill": (name: string) => `skill:${name}`,
   "developer.summaryDiscoveredSkill": (name: string) => `skill:${name}（已发现）`,
   "developer.summaryFolderList": (n: number) => `${n} 个目录列表`,
-  "developer.summaryReread": (n: number) => `${n} 个重读文件`,
+  "developer.summaryReread": (n: number) => `${n} 份文件 Diff`,
 
   // Plurals
   "plural.memory": (n: number) => `${n} 个记忆`,

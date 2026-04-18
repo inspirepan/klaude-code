@@ -25,7 +25,7 @@ function RichUIExtraBlock({
 }): React.JSX.Element | null {
   if (isDiffUIExtra(extra)) {
     return (
-      <div className="my-1.5 overflow-hidden rounded-lg ring-1 ring-inset ring-black/[0.05]">
+      <div className="my-1.5">
         <DiffView item={item} uiExtra={extra} />
       </div>
     );
@@ -38,7 +38,7 @@ function RichUIExtraBlock({
   }
   if (isQuestionSummaryUIExtra(extra)) {
     return (
-      <div className="rounded-lg bg-surface/50 px-3.5 py-2.5 ring-1 ring-inset ring-black/[0.05]">
+      <div className="rounded-lg bg-surface/50 px-3.5 py-2.5 shadow-sm ring-1 ring-inset ring-black/10">
         <QuestionSummaryView uiExtra={extra} />
       </div>
     );

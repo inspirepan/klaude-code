@@ -8,6 +8,14 @@ import { HighlightText } from "./HighlightText";
 
 const FILE_PATH_TOOLS = new Set(["Read", "Edit", "Write"]);
 
+function toPascalCase(name: string): string {
+  return name
+    .split("_")
+    .filter((seg) => seg.length > 0)
+    .map((seg) => seg.charAt(0).toUpperCase() + seg.slice(1))
+    .join("");
+}
+
 interface ToolBlockHeaderProps {
   item: ToolBlockItem;
   detail: string;
@@ -36,34 +44,29 @@ export function ToolBlockHeader({
     if (isFilePath) {
       const display = toDisplayPath(detail, workDir);
       detailContent = <FilePathContent display={display} />;
-      detailClass = `rounded bg-surface px-1.5 py-0.5 ${headerDetailTextClass}`;
+      detailClass = `font-mono ${headerDetailTextClass}`;
     } else {
       detailContent = <HighlightText>{detail}</HighlightText>;
-      detailClass = `${headerDetailTextClass} ${detailChipClass} ${detailColor}`;
+      detailClass = `font-mono ${headerDetailTextClass} ${detailChipClass} ${detailColor}`;
     }
   }
 
   return (
-    <div className="grid min-w-0 grid-cols-[auto,minmax(0,1fr)] items-start gap-x-1.5 gap-y-1 font-mono text-sm leading-5">
+    <div className="grid min-w-0 grid-cols-[auto,minmax(0,1fr)] items-start gap-x-1.5 gap-y-1 font-sans text-sm leading-5">
       <span
         className={cn(
-          "shrink-0 whitespace-nowrap font-medium text-neutral-700",
+          "shrink-0 whitespace-nowrap font-semibold text-neutral-800",
           item.isStreaming && "text-shimmer",
         )}
       >
-        {item.toolName}
+        {toPascalCase(item.toolName)}
       </span>
       {description ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="min-w-0 rounded-md bg-sky-50/80 px-2 py-1.5 font-sans text-sm text-sky-900 ring-1 ring-inset ring-sky-200/70">
-              <div className="flex items-start gap-2">
-                <span className="shrink-0 font-mono text-sm font-medium text-sky-700">#</span>
-                <span className="line-clamp-2 min-w-0 flex-1 text-pretty text-sky-900">
-                  <HighlightText>{description}</HighlightText>
-                </span>
-              </div>
-            </div>
+            <span className="line-clamp-2 min-w-0 text-pretty font-sans text-sm italic text-slate-500">
+              <HighlightText>{description}</HighlightText>
+            </span>
           </TooltipTrigger>
           <TooltipContent className="max-w-lg p-0">
             <ScrollArea className="w-full" viewportClassName="max-h-[60vh]" type="auto">

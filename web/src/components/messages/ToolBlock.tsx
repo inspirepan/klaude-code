@@ -96,11 +96,11 @@ function PlanBlock({ item }: ToolBlockProps): React.JSX.Element {
   const todoExtra = item.uiExtra && isTodoListUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="w-fit rounded-lg bg-surface/50 px-3 py-1.5 text-base ring-1 ring-inset ring-black/[0.05]">
+    <div className="w-fit rounded-lg bg-surface/50 px-3 py-1.5 text-base shadow-sm ring-1 ring-inset ring-black/10">
       {todoExtra ? (
         <TodoListView uiExtra={todoExtra} />
       ) : item.isStreaming ? (
-        <div className="font-sans text-sm">
+        <div className="font-sans text-xs">
           <span className="text-shimmer">{t("tool.planning")}</span>
         </div>
       ) : null}
@@ -114,11 +114,11 @@ function QuestionBlock({ item }: ToolBlockProps): React.JSX.Element {
     item.uiExtra && isQuestionSummaryUIExtra(item.uiExtra) ? item.uiExtra : null;
 
   return (
-    <div className="rounded-lg bg-surface/50 px-3.5 py-2.5 text-base ring-1 ring-inset ring-black/[0.05]">
+    <div className="rounded-lg bg-surface/50 px-3.5 py-2.5 text-base shadow-sm ring-1 ring-inset ring-black/10">
       {questionExtra ? (
         <QuestionSummaryView uiExtra={questionExtra} />
       ) : item.isStreaming ? (
-        <div className="font-sans text-base">
+        <div className="font-sans text-xs">
           <span className="text-shimmer">{t("tool.askingQuestion")}</span>
         </div>
       ) : null}
@@ -131,7 +131,7 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): React.JSX.Element 
   const { collapseGen, expandGen } = useCollapseAll();
   const bodyTextClass = "text-base";
   const headerDetailTextClass = "!text-sm";
-  const detailChipClass = "rounded bg-surface px-1.5 py-0.5 align-middle leading-5";
+  const detailChipClass = "align-middle leading-5";
 
   const defaultExpanded = shouldExpandResult(item);
   const [open, setOpen] = useState(defaultExpanded);
@@ -202,7 +202,11 @@ export function ToolBlock({ item, workDir }: ToolBlockProps): React.JSX.Element 
         if (expandable) setOpen((v) => !v);
       }}
     >
-      <CollapseRailMarker open={open} expandable={expandable} className="row-span-2" />
+      <CollapseRailMarker
+        open={open}
+        expandable={expandable}
+        className="row-span-2 text-sm leading-5"
+      />
       <ToolBlockHeader
         item={item}
         detail={detail}
