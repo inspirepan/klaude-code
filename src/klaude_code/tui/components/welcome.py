@@ -135,8 +135,8 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
 
     # Model tree: model @ provider with params as children
     model_label = Text.assemble(
-        (str(e.llm_config.model_id), ThemeKey.WELCOME_HIGHLIGHT),
-        (" @ ", ThemeKey.WELCOME_INFO),
+        (str(e.llm_config.model_id), ThemeKey.WELCOME_INFO_BOLD),
+        (" via ", ThemeKey.WELCOME_INFO),
         (e.llm_config.provider_name, ThemeKey.WELCOME_INFO),
     )
     param_strings = format_model_params(e.llm_config)

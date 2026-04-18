@@ -394,7 +394,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.WELCOME_HIGHLIGHT_BOLD.value: "bold",
                 ThemeKey.WELCOME_HIGHLIGHT.value: palette.blue,
                 ThemeKey.WELCOME_INFO.value: palette.grey1,
-                ThemeKey.WELCOME_INFO_BOLD.value: "bold " + palette.grey1,
+                ThemeKey.WELCOME_INFO_BOLD.value: "bold " + palette.blue,
                 ThemeKey.WELCOME_SHORTCUT.value: palette.green,
                 ThemeKey.WELCOME_SCOPE.value: palette.green,
                 ThemeKey.WARN_SCOPE.value: palette.yellow + " on " + palette.code_background,
