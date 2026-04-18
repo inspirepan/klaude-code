@@ -43,6 +43,7 @@ LLM_HTTP_TIMEOUT_READ = 285.0  # HTTP read timeout (seconds)
 
 
 ANTHROPIC_BETA_INTERLEAVED_THINKING = "interleaved-thinking-2025-05-14"  # Anthropic API beta flag
+ANTHROPIC_BETA_CONTEXT_MANAGEMENT = "context-management-2025-06-27"  # Anthropic API beta flag for context editing
 CLAUDE_CODE_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."  # Claude identity string
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"  # OpenRouter API base URL

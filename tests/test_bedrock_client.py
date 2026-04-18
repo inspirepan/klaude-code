@@ -1,7 +1,9 @@
 import pytest
 
+from klaude_code.const import ANTHROPIC_BETA_CONTEXT_MANAGEMENT
+from klaude_code.llm.anthropic.client import build_payload
 from klaude_code.llm.bedrock_anthropic.client import BedrockClient
-from klaude_code.protocol import llm_param
+from klaude_code.protocol import llm_param, message
 
 
 def test_bedrock_client_reports_missing_optional_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -27,3 +29,20 @@ def test_bedrock_client_reports_missing_optional_dependencies(monkeypatch: pytes
 
     with pytest.raises(ModuleNotFoundError, match="Bedrock support requires boto3 and botocore"):
         BedrockClient.create(config)
+
+
+def test_bedrock_payload_inherits_context_management_for_thinking_models() -> None:
+    # Bedrock reuses build_payload, so Opus 4.7 via Bedrock should get the same
+    # context-management beta + clear_thinking config as the first-party client.
+    param = llm_param.LLMCallParameter(
+        input=[message.UserMessage(parts=[message.TextPart(text="hi")])],
+        model_id="anthropic.claude-opus-4-7-20260215-v1:0",
+        thinking=llm_param.Thinking(type="adaptive"),
+    )
+
+    payload = build_payload(param)
+
+    assert ANTHROPIC_BETA_CONTEXT_MANAGEMENT in payload.get("betas", [])
+    assert payload.get("context_management") == {
+        "edits": [{"type": "clear_thinking_20251015", "keep": "all"}],
+    }
