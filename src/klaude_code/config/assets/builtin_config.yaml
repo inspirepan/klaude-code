@@ -181,6 +181,25 @@ provider_list:
     max_tokens: 128000
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
+# ######################################## azure-openai-responses ########################################
+- provider_name: azure-openai-responses
+  protocol: responses
+  is_azure: true
+  api_key: ${AZURE_OPENAI_API_KEY}
+  base_url: ${AZURE_OPENAI_ENDPOINT|AZURE_OPENAI_BASE_URL}
+  azure_api_version: v1
+  model_list:
+
+  - model_name: gpt-5.4
+    model_id: gpt-5.4
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: high
+      reasoning_summary: detailed
+    cost: { input: 2.5, output: 15, cache_read: 0.25 }
+
 # ######################################## google ########################################
 - provider_name: google
   protocol: google
