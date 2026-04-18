@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -44,6 +45,7 @@ from klaude_code.tui.input.drag_drop import convert_dropped_text
 from klaude_code.tui.input.images import (
     capture_clipboard_tag,
     extract_images_from_text,
+    has_clipboard_image,
 )
 from klaude_code.tui.input.key_bindings import create_key_bindings
 from klaude_code.tui.input.paste import expand_paste_markers, expand_paste_markers_with_file_save
@@ -348,6 +350,8 @@ class PromptToolkitInput(InputProviderABC):
         self._command_info_provider = command_info_provider
         self._next_prefill_text: str | None = None
         self._session_dir: Path | None = None
+        self._clipboard_has_image: bool = False
+        self._clipboard_watcher_task: asyncio.Task[None] | None = None
 
         self._session = self._build_prompt_session(prompt)
         self._session.app.key_processor.before_key_press += self._handle_user_activity
@@ -436,7 +440,14 @@ class PromptToolkitInput(InputProviderABC):
         )
 
     def _build_placeholder(self) -> FormattedText:
-        """Build placeholder showing repo/directory name and Git branch."""
+        """Build placeholder showing repo/directory name and Git branch.
+
+        When an image is detected on the system clipboard, replace the hint
+        with a ctrl+v paste reminder instead.
+        """
+        if self._clipboard_has_image:
+            return FormattedText([("class:placeholder", "   ctrl+v to paste image")])
+
         repo_display, branch = _get_git_info()
         cwd_name = Path.cwd().name or str(Path.cwd())
         dir_name = repo_display or cwd_name
@@ -709,14 +720,67 @@ class PromptToolkitInput(InputProviderABC):
         await self._on_change_thinking(new_thinking)
 
     # -------------------------------------------------------------------------
+    # Clipboard image watcher
+    # -------------------------------------------------------------------------
+
+    # Poll interval for the clipboard image check. Each poll spawns an
+    # `osascript` on macOS (or equivalent on other platforms), so keep it
+    # conservative.
+    _CLIPBOARD_POLL_INTERVAL = 3.0
+
+    async def _watch_clipboard_image(self) -> None:
+        """Periodically refresh `self._clipboard_has_image`.
+
+        Only polls while the input buffer is empty (the only time the
+        placeholder is actually rendered). Invalidates the app when the state
+        flips so the placeholder re-renders immediately.
+        """
+        while True:
+            try:
+                buffer_empty = not self._session.default_buffer.text
+            except Exception:
+                buffer_empty = False
+
+            has_image = False
+            if buffer_empty:
+                try:
+                    has_image = await asyncio.to_thread(has_clipboard_image)
+                except Exception:
+                    has_image = False
+
+            if has_image != self._clipboard_has_image:
+                self._clipboard_has_image = has_image
+                with contextlib.suppress(Exception):
+                    self._session.app.invalidate()
+
+            await asyncio.sleep(self._CLIPBOARD_POLL_INTERVAL)
+
+    def _ensure_clipboard_watcher(self) -> None:
+        if self._clipboard_watcher_task is not None and not self._clipboard_watcher_task.done():
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._clipboard_watcher_task = loop.create_task(self._watch_clipboard_image())
+
+    def _cancel_clipboard_watcher(self) -> None:
+        task = self._clipboard_watcher_task
+        if task is None:
+            return
+        self._clipboard_watcher_task = None
+        if not task.done():
+            task.cancel()
+
+    # -------------------------------------------------------------------------
     # InputProviderABC implementation
     # -------------------------------------------------------------------------
 
     async def start(self) -> None:
-        pass
+        self._ensure_clipboard_watcher()
 
     async def stop(self) -> None:
-        pass
+        self._cancel_clipboard_watcher()
 
     @override
     async def iter_inputs(self) -> AsyncIterator[UserInputPayload]:
