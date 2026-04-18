@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from rich.cells import cell_len
 
-from klaude_code.const import STATUS_COMPACTING_TEXT, STATUS_DEFAULT_TEXT
+from klaude_code.const import STATUS_COMPACTING_TEXT, STATUS_DEFAULT_TEXT, STATUS_HANDOFF_TEXT
 from klaude_code.protocol import model
-from klaude_code.tui.machine import STATUS_LEFT_MIN_WIDTH_CELLS, SpinnerStatusState
+from klaude_code.protocol.events import CompactionStartEvent
+from klaude_code.tui.commands import SpinnerUpdate
+from klaude_code.tui.machine import STATUS_LEFT_MIN_WIDTH_CELLS, DisplayStateMachine, SpinnerStatusState
 
 
 def test_sub_agent_tool_calls_persist_across_turn_start() -> None:
@@ -103,6 +105,15 @@ def test_clear_default_reasoning_status_keeps_non_thinking_phase() -> None:
 
     status = state.get_status()
     assert status.plain.startswith(STATUS_COMPACTING_TEXT)
+
+
+def test_handoff_compaction_uses_distinct_spinner_status() -> None:
+    machine = DisplayStateMachine()
+
+    cmds = machine.transition(CompactionStartEvent(session_id="s1", reason="handoff"))
+
+    update = next(cmd for cmd in cmds if isinstance(cmd, SpinnerUpdate))
+    assert update.status_lines[0].text.plain.startswith(STATUS_HANDOFF_TEXT)
 
 
 def test_composing_status_keeps_min_loading_width() -> None:

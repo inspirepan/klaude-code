@@ -188,7 +188,8 @@ STATUS_HINT_TEXT = "esc to interrupt"  # Status hint text shown after spinner
 STATUS_WAITING_TEXT = "Loading…"
 STATUS_THINKING_TEXT = "Thinking…"
 STATUS_COMPOSING_TEXT = "Typing…"
-STATUS_COMPACTING_TEXT = "Compacting…"
+STATUS_COMPACTING_TEXT = "Compacting Conversation…"
+STATUS_HANDOFF_TEXT = "Packing Context…"
 STATUS_RECAPPING_TEXT = "Recapping…"
 STATUS_RUNNING_TEXT = "Running…"
 

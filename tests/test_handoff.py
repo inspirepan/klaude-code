@@ -115,9 +115,11 @@ class TestRunHandoff:
             )
             client = _CapturingClient(config)
 
+            goal = "finish OAuth2 implementation with PKCE and keep the existing session API"
+
             result = await run_handoff(
                 session=session,
-                goal="finish OAuth2 implementation",
+                goal=goal,
                 llm_client=client,
                 llm_config=config,
             )
@@ -125,6 +127,7 @@ class TestRunHandoff:
             # Should discard all history
             assert result.first_kept_index == len(session.conversation_history)
             assert HANDOFF_SUMMARY_PREFIX in result.summary
+            assert f"<original-handoff-goal>\n{goal}\n</original-handoff-goal>" in result.summary
             assert "EXTRACTED_CONTEXT" in result.summary
             assert result.tokens_before is not None
 
@@ -136,7 +139,7 @@ class TestRunHandoff:
             assert len(client.calls) == 1
             call_prompt = message.join_text_parts(client.calls[0].input[0].parts)
             assert "implement auth module" in call_prompt
-            assert "finish OAuth2 implementation" in call_prompt
+            assert goal in call_prompt
 
         arun(_test())
 
@@ -184,9 +187,11 @@ class TestRunHandoff:
             )
             client = _CapturingClient(config)
 
+            goal = "continue work with the current schema and do not change CLI flags"
+
             result = await run_handoff(
                 session=session,
-                goal="continue work",
+                goal=goal,
                 llm_client=client,
                 llm_config=config,
             )
@@ -199,6 +204,7 @@ class TestRunHandoff:
             assert isinstance(llm_history[0], message.UserMessage)
             summary_text = message.join_text_parts(llm_history[0].parts)
             assert HANDOFF_SUMMARY_PREFIX in summary_text
+            assert f"<original-handoff-goal>\n{goal}\n</original-handoff-goal>" in summary_text
             assert "EXTRACTED_CONTEXT" in summary_text
 
         arun(_test())

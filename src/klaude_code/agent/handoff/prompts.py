@@ -22,6 +22,8 @@ Write a context summary in FIRST PERSON (as if the user is speaking to a new ass
 
 IMPORTANT: Do NOT include any content from <system-reminder> tags. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
 
+Do not drop or weaken details from the goal. Preserve concrete requirements, constraints, acceptance criteria, and requested scope from the goal as faithfully as possible.
+
 Be comprehensive but concise. Preserve exact file paths, function names, and error messages.
 Do NOT include meta-commentary about the conversation or summarization process."""
 

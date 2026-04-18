@@ -13,6 +13,7 @@ from klaude_code.const import (
     STATUS_COMPACTING_TEXT,
     STATUS_COMPOSING_TEXT,
     STATUS_DEFAULT_TEXT,
+    STATUS_HANDOFF_TEXT,
     STATUS_RECAPPING_TEXT,
     STATUS_RUNNING_TEXT,
     STATUS_SHOW_BUFFER_LENGTH,
@@ -840,9 +841,12 @@ class DisplayStateMachine:
                     cmds.extend(self._spinner_update_commands())
                 return cmds
 
-            case events.CompactionStartEvent():
+            case events.CompactionStartEvent() as e:
                 if not is_replay:
-                    self._spinner.enter_compacting()
+                    if e.reason == "handoff":
+                        self._spinner.set_reasoning_status(STATUS_HANDOFF_TEXT)
+                    else:
+                        self._spinner.enter_compacting()
                     if not s.task_active:
                         cmds.append(SpinnerStart())
                     cmds.extend(self._spinner_update_commands())
