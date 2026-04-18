@@ -22,16 +22,6 @@ provider_list:
     model_id: claude-opus-4-7
     max_tokens: 64000
     context_limit: 1000000
-    effort: high
-    thinking:
-      type: adaptive
-    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
-
-  - &opus_xhigh
-    model_name: opus:xhigh
-    model_id: claude-opus-4-7
-    max_tokens: 64000
-    context_limit: 1000000
     effort: xhigh
     thinking:
       type: adaptive
@@ -68,15 +58,6 @@ provider_list:
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
-    model_id: global.anthropic.claude-opus-4-7
-    max_tokens: 64000
-    context_limit: 1000000
-    effort: high
-    thinking:
-      type: adaptive
-    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
-
-  - model_name: opus:xhigh
     model_id: global.anthropic.claude-opus-4-7
     max_tokens: 64000
     context_limit: 1000000
@@ -450,15 +431,6 @@ provider_list:
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
-    model_id: anthropic/claude-opus-4.7
-    max_tokens: 64000
-    context_limit: 1000000
-    effort: high
-    thinking:
-      type: adaptive
-    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
-
-  - model_name: opus:xhigh
     model_id: anthropic/claude-opus-4.7
     max_tokens: 64000
     context_limit: 1000000
