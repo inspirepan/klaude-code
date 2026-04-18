@@ -59,9 +59,7 @@ _AT_PLAIN_STOP_CHARS = (
     r"\uff3b-\uff40"
     r"\uff5b-\uff65"
 )
-AT_FILE_PATTERN = re.compile(
-    rf'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>[^\s{_AT_PLAIN_STOP_CHARS}]+))'
-)
+AT_FILE_PATTERN = re.compile(rf'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>[^\s{_AT_PLAIN_STOP_CHARS}]+))')
 
 # Memory budget limits (inspired by Claude Code's attachment system)
 MEMORY_MAX_SESSION_BYTES = 60 * 1024

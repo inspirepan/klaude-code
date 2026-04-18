@@ -75,8 +75,10 @@ def _map_bedrock_stop_reason(reason: str | None) -> model.StopReason | None:
 def _is_govcloud_target(model_id: str, region: str | None) -> bool:
     region_lower = (region or "").lower()
     model_lower = model_id.lower()
-    return region_lower.startswith("us-gov-") or model_lower.startswith("us-gov.") or model_lower.startswith(
-        "arn:aws-us-gov:"
+    return (
+        region_lower.startswith("us-gov-")
+        or model_lower.startswith("us-gov.")
+        or model_lower.startswith("arn:aws-us-gov:")
     )
 
 
@@ -202,8 +204,10 @@ def _convert_content_block(block: dict[str, Any], *, model_id: str) -> list[dict
 
 def _is_claude_bedrock_target(model_id: str) -> bool:
     model_lower = model_id.lower()
-    return "claude" in model_lower or model_lower.startswith("arn:aws:bedrock:") or model_lower.startswith(
-        "arn:aws-us-gov:"
+    return (
+        "claude" in model_lower
+        or model_lower.startswith("arn:aws:bedrock:")
+        or model_lower.startswith("arn:aws-us-gov:")
     )
 
 
