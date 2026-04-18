@@ -1,5 +1,5 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { cn, FADE_TRUNCATE } from "@/lib/utils";
 import type { ToolBlockItem } from "@/types/message";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { FilePathContent } from "./FilePath";
@@ -79,7 +79,7 @@ export function ToolBlockHeader({
       ) : detailContent ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className={`min-w-0 truncate ${detailClass}`}>{detailContent}</span>
+            <span className={`min-w-0 ${FADE_TRUNCATE} ${detailClass}`}>{detailContent}</span>
           </TooltipTrigger>
           <TooltipContent className="max-w-lg p-0 font-mono">
             <ScrollArea className="w-full" viewportClassName="max-h-[60vh]" type="auto">
@@ -91,7 +91,7 @@ export function ToolBlockHeader({
       {description && detailContent ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className={`col-start-2 min-w-0 truncate ${detailClass}`}>{detailContent}</span>
+            <span className={`col-start-2 min-w-0 ${FADE_TRUNCATE} ${detailClass}`}>{detailContent}</span>
           </TooltipTrigger>
           <TooltipContent className="max-w-lg p-0 font-mono">
             <ScrollArea className="w-full" viewportClassName="max-h-[60vh]" type="auto">

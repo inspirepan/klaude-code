@@ -1,4 +1,5 @@
 import { useT } from "@/i18n";
+import { cn, FADE_TRUNCATE } from "@/lib/utils";
 import type { ToolBlockItem } from "@/types/message";
 import { CollapseRailPanel } from "./CollapseRail";
 import { HighlightText } from "./HighlightText";
@@ -35,7 +36,8 @@ export function ToolBlockResult({
   const t = useT();
   const subTextClass = "text-sm";
   const miniTextClass = "text-xs";
-  const resultLineClass = "block max-w-full overflow-hidden text-ellipsis whitespace-pre";
+  // Use FADE_TRUNCATE first so tailwind-merge keeps `whitespace-pre` for terminal output.
+  const resultLineClass = cn("block max-w-full", FADE_TRUNCATE, "whitespace-pre");
 
   return (
     <CollapseRailPanel open={open}>
