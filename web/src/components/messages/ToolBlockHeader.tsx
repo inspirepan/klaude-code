@@ -91,7 +91,9 @@ export function ToolBlockHeader({
       {description && detailContent ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className={`col-start-2 min-w-0 ${FADE_TRUNCATE} ${detailClass}`}>{detailContent}</span>
+            <span className={`col-start-2 min-w-0 ${FADE_TRUNCATE} ${detailClass}`}>
+              {detailContent}
+            </span>
           </TooltipTrigger>
           <TooltipContent className="max-w-lg p-0 font-mono">
             <ScrollArea className="w-full" viewportClassName="max-h-[60vh]" type="auto">

@@ -69,7 +69,6 @@ function blockSpacingClass(block: SectionBlock, isFirst: boolean): string {
 }
 
 const OFFSCREEN_BLOCK_STYLE: CSSProperties | undefined = undefined;
-const EMPTY_GROUP_IDS = new Set<string>();
 const EMPTY_MATCH_ITEM_IDS: string[] = [];
 
 /**
@@ -131,7 +130,6 @@ interface SectionViewProps {
   workspacePath: string;
   collapsedCollapseGroups: Record<string, boolean>;
   isEffectiveRunning: boolean;
-  lastSectionCollapseGroupIds: Set<string>;
   onToggleCollapseGroup: (groupId: string, collapsed: boolean) => void;
   onCopy: (item: MessageItemType) => void | Promise<void>;
   setItemRef: (id: string, el: HTMLDivElement | null) => void;
@@ -149,7 +147,6 @@ const SectionView = memo(function SectionView({
   workspacePath,
   collapsedCollapseGroups,
   isEffectiveRunning,
-  lastSectionCollapseGroupIds,
   onToggleCollapseGroup,
   onCopy,
   setItemRef,
@@ -838,16 +835,6 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
     [activeItemId, collapseGroupIdByItemId],
   );
 
-  const lastSectionCollapseGroupIds = useMemo(() => {
-    const lastSection = sectionBlocks.at(-1);
-    if (!lastSection) return new Set<string>();
-    const ids = new Set<string>();
-    for (const block of lastSection) {
-      if (block.type === "collapse_group") ids.add(block.id);
-    }
-    return ids;
-  }, [sectionBlocks]);
-
   const allCollapseGroupIds = useMemo(() => {
     const ids: string[] = [];
     for (const blocks of sectionBlocks) {
@@ -964,11 +951,6 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
                           workspacePath={workspacePath}
                           collapsedCollapseGroups={collapsedCollapseGroups}
                           isEffectiveRunning={isEffectiveRunning}
-                          lastSectionCollapseGroupIds={
-                            sectionIndex === sections.length - 1
-                              ? lastSectionCollapseGroupIds
-                              : EMPTY_GROUP_IDS
-                          }
                           onToggleCollapseGroup={handleToggleCollapseGroup}
                           onCopy={handleCopy}
                           setItemRef={setItemRef}

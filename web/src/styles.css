@@ -20,7 +20,9 @@
 :root {
   color-scheme: light dark;
   /* tnum + disable ss02 (tailed lowercase l) in Inter */
-  font-feature-settings: "tnum", "ss02" 0;
+  font-feature-settings:
+    "tnum",
+    "ss02" 0;
   /* Force Inter's Display optical size */
   font-variation-settings: "opsz" 28;
   font-family:

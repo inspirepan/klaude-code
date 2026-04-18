@@ -152,7 +152,9 @@ function CollapsibleRow({
         inactiveMode="hidden"
         className={expandable ? "row-span-2" : undefined}
       />
-      <span className={`min-w-0 ${FADE_TRUNCATE} font-normal text-neutral-500 ${labelClassName ?? ""}`}>
+      <span
+        className={`min-w-0 ${FADE_TRUNCATE} font-normal text-neutral-500 ${labelClassName ?? ""}`}
+      >
         {label}
       </span>
 

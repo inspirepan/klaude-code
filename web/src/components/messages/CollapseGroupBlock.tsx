@@ -3,7 +3,6 @@ import { type ReactNode, useMemo } from "react";
 import { useT } from "@/i18n";
 import type { MessageItem as MessageItemType, DeveloperMessageItem } from "@/types/message";
 import type { CollapseGroupEntry, SectionSubAgentBlock } from "./message-sections";
-import { formatSubAgentTypeLabel } from "./message-list-ui";
 import { ChevronRight } from "lucide-react";
 import { COLLAPSE_RAIL_GRID_CLASS_NAME, CollapseRailPanel } from "./CollapseRail";
 import { MessageRow } from "./MessageRow";

@@ -52,14 +52,14 @@ Unified color families: **emerald** for success, **red** for error, **amber** fo
 
 Message-level content containers use subtle tinted fills instead of the neutral card surface. The assistant-card border is nearly invisible (`border-stone-200/50`); separation is carried by the tinted shadow rather than the stroke.
 
-| Surface                  | Value                          | Role                                                   |
-| ------------------------ | ------------------------------ | ------------------------------------------------------ |
-| Assistant-card fill      | `#f8f8f6` (same as background) | Assistant text container — continuous with page        |
-| Assistant-card dot/text  | `#2e140c`                      | Leading dot marker + default assistant prose color     |
-| Assistant-card shadow    | `rgba(107,76,44, 0.07 / 0.05)` | Warm brown-tinted card shadow (two-stop)               |
-| Tool-group fill          | `#e6eee2 /40`                  | Very light green-gray tint for stacked tool-use block  |
-| Tool-group shadow        | `rgba(70,100,60, 0.07 / 0.05)` | Sage-tinted card shadow (two-stop)                     |
-| Card border (both cards) | `border-stone-200/50`          | Hairline stroke at 50% opacity — shadow carries depth  |
+| Surface                  | Value                          | Role                                                  |
+| ------------------------ | ------------------------------ | ----------------------------------------------------- |
+| Assistant-card fill      | `#f8f8f6` (same as background) | Assistant text container — continuous with page       |
+| Assistant-card dot/text  | `#2e140c`                      | Leading dot marker + default assistant prose color    |
+| Assistant-card shadow    | `rgba(107,76,44, 0.07 / 0.05)` | Warm brown-tinted card shadow (two-stop)              |
+| Tool-group fill          | `#e6eee2 /40`                  | Very light green-gray tint for stacked tool-use block |
+| Tool-group shadow        | `rgba(70,100,60, 0.07 / 0.05)` | Sage-tinted card shadow (two-stop)                    |
+| Card border (both cards) | `border-stone-200/50`          | Hairline stroke at 50% opacity — shadow carries depth |
 
 ### Dark Theme Shift
 
@@ -76,10 +76,10 @@ Dark mode inverts the neutral scale but keeps the same semantic color mapping. `
 
 ### Font Stack
 
-| Role                 | Family                 | Source                                                                  | Fallback Chain                                                                               |
-| -------------------- | ---------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Role                 | Family                  | Source                                                                       | Fallback Chain                                                                                                                |
+| -------------------- | ----------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | **UI / Body**        | `InterVariable` (Inter) | Self-hosted woff2 from rsms.me, preloaded from `/fonts/InterVariable*.woff2` | -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif |
-| **Code / Monospace** | `Geist Mono`           | Google Fonts (`Geist+Mono:wght@100..900`)                               | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace                             |
+| **Code / Monospace** | `Geist Mono`            | Google Fonts (`Geist+Mono:wght@100..900`)                                    | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace                                                              |
 
 **OpenType features**:
 
@@ -316,10 +316,10 @@ No heavy drop shadows anywhere. The depth hierarchy is communicated primarily th
 
 Because the two message-card fills are tinted (cream and sage) against a warm page, a neutral-gray drop shadow reads as a dark smudge. These cards use an **arbitrary two-stop shadow whose RGB matches the fill family**. These are the only places arbitrary `shadow-[...]` values are allowed; anywhere else, use the named tokens.
 
-| Card           | Class                                                                                  | Note                                                |
-| -------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Assistant-text | `shadow-[0_1px_3px_0_rgba(107,76,44,0.07),_0_1px_2px_-1px_rgba(107,76,44,0.05)]`       | Warm brown, pairs with `#f8f8f6` fill + `#2e140c` text |
-| Tool-group     | `shadow-[0_1px_3px_0_rgba(70,100,60,0.07),_0_1px_2px_-1px_rgba(70,100,60,0.05)]`       | Sage, pairs with `#e6eee2/40` fill                  |
+| Card           | Class                                                                            | Note                                                   |
+| -------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Assistant-text | `shadow-[0_1px_3px_0_rgba(107,76,44,0.07),_0_1px_2px_-1px_rgba(107,76,44,0.05)]` | Warm brown, pairs with `#f8f8f6` fill + `#2e140c` text |
+| Tool-group     | `shadow-[0_1px_3px_0_rgba(70,100,60,0.07),_0_1px_2px_-1px_rgba(70,100,60,0.05)]` | Sage, pairs with `#e6eee2/40` fill                     |
 
 The shape (`0_1px_3px` / `0_1px_2px -1px`) mirrors Tailwind `shadow-sm` at reduced opacity. If a new tinted card is introduced, keep the same geometry and only adjust the tint RGB — do not invent new shadow shapes.
 
