@@ -55,9 +55,9 @@ provider_list:
 # ######################################## aws-bedrock ########################################
 - provider_name: aws-bedrock
   protocol: bedrock
-  aws_access_key: ${AWS_BEDROCK_ACCESS_KEY_ID}
-  aws_secret_key: ${AWS_BEDROCK_SECRET_ACCESS_KEY}
-  aws_region: ${AWS_BEDROCK_REGION}
+  aws_access_key: ${AWS_BEDROCK_ACCESS_KEY_ID|AWS_ACCESS_KEY_ID}
+  aws_secret_key: ${AWS_BEDROCK_SECRET_ACCESS_KEY|AWS_SECRET_ACCESS_KEY}
+  aws_region: ${AWS_BEDROCK_REGION|AWS_REGION}
   model_list:
 
   - model_name: sonnet
