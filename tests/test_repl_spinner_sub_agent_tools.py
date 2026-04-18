@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from rich.cells import cell_len
+from rich.text import Text
 
 from klaude_code.const import STATUS_COMPACTING_TEXT, STATUS_DEFAULT_TEXT, STATUS_HANDOFF_TEXT
 from klaude_code.protocol import model
@@ -113,7 +114,9 @@ def test_handoff_compaction_uses_distinct_spinner_status() -> None:
     cmds = machine.transition(CompactionStartEvent(session_id="s1", reason="handoff"))
 
     update = next(cmd for cmd in cmds if isinstance(cmd, SpinnerUpdate))
-    assert update.status_lines[0].text.plain.startswith(STATUS_HANDOFF_TEXT)
+    status_text = update.status_lines[0].text
+    plain = status_text.plain if isinstance(status_text, Text) else status_text
+    assert plain.startswith(STATUS_HANDOFF_TEXT)
 
 
 def test_composing_status_keeps_min_loading_width() -> None:

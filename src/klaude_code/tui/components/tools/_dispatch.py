@@ -76,12 +76,12 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.EDIT: "Editing",
     tools.READ: "Reading",
     tools.WRITE: "Writing",
-    tools.TODO_WRITE: "Tracking",
-    tools.WEB_FETCH: "Fetching",
+    tools.TODO_WRITE: "Updating Todos",
+    tools.WEB_FETCH: "Fetching Web",
     tools.WEB_SEARCH: "Searching Web",
-    tools.AGENT: "Spawning",
+    tools.AGENT: "Running Task",
     tools.REWIND: "Rewinding",
-    tools.ASK_USER_QUESTION: "Asking",
+    tools.ASK_USER_QUESTION: "Questioning",
     tools.HANDOFF: "Packing Context",
 }
 
