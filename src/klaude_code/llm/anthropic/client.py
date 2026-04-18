@@ -21,6 +21,7 @@ from anthropic.types.beta.beta_tool_use_block import BetaToolUseBlock
 from anthropic.types.beta.message_create_params import MessageCreateParamsStreaming
 
 from klaude_code.const import (
+    ANTHROPIC_BETA_CONTEXT_MANAGEMENT,
     ANTHROPIC_BETA_INTERLEAVED_THINKING,
     CLAUDE_CODE_IDENTITY,
     DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
@@ -168,17 +169,8 @@ class AnthropicStreamStateManager:
         return build_partial_message(self.assistant_parts, response_id=self.response_id)
 
 
-def build_payload(
-    param: llm_param.LLMCallParameter,
-    *,
-    extra_betas: list[str] | None = None,
-) -> MessageCreateParamsStreaming:
-    """Build Anthropic API request parameters.
-
-    Args:
-        param: LLM call parameters.
-        extra_betas: Additional beta flags to prepend to the betas list.
-    """
+def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStreaming:
+    """Build Anthropic API request parameters."""
     messages = convert_history_to_input(param.input, param.model_id)
     tools = convert_tool_schema(param.tools, str(param.model_id))
     system_messages = [msg for msg in param.input if isinstance(msg, message.SystemMessage)]
@@ -192,15 +184,10 @@ def build_payload(
     }
     system = [identity_block, *system]
 
-    # Models with adaptive thinking have interleaved thinking built-in; no beta header needed
-    _is_adaptive_builtin = (
-        supports_adaptive_thinking(str(param.model_id)) and param.thinking and param.thinking.type == "adaptive"
-    )
-    _is_opus47 = is_opus_47_model(str(param.model_id))
-    betas = [] if _is_adaptive_builtin else [ANTHROPIC_BETA_INTERLEAVED_THINKING]
-    if extra_betas:
-        # Prepend extra betas, avoiding duplicates
-        betas = [b for b in extra_betas if b not in betas] + betas
+    model_id = str(param.model_id)
+    is_opus47 = is_opus_47_model(model_id)
+    is_adaptive = param.thinking is not None and param.thinking.type == "adaptive"
+    is_adaptive_builtin = is_adaptive and supports_adaptive_thinking(model_id)
 
     tool_choice: BetaToolChoiceAutoParam = {
         "type": "auto",
@@ -208,7 +195,7 @@ def build_payload(
     }
 
     payload: MessageCreateParamsStreaming = {
-        "model": str(param.model_id),
+        "model": model_id,
         "tool_choice": tool_choice,
         "stream": True,
         "max_tokens": param.max_tokens or DEFAULT_MAX_TOKENS,
@@ -218,16 +205,20 @@ def build_payload(
     }
 
     # Opus 4.7 rejects non-default temperature/top_p/top_k with 400
-    if not _is_opus47:
+    if not is_opus47:
         payload["temperature"] = param.temperature or DEFAULT_TEMPERATURE
 
-    if betas:
-        payload["betas"] = betas
+    # Collect beta flags in one place; assigned to payload at the end.
+    # Models with adaptive thinking have interleaved thinking built in.
+    betas: list[str] = [] if is_adaptive_builtin else [ANTHROPIC_BETA_INTERLEAVED_THINKING]
 
-    if param.thinking and param.thinking.type == "adaptive":
+    # Thinking config. Enabling thinking also pins all prior thinking blocks via
+    # context_management so the prompt cache prefix stays stable across turns;
+    # default API behavior clears them beyond the last assistant turn.
+    if is_adaptive:
         thinking_config: dict[str, str] = {"type": "adaptive"}
         # Opus 4.7 omits thinking content by default; restore it for UI streaming
-        if _is_opus47:
+        if is_opus47:
             thinking_config["display"] = "summarized"
         payload["thinking"] = thinking_config  # type: ignore[typeddict-item]
     elif param.thinking and param.thinking.type == "enabled":
@@ -236,14 +227,21 @@ def build_payload(
             budget_tokens=param.thinking.budget_tokens or DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
         )
 
+    if "thinking" in payload:
+        payload["context_management"] = {  # type: ignore[typeddict-item]
+            "edits": [{"type": "clear_thinking_20251015", "keep": "all"}],
+        }
+        betas.append(ANTHROPIC_BETA_CONTEXT_MANAGEMENT)
+
     if param.effort:
         payload["output_config"] = {"effort": param.effort}  # type: ignore[typeddict-item]
 
     if param.fast_mode:
         payload["speed"] = "fast"  # type: ignore[typeddict-item]
-        fast_beta = "fast-mode-2026-02-01"
-        if fast_beta not in (payload.get("betas") or []):
-            payload.setdefault("betas", []).append(fast_beta)  # type: ignore[union-attr]
+        betas.append("fast-mode-2026-02-01")
+
+    if betas:
+        payload["betas"] = betas
 
     return payload
 

@@ -3,7 +3,7 @@ import asyncio
 from anthropic.types.beta.beta_raw_message_delta_event import BetaRawMessageDeltaEvent
 from anthropic.types.beta.beta_raw_message_start_event import BetaRawMessageStartEvent
 
-from klaude_code.const import ANTHROPIC_BETA_INTERLEAVED_THINKING
+from klaude_code.const import ANTHROPIC_BETA_CONTEXT_MANAGEMENT, ANTHROPIC_BETA_INTERLEAVED_THINKING
 from klaude_code.llm.anthropic.client import (
     AnthropicStreamStateManager,
     build_payload,
@@ -54,7 +54,7 @@ class _FakeAnthropicStream:
             yield event
 
 
-def test_build_payload_omits_empty_betas_for_adaptive_sonnet_46() -> None:
+def test_build_payload_omits_interleaved_beta_for_adaptive_sonnet_46() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
         model_id="claude-sonnet-4-6",
@@ -63,7 +63,35 @@ def test_build_payload_omits_empty_betas_for_adaptive_sonnet_46() -> None:
 
     payload = build_payload(param)
 
-    assert "betas" not in payload
+    # Adaptive thinking has interleaved-thinking built in; no beta header needed
+    assert ANTHROPIC_BETA_INTERLEAVED_THINKING not in payload.get("betas", [])
+
+
+def test_build_payload_adds_context_management_beta_when_thinking_enabled() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-opus-4-7",
+        thinking=llm_param.Thinking(type="adaptive"),
+    )
+
+    payload = build_payload(param)
+
+    assert ANTHROPIC_BETA_CONTEXT_MANAGEMENT in payload.get("betas", [])
+    assert payload.get("context_management") == {
+        "edits": [{"type": "clear_thinking_20251015", "keep": "all"}],
+    }
+
+
+def test_build_payload_skips_context_management_without_thinking() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-sonnet-4-6",
+    )
+
+    payload = build_payload(param)
+
+    assert "context_management" not in payload
+    assert ANTHROPIC_BETA_CONTEXT_MANAGEMENT not in payload.get("betas", [])
 
 
 def test_build_payload_omits_temperature_for_opus_47() -> None:

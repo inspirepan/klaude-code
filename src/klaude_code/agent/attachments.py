@@ -50,7 +50,16 @@ logger = logging.getLogger(__name__)
 
 # Match @ preceded by whitespace, start of line, or → (ReadTool line number arrow)
 # Supports optional line range suffix: @file.txt#L10-20 or @file.txt#L10
-AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>\S+))')
+# Plain paths stop at whitespace and at CJK/fullwidth punctuation so that
+# e.g. "我们有一个 @foo.tsx，能不能..." does not swallow the trailing "，能不能..." into the path.
+_AT_PLAIN_STOP_CHARS = (
+    r"\u3000-\u303f"  # CJK symbols and punctuation
+    r"\uff01-\uff0f"  # fullwidth ASCII punctuation
+    r"\uff1a-\uff20"
+    r"\uff3b-\uff40"
+    r"\uff5b-\uff65"
+)
+AT_FILE_PATTERN = re.compile(rf'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>[^\s{_AT_PLAIN_STOP_CHARS}]+))')
 
 # Memory budget limits (inspired by Claude Code's attachment system)
 MEMORY_MAX_SESSION_BYTES = 60 * 1024

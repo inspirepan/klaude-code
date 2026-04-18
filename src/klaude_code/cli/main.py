@@ -173,12 +173,13 @@ def _web_command_wrapper(  # pyright: ignore[reportUnusedFunction]
 # klaude_code.protocol at import time (~200ms).
 @app.command("cost")
 def _cost_command_wrapper(  # pyright: ignore[reportUnusedFunction]
-    days: int | None = typer.Option(None, "--days", "-d", "--recent", help="Limit to last N days"),
+    days: int = typer.Option(7, "--days", "-d", "--recent", help="Limit to last N days"),
+    show_all: bool = typer.Option(False, "--all", help="Show all usage data"),
 ) -> None:
     """Show usage stats"""
     from klaude_code.cli.cost_cmd import cost_command
 
-    cost_command(days=days)
+    cost_command(days=days, show_all=show_all)
 
 
 @app.command("help", hidden=True)

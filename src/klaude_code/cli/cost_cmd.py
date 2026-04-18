@@ -561,7 +561,8 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
 
 
 def cost_command(
-    days: int | None = typer.Option(None, "--days", "-d", "--recent", help="Limit to last N days"),
+    days: int = typer.Option(7, "--days", "-d", "--recent", help="Limit to last N days"),
+    show_all: bool = typer.Option(False, "--all", help="Show all usage data"),
 ) -> None:
     """Show usage stats"""
     daily_stats = aggregate_all_sessions()
@@ -570,8 +571,7 @@ def cost_command(
         typer.echo("No usage data found.")
         raise typer.Exit(0)
 
-    # Filter by days if specified
-    if days is not None:
+    if not show_all:
         cutoff_date = datetime.now() - timedelta(days=days)
         cutoff = cutoff_date.strftime("%Y-%m-%d")
         daily_stats = {k: v for k, v in daily_stats.items() if k >= cutoff}
