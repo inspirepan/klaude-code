@@ -47,11 +47,24 @@ _CJK_COMPLETION_BOUNDARY_CHARS = (
 )
 _INLINE_COMPLETION_BOUNDARY = rf"(^|[\s{_CJK_COMPLETION_BOUNDARY_CHARS}])"
 
+# Characters that terminate an @-path token (besides whitespace).
+# Includes CJK punctuation and fullwidth ASCII punctuation so that a path
+# followed by e.g. Chinese "，" or "。" is not treated as part of the path.
+# Fullwidth digits/letters and halfwidth katakana are intentionally excluded
+# to keep them usable within paths.
+_AT_TOKEN_STOP_CHARS = (
+    r"\u3000-\u303f"  # CJK symbols and punctuation (、。「」『』《》【】 ...)
+    r"\uff01-\uff0f"  # fullwidth ASCII punctuation (！＂＃＄％＆＇（）＊＋，－．／)
+    r"\uff1a-\uff20"  # ：；＜＝＞？＠
+    r"\uff3b-\uff40"  # ［＼］＾＿｀
+    r"\uff5b-\uff65"  # ｛｜｝～｡｢｣､･ ...
+)
+
 # Pattern to match @token for completion refresh (used by key bindings).
 # Supports both plain tokens like `@src/file.py` and quoted tokens like
 # `@"path with spaces/file.py"` so that filenames with spaces remain a
 # single logical token.
-AT_TOKEN_PATTERN = re.compile(rf'{_INLINE_COMPLETION_BOUNDARY}@(?P<frag>"[^"]*"|[^\s]*)$')
+AT_TOKEN_PATTERN = re.compile(rf'{_INLINE_COMPLETION_BOUNDARY}@(?P<frag>"[^"]*"|[^\s{_AT_TOKEN_STOP_CHARS}]*)$')
 
 # Pattern to match inline /skill token for skill completion
 # (used by key bindings).
