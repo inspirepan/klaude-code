@@ -12,7 +12,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Geist", ...defaultTheme.fontFamily.sans],
+        sans: ["InterVariable", "Inter", ...defaultTheme.fontFamily.sans],
         mono: ["Geist Mono", ...defaultTheme.fontFamily.mono],
       },
       fontSize: {

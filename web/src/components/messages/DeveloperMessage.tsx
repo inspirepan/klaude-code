@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { useT } from "@/i18n";
+import { FADE_TRUNCATE } from "@/lib/utils";
 import type {
   DeveloperMessageItem,
   AtFileOp,
@@ -151,7 +152,9 @@ function CollapsibleRow({
         inactiveMode="hidden"
         className={expandable ? "row-span-2" : undefined}
       />
-      <span className={`min-w-0 truncate font-normal text-neutral-500 ${labelClassName ?? ""}`}>
+      <span
+        className={`min-w-0 ${FADE_TRUNCATE} font-normal text-neutral-500 ${labelClassName ?? ""}`}
+      >
         {label}
       </span>
 

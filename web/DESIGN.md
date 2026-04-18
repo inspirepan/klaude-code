@@ -14,7 +14,7 @@ All colors are delivered via HSL CSS custom properties in `:root` / `.dark`, con
 
 | Token                | HSL          | Hex (approx.) | Role                                                      |
 | -------------------- | ------------ | ------------- | --------------------------------------------------------- |
-| `--background`       | `0 0% 98%`   | `#fafafa`     | Main content area -- barely-warm off-white                |
+| `--background`       | `60 14% 97%` | `#f8f8f6`     | Main content area -- warm off-white (cream)               |
 | `--foreground`       | `0 0% 3.9%`  | `#0a0a0a`     | Primary text -- near-black for maximum readability        |
 | `--surface`          | `0 0% 96.1%` | `#f5f5f5`     | Code blocks, thinking blocks, recessed containers         |
 | `--muted`            | `0 0% 89.8%` | `#e5e5e5`     | Sidebar background, secondary fills, badges               |
@@ -48,6 +48,19 @@ Unified color families: **emerald** for success, **red** for error, **amber** fo
 | `compaction-label`  | `#5b6f92`            | Compaction summary label text             |
 | `compaction-text`   | `#2f3f5f`            | Compaction summary body text              |
 
+### Assistant / Tool Card Tint
+
+Message-level content containers use subtle tinted fills instead of the neutral card surface. The assistant-card border is nearly invisible (`border-stone-200/50`); separation is carried by the tinted shadow rather than the stroke.
+
+| Surface                  | Value                          | Role                                                  |
+| ------------------------ | ------------------------------ | ----------------------------------------------------- |
+| Assistant-card fill      | `#f8f8f6` (same as background) | Assistant text container — continuous with page       |
+| Assistant-card dot/text  | `#2e140c`                      | Leading dot marker + default assistant prose color    |
+| Assistant-card shadow    | `rgba(107,76,44, 0.07 / 0.05)` | Warm brown-tinted card shadow (two-stop)              |
+| Tool-group fill          | `#e6eee2 /40`                  | Very light green-gray tint for stacked tool-use block |
+| Tool-group shadow        | `rgba(70,100,60, 0.07 / 0.05)` | Sage-tinted card shadow (two-stop)                    |
+| Card border (both cards) | `border-stone-200/50`          | Hairline stroke at 50% opacity — shadow carries depth |
+
 ### Dark Theme Shift
 
 Dark mode inverts the neutral scale but keeps the same semantic color mapping. `--background` becomes `0 0% 3.9%` (near-black), `--surface` becomes `0 0% 7%`, borders drop to `0 0% 14.9%`. The palette remains achromatic -- no blue/purple tint in dark backgrounds.
@@ -63,10 +76,17 @@ Dark mode inverts the neutral scale but keeps the same semantic color mapping. `
 
 ### Font Stack
 
-| Role                 | Family           | Source                                            | Fallback Chain                                                                                                 |
-| -------------------- | ---------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **UI / Body**        | SF Pro (system)  | System font via `-apple-system`                   | BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif |
-| **Code / Monospace** | `JetBrains Mono` | Local @font-face (variable, normal/italic, woff2) | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace                                               |
+| Role                 | Family                  | Source                                                                       | Fallback Chain                                                                                                                |
+| -------------------- | ----------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **UI / Body**        | `InterVariable` (Inter) | Self-hosted woff2 from rsms.me, preloaded from `/fonts/InterVariable*.woff2` | -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif |
+| **Code / Monospace** | `Geist Mono`            | Google Fonts (`Geist+Mono:wght@100..900`)                                    | ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace                                                              |
+
+**OpenType features**:
+
+- `font-feature-settings: "tnum", "ss02" 0` — tabular numerics on; Inter's tailed-lowercase-`l` (ss02) explicitly off because the variant looks off in mixed contexts.
+- `font-variation-settings: "opsz" 28` — forces Inter Variable's Display optical size globally for slightly tighter, more display-like letterforms (Inter ships `opsz` 14–32 on this axis).
+
+**Mono size normalization**: Geist Mono renders ~10% larger visually than Inter at the same pixel size. All native mono elements (`code:not(pre code), pre, kbd, samp`) plus the Tailwind `.font-mono` utility are scaled by `font-size: 0.9em` globally. The `:not(pre code)` guard prevents nested `pre > code` from double-applying the factor. The diff view mirrors this by setting `--diffs-font-size: 0.73rem` and `--diffs-line-height: 1.575rem` (0.8125rem × 0.9, 1.75rem × 0.9).
 
 ### Scale & Font Size Zones
 
@@ -94,7 +114,7 @@ SessionCard timestamps and diff stats, ProjectGroup counts and "Load more", Mode
 - **Regular (400)**: All body text, assistant responses, input
 - **Medium (500)**: Frontmatter keys, section headers, active sidebar items, NewSessionButton label
 - **Semibold (600)**: Buttons (base class), tool names in monospace, group collapse labels
-- **Bold (700)**: Reserved for display `JetBrains Mono` usage only
+- **Bold (700)**: Reserved for display `Geist Mono` usage only
 - **Italic**: Thinking blocks are rendered entirely in italic to distinguish internal reasoning from output
 
 ### Text Color Hierarchy
@@ -113,6 +133,8 @@ A strict neutral scale for text, from strongest to weakest:
 
 **Rule**: When a text-neutral-500 element has a hover state, use `hover:text-neutral-700`. When a text-neutral-600 element has a hover state, use `hover:text-neutral-800`.
 
+**Assistant prose override**: Inside `.assistant-text`, body copy is rendered in `#2e140c` (deep brown-red) rather than `--foreground`. This is the sole sanctioned text-color deviation from the neutral scale — motivated by pairing with the cream card fill and the matching leading-dot marker. The inline-code color inside `.assistant-text` is `#5f5fb7`. Do not extend brown text to any other surface.
+
 ### Eyebrow Text
 
 Section labels, category tags, and header chips use a consistent formula: `font-mono text-xs font-medium uppercase tracking-wider text-neutral-500`. The monospace font gives short labels a technical, precise appearance. Examples: question header chips in UserInteractionCard, workspace picker label, operation headers.
@@ -125,21 +147,21 @@ Section labels, category tags, and header chips use a consistent formula: `font-
 
 ### Character
 
-Anti-aliased rendering (`-webkit-font-smoothing: antialiased`). The assistant text area uses `line-height: 1.6` with `text-wrap: pretty` for compact but comfortable reading of long-form markdown. Code blocks and tool output use the monospace stack at `0.9em` relative size. The overall typographic feel is **compact but breathable** -- high information density with enough vertical rhythm to avoid fatigue.
+Anti-aliased rendering (`-webkit-font-smoothing: antialiased`). The assistant text area uses `line-height: 1.75` with `text-wrap: pretty` for compact but comfortable reading of long-form markdown, and renders in a warm `#2e140c` (deep brown) rather than pure `--foreground` to pair with the cream card fill. Inline code inside `.assistant-text` uses `#5f5fb7`. Code blocks and tool output use the monospace stack at `0.9em` relative size. The overall typographic feel is **compact but breathable** -- high information density with enough vertical rhythm to avoid fatigue.
 
 ## 4. Component Stylings
 
 ### Edge Definition Strategy
 
-The project uses **ring** instead of **border** for edge definition on elevated elements. When an element has both a shadow and a solid border, the transition between shadow and border creates a "muddy" visual artifact. Rings produce a sharper, cleaner edge.
+Two parallel edge strategies coexist, picked by whether the container sits in **chrome** or in the **message stream**.
 
-**Outer ring** (elements with shadow): `ring-1 ring-black/[0.06]` replaces `border border-*`. Applied to: composer card, user interaction card, tooltips, search bar, overlay dialogs, scroll-to-bottom button, dropdown panels, outline buttons.
+**Chrome / chat-surface elements (ring-first)**: the composer, interaction card, tooltips, popovers, overlays, outline buttons. Shadow is carried by a named token; the edge is a ring so shadow and edge don't "muddy." `ring-1 ring-black/[0.06]` outer; `ring-1 ring-inset ring-black/[0.05]` inset.
 
-**Inset ring** (recessed containers without shadow): `ring-1 ring-inset ring-black/[0.05]` replaces `border border-border/80`. Applied to: tool blocks (plan, question), diff view containers, image thumbnails. The inset placement is more subtle than border and avoids stealing visual focus from content.
+**Message-stream cards (border-first, with tinted shadow)**: assistant-text rows and the tool-collapse group. These cards need both (a) an edge that reads against a warm `#f8f8f6` page, and (b) a shadow that matches the card fill rather than the default neutral gray. The chosen recipe is a hairline `border-stone-200/50` plus a **tinted two-stop arbitrary shadow** that matches the card's fill family. See **Message Cards** below and the **Shadows & Depth** table for the sanctioned shadow recipes.
 
-**Tinted inset ring** (colored containers): `ring-1 ring-inset ring-{color}-500/[0.06]` for containers with semantic background colors. Applied to: compaction summary (`ring-sky-500/[0.06]`), rewind summary (`ring-amber-500/[0.06]`).
+**Tinted inset ring** (colored summary containers): `ring-1 ring-inset ring-{color}-500/[0.06]` for containers with semantic background colors. Applied to: compaction summary (`ring-sky-500/[0.06]`), rewind summary (`ring-amber-500/[0.06]`).
 
-**Border is still used for**: sidebar divider (`border-r`), structural separators (horizontal rules between sections), form input borders (which transition to ring on focus), selection pill borders (which change color on selection state).
+**Border is still used for**: message-stream cards (see above), sidebar divider (`border-r`), structural separators, form input borders, selection pill borders, and recessed diff containers (`border border-neutral-200`).
 
 ### Buttons
 
@@ -162,6 +184,14 @@ The project uses **ring** instead of **border** for edge definition on elevated 
 - **Tooltips**: `rounded-md`, `bg-card`, `shadow-sm`, `ring-1 ring-black/[0.06]`, `text-xs`. Minimal and precise.
 - **Recessed containers** (tool blocks, plan/question blocks): `bg-surface/50`, `ring-1 ring-inset ring-black/[0.05]`. The inset ring is nearly invisible -- just enough edge definition to separate the container from surrounding content.
 
+### Message Cards
+
+The message stream uses two card variants with a shared recipe: hairline `border-stone-200/50`, small `rounded-lg` radius, generous horizontal padding, and a **tinted two-stop shadow** matched to the card's fill family. Borders are near-invisible on purpose; depth is carried by the shadow, not the stroke. Neither card uses a ring.
+
+- **Assistant-text card** (`MessageRow.tsx`): `rounded-lg border border-stone-200/50 bg-[#f8f8f6] px-4 py-2 shadow-[0_1px_3px_0_rgba(107,76,44,0.07),_0_1px_2px_-1px_rgba(107,76,44,0.05)]`. The fill matches `--background` exactly, so the card is felt as a shadow + a dot, not as a floating block. A single leading `h-2 w-2 rounded-full bg-[#2e140c]` dot marks the row; on hover it swaps to the copy button. Active selection adds `ring-2 ring-amber-300/70 ring-offset-1` — the one place a ring is permitted on a message card, and only as a transient focus treatment.
+- **Tool-collapse group card** (`CollapseGroupBlock.tsx`): `rounded-lg border border-stone-200/50 bg-[#e6eee2]/40 px-4 py-1 shadow-[0_1px_3px_0_rgba(70,100,60,0.07),_0_1px_2px_-1px_rgba(70,100,60,0.05)]`. A faint sage tint signals "grouped tool activity." Internal padding is `px-4` on the button row; expanded content sits inside the padded body with `pl-[22px]` to align with the rail grid (no vertical rail connector — the group is defined by the card, not a rail).
+- **Radius policy for message cards**: both cards use `rounded-lg` (8px). Do not mix `rounded-xl`/`2xl` here — the stream relies on a consistent, small radius so successive cards align visually.
+
 ### Inputs & Forms
 
 - **Composer textarea**: Borderless, transparent background (`border-0 bg-transparent`). The card itself provides the visual container.
@@ -170,13 +200,17 @@ The project uses **ring** instead of **border** for edge definition on elevated 
 
 ### Collapse & Expand Groups
 
-- **Rail marker**: Monospace `text-sm text-neutral-600` label (`[-]`/`[+]`) with a vertical `w-px bg-neutral-200` connecting line.
+- **Marker**: An inline Lucide `ChevronRight` (`h-3.5 w-3.5 text-neutral-400`) that rotates 90° when open via `transition-transform duration-150 ease-out-strong`. Centered inside a `flex h-[1lh] items-center justify-center` span so the grid's `items-center` vertically aligns it with the header label. The former `[-]`/`[+]` rail marker and its vertical `w-px` connecting line were removed — the tinted card body now carries grouping, so no rail is drawn.
+- **Grid**: The header button uses `COLLAPSE_RAIL_GRID_CLASS_NAME` for a two-column layout (16px chevron column + 6px gap); expanded content sits inside the card body at `pl-[22px]` to align content with the label.
 - **Panel animation**: `transition-[height] duration-200 ease-out` with imperative DOM height measurement (`useLayoutEffect`). Inner content uses `backface-visibility: hidden` for GPU compositing during height transitions.
 - **No conditional rendering**: Collapsed content stays in DOM with `overflow: hidden` and `height: 0`. This prevents layout recalculation mid-animation.
+- **Label**: `t("collapse.toolsUsed")(totalCount)` — e.g. "使用了 N 个工具" / "N tools used". Empty groups fall back to `t("collapse.thoughts")`.
 
 ### Diff View
 
 - Uses `@pierre/diffs` with the project's mono font stack injected via `--diffs-font-family`. Tall diffs get a gradient fade mask at the bottom with a "Show more/less" toggle.
+- Container: `diff-view overflow-hidden rounded-lg border border-neutral-200 bg-surface shadow-sm`. Radius is aligned with the message-card policy (`rounded-lg`).
+- Scales the library's internal type down to match the global mono normalization via `[--diffs-font-size:0.73rem] [--diffs-line-height:1.575rem]` (0.8125rem × 0.9, 1.75rem × 0.9). Font stacks — including those that render inside `@pierre/diffs`' shadow DOM — are injected with `Geist Mono` for code and `InterVariable` for the header title/filename slots.
 
 ### Status Indicators
 
@@ -276,7 +310,22 @@ The elevation system is extremely flat. Named shadow tokens are defined in `tail
 | **Toast**    | `shadow-toast`    | `0 8px 24px -16px rgba(15,15,15,0.35)` | Undo toasts (+ `backdrop-blur`)                |
 | **Overlay**  | `shadow-overlay`  | `0 24px 80px rgba(0,0,0,0.14)`         | New session overlay                            |
 
-No heavy drop shadows anywhere. The depth hierarchy is communicated primarily through **background color contrast** (white card on off-white background) rather than shadow. Never use arbitrary `shadow-[...]` values -- use the named tokens above.
+No heavy drop shadows anywhere. The depth hierarchy is communicated primarily through **background color contrast** (white card on off-white background) rather than shadow. Prefer the named tokens above.
+
+### Sanctioned Arbitrary Shadows (message cards only)
+
+Because the two message-card fills are tinted (cream and sage) against a warm page, a neutral-gray drop shadow reads as a dark smudge. These cards use an **arbitrary two-stop shadow whose RGB matches the fill family**. These are the only places arbitrary `shadow-[...]` values are allowed; anywhere else, use the named tokens.
+
+| Card           | Class                                                                            | Note                                                   |
+| -------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Assistant-text | `shadow-[0_1px_3px_0_rgba(107,76,44,0.07),_0_1px_2px_-1px_rgba(107,76,44,0.05)]` | Warm brown, pairs with `#f8f8f6` fill + `#2e140c` text |
+| Tool-group     | `shadow-[0_1px_3px_0_rgba(70,100,60,0.07),_0_1px_2px_-1px_rgba(70,100,60,0.05)]` | Sage, pairs with `#e6eee2/40` fill                     |
+
+The shape (`0_1px_3px` / `0_1px_2px -1px`) mirrors Tailwind `shadow-sm` at reduced opacity. If a new tinted card is introduced, keep the same geometry and only adjust the tint RGB — do not invent new shadow shapes.
+
+### Shadow-clipping pitfall
+
+`content-visibility: auto` and `contain: paint` both clip descendant box-shadow at the element's padding box. Containers that wrap shadowed message cards must not set either property — this was previously hiding most of the message-card shadow and has been removed from `MessageList.tsx` (`OFFSCREEN_BLOCK_STYLE` is intentionally `undefined`, and no section-level `contentVisibility` wrapper exists). If reintroducing virtualization, do it at a layer that does not contain the shadow (e.g. only on purely offscreen slices), not on the visible card's direct parent.
 
 ## 9. Dark Mode Strategy
 

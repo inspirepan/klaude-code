@@ -1,12 +1,9 @@
 import { useState } from "react";
 
 import { useT } from "@/i18n";
+import { FADE_TRUNCATE } from "@/lib/utils";
 import type { TaskMetadataAgent, TaskMetadataItem } from "@/types/message";
-import {
-  COLLAPSE_RAIL_GRID_CLASS_NAME,
-  CollapseRailMarker,
-  CollapseRailPanel,
-} from "./CollapseRail";
+import { COLLAPSE_RAIL_GRID_CLASS_NAME, CollapseRailPanel } from "./CollapseRail";
 import { formatCompactNumber, formatElapsed } from "./message-list-ui";
 
 interface TaskMetadataProps {
@@ -143,10 +140,12 @@ export function TaskMetadata({ item }: TaskMetadataProps): React.JSX.Element {
         onClick={() => {
           setOpen((v) => !v);
         }}
-        className={`grid w-full cursor-pointer ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start text-left text-sm leading-relaxed text-neutral-500 transition-colors hover:text-neutral-600`}
+        className={`grid w-full cursor-pointer ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start text-left text-sm leading-relaxed text-neutral-400 transition-colors hover:text-neutral-500`}
       >
-        <CollapseRailMarker open={open} />
-        <span className="min-w-0 truncate">
+        <span className="flex h-[1lh] w-4 items-center justify-center">
+          <span className="h-1 w-1 rounded-full bg-neutral-300" />
+        </span>
+        <span className={`min-w-0 ${FADE_TRUNCATE}`}>
           {agent.subAgentName && <>{agent.subAgentName} </>}
           <span className="font-mono">{agent.modelName}</span>
           {agent.durationSeconds !== null && (

@@ -43,16 +43,20 @@ function MessageRowInner({
     return (
       <div ref={handleItemRef} className="group/row min-w-0">
         <div
-          className={`grid min-w-0 ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start rounded-lg transition-shadow duration-150 ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
+          className={`grid min-w-0 ${COLLAPSE_RAIL_GRID_CLASS_NAME} items-start rounded-lg border border-stone-200/50 bg-[#f8f8f6] px-4 py-2 shadow-[0_1px_3px_0_rgba(107,76,44,0.07),_0_1px_2px_-1px_rgba(107,76,44,0.05)] transition-shadow duration-150 ${isActive ? "ring-2 ring-amber-300/70 ring-offset-1" : ""}`}
         >
-          <span className="flex h-[1lh] items-center justify-center">
+          <span className="relative flex h-[1lh] items-center justify-center leading-[1.75]">
+            <span
+              className={`absolute inline-flex h-2 w-2 rounded-full bg-[#2e140c] transition-opacity duration-150 ${canCopy ? "group-hover/row:opacity-0" : ""} ${copied ? "opacity-0" : "opacity-100"}`}
+              aria-hidden="true"
+            />
             {canCopy ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className={`cursor-pointer transition-opacity duration-150 ${copied ? "opacity-100" : "opacity-0 group-hover/row:opacity-100"}`}
+                    className={`absolute cursor-pointer transition-opacity duration-150 ${copied ? "opacity-100" : "opacity-0 group-hover/row:opacity-100"}`}
                     aria-label={copied ? t("copy.copied") : t("copy.copy")}
                   >
                     {copied ? (

@@ -166,7 +166,7 @@ function OptionPill({
       )}
       <span className="min-w-0">
         <span
-          className={`block text-base font-medium leading-tight ${checked ? "text-sky-700" : "text-neutral-700"}`}
+          className={`block text-base font-semibold leading-tight ${checked ? "text-sky-700" : "text-neutral-800"}`}
         >
           {label}
         </span>
@@ -238,7 +238,7 @@ function QuestionPanel({
             </div>
 
             <div className="min-w-0">
-              <div className="overflow-hidden rounded-xl bg-surface/50 ring-1 ring-inset ring-black/[0.05]">
+              <div className="overflow-hidden rounded-xl bg-surface/50 shadow-sm ring-1 ring-inset ring-black/10">
                 <div className="truncate border-b border-border px-3 py-1.5 font-mono text-xs font-medium uppercase tracking-wider text-neutral-500">
                   {previewOption?.label ?? t("interaction.previewLabel")}
                 </div>
