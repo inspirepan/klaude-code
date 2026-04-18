@@ -82,6 +82,7 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.AGENT: "Running Task",
     tools.REWIND: "Rewinding",
     tools.ASK_USER_QUESTION: "Questioning",
+    tools.HANDOFF: "Packing Context",
 }
 
 

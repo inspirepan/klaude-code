@@ -82,7 +82,11 @@ async def run_handoff(
     )
     file_ops_text = format_file_operations(file_ops.read_files, file_ops.modified_files)
 
-    full_summary = f"{HANDOFF_SUMMARY_PREFIX}\n<summary>\n{summary_text}\n</summary>{file_ops_text}"
+    full_summary = (
+        f"{HANDOFF_SUMMARY_PREFIX}\n"
+        f"<original-handoff-goal>\n{goal}\n</original-handoff-goal>\n"
+        f"<summary>\n{summary_text}\n</summary>{file_ops_text}"
+    )
 
     # first_kept_index = len(history) means keep nothing from old history
     first_kept_index = len(history)

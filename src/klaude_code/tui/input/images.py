@@ -7,6 +7,7 @@ This module provides:
 - format_image_marker(): Generate [image path] string
 - parse_image_marker_path(): Parse path from marker
 - capture_clipboard_tag(): Capture clipboard image and return an [image ...] marker
+- has_clipboard_image(): Quick check for image in clipboard without saving it
 - extract_images_from_text(): Parse [image ...] markers and return ImageURLPart list
 """
 
@@ -175,6 +176,70 @@ def capture_clipboard_tag() -> str | None:
         return None
 
     return format_image_marker(str(path))
+
+
+# ---------------------------------------------------------------------------
+# Clipboard image presence check (no saving)
+# ---------------------------------------------------------------------------
+
+
+def _has_clipboard_image_macos() -> bool:
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", "the clipboard as \u00abclass PNGf\u00bb"],
+            capture_output=True,
+            timeout=2.0,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def _has_clipboard_image_linux() -> bool:
+    if not shutil.which("xclip"):
+        return False
+    try:
+        result = subprocess.run(
+            ["xclip", "-selection", "clipboard", "-t", "TARGETS", "-o"],
+            capture_output=True,
+            text=True,
+            timeout=1.0,
+        )
+        if result.returncode != 0:
+            return False
+        return any(line.strip().startswith("image/") for line in result.stdout.splitlines())
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def _has_clipboard_image_windows() -> bool:
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", "(Get-Clipboard -Format Image) -ne $null"],
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+        )
+        return result.returncode == 0 and "True" in result.stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def has_clipboard_image() -> bool:
+    """Return True when the system clipboard currently holds an image.
+
+    Non-blocking for the caller is the caller's responsibility: on macOS this
+    spawns an `osascript` that can take ~100ms. Intended to be called from a
+    background thread.
+    """
+    try:
+        if sys.platform == "darwin":
+            return _has_clipboard_image_macos()
+        if sys.platform == "win32":
+            return _has_clipboard_image_windows()
+        return _has_clipboard_image_linux()
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
