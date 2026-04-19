@@ -13,8 +13,10 @@ from klaude_code.protocol.models import SessionRuntimeState
 
 T = TypeVar("T")
 
+
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
+
 
 def _pending_request(request_id: str, session_id: str) -> PendingUserInteractionRequest:
     return PendingUserInteractionRequest(
@@ -36,6 +38,7 @@ def _pending_request(request_id: str, session_id: str) -> PendingUserInteraction
             ]
         ),
     )
+
 
 def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -> None:
     class _StubSessionRegistry:
@@ -105,6 +108,7 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
         assert second_meta["causation_id"] == "req1"
 
     arun(_test())
+
 
 def test_runtime_stop_persists_running_sessions_as_idle(monkeypatch: Any, tmp_path: Path) -> None:
     persisted: list[tuple[str, SessionRuntimeState, Path]] = []

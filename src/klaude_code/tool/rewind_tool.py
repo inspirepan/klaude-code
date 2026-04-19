@@ -13,6 +13,7 @@ class RewindArguments(BaseModel):
     note: str = Field(description="A note to your future self with key findings/context to preserve")
     rationale: str = Field(description="Why you are performing this rewind")
 
+
 @register(tools.REWIND)
 class RewindTool(ToolABC):
     @classmethod

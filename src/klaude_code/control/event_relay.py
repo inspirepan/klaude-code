@@ -12,10 +12,12 @@ from klaude_code.protocol import events
 
 RELAY_STREAM_LIMIT = 1024 * 1024
 
+
 def event_relay_socket_path(*, home_dir: Path | None = None) -> Path:
     resolved_home = (home_dir or Path.home()).resolve()
     suffix = hashlib.sha1(str(resolved_home).encode("utf-8")).hexdigest()[:12]
     return Path(get_system_temp()) / f"klaude-web-events-{suffix}.sock"
+
 
 class EventRelayPublisher:
     def __init__(self, *, socket_path: Path, queue_maxsize: int = 2048) -> None:
@@ -103,6 +105,7 @@ class EventRelayPublisher:
         writer.close()
         with contextlib.suppress(OSError):
             await writer.wait_closed()
+
 
 class EventRelayServer:
     def __init__(self, *, socket_path: Path, envelope_bus: EnvelopeBus) -> None:

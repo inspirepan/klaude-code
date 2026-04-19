@@ -48,6 +48,7 @@ type RequestUserInteraction = Callable[
     Awaitable[user_interaction.UserInteractionResponse],
 ]
 
+
 class MetadataAccumulator:
     """Accumulates response metadata across multiple turns.
 
@@ -194,6 +195,7 @@ class MetadataAccumulator:
         self._main_agent.turn_count = self._turn_count
         return TaskMetadataItem(main_agent=self._main_agent, sub_agent_task_metadata=self._sub_agent_metadata)
 
+
 @dataclass
 class SessionContext:
     """Shared session-level context for task and turn execution.
@@ -211,6 +213,7 @@ class SessionContext:
     run_subtask: RunSubtask | None
     request_user_interaction: RequestUserInteraction | None
 
+
 @dataclass
 class TaskExecutionContext:
     """Execution context required to run a task."""
@@ -222,6 +225,7 @@ class TaskExecutionContext:
     sub_agent_state: SubAgentState | None
     # LLM client for compaction (uses main if not set)
     compact_llm_client: LLMClientABC | None = None
+
 
 class TaskExecutor:
     """Executes a complete task (multiple turns until no more tool calls).
@@ -729,6 +733,7 @@ class TaskExecutor:
             task_result=task_result,
         )
 
+
 def _reset_attachment_loaded_flags(file_tracker: dict[str, FileStatus]) -> None:
     """Remove attachment-only entries so transient reminders can re-inject after compaction."""
     transient_paths = [
@@ -738,6 +743,7 @@ def _reset_attachment_loaded_flags(file_tracker: dict[str, FileStatus]) -> None:
     ]
     for path in transient_paths:
         del file_tracker[path]
+
 
 def _retry_delay_seconds(attempt: int) -> float:
     """Compute exponential backoff delay for the given attempt count."""

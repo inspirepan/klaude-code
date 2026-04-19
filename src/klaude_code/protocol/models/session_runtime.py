@@ -10,9 +10,11 @@ class SessionRuntimeState(str, Enum):
     RUNNING = "running"
     WAITING_USER_INPUT = "waiting_user_input"
 
+
 class SessionOwner(BaseModel):
     runtime_id: str
     runtime_kind: RuntimeKind
     pid: int
+
 
 __all__ = ["SessionOwner", "SessionRuntimeState"]

@@ -24,6 +24,7 @@ def test_get_startup_update_summary_without_state_starts_background_check(
     assert update.get_startup_update_summary() is None
     assert started["value"] is True
 
+
 def test_persist_current_update_info_writes_state_file(monkeypatch: pytest.MonkeyPatch, isolated_home: Path) -> None:
     del isolated_home
 
@@ -46,6 +47,7 @@ def test_persist_current_update_info_writes_state_file(monkeypatch: pytest.Monke
     assert payload["latest"] == "1.1.0"
     assert payload["update_available"] is True
     assert payload["install_kind"] == update.INSTALL_KIND_INDEX
+
 
 def test_get_startup_update_summary_returns_message_from_persisted_state(
     monkeypatch: pytest.MonkeyPatch, isolated_home: Path
@@ -76,6 +78,7 @@ def test_get_startup_update_summary_returns_message_from_persisted_state(
         "PyPI 1.1.0 available. Current 1.0.0 (local path install); run `klaude upgrade` from a clean local checkout."
     )
     assert started["value"] is False
+
 
 def test_get_startup_update_summary_refreshes_stale_state_in_background(
     monkeypatch: pytest.MonkeyPatch, isolated_home: Path

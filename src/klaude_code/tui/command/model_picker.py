@@ -19,10 +19,12 @@ class ModelSelectStatus(Enum):
     NON_TTY = "non_tty"
     ERROR = "error"
 
+
 @dataclass
 class ModelSelectResult:
     status: ModelSelectStatus
     model: str | None = None
+
 
 def select_model_interactive(
     keywords: list[str] | None = None,

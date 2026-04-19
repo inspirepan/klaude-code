@@ -44,6 +44,7 @@ def test_get_skills_xml_uses_requested_skill_block_format() -> None:
     system_pos = output.index("<name>system-skill</name>")
     assert project_pos < user_pos < system_pos
 
+
 def test_get_skills_yaml_is_backward_compatible_alias() -> None:
     loader = SkillLoader()
     loader.loaded_skills = {

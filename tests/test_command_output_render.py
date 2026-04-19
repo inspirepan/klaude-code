@@ -14,6 +14,7 @@ def test_render_command_output_default_uses_command_output_style() -> None:
     assert rendered.plain == "hello"
     assert rendered.style == ThemeKey.COMMAND_OUTPUT
 
+
 def test_render_command_output_default_error_uses_error_style() -> None:
     event = events.NoticeEvent(session_id="s1", content="oops", is_error=True)
 

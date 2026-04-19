@@ -12,6 +12,7 @@ from klaude_code.log import DebugType, log_debug
 ST = "\033\\"
 BEL = "\a"
 
+
 def resolve_stream(stream: TextIO | None) -> TextIO:
     """Use the original stdout when available to avoid interception by Rich wrappers."""
     if stream is not None:
@@ -20,15 +21,18 @@ def resolve_stream(stream: TextIO | None) -> TextIO:
         return cast(TextIO, sys.__stdout__)
     return sys.stdout
 
+
 class NotificationType(Enum):
     AGENT_TASK_COMPLETE = "agent_task_complete"
     ASK_USER_QUESTION = "ask_user_question"
+
 
 @dataclass
 class Notification:
     type: NotificationType
     title: str
     body: str | None = None
+
 
 @dataclass
 class TerminalNotifierConfig:
@@ -42,6 +46,7 @@ class TerminalNotifierConfig:
         if env in {"0", "off", "false", "disable", "disabled"}:
             return cls(enabled=False)
         return cls(enabled=True)
+
 
 class TerminalNotifier:
     def __init__(self, config: TerminalNotifierConfig | None = None) -> None:
@@ -92,6 +97,7 @@ class TerminalNotifier:
             return False
         term = os.getenv("TERM", "")
         return term.lower() not in {"", "dumb"}
+
 
 def _compact(text: str, limit: int = NOTIFY_COMPACT_LIMIT) -> str:
     squashed = " ".join(text.split())

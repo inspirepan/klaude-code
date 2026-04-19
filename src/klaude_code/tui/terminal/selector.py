@@ -39,6 +39,7 @@ DEFAULT_PICKER_STYLE = Style(
     ]
 )
 
+
 @dataclass(frozen=True, slots=True)
 class SelectItem[T]:
     """One selectable item for terminal selection UI."""
@@ -50,10 +51,12 @@ class SelectItem[T]:
     selectable: bool = True
     markdown: str | None = None
 
+
 @dataclass(frozen=True, slots=True)
 class QuestionSelectResult[T]:
     selected_values: list[T]
     input_text: str
+
 
 @dataclass(frozen=True, slots=True)
 class QuestionPrompt[T]:
@@ -64,9 +67,11 @@ class QuestionPrompt[T]:
     input_placeholder: str = "Type something."
     other_value: T | None = None
 
+
 # ---------------------------------------------------------------------------
 # Model selection items builder
 # ---------------------------------------------------------------------------
+
 
 def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
     """Build SelectItem list from ModelEntry objects.
@@ -142,9 +147,11 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
 
     return items
 
+
 # ---------------------------------------------------------------------------
 # Shared helpers for select_one() and SelectOverlay
 # ---------------------------------------------------------------------------
+
 
 def _restyle_title(title: list[tuple[str, str]], cls: str) -> list[tuple[str, str]]:
     """Re-apply a style class while keeping existing style tokens.
@@ -173,6 +180,7 @@ def _restyle_title(title: list[tuple[str, str]], cls: str) -> list[tuple[str, st
         style = " ".join(tok for tok in combined if tok)
         restyled.append((style, text))
     return restyled
+
 
 def _indent_multiline_tokens(
     tokens: list[tuple[str, str]],
@@ -220,6 +228,7 @@ def _indent_multiline_tokens(
 
     return out
 
+
 def _normalize_search_key(value: str) -> str:
     """Normalize a search key for loose matching.
 
@@ -231,6 +240,7 @@ def _normalize_search_key(value: str) -> str:
     """
 
     return "".join(ch for ch in value.casefold() if ch.isalnum())
+
 
 def _matches_search_component(haystack: str, needle: str) -> bool:
     component = needle.casefold().strip()
@@ -244,6 +254,7 @@ def _matches_search_component(haystack: str, needle: str) -> bool:
         return False
     return component_norm in _normalize_search_key(haystack)
 
+
 def _extract_selector_parts(search_text: str) -> tuple[str, str] | None:
     selector = search_text.split(None, 1)[0].strip()
     if "@" not in selector:
@@ -256,6 +267,7 @@ def _extract_selector_parts(search_text: str) -> tuple[str, str] | None:
         return None
     return model_name, provider_name
 
+
 def _matches_generic_search(haystack: str, needle: str) -> bool:
     if needle in haystack:
         return True
@@ -264,6 +276,7 @@ def _matches_generic_search(haystack: str, needle: str) -> bool:
     if not needle_norm:
         return False
     return needle_norm in _normalize_search_key(haystack)
+
 
 def _matches_search_token(search_text: str, token: str) -> bool:
     haystack = search_text.casefold()
@@ -282,6 +295,7 @@ def _matches_search_token(search_text: str, token: str) -> bool:
             return _matches_search_component(model_name, left) and _matches_search_component(provider_name, right)
 
     return _matches_generic_search(haystack, normalized_token)
+
 
 def _filter_items[T](
     items: list[SelectItem[T]],
@@ -329,6 +343,7 @@ def _filter_items[T](
 
     return visible, True
 
+
 def _coerce_pointed_at_to_selectable[T](
     items: list[SelectItem[T]],
     visible_indices: list[int],
@@ -349,6 +364,7 @@ def _coerce_pointed_at_to_selectable[T](
         if items[idx].selectable:
             return pos
     return start
+
 
 def _build_choices_tokens[T](
     items: list[SelectItem[T]],
@@ -384,6 +400,7 @@ def _build_choices_tokens[T](
         tokens.extend(title_tokens)
 
     return tokens
+
 
 def _build_rounded_frame(body: Container, *, padding_x: int = 0, padding_y: int = 0) -> HSplit:
     """Build a rounded border frame around the given container."""
@@ -431,6 +448,7 @@ def _build_rounded_frame(body: Container, *, padding_x: int = 0, padding_y: int 
     )
     return HSplit([top, middle, bottom], padding=0, style="class:frame")
 
+
 def _build_search_container(
     search_buffer: Buffer,
     search_placeholder: str,
@@ -471,9 +489,11 @@ def _build_search_container(
         return input_window, _build_rounded_frame(search_row)
     return input_window, search_row
 
+
 # ---------------------------------------------------------------------------
 # select_one: standalone single-choice selector
 # ---------------------------------------------------------------------------
+
 
 def select_one[T](
     *,
@@ -674,6 +694,7 @@ def select_one[T](
     app.renderer.cpr_not_supported_callback = lambda: None
     return app.run()
 
+
 def select_questions[T](
     *,
     questions: list[QuestionPrompt[T]],
@@ -683,6 +704,7 @@ def select_questions[T](
     from klaude_code.tui.terminal.ask_user_question import select_questions as _select_questions
 
     return _select_questions(questions=questions, pointer=pointer, style=style)
+
 
 def select_question[T](
     *,
@@ -706,9 +728,11 @@ def select_question[T](
         other_value=other_value,
     )
 
+
 # ---------------------------------------------------------------------------
 # SelectOverlay: embedded overlay for existing prompt_toolkit Application
 # ---------------------------------------------------------------------------
+
 
 class SelectOverlay[T]:
     """Embedded single-choice selector overlay for an existing prompt_toolkit Application.

@@ -13,6 +13,7 @@ from klaude_code.const import DEFAULT_DEBUG_LOG_DIR
 _VIEWER_HTML = Path(__file__).parent / "log_viewer.html"
 _DEFAULT_LOG_VIEWER_PORT = 8765
 
+
 class _LogViewerHandler(BaseHTTPRequestHandler):
     """Serve the log viewer HTML and log file contents."""
 
@@ -77,6 +78,7 @@ class _LogViewerHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: object) -> None:
         pass
 
+
 def _create_server_with_fallback(start_port: int) -> tuple[HTTPServer, int]:
     for port in range(start_port, 65536):
         try:
@@ -88,12 +90,14 @@ def _create_server_with_fallback(start_port: int) -> tuple[HTTPServer, int]:
         return server, port
     raise RuntimeError(f"no available port from {start_port} to 65535")
 
+
 def _is_path_within(path: Path, root: Path) -> bool:
     try:
         path.relative_to(root)
         return True
     except ValueError:
         return False
+
 
 def _list_log_files(log_dir: Path) -> list[dict[str, object]]:
     if not log_dir.exists():
@@ -130,6 +134,7 @@ def _list_log_files(log_dir: Path) -> list[dict[str, object]]:
 
     files.sort(key=lambda item: item[0], reverse=True)
     return [item[1] for item in files]
+
 
 def start_log_viewer(log_path: Path) -> str:
     """Start the log viewer server in a daemon thread and open the browser.

@@ -27,6 +27,7 @@ def test_change_thinking_via_ws(app_env: AppEnv) -> None:
     assert event["event_type"] == "thinking.changed"
     assert "current" in event["event"]
 
+
 def test_change_model_via_ws(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     cast(Any, load_config).cache_clear()
@@ -71,12 +72,14 @@ def test_change_model_via_ws(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -
     assert event["event_type"] == "model.changed"
     assert event["event"]["model_id"]
 
+
 def test_get_models(app_env: AppEnv) -> None:
     response = app_env.client.get("/api/config/models")
     assert response.status_code == 200
     payload = response.json()
     assert "models" in payload
     assert isinstance(payload["models"], list)
+
 
 def test_request_model_operation_via_http(app_env: AppEnv) -> None:
     session_id = app_env.create_session()

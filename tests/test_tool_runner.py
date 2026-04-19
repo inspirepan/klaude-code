@@ -1,4 +1,3 @@
-
 # pyright: reportPrivateUsage=false
 from __future__ import annotations
 
@@ -40,9 +39,11 @@ def _tool_context() -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
     return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path("/tmp"))
 
+
 def arun(coro: Any) -> Any:
     """Helper to run async coroutines."""
     return asyncio.run(coro)
+
 
 class MockSuccessTool(ToolABC):
     """Mock tool that succeeds."""
@@ -62,6 +63,7 @@ class MockSuccessTool(ToolABC):
         del context
         return message.ToolResultMessage(status="success", output_text="Success!")
 
+
 class MockErrorTool(ToolABC):
     """Mock tool that raises an exception."""
 
@@ -79,6 +81,7 @@ class MockErrorTool(ToolABC):
         del arguments
         del context
         raise ValueError("Something went wrong")
+
 
 class MockTodoChangeTool(ToolABC):
     """Mock tool that triggers todo change side effect."""
@@ -105,6 +108,7 @@ class MockTodoChangeTool(ToolABC):
             side_effects=[ToolSideEffect.TODO_CHANGE],
         )
 
+
 class MockConcurrentTool(ToolABC):
     """Mock tool marked as concurrent."""
 
@@ -127,6 +131,7 @@ class MockConcurrentTool(ToolABC):
         del context
         return message.ToolResultMessage(status="success", output_text="Concurrent!")
 
+
 class MockStreamingTool(ToolABC):
     """Mock tool that emits incremental output."""
 
@@ -147,6 +152,7 @@ class MockStreamingTool(ToolABC):
             await context.emit_tool_output_delta("beta")
         return message.ToolResultMessage(status="success", output_text="alphabeta")
 
+
 class MockSlowStreamingTool(ToolABC):
     """Mock tool that emits one chunk, waits, then returns."""
 
@@ -166,6 +172,7 @@ class MockSlowStreamingTool(ToolABC):
             await context.emit_tool_output_delta("first")
         await asyncio.sleep(0.2)
         return message.ToolResultMessage(status="success", output_text="done")
+
 
 class TestRunTool:
     """Test run_tool function."""
@@ -220,6 +227,7 @@ class TestRunTool:
         assert result.status == "error"
         assert result.output_text is not None and "ValueError" in result.output_text
         assert "Something went wrong" in result.output_text
+
 
 class TestToolExecutor:
     """Test ToolExecutor class."""
@@ -447,6 +455,7 @@ class TestToolExecutor:
         events = list(executor.on_interrupt())
         assert events == []
 
+
 class TestToolExecutorPartition:
     """Test ToolExecutor._partition_tool_calls static method."""
 
@@ -527,6 +536,7 @@ class TestToolExecutorPartition:
         assert sequential[0].tool_name == "Read"
         assert {c.tool_name for c in concurrent} == {"WebSearch", "WebFetch", "Agent"}
 
+
 class TestToolExecutorEvents:
     """Test ToolExecutor event dataclasses."""
 
@@ -554,6 +564,7 @@ class TestToolExecutorEvents:
         event = ToolExecutionTodoChange(todos=todos)
         assert len(event.todos) == 2
         assert event.todos[0].content == "Task 1"
+
 
 class TestBuildToolSideEffectEvents:
     """Test ToolExecutor._build_tool_side_effect_events method."""
@@ -598,6 +609,7 @@ class TestBuildToolSideEffectEvents:
         events = executor._build_tool_side_effect_events(result)
         assert events == []
 
+
 class TestBashToolCancellation:
     def test_bash_tool_propagates_cancelled_error(self) -> None:
         if os.name != "posix" or shutil.which("bash") is None:
@@ -612,6 +624,7 @@ class TestBashToolCancellation:
                 await task
 
         arun(_run())
+
 
 class TestBashToolStreaming:
     def test_bash_tool_sets_python_unbuffered(self) -> None:

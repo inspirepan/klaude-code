@@ -16,6 +16,7 @@ from klaude_code.protocol.tools import SubAgentType
 if TYPE_CHECKING:
     from klaude_code.config.config import Config, ModelEntry
 
+
 @dataclass
 class SubAgentModelInfo:
     """Sub-agent and its current model configuration."""
@@ -29,6 +30,7 @@ class SubAgentModelInfo:
     # - When inheriting from defaults: resolved model name.
     effective_model: ModelPreference
 
+
 @dataclass(frozen=True, slots=True)
 class EmptySubAgentModelBehavior:
     """Human-facing description for an unset (empty) sub-agent model config."""
@@ -38,6 +40,7 @@ class EmptySubAgentModelBehavior:
 
     # Best-effort resolved model name (if any).
     resolved_model_name: str | None
+
 
 class SubAgentModelHelper:
     """Centralized logic for sub-agent availability and model selection."""

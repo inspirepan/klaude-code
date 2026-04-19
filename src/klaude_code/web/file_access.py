@@ -4,12 +4,14 @@ from pathlib import Path
 
 TMP_DIR = Path("/tmp").resolve()
 
+
 def _is_relative_to(path: Path, base: Path) -> bool:
     try:
         path.relative_to(base)
     except ValueError:
         return False
     return True
+
 
 def _is_session_images_path(path: Path, home_dir: Path) -> bool:
     projects_root = (home_dir / ".klaude" / "projects").resolve()
@@ -19,6 +21,7 @@ def _is_session_images_path(path: Path, home_dir: Path) -> bool:
     if len(relative.parts) < 4:
         return False
     return relative.parts[1] == "sessions" and relative.parts[3] == "images"
+
 
 def validate_file_access(raw_path: str, *, work_dir: Path, home_dir: Path) -> tuple[int, Path | None]:
     """Validate file access path.

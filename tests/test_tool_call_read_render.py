@@ -11,6 +11,7 @@ def _render_to_text(arguments: str) -> str:
     console.print(render_read_tool_call(arguments))
     return console.export_text()
 
+
 def test_render_read_tool_call_with_numeric_range() -> None:
     output = _render_to_text(
         json.dumps(
@@ -23,6 +24,7 @@ def test_render_read_tool_call_with_numeric_range() -> None:
     )
 
     assert "10:14" in output
+
 
 def test_render_read_tool_call_with_list_offset_does_not_crash() -> None:
     output = _render_to_text(
@@ -37,6 +39,7 @@ def test_render_read_tool_call_with_list_offset_does_not_crash() -> None:
 
     assert "Read" in output
     assert "offset=[335]" in output
+
 
 def test_render_read_skill_path_segment_styles() -> None:
     console = Console(width=120, record=False, force_terminal=False, theme=get_theme().app_theme)
@@ -64,6 +67,7 @@ def test_render_read_skill_path_segment_styles() -> None:
     assert style_at(suffix_start) == skill_name_style
     assert style_at(suffix_start + len("commit")) == slash_style
     assert style_at(suffix_start + len("commit/")) == skill_file_style
+
 
 def test_render_read_tool_call_long_path_folds_without_ellipsis() -> None:
     console = Console(width=40, record=True, force_terminal=False, theme=get_theme().app_theme)

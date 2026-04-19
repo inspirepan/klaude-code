@@ -27,6 +27,7 @@ def test_discover_skills_includes_git_root_project_skills(tmp_path: Path, monkey
     assert "root-skill" in loader.loaded_skills
     assert loader.loaded_skills["root-skill"].location == "project"
 
+
 def test_discover_skills_prefers_cwd_project_skill_over_git_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

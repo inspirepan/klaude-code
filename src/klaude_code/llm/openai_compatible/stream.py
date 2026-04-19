@@ -1,4 +1,3 @@
-
 """Shared stream processing utilities for Chat Completions streaming.
 
 This module provides reusable primitives for OpenAI-compatible providers:
@@ -51,6 +50,7 @@ def normalize_tool_name(name: str) -> str:
         log_debug(f"Gemini-3 tool name normalized: {name} -> {normalized}")
         return normalized
     return name
+
 
 class StreamStateManager:
     """Manages streaming state and accumulates parts in stream order.
@@ -146,6 +146,7 @@ class StreamStateManager:
         """
         return build_partial_message(self.assistant_parts, response_id=self.response_id)
 
+
 @dataclass(slots=True)
 class ReasoningDeltaResult:
     """Result of processing a single provider delta for reasoning signals."""
@@ -158,6 +159,7 @@ class ReasoningDeltaResult:
     reasoning_format: str | None = None  # e.g. "MiniMax-response-v1"
     reasoning_id: str | None = None
 
+
 class ReasoningDetail(pydantic.BaseModel):
     """Structured reasoning detail used by OpenRouter and MiniMax (reasoning_details array)."""
 
@@ -169,6 +171,7 @@ class ReasoningDetail(pydantic.BaseModel):
     summary: str | None = None
     text: str | None = None
     signature: str | None = None  # Claude's signature
+
 
 class ReasoningHandlerABC(ABC):
     """Provider-specific reasoning handler for Chat Completions streaming."""
@@ -185,7 +188,9 @@ class ReasoningHandlerABC(ABC):
     def flush(self) -> list[message.Part]:
         """Flush buffered reasoning content (usually at stage transition/finalize)."""
 
+
 REASONING_FIELDS = ("reasoning_content", "reasoning", "reasoning_text")
+
 
 class DefaultReasoningHandler(ReasoningHandlerABC):
     """Handles OpenAI-compatible reasoning fields.
@@ -278,6 +283,7 @@ class DefaultReasoningHandler(ReasoningHandlerABC):
     def flush(self) -> list[message.Part]:
         return []
 
+
 def _map_finish_reason(reason: str) -> StopReason | None:
     mapping: dict[str, StopReason] = {
         "stop": "stop",
@@ -288,6 +294,7 @@ def _map_finish_reason(reason: str) -> StopReason | None:
         "cancelled": "aborted",
     }
     return mapping.get(reason)
+
 
 async def parse_chat_completions_stream(
     stream: AsyncStream[ChatCompletionChunk],
@@ -414,6 +421,7 @@ async def parse_chat_completions_stream(
         usage=metadata,
         stop_reason=state.stop_reason,
     )
+
 
 class OpenAILLMStream(LLMStreamABC):
     """LLMStream implementation for OpenAI-compatible clients."""

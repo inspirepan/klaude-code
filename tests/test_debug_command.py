@@ -12,6 +12,7 @@ from klaude_code.tui.command import debug_cmd
 
 pytestmark = pytest.mark.usefixtures("isolated_home")
 
+
 class _DummyAgent:
     def __init__(self, session: Session):
         self.session = session
@@ -20,8 +21,10 @@ class _DummyAgent:
     def get_llm_client(self) -> Any:  # pragma: no cover
         raise NotImplementedError
 
+
 def arun(coro: Any) -> Any:
     return asyncio.run(coro)
+
 
 def test_debug_command_starts_log_viewer(monkeypatch: pytest.MonkeyPatch) -> None:
     session = Session.create(work_dir=Path.cwd())

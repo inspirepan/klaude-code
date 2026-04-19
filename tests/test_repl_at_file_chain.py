@@ -17,6 +17,7 @@ from klaude_code.tui.input.completers import create_repl_completer
 def _arun(coro):  # type: ignore
     return asyncio.run(coro)  # type: ignore
 
+
 def _extract_plain_text(renderable: object) -> str:
     from rich.console import Console
 
@@ -26,6 +27,7 @@ def _extract_plain_text(renderable: object) -> str:
     console.print(renderable)
     output = console.export_text(styles=False)
     return output
+
 
 def test_at_files_completer_quotes_paths_with_spaces(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """End-to-end: @ completion should wrap suggestions that contain spaces in quotes.
@@ -62,6 +64,7 @@ def test_at_files_completer_quotes_paths_with_spaces(tmp_path: Path, monkeypatch
     assert any('"' in t for t in insert_texts), insert_texts
     assert any("dir with spaces" in t for t in insert_texts), insert_texts
     assert any((t.startswith('@"') and t.endswith(' "')) or t.endswith('" ') for t in insert_texts), insert_texts
+
 
 def test_at_file_reader_attachment_and_developer_render_chain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """End-to-end: @ patterns in user input -> attachment -> developer message render.
@@ -104,6 +107,7 @@ def test_at_file_reader_attachment_and_developer_render_chain(tmp_path: Path, mo
 
     assert "ReadMe File.txt" in plain
 
+
 def test_render_user_input_highlights_full_at_pattern() -> None:
     """render_user_input should highlight full @... or @"..." segments.
 
@@ -120,6 +124,7 @@ def test_render_user_input_highlights_full_at_pattern() -> None:
     assert "@src/file.py" in plain
     assert '@"dir with spaces/my file.txt"' in plain
 
+
 def test_at_file_render_pattern_ignores_mid_word_at() -> None:
     """INLINE_RENDER_PATTERN should not match email-like mid-word @ symbols.
 
@@ -133,6 +138,7 @@ def test_at_file_render_pattern_ignores_mid_word_at() -> None:
     # But it should still match when @ starts a token at line start or after space
     assert INLINE_RENDER_PATTERN.search("@src/file.py") is not None
     assert INLINE_RENDER_PATTERN.search("See @src/file.py for details") is not None
+
 
 def test_image_attachment_keeps_display_paths_for_frozen_history_images(tmp_path: Path) -> None:
     image_path = tmp_path / "pasted.png"

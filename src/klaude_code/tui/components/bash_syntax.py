@@ -90,6 +90,7 @@ _HEREDOC_PATTERN = re.compile(
     re.DOTALL,
 )
 
+
 def _append_heredoc(result: Text, token_value: str) -> None:
     """Append heredoc token with delimiter highlighting."""
     match = _HEREDOC_PATTERN.match(token_value)
@@ -139,6 +140,7 @@ def _append_heredoc(result: Text, token_value: str) -> None:
             result.append_text(truncated)
         else:
             result.append(token_value, style=ThemeKey.BASH_STRING)
+
 
 def highlight_bash_command(command: str) -> Text:
     """Apply bash syntax highlighting to a command string, returning Rich Text.

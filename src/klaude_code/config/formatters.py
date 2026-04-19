@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMConfigModelParameter, OpenRouterProviderRouting
 
+
 def format_number(tokens: int) -> str:
     if tokens < 1000:
         return f"{tokens}"
@@ -17,6 +18,7 @@ def format_number(tokens: int) -> str:
     if remaining == 0:
         return f"{m}M"
     return f"{m}M{remaining}k"
+
 
 def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
     parts: list[str] = []
@@ -44,6 +46,7 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
         parts.append(f"provider routing {_format_provider_routing(model_params.provider_routing)}")
 
     return parts
+
 
 def _format_provider_routing(pr: "OpenRouterProviderRouting") -> str:
     items: list[str] = []

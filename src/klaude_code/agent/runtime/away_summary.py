@@ -23,12 +23,14 @@ from klaude_code.protocol import op
 
 DEFAULT_IDLE_DELAY_SECONDS = 120
 
+
 class AwaySummaryRuntime(Protocol):
     def current_session_id(self) -> str | None: ...
 
     def has_running_tasks(self) -> bool: ...
 
     async def submit(self, operation: op.Operation) -> str: ...
+
 
 class AwaySummaryCoordinator:
     def __init__(

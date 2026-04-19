@@ -14,6 +14,7 @@ def test_github_copilot_claude_picker_uses_anthropic_style() -> None:
     assert picker.message == "Select thinking level:"
     assert picker.options[-1].value == "adaptive:adaptive"
 
+
 def test_github_copilot_gpt_picker_uses_responses_style() -> None:
     config = llm_param.LLMConfigParameter(
         protocol=llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH,
@@ -26,6 +27,7 @@ def test_github_copilot_gpt_picker_uses_responses_style() -> None:
     assert picker.message == "Select reasoning effort:"
     assert picker.options[0].value.startswith("effort:")
 
+
 def test_format_current_thinking_for_github_copilot_claude_budget() -> None:
     config = llm_param.LLMConfigParameter(
         protocol=llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH,
@@ -34,6 +36,7 @@ def test_format_current_thinking_for_github_copilot_claude_budget() -> None:
     )
 
     assert format_current_thinking(config) == "enabled (budget_tokens=2048)"
+
 
 def test_opus_47_picker_only_shows_adaptive_options() -> None:
     config = llm_param.LLMConfigParameter(
@@ -47,6 +50,7 @@ def test_opus_47_picker_only_shows_adaptive_options() -> None:
     values = [opt.value for opt in picker.options]
     assert values == ["adaptive:disabled", "adaptive:adaptive"]
 
+
 def test_opus_47_openrouter_picker_only_shows_adaptive_options() -> None:
     config = llm_param.LLMConfigParameter(
         protocol=llm_param.LLMClientProtocol.OPENROUTER,
@@ -58,6 +62,7 @@ def test_opus_47_openrouter_picker_only_shows_adaptive_options() -> None:
     assert picker is not None
     values = [opt.value for opt in picker.options]
     assert values == ["adaptive:disabled", "adaptive:adaptive"]
+
 
 def test_opus_47_bedrock_picker_only_shows_adaptive_options() -> None:
     config = llm_param.LLMConfigParameter(

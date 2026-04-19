@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 _MIN_CONTENT_WIDTH = 4
 
+
 class Quote:
     """Wrapper to add quote prefix to any content"""
 
@@ -50,6 +51,7 @@ class Quote:
             yield prefix_segment
             yield from line
             yield new_line
+
 
 class TreeQuote:
     """Wrapper to add a tree-style prefix to any content."""

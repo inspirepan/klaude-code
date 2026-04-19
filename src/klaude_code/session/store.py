@@ -30,6 +30,7 @@ type SessionMetaObserver = Callable[[str, dict[str, Any]], None]
 _SESSION_META_OBSERVERS: list[SessionMetaObserver] = []
 _SESSION_META_OBSERVERS_LOCK = threading.Lock()
 
+
 def register_session_meta_observer(observer: SessionMetaObserver) -> Callable[[], None]:
     with _SESSION_META_OBSERVERS_LOCK:
         _SESSION_META_OBSERVERS.append(observer)
@@ -40,14 +41,17 @@ def register_session_meta_observer(observer: SessionMetaObserver) -> Callable[[]
 
     return _unregister
 
+
 def _notify_session_meta_observers(session_id: str, meta: dict[str, Any]) -> None:
     with _SESSION_META_OBSERVERS_LOCK:
         observers = list(_SESSION_META_OBSERVERS)
     for observer in observers:
         observer(session_id, dict(meta))
 
+
 class _WriterClosedError(RuntimeError):
     pass
+
 
 @dataclass
 class _WriteBatch:
@@ -55,6 +59,7 @@ class _WriteBatch:
     items: Sequence[message.HistoryEvent]
     meta: dict[str, Any]
     done: asyncio.Future[None]
+
 
 class JsonlSessionWriter:
     def __init__(self, paths: ProjectPaths, *, meta_lock: LockType) -> None:
@@ -138,6 +143,7 @@ class JsonlSessionWriter:
 
         if not batch.done.done():
             batch.done.set_result(None)
+
 
 class JsonlSessionStore:
     def __init__(self, *, project_key: str) -> None:
@@ -253,6 +259,7 @@ class JsonlSessionStore:
                 with suppress(Exception):
                     fut.exception()
         self._last_flush.clear()
+
 
 def build_meta_snapshot(
     *,

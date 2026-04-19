@@ -15,11 +15,13 @@ def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
     assert len(candidates) == 1
     return candidates[0]
 
+
 def _updated_at_from_meta(meta_path: Path) -> float:
     raw_obj = json.loads(meta_path.read_text(encoding="utf-8"))
     assert isinstance(raw_obj, dict)
     raw = cast(dict[str, Any], raw_obj)
     return float(raw["updated_at"])
+
 
 def test_create_list_delete_list(app_env: AppEnv) -> None:
     response = app_env.client.get("/api/sessions")
@@ -48,10 +50,12 @@ def test_create_list_delete_list(app_env: AppEnv) -> None:
     assert response.status_code == 200
     assert response.json()["groups"] == []
 
+
 def test_create_session_invalid_work_dir(app_env: AppEnv, tmp_path: Path) -> None:
     missing_path = tmp_path / "does-not-exist"
     response = app_env.client.post("/api/sessions", json={"work_dir": str(missing_path)})
     assert response.status_code == 400
+
 
 def test_non_empty_session_kept_when_websocket_disconnects(app_env: AppEnv) -> None:
     app_env.fake_llm.enqueue(
@@ -73,6 +77,7 @@ def test_non_empty_session_kept_when_websocket_disconnects(app_env: AppEnv) -> N
     assert response.status_code == 200
     all_ids = [session["id"] for group in response.json()["groups"] for session in group["sessions"]]
     assert session_id in all_ids
+
 
 def test_sub_agent_sessions_filtered_from_list(app_env: AppEnv) -> None:
     main_session_id = app_env.create_session()
@@ -106,6 +111,7 @@ def test_sub_agent_sessions_filtered_from_list(app_env: AppEnv) -> None:
     assert main_session_id in all_ids
     assert sub_session_id not in all_ids
 
+
 def test_list_sessions_reports_running_state(app_env: AppEnv) -> None:
     app_env.fake_llm.enqueue(
         message.AssistantTextDelta(content="still running"),
@@ -129,6 +135,7 @@ def test_list_sessions_reports_running_state(app_env: AppEnv) -> None:
     groups = list_response.json()["groups"]
     listed_session = next(session for group in groups for session in group["sessions"] if session["id"] == session_id)
     assert listed_session["session_state"] == "running"
+
 
 def test_running_sessions_returns_title(app_env: AppEnv) -> None:
     existing_session_id = app_env.create_session()
@@ -164,6 +171,7 @@ def test_running_sessions_returns_title(app_env: AppEnv) -> None:
     assert running["session_state"] == "running"
     assert running["title"] == "Generated session title"
     assert running["user_messages"] == ["first message"]
+
 
 def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
     app_env.fake_llm.enqueue(
@@ -213,6 +221,7 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
         time.sleep(0.01)
 
     assert listed_state == "idle"
+
 
 def test_updated_at_changes_only_when_session_content_changes(app_env: AppEnv) -> None:
     existing_session_id = app_env.create_session()
@@ -281,6 +290,7 @@ def test_updated_at_changes_only_when_session_content_changes(app_env: AppEnv) -
         time.sleep(0.01)
         latest_updated_at = _updated_at_from_meta(meta_path)
     assert latest_updated_at > initial_updated_at
+
 
 """
 from __future__ import annotations

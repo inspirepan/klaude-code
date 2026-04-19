@@ -9,12 +9,14 @@ class FakeTTY(io.StringIO):
     def isatty(self) -> bool:  # pragma: no cover - simple shim
         return True
 
+
 def _notification() -> Notification:
     return Notification(
         type=NotificationType.AGENT_TASK_COMPLETE,
         title="Task done",
         body="summary text",
     )
+
 
 def test_notifier_disabled_skips(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TERM", "xterm-256color")
@@ -25,6 +27,7 @@ def test_notifier_disabled_skips(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert sent is False
     assert stream.getvalue() == ""
+
 
 def test_notifier_sends_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TERM", "xterm-256color")
@@ -37,6 +40,7 @@ def test_notifier_sends_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     payload = stream.getvalue()
     assert "\033]777;notify;" in payload
     assert "summary text" in payload
+
 
 def test_env_force_mode_bypasses_focus(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TERM", "xterm-256color")

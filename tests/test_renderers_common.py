@@ -8,6 +8,7 @@ from hypothesis import strategies as st
 # Property-based tests for truncate_display
 # ============================================================================
 
+
 @given(
     text=st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=2000),
     max_lines=st.integers(min_value=0, max_value=100),
@@ -29,6 +30,7 @@ def test_truncate_display_line_count(text: str, max_lines: int, max_line_length:
         result_lines = result_text.split("\n")
         # Allow some extra lines for truncation indicators
         assert len(result_lines) <= max_lines + 2
+
 
 @given(
     text=st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=500),

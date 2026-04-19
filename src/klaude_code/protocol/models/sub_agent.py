@@ -9,4 +9,5 @@ class SubAgentState(BaseModel):
     sub_agent_prompt: str
     fork_context: bool = False
 
+
 __all__ = ["SubAgentState"]

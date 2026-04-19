@@ -18,10 +18,12 @@ def _load_store() -> dict[str, Any]:
     except (json.JSONDecodeError, ValueError):
         return {}
 
+
 def _save_store(data: dict[str, Any]) -> None:
     """Save the auth store to file."""
     KLAUDE_AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
     KLAUDE_AUTH_FILE.write_text(json.dumps(data, indent=2))
+
 
 def _get_env_section(store: dict[str, Any]) -> dict[str, Any] | None:
     """Extract and validate the 'env' section from store."""
@@ -29,6 +31,7 @@ def _get_env_section(store: dict[str, Any]) -> dict[str, Any] | None:
     if isinstance(env_section, dict):
         return cast(dict[str, Any], env_section)
     return None
+
 
 def get_auth_env(env_var: str) -> str | None:
     """Get environment variable value from klaude-auth.json 'env' section.
@@ -42,6 +45,7 @@ def get_auth_env(env_var: str) -> str | None:
     value = env_section.get(env_var)
     return str(value) if value is not None else None
 
+
 def set_auth_env(env_var: str, value: str) -> None:
     """Set environment variable value in klaude-auth.json 'env' section."""
     store = _load_store()
@@ -49,6 +53,7 @@ def set_auth_env(env_var: str, value: str) -> None:
     env_section[env_var] = value
     store["env"] = env_section
     _save_store(store)
+
 
 def delete_auth_env(env_var: str) -> None:
     """Delete environment variable from klaude-auth.json 'env' section."""
@@ -66,6 +71,7 @@ def delete_auth_env(env_var: str) -> None:
             KLAUDE_AUTH_FILE.unlink()
     else:
         _save_store(store)
+
 
 def list_auth_env() -> dict[str, str]:
     """List all environment variables in klaude-auth.json 'env' section."""

@@ -132,10 +132,12 @@ async def submit_user_input_payload(
         return SubmitUserInputResult(wait_id=run_ops[0].id)
     return SubmitUserInputResult(wait_id=submitted_ids[-1])
 
+
 @dataclass(frozen=True, slots=True)
 class SubmitUserInputResult:
     wait_id: str | None
     web_mode_request: WebModeRequest | None = None
+
 
 async def run_interactive(init_config: AppInitConfig, session_id: str | None = None) -> WebModeRequest | None:
     """Run the interactive REPL (TUI).

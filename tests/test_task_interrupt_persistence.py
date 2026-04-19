@@ -16,9 +16,11 @@ from klaude_code.tool.core.context import build_todo_context
 def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
 
+
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
+
 
 def test_task_interrupt_persists_interrupt_entry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
@@ -57,6 +59,7 @@ def test_task_interrupt_persists_interrupt_entry(tmp_path: Path, monkeypatch: py
         await close_default_store()
 
     arun(_test())
+
 
 def test_task_interrupt_does_not_duplicate_when_aborted_message_exists(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -119,6 +122,7 @@ def test_task_interrupt_does_not_duplicate_when_aborted_message_exists(
 
     arun(_test())
 
+
 def test_task_interrupt_without_visible_output_restores_input_and_hides_notice(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -174,6 +178,7 @@ def test_task_interrupt_without_visible_output_restores_input_and_hides_notice(
         await close_default_store()
 
     arun(_test())
+
 
 def test_task_interrupt_after_visible_output_keeps_notice_and_does_not_restore_input(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

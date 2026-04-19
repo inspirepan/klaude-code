@@ -88,6 +88,7 @@ def start_esc_interrupt_monitor(
     esc_task: asyncio.Task[None] = asyncio.create_task(asyncio.to_thread(_esc_monitor, stop_event))
     return stop_event, esc_task
 
+
 def install_sigint_interrupt(
     on_interrupt: Callable[[], None],
 ) -> Callable[[], None]:

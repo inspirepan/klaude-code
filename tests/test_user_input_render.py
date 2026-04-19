@@ -20,20 +20,25 @@ def get_spans_by_style(text: Text, style: str) -> list[str]:
             result.append(text.plain[span.start : span.end])
     return result
 
+
 def has_style(text: Text, style: str) -> bool:
     return any(span.style == style for span in text.spans)
 
+
 def first_line_text(content: str) -> Text:
     return build_user_input_lines(content)[0]
+
 
 def rendered_lines(content: str) -> list[str]:
     console = Console(width=200, record=True, theme=get_theme().app_theme)
     console.print(render_user_input(content))
     return [line.rstrip() for line in console.export_text(styles=False).splitlines()]
 
+
 def rendered_segments(content: str, width: int = 200) -> list[list[Segment]]:
     console = Console(width=width, record=False, theme=get_theme().app_theme)
     return list(Segment.split_lines(console.render(render_user_input(content), options=console.options)))
+
 
 class TestRenderAtAndSkillPatterns:
     def test_at_file_highlighted(self):

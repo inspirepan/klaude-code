@@ -9,6 +9,7 @@ class SafetyCheckResult:
         self.is_safe = is_safe
         self.error_msg = error_msg
 
+
 def _is_safe_rm_argv(argv: list[str], work_dir: str) -> SafetyCheckResult:
     """Check safety of rm command arguments."""
     # Enforce strict safety rules for rm operands
@@ -82,6 +83,7 @@ def _is_safe_rm_argv(argv: list[str], work_dir: str) -> SafetyCheckResult:
     # If no operands provided, allow (harmless, will fail at runtime)
     return SafetyCheckResult(True)
 
+
 def _is_safe_trash_argv(argv: list[str], work_dir: str) -> SafetyCheckResult:
     """Check safety of trash command arguments."""
     # Apply similar safety rules as rm but slightly more permissive
@@ -135,6 +137,7 @@ def _is_safe_trash_argv(argv: list[str], work_dir: str) -> SafetyCheckResult:
     # If no operands provided, allow (harmless, will fail at runtime)
     return SafetyCheckResult(True)
 
+
 def _is_safe_argv(argv: list[str], work_dir: str) -> SafetyCheckResult:
     if not argv:
         return SafetyCheckResult(False, "Empty command")
@@ -149,6 +152,7 @@ def _is_safe_argv(argv: list[str], work_dir: str) -> SafetyCheckResult:
 
     # Default allow when command is not explicitly restricted
     return SafetyCheckResult(True)
+
 
 def is_safe_command(command: str, *, work_dir: str) -> SafetyCheckResult:
     """Determine if a command is safe enough to run.

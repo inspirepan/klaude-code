@@ -15,6 +15,7 @@ def _normalize_model_key(value: str) -> str:
 
     return "".join(ch for ch in value.casefold() if ch.isalnum())
 
+
 def _matches_query(value: str, query: str) -> bool:
     value_lower = value.casefold()
     query_lower = query.casefold()
@@ -25,6 +26,7 @@ def _matches_query(value: str, query: str) -> bool:
     if not query_norm:
         return False
     return query_norm in _normalize_model_key(value)
+
 
 def _match_provider_qualified_query(models: list[ModelEntry], preferred: str) -> list[ModelEntry]:
     if "@" not in preferred:
@@ -48,6 +50,7 @@ def _match_provider_qualified_query(models: list[ModelEntry], preferred: str) ->
         and (_matches_query(model.model_name, model_query) or _matches_query(model.model_id or "", model_query))
     ]
 
+
 @dataclass
 class ModelMatchResult:
     """Result of model matching.
@@ -63,6 +66,7 @@ class ModelMatchResult:
     filtered_models: list[ModelEntry]
     filter_hint: str | None
     error_message: str | None = None
+
 
 def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
     """Match model from config without interactive selection.

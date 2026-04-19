@@ -12,6 +12,7 @@ def setup_src_path():
     if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
         sys.path.insert(0, str(SRC_DIR))
 
+
 setup_src_path()
 
 from klaude_code.session.store_registry import close_default_store  # noqa: E402

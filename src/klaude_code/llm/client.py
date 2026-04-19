@@ -28,6 +28,7 @@ class LLMStreamABC(ABC):
         """
         ...
 
+
 class LLMClientABC(ABC):
     def __init__(self, config: llm_param.LLMConfigParameter) -> None:
         self._config = config
@@ -56,6 +57,7 @@ class LLMClientABC(ABC):
     @property
     def protocol(self) -> llm_param.LLMClientProtocol:
         return self._config.protocol
+
 
 P = ParamSpec("P")
 R = TypeVar("R")

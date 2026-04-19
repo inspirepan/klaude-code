@@ -92,6 +92,7 @@ def render_read_tool_call(arguments: str) -> RenderableType:
 
     return render_tool_call_tree(mark=MARK_READ, tool_name=tool_name, details=details, overflow="fold")
 
+
 def render_read_preview(ui_extra: ReadPreviewUIExtra) -> RenderableType:
     """Render read preview with line numbers aligned to diff style."""
     grid = create_grid(overflow="ellipsis")

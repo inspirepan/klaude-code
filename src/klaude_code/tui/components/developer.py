@@ -20,10 +20,12 @@ from klaude_code.tui.components.tools import render_path
 
 ATTACHMENT_BULLET = "+"
 
+
 def need_render_developer_message(e: events.DeveloperMessageEvent) -> bool:
     if not e.item.ui_extra:
         return False
     return len(e.item.ui_extra.items) > 0
+
 
 def _render_available_skills(names: list[str], *, incremental: bool) -> RenderableType:
     grid = create_grid()
@@ -48,6 +50,7 @@ def _render_available_skills(names: list[str], *, incremental: bool) -> Renderab
         ),
     )
     return grid
+
 
 def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     """Render developer message details into a single group.

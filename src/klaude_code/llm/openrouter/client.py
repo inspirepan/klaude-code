@@ -97,6 +97,7 @@ def build_payload(
 
     return payload, extra_body, extra_headers
 
+
 @register(llm_param.LLMClientProtocol.OPENROUTER)
 class OpenRouterClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter):

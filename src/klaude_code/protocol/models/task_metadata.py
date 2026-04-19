@@ -69,6 +69,7 @@ class TaskMetadata(BaseModel):
 def _empty_sub_agent_task_metadata() -> list[TaskMetadata]:
     return []
 
+
 class TaskMetadataItem(BaseModel):
     """Aggregated metadata for a complete task, stored in conversation history."""
 
@@ -76,5 +77,6 @@ class TaskMetadataItem(BaseModel):
     sub_agent_task_metadata: list[TaskMetadata] = Field(default_factory=_empty_sub_agent_task_metadata)
     is_partial: bool = False
     created_at: datetime = Field(default_factory=datetime.now)
+
 
 __all__ = ["TaskMetadata", "TaskMetadataItem"]

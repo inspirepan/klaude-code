@@ -19,6 +19,7 @@ def _command_info_provider() -> list[CommandInfo]:
         CommandInfo(name="model", summary="model command"),
     ]
 
+
 @pytest.fixture(autouse=True)
 def _mock_skills(monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
     skills: list[tuple[str, str, str]] = [
@@ -27,6 +28,7 @@ def _mock_skills(monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[re
     ]
     monkeypatch.setattr(_SkillCompleter, "_get_available_skills", lambda _self: skills)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
     monkeypatch.setattr(_SlashCommandCompleter, "_get_available_skills", lambda _self: skills)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+
 
 def test_slash_mixed_completion_prioritizes_command_and_hides_same_name_skill() -> None:
     completer = _ComboCompleter(command_info_provider=_command_info_provider)
@@ -40,6 +42,7 @@ def test_slash_mixed_completion_prioritizes_command_and_hides_same_name_skill() 
     assert "/skill:publish " in texts
     assert texts.count("/copy ") == 1
 
+
 def test_double_slash_completion_shows_only_skills() -> None:
     completer = _ComboCompleter(command_info_provider=_command_info_provider)
     completions = list(completer.get_completions(Document(text="//", cursor_position=2), cast(Any, None)))
@@ -50,6 +53,7 @@ def test_double_slash_completion_shows_only_skills() -> None:
     assert "/copy " not in texts
     assert "/model " not in texts
 
+
 def test_inline_slash_skill_completion_works() -> None:
     completer = _ComboCompleter(command_info_provider=_command_info_provider)
     doc = Document(text="please /pub", cursor_position=len("please /pub"))
@@ -57,6 +61,7 @@ def test_inline_slash_skill_completion_works() -> None:
     texts = [completion.text for completion in completions]
 
     assert "/skill:publish " in texts
+
 
 @pytest.mark.parametrize(
     ("text", "should_match"),
@@ -74,6 +79,7 @@ def test_inline_slash_skill_completion_allows_cjk_without_space(text: str, shoul
 
     assert ("/skill:publish " in texts) is should_match
 
+
 def test_skill_display_uses_colored_marker_and_plain_description() -> None:
     completer = _ComboCompleter(command_info_provider=_command_info_provider)
     completions = list(completer.get_completions(Document(text="//", cursor_position=2), cast(Any, None)))
@@ -82,12 +88,14 @@ def test_skill_display_uses_colored_marker_and_plain_description() -> None:
     assert publish.display_text == "• skill:publish"
     assert publish.display_meta_text == "publish skill"
 
+
 def test_command_display_uses_gray_marker() -> None:
     completer = _ComboCompleter(command_info_provider=_command_info_provider)
     completions = list(completer.get_completions(Document(text="/mo", cursor_position=3), cast(Any, None)))
     model = next(completion for completion in completions if completion.text == "/model ")
 
     assert model.display_text == "• model"
+
 
 def test_slash_long_fragment_includes_name_contains_match_after_prefix() -> None:
     def command_info_provider() -> list[CommandInfo]:
@@ -104,6 +112,7 @@ def test_slash_long_fragment_includes_name_contains_match_after_prefix() -> None
     assert "/sub-agent-model " in texts
     assert texts.index("/model ") < texts.index("/sub-agent-model ")
 
+
 def test_slash_short_fragment_keeps_prefix_only_for_commands() -> None:
     def command_info_provider() -> list[CommandInfo]:
         return [
@@ -118,12 +127,14 @@ def test_slash_short_fragment_keeps_prefix_only_for_commands() -> None:
     assert "/model " in texts
     assert "/sub-agent-model " not in texts
 
+
 def test_legacy_dollar_skill_completion_removed() -> None:
     completer = _ComboCompleter(command_info_provider=_command_info_provider)
     doc = Document(text="please $pub", cursor_position=len("please $pub"))
     completions = list(completer.get_completions(doc, cast(Any, None)))
 
     assert completions == []
+
 
 def test_double_slash_prefers_name_match_over_description_match(monkeypatch: pytest.MonkeyPatch) -> None:
     skills: list[tuple[str, str, str]] = [

@@ -88,8 +88,10 @@ STATUS_LEFT_MIN_WIDTH_CELLS = 10
 SUB_AGENT_STATUS_MAX_LINES = 5
 BASH_STREAM_DELAY_SEC = 3.0
 
+
 def _empty_bash_chunks() -> list[str]:
     return []
+
 
 @dataclass
 class _PendingBashToolOutput:
@@ -97,16 +99,20 @@ class _PendingBashToolOutput:
     chunks: list[str] = field(default_factory=_empty_bash_chunks)
     streaming_started: bool = False
 
+
 def _normalize_status_text(text: str | None) -> str:
     if text is None:
         return ""
     return text.replace("\n", " ").strip()
 
+
 def _empty_status_tool_counts() -> dict[str, int]:
     return {}
 
+
 def _empty_status_tool_ids() -> dict[str, str]:
     return {}
+
 
 class SpinnerPhase(Enum):
     WAITING = auto()
@@ -116,6 +122,7 @@ class SpinnerPhase(Enum):
     RECAPPING = auto()
     RUNNING = auto()
     CUSTOM = auto()
+
 
 class ActivityState:
     """Tracks tool activity for spinner display."""
@@ -187,6 +194,7 @@ class ActivityState:
 
     def has_activity_label(self, label: str) -> bool:
         return label in self._tool_calls
+
 
 class SpinnerStatusState:
     """State machine for spinner status plus task/session metadata."""
@@ -468,6 +476,7 @@ class SpinnerStatusState:
             lambda: _render(compact=True),
         )
 
+
 @dataclass
 class _SessionState:
     session_id: str
@@ -546,6 +555,7 @@ class _SessionState:
         if self.task_active:
             return STATUS_RUNNING_TEXT
         return None
+
 
 class DisplayStateMachine:
     """Simplified, session-aware REPL UI state machine.

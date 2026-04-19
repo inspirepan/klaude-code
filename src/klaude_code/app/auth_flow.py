@@ -41,6 +41,7 @@ def _configure_api_key(env_var: str) -> None:
     set_auth_env(env_var, api_key.strip())
     log((f"{env_var} saved successfully!", "green"))
 
+
 def _configure_aws_bedrock() -> None:
     import os
 
@@ -79,6 +80,7 @@ def _configure_aws_bedrock() -> None:
 
     log(("AWS Bedrock credentials saved successfully!", "green"))
 
+
 def _configure_google_vertex() -> None:
     import os
 
@@ -105,6 +107,7 @@ def _configure_google_vertex() -> None:
         set_auth_env(env_var, value.strip())
 
     log(("Google Vertex credentials saved successfully!", "green"))
+
 
 def execute_login(provider: str) -> None:
     """Login to an OAuth provider or configure an API key provider."""
@@ -208,6 +211,7 @@ def execute_login(provider: str) -> None:
                 log((f"Error: Unknown provider '{provider}'", "red"))
                 raise typer.Exit(1)
 
+
 def _remove_auth_env(env_var: str, label: str) -> None:
     """Remove a configured auth env var from klaude-auth.json."""
     from klaude_code.auth.env import delete_auth_env, get_auth_env
@@ -220,6 +224,7 @@ def _remove_auth_env(env_var: str, label: str) -> None:
     if typer.confirm(f"Are you sure you want to remove configured {label} ({env_var})?"):
         delete_auth_env(env_var)
         log((f"Removed configured {env_var}.", "green"))
+
 
 def execute_logout(provider: str) -> None:
     """Logout from a provider."""

@@ -12,6 +12,7 @@ from klaude_code.tui.components.rich.theme import ThemeKey
 
 _SUB_AGENT_PROMPT_MAX_LINES = 20
 
+
 def render_sub_agent_call(
     e: SubAgentState,
     style: Style | None = None,
@@ -49,6 +50,7 @@ def render_sub_agent_call(
 
     elements.append(Text())
     return Group(*elements)
+
 
 def render_sub_agent_result(
     result: str,

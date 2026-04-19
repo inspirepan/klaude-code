@@ -36,6 +36,7 @@ class TurnError(Exception):
 
     pass
 
+
 @dataclass
 class TurnExecutionContext:
     """Execution context required to run a single turn."""
@@ -50,6 +51,7 @@ class TurnExecutionContext:
     handoff_manager: HandoffManager | None = None
     prev_turn_input_tokens: int = 0
 
+
 @dataclass
 class TurnResult:
     """Aggregated state produced while executing a turn."""
@@ -58,6 +60,7 @@ class TurnResult:
     tool_calls: list[ToolCallRequest]
     stream_error: message.StreamErrorItem | None
     continue_agent: bool = field(default=True)
+
 
 def _build_continuation_prompt(partial_text: str) -> str:
     return (
@@ -70,6 +73,7 @@ def _build_continuation_prompt(partial_text: str) -> str:
         "Please continue from where it left off without repeating content you've already provided."
         "</system-reminder>"
     )
+
 
 def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEvent) -> list[events.Event]:
     """Translate internal tool executor events into public protocol events."""
@@ -120,6 +124,7 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
             )
 
     return ui_events
+
 
 class TurnExecutor:
     """Executes a single model turn including tool calls.

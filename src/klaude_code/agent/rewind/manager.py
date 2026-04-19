@@ -7,6 +7,7 @@ class RewindRequest:
     note: str
     rationale: str
 
+
 class RewindManager:
     """Manage rewind requests and checkpoint metadata for a task run."""
 

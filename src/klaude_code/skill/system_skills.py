@@ -19,6 +19,7 @@ SYSTEM_SKILLS_MARKER_FILENAME = ".klaude-system-skills.marker"
 # Salt for fingerprint calculation (increment to force re-extraction)
 SYSTEM_SKILLS_MARKER_SALT = "v2"
 
+
 def get_system_skills_dir() -> Path:
     """Get the system skills installation directory.
 
@@ -26,6 +27,7 @@ def get_system_skills_dir() -> Path:
         Path to ~/.klaude/skills/.system/
     """
     return Path.home() / ".klaude" / "skills" / ".system"
+
 
 def _calculate_fingerprint(assets_dir: Path) -> str:
     """Calculate a fingerprint hash for the embedded skills assets.
@@ -55,6 +57,7 @@ def _calculate_fingerprint(assets_dir: Path) -> str:
 
     return hasher.hexdigest()
 
+
 def _read_marker(marker_path: Path) -> str | None:
     """Read the fingerprint from the marker file.
 
@@ -71,6 +74,7 @@ def _read_marker(marker_path: Path) -> str | None:
         pass
     return None
 
+
 def _write_marker(marker_path: Path, fingerprint: str) -> None:
     """Write the fingerprint to the marker file.
 
@@ -79,6 +83,7 @@ def _write_marker(marker_path: Path, fingerprint: str) -> None:
         fingerprint: The fingerprint to store
     """
     marker_path.write_text(f"{fingerprint}\n", encoding="utf-8")
+
 
 @contextmanager
 def _with_embedded_assets_dir() -> Iterator[Path | None]:
@@ -102,6 +107,7 @@ def _with_embedded_assets_dir() -> Iterator[Path | None]:
         yield assets_path if assets_path.exists() else None
     except (TypeError, NameError, OSError):
         yield None
+
 
 def install_system_skills() -> bool:
     """Install system skills from the embedded assets to the user directory.

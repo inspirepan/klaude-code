@@ -36,6 +36,7 @@ _JPEG_SOF_MARKERS = {
     0xCF,
 }
 
+
 def _suffix_for_mime_type(mime_type: str) -> str | None:
     mapping = {
         "image/png": ".png",
@@ -46,6 +47,7 @@ def _suffix_for_mime_type(mime_type: str) -> str | None:
     }
     return mapping.get(mime_type.lower())
 
+
 def _parse_png_dimensions(data: bytes) -> tuple[int, int] | None:
     if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR":
         return None
@@ -55,6 +57,7 @@ def _parse_png_dimensions(data: bytes) -> tuple[int, int] | None:
         return None
     return width, height
 
+
 def _parse_gif_dimensions(data: bytes) -> tuple[int, int] | None:
     if len(data) < 10 or (not data.startswith(b"GIF87a") and not data.startswith(b"GIF89a")):
         return None
@@ -63,6 +66,7 @@ def _parse_gif_dimensions(data: bytes) -> tuple[int, int] | None:
     if width <= 0 or height <= 0:
         return None
     return width, height
+
 
 def _parse_webp_dimensions(data: bytes) -> tuple[int, int] | None:
     if len(data) < 30 or data[:4] != b"RIFF" or data[8:12] != b"WEBP":
@@ -81,6 +85,7 @@ def _parse_webp_dimensions(data: bytes) -> tuple[int, int] | None:
         return (width, height) if width > 0 and height > 0 else None
 
     return None
+
 
 def _parse_jpeg_dimensions(data: bytes) -> tuple[int, int] | None:
     if len(data) < 4 or data[0] != 0xFF or data[1] != 0xD8:
@@ -125,6 +130,7 @@ def _parse_jpeg_dimensions(data: bytes) -> tuple[int, int] | None:
 
     return None
 
+
 def detect_mime_type_from_bytes(data: bytes) -> str | None:
     """Detect image MIME type from magic bytes, returning None for unrecognized formats."""
     if len(data) >= 8 and data[:8] == b"\x89PNG\r\n\x1a\n":
@@ -136,6 +142,7 @@ def detect_mime_type_from_bytes(data: bytes) -> str | None:
     if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return "image/webp"
     return None
+
 
 def _detect_image_dimensions(image_bytes: bytes, mime_type: str) -> tuple[int, int] | None:
     media = mime_type.lower()
@@ -149,6 +156,7 @@ def _detect_image_dimensions(image_bytes: bytes, mime_type: str) -> tuple[int, i
         return _parse_webp_dimensions(image_bytes)
     return None
 
+
 def _resize_image_macos(input_path: Path, output_path: Path, *, width: int, height: int) -> bool:
     try:
         result = subprocess.run(
@@ -158,6 +166,7 @@ def _resize_image_macos(input_path: Path, output_path: Path, *, width: int, heig
     except OSError:
         return False
     return result.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0
+
 
 def _resize_image_linux(input_path: Path, output_path: Path, *, width: int, height: int) -> bool:
     if shutil.which("convert") is None:
@@ -170,6 +179,7 @@ def _resize_image_linux(input_path: Path, output_path: Path, *, width: int, heig
     except OSError:
         return False
     return result.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0
+
 
 def _resize_image_windows(input_path: Path, output_path: Path, *, width: int, height: int, mime_type: str) -> bool:
     image_format = {
@@ -199,6 +209,7 @@ def _resize_image_windows(input_path: Path, output_path: Path, *, width: int, he
         return False
     return result.returncode == 0 and "ok" in result.stdout and output_path.exists() and output_path.stat().st_size > 0
 
+
 def _resize_image_bytes(image_bytes: bytes, mime_type: str, *, width: int, height: int) -> bytes | None:
     suffix = _suffix_for_mime_type(mime_type)
     if suffix is None:
@@ -220,15 +231,19 @@ def _resize_image_bytes(image_bytes: bytes, mime_type: str, *, width: int, heigh
             return None
         return output_path.read_bytes()
 
+
 def _base64_size_bytes(decoded_size_bytes: int) -> int:
     return ((decoded_size_bytes + 2) // 3) * 4
+
 
 def _max_inline_image_size_bytes() -> int:
     return min(_MAX_IMAGE_SIZE_BYTES, (_MAX_BASE64_IMAGE_SIZE_BYTES // 4) * 3)
 
+
 def _image_bytes_within_limits(image_bytes: bytes) -> bool:
     size_bytes = len(image_bytes)
     return size_bytes <= _MAX_IMAGE_SIZE_BYTES and _base64_size_bytes(size_bytes) <= _MAX_BASE64_IMAGE_SIZE_BYTES
+
 
 def _resize_image_bytes_if_needed(
     image_bytes: bytes, mime_type: str, *, max_dimension: int = MAX_IMAGE_DIMENSION
@@ -281,6 +296,7 @@ def _resize_image_bytes_if_needed(
 
     return current
 
+
 def parse_data_url(url: str) -> tuple[str, str, bytes]:
     """Parse a base64 data URL and return (mime_type, base64_payload, decoded_bytes)."""
 
@@ -305,6 +321,7 @@ def parse_data_url(url: str) -> tuple[str, str, bytes]:
 
     return mime_type, base64_payload, decoded
 
+
 def normalize_image_data_url(url: str, *, max_dimension: int = MAX_IMAGE_DIMENSION) -> str:
     """Normalize a data URL image by resizing oversized inline images and correcting MIME types."""
 
@@ -323,6 +340,7 @@ def normalize_image_data_url(url: str, *, max_dimension: int = MAX_IMAGE_DIMENSI
         return url
     encoded = b64encode(resized).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
+
 
 def freeze_image_for_history(
     image: message.ImageURLPart | message.ImageFilePart,
@@ -349,12 +367,14 @@ def freeze_image_for_history(
         return image
     return message.ImageURLPart(url=url, frozen=True, source_file_path=image.file_path)
 
+
 def image_url_to_request_url(image: message.ImageURLPart, *, max_dimension: int = MAX_IMAGE_DIMENSION) -> str:
     """Return the URL to send to the model for an ImageURLPart."""
 
     if image.frozen:
         return image.url
     return normalize_image_data_url(image.url, max_dimension=max_dimension)
+
 
 def image_file_to_data_url(image: message.ImageFilePart, *, max_dimension: int = MAX_IMAGE_DIMENSION) -> str | None:
     """Load an image file from disk and encode it as a base64 data URL.

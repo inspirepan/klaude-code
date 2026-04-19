@@ -1,4 +1,3 @@
-
 """ApplyPatch tool providing direct patch application capability."""
 
 import asyncio
@@ -208,6 +207,7 @@ class ApplyPatchHandler:
 
         raw_unified_diff = "\n".join(raw_chunks) if raw_chunks else ""
         return DiffUIExtra(files=files, raw_unified_diff=raw_unified_diff)
+
 
 @register(tools.APPLY_PATCH)
 class ApplyPatchTool(ToolABC):

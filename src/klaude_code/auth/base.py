@@ -13,6 +13,7 @@ from pydantic import BaseModel
 KLAUDE_AUTH_FILE = Path.home() / ".klaude" / "klaude-auth.json"
 LOCK_TIMEOUT_SECONDS = 30  # Maximum time to wait for lock acquisition
 
+
 class BaseAuthState(BaseModel):
     """Base authentication state with common OAuth fields."""
 
@@ -23,6 +24,7 @@ class BaseAuthState(BaseModel):
     def is_expired(self, buffer_seconds: int = 300) -> bool:
         """Check if token is expired or will expire soon."""
         return time.time() + buffer_seconds >= self.expires_at
+
 
 class BaseTokenManager[T: BaseAuthState](ABC):
     """Base class for OAuth token management."""

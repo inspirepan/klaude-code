@@ -14,26 +14,34 @@ if TYPE_CHECKING:
     from klaude_code.agent.agent import Agent
     from klaude_code.agent.runtime.llm import LLMClients
 
+
 @dataclass(frozen=True)
 class _StopSignal:
     pass
 
+
 _STOP_SIGNAL = _StopSignal()
+
 
 def _empty_sub_agent_models() -> dict[str, str | None]:
     return {}
 
+
 def _empty_child_task_ids() -> set[str]:
     return set()
+
 
 def _empty_pending_requests() -> dict[str, _PendingInteractionState]:
     return {}
 
+
 def _empty_task_handles() -> dict[str, RuntimeTaskHandle]:
     return {}
 
+
 def _empty_operation_task_ids() -> dict[str, str]:
     return {}
+
 
 @dataclass(frozen=True)
 class RootTaskState:
@@ -41,10 +49,12 @@ class RootTaskState:
     task_id: str
     kind: str
 
+
 @dataclass
 class _PendingInteractionState:
     request: PendingUserInteractionRequest
     future: asyncio.Future[user_interaction.UserInteractionResponse]
+
 
 @dataclass
 class RuntimeTaskHandle:
@@ -52,7 +62,9 @@ class RuntimeTaskHandle:
     operation_id: str
     task: asyncio.Task[None]
 
+
 HOLDER_GRACE_SECONDS = 10.0
+
 
 @dataclass
 class SessionHolder:
@@ -62,12 +74,14 @@ class SessionHolder:
     acquired_at: float  # monotonic
     released_at: float | None = None  # monotonic; set on disconnect, cleared on reacquire
 
+
 @dataclass
 class SessionConfig:
     model_name: str | None = None
     thinking: llm_param.Thinking | None = None
     compact_model: str | None = None
     sub_agent_models: dict[str, str | None] = field(default_factory=_empty_sub_agent_models)
+
 
 @dataclass
 class SessionState:
@@ -83,6 +97,7 @@ class SessionState:
     idle_since_monotonic: float | None = None
     control_burst_count: int = 0
 
+
 @dataclass(frozen=True)
 class SessionActorSnapshot:
     session_id: str
@@ -92,6 +107,7 @@ class SessionActorSnapshot:
     is_idle: bool
     config: SessionConfig
     holder_key: str | None = None
+
 
 class SessionActor:
     def __init__(
@@ -476,6 +492,7 @@ class SessionActor:
             self._state.control_burst_count = 0
         return selected
 
+
 def _is_root_operation(operation: op.Operation) -> bool:
     return isinstance(
         operation,
@@ -488,8 +505,10 @@ def _is_root_operation(operation: op.Operation) -> bool:
         | op.RequestSubAgentModelOperation,
     )
 
+
 def _is_control_operation(operation: op.Operation) -> bool:
     return isinstance(operation, op.InterruptOperation | op.UserInteractionRespondOperation | op.CloseSessionOperation)
+
 
 def _root_task_kind(operation: op.Operation) -> str:
     if isinstance(operation, op.RunAgentOperation | op.ContinueAgentOperation):

@@ -20,6 +20,7 @@ def test_file_access_allowed_work_dir(app_env: AppEnv) -> None:
     assert response.status_code == 200
     assert response.text == "hello"
 
+
 def test_file_access_allowed_tmp(app_env: AppEnv) -> None:
     tmp_file_name = ""
     try:
@@ -34,19 +35,23 @@ def test_file_access_allowed_tmp(app_env: AppEnv) -> None:
             if tmp_file_name:
                 os.unlink(tmp_file_name)
 
+
 def test_file_access_denied_path_traversal(app_env: AppEnv) -> None:
     response = app_env.client.get("/api/files", params={"path": "/etc/passwd"})
     assert response.status_code == 403
+
 
 def test_file_access_denied_dotdot(app_env: AppEnv) -> None:
     bad_path = app_env.work_dir / ".." / ".." / "etc" / "passwd"
     response = app_env.client.get("/api/files", params={"path": str(bad_path)})
     assert response.status_code == 403
 
+
 def test_file_not_found(app_env: AppEnv) -> None:
     missing = app_env.work_dir / "missing.txt"
     response = app_env.client.get("/api/files", params={"path": str(missing)})
     assert response.status_code == 404
+
 
 def test_file_access_uses_session_work_dir(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
     # Disable the /tmp allowlist so the deny assertion works even when tmp_path is under /tmp.
@@ -67,6 +72,7 @@ def test_file_access_uses_session_work_dir(app_env: AppEnv, monkeypatch: pytest.
     assert response.status_code == 200
     assert response.text == "hello-session"
 
+
 def test_file_access_uses_session_relative_path(app_env: AppEnv) -> None:
     other_work_dir = app_env.home_dir / "other-work-rel"
     nested_dir = other_work_dir / "output"
@@ -85,6 +91,7 @@ def test_file_access_uses_session_relative_path(app_env: AppEnv) -> None:
     assert response.status_code == 200
     assert response.text == "hello-relative"
 
+
 def test_file_access_denies_session_relative_path_traversal(app_env: AppEnv) -> None:
     other_work_dir = app_env.home_dir / "other-work-traversal"
     other_work_dir.mkdir(parents=True)
@@ -95,6 +102,7 @@ def test_file_access_denies_session_relative_path_traversal(app_env: AppEnv) -> 
         params={"path": "../outside.txt", "session_id": session_id},
     )
     assert response.status_code == 403
+
 
 def test_image_upload_stores_tmp_file(app_env: AppEnv) -> None:
     data_url = (
@@ -123,6 +131,7 @@ def test_image_upload_stores_tmp_file(app_env: AppEnv) -> None:
             if uploaded_path:
                 os.unlink(uploaded_path)
 
+
 def test_file_search_lists_current_directory(app_env: AppEnv) -> None:
     (app_env.work_dir / "src").mkdir()
     (app_env.work_dir / "notes.md").write_text("hello", encoding="utf-8")
@@ -132,6 +141,7 @@ def test_file_search_lists_current_directory(app_env: AppEnv) -> None:
 
     assert response.status_code == 200
     assert response.json()["items"] == ["src/", "notes.md"]
+
 
 def test_file_search_uses_session_work_dir(app_env: AppEnv, tmp_path: Path) -> None:
     other_work_dir = tmp_path / "other-work"
@@ -146,6 +156,7 @@ def test_file_search_uses_session_work_dir(app_env: AppEnv, tmp_path: Path) -> N
 
     assert response.status_code == 200
     assert response.json()["items"] == ["nested/example.py"]
+
 
 def test_file_search_uses_requested_work_dir(app_env: AppEnv, tmp_path: Path) -> None:
     draft_work_dir = tmp_path / "draft-work"

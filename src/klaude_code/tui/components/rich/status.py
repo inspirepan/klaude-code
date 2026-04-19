@@ -27,6 +27,7 @@ from klaude_code.tui.status_runtime import elapsed_since_process_start
 # Use an existing Rich spinner name; BreathingSpinner overrides its rendering
 BREATHING_SPINNER_NAME = "dots"
 
+
 def current_hint_text(*, min_time_width: int = 0) -> str:
     """Return the hint string shown on status metadata line.
 
@@ -37,6 +38,7 @@ def current_hint_text(*, min_time_width: int = 0) -> str:
     # Keep the signature stable; min_time_width is intentionally ignored.
     _ = min_time_width
     return STATUS_HINT_TEXT
+
 
 class DynamicText:
     """Renderable that materializes a Text instance at render time.
@@ -73,6 +75,7 @@ class DynamicText:
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         yield self._factory()
 
+
 class ResponsiveDynamicText(DynamicText):
     def __init__(
         self,
@@ -88,6 +91,7 @@ class ResponsiveDynamicText(DynamicText):
         if compact:
             return self._compact_factory()
         return self._factory()
+
 
 def _shimmer_profile(main_text: str) -> list[tuple[str, float]]:
     """Compute per-character shimmer intensity for a horizontal band.
@@ -127,6 +131,7 @@ def _shimmer_profile(main_text: str) -> list[tuple[str, float]]:
         profile.append((ch, intensity))
     return profile
 
+
 def _shimmer_style(console: Console, base_style: Style, intensity: float) -> Style:
     """Compute shimmer style for a single character.
 
@@ -153,6 +158,7 @@ def _shimmer_style(console: Console, base_style: Style, intensity: float) -> Sty
     shimmer_color = Color.from_rgb(r, g, b)
     return base_style + Style(color=shimmer_color)
 
+
 def truncate_right(text: Text, max_cells: int, *, console: Console, ellipsis: str = "…") -> Text:
     """Right-truncate Text to fit within max_cells."""
 
@@ -170,6 +176,7 @@ def truncate_right(text: Text, max_cells: int, *, console: Console, ellipsis: st
         if plain.endswith("…"):
             truncated = Text.assemble(truncated[:-1], Text(ellipsis, style=truncated.style or text.style))
     return truncated
+
 
 def truncate_status(text: Text, max_cells: int, *, console: Console, ellipsis: str = "…") -> Text:
     """Smart truncate Text to fit within max_cells.
@@ -222,6 +229,7 @@ def truncate_status(text: Text, max_cells: int, *, console: Console, ellipsis: s
 
     return truncate_right(text, max_cells, console=console, ellipsis=ellipsis)
 
+
 class StackedStatusText:
     """Renderable [status..., metadata] with shimmer on status lines."""
 
@@ -267,6 +275,7 @@ class StackedStatusText:
         else:
             yield Group(*lines)
 
+
 def _render_single_line_text(renderable: RenderableType, *, console: Console, options: ConsoleOptions) -> Text:
     lines = console.render_lines(renderable, options, pad=False)
     if not lines:
@@ -280,6 +289,7 @@ def _render_single_line_text(renderable: RenderableType, *, console: Console, op
             text.append(segment.text, style=segment.style)
     return text
 
+
 def _render_right_text(
     renderable: RenderableType,
     *,
@@ -290,6 +300,7 @@ def _render_right_text(
     if isinstance(renderable, ResponsiveDynamicText):
         return renderable.render(compact=compact)
     return _render_single_line_text(renderable, console=console, options=options)
+
 
 class StatusMetadataLine:
     """Build the bottom metadata line, including compact/hint fallback policy."""
@@ -327,6 +338,7 @@ class StatusMetadataLine:
             return compact_metadata_text
         return truncate_right(compact_metadata_text, max(1, max_width), console=console)
 
+
 class _StatusShimmerLine:
     def __init__(self, *, main: Text) -> None:
         self._main = main
@@ -342,8 +354,10 @@ class _StatusShimmerLine:
 
         yield truncate_status(main_text, max(1, max_width), console=console)
 
+
 def spinner_name() -> str:
     return BREATHING_SPINNER_NAME
+
 
 class BreathingSpinner(RichSpinner):
     """Custom spinner that animates color instead of glyphs.
@@ -378,6 +392,7 @@ class BreathingSpinner(RichSpinner):
         if isinstance(self.text, (str, Text)):
             return self.text if isinstance(self.text, Text) else Text(self.text)
         return self.text
+
 
 # Monkey-patch Rich's Status module to use the breathing spinner implementation
 # for the configured spinner name, while preserving default behavior elsewhere.

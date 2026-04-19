@@ -23,6 +23,7 @@ def _basic_call_param(*, model_id: str) -> llm_param.LLMCallParameter:
         tools=[],
     )
 
+
 def _collect_stream(stream: AsyncIterator[message.LLMStreamItem]) -> list[message.LLMStreamItem]:
     async def _collect() -> list[message.LLMStreamItem]:
         items: list[message.LLMStreamItem] = []
@@ -31,6 +32,7 @@ def _collect_stream(stream: AsyncIterator[message.LLMStreamItem]) -> list[messag
         return items
 
     return asyncio.run(_collect())
+
 
 class _ListAsyncIterator:
     def __init__(self, items: list[object]) -> None:
@@ -43,6 +45,7 @@ class _ListAsyncIterator:
         if not self._items:
             raise StopAsyncIteration
         return self._items.pop(0)
+
 
 def test_openai_compatible_parts_preserve_text_reasoning_text_order() -> None:
     param = _basic_call_param(model_id="gpt-4.1-mini")
@@ -72,6 +75,7 @@ def test_openai_compatible_parts_preserve_text_reasoning_text_order() -> None:
     assert final.parts[0].text == "A"  # type: ignore[attr-defined]
     assert final.parts[1].text == "R"  # type: ignore[attr-defined]
     assert final.parts[2].text == "B"  # type: ignore[attr-defined]
+
 
 def test_openai_compatible_tool_call_accumulates_args_in_place() -> None:
     param = _basic_call_param(model_id="gpt-4.1-mini")
@@ -107,6 +111,7 @@ def test_openai_compatible_tool_call_accumulates_args_in_place() -> None:
     assert tool_part.tool_name == "Bash"
     assert tool_part.arguments_json == '{"command":"pwd"}'
 
+
 def test_openai_compatible_partial_message_excludes_tool_calls() -> None:
     state = StreamStateManager(param_model="gpt-4.1-mini")
     state.set_response_id("r1")
@@ -117,6 +122,7 @@ def test_openai_compatible_partial_message_excludes_tool_calls() -> None:
     assert partial is not None
     assert any(isinstance(p, message.TextPart) for p in partial.parts)
     assert not any(isinstance(p, message.ToolCallPart) for p in partial.parts)
+
 
 def test_anthropic_state_preserves_thinking_signature_adjacency() -> None:
     state = AnthropicStreamStateManager(model_id="claude-3-5-sonnet")
@@ -132,6 +138,7 @@ def test_anthropic_state_preserves_thinking_signature_adjacency() -> None:
         message.TextPart,
     ]
 
+
 def test_anthropic_partial_message_excludes_tool_calls() -> None:
     state = AnthropicStreamStateManager(model_id="claude-3-5-sonnet")
     state.response_id = "r1"
@@ -145,6 +152,7 @@ def test_anthropic_partial_message_excludes_tool_calls() -> None:
     assert partial is not None
     assert any(isinstance(p, message.TextPart) for p in partial.parts)
     assert not any(isinstance(p, message.ToolCallPart) for p in partial.parts)
+
 
 def test_anthropic_input_preserves_degraded_thinking_order_in_place() -> None:
     model = "claude-3-5-sonnet"

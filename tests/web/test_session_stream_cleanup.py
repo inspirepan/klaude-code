@@ -20,8 +20,10 @@ class _Request:
     async def is_disconnected(self) -> bool:
         return False
 
+
 async def _next_chunk(iterator: AsyncIterator[str]) -> str:
     return await anext(iterator)
+
 
 def test_session_stream_releases_subscription_when_cancelled() -> None:
     async def _run() -> None:

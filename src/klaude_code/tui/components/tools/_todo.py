@@ -18,6 +18,7 @@ MARK_TODO_PENDING = "\u25a2"
 MARK_TODO_IN_PROGRESS = "\u25c9"
 MARK_TODO_COMPLETED = "\u2714"
 
+
 def render_todo_write_tool_call(arguments: str) -> RenderableType:
     tool_name = "Update To-Dos"
     details: RenderableType | None = None
@@ -32,6 +33,7 @@ def render_todo_write_tool_call(arguments: str) -> RenderableType:
             )
 
     return render_tool_call_tree(mark=MARK_PLAN, tool_name=tool_name, details=details)
+
 
 def render_todo(tr: events.ToolResultEvent) -> RenderableType:
     assert isinstance(tr.ui_extra, TodoListUIExtra)
@@ -64,6 +66,7 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
         border_style=ThemeKey.LINES,
         expand=False,
     )
+
 
 def render_todo_message(result: str, *, is_error: bool = False) -> RenderableType:
     style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT

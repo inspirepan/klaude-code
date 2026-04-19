@@ -36,6 +36,7 @@ def _merge_assistant_phase(
         return "final_answer"
     return current or candidate
 
+
 def build_payload(
     param: llm_param.LLMCallParameter,
     *,
@@ -81,6 +82,7 @@ def build_payload(
         payload["service_tier"] = "priority"  # type: ignore[typeddict-item]
 
     return payload
+
 
 class ResponsesStreamStateManager:
     """Manages streaming state for Responses API and provides partial message access.
@@ -164,6 +166,7 @@ class ResponsesStreamStateManager:
             response_id=self.response_id,
             phase=self.assistant_phase,
         )
+
 
 async def parse_responses_stream(
     stream: AsyncIterable[responses.ResponseStreamEvent],
@@ -350,6 +353,7 @@ async def parse_responses_stream(
         stop_reason=state.stop_reason,
     )
 
+
 class ResponsesLLMStream(LLMStreamABC):
     """LLMStream implementation for Responses API clients."""
 
@@ -384,6 +388,7 @@ class ResponsesLLMStream(LLMStreamABC):
         if self._completed:
             return None
         return self._state.get_partial_message()
+
 
 @register(llm_param.LLMClientProtocol.RESPONSES)
 class ResponsesClient(LLMClientABC):

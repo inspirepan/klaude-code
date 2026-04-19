@@ -14,6 +14,7 @@ def _force_kitty_support(monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: i
     """Ensure existing tests run as if Kitty graphics is supported."""
     monkeypatch.setattr(terminal_image, "supports_kitty_graphics", lambda: True)
 
+
 def _png_bytes(width: int = 18, height: int = 18) -> bytes:
     return (
         b"\x89PNG\r\n\x1a\n"
@@ -23,6 +24,7 @@ def _png_bytes(width: int = 18, height: int = 18) -> bytes:
         + b"\x08\x02\x00\x00\x00"
         + b"\x00\x00\x00\x00"
     )
+
 
 def test_print_kitty_image_skips_svg_without_png_bytes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     svg_path = tmp_path / "render-mermaid-arch.svg"
@@ -41,6 +43,7 @@ def test_print_kitty_image_skips_svg_without_png_bytes(monkeypatch: pytest.Monke
     terminal_image.print_kitty_image(svg_path, file=output)
 
     assert output.getvalue().strip() == f"[[Image: {svg_path}]]"
+
 
 def test_print_kitty_image_skips_conversion_for_png_bytes_with_svg_suffix(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -63,6 +66,7 @@ def test_print_kitty_image_skips_conversion_for_png_bytes_with_svg_suffix(
 
     assert write_calls == [""]
 
+
 def test_print_kitty_image_expands_rows_for_tall_image_readability(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -80,6 +84,7 @@ def test_print_kitty_image_expands_rows_for_tall_image_readability(
     terminal_image.print_kitty_image(png_path, file=io.StringIO())
 
     assert size_params == ["c=50"]
+
 
 def test_print_kitty_image_falls_back_when_unsupported(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     png_path = tmp_path / "photo.png"

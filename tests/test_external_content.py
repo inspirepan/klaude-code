@@ -39,6 +39,7 @@ class TestWrapWebContent:
         end_pos = result.index(_BOUNDARY_END)
         assert warning_pos < start_pos < content_pos < end_pos
 
+
 class TestSanitizeMarkers:
     def test_no_markers_unchanged(self) -> None:
         text = "Normal text without any markers"

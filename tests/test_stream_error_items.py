@@ -25,6 +25,7 @@ class _AwaitableOf:
 
         return _coro().__await__()
 
+
 class _RemoteProtocolErrorAsyncIterator:
     def __aiter__(self) -> _RemoteProtocolErrorAsyncIterator:
         return self
@@ -34,6 +35,7 @@ class _RemoteProtocolErrorAsyncIterator:
             "peer closed connection without sending complete message body (incomplete chunked read)",
             request=None,
         )
+
 
 class _AwaitRaisesRemoteProtocolError:
     def __await__(self):
@@ -45,6 +47,7 @@ class _AwaitRaisesRemoteProtocolError:
 
         return _coro().__await__()
 
+
 class _ImportErrorAsyncIterator:
     def __aiter__(self) -> _ImportErrorAsyncIterator:
         return self
@@ -52,12 +55,14 @@ class _ImportErrorAsyncIterator:
     async def __anext__(self) -> object:
         raise ImportError("python-socks is required to use a SOCKS proxy")
 
+
 class _ConnectionResetAsyncIterator:
     def __aiter__(self) -> _ConnectionResetAsyncIterator:
         return self
 
     async def __anext__(self) -> object:
         raise ConnectionResetError("connection reset by peer")
+
 
 class _ListAsyncIterator:
     def __init__(self, items: list[object]) -> None:
@@ -74,6 +79,7 @@ class _ListAsyncIterator:
         self._index += 1
         return item
 
+
 def _basic_call_param(*, model_id: str) -> llm_param.LLMCallParameter:
     return llm_param.LLMCallParameter(
         input=[message.UserMessage(parts=[message.TextPart(text="hi")])],
@@ -81,6 +87,7 @@ def _basic_call_param(*, model_id: str) -> llm_param.LLMCallParameter:
         session_id="test-session",
         tools=[],
     )
+
 
 def _collect_stream(stream: object) -> list[message.LLMStreamItem]:
     async def _collect() -> list[message.LLMStreamItem]:
@@ -91,6 +98,7 @@ def _collect_stream(stream: object) -> list[message.LLMStreamItem]:
         return items
 
     return asyncio.run(_collect())
+
 
 def test_anthropic_stream_remote_protocol_error_becomes_stream_error_item() -> None:
     param = _basic_call_param(model_id="claude-3-5-sonnet")
@@ -104,6 +112,7 @@ def test_anthropic_stream_remote_protocol_error_becomes_stream_error_item() -> N
     assert any(isinstance(item, message.StreamErrorItem) for item in items)
     assert any(isinstance(item, message.AssistantMessage) for item in items)
 
+
 def test_anthropic_stream_error_while_awaiting_stream_is_captured() -> None:
     param = _basic_call_param(model_id="claude-3-5-sonnet")
     stream = AnthropicLLMStream(
@@ -116,6 +125,7 @@ def test_anthropic_stream_error_while_awaiting_stream_is_captured() -> None:
     error_items = [item for item in items if isinstance(item, message.StreamErrorItem)]
     assert error_items
     assert "RemoteProtocolError" in error_items[0].error
+
 
 def test_openai_compatible_stream_remote_protocol_error_becomes_stream_error_item() -> None:
     param = _basic_call_param(model_id="gpt-4.1-mini")
@@ -132,6 +142,7 @@ def test_openai_compatible_stream_remote_protocol_error_becomes_stream_error_ite
     assert any(isinstance(item, message.StreamErrorItem) for item in items)
     assert any(isinstance(item, message.AssistantMessage) for item in items)
 
+
 def test_responses_stream_remote_protocol_error_becomes_stream_error_item() -> None:
     param = _basic_call_param(model_id="gpt-4.1-mini")
     stream = ResponsesLLMStream(
@@ -143,6 +154,7 @@ def test_responses_stream_remote_protocol_error_becomes_stream_error_item() -> N
     items = _collect_stream(stream)
     assert any(isinstance(item, message.StreamErrorItem) for item in items)
     assert any(isinstance(item, message.AssistantMessage) for item in items)
+
 
 def test_responses_stream_websocket_error_event_becomes_stream_error_item() -> None:
     event = cast(
@@ -172,6 +184,7 @@ def test_responses_stream_websocket_error_event_becomes_stream_error_item() -> N
     assert error_items
     assert "previous_response_not_found" in error_items[0].error
 
+
 def test_responses_stream_import_error_becomes_stream_error_item() -> None:
     param = _basic_call_param(model_id="gpt-4.1-mini")
     stream = ResponsesLLMStream(
@@ -184,6 +197,7 @@ def test_responses_stream_import_error_becomes_stream_error_item() -> None:
     error_items = [item for item in items if isinstance(item, message.StreamErrorItem)]
     assert error_items
     assert "python-socks is required" in error_items[0].error
+
 
 def test_responses_stream_connection_reset_becomes_stream_error_item() -> None:
     param = _basic_call_param(model_id="gpt-4.1-mini")

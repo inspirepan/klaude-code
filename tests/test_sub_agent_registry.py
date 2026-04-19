@@ -25,9 +25,11 @@ def _tool_context() -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
     return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path("/tmp"))
 
+
 def test_sub_agent_tool_visibility() -> None:
     assert is_sub_agent_tool(tools.AGENT) is True
     assert is_sub_agent_tool("Finder") is False
+
 
 def test_main_agent_tools_include_registered_sub_agents() -> None:
     assert core_tool is not None  # ensure tool registry side-effects executed
@@ -41,6 +43,7 @@ def test_main_agent_tools_include_registered_sub_agents() -> None:
     assert tools.AGENT in claude_tool_names
     assert "Finder" not in claude_tool_names
     assert "Oracle" not in claude_tool_names
+
 
 class _SlowSubAgentTool(ToolABC):
     """Test-only slow tool used to exercise sub-agent cancellation behavior."""
@@ -79,6 +82,7 @@ class _SlowSubAgentTool(ToolABC):
             status="success",
         )
 
+
 class _BlockingFakeStream(LLMStreamABC):
     """Fake LLM stream that blocks until released, then yields a single AssistantMessage."""
 
@@ -103,12 +107,14 @@ class _BlockingFakeStream(LLMStreamABC):
     def get_partial_message(self) -> message.AssistantMessage | None:
         return None
 
+
 def _consume_tool_executor(executor: ToolExecutor, tool_calls: list[ToolCallRequest]) -> asyncio.Task[None]:
     async def _runner() -> None:
         async for _ in executor.run_tools(tool_calls):
             pass
 
     return asyncio.create_task(_runner())
+
 
 def test_sub_agent_tool_cancellation_propagates_cancelled_error() -> None:
     async def _test() -> None:
@@ -142,6 +148,7 @@ def test_sub_agent_tool_cancellation_propagates_cancelled_error() -> None:
             await task
 
     asyncio.run(_test())
+
 
 def test_agent_tool_concurrent_sub_agents_share_responses_client_safely() -> None:
     async def _test() -> None:

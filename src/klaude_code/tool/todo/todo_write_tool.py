@@ -38,8 +38,10 @@ def get_new_completed_todos(old_todos: list[TodoItem], new_todos: list[TodoItem]
             new_completed.append(new_todo.content)
     return new_completed
 
+
 class TodoWriteArguments(BaseModel):
     todos: list[TodoItem]
+
 
 @register(tools.TODO_WRITE)
 class TodoWriteTool(ToolABC):

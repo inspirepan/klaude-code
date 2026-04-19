@@ -20,12 +20,14 @@ from klaude_code.tui.input.images import format_image_marker, is_image_file
 
 _FILE_URI_RE = re.compile(r"file://\S+")
 
+
 def _format_at_token(path_str: str) -> str:
     """Format a file path for the @ reader, quoting when whitespace exists."""
 
     if any(ch.isspace() for ch in path_str):
         return f'@"{path_str}"'
     return f"@{path_str}"
+
 
 def _normalize_path_for_at(path: Path, *, cwd: Path) -> str:
     """Return a stable, display-friendly path string for @ references."""
@@ -59,6 +61,7 @@ def _normalize_path_for_at(path: Path, *, cwd: Path) -> str:
         candidate += "/"
     return candidate
 
+
 def _file_uri_to_path(uri: str) -> Path | None:
     """Parse a file:// URI to a filesystem path."""
 
@@ -83,6 +86,7 @@ def _file_uri_to_path(uri: str) -> Path | None:
         raw_path = raw_path[1:]
 
     return Path(raw_path)
+
 
 def _replace_file_uris(
     text: str,
@@ -125,6 +129,7 @@ def _replace_file_uris(
 
     out = _FILE_URI_RE.sub(_replace, text)
     return out, changed
+
 
 def convert_dropped_text(
     text: str,

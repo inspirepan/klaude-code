@@ -101,6 +101,7 @@ from klaude_code.tui.terminal.title import (
 
 BASH_LIVE_TAIL_MAX_LINES = 5
 
+
 @dataclass
 class _ActiveStream:
     buffer: str
@@ -108,6 +109,7 @@ class _ActiveStream:
 
     def append(self, content: str) -> None:
         self.buffer += content
+
 
 class _StreamState:
     def __init__(self) -> None:
@@ -143,11 +145,13 @@ class _StreamState:
     def finalize(self, *, transform: Callable[[str], str] | None = None) -> bool:
         return self.render(transform=transform, final=True)
 
+
 @dataclass
 class _SessionStatus:
     color: Style | None = None
     color_index: int | None = None
     sub_agent_state: SubAgentState | None = None
+
 
 class TUICommandRenderer:
     """Execute RenderCommand sequences and render them to the terminal.

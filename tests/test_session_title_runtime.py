@@ -29,6 +29,7 @@ class _FakeStream(LLMStreamABC):
     def get_partial_message(self) -> message.AssistantMessage | None:
         return None
 
+
 class _FakeLLMClient(LLMClientABC):
     def __init__(
         self, items: list[message.LLMStreamItem], *, config: llm_param.LLMConfigParameter | None = None
@@ -52,6 +53,7 @@ class _FakeLLMClient(LLMClientABC):
     async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
         self.calls.append(param)
         return _FakeStream(self.items)
+
 
 def test_generate_session_title_uses_only_user_messages() -> None:
     client = _FakeLLMClient(
@@ -86,8 +88,10 @@ def test_generate_session_title_uses_only_user_messages() -> None:
     assert client.calls[0].system is not None
     assert "same language" in client.calls[0].system.lower()
 
+
 def test_normalize_session_title_canonicalizes_separator() -> None:
     assert _normalize_session_title('  "Session titles | Refine prompts"  ') == "Session titles — Refine prompts"
+
 
 def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = ProviderConfig(
@@ -122,6 +126,7 @@ def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.Monkey
     assert clients.fast.model_name == "fast-model-id"
     assert clients.compact is not None
     assert clients.compact.model_name == "compact-model-id"
+
 
 def test_refresh_session_title_prefers_fast_client(tmp_path: Path, isolated_home: Path) -> None:
     del isolated_home
@@ -174,6 +179,7 @@ def test_refresh_session_title_prefers_fast_client(tmp_path: Path, isolated_home
 
     asyncio.run(_test())
 
+
 def test_schedule_session_title_refresh_runs_in_background(tmp_path: Path, isolated_home: Path) -> None:
     del isolated_home
 
@@ -221,23 +227,30 @@ def test_schedule_session_title_refresh_runs_in_background(tmp_path: Path, isola
 
     asyncio.run(_test())
 
+
 async def _noop_emit(_event: Any) -> None:
     return None
+
 
 async def _noop_request_user_interaction(_request: Any) -> Any:
     raise RuntimeError("should not be called")
 
+
 def _noop_child_task_state_change(_session_id: str, _task_id: str, _active: bool) -> None:
     return None
+
 
 def _unexpected_session_actor(_sid: str) -> Any:
     raise RuntimeError("should not be called")
 
+
 def _noop_register_task(_session_id: str, _operation_id: str, _task_id: str, _task: asyncio.Task[None]) -> None:
     return None
 
+
 def _noop_remove_task(_session_id: str, _task_id: str) -> None:
     return None
+
 
 def cast_any(value: object) -> Any:
     return value

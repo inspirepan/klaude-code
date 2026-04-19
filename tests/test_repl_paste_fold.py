@@ -9,11 +9,13 @@ def test_store_uses_lines_marker_when_many_lines() -> None:
     marker = state.store(text)
     assert marker == "[paste #1 +11 lines]"
 
+
 def test_store_uses_chars_marker_when_very_long_single_line() -> None:
     state = PasteBufferState()
     text = "x" * 1001
     marker = state.store(text)
     assert marker == "[paste #1 1001 chars]"
+
 
 def test_expand_replaces_marker_with_original_content() -> None:
     state = PasteBufferState()
@@ -21,6 +23,7 @@ def test_expand_replaces_marker_with_original_content() -> None:
     marker = state.store(text)
     expanded = state.expand_markers(f"prefix {marker} suffix")
     assert expanded == f"prefix \n{text}\n suffix"
+
 
 def test_expand_keeps_unknown_marker_intact() -> None:
     state = PasteBufferState()

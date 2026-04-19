@@ -79,12 +79,15 @@ _SKILL_LOCATION_STYLE = {
     "system": "ansiyellow",
 }
 
+
 def _skill_display(name: str, location: str) -> FormattedText:
     bullet_style = _SKILL_LOCATION_STYLE.get(location, "ansibrightblack")
     return FormattedText([(bullet_style, "•"), ("ansibrightblack", f" {_SKILL_PREFIX}"), ("", name)])
 
+
 def _command_display(name: str, hint: str) -> FormattedText:
     return FormattedText([("ansibrightblack", "•"), ("", f" {name}"), ("ansibrightblack", hint)])
+
 
 def _skill_match_rank(name: str, desc: str, frag_lower: str) -> tuple[int, int, int, int, int, int, int] | None:
     """Return rank tuple for skill completion relevance, or None when not matched."""
@@ -113,6 +116,7 @@ def _skill_match_rank(name: str, desc: str, frag_lower: str) -> tuple[int, int, 
         len(name_lower),
     )
 
+
 def create_repl_completer(
     command_info_provider: Callable[[], list[CommandInfo]] | None = None,
 ) -> Completer:
@@ -126,11 +130,13 @@ def create_repl_completer(
     """
     return _ComboCompleter(command_info_provider=command_info_provider)
 
+
 class _CmdResult(NamedTuple):
     """Result of running an external command."""
 
     ok: bool
     lines: list[str]
+
 
 class _SlashCommandCompleter(Completer):
     """Complete slash commands/skills at the beginning of the first line.
@@ -239,6 +245,7 @@ class _SlashCommandCompleter(Completer):
         except (ImportError, RuntimeError):
             return []
 
+
 class _SkillCompleter(Completer):
     """Complete skill names with / or // prefix.
 
@@ -315,6 +322,7 @@ class _SkillCompleter(Completer):
         text_before = document.current_line_before_cursor
         return bool(self._SKILL_TOKEN_RE.search(text_before))
 
+
 class _ComboCompleter(Completer):
     """Combined completer that handles @ file paths, slash commands, and skills."""
 
@@ -348,6 +356,7 @@ class _ComboCompleter(Completer):
 
         # Fall back to @ file completion
         yield from self._at_completer.get_completions(document, complete_event)
+
 
 class _AtFilesCompleter(Completer):
     """Complete @path segments using fd or ripgrep.

@@ -24,6 +24,7 @@ _PROTOCOL_MODULES: dict[llm_param.LLMClientProtocol, str] = {
     llm_param.LLMClientProtocol.GOOGLE_VERTEX: "klaude_code.llm.google_vertex",
 }
 
+
 def _load_protocol(protocol: llm_param.LLMClientProtocol) -> None:
     """Load the module for a specific protocol on demand."""
     if protocol in _loaded_protocols:
@@ -36,6 +37,7 @@ def _load_protocol(protocol: llm_param.LLMClientProtocol) -> None:
     importlib.import_module(module_path)
     _loaded_protocols.add(protocol)
 
+
 def register(name: llm_param.LLMClientProtocol) -> Callable[[_T], _T]:
     """Decorator to register an LLM client class for a protocol."""
 
@@ -44,6 +46,7 @@ def register(name: llm_param.LLMClientProtocol) -> Callable[[_T], _T]:
         return cls
 
     return _decorator
+
 
 def create_llm_client(config: llm_param.LLMConfigParameter) -> "LLMClientABC":
     _load_protocol(config.protocol)

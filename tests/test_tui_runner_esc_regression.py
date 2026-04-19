@@ -17,8 +17,10 @@ from klaude_code.tui.terminal.selector import QuestionSelectResult
 
 T = TypeVar("T")
 
+
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
+
 
 @dataclass
 class _FakeComponents:
@@ -29,6 +31,7 @@ class _FakeComponents:
 
     async def wait_for_display_idle(self) -> None:
         return None
+
 
 class _FakeDisplay:
     def __init__(self, *, theme: str | None = None) -> None:
@@ -45,6 +48,7 @@ class _FakeDisplay:
 
     def set_model_name(self, model_name: str) -> None:
         del model_name
+
 
 class _FakePromptToolkitInput:
     payloads: ClassVar[list[UserInputPayload]] = []
@@ -66,6 +70,7 @@ class _FakePromptToolkitInput:
     def set_session_dir(self, session_dir: Any) -> None:
         pass
 
+
 def _default_question_payload() -> user_interaction.AskUserQuestionRequestPayload:
     return user_interaction.AskUserQuestionRequestPayload(
         questions=[
@@ -81,6 +86,7 @@ def _default_question_payload() -> user_interaction.AskUserQuestionRequestPayloa
             )
         ]
     )
+
 
 def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     import klaude_code.tui.runner as runner
@@ -115,6 +121,7 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(runner, "install_sigint_interrupt", _install_sigint_interrupt)
 
     return runner
+
 
 def test_waiting_esc_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
@@ -184,6 +191,7 @@ def test_waiting_esc_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatch) 
 
     assert len(runtime.interrupts) == 1
     assert runtime.interrupts[0].session_id == "s1"
+
 
 def test_waiting_esc_restores_prefill_when_no_visible_output(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
@@ -262,6 +270,7 @@ def test_waiting_esc_restores_prefill_when_no_visible_output(monkeypatch: pytest
     arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
 
     assert _FakePromptToolkitInput.prefills == ["hello"]
+
 
 def test_interaction_collection_pauses_esc_monitor(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
@@ -348,6 +357,7 @@ def test_interaction_collection_pauses_esc_monitor(monkeypatch: pytest.MonkeyPat
     assert response is not None
     assert response.status == "submitted"
     assert state["max_active_during_select"] == 0
+
 
 def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
@@ -497,6 +507,7 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
     assert state["saw_group_header"] is True
     assert state["initial_search_text"] == "sonnet"
 
+
 def test_operation_thinking_interaction_uses_selector_style(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
 
@@ -592,6 +603,7 @@ def test_operation_thinking_interaction_uses_selector_style(monkeypatch: pytest.
     assert response.payload.selected_option_id == "o2"
     assert state["select_one_called"] == 1
 
+
 def test_exit_cleans_empty_session(monkeypatch: pytest.MonkeyPatch, isolated_home: Path) -> None:
     del isolated_home
     runner = _patch_runner_basics(monkeypatch)
@@ -623,6 +635,7 @@ def test_exit_cleans_empty_session(monkeypatch: pytest.MonkeyPatch, isolated_hom
     arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
 
     assert not Session.exists("s1", work_dir=Path.cwd())
+
 
 def test_exit_keeps_non_empty_session(monkeypatch: pytest.MonkeyPatch, isolated_home: Path) -> None:
     del isolated_home
@@ -660,6 +673,7 @@ def test_exit_keeps_non_empty_session(monkeypatch: pytest.MonkeyPatch, isolated_
     arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
 
     assert Session.exists("s1", work_dir=Path.cwd())
+
 
 def test_exit_without_user_messages_skips_resume_hint(monkeypatch: pytest.MonkeyPatch, isolated_home: Path) -> None:
     del isolated_home
@@ -706,6 +720,7 @@ def test_exit_without_user_messages_skips_resume_hint(monkeypatch: pytest.Monkey
     assert not any(message.startswith("Session ID:") for message in log_messages)
     assert not any(message.startswith("Resume with:") for message in log_messages)
 
+
 def test_keyboard_interrupt_without_user_messages_skips_resume_hint(
     monkeypatch: pytest.MonkeyPatch, isolated_home: Path
 ) -> None:
@@ -735,6 +750,7 @@ def test_keyboard_interrupt_without_user_messages_skips_resume_hint(
 
     assert any(message == "Bye!" for message in log_messages)
     assert not any(message.startswith("Resume with:") for message in log_messages)
+
 
 def test_web_mode_transition_skips_exit_hint(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)

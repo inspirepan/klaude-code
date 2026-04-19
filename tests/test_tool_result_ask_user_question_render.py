@@ -13,6 +13,7 @@ def _render_event_to_text(event: events.ToolResultEvent) -> str:
     console.print(renderable)
     return console.export_text()
 
+
 def test_render_ask_user_question_tool_result_does_not_truncate_middle() -> None:
     result = "\n---\n".join(
         [
@@ -36,6 +37,7 @@ def test_render_ask_user_question_tool_result_does_not_truncate_middle() -> None
     assert "Question: Q2" in output
     assert "... (more" not in output
     assert "… (more" not in output
+
 
 def test_render_ask_user_question_tool_result_uses_structured_summary_ui_extra() -> None:
     event = events.ToolResultEvent(

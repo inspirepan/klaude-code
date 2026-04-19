@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 # Strategy generators for history items
 # ============================================================================
 
+
 @st.composite
 def user_message_items(draw: st.DrawFn) -> "message.UserMessage":
     """Generate UserMessage instances."""
@@ -27,6 +28,7 @@ def user_message_items(draw: st.DrawFn) -> "message.UserMessage":
         parts=text_parts_from_str(text),
         created_at=datetime.now(),
     )
+
 
 @st.composite
 def assistant_message_items(draw: st.DrawFn) -> "message.AssistantMessage":
@@ -41,6 +43,7 @@ def assistant_message_items(draw: st.DrawFn) -> "message.AssistantMessage":
         created_at=datetime.now(),
     )
 
+
 @st.composite
 def tool_result_messages(draw: st.DrawFn) -> "message.ToolResultMessage":
     """Generate ToolResultMessage instances."""
@@ -54,11 +57,13 @@ def tool_result_messages(draw: st.DrawFn) -> "message.ToolResultMessage":
         created_at=datetime.now(),
     )
 
+
 def stream_error_items() -> st.SearchStrategy["message.StreamErrorItem"]:
     """Generate StreamErrorItem instances."""
     from klaude_code.protocol.message import StreamErrorItem
 
     return st.builds(StreamErrorItem, error=st.text(min_size=1, max_size=100), created_at=st.just(datetime.now()))
+
 
 def interrupt_entries() -> st.SearchStrategy["message.InterruptEntry"]:
     """Generate InterruptEntry instances."""
@@ -66,9 +71,11 @@ def interrupt_entries() -> st.SearchStrategy["message.InterruptEntry"]:
 
     return st.builds(InterruptEntry, created_at=st.just(datetime.now()))
 
+
 def task_metadata_items() -> st.SearchStrategy[TaskMetadataItem]:
     """Generate TaskMetadataItem instances."""
     return st.builds(TaskMetadataItem, created_at=st.just(datetime.now()))
+
 
 history_items = st.one_of(
     user_message_items(),
@@ -82,6 +89,7 @@ history_items = st.one_of(
 # ============================================================================
 # Property-based tests
 # ============================================================================
+
 
 @given(item=history_items)
 @settings(max_examples=100, deadline=None)
@@ -97,6 +105,7 @@ def test_codec_encode_decode_roundtrip(item: "message.HistoryEvent") -> None:
     # Compare key fields (created_at may differ due to datetime serialization)
     assert decoded.model_dump(exclude={"created_at"}) == item.model_dump(exclude={"created_at"})
 
+
 @given(item=history_items)
 @settings(max_examples=100, deadline=None)
 def test_codec_jsonl_roundtrip(item: "message.HistoryEvent") -> None:
@@ -109,6 +118,7 @@ def test_codec_jsonl_roundtrip(item: "message.HistoryEvent") -> None:
     assert decoded is not None
     assert type(decoded) is type(item)
     assert decoded.model_dump(exclude={"created_at"}) == item.model_dump(exclude={"created_at"})
+
 
 def test_decode_conversation_item_unknown_tool_ui_extra_falls_back_to_none() -> None:
     from klaude_code.protocol import message

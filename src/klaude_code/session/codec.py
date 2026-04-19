@@ -17,6 +17,7 @@ def _flatten_union(tp: object) -> list[object]:
         flattened.extend(_flatten_union(arg))
     return flattened
 
+
 def _build_type_registry() -> dict[str, type[BaseModel]]:
     registry: dict[str, type[BaseModel]] = {}
     for tp in _flatten_union(message.HistoryEvent):
@@ -25,10 +26,13 @@ def _build_type_registry() -> dict[str, type[BaseModel]]:
         registry[tp.__name__] = tp
     return registry
 
+
 _CONVERSATION_ITEM_TYPES: dict[str, type[BaseModel]] = _build_type_registry()
+
 
 def encode_conversation_item(item: message.HistoryEvent) -> dict[str, Any]:
     return {"type": item.__class__.__name__, "data": item.model_dump(mode="json", exclude_none=True)}
+
 
 def decode_conversation_item(obj: dict[str, Any]) -> message.HistoryEvent | None:
     t = obj.get("type")
@@ -53,8 +57,10 @@ def decode_conversation_item(obj: dict[str, Any]) -> message.HistoryEvent | None
     # pyright: ignore[reportReturnType]
     return item  # type: ignore[return-value]
 
+
 def encode_jsonl_line(item: message.HistoryEvent) -> str:
     return json.dumps(encode_conversation_item(item), ensure_ascii=False) + "\n"
+
 
 def decode_jsonl_line(line: str) -> message.HistoryEvent | None:
     line = line.strip()

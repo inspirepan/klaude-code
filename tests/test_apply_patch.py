@@ -50,6 +50,7 @@ class BaseTempDirTest(unittest.TestCase):
         if os.path.exists(path):
             os.remove(path)
 
+
 class TestProcessPatch(BaseTempDirTest):
     def test_process_patch_add_file(self):
         """Test adding a new file"""
@@ -325,6 +326,7 @@ invalid line without +
         with self.assertRaises(DiffError) as cm:
             process_patch(patch_text, self.open_fn, self.write_fn, self.remove_fn)
         self.assertIn("Invalid Add File Line", str(cm.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

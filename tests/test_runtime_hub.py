@@ -13,8 +13,10 @@ from klaude_code.protocol.message import UserInputPayload
 
 T = TypeVar("T")
 
+
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
+
 
 def _pending_request(request_id: str, session_id: str) -> PendingUserInteractionRequest:
     return PendingUserInteractionRequest(
@@ -36,6 +38,7 @@ def _pending_request(request_id: str, session_id: str) -> PendingUserInteraction
             ]
         ),
     )
+
 
 def test_runtime_hub_preserves_in_session_order() -> None:
     async def _test() -> None:
@@ -68,6 +71,7 @@ def test_runtime_hub_preserves_in_session_order() -> None:
 
     arun(_test())
 
+
 def test_runtime_hub_routes_interrupt_to_target_session_runtime() -> None:
     async def _test() -> None:
         started = asyncio.Event()
@@ -90,6 +94,7 @@ def test_runtime_hub_routes_interrupt_to_target_session_runtime() -> None:
             await hub.stop()
 
     arun(_test())
+
 
 def test_runtime_hub_rejects_second_root_while_first_is_active() -> None:
     async def _test() -> None:
@@ -121,6 +126,7 @@ def test_runtime_hub_rejects_second_root_while_first_is_active() -> None:
         assert rejected == [(second_op.id, first_op.id)]
 
     arun(_test())
+
 
 def test_runtime_hub_allows_interrupt_while_root_is_active() -> None:
     async def _test() -> None:
@@ -156,6 +162,7 @@ def test_runtime_hub_allows_interrupt_while_root_is_active() -> None:
 
     arun(_test())
 
+
 def test_runtime_hub_allows_new_root_after_completion_marked() -> None:
     async def _test() -> None:
         handled: list[str] = []
@@ -187,6 +194,7 @@ def test_runtime_hub_allows_new_root_after_completion_marked() -> None:
         assert handled == [first_op.id, second_op.id]
 
     arun(_test())
+
 
 def test_runtime_hub_prioritizes_control_queue_over_normal_queue() -> None:
     async def _test() -> None:
@@ -224,6 +232,7 @@ def test_runtime_hub_prioritizes_control_queue_over_normal_queue() -> None:
         assert handled == [first_op.id, control_interrupt.id, second_normal.id]
 
     arun(_test())
+
 
 def test_runtime_hub_enforces_control_burst_fairness() -> None:
     async def _test() -> None:
@@ -266,6 +275,7 @@ def test_runtime_hub_enforces_control_burst_fairness() -> None:
 
     arun(_test())
 
+
 def test_runtime_hub_tracks_pending_request_state_per_session() -> None:
     async def _test() -> None:
         started = asyncio.Event()
@@ -300,6 +310,7 @@ def test_runtime_hub_tracks_pending_request_state_per_session() -> None:
         await hub.stop()
 
     arun(_test())
+
 
 def test_runtime_hub_idle_runtime_ids_reflect_active_and_pending_state() -> None:
     async def _test() -> None:
@@ -341,6 +352,7 @@ def test_runtime_hub_idle_runtime_ids_reflect_active_and_pending_state() -> None
 
     arun(_test())
 
+
 def test_runtime_hub_resolve_one_request_keeps_other_pending() -> None:
     async def _test() -> None:
         started = asyncio.Event()
@@ -380,6 +392,7 @@ def test_runtime_hub_resolve_one_request_keeps_other_pending() -> None:
         await hub.stop()
 
     arun(_test())
+
 
 def test_runtime_hub_tracks_session_local_config_by_session() -> None:
     async def _test() -> None:
@@ -435,6 +448,7 @@ def test_runtime_hub_tracks_session_local_config_by_session() -> None:
 
     arun(_test())
 
+
 def test_runtime_hub_snapshot_reflects_runtime_state() -> None:
     async def _test() -> None:
         started = asyncio.Event()
@@ -489,6 +503,7 @@ def test_runtime_hub_snapshot_reflects_runtime_state() -> None:
 
     arun(_test())
 
+
 def test_runtime_hub_close_session_respects_idle_state() -> None:
     async def _test() -> None:
         started = asyncio.Event()
@@ -520,6 +535,7 @@ def test_runtime_hub_close_session_respects_idle_state() -> None:
         await hub.stop()
 
     arun(_test())
+
 
 def test_runtime_hub_reclaim_idle_sessions_only_reclaims_idle() -> None:
     async def _test() -> None:
@@ -563,6 +579,7 @@ def test_runtime_hub_reclaim_idle_sessions_only_reclaims_idle() -> None:
 
     arun(_test())
 
+
 def test_runtime_hub_reclaim_idle_sessions_respects_idle_ttl() -> None:
     async def _test() -> None:
         started = asyncio.Event()
@@ -593,6 +610,7 @@ def test_runtime_hub_reclaim_idle_sessions_respects_idle_ttl() -> None:
         await hub.stop()
 
     arun(_test())
+
 
 def test_runtime_hub_request_user_interaction_roundtrip() -> None:
     async def _test() -> None:
@@ -636,6 +654,7 @@ def test_runtime_hub_request_user_interaction_roundtrip() -> None:
 
     arun(_test())
 
+
 def test_runtime_hub_respond_immediately_clears_pending_count() -> None:
     """pending_request_count must drop to 0 synchronously after respond, before yielding to the event loop."""
 
@@ -666,6 +685,7 @@ def test_runtime_hub_respond_immediately_clears_pending_count() -> None:
         await hub.stop()
 
     arun(_test())
+
 
 def test_runtime_hub_bind_root_task_updates_reject_active_task_id() -> None:
     async def _test() -> None:
@@ -699,6 +719,7 @@ def test_runtime_hub_bind_root_task_updates_reject_active_task_id() -> None:
         await hub.stop()
 
     arun(_test())
+
 
 def test_runtime_hub_runs_sessions_concurrently() -> None:
     async def _test() -> None:
@@ -735,6 +756,7 @@ def test_runtime_hub_runs_sessions_concurrently() -> None:
         await hub.stop()
 
     arun(_test())
+
 
 def test_runtime_hub_child_task_state_affects_snapshot_and_idle() -> None:
     async def _test() -> None:
@@ -773,6 +795,7 @@ def test_runtime_hub_child_task_state_affects_snapshot_and_idle() -> None:
 
     arun(_test())
 
+
 def test_runtime_hub_preempts_running_root_with_interrupt_control() -> None:
     async def _test() -> None:
         started = asyncio.Event()
@@ -805,6 +828,7 @@ def test_runtime_hub_preempts_running_root_with_interrupt_control() -> None:
         await hub.stop()
 
     arun(_test())
+
 
 def test_runtime_hub_cancel_pending_interactions_cancels_waiter() -> None:
     async def _test() -> None:

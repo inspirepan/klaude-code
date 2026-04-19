@@ -51,8 +51,10 @@ class _LazyEnvHelp:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._resolve(), name)
 
+
 def _looks_like_flag(token: str) -> bool:
     return token.startswith("-") and token != "-"
+
 
 def _preprocess_cli_args(args: list[str]) -> list[str]:
     """Rewrite CLI args to support optional values for selected options.
@@ -107,6 +109,7 @@ def _preprocess_cli_args(args: list[str]) -> list[str]:
 
     return rewritten
 
+
 class _PreprocessingTyperGroup(TyperGroup):
     def main(
         self,
@@ -127,15 +130,18 @@ class _PreprocessingTyperGroup(TyperGroup):
             **extra,
         )
 
+
 def prepare_debug_logging(debug: bool) -> tuple[bool, Path | None]:
     from klaude_code.cli.debug import prepare_debug_logging as _prepare_debug_logging
 
     return _prepare_debug_logging(debug)
 
+
 def run_web_server_command(*, host: str, port: int, no_open: bool, debug: bool) -> None:
     from klaude_code.cli.web_cmd import run_web_server_command as _run_web_server_command
 
     _run_web_server_command(host=host, port=port, no_open=no_open, debug=debug)
+
 
 app = typer.Typer(
     cls=_PreprocessingTyperGroup,
@@ -152,6 +158,7 @@ register_auth_commands(app)
 register_config_commands(app)
 register_self_upgrade_commands(app)
 
+
 @app.command("web")
 def _web_command_wrapper(  # pyright: ignore[reportUnusedFunction]
     host: str = typer.Option("127.0.0.1", "--host", help="Host to bind web server"),
@@ -160,6 +167,7 @@ def _web_command_wrapper(  # pyright: ignore[reportUnusedFunction]
     debug: bool = typer.Option(False, "--debug", help="Enable debug logs for web server"),
 ) -> None:
     run_web_server_command(host=host, port=port, no_open=no_open, debug=debug)
+
 
 # cost command is registered via a lazy wrapper to avoid pulling in
 # klaude_code.protocol at import time (~200ms).
@@ -173,10 +181,12 @@ def _cost_command_wrapper(  # pyright: ignore[reportUnusedFunction]
 
     cost_command(days=days, show_all=show_all)
 
+
 @app.command("help", hidden=True)
 def help_command(ctx: typer.Context) -> None:
     """Show help message."""
     print(ctx.parent.get_help() if ctx.parent else ctx.get_help())
+
 
 @app.callback(invoke_without_command=True)
 def main_callback(

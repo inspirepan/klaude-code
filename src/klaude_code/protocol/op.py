@@ -21,6 +21,7 @@ from klaude_code.protocol.user_interaction import UserInteractionResponse
 if TYPE_CHECKING:
     from klaude_code.protocol.op_handler import OperationHandler
 
+
 class OperationType(Enum):
     """Enumeration of supported operation types."""
 
@@ -44,6 +45,7 @@ class OperationType(Enum):
     INIT_AGENT = "init_agent"
     GENERATE_AWAY_SUMMARY = "generate_away_summary"
 
+
 class Operation(BaseModel):
     """Base class for all operations that can be submitted to the executor."""
 
@@ -53,6 +55,7 @@ class Operation(BaseModel):
     async def execute(self, handler: OperationHandler) -> None:
         """Execute this operation using the given handler."""
         raise NotImplementedError("Subclasses must implement execute()")
+
 
 class RunAgentOperation(Operation):
     """Operation for launching an agent task for a given session."""
@@ -64,6 +67,7 @@ class RunAgentOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_run_agent(self)
 
+
 class RunBashOperation(Operation):
     """Operation for running a user-entered bash-mode command."""
 
@@ -73,6 +77,7 @@ class RunBashOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_run_bash(self)
+
 
 class ContinueAgentOperation(Operation):
     """Operation for continuing an agent task without adding a new user message.
@@ -86,6 +91,7 @@ class ContinueAgentOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_continue_agent(self)
 
+
 class CompactSessionOperation(Operation):
     """Operation for compacting a session's conversation history."""
 
@@ -97,6 +103,7 @@ class CompactSessionOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_compact_session(self)
+
 
 class ChangeModelOperation(Operation):
     """Operation for changing the model used by the active agent session."""
@@ -120,6 +127,7 @@ class ChangeModelOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_change_model(self)
 
+
 class ChangeCompactModelOperation(Operation):
     """Operation for changing the compact model (used for session compaction)."""
 
@@ -130,6 +138,7 @@ class ChangeCompactModelOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_change_compact_model(self)
+
 
 class ChangeThinkingOperation(Operation):
     """Operation for changing the thinking/reasoning configuration."""
@@ -142,6 +151,7 @@ class ChangeThinkingOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_change_thinking(self)
+
 
 class ChangeSubAgentModelOperation(Operation):
     """Operation for changing the model used by a specific sub-agent."""
@@ -157,6 +167,7 @@ class ChangeSubAgentModelOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_change_sub_agent_model(self)
 
+
 class RequestModelOperation(Operation):
     """Operation for interactively selecting and changing the main model."""
 
@@ -171,6 +182,7 @@ class RequestModelOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_request_model(self)
 
+
 class RequestThinkingOperation(Operation):
     """Operation for interactively selecting and changing thinking configuration."""
 
@@ -182,6 +194,7 @@ class RequestThinkingOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_request_thinking(self)
 
+
 class RequestSubAgentModelOperation(Operation):
     """Operation for interactively selecting sub-agent/compact/fast model configuration."""
 
@@ -192,6 +205,7 @@ class RequestSubAgentModelOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_request_sub_agent_model(self)
 
+
 class GetSessionStatsOperation(Operation):
     """Operation for querying current session stats summary."""
 
@@ -201,6 +215,7 @@ class GetSessionStatsOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_get_session_stats(self)
 
+
 class ClearSessionOperation(Operation):
     """Operation for clearing the active session and starting a new one."""
 
@@ -209,6 +224,7 @@ class ClearSessionOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_clear_session(self)
+
 
 class ForkAndSwitchSessionOperation(Operation):
     """Operation for switching to an already-forked session."""
@@ -221,6 +237,7 @@ class ForkAndSwitchSessionOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_fork_and_switch_session(self)
 
+
 class InterruptOperation(Operation):
     """Operation for interrupting currently running tasks."""
 
@@ -230,6 +247,7 @@ class InterruptOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         """Execute interrupt by cancelling active tasks."""
         await handler.handle_interrupt(self)
+
 
 class CloseSessionOperation(Operation):
     """Operation for closing a session runtime explicitly."""
@@ -241,6 +259,7 @@ class CloseSessionOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_close_session(self)
 
+
 class UserInteractionRespondOperation(Operation):
     """Operation for sending user interaction response back to core."""
 
@@ -251,6 +270,7 @@ class UserInteractionRespondOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_user_interaction_respond(self)
+
 
 class InitAgentOperation(Operation):
     """Operation for initializing an agent and replaying history if any.
@@ -265,6 +285,7 @@ class InitAgentOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_init_agent(self)
+
 
 class GenerateAwaySummaryOperation(Operation):
     """Operation for generating a "while you were away" recap.

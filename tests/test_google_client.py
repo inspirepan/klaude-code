@@ -29,6 +29,7 @@ def test_google_client_sets_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     http_options = captured["client_kwargs"]["http_options"]
     assert http_options.timeout == int(LLM_HTTP_TIMEOUT_TOTAL * 1000)
 
+
 def test_google_client_sets_timeout_when_custom_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 
@@ -49,6 +50,7 @@ def test_google_client_sets_timeout_when_custom_base_url(monkeypatch: pytest.Mon
     assert http_options.base_url == "https://gemini.example.com"
     assert http_options.api_version == ""
     assert http_options.timeout == int(LLM_HTTP_TIMEOUT_TOTAL * 1000)
+
 
 def test_parse_google_stream_ignores_unknown_finish_reason_warning() -> None:
     class _FakeChunk:

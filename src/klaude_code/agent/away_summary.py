@@ -34,6 +34,7 @@ _AWAY_SUMMARY_MAX_TOKENS = 512
 # large sessions. 30 turn messages is plenty for "where we left off."
 _RECENT_MESSAGE_WINDOW = 30
 
+
 def _build_away_summary_user_message(transcript: str) -> message.UserMessage:
     body = (
         "Language rule (highest priority): detect the natural language used "
@@ -53,6 +54,7 @@ def _build_away_summary_user_message(transcript: str) -> message.UserMessage:
     )
     return message.UserMessage(parts=[message.TextPart(text=body)])
 
+
 def _recent_turn_messages(session: Session, limit: int) -> list[message.Message]:
     """Pull the last `limit` turn messages (user/assistant/tool_result)."""
 
@@ -65,12 +67,14 @@ def _recent_turn_messages(session: Session, limit: int) -> list[message.Message]
     turns.reverse()
     return turns
 
+
 def _normalize_recap(raw: str) -> str | None:
     text = raw.strip().strip("\"'`“”‘’")
     text = re.sub(r"\s+\n", "\n", text)
     if not text:
         return None
     return text
+
 
 async def generate_away_summary(
     *,

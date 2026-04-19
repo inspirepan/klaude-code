@@ -26,13 +26,16 @@ from klaude_code.web.state import get_web_state_from_ws
 
 router = APIRouter(tags=["websocket"])
 
+
 class MessageFrame(BaseModel):
     type: Literal["message"]
     text: str = ""
     images: list[ImageURLPart | ImageFilePart] | None = None
 
+
 class InterruptFrame(BaseModel):
     type: Literal["interrupt"]
+
 
 class RespondFrame(BaseModel):
     type: Literal["respond"]
@@ -40,26 +43,32 @@ class RespondFrame(BaseModel):
     status: Literal["submitted", "cancelled"]
     payload: user_interaction.UserInteractionResponsePayload | None = None
 
+
 class ContinueFrame(BaseModel):
     type: Literal["continue"]
+
 
 class ModelFrame(BaseModel):
     type: Literal["model"]
     model_name: str
     save_as_default: bool = False
 
+
 class RequestModelFrame(BaseModel):
     type: Literal["model_request"]
     initial_search_text: str | None = None
     save_as_default: bool = False
 
+
 class ThinkingFrame(BaseModel):
     type: Literal["thinking"]
     thinking: llm_param.Thinking
 
+
 class CompactFrame(BaseModel):
     type: Literal["compact"]
     focus: str | None = None
+
 
 type IncomingFrame = (
     MessageFrame
@@ -71,6 +80,7 @@ type IncomingFrame = (
     | ThinkingFrame
     | CompactFrame
 )
+
 
 async def _send_error_frame(
     websocket: WebSocket,
@@ -88,6 +98,7 @@ async def _send_error_frame(
         }
     )
 
+
 def _extract_usage_from_history(history: list[message.HistoryEvent]) -> Usage | None:
     for item in reversed(history):
         if isinstance(item, TaskMetadataItem) and item.main_agent.usage is not None:
@@ -95,6 +106,7 @@ def _extract_usage_from_history(history: list[message.HistoryEvent]) -> Usage | 
         if isinstance(item, message.AssistantMessage) and item.usage is not None:
             return item.usage
     return None
+
 
 def _load_usage_snapshot(session_id: str, session_work_dir: Path, websocket: WebSocket) -> dict[str, Any]:
     usage = Usage()
@@ -120,6 +132,7 @@ def _load_usage_snapshot(session_id: str, session_work_dir: Path, websocket: Web
         "event": {"usage": usage.model_dump(mode="json")},
         "timestamp": time.time(),
     }
+
 
 async def _handle_incoming_frame(
     session_id: str,
@@ -227,6 +240,7 @@ async def _handle_incoming_frame(
             message=f"Failed to handle message: {exc}",
         )
 
+
 def _validate_incoming_frame(payload: dict[str, Any], frame_type: str) -> IncomingFrame:
     if frame_type == "message":
         return MessageFrame.model_validate(payload)
@@ -243,6 +257,7 @@ def _validate_incoming_frame(payload: dict[str, Any], frame_type: str) -> Incomi
     if frame_type == "thinking":
         return ThinkingFrame.model_validate(payload)
     return CompactFrame.model_validate(payload)
+
 
 def _collect_descendant_session_ids(session_id: str, work_dir: Path) -> set[str]:
     """Collect all descendant sub-agent session IDs by scanning session histories.
@@ -271,8 +286,10 @@ def _collect_descendant_session_ids(session_id: str, work_dir: Path) -> set[str]
                     queue.append(child_id)
     return result
 
+
 _BATCH_WINDOW_SECONDS = 0.005  # 5ms — imperceptible for text streaming, good batching during bursts
 _BATCH_MAX_SIZE = 50
+
 
 async def _forward_events(session_id: str, websocket: WebSocket) -> None:
     state = get_web_state_from_ws(websocket)
@@ -354,6 +371,7 @@ async def _forward_events(session_id: str, websocket: WebSocket) -> None:
                 task.cancel()
         await asyncio.gather(read_task, send_task, return_exceptions=True)
 
+
 async def _send_pending_interaction_snapshots(session_id: str, websocket: WebSocket) -> None:
     state = get_web_state_from_ws(websocket)
     get_session_actor = getattr(state.runtime.session_registry, "get_session_actor", None)
@@ -388,6 +406,7 @@ async def _send_pending_interaction_snapshots(session_id: str, websocket: WebSoc
             }
         )
 
+
 async def _forward_session_list_events(websocket: WebSocket) -> None:
     state = get_web_state_from_ws(websocket)
     if state.session_live is None:
@@ -404,6 +423,7 @@ async def _forward_session_list_events(websocket: WebSocket) -> None:
             )
     except (WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError, asyncio.CancelledError, FutureCancelledError):
         return
+
 
 async def _receive_commands(
     session_id: str,
@@ -462,6 +482,7 @@ async def _receive_commands(
             continue
 
         await _handle_incoming_frame(session_id, frame, websocket, is_holder=is_holder)
+
 
 @router.websocket("/api/sessions/{session_id}/ws")
 async def session_websocket(websocket: WebSocket, session_id: str) -> None:
@@ -596,6 +617,7 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                 )
         log_debug(f"[web/ws:{session_id[:8]}] finally done", debug_type=DebugType.EXECUTION)
 
+
 async def _wait_for_ws_disconnect(websocket: WebSocket) -> None:
     """Block until the client disconnects or sends any message (ignored)."""
     try:
@@ -603,6 +625,7 @@ async def _wait_for_ws_disconnect(websocket: WebSocket) -> None:
             await websocket.receive()
     except (WebSocketDisconnect, anyio.ClosedResourceError, asyncio.CancelledError, FutureCancelledError):
         return
+
 
 @router.websocket("/api/sessions/ws")
 async def session_list_websocket(websocket: WebSocket) -> None:

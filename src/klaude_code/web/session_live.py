@@ -21,10 +21,12 @@ class SessionStreamEvent:
     session_id: str
     session: dict[str, Any] | None = None
 
+
 @dataclass(frozen=True)
 class _SessionSubscriber:
     subscriber_id: str
     queue: asyncio.Queue[SessionStreamEvent | None]
+
 
 class SessionStreamSubscription:
     def __init__(self, *, stream: SessionEventStream, subscriber: _SessionSubscriber) -> None:
@@ -46,6 +48,7 @@ class SessionStreamSubscription:
                     self._subscriber.queue.task_done()
         finally:
             self._stream.detach(self._subscriber.subscriber_id)
+
 
 class SessionEventStream:
     def __init__(self, *, subscriber_queue_maxsize: int = 256) -> None:
@@ -98,14 +101,14 @@ class SessionEventStream:
         for subscriber_id in overflowed:
             self.detach(subscriber_id)
 
+
 def _derive_session_state_from_snapshot(snapshot: Any) -> Literal["idle", "running", "waiting_user_input"]:
     if snapshot.pending_request_count > 0:
-        return cast(
-            Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.WAITING_USER_INPUT.value
-        )
+        return cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.WAITING_USER_INPUT.value)
     if snapshot.active_root_task is not None or snapshot.child_task_count > 0:
         return cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.RUNNING.value)
     return cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.IDLE.value)
+
 
 class SessionLiveState:
     def __init__(self, *, home_dir: Path, runtime: RuntimeFacade) -> None:
@@ -178,9 +181,7 @@ class SessionLiveState:
     ) -> Literal["idle", "running", "waiting_user_input"]:
         actor = self._runtime.session_registry.get_session_actor(session_id)
         if actor is None:
-            return fallback or cast(
-                Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.IDLE.value
-            )
+            return fallback or cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.IDLE.value)
         snapshot = actor.snapshot()
         return _derive_session_state_from_snapshot(snapshot)
 
@@ -196,6 +197,7 @@ class SessionLiveState:
             runtime_owner=summary.runtime_owner,
             runtime_owner_heartbeat_at=summary.runtime_owner_heartbeat_at,
         )
+
 
 def format_sse_message(event: SessionStreamEvent) -> str:
     payload = {

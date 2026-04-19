@@ -19,10 +19,12 @@ _ACTIVE_SESSION_STATES = (
     "waiting_user_input",
 )
 
+
 def is_runtime_owner_stale(heartbeat_at: float | None, *, now: float | None = None) -> bool:
     if heartbeat_at is None:
         return True
     return ((now or time.time()) - heartbeat_at) > OWNER_HEARTBEAT_TIMEOUT_SECONDS
+
 
 def is_session_read_only_for_runtime(
     *,
@@ -44,6 +46,7 @@ def is_session_read_only_for_runtime(
         return True
     return session_state in _ACTIVE_SESSION_STATES
 
+
 def is_session_read_only(
     *,
     state: WebAppState,
@@ -59,6 +62,7 @@ def is_session_read_only(
         runtime_owner=runtime_owner,
         runtime_owner_heartbeat_at=runtime_owner_heartbeat_at,
     )
+
 
 def load_session_read_only(state: WebAppState, *, session_id: str, work_dir: Path) -> bool:
     session = Session.load_meta(session_id, work_dir=work_dir)

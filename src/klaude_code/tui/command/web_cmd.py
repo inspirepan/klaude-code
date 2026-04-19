@@ -20,9 +20,11 @@ Options:
   --debug      Enable debug logs for web server
 """
 
+
 class _WebArgumentParser(argparse.ArgumentParser):
     def error(self, message: str) -> NoReturn:
         raise ValueError(message)
+
 
 def _create_parser() -> _WebArgumentParser:
     parser = _WebArgumentParser(prog="/web", add_help=False)
@@ -31,6 +33,7 @@ def _create_parser() -> _WebArgumentParser:
     parser.add_argument("--no-open", action="store_true")
     parser.add_argument("--debug", action="store_true")
     return parser
+
 
 class WebCommand(CommandABC):
     """Switch the current TUI process into web server mode."""

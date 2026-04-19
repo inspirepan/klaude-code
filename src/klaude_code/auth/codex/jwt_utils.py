@@ -27,6 +27,7 @@ def decode_jwt_payload(token: str) -> dict[str, Any]:
     decoded = base64.urlsafe_b64decode(payload)
     return json.loads(decoded)
 
+
 def extract_account_id(token: str) -> str:
     """Extract ChatGPT account ID from JWT token.
 

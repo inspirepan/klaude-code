@@ -25,6 +25,7 @@ def _build_pytest_command() -> list[str]:
         return ["uv", "run", "pytest"]
     return [sys.executable, "-m", "pytest"]
 
+
 def main():
     project_root = Path(__file__).parent.parent
 
@@ -48,6 +49,7 @@ def main():
     # Run pytest
     result = subprocess.run(args, cwd=project_root, env=env)
     sys.exit(result.returncode)
+
 
 if __name__ == "__main__":
     main()

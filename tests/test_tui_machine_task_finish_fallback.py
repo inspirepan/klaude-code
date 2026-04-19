@@ -22,6 +22,7 @@ def test_task_finish_renders_final_result_when_no_assistant_events() -> None:
     assert any(isinstance(c, AppendAssistant) for c in cmds)
     assert any(isinstance(c, EndAssistantStream) for c in cmds)
 
+
 def test_task_finish_does_not_duplicate_when_assistant_text_streamed() -> None:
     m = DisplayStateMachine()
     session_id = "s1"
@@ -40,6 +41,7 @@ def test_task_finish_does_not_duplicate_when_assistant_text_streamed() -> None:
 
     assert not any(isinstance(c, AppendAssistant) for c in cmds)
 
+
 def test_task_finish_does_not_render_task_cancelled_as_assistant_text() -> None:
     m = DisplayStateMachine()
     session_id = "s1"
@@ -56,6 +58,7 @@ def test_task_finish_does_not_render_task_cancelled_as_assistant_text() -> None:
     assert not any(isinstance(c, StartAssistantStream) for c in cmds)
     assert not any(isinstance(c, AppendAssistant) for c in cmds)
     assert not any(isinstance(c, EndAssistantStream) for c in cmds)
+
 
 def test_task_start_updates_primary_session_after_session_change() -> None:
     m = DisplayStateMachine()

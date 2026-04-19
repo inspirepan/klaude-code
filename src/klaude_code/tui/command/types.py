@@ -11,6 +11,7 @@ class CommandInfo:
     support_addition_params: bool = False
     placeholder: str = ""
 
+
 class CommandName(str, Enum):
     INIT = "init"
     LOGIN = "login"

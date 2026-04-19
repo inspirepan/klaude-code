@@ -27,6 +27,7 @@ def mask_api_key(api_key: str | None) -> str:
 
     return f"{api_key[:6]}…{api_key[-6:]}"
 
+
 def _resolve_env_var_source(env_var_expression: str) -> str | None:
     """Return 'env' if the value comes from os.environ, 'configured' if from auth store."""
     for env_var_name in env_var_expression.split("|"):
@@ -35,6 +36,7 @@ def _resolve_env_var_source(env_var_expression: str) -> str | None:
         if get_auth_env(env_var_name):
             return "configured"
     return None
+
 
 def _format_secret_value_display(value: str | None, *, fallback_name: str) -> Text:
     """Format `${ENV}` or raw secret as `NAME=masked`.
@@ -57,6 +59,7 @@ def _format_secret_value_display(value: str | None, *, fallback_name: str) -> Te
         return Text.assemble((f"{fallback_name}=", "dim"), (mask_api_key(value), ThemeKey.CONFIG_PARAM_VALUE))
     return Text("")
 
+
 def _format_aws_credentials_display(provider: ProviderConfig) -> list[Text]:
     """Format AWS Bedrock credentials display for provider header."""
     parts: list[Text] = []
@@ -70,6 +73,7 @@ def _format_aws_credentials_display(provider: ProviderConfig) -> list[Text]:
             parts.append(display)
     return parts
 
+
 def _format_google_vertex_credentials_display(provider: ProviderConfig) -> list[Text]:
     """Format Google Vertex credentials display for provider header."""
     parts: list[Text] = []
@@ -81,6 +85,7 @@ def _format_google_vertex_credentials_display(provider: ProviderConfig) -> list[
         if display.plain:
             parts.append(display)
     return parts
+
 
 def _build_provider_header(
     provider: ProviderConfig,
@@ -121,12 +126,14 @@ def _build_provider_header(
 
     return header
 
+
 def _get_model_params_display(model: ModelConfig) -> list[Text]:
     """Get display elements for model parameters."""
     param_strings = format_model_params(model)
     if param_strings:
         return [Text(s, style=ThemeKey.CONFIG_PARAM_LABEL) for s in param_strings]
     return [Text("", style=ThemeKey.CONFIG_PARAM_LABEL)]
+
 
 def _pad_text_right(text: Text, width: int) -> Text:
     """Pad rich Text to a fixed display width (monospace cells)."""
@@ -135,6 +142,7 @@ def _pad_text_right(text: Text, width: int) -> Text:
     if pad:
         out.append(" " * pad)
     return out
+
 
 def _build_model_lines(
     provider: ProviderConfig,
@@ -254,6 +262,7 @@ def _build_model_lines(
         lines.append(line)
 
     return lines
+
 
 def display_models_and_providers(config: Config, *, show_all: bool = False) -> None:
     """Display providers and models using a compact tree style."""

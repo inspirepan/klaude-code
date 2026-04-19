@@ -14,6 +14,7 @@ from klaude_code.protocol import events
 class _DisconnectSentinel:
     pass
 
+
 _DISCONNECT_SENTINEL = _DisconnectSentinel()
 
 _CURRENT_OPERATION_ID: ContextVar[str | None] = ContextVar("klaude_event_operation_id", default=None)
@@ -21,6 +22,7 @@ _CURRENT_TASK_ID: ContextVar[str | None] = ContextVar("klaude_event_task_id", de
 _CURRENT_CAUSATION_ID: ContextVar[str | None] = ContextVar("klaude_event_causation_id", default=None)
 
 type EnvelopePublishHook = Callable[[events.EventEnvelope], Awaitable[None]]
+
 
 @contextlib.contextmanager
 def event_publish_context(
@@ -43,11 +45,13 @@ def event_publish_context(
         _CURRENT_TASK_ID.reset(task_token)
         _CURRENT_OPERATION_ID.reset(operation_token)
 
+
 @dataclass(frozen=True)
 class _Subscriber:
     subscriber_id: str
     session_id: str | None
     queue: asyncio.Queue[events.EventEnvelope | _DisconnectSentinel]
+
 
 class EventSubscription:
     def __init__(
@@ -83,6 +87,7 @@ class EventSubscription:
 
     async def wait_for_drain(self) -> None:
         await self._queue.join()
+
 
 class EnvelopeBus:
     def __init__(self, *, subscriber_queue_maxsize: int = 1024) -> None:
@@ -148,6 +153,7 @@ class EnvelopeBus:
         # (e.g. task.finish) before seeing the sentinel.  The queue was created
         # with one extra slot reserved for this put.
         subscriber.queue.put_nowait(_DISCONNECT_SENTINEL)
+
 
 class EventBus:
     def __init__(

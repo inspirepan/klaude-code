@@ -32,12 +32,15 @@ config_path = _config_module.config_path
 load_config = _config_module.load_config
 parse_env_var_syntax = _config_module.parse_env_var_syntax
 
+
 def _auth_env_none(_key: str) -> str | None:
     return None
+
 
 # =============================================================================
 # mask_api_key function - copied here to avoid circular import issues
 # =============================================================================
+
 
 def mask_api_key(api_key: str | None) -> str:
     """Mask API key to show only first 6 and last 6 characters with *** in between"""
@@ -49,9 +52,11 @@ def mask_api_key(api_key: str | None) -> str:
 
     return f"{api_key[:6]} ... {api_key[-6:]}"
 
+
 # =============================================================================
 # ModelConfig Tests
 # =============================================================================
+
 
 class TestModelConfig:
     """Tests for the ModelConfig dataclass."""
@@ -104,9 +109,11 @@ class TestModelConfig:
         with pytest.raises(ValueError):
             _ = ModelConfig.model_validate({})
 
+
 # =============================================================================
 # Config Tests
 # =============================================================================
+
 
 class TestConfig:
     """Tests for the Config dataclass."""
@@ -497,6 +504,7 @@ class TestConfig:
         config = Config.model_validate(data)
         assert config.sub_agent_models == {}
 
+
 class TestConfigSave:
     """Tests for Config.save() method."""
 
@@ -627,9 +635,11 @@ class TestConfigSave:
 
         assert test_config_path.exists()
 
+
 # =============================================================================
 # load_config Tests
 # =============================================================================
+
 
 class TestLoadConfig:
     """Tests for load_config function."""
@@ -782,9 +792,11 @@ class TestLoadConfig:
         assert refreshed is not None
         assert refreshed.main_model == "after-create"
 
+
 # =============================================================================
 # mask_api_key Tests
 # =============================================================================
+
 
 class TestMaskApiKey:
     """Tests for mask_api_key function."""
@@ -834,9 +846,11 @@ class TestMaskApiKey:
         masked = mask_api_key("")
         assert masked == "N/A"
 
+
 # =============================================================================
 # LLMConfigParameter Integration Tests
 # =============================================================================
+
 
 class TestLLMConfigParameterIntegration:
     """Integration tests for LLMConfigParameter construction from Config."""
@@ -921,6 +935,7 @@ class TestLLMConfigParameterIntegration:
         assert llm_config.provider_routing is not None
         assert llm_config.provider_routing.sort == "throughput"
         assert llm_config.provider_routing.allow_fallbacks is True
+
 
 class TestMatchModelFromConfig:
     def test_match_model_preserves_config_order_for_filtered_models(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1179,6 +1194,7 @@ class TestMatchModelFromConfig:
         assert result.filter_hint == "does-not-exist"
         assert result.filtered_models == []
 
+
 class TestTerminalSelectorFilter:
     def test_type_to_search_supports_normalized_aliases(self) -> None:
         # The interactive selector's "type to search" should behave like the config matcher:
@@ -1312,9 +1328,11 @@ class TestTerminalSelectorFilter:
 
         assert tokens == [("class:text", "(no match)\n")]
 
+
 # =============================================================================
 # config_path Tests
 # =============================================================================
+
 
 class TestConfigPath:
     """Tests for config_path constant."""
@@ -1328,9 +1346,11 @@ class TestConfigPath:
         """Test that config_path has correct filename."""
         assert config_path.name == "klaude-config.yaml"
 
+
 # =============================================================================
 # Out-of-Box Experience Tests
 # =============================================================================
+
 
 class TestOutOfBoxExperience:
     """Tests simulating various out-of-box configuration scenarios."""

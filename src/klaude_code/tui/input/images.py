@@ -31,9 +31,11 @@ IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
 
 IMAGE_MARKER_RE = re.compile(r'\[image (?P<path>"[^"]+"|[^\]]+)\]')
 
+
 def is_image_file(path: Path) -> bool:
     """Check if a path points to an image file based on extension."""
     return path.suffix.lower() in IMAGE_SUFFIXES
+
 
 def format_image_marker(path: str) -> str:
     """Format a path as an [image ...] marker.
@@ -45,6 +47,7 @@ def format_image_marker(path: str) -> str:
         return f'[image "{path_str}"]'
     return f"[image {path_str}]"
 
+
 def parse_image_marker_path(raw: str) -> str:
     """Parse the path from an [image ...] marker, removing quotes if present."""
     s = raw.strip()
@@ -52,12 +55,15 @@ def parse_image_marker_path(raw: str) -> str:
         return s[1:-1]
     return s
 
+
 # ---------------------------------------------------------------------------
 # Clipboard image capture
 # ---------------------------------------------------------------------------
 
+
 def _clipboard_images_dir() -> Path:
     return Path(get_system_temp())
+
 
 def _grab_clipboard_image_macos(dest_path: Path) -> bool:
     """Grab image from clipboard on macOS using pngpaste or osascript (JXA)."""
@@ -105,6 +111,7 @@ if (!pngData.isNil()) {{
     except OSError:
         return False
 
+
 def _grab_clipboard_image_linux(dest_path: Path) -> bool:
     """Grab image from clipboard on Linux using xclip."""
     if not shutil.which("xclip"):
@@ -120,6 +127,7 @@ def _grab_clipboard_image_linux(dest_path: Path) -> bool:
     except OSError:
         pass
     return False
+
 
 def _grab_clipboard_image_windows(dest_path: Path) -> bool:
     """Grab image from clipboard on Windows using PowerShell."""
@@ -141,6 +149,7 @@ def _grab_clipboard_image_windows(dest_path: Path) -> bool:
     except OSError:
         return False
 
+
 def _grab_clipboard_image(dest_path: Path) -> bool:
     """Grab image from clipboard and save to dest_path. Returns True on success."""
     if sys.platform == "darwin":
@@ -149,6 +158,7 @@ def _grab_clipboard_image(dest_path: Path) -> bool:
         return _grab_clipboard_image_windows(dest_path)
     else:
         return _grab_clipboard_image_linux(dest_path)
+
 
 def capture_clipboard_tag() -> str | None:
     """Capture an image from clipboard and return an [image ...] marker."""
@@ -167,9 +177,11 @@ def capture_clipboard_tag() -> str | None:
 
     return format_image_marker(str(path))
 
+
 # ---------------------------------------------------------------------------
 # Clipboard image presence check (no saving)
 # ---------------------------------------------------------------------------
+
 
 def _has_clipboard_image_macos() -> bool:
     try:
@@ -181,6 +193,7 @@ def _has_clipboard_image_macos() -> bool:
         return result.returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         return False
+
 
 def _has_clipboard_image_linux() -> bool:
     if not shutil.which("xclip"):
@@ -198,6 +211,7 @@ def _has_clipboard_image_linux() -> bool:
     except (OSError, subprocess.TimeoutExpired):
         return False
 
+
 def _has_clipboard_image_windows() -> bool:
     try:
         result = subprocess.run(
@@ -209,6 +223,7 @@ def _has_clipboard_image_windows() -> bool:
         return result.returncode == 0 and "True" in result.stdout
     except (OSError, subprocess.TimeoutExpired):
         return False
+
 
 def has_clipboard_image() -> bool:
     """Return True when the system clipboard currently holds an image.
@@ -226,6 +241,7 @@ def has_clipboard_image() -> bool:
     except Exception:
         return False
 
+
 # ---------------------------------------------------------------------------
 # Image extraction from text
 # ---------------------------------------------------------------------------
@@ -237,6 +253,7 @@ _MIME_TYPES: dict[str, str] = {
     ".gif": "image/gif",
     ".webp": "image/webp",
 }
+
 
 def _create_image_file_part(file_path: str) -> ImageFilePart | None:
     """Create an ImageFilePart from a file path."""
@@ -257,6 +274,7 @@ def _create_image_file_part(file_path: str) -> ImageFilePart | None:
         )
     except OSError:
         return None
+
 
 def extract_images_from_text(text: str) -> list[ImageFilePart]:
     """Extract images referenced by [image ...] markers in text."""

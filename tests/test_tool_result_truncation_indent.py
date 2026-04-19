@@ -13,6 +13,7 @@ def _render_event_to_text(event: events.ToolResultEvent) -> str:
     console.print(renderable)
     return console.export_text()
 
+
 def test_web_search_truncation_indicator_uses_tool_name_indent() -> None:
     result = "\n".join(f"line-{idx}" for idx in range(12))
     event = events.ToolResultEvent(
@@ -28,6 +29,7 @@ def test_web_search_truncation_indicator_uses_tool_name_indent() -> None:
 
     assert "│            … (more 6 lines)" in output
 
+
 def test_bash_truncation_indicator_keeps_existing_padding() -> None:
     result = "\n".join(f"line-{idx}" for idx in range(12))
     event = events.ToolResultEvent(
@@ -42,6 +44,7 @@ def test_bash_truncation_indicator_keeps_existing_padding() -> None:
     output = _render_event_to_text(event)
 
     assert "│      … (more 6 lines)" in output
+
 
 def test_edit_diff_result_uses_tool_name_indent_in_tree_wrap() -> None:
     event = events.ToolResultEvent(
@@ -74,6 +77,7 @@ def test_edit_diff_result_uses_tool_name_indent_in_tree_wrap() -> None:
     assert line.startswith("└ ")
     assert line[2:7] == "     "
     assert line.endswith("1 +alpha")
+
 
 def test_web_search_indent_shrinks_on_narrow_width() -> None:
     result = "\n".join(f"line-{idx}" for idx in range(12))

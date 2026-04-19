@@ -15,8 +15,10 @@ from klaude_code.control.session_meta_relay import (
 
 T = TypeVar("T")
 
+
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
+
 
 def test_session_meta_relay_round_trips_upsert(tmp_path: Path) -> None:
     async def _test() -> None:
@@ -40,6 +42,7 @@ def test_session_meta_relay_round_trips_upsert(tmp_path: Path) -> None:
         ]
 
     arun(_test())
+
 
 def test_session_meta_relay_server_closes_idle_connections_on_shutdown(tmp_path: Path) -> None:
     async def _test() -> None:

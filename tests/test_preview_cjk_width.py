@@ -23,6 +23,7 @@ class TestDisplayWidth:
     def test_empty_string(self) -> None:
         assert _display_width("") == 0
 
+
 class TestTrimToDisplayWidth:
     def test_ascii_no_trim(self) -> None:
         assert _trim_to_display_width("hello", 10) == "hello"
@@ -48,6 +49,7 @@ class TestTrimToDisplayWidth:
 
     def test_zero_width(self) -> None:
         assert _trim_to_display_width("abc", 0) == ""
+
 
 class TestPreviewBoxAlignment:
     """Verify that preview box rows have consistent display width."""
@@ -93,6 +95,7 @@ class TestPreviewBoxAlignment:
         for line in lines:
             row = self._build_preview_row(line, inner_width)
             assert _display_width(row) == box_width, f"Row width mismatch for: {line!r}"
+
 
 class TestRenderMarkdownPreviewWidth:
     """Verify Rich-rendered lines respect inner_width in display columns."""

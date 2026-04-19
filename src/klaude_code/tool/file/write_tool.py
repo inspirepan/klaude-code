@@ -28,6 +28,7 @@ class WriteArguments(BaseModel):
     file_path: str
     content: str
 
+
 @register(tools.WRITE)
 class WriteTool(ToolABC):
     @classmethod

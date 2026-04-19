@@ -1,4 +1,3 @@
-
 # pyright: reportUnknownMemberType=false
 # pyright: reportUnknownVariableType=false
 # pyright: reportUnknownArgumentType=false
@@ -48,8 +47,10 @@ from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 # Unified format for Google thought signatures
 GOOGLE_THOUGHT_SIGNATURE_FORMAT = "google"
 
+
 def support_thinking(model_id: str | None) -> bool:
     return supports_google_thinking(model_id)
+
 
 def convert_gemini_thinking_level(reasoning_effort: str | None) -> ThinkingLevel | None:
     """Convert reasoning_effort to Gemini ThinkingLevel."""
@@ -64,6 +65,7 @@ def convert_gemini_thinking_level(reasoning_effort: str | None) -> ThinkingLevel
         "none": ThinkingLevel.MINIMAL,
     }
     return mapping.get(reasoning_effort)
+
 
 def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
     tool_list = convert_tool_schema(param.tools)
@@ -97,6 +99,7 @@ def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
         thinking_config=thinking_config,
     )
 
+
 def _usage_from_metadata(
     usage: GenerateContentResponseUsageMetadata | None,
     *,
@@ -127,6 +130,7 @@ def _usage_from_metadata(
         max_tokens=max_tokens,
     )
 
+
 def _partial_arg_value(partial: PartialArg) -> str | float | bool | None:
     if partial.string_value is not None:
         return partial.string_value
@@ -135,6 +139,7 @@ def _partial_arg_value(partial: PartialArg) -> str | float | bool | None:
     if partial.bool_value is not None:
         return partial.bool_value
     return None
+
 
 def _merge_partial_args(dst: dict[str, Any], partial_args: list[PartialArg] | None) -> None:
     if not partial_args:
@@ -148,6 +153,7 @@ def _merge_partial_args(dst: dict[str, Any], partial_args: list[PartialArg] | No
             continue
         dst[key] = _partial_arg_value(partial)
 
+
 def _encode_thought_signature(sig: bytes | str | None) -> str | None:
     """Encode thought signature bytes to base64 string."""
     if sig is None:
@@ -155,6 +161,7 @@ def _encode_thought_signature(sig: bytes | str | None) -> str | None:
     if isinstance(sig, bytes):
         return b64encode(sig).decode("ascii")
     return sig
+
 
 def _map_finish_reason(reason: str) -> StopReason | None:
     normalized = reason.strip().lower()
@@ -187,6 +194,7 @@ def _map_finish_reason(reason: str) -> StopReason | None:
     }
     return mapping.get(normalized)
 
+
 async def _iter_google_stream_chunks(
     stream: AsyncIterator[GenerateContentResponse],
 ) -> AsyncIterator[GenerateContentResponse]:
@@ -198,6 +206,7 @@ async def _iter_google_stream_chunks(
         )
         async for chunk in stream:
             yield chunk
+
 
 class GoogleStreamStateManager:
     """Manages streaming state for Google LLM responses.
@@ -250,6 +259,7 @@ class GoogleStreamStateManager:
         Returns None if no content has been accumulated yet.
         """
         return build_partial_message(self.assistant_parts, response_id=self.response_id)
+
 
 async def parse_google_stream(
     stream: AsyncIterator[GenerateContentResponse],
@@ -382,6 +392,7 @@ async def parse_google_stream(
         stop_reason=state.stop_reason,
     )
 
+
 class GoogleLLMStream(LLMStreamABC):
     """LLMStream implementation for Google LLM clients."""
 
@@ -428,6 +439,7 @@ class GoogleLLMStream(LLMStreamABC):
         if self._completed:
             return None
         return self._state.get_partial_message()
+
 
 @register(llm_param.LLMClientProtocol.GOOGLE)
 class GoogleClient(LLMClientABC):

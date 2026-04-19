@@ -16,12 +16,14 @@ def _render_tool_call_to_text(event: events.ToolCallEvent) -> str | None:
     console.print(renderable)
     return console.export_text()
 
+
 def _render_tool_result_to_text(event: events.ToolResultEvent) -> str:
     console = Console(width=120, record=True, force_terminal=False, theme=get_theme().app_theme)
     renderable = render_tool_result(event)
     assert renderable is not None
     console.print(renderable)
     return console.export_text()
+
 
 def test_render_todo_write_tool_call_is_not_rendered() -> None:
     event = events.ToolCallEvent(
@@ -38,6 +40,7 @@ def test_render_todo_write_tool_call_is_not_rendered() -> None:
     output = _render_tool_call_to_text(event)
 
     assert output is None
+
 
 def test_render_todo_result_only_shows_todos() -> None:
     todo_content = "Locate OAuth references"
@@ -64,6 +67,7 @@ def test_render_todo_result_only_shows_todos() -> None:
     assert "╭" in output
     assert "│  ◉" in output
 
+
 def test_render_todo_error_result_keeps_update_todos_context() -> None:
     event = events.ToolResultEvent(
         session_id="s1",
@@ -80,6 +84,7 @@ def test_render_todo_error_result_keeps_update_todos_context() -> None:
     assert "invalid todos payload" in output
     assert "└" not in output
 
+
 def test_render_bash_tool_result_adds_left_padding() -> None:
     event = events.ToolResultEvent(
         session_id="s1",
@@ -94,6 +99,7 @@ def test_render_bash_tool_result_adds_left_padding() -> None:
 
     assert output.rstrip("\n").rstrip() == "└      hi"
 
+
 def test_render_bash_tool_result_shows_no_content_for_empty_output() -> None:
     event = events.ToolResultEvent(
         session_id="s1",
@@ -107,6 +113,7 @@ def test_render_bash_tool_result_shows_no_content_for_empty_output() -> None:
     output = _render_tool_result_to_text(event)
 
     assert output.rstrip("\n").rstrip() == "└      (no content)"
+
 
 def test_render_bash_tool_call_shows_description_callout() -> None:
     event = events.ToolCallEvent(
@@ -130,6 +137,7 @@ def test_render_bash_tool_call_shows_description_callout() -> None:
     assert description_idx != -1
     assert command_idx != -1
     assert description_idx < command_idx
+
 
 def test_render_bash_tool_call_adds_divider_for_long_multiline_command() -> None:
     command = "\n".join(f"echo {i}" for i in range(11))

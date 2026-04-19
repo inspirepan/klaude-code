@@ -11,6 +11,7 @@ class CodexAuthState(BaseAuthState):
 
     account_id: str
 
+
 class CodexTokenManager(BaseTokenManager[CodexAuthState]):
     """Manage Codex OAuth tokens."""
 

@@ -31,6 +31,7 @@ def calculate_cost(usage: Usage, cost_config: llm_param.Cost | None) -> None:
     # Cache read cost
     usage.cache_read_cost = (usage.cached_tokens / 1_000_000) * (cost_config.cache_read or cost_config.input)
 
+
 class MetadataTracker:
     """Tracks timing and metadata for LLM responses."""
 
@@ -90,6 +91,7 @@ class MetadataTracker:
     def usage(self) -> Usage:
         return self._usage
 
+
 def error_stream_items(
     metadata_tracker: MetadataTracker,
     *,
@@ -102,6 +104,7 @@ def error_stream_items(
         message.StreamErrorItem(error=error),
         message.AssistantMessage(parts=[], response_id=response_id, usage=metadata),
     ]
+
 
 class ErrorLLMStream(LLMStreamABC):
     """LLMStream implementation for error scenarios."""
@@ -119,6 +122,7 @@ class ErrorLLMStream(LLMStreamABC):
     def get_partial_message(self) -> message.AssistantMessage | None:
         return None
 
+
 def error_llm_stream(
     metadata_tracker: MetadataTracker,
     *,
@@ -129,12 +133,13 @@ def error_llm_stream(
     items = error_stream_items(metadata_tracker, error=error, response_id=response_id)
     return ErrorLLMStream(items)
 
+
 def convert_usage(
     usage: openai.types.CompletionUsage,
     context_limit: int | None = None,
     max_tokens: int | None = None,
 ) -> Usage:
-    """Convert OpenAI CompletionUsage to internal Usage 
+    """Convert OpenAI CompletionUsage to internal Usage
 
     context_token is set to total_tokens from the API response,
     representing the actual context window usage for this turn.

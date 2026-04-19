@@ -984,6 +984,7 @@ _JS = """
 })();
 """
 
+
 @dataclass(slots=True)
 class _EntryView:
     anchor: str
@@ -993,6 +994,7 @@ class _EntryView:
     preview: str
     search_text: str
     body_html: str
+
 
 def render_session_export_html(
     session: Session,
@@ -1023,6 +1025,7 @@ def render_session_export_html(
         .replace("__ENTRY_ITEMS__", entry_items)
         .replace("__JS__", _JS)
     )
+
 
 def _render_header(
     session: Session,
@@ -1104,6 +1107,7 @@ def _render_header(
         ]
     )
 
+
 def _render_system_prompt_section(system_prompt: str | None) -> str:
     if not system_prompt:
         return ""
@@ -1122,6 +1126,7 @@ def _render_system_prompt_section(system_prompt: str | None) -> str:
         ]
     )
 
+
 def _render_tools_section(tools: Sequence[llm_param.ToolSchema]) -> str:
     if not tools:
         return ""
@@ -1137,6 +1142,7 @@ def _render_tools_section(tools: Sequence[llm_param.ToolSchema]) -> str:
             "</details>",
         ]
     )
+
 
 def _render_tool_item(tool: llm_param.ToolSchema) -> str:
     body_parts: list[str] = []
@@ -1199,6 +1205,7 @@ def _render_tool_item(tool: llm_param.ToolSchema) -> str:
         ]
     )
 
+
 def _render_sidebar(entries: Sequence[_EntryView]) -> str:
     if not entries:
         return '<div class="empty-state">No conversation history yet.</div>'
@@ -1218,6 +1225,7 @@ def _render_sidebar(entries: Sequence[_EntryView]) -> str:
         for entry in entries
     )
 
+
 def _render_entry_list(entries: Sequence[_EntryView]) -> str:
     if not entries:
         return '<div class="empty-state">Nothing to export yet. Start a conversation first.</div>'
@@ -1236,6 +1244,7 @@ def _render_entry_list(entries: Sequence[_EntryView]) -> str:
         )
         for entry in entries
     )
+
 
 def _render_entry_view(index: int, item: message.HistoryEvent, work_dir: Path) -> _EntryView | None:
     if isinstance(item, message.CacheHitRateEntry):
@@ -1337,6 +1346,7 @@ def _render_entry_view(index: int, item: message.HistoryEvent, work_dir: Path) -
         body_html=f'<pre class="json-block">{html.escape(_json_dump(item.model_dump(mode="json")))}</pre>',
     )
 
+
 def _render_parts(parts: Sequence[message.Part], *, work_dir: Path, allow_thinking: bool) -> str:
     blocks: list[str] = []
     text_buffer: list[str] = []
@@ -1390,6 +1400,7 @@ def _render_parts(parts: Sequence[message.Part], *, work_dir: Path, allow_thinki
     flush_thinking()
     return "".join(blocks) or '<div class="empty-state">No renderable content.</div>'
 
+
 def _render_non_text_parts(parts: Sequence[message.Part], *, work_dir: Path) -> str:
     image_blocks: list[str] = []
     other_blocks: list[str] = []
@@ -1418,6 +1429,7 @@ def _render_non_text_parts(parts: Sequence[message.Part], *, work_dir: Path) -> 
     blocks.extend(other_blocks)
     return "".join(blocks) or '<div class="empty-state">No non-text content.</div>'
 
+
 def _image_card(label: str, source: str | None, *, source_label: str) -> str:
     image_html = f'<img src="{html.escape(source, quote=True)}" alt="{html.escape(label)}">' if source else ""
     return "".join(
@@ -1431,6 +1443,7 @@ def _image_card(label: str, source: str | None, *, source_label: str) -> str:
             "</div>",
         ]
     )
+
 
 def _details_block(*, title: str, meta: str | None, body: str, open_by_default: bool = False) -> str:
     open_attr = " open" if open_by_default else ""
@@ -1447,12 +1460,14 @@ def _details_block(*, title: str, meta: str | None, body: str, open_by_default: 
         ]
     )
 
+
 def _markdown_block(text: str) -> str:
     content = text.strip()
     if not content:
         return ""
     rendered = _MARKDOWN.render(content)
     return f'<div class="markdown-block">{rendered}</div>'
+
 
 def _assistant_preview(item: message.AssistantMessage) -> str:
     text = _message_preview(item.parts)
@@ -1465,6 +1480,7 @@ def _assistant_preview(item: message.AssistantMessage) -> str:
         return "(thinking only)"
     return "(assistant message)"
 
+
 def _message_preview(parts: Sequence[message.Part], fallback: str = "") -> str:
     text = "".join(part.text for part in parts if isinstance(part, message.TextPart))
     preview = _text_preview(text)
@@ -1473,6 +1489,7 @@ def _message_preview(parts: Sequence[message.Part], fallback: str = "") -> str:
     if any(isinstance(part, (message.ImageFilePart, message.ImageURLPart)) for part in parts):
         return "(image content)"
     return fallback
+
 
 def _meta_preview_and_title(item: message.HistoryEvent) -> tuple[str, str]:
     if isinstance(item, message.CompactionEntry):
@@ -1492,9 +1509,11 @@ def _meta_preview_and_title(item: message.HistoryEvent) -> tuple[str, str]:
         return _text_preview(item.error, fallback="stream error"), "Error"
     return _text_preview(_json_dump(item.model_dump(mode="json")), fallback="meta event"), item.__class__.__name__
 
+
 def _entry_search_text(prefix: str, preview: str, item: message.HistoryEvent) -> str:
     base = f"{prefix} {preview} {_json_dump(item.model_dump(mode='json'))}"
     return _text_preview(base, limit=_SEARCH_LIMIT, fallback=prefix)
+
 
 def _history_event_timestamp(item: message.HistoryEvent) -> str:
     created_at = getattr(item, "created_at", None)
@@ -1502,13 +1521,16 @@ def _history_event_timestamp(item: message.HistoryEvent) -> str:
         return _format_datetime(created_at)
     return "unknown time"
 
+
 def _format_timestamp_value(value: float | None) -> str:
     if value is None or value <= 0:
         return "unknown"
     return _format_datetime(datetime.fromtimestamp(value))
 
+
 def _format_datetime(value: datetime) -> str:
     return value.strftime("%Y-%m-%d %H:%M:%S")
+
 
 def _usage_summary(usage: Usage | None) -> str | None:
     if usage is None:
@@ -1524,8 +1546,10 @@ def _usage_summary(usage: Usage | None) -> str | None:
         parts.append(f"cost {usage.total_cost:.4f} {usage.currency}")
     return ", ".join(parts) if parts else None
 
+
 def _format_number(value: int) -> str:
     return f"{value:,}"
+
 
 def _text_preview(text: str, *, limit: int = _PREVIEW_LIMIT, fallback: str = "") -> str:
     collapsed = re.sub(r"\s+", " ", text).strip()
@@ -1535,6 +1559,7 @@ def _text_preview(text: str, *, limit: int = _PREVIEW_LIMIT, fallback: str = "")
         return collapsed
     return collapsed[: limit - 1].rstrip() + "..."
 
+
 def _pretty_json_text(raw: str) -> str:
     try:
         parsed = json.loads(raw)
@@ -1542,8 +1567,10 @@ def _pretty_json_text(raw: str) -> str:
         return raw
     return _json_dump(parsed)
 
+
 def _json_dump(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
+
 
 def _json_object_value(schema: object, key: str) -> dict[str, object]:
     if not isinstance(schema, dict):
@@ -1554,6 +1581,7 @@ def _json_object_value(schema: object, key: str) -> dict[str, object]:
         return {}
     return cast(dict[str, object], value)
 
+
 def _json_array_value(schema: object, key: str) -> list[object]:
     if not isinstance(schema, dict):
         return []
@@ -1562,6 +1590,7 @@ def _json_array_value(schema: object, key: str) -> list[object]:
     if not isinstance(value, list):
         return []
     return cast(list[object], value)
+
 
 def _schema_type_label(schema: dict[str, object]) -> str:
     raw_type = schema.get("type")

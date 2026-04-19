@@ -13,6 +13,7 @@ from klaude_code.protocol import llm_param
 
 _GOOGLE_CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 
+
 @register(llm_param.LLMClientProtocol.GOOGLE_VERTEX)
 class GoogleVertexClient(GoogleClient):
     def __init__(self, config: llm_param.LLMConfigParameter):

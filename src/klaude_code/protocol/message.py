@@ -1,4 +1,3 @@
-
 """Models for LLM API input and response items.
 
 History is persisted as HistoryEvent (messages + error/task metadata).
@@ -25,6 +24,7 @@ from klaude_code.protocol.models import (
 
 # Stream items
 
+
 class ToolCallStartDelta(BaseModel):
     """Transient streaming signal when LLM starts a tool call.
 
@@ -37,27 +37,33 @@ class ToolCallStartDelta(BaseModel):
     name: str
     created_at: datetime = Field(default_factory=datetime.now)
 
+
 class AssistantTextDelta(BaseModel):
     response_id: str | None = None
     content: str
     created_at: datetime = Field(default_factory=datetime.now)
+
 
 class ThinkingTextDelta(BaseModel):
     response_id: str | None = None
     content: str
     created_at: datetime = Field(default_factory=datetime.now)
 
+
 class StreamErrorItem(BaseModel):
     error: str
     created_at: datetime = Field(default_factory=datetime.now)
+
 
 class InterruptEntry(BaseModel):
     show_notice: bool = True
     created_at: datetime = Field(default_factory=datetime.now)
 
+
 class CompactionDetails(BaseModel):
     read_files: list[str] = Field(default_factory=list)
     modified_files: list[str] = Field(default_factory=list)
+
 
 class KeptItemBrief(BaseModel):
     """Brief info about a kept (non-compacted) message item."""
@@ -65,6 +71,7 @@ class KeptItemBrief(BaseModel):
     item_type: str  # "User", "Assistant", "Read", "Edit", "Bash", etc.
     count: int = 1
     preview: str = ""  # Short preview text
+
 
 class CompactionEntry(BaseModel):
     summary: str
@@ -74,6 +81,7 @@ class CompactionEntry(BaseModel):
     kept_items_brief: list[KeptItemBrief] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     created_at: datetime = Field(default_factory=datetime.now)
 
+
 class RewindEntry(BaseModel):
     checkpoint_id: int
     note: str
@@ -82,11 +90,13 @@ class RewindEntry(BaseModel):
     original_user_message: str
     created_at: datetime = Field(default_factory=datetime.now)
 
+
 class CacheHitRateEntry(BaseModel):
     cache_hit_rate: float
     cached_tokens: int
     prev_turn_input_tokens: int
     created_at: datetime = Field(default_factory=datetime.now)
+
 
 class AwaySummaryEntry(BaseModel):
     """Persistent 'while you were away' recap entry.
@@ -99,6 +109,7 @@ class AwaySummaryEntry(BaseModel):
     text: str
     source: Literal["auto", "manual"] = "auto"
     created_at: datetime = Field(default_factory=datetime.now)
+
 
 class SpawnSubAgentEntry(BaseModel):
     """Recorded in the parent session when a sub-agent is spawned.
@@ -113,11 +124,14 @@ class SpawnSubAgentEntry(BaseModel):
     fork_context: bool = False
     created_at: datetime = Field(default_factory=datetime.now)
 
+
 # Part types
+
 
 class TextPart(BaseModel):
     type: Literal["text"] = "text"
     text: str
+
 
 class ImageURLPart(BaseModel):
     type: Literal["image_url"] = "image_url"
@@ -126,12 +140,14 @@ class ImageURLPart(BaseModel):
     frozen: bool = False
     source_file_path: str | None = None
 
+
 class ImageFilePart(BaseModel):
     type: Literal["image_file"] = "image_file"
     file_path: str
     mime_type: str | None = None
     byte_size: int | None = None
     sha256: str | None = None
+
 
 class ThinkingTextPart(BaseModel):
     type: Literal["thinking_text"] = "thinking_text"
@@ -143,12 +159,14 @@ class ThinkingTextPart(BaseModel):
     )
     format: str | None = None  # e.g. "MiniMax-response-v1" for reasoning_details round-trip
 
+
 class ThinkingSignaturePart(BaseModel):
     type: Literal["thinking_signature"] = "thinking_signature"
     id: str | None = None
     signature: str
     model_id: str | None = None
     format: str | None = None
+
 
 class ToolCallPart(BaseModel):
     type: Literal["tool_call"] = "tool_call"
@@ -157,24 +175,30 @@ class ToolCallPart(BaseModel):
     tool_name: str
     arguments_json: str
 
+
 Part = Annotated[
     TextPart | ImageURLPart | ImageFilePart | ThinkingTextPart | ThinkingSignaturePart | ToolCallPart,
     Field(discriminator="type"),
 ]
 
+
 def _empty_parts() -> list[Part]:
     return []
 
+
 # Message types
+
 
 class MessageBase(BaseModel):
     id: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
     response_id: str | None = None
 
+
 class SystemMessage(MessageBase):
     role: Literal["system"] = "system"
     parts: list[TextPart]
+
 
 class DeveloperMessage(MessageBase):
     role: Literal["developer"] = "developer"
@@ -187,6 +211,7 @@ class DeveloperMessage(MessageBase):
     # Structured UI-only metadata (never sent to the LLM).
     ui_extra: DeveloperUIExtra | None = None
 
+
 class UserMessage(MessageBase):
     role: Literal["user"] = "user"
     parts: list[Part]
@@ -195,12 +220,14 @@ class UserMessage(MessageBase):
     # Paste tag -> file path mapping (e.g. {"paste1": "/path/to/paste.txt"})
     pasted_files: dict[str, str] | None = None
 
+
 class AssistantMessage(MessageBase):
     role: Literal["assistant"] = "assistant"
     parts: list[Part]
     phase: AssistantPhase | None = None
     usage: Usage | None = None
     stop_reason: StopReason | None = None
+
 
 class ToolResultMessage(MessageBase):
     role: Literal["tool"] = "tool"
@@ -223,6 +250,7 @@ class ToolResultMessage(MessageBase):
             raise ValueError("ToolResultMessage.parts must not include text parts")
         return parts
 
+
 Message = SystemMessage | DeveloperMessage | UserMessage | AssistantMessage | ToolResultMessage
 
 HistoryEvent = (
@@ -243,6 +271,7 @@ LLMStreamItem = HistoryEvent | StreamItem
 
 # User input
 
+
 class UserInputPayload(BaseModel):
     """Structured payload for user input containing text and optional images.
 
@@ -254,12 +283,15 @@ class UserInputPayload(BaseModel):
     images: Sequence[ImageURLPart | ImageFilePart] | None = None
     pasted_files: dict[str, str] | None = None
 
+
 # Helper functions
+
 
 def text_parts_from_str(text: str | None) -> list[Part]:
     if not text:
         return []
     return [TextPart(text=text)]
+
 
 def parts_from_text_and_images(text: str | None, images: Sequence[ImageURLPart | ImageFilePart] | None) -> list[Part]:
     parts: list[Part] = []
@@ -268,6 +300,7 @@ def parts_from_text_and_images(text: str | None, images: Sequence[ImageURLPart |
     if images:
         parts.extend(images)
     return parts
+
 
 def join_text_parts(parts: Sequence[Part]) -> str:
     return "".join(part.text for part in parts if isinstance(part, TextPart))

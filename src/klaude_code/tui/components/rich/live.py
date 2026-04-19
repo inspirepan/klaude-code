@@ -28,6 +28,7 @@ class CropAbove:
             if not last:
                 yield new_line
 
+
 class CropAboveLive(Live):
     def __init__(
         self,
@@ -64,6 +65,7 @@ class CropAboveLive(Live):
 
     def update(self, renderable: RenderableType, refresh: bool = True) -> None:  # type: ignore[override]
         super().update(CropAbove(renderable, style=self._crop_style), refresh=refresh)
+
 
 class SingleLine:
     """Render only the first line of a renderable.

@@ -71,10 +71,12 @@ def _tool_result_display_name(tool_name: str) -> str:
         case _:
             return tool_name
 
+
 def _tool_result_content_indent(tool_name: str) -> int:
     if tool_name in {tools.TODO_WRITE, tools.ASK_USER_QUESTION}:
         return 0
     return len(_tool_result_display_name(tool_name)) + 1
+
 
 # Tool name to active form mapping (for spinner status)
 _TOOL_ACTIVE_FORM: dict[str, str] = {
@@ -92,6 +94,7 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.HANDOFF: "Packing Context",
 }
 
+
 def get_tool_active_form(tool_name: str) -> str:
     """Get the active form of a tool name for spinner status.
 
@@ -101,6 +104,7 @@ def get_tool_active_form(tool_name: str) -> str:
         return _TOOL_ACTIVE_FORM[tool_name]
 
     return f"Calling {tool_name}"
+
 
 def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
     """Unified entry point for rendering tool calls.
@@ -135,6 +139,7 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
         case _:
             return render_generic_tool_call(e.tool_name, e.arguments)
 
+
 def _extract_diff(ui_extra: ToolResultUIExtra | None) -> DiffUIExtra | None:
     if isinstance(ui_extra, DiffUIExtra):
         return ui_extra
@@ -144,6 +149,7 @@ def _extract_diff(ui_extra: ToolResultUIExtra | None) -> DiffUIExtra | None:
                 return item
     return None
 
+
 def _extract_markdown_doc(ui_extra: ToolResultUIExtra | None) -> MarkdownDocUIExtra | None:
     if isinstance(ui_extra, MarkdownDocUIExtra):
         return ui_extra
@@ -152,6 +158,7 @@ def _extract_markdown_doc(ui_extra: ToolResultUIExtra | None) -> MarkdownDocUIEx
             if isinstance(item, MarkdownDocUIExtra):
                 return item
     return None
+
 
 def render_markdown_doc(md_ui: MarkdownDocUIExtra, *, code_theme: str) -> RenderableType:
     """Render markdown document content in a panel with 2-char left indent and top margin."""
@@ -168,6 +175,7 @@ def render_markdown_doc(md_ui: MarkdownDocUIExtra, *, code_theme: str) -> Render
     )
     # (top, right, bottom, left) - 1 line top margin, 2-char left indent
     return Padding(panel, (1, 0, 0, 2))
+
 
 def render_tool_result(
     e: events.ToolResultEvent,

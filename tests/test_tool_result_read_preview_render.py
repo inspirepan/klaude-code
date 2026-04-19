@@ -21,6 +21,7 @@ def test_render_read_preview_uses_unified_more_lines_indicator() -> None:
 
     assert plain == ["  10 alpha", "  11 beta", "   … (more 3 lines)"]
 
+
 def test_render_read_preview_truncates_long_line_with_ellipsis() -> None:
     rendered = render_read_preview(
         ReadPreviewUIExtra(
@@ -34,6 +35,7 @@ def test_render_read_preview_truncates_long_line_with_ellipsis() -> None:
     plain = ["".join(segment.text for segment in line if not segment.control).rstrip() for line in lines]
 
     assert plain == ["   1 xxxxxxxxxxxxxx…"]
+
 
 def test_render_read_preview_keeps_more_lines_indicator_on_one_line() -> None:
     rendered = render_read_preview(

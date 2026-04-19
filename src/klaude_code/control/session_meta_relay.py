@@ -17,16 +17,19 @@ from klaude_code.log import DebugType, log_debug
 
 RELAY_STREAM_LIMIT = 1024 * 1024
 
+
 def session_meta_relay_socket_path(*, home_dir: Path | None = None) -> Path:
     resolved_home = (home_dir or Path.home()).resolve()
     suffix = hashlib.sha1(str(resolved_home).encode("utf-8")).hexdigest()[:12]
     return Path(get_system_temp()) / f"klaude-web-session-meta-{suffix}.sock"
+
 
 @dataclass(frozen=True)
 class SessionMetaRelayMessage:
     kind: Literal["upsert", "delete"]
     session_id: str
     meta: dict[str, Any] | None = None
+
 
 def parse_session_meta_relay_message(raw: bytes) -> SessionMetaRelayMessage:
     try:
@@ -50,6 +53,7 @@ def parse_session_meta_relay_message(raw: bytes) -> SessionMetaRelayMessage:
         session_id=session_id,
         meta=cast(dict[str, Any] | None, meta),
     )
+
 
 class SessionMetaRelayPublisher:
     def __init__(self, *, socket_path: Path, queue_maxsize: int = 2048) -> None:
@@ -133,6 +137,7 @@ class SessionMetaRelayPublisher:
             with contextlib.suppress(OSError):
                 conn.close()
             return False
+
 
 class SessionMetaRelayServer:
     def __init__(

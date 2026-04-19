@@ -24,6 +24,7 @@ class WebLiveEvents:
         if self.relay_server is not None:
             await self.relay_server.aclose()
 
+
 async def start_web_live_events(event_bus: EventBus, *, home_dir: Path) -> WebLiveEvents:
     stream = EnvelopeBus()
     subscription = event_bus.subscribe(None)

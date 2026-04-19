@@ -41,6 +41,7 @@ def test_task_metadata_wraps_details_under_identity_column() -> None:
     indent = len(lines[1]) - len(lines[1].lstrip(" "))
     assert indent >= 2
 
+
 def test_sub_agent_description_shows_before_token_details() -> None:
     event = events.TaskMetadataEvent(
         session_id="test",
@@ -70,6 +71,7 @@ def test_sub_agent_description_shows_before_token_details() -> None:
     assert token_idx != -1
     assert description_idx < model_idx < token_idx
 
+
 def test_sub_agent_identity_splits_name_and_model_on_narrow_width() -> None:
     event = events.TaskMetadataEvent(
         session_id="test",
@@ -96,6 +98,7 @@ def test_sub_agent_identity_splits_name_and_model_on_narrow_width() -> None:
 
     assert model_idx == finder_idx + 1
 
+
 def test_task_metadata_shows_cache_write_tokens() -> None:
     usage = Usage(
         input_tokens=30_000,
@@ -113,6 +116,7 @@ def test_task_metadata_shows_cache_write_tokens() -> None:
     assert "in 5k" in output
     assert "cache 20k" in output
     assert "cache write 5k" in output
+
 
 def test_task_metadata_keeps_duration_and_steps_inline_without_worked_summary() -> None:
     metadata = TaskMetadata(model_name="claude-sonnet-4-6", turn_count=2, task_duration_s=288)

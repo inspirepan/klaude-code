@@ -112,5 +112,6 @@ class TestCommandSafety(unittest.TestCase):
         """Commands with parse errors should not be pre-emptively blocked."""
         self.assert_safe("echo 'unterminated")
 
+
 if __name__ == "__main__":
     unittest.main()

@@ -48,6 +48,7 @@ def _restyle_title(title: list[tuple[str, str]], cls: str) -> list[tuple[str, st
         restyled.append((style, text))
     return restyled
 
+
 def _indent_multiline_tokens(
     tokens: list[tuple[str, str]],
     indent: str,
@@ -87,6 +88,7 @@ def _indent_multiline_tokens(
 
     return out
 
+
 def _split_title_number_prefix(
     tokens: list[tuple[str, str]],
     row_num_text: str,
@@ -104,6 +106,7 @@ def _split_title_number_prefix(
         return (first_style, row_num_text), [(first_style, remainder), *tokens[1:]]
     return (first_style, row_num_text), tokens[1:]
 
+
 def _normalize_question_selection[T](
     question: QuestionPrompt[T],
     selected_values: list[T],
@@ -120,6 +123,7 @@ def _normalize_question_selection[T](
 
     return [question.other_value]
 
+
 def _normalize_question_result[T](
     question: QuestionPrompt[T],
     result: QuestionSelectResult[T],
@@ -130,8 +134,10 @@ def _normalize_question_result[T](
         input_text=input_text,
     )
 
+
 def _question_has_markdown_preview[T](question: QuestionPrompt[T]) -> bool:
     return not question.multi_select and any((item.markdown or "").strip() for item in question.items)
+
 
 def _should_imply_pointed_selection[T](
     question: QuestionPrompt[T],
@@ -150,8 +156,10 @@ def _should_imply_pointed_selection[T](
         and 0 <= pointed_at < len(question.items)
     )
 
+
 def _display_width(s: str) -> int:
     return sum(get_cwidth(c) for c in s)
+
 
 def _trim_to_display_width(s: str, width: int) -> str:
     w = 0
@@ -161,6 +169,7 @@ def _trim_to_display_width(s: str, width: int) -> str:
             return s[:i]
         w += cw
     return s
+
 
 @lru_cache(maxsize=128)
 def _render_markdown_preview(markdown: str, width: int) -> tuple[str, ...]:
@@ -178,6 +187,7 @@ def _render_markdown_preview(markdown: str, width: int) -> tuple[str, ...]:
     rendered = buffer.getvalue().strip("\n")
     return tuple(rendered.splitlines() or [""])
 
+
 def _has_unconfirmed_edits[T](
     question: QuestionPrompt[T],
     confirmed_result: QuestionSelectResult[T],
@@ -189,6 +199,7 @@ def _has_unconfirmed_edits[T](
         return False
 
     return _normalize_question_result(question, confirmed_result) != _normalize_question_result(question, draft_result)
+
 
 def select_questions[T](
     *,
@@ -956,6 +967,7 @@ def select_questions[T](
     )
     app.renderer.cpr_not_supported_callback = lambda: None
     return app.run()
+
 
 def select_question[T](
     *,

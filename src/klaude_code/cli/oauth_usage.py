@@ -22,6 +22,7 @@ class UsageWindowSnapshot:
     used_percent: float
     reset_at_epoch_ms: int | None = None
 
+
 @dataclass(slots=True)
 class OAuthUsageSnapshot:
     protocol: LLMClientProtocol
@@ -29,22 +30,26 @@ class OAuthUsageSnapshot:
     plan: str | None = None
     error: str | None = None
 
+
 @dataclass(slots=True)
 class _OAuthProviderAuth:
     protocol: LLMClientProtocol
     token: str
     account_id: str | None = None
 
+
 _SUPPORTED_USAGE_PROTOCOLS = {
     LLMClientProtocol.CODEX_OAUTH,
     LLMClientProtocol.GITHUB_COPILOT_OAUTH,
 }
+
 
 def resolve_oauth_usage_protocol(protocol: LLMClientProtocol) -> LLMClientProtocol | None:
     """Normalize protocol to supported OAuth usage protocol ids."""
     if protocol in _SUPPORTED_USAGE_PROTOCOLS:
         return protocol
     return None
+
 
 def load_oauth_usage_summary(
     *,
@@ -80,6 +85,7 @@ def load_oauth_usage_summary(
 
     return snapshots
 
+
 def format_oauth_usage_summary(snapshot: OAuthUsageSnapshot, *, max_windows: int = 2) -> str | None:
     """Format short usage summary, e.g. ``5h 62% left · Week 41% left``."""
     if snapshot.error or not snapshot.windows:
@@ -92,6 +98,7 @@ def format_oauth_usage_summary(snapshot: OAuthUsageSnapshot, *, max_windows: int
     if snapshot.plan:
         return f"{snapshot.plan} · {summary}"
     return summary
+
 
 def _resolve_provider_auths(protocols: set[LLMClientProtocol]) -> list[_OAuthProviderAuth]:
     auths: list[_OAuthProviderAuth] = []
@@ -127,6 +134,7 @@ def _resolve_provider_auths(protocols: set[LLMClientProtocol]) -> list[_OAuthPro
 
     return auths
 
+
 def _fetch_usage_snapshot(*, auth: _OAuthProviderAuth, timeout_seconds: float) -> OAuthUsageSnapshot:
     match auth.protocol:
         case LLMClientProtocol.CODEX_OAUTH:
@@ -139,6 +147,7 @@ def _fetch_usage_snapshot(*, auth: _OAuthProviderAuth, timeout_seconds: float) -
             return _fetch_github_copilot_usage(token=auth.token, timeout_seconds=timeout_seconds)
         case _:
             return OAuthUsageSnapshot(protocol=auth.protocol, windows=[], error="Unsupported provider")
+
 
 def _fetch_codex_usage(*, token: str, account_id: str | None, timeout_seconds: float) -> OAuthUsageSnapshot:
     headers = {
@@ -202,6 +211,7 @@ def _fetch_codex_usage(*, token: str, account_id: str | None, timeout_seconds: f
             plan=plan,
         )
 
+
 def _fetch_github_copilot_usage(*, token: str, timeout_seconds: float) -> OAuthUsageSnapshot:
     with httpx.Client(timeout=timeout_seconds) as client:
         res = client.get(
@@ -253,6 +263,7 @@ def _fetch_github_copilot_usage(*, token: str, timeout_seconds: float) -> OAuthU
             plan=_as_str(data.get("copilot_plan")) if data else None,
         )
 
+
 def _build_http_error(
     *,
     status_code: int,
@@ -265,11 +276,14 @@ def _build_http_error(
         return f"HTTP {status_code}: {message}"
     return f"HTTP {status_code}"
 
+
 def _clamp_percent(value: float) -> float:
     return max(0.0, min(100.0, value))
 
+
 def _remaining_percent(used_percent: float) -> float:
     return _clamp_percent(100.0 - used_percent)
+
 
 def _as_dict(value: object) -> dict[str, object] | None:
     if isinstance(value, dict):
@@ -277,11 +291,13 @@ def _as_dict(value: object) -> dict[str, object] | None:
         return {str(k): v for k, v in raw_dict.items()}
     return None
 
+
 def _as_str(value: object) -> str | None:
     if isinstance(value, str):
         text = value.strip()
         return text or None
     return None
+
 
 def _as_float(value: object) -> float | None:
     if isinstance(value, (int, float)):
@@ -293,11 +309,13 @@ def _as_float(value: object) -> float | None:
             return None
     return None
 
+
 def _parse_epoch_seconds_to_ms(value: object) -> int | None:
     seconds = _as_float(value)
     if seconds is None:
         return None
     return int(seconds * 1000)
+
 
 def _hours_to_label(hours: int) -> str:
     if hours >= 168:

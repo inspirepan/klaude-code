@@ -44,6 +44,7 @@ def test_send_message_receive_events_and_history(app_env: AppEnv) -> None:
     assert "user.message" in history_types
     assert "task.finish" in history_types
 
+
 def test_usage_snapshot_on_reconnect(app_env: AppEnv) -> None:
     app_env.fake_llm.enqueue(
         message.AssistantTextDelta(content="first"),
@@ -66,6 +67,7 @@ def test_usage_snapshot_on_reconnect(app_env: AppEnv) -> None:
         reconnect_snapshot = consume_ws_handshake(websocket)
         assert reconnect_snapshot["event"]["usage"]["input_tokens"] > 0
         assert reconnect_snapshot["event"]["usage"]["output_tokens"] > 0
+
 
 def test_multiple_ws_receive_same_events(app_env: AppEnv) -> None:
     app_env.fake_llm.enqueue(
@@ -91,6 +93,7 @@ def test_multiple_ws_receive_same_events(app_env: AppEnv) -> None:
 
     assert extract_text(events1) == "broadcast"
     assert extract_text(events2) == "broadcast"
+
 
 def test_history_prefers_in_memory_session_while_writer_is_still_flushing(
     app_env: AppEnv, monkeypatch: pytest.MonkeyPatch
@@ -131,6 +134,7 @@ def test_history_prefers_in_memory_session_while_writer_is_still_flushing(
     finally:
         release_write.set()
 
+
 def test_second_ws_connection_cannot_send_commands(app_env: AppEnv) -> None:
     """A non-holder connection must receive session_not_held for write commands."""
     session_id = app_env.create_session()
@@ -153,6 +157,7 @@ def test_second_ws_connection_cannot_send_commands(app_env: AppEnv) -> None:
         error = ws_reader.receive_json()
         assert error["type"] == "error"
         assert error["code"] == "session_not_held"
+
 
 def test_rest_write_requires_holder_key_when_held(app_env: AppEnv) -> None:
     """REST write endpoints enforce holder when a WS connection holds the session."""

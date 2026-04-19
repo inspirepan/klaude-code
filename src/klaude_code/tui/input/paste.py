@@ -22,6 +22,7 @@ _PASTE_MARKER_RE = re.compile(r"\[paste #(?P<id>\d+)(?: (?P<meta>\+\d+ lines|\d+
 PASTE_FILE_THRESHOLD_LINES = 20
 PASTE_FILE_THRESHOLD_CHARS = 2000
 
+
 def save_paste_to_file(text: str, session_dir: Path) -> Path | None:
     """Save paste content to a file if it exceeds size thresholds.
 
@@ -37,6 +38,7 @@ def save_paste_to_file(text: str, session_dir: Path) -> Path | None:
     file_path = paste_dir / f"paste-{secrets.token_hex(6)}.txt"
     file_path.write_text(text, encoding="utf-8")
     return file_path
+
 
 class PasteBufferState:
     def __init__(self) -> None:
@@ -117,13 +119,17 @@ class PasteBufferState:
             self._pastes.pop(pid, None)
         return out, pasted_files
 
+
 paste_state = PasteBufferState()
+
 
 def store_paste(text: str) -> str:
     return paste_state.store(text)
 
+
 def expand_paste_markers(text: str) -> str:
     return paste_state.expand_markers(text)
+
 
 def expand_paste_markers_with_file_save(text: str, session_dir: Path) -> tuple[str, dict[str, str]]:
     return paste_state.expand_markers_with_file_save(text, session_dir)

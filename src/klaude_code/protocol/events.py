@@ -84,11 +84,13 @@ __all__ = [
     "parse_event_envelope_json",
 ]
 
+
 class Event(BaseModel):
     """Base event."""
 
     session_id: str
     timestamp: float = Field(default_factory=time.time)
+
 
 class EventEnvelope(BaseModel):
     event_id: str
@@ -102,6 +104,7 @@ class EventEnvelope(BaseModel):
     timestamp: float
     event: Event
 
+
 DURABLE_EVENT_TYPES = frozenset(
     {
         "user.message",
@@ -114,30 +117,37 @@ DURABLE_EVENT_TYPES = frozenset(
     }
 )
 
+
 def event_type_name(event: Event) -> str:
     return _event_type_name_from_class_name(event.__class__.__name__)
+
 
 def event_durability(event_type: str) -> Literal["durable", "ephemeral"]:
     if event_type in DURABLE_EVENT_TYPES:
         return "durable"
     return "ephemeral"
 
+
 class ResponseEvent(Event):
     """Event associated with a single model response."""
 
     response_id: str | None = None
 
+
 class UserMessageEvent(Event):
     content: str
     images: Sequence[message.ImageURLPart | message.ImageFilePart] | None = None
+
 
 class DeveloperMessageEvent(Event):
     """DeveloperMessages are attachments in user messages or tool results."""
 
     item: message.DeveloperMessage
 
+
 class TodoChangeEvent(Event):
     todos: list[TodoItem]
+
 
 class NoticeEvent(Event):
     """Generic UI notice message. Not persisted to session history."""
@@ -147,6 +157,7 @@ class NoticeEvent(Event):
     is_error: bool = False
     style: str | None = None
 
+
 class AwaySummaryEvent(Event):
     """'While you were away' recap generated after prompt idle, or triggered
     manually via /recap. Persisted via AwaySummaryEntry for dedup and replay.
@@ -154,11 +165,13 @@ class AwaySummaryEvent(Event):
 
     text: str
 
+
 class AwaySummaryStartEvent(Event):
     """Fired before a manual away-summary LLM call begins so the TUI can
     surface a 'Recapping…' spinner status. Ephemeral — UI only."""
 
     pass
+
 
 class AwaySummaryEndEvent(Event):
     """Fired after a manual away-summary LLM call completes (success or
@@ -167,47 +180,58 @@ class AwaySummaryEndEvent(Event):
 
     pass
 
+
 class ModelChangedEvent(Event):
     model_id: str
     saved_as_default: bool = False
 
+
 class ThinkingChangedEvent(Event):
     previous: str
     current: str
+
 
 class SubAgentModelChangedEvent(Event):
     sub_agent_type: str
     model_display: str
     saved_as_default: bool = False
 
+
 class CompactModelChangedEvent(Event):
     model_display: str
     saved_as_default: bool = False
 
+
 class SessionStatsEvent(Event):
     stats: SessionStatsUIExtra
 
+
 class SessionTitleChangedEvent(Event):
     title: str
+
 
 class SessionHolderAcquiredEvent(Event):
     """Broadcast when a connection acquires the holder lock."""
 
     pass
 
+
 class SessionHolderDeniedEvent(Event):
     """Broadcast when a connection fails to acquire the holder lock."""
 
     pass
+
 
 class SessionHolderReleasedEvent(Event):
     """Broadcast when the holder is released (disconnect or explicit release)."""
 
     pass
 
+
 class OperationAcceptedEvent(Event):
     operation_id: str
     operation_type: str
+
 
 class OperationRejectedEvent(Event):
     operation_id: str
@@ -215,28 +239,35 @@ class OperationRejectedEvent(Event):
     reason: Literal["session_busy"]
     active_task_id: str | None = None
 
+
 class OperationFinishedEvent(Event):
     operation_id: str
     operation_type: str
     status: Literal["completed", "rejected", "failed"]
     error_message: str | None = None
 
+
 class BashCommandStartEvent(Event):
     command: str
 
+
 class BashCommandOutputDeltaEvent(Event):
     content: str
+
 
 class BashCommandEndEvent(Event):
     exit_code: int | None = None
     cancelled: bool = False
 
+
 class TaskStartEvent(Event):
     sub_agent_state: SubAgentState | None = None
     model_id: str | None = None
 
+
 class CompactionStartEvent(Event):
     reason: Literal["threshold", "overflow", "manual", "handoff"]
+
 
 class CompactionEndEvent(Event):
     reason: Literal["threshold", "overflow", "manual", "handoff"]
@@ -247,6 +278,7 @@ class CompactionEndEvent(Event):
     summary: str | None = None
     kept_items_brief: list[message.KeptItemBrief] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
 
+
 class RewindEvent(Event):
     checkpoint_id: int
     note: str
@@ -254,22 +286,28 @@ class RewindEvent(Event):
     original_user_message: str
     messages_discarded: int | None = None
 
+
 class TaskFinishEvent(Event):
     task_result: str
+
 
 class TurnStartEvent(Event):
     pass
 
+
 class TurnEndEvent(Event):
     pass
 
+
 class UsageEvent(ResponseEvent):
     usage: Usage
+
 
 class CacheHitRateEvent(Event):
     cache_hit_rate: float
     cached_tokens: int
     prev_turn_input_tokens: int
+
 
 class TaskMetadataEvent(Event):
     metadata: TaskMetadataItem
@@ -277,27 +315,35 @@ class TaskMetadataEvent(Event):
     # This can affect UI spacing because a partial task may not emit TaskFinishEvent.
     is_partial: bool = False
 
+
 class ThinkingStartEvent(ResponseEvent):
     pass
+
 
 class ThinkingDeltaEvent(ResponseEvent):
     content: str
 
+
 class ThinkingEndEvent(ResponseEvent):
     pass
+
 
 class AssistantTextStartEvent(ResponseEvent):
     pass
 
+
 class AssistantTextDeltaEvent(ResponseEvent):
     content: str
+
 
 class AssistantTextEndEvent(ResponseEvent):
     pass
 
+
 class ToolCallStartEvent(ResponseEvent):
     tool_call_id: str
     tool_name: str
+
 
 class ResponseCompleteEvent(ResponseEvent):
     """Final snapshot of the model response."""
@@ -305,12 +351,15 @@ class ResponseCompleteEvent(ResponseEvent):
     content: str
     thinking_text: str | None = None
 
+
 class WelcomeUpdateInfo(BaseModel):
     message: str
     level: Literal["info", "warn"] = "warn"
 
+
 class WelcomeStartupInfo(BaseModel):
     update_info: WelcomeUpdateInfo | None = None
+
 
 class WelcomeEvent(Event):
     work_dir: str
@@ -322,17 +371,21 @@ class WelcomeEvent(Event):
     loaded_memories: dict[str, list[str]] = Field(default_factory=dict)
     startup_info: WelcomeStartupInfo | None = None
 
+
 class ErrorEvent(Event):
     error_message: str
     can_retry: bool = False
 
+
 class InterruptEvent(Event):
     show_notice: bool = True
+
 
 class EndEvent(Event):
     """Global display shutdown."""
 
     session_id: str = "__app__"
+
 
 type ReplayEventUnion = (
     TaskStartEvent
@@ -362,20 +415,24 @@ type ReplayEventUnion = (
     | AwaySummaryEvent
 )
 
+
 class ReplayHistoryEvent(Event):
     events: list[ReplayEventUnion]
     updated_at: float
     is_load: bool = True
+
 
 class ToolCallEvent(ResponseEvent):
     tool_call_id: str
     tool_name: str
     arguments: str
 
+
 class ToolOutputDeltaEvent(ResponseEvent):
     tool_call_id: str
     tool_name: str
     content: str
+
 
 class ToolResultEvent(ResponseEvent):
     tool_call_id: str
@@ -390,23 +447,28 @@ class ToolResultEvent(ResponseEvent):
     def is_error(self) -> bool:
         return self.status in ("error", "aborted")
 
+
 class UserInteractionRequestEvent(Event):
     request_id: str
     source: user_interaction.UserInteractionSource
     tool_call_id: str | None = None
     payload: user_interaction.UserInteractionRequestPayload
 
+
 class UserInteractionResponseReceivedEvent(Event):
     request_id: str
     status: Literal["submitted", "cancelled"]
+
 
 class UserInteractionResolvedEvent(Event):
     request_id: str
     status: Literal["submitted", "cancelled"]
 
+
 class UserInteractionCancelledEvent(Event):
     request_id: str
     reason: Literal["user_cancelled", "interrupt", "shutdown", "session_close"]
+
 
 def _event_type_name_from_class_name(class_name: str) -> str:
     event_name = class_name[:-5] if class_name.endswith("Event") else class_name
@@ -415,6 +477,7 @@ def _event_type_name_from_class_name(class_name: str) -> str:
         return "event.unknown"
     return ".".join(word.lower() for word in words)
 
+
 def _iter_event_classes(base: type[Event]) -> list[type[Event]]:
     classes: list[type[Event]] = []
     for subclass in base.__subclasses__():
@@ -422,9 +485,11 @@ def _iter_event_classes(base: type[Event]) -> list[type[Event]]:
         classes.extend(_iter_event_classes(subclass))
     return classes
 
+
 _EVENT_TYPE_TO_CLASS = {
     _event_type_name_from_class_name(event_cls.__name__): event_cls for event_cls in _iter_event_classes(Event)
 }
+
 
 def parse_event_envelope(payload: dict[str, Any]) -> EventEnvelope:
     raw_event_type = payload.get("event_type")
@@ -438,6 +503,7 @@ def parse_event_envelope(payload: dict[str, Any]) -> EventEnvelope:
 
     parsed_event = event_cls.model_validate(raw_event)
     return EventEnvelope.model_validate({**payload, "event": parsed_event})
+
 
 def parse_event_envelope_json(payload: bytes | str) -> EventEnvelope:
     try:

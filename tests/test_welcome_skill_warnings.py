@@ -32,6 +32,7 @@ def test_render_welcome_shows_skill_warnings_section() -> None:
     # Each warning should be on its own line, not joined with " | "
     assert " | " not in output
 
+
 def test_render_welcome_merges_memories_and_skills_into_context_tree() -> None:
     llm_config = LLMConfigParameter(
         protocol=LLMClientProtocol.OPENAI,
@@ -62,6 +63,7 @@ def test_render_welcome_merges_memories_and_skills_into_context_tree() -> None:
     assert "web-search" in output
     assert "── playwright" not in output
 
+
 def test_render_welcome_keeps_per_group_multi_column_layout() -> None:
     llm_config = LLMConfigParameter(
         protocol=LLMClientProtocol.OPENAI,
@@ -85,6 +87,7 @@ def test_render_welcome_keeps_per_group_multi_column_layout() -> None:
 
     assert "system skills" in output
     assert "playwright | web-search" in output or "web-search | render-mermaid" in output
+
 
 def test_render_welcome_shows_startup_update_and_shortcuts() -> None:
     llm_config = LLMConfigParameter(
@@ -117,6 +120,7 @@ def test_render_welcome_shows_startup_update_and_shortcuts() -> None:
     assert "change thinking level" in output
     assert "paste image" in output
     assert "├──" in output
+
 
 def test_render_welcome_hides_startup_shortcuts_without_startup_info() -> None:
     llm_config = LLMConfigParameter(

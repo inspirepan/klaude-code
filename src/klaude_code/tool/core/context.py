@@ -37,6 +37,7 @@ RequestUserInteraction = Callable[
 
 EmitToolOutputDelta = Callable[[str], Awaitable[None]]
 
+
 @dataclass
 class TodoContext:
     """Todo access interface exposed to tools.
@@ -47,6 +48,7 @@ class TodoContext:
 
     get_todos: Callable[[], list[TodoItem]]
     set_todos: Callable[[list[TodoItem]], None]
+
 
 @dataclass
 class SessionTodoStore:
@@ -60,17 +62,21 @@ class SessionTodoStore:
     def set(self, todos: list[TodoItem]) -> None:
         self.session.todos = todos
 
+
 def build_todo_context(session: Session) -> TodoContext:
     """Create a TodoContext backed by the given session."""
 
     store = SessionTodoStore(session)
     return TodoContext(get_todos=store.get, set_todos=store.set)
 
+
 class HandoffManagerABC(Protocol):
     def send_handoff(self, goal: str) -> str: ...
 
+
 class RewindManagerABC(Protocol):
     def send_rewind(self, checkpoint_id: int, note: str, rationale: str) -> str: ...
+
 
 @dataclass(frozen=True)
 class ToolContext:

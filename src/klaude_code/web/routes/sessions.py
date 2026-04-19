@@ -33,9 +33,8 @@ from klaude_code.web.state import WebAppState, get_web_state
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 WEB_STATE_DEP: Final = Depends(get_web_state)
-SESSION_STATE_IDLE: Final = cast(
-    Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.IDLE.value
-)
+SESSION_STATE_IDLE: Final = cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.IDLE.value)
+
 
 def _derive_session_state_from_snapshot(snapshot: Any) -> Literal["idle", "running", "waiting_user_input"]:
     if snapshot.pending_request_count > 0:
@@ -50,31 +49,38 @@ def _derive_session_state_from_snapshot(snapshot: Any) -> Literal["idle", "runni
         )
     return SESSION_STATE_IDLE
 
+
 def _runtime_session_states(state: WebAppState) -> dict[str, Literal["idle", "running", "waiting_user_input"]]:
     return {
         snapshot.session_id: _derive_session_state_from_snapshot(snapshot)
         for snapshot in state.runtime.session_registry.all_snapshots()
     }
 
+
 class CreateSessionRequest(BaseModel):
     work_dir: str | None = None
+
 
 class MessageRequest(BaseModel):
     text: str = ""
     images: list[ImageURLPart | ImageFilePart] | None = None
+
 
 class RespondRequest(BaseModel):
     request_id: str
     status: Literal["submitted", "cancelled"]
     payload: user_interaction.UserInteractionResponsePayload | None = None
 
+
 class ModelRequest(BaseModel):
     model_name: str
     save_as_default: bool = False
 
+
 class RequestModelRequest(BaseModel):
     initial_search_text: str | None = None
     save_as_default: bool = False
+
 
 @router.get("")
 async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[dict[str, Any]]]:
@@ -82,6 +88,7 @@ async def list_sessions(state: WebAppState = WEB_STATE_DEP) -> dict[str, list[di
         raise RuntimeError("session live state is not initialized")
     state.session_live.index.reload()
     return {"groups": state.session_live.list_groups()}
+
 
 @router.get("/search")
 async def search_sessions_endpoint(
@@ -104,6 +111,7 @@ async def search_sessions_endpoint(
             for s in results
         ]
     }
+
 
 @router.get("/stream")
 async def stream_sessions(request: Request, state: WebAppState = WEB_STATE_DEP) -> StreamingResponse:
@@ -152,6 +160,7 @@ async def stream_sessions(request: Request, state: WebAppState = WEB_STATE_DEP) 
         },
     )
 
+
 @router.get("/running")
 async def list_running_sessions(
     state: WebAppState = WEB_STATE_DEP,
@@ -184,6 +193,7 @@ async def list_running_sessions(
             for sid, session_state in states.items()
         }
     }
+
 
 @router.post("")
 async def create_session(
@@ -239,6 +249,7 @@ async def create_session(
             raise HTTPException(status_code=500, detail="failed to create session metadata")
     return {"session_id": session_id}
 
+
 @router.post("/{session_id}/archive")
 async def archive_session(session_id: str, state: WebAppState = WEB_STATE_DEP) -> dict[str, bool]:
     work_dir = resolve_session_work_dir(state.home_dir, session_id)
@@ -254,6 +265,7 @@ async def archive_session(session_id: str, state: WebAppState = WEB_STATE_DEP) -
         _ = await state.runtime.close_session(session_id, force=True)
     return {"ok": True}
 
+
 @router.post("/{session_id}/unarchive")
 async def unarchive_session(session_id: str, state: WebAppState = WEB_STATE_DEP) -> dict[str, bool]:
     work_dir = resolve_session_work_dir(state.home_dir, session_id)
@@ -266,8 +278,10 @@ async def unarchive_session(session_id: str, state: WebAppState = WEB_STATE_DEP)
         raise HTTPException(status_code=500, detail="failed to unarchive session")
     return {"ok": True}
 
+
 class ArchiveCleanupRequest(BaseModel):
     cutoff_seconds: int = 24 * 60 * 60
+
 
 @router.post("/archive/cleanup")
 async def cleanup_archived_sessions(
@@ -301,6 +315,7 @@ async def cleanup_archived_sessions(
 
     return {"ok": True, "archived_count": archived_count}
 
+
 @router.delete("/{session_id}")
 async def delete_session(session_id: str, state: WebAppState = WEB_STATE_DEP) -> dict[str, bool]:
     deleted = soft_delete_session(state.home_dir, session_id)
@@ -312,6 +327,7 @@ async def delete_session(session_id: str, state: WebAppState = WEB_STATE_DEP) ->
     with contextlib.suppress(Exception):
         _ = await state.runtime.close_session(session_id, force=True)
     return {"ok": True}
+
 
 @router.get("/{session_id}/history")
 async def get_history(session_id: str, state: WebAppState = WEB_STATE_DEP) -> dict[str, Any]:
@@ -346,6 +362,7 @@ async def get_history(session_id: str, state: WebAppState = WEB_STATE_DEP) -> di
     ]
     return {"session_id": session_id, "events": payload}
 
+
 def _check_write_access(state: WebAppState, session_id: str, holder_key: str | None) -> Path:
     """Validate session exists, is not read-only, and caller holds the session lock (if one exists).
 
@@ -362,6 +379,7 @@ def _check_write_access(state: WebAppState, session_id: str, holder_key: str | N
     ):
         raise HTTPException(status_code=409, detail="session is held by another connection")
     return work_dir
+
 
 @router.post("/{session_id}/message")
 async def post_message(
@@ -384,6 +402,7 @@ async def post_message(
     )
     return {"operation_id": operation_id}
 
+
 @router.post("/{session_id}/interrupt")
 async def interrupt_session(
     session_id: str,
@@ -393,6 +412,7 @@ async def interrupt_session(
     _check_write_access(state, session_id, x_holder_key)
     operation_id = await state.runtime.submit(op.InterruptOperation(session_id=session_id))
     return {"operation_id": operation_id}
+
 
 @router.post("/{session_id}/respond")
 async def respond_interaction(
@@ -411,6 +431,7 @@ async def respond_interaction(
     )
     return {"ok": True}
 
+
 @router.post("/{session_id}/model")
 async def change_model(
     session_id: str,
@@ -427,6 +448,7 @@ async def change_model(
         )
     )
     return {"operation_id": operation_id}
+
 
 @router.post("/{session_id}/model/request")
 async def request_model(

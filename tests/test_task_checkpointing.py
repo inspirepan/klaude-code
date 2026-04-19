@@ -15,16 +15,18 @@ from klaude_code.protocol import events, message, tools
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import close_default_store
 from klaude_code.tool.core.context import build_todo_context
-from klaude_code.tool.rewind_tool import RewindTool
 from klaude_code.tool.core.registry import get_tool_schemas
+from klaude_code.tool.rewind_tool import RewindTool
 
 
 def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
 
+
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
+
 
 def _build_profile(*, tool_names: list[str] | None = None) -> AgentProfile:
     llm_config = SimpleNamespace(model_id="test-model")
@@ -35,6 +37,7 @@ def _build_profile(*, tool_names: list[str] | None = None) -> AgentProfile:
         tools=get_tool_schemas(tool_names or []),
         attachments=[],
     )
+
 
 def _build_executor(
     session: Session,
@@ -91,6 +94,7 @@ def _build_executor(
     )
     return executor, StubTurnExecutor
 
+
 def test_run_with_user_input_creates_single_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()
@@ -107,6 +111,7 @@ def test_run_with_user_input_creates_single_checkpoint(tmp_path: Path, monkeypat
         await close_default_store()
 
     arun(_test())
+
 
 def test_multi_turn_task_still_creates_one_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
@@ -126,6 +131,7 @@ def test_multi_turn_task_still_creates_one_checkpoint(tmp_path: Path, monkeypatc
 
     arun(_test())
 
+
 def test_continue_with_empty_input_does_not_create_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()
@@ -141,6 +147,7 @@ def test_continue_with_empty_input_does_not_create_checkpoint(tmp_path: Path, mo
         await close_default_store()
 
     arun(_test())
+
 
 def test_user_input_without_rewind_tool_does_not_create_checkpoint(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -160,6 +167,7 @@ def test_user_input_without_rewind_tool_does_not_create_checkpoint(
         await close_default_store()
 
     arun(_test())
+
 
 def test_task_metadata_marked_partial_when_continue_agent_false(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

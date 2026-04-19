@@ -32,6 +32,7 @@ class ErrorWithPartialTextStream(LLMStreamABC):
     def get_partial_message(self) -> message.AssistantMessage | None:
         return None
 
+
 class InterruptWithPartialTextStream(LLMStreamABC):
     def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
         return self._iterate()
@@ -46,6 +47,7 @@ class InterruptWithPartialTextStream(LLMStreamABC):
             response_id="r1",
             stop_reason="aborted",
         )
+
 
 class FakeLLMClient(LLMClientABC):
     def __init__(
@@ -71,6 +73,7 @@ class FakeLLMClient(LLMClientABC):
     async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
         del param
         return self._stream
+
 
 def _build_turn_executor(
     stream: LLMStreamABC,
@@ -102,6 +105,7 @@ def _build_turn_executor(
     )
     return TurnExecutor(context), history
 
+
 def test_stream_error_retries_with_user_continuation_prompt_for_all_protocols() -> None:
     executor, history = _build_turn_executor(
         ErrorWithPartialTextStream(),
@@ -130,6 +134,7 @@ def test_stream_error_retries_with_user_continuation_prompt_for_all_protocols() 
     assert "network-related" in retry_prompt
     assert "without repeating" in retry_prompt
 
+
 def test_interrupt_persists_user_continuation_prompt_instead_of_aborted_assistant() -> None:
     stream = InterruptWithPartialTextStream()
     executor, history = _build_turn_executor(stream)
@@ -152,6 +157,7 @@ def test_interrupt_persists_user_continuation_prompt_instead_of_aborted_assistan
     assert not any(isinstance(item, message.AssistantMessage) and item.stop_reason == "aborted" for item in history)
     assert executor.should_show_interrupt_notice is True
 
+
 def test_interrupt_with_only_thinking_does_not_persist_continuation_prompt() -> None:
     """When only thinking content was produced, no continuation prompt should be generated."""
     stream = InterruptWithPartialTextStream()
@@ -164,6 +170,7 @@ def test_interrupt_with_only_thinking_does_not_persist_continuation_prompt() -> 
     retry_user_messages = [item for item in history if isinstance(item, message.UserMessage)]
     assert len(retry_user_messages) == 0
     assert executor.should_show_interrupt_notice is False
+
 
 def test_interrupt_writes_tool_result_before_continuation_prompt() -> None:
     stream = InterruptWithPartialTextStream()

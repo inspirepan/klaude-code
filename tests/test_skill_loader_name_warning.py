@@ -25,6 +25,7 @@ def test_discover_skills_records_name_folder_mismatch_warning(tmp_path: Path, mo
     assert len(warnings) == 1
     assert 'name "skill-name" should match directory name' in warnings[0]
 
+
 def test_discover_skills_no_warning_when_name_matches_folder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     skills_root = tmp_path / "user-skills"
     skill_dir = skills_root / "skill-name"
@@ -42,6 +43,7 @@ def test_discover_skills_no_warning_when_name_matches_folder(tmp_path: Path, mon
     loader.discover_skills(work_dir=tmp_path)
 
     assert loader.skill_warnings_by_location["user"] == []
+
 
 def test_discover_skills_falls_back_to_folder_name_when_name_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -64,6 +66,7 @@ def test_discover_skills_falls_back_to_folder_name_when_name_missing(
     assert "fallback-name" in loader.loaded_skills
     assert loader.loaded_skills["fallback-name"].name == "fallback-name"
     assert loader.skill_warnings_by_location["user"] == []
+
 
 def test_discover_skills_follows_subdirectory_symlink(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     skills_root = tmp_path / "user-skills"
@@ -88,6 +91,7 @@ def test_discover_skills_follows_subdirectory_symlink(tmp_path: Path, monkeypatc
     loader.discover_skills(work_dir=tmp_path)
 
     assert "link-skill" in loader.loaded_skills
+
 
 def test_discover_skills_records_conflict_warning_on_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     system_root = tmp_path / "system-skills"
@@ -118,6 +122,7 @@ def test_discover_skills_records_conflict_warning_on_override(tmp_path: Path, mo
     warnings = loader.skill_warnings_by_location["user"]
     assert len(warnings) == 1
     assert 'duplicate skill "dup-skill"' in warnings[0]
+
 
 def test_discover_skills_no_warning_for_symlink_duplicate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """When two user skill dirs find the same file via symlink, no duplicate warning should be emitted."""

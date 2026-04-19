@@ -19,6 +19,7 @@ def render_notice(e: events.NoticeEvent) -> RenderableType:
     style: str = e.style if e.style else (ThemeKey.ERROR if e.is_error else ThemeKey.COMMAND_OUTPUT)
     return truncate_middle(content, base_style=style)
 
+
 def render_session_stats(e: events.SessionStatsEvent) -> RenderableType:
     """Render session stats with overview and per-model breakdown."""
     stats = e.stats
@@ -93,12 +94,14 @@ def render_session_stats(e: events.SessionStatsEvent) -> RenderableType:
 
     return Group(*blocks)
 
+
 def _format_tokens(tokens: int) -> str:
     if tokens >= 1_000_000:
         return f"{tokens / 1_000_000:.2f}M"
     if tokens >= 1_000:
         return f"{tokens / 1_000:.1f}K"
     return str(tokens)
+
 
 def _format_cost(cost: float | None, currency: str = "USD") -> str:
     if cost is None:
@@ -108,8 +111,10 @@ def _format_cost(cost: float | None, currency: str = "USD") -> str:
         return f"{symbol}{cost:.4f}"
     return f"{symbol}{cost:.2f}"
 
+
 def _format_int(value: int) -> str:
     return f"{value:,}"
+
 
 def _render_fork_session_output(e: events.NoticeEvent) -> RenderableType:
     if not isinstance(e.ui_extra, SessionIdUIExtra):

@@ -33,6 +33,7 @@ def _publish_remote_event(socket_path: Path, session_id: str) -> None:
 
     asyncio.run(_send())
 
+
 def test_websocket_receives_cross_process_events(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home_dir = tmp_path / "home"
     home_dir.mkdir(parents=True, exist_ok=True)

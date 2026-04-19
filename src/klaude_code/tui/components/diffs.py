@@ -30,6 +30,7 @@ def render_structured_diff(ui_extra: DiffUIExtra, show_file_name: bool = False) 
 
     return grid
 
+
 def _render_file_header(file_diff: DiffFileDiff) -> tuple[Text, Text]:
     file_text = Text(file_diff.file_path, style=ThemeKey.DIFF_FILE_NAME)
     stats_text = Text()
@@ -57,6 +58,7 @@ def _render_file_header(file_diff: DiffFileDiff) -> tuple[Text, Text]:
     prefix = Text(f"{file_mark:>{DIFF_PREFIX_WIDTH}}  ", style=ThemeKey.DIFF_FILE_NAME)
     return prefix, file_line
 
+
 def _make_structured_prefix(line: DiffLine, width: int) -> str:
     if line.kind == "gap":
         return f"{'⋮':>{width}}  "
@@ -66,6 +68,7 @@ def _make_structured_prefix(line: DiffLine, width: int) -> str:
     marker = "+" if line.kind == "add" else "-" if line.kind == "remove" else " "
     return f"{number} {marker}"
 
+
 def _render_structured_line(line: DiffLine) -> Text:
     if line.kind == "gap":
         return Text("")
@@ -74,6 +77,7 @@ def _render_structured_line(line: DiffLine) -> Text:
         content = span.text.expandtabs(TAB_EXPAND_WIDTH)
         text.append(content, style=_span_style(line.kind, span.op))
     return text
+
 
 def _span_style(line_kind: str, span_op: str) -> ThemeKey:
     if line_kind == "add":

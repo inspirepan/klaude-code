@@ -17,6 +17,7 @@ def test_task_metadata_partial_adds_trailing_blank_line() -> None:
 
     assert not any(isinstance(c, PrintBlankLine) for c in cmds)
 
+
 def test_task_metadata_final_does_not_add_trailing_blank_line() -> None:
     m = DisplayStateMachine()
     session_id = "s1"

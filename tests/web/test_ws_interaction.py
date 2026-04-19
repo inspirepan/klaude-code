@@ -78,6 +78,7 @@ def test_ask_user_question_flow(app_env: AppEnv) -> None:
 
     assert extract_text(events) == "You chose A"
 
+
 def test_send_pending_interaction_snapshots_replays_pending_requests(monkeypatch: pytest.MonkeyPatch) -> None:
     sent_payloads: list[dict[str, Any]] = []
     request = PendingUserInteractionRequest(
@@ -133,6 +134,7 @@ def test_send_pending_interaction_snapshots_replays_pending_requests(monkeypatch
     assert event["event"]["source"] == "tool"
     assert event["event"]["tool_call_id"] == "call-1"
     assert event["event"]["payload"] == request.payload.model_dump(mode="json")
+
 
 def test_session_websocket_replays_pending_snapshots_before_forwarding_events(monkeypatch: pytest.MonkeyPatch) -> None:
     order: list[str] = []
@@ -203,6 +205,7 @@ def test_session_websocket_replays_pending_snapshots_before_forwarding_events(mo
     assert order[0] == "snapshot"
     assert set(order[1:]) == {"forward", "receive"}
 
+
 def test_websocket_handler_cancels_pending_peer_task(monkeypatch: pytest.MonkeyPatch) -> None:
     cancelled = asyncio.Event()
 
@@ -263,6 +266,7 @@ def test_websocket_handler_cancels_pending_peer_task(monkeypatch: pytest.MonkeyP
     asyncio.run(asyncio.wait_for(ws.session_websocket(cast(Any, FakeWebSocket()), "session-1"), timeout=0.2))
 
     assert cancelled.is_set()
+
 
 def test_websocket_handler_does_not_hang_on_stubborn_peer_task(monkeypatch: pytest.MonkeyPatch) -> None:
     cancelled = asyncio.Event()
@@ -332,6 +336,7 @@ def test_websocket_handler_does_not_hang_on_stubborn_peer_task(monkeypatch: pyte
 
     assert cancelled.is_set()
     assert closed.is_set()
+
 
 def test_websocket_disconnect_cleans_empty_session(monkeypatch: pytest.MonkeyPatch) -> None:
     cleaned_paths: list[Path] = []

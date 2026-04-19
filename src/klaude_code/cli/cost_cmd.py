@@ -1,4 +1,3 @@
-
 """Cost command for aggregating usage statistics across all sessions."""
 
 import json
@@ -24,9 +23,10 @@ COST_CACHE_VERSION = 1
 COST_CACHE_PATH = Path.home() / ".klaude" / "cache" / "cost_cache.json"
 SPLIT_SUB_PROVIDER = False
 
+
 @dataclass
 class ModelUsageStats:
-    """Aggregated usage stats for a single """
+    """Aggregated usage stats for a single"""
 
     model_name: str
     provider: str = ""
@@ -60,7 +60,9 @@ class ModelUsageStats:
             else:
                 self.cost_usd += usage.total_cost
 
+
 ModelKey = tuple[str, str]  # (model_name, provider)
+
 
 @dataclass
 class SubProviderGroup:
@@ -69,6 +71,7 @@ class SubProviderGroup:
     name: str
     models: list[ModelUsageStats]
     total: ModelUsageStats
+
 
 @dataclass
 class ProviderGroup:
@@ -79,8 +82,10 @@ class ProviderGroup:
     models: list[ModelUsageStats]  # direct models (when no sub-provider)
     total: ModelUsageStats
 
+
 def _sort_by_cost(stats: ModelUsageStats) -> tuple[float, float]:
     return (-stats.cost_usd, -stats.cost_cny)
+
 
 def group_models_by_provider(
     models: dict[ModelKey, ModelUsageStats],
@@ -164,6 +169,7 @@ def group_models_by_provider(
 
     return sorted_groups
 
+
 @dataclass
 class DailyStats:
     """Aggregated stats for a single day."""
@@ -185,6 +191,7 @@ class DailyStats:
 
         self.by_model[model_key].add_usage(meta.usage)
 
+
 def _load_cost_cache() -> dict[str, Any]:
     try:
         raw = json.loads(COST_CACHE_PATH.read_text(encoding="utf-8"))
@@ -204,12 +211,14 @@ def _load_cost_cache() -> dict[str, Any]:
 
     return data
 
+
 def _save_cost_cache(cache: dict[str, Any]) -> None:
     COST_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = COST_CACHE_PATH.with_suffix(".tmp")
     payload = json.dumps(cache, ensure_ascii=True, indent=2, sort_keys=True)
     tmp_path.write_text(payload, encoding="utf-8")
     tmp_path.replace(COST_CACHE_PATH)
+
 
 def _is_cache_entry_valid(entry: dict[str, Any], events_path: Path) -> bool:
     try:
@@ -218,6 +227,7 @@ def _is_cache_entry_valid(entry: dict[str, Any], events_path: Path) -> bool:
         return False
 
     return entry.get("mtime_ns") == stat.st_mtime_ns and entry.get("size") == stat.st_size
+
 
 def _apply_entries(daily_stats: dict[str, DailyStats], entries: list[dict[str, Any]]) -> bool:
     try:
@@ -246,6 +256,7 @@ def _apply_entries(daily_stats: dict[str, DailyStats], entries: list[dict[str, A
 
     return True
 
+
 def _aggregate_session_entries(events_path: Path) -> list[dict[str, Any]]:
     per_day: dict[str, DailyStats] = {}
 
@@ -273,6 +284,7 @@ def _aggregate_session_entries(events_path: Path) -> list[dict[str, Any]]:
             )
 
     return entries
+
 
 def iter_all_sessions() -> Iterator[tuple[str, Path]]:
     """Iterate over all top-level sessions across all projects.
@@ -314,6 +326,7 @@ def iter_all_sessions() -> Iterator[tuple[str, Path]]:
                     if events_file.exists():
                         yield session_dir.name, events_file
 
+
 def iter_task_metadata_from_events(events_path: Path) -> Iterator[tuple[str, TaskMetadataItem]]:
     """Extract TaskMetadataItem entries from events.jsonl with their dates.
 
@@ -334,6 +347,7 @@ def iter_task_metadata_from_events(events_path: Path) -> Iterator[tuple[str, Tas
                     yield date_str, item
     except OSError:
         return
+
 
 def aggregate_all_sessions() -> dict[str, DailyStats]:
     """Aggregate usage stats from all sessions, grouped by date.
@@ -394,11 +408,13 @@ def aggregate_all_sessions() -> dict[str, DailyStats]:
 
     return daily_stats
 
+
 def format_cost_dual(cost_usd: float, cost_cny: float) -> tuple[str, str]:
     """Format costs for both currencies."""
     usd_str = format_cost(cost_usd if cost_usd > 0 else None, "USD")
     cny_str = format_cost(cost_cny if cost_cny > 0 else None, "CNY")
     return usd_str, cny_str
+
 
 def format_date_display(date_str: str) -> str:
     """Format date string YYYY-MM-DD to 'YYYY M-D WEEKDAY' for table display."""
@@ -408,6 +424,7 @@ def format_date_display(date_str: str) -> str:
         return f"{dt.year} {dt.month}-{dt.day} {weekday}"
     except (ValueError, TypeError):
         return date_str
+
 
 def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
     """Render the cost table using rich."""
@@ -541,6 +558,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
     add_stats_row(grand_total, row_style="bold")
 
     return table
+
 
 def cost_command(
     days: int = typer.Option(7, "--days", "-d", "--recent", help="Limit to last N days"),

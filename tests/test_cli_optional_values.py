@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 class _HasModel(Protocol):
     model: str
 
+
 class TestCliOptionalValues:
     def test_help_hides_legacy_flags(self):
         from klaude_code.cli.main import app

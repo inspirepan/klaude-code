@@ -16,6 +16,7 @@ def render_error(error_msg: Text, *, can_retry: bool = False) -> RenderableType:
     grid.add_row(Text("✘", style=mark_style), error_msg)
     return grid
 
+
 def render_tool_error(error_msg: Text) -> RenderableType:
     """Render error with indent for tool results."""
     grid = create_grid()

@@ -42,6 +42,7 @@ class OperationDispatcherPorts:
     cancel_pending_interactions: Callable[[str | None], list[PendingUserInteractionRequest]]
     on_child_task_state_change: Callable[[str, str, bool], None]
 
+
 class EventPublisher:
     def __init__(self, event_bus: EventBus) -> None:
         self._event_bus = event_bus
@@ -60,6 +61,7 @@ class EventPublisher:
             task_id=task_id,
             causation_id=causation_id,
         )
+
 
 class OperationDispatcher:
     """
@@ -307,6 +309,7 @@ class OperationDispatcher:
 
     def clear_active_tasks(self) -> None:
         self._agent_runner.clear_active_tasks()
+
 
 # Static type check: OperationDispatcher must satisfy OperationHandler protocol.
 # If this line causes a type error, OperationDispatcher is missing required methods.

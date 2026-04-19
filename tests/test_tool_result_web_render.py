@@ -12,6 +12,7 @@ def _render_event_to_text(event: events.ToolResultEvent) -> str:
     console.print(renderable)
     return console.export_text()
 
+
 def test_render_web_search_tool_result_hides_external_wrapper() -> None:
     wrapped_result = "\n".join(
         [
@@ -39,6 +40,7 @@ def test_render_web_search_tool_result_hides_external_wrapper() -> None:
     assert "2. Second result" in output
     assert "EXTERNAL_UNTRUSTED_CONTENT" not in output
     assert "Source: Web Search" not in output
+
 
 def test_render_web_fetch_tool_result_hides_warning_but_keeps_saved_path() -> None:
     wrapped_result = "\n".join(

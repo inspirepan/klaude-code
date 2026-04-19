@@ -13,6 +13,7 @@ from klaude_code.tui.components.rich.markdown import MarkdownStream
 
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
+
 def _make_stream(*, width: int = 80) -> MarkdownStream:
     theme = Theme(
         {
@@ -28,9 +29,11 @@ def _make_stream(*, width: int = 80) -> MarkdownStream:
     console = Console(file=io.StringIO(), force_terminal=True, width=width, theme=theme)
     return MarkdownStream(console=console, theme=theme, left_margin=2, mark=">", mark_style="bold")
 
+
 def test_candidate_stable_line_incomplete_fence_is_zero() -> None:
     stream = _make_stream()
     assert stream.compute_candidate_stable_line("```py\nprint(1)\n") == 0
+
 
 def test_split_source_stabilizes_only_before_last_block() -> None:
     stream = _make_stream()
@@ -42,11 +45,13 @@ def test_split_source_stabilizes_only_before_last_block() -> None:
     assert live_source
     assert stable_source + live_source == text
 
+
 def test_single_line_wrapper_renders_first_line_only() -> None:
     console = Console(file=io.StringIO(), force_terminal=True, width=20)
     wrapped = SingleLine(Text("line1\nline2\nline3"))
     lines = console.render_lines(wrapped, console.options, pad=False)
     assert len(lines) == 1
+
 
 def test_update_does_not_write_synchronized_output_sequences_when_not_tty() -> None:
     theme = Theme(
@@ -75,6 +80,7 @@ def test_update_does_not_write_synchronized_output_sequences_when_not_tty() -> N
     assert "\x1b[?2026l" not in captured
     assert live_calls
 
+
 def test_update_sets_live_renderable_without_stable_block() -> None:
     theme = Theme(
         {
@@ -101,6 +107,7 @@ def test_update_sets_live_renderable_without_stable_block() -> None:
     # When there is no stable block yet, the stream does not update the live area.
     assert live_calls == []
 
+
 def test_update_applies_mark_to_live_when_all_live() -> None:
     live_calls: list[object] = []
 
@@ -126,6 +133,7 @@ def test_update_applies_mark_to_live_when_all_live() -> None:
 
     # Same as above: without any stable block, we don't emit a live renderable.
     assert live_calls == []
+
 
 def test_update_invokes_image_callback_for_local_svg(tmp_path: Path) -> None:
     theme = Theme(
@@ -155,6 +163,7 @@ def test_update_invokes_image_callback_for_local_svg(tmp_path: Path) -> None:
 
     assert displayed == [str(svg_path)]
     assert captions == ["Mermaid 架构图"]
+
 
 def test_update_renders_local_image_markdown_placeholder_with_name(tmp_path: Path) -> None:
     theme = Theme(
@@ -189,6 +198,7 @@ def test_update_renders_local_image_markdown_placeholder_with_name(tmp_path: Pat
     assert displayed == [str(svg_path)]
     assert captions == [alt]
 
+
 def test_render_stable_ansi_preserves_ordered_item_before_local_image(tmp_path: Path) -> None:
     theme = Theme(
         {
@@ -218,6 +228,7 @@ def test_render_stable_ansi_preserves_ordered_item_before_local_image(tmp_path: 
     seq_image_idx = compact.index("".join(f"![Sequence]({seq})".split()))
 
     assert flow_text_idx < flow_image_idx < seq_text_idx < seq_image_idx
+
 
 def test_update_does_not_invoke_image_callback_for_live_only_image_block(tmp_path: Path) -> None:
     theme = Theme(
@@ -254,6 +265,7 @@ def test_update_does_not_invoke_image_callback_for_live_only_image_block(tmp_pat
     assert captions == []
     assert live_calls == []
 
+
 def test_update_does_not_drop_ordered_list_item_after_incomplete_marker_prefix() -> None:
     theme = Theme(
         {
@@ -284,6 +296,7 @@ def test_update_does_not_drop_ordered_list_item_after_incomplete_marker_prefix()
     direct_plain = _ANSI_ESCAPE_RE.sub("", direct_out.getvalue())
     assert streamed_plain == direct_plain
     assert "10 b" in streamed_plain
+
 
 def test_update_preserves_numbered_heading_after_prefix_frame() -> None:
     theme = Theme(

@@ -21,11 +21,13 @@ INLINE_RENDER_PATTERN = re.compile(
 )
 USER_MESSAGE_MARK = "❯ "
 
+
 def render_bash_input_line(text: str) -> Text:
     """Render a bash input line with syntax colors on top of the user message background."""
     highlighted = highlight_bash_command(text)
     highlighted.style = ThemeKey.USER_INPUT
     return highlighted
+
 
 def render_at_and_skill_patterns(
     text: str,
@@ -52,6 +54,7 @@ def render_at_and_skill_patterns(
             result.stylize(skill_style, match.start(), match.end())
 
     return result
+
 
 def build_user_input_lines(content: str) -> list[Text]:
     """Build rendered lines for user input."""
@@ -104,6 +107,7 @@ def build_user_input_lines(content: str) -> list[Text]:
 
     return renderables
 
+
 def render_user_input(content: str) -> RenderableType:
     """Render a user message with a prompt on the first line.
 
@@ -123,6 +127,7 @@ def render_user_input(content: str) -> RenderableType:
         style=ThemeKey.USER_INPUT,
         style_first=ThemeKey.USER_INPUT,
     )
+
 
 def render_interrupt() -> RenderableType:
     return Text("Interrupted by user", style=ThemeKey.INTERRUPT)

@@ -1,4 +1,3 @@
-
 """Agent lifecycle, task execution, and session management operations."""
 
 from __future__ import annotations
@@ -50,6 +49,7 @@ def _has_summary_since_last_user_turn(session: Session) -> bool:
             return True
     return False
 
+
 @dataclass
 class ActiveTask:
     """Track an in-flight runtime task."""
@@ -58,6 +58,7 @@ class ActiveTask:
     operation_id: str
     task: asyncio.Task[None]
     session_id: str
+
 
 class AgentOperationHandler:
     """Coordinate agent lifecycle and in-flight tasks for operation execution."""
@@ -892,6 +893,7 @@ class AgentOperationHandler:
         finally:
             self._remove_task(session_id=session_id, task_id=task_id)
 
+
 class AgentRunner:
     def __init__(self, operation_handler: AgentOperationHandler) -> None:
         self._operation_handler = operation_handler
@@ -959,6 +961,7 @@ class AgentRunner:
 
     def clear_active_tasks(self) -> None:
         self._operation_handler.clear_active_tasks()
+
 
 class BashRunner:
     def __init__(self, operation_handler: AgentOperationHandler) -> None:

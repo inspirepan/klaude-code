@@ -34,16 +34,20 @@ class FrontendLaunchPlan:
     process: asyncio.subprocess.Process | None
     mode: str
 
+
 class WebServerAlreadyRunningError(RuntimeError):
     """Raised when another web server instance is already active for this home directory."""
+
 
 def _browser_host(host: str) -> str:
     if host in {"0.0.0.0", "::"}:
         return "127.0.0.1"
     return host
 
+
 def _project_root() -> Path:
     return Path(__file__).resolve().parents[3]
+
 
 def _find_pkg_manager() -> str | None:
     """Return the best available JS package manager command, or None."""
@@ -52,10 +56,12 @@ def _find_pkg_manager() -> str | None:
             return cmd
     return None
 
+
 def _can_start_frontend_dev_server(project_root: Path) -> bool:
     web_dir = project_root / "web"
     package_json = web_dir / "package.json"
     return package_json.exists() and _find_pkg_manager() is not None
+
 
 def _should_auto_install_frontend(project_root: Path) -> bool:
     if not _can_start_frontend_dev_server(project_root):
@@ -63,6 +69,7 @@ def _should_auto_install_frontend(project_root: Path) -> bool:
 
     install_kind = get_installation_info().install_kind
     return install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}
+
 
 def _frontend_dependencies_installed(web_dir: Path) -> bool:
     package_json = web_dir / "package.json"
@@ -90,12 +97,14 @@ def _frontend_dependencies_installed(web_dir: Path) -> bool:
                 return False
     return True
 
+
 def _http_ready(url: str) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=1):
             return True
     except (urllib.error.URLError, TimeoutError, ValueError):
         return False
+
 
 async def _wait_until_ready(url: str, timeout_s: float = 10.0) -> bool:
     loop = asyncio.get_running_loop()
@@ -105,6 +114,7 @@ async def _wait_until_ready(url: str, timeout_s: float = 10.0) -> bool:
             return True
         await asyncio.sleep(0.2)
     return False
+
 
 async def _terminate_process(process: asyncio.subprocess.Process | None) -> None:
     if process is None:
@@ -119,6 +129,7 @@ async def _terminate_process(process: asyncio.subprocess.Process | None) -> None
         with contextlib.suppress(TimeoutError):
             _ = await asyncio.wait_for(process.wait(), timeout=1.0)
 
+
 async def _install_frontend_dependencies(web_dir: Path, pkg_manager: str) -> bool:
     install_args = [pkg_manager, "install"]
     if pkg_manager == "pnpm" and (web_dir / "pnpm-lock.yaml").exists():
@@ -126,6 +137,7 @@ async def _install_frontend_dependencies(web_dir: Path, pkg_manager: str) -> boo
 
     process = await asyncio.create_subprocess_exec(*install_args, cwd=str(web_dir))
     return (await process.wait()) == 0
+
 
 async def _start_frontend_dev_process(
     *, web_dir: Path, host: str, frontend_port: int, pkg_manager: str
@@ -147,6 +159,7 @@ async def _start_frontend_dev_process(
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
     )
+
 
 async def prepare_frontend(
     *,
@@ -191,10 +204,12 @@ async def prepare_frontend(
 
     return FrontendLaunchPlan(url=backend_url, process=None, mode="static")
 
+
 def open_browser(url: str, *, no_open: bool) -> None:
     if no_open:
         return
     _ = webbrowser.open(url)
+
 
 async def _is_unix_socket_live(socket_path: Path) -> bool:
     if not socket_path.exists():
@@ -209,6 +224,7 @@ async def _is_unix_socket_live(socket_path: Path) -> bool:
     del reader
     return True
 
+
 async def _ensure_web_server_not_running(*, home_dir: Path) -> None:
     socket_conflicts: list[str] = []
 
@@ -222,6 +238,7 @@ async def _ensure_web_server_not_running(*, home_dir: Path) -> None:
 
     if socket_conflicts:
         raise WebServerAlreadyRunningError("Web server is already running:\n" + "\n".join(socket_conflicts))
+
 
 class _QuietServer(uvicorn.Server):
     """uvicorn.Server that does not re-raise captured signals on exit.
@@ -245,6 +262,7 @@ class _QuietServer(uvicorn.Server):
         finally:
             for sig, handler in original_handlers.items():
                 signal.signal(sig, handler)
+
 
 async def start_web_server(
     *,

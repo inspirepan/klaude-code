@@ -14,6 +14,7 @@ def _render_event_to_text(event: events.ToolCallEvent) -> str:
     console.print(renderable)
     return console.export_text()
 
+
 def test_render_ask_user_question_tool_call_shows_marker_and_name_only() -> None:
     event = events.ToolCallEvent(
         session_id="s1",
@@ -35,6 +36,7 @@ def test_render_ask_user_question_tool_call_shows_marker_and_name_only() -> None
     assert "Language" in output
     assert "Scope" in output
 
+
 def test_render_ask_user_question_tool_call_ignores_argument_details() -> None:
     event = events.ToolCallEvent(
         session_id="s1",
@@ -53,6 +55,7 @@ def test_render_ask_user_question_tool_call_ignores_argument_details() -> None:
     output = _render_event_to_text(event)
     assert "Agent has 2 questions for you" in output
     assert "2 question(s)" not in output
+
 
 def test_render_ask_user_question_tool_call_singular_text() -> None:
     event = events.ToolCallEvent(

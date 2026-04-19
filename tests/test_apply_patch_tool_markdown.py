@@ -21,9 +21,11 @@ from klaude_code.tool.core.context import TodoContext, ToolContext  # noqa: E402
 def arun(coro: Any) -> Any:
     return asyncio.run(coro)
 
+
 def _tool_context() -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
     return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path.cwd())
+
 
 class BaseTempDirTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -34,6 +36,7 @@ class BaseTempDirTest(unittest.TestCase):
     def tearDown(self) -> None:
         os.chdir(self._orig_cwd)
         self._tmp.cleanup()
+
 
 class TestApplyPatchToolMarkdown(BaseTempDirTest):
     def test_apply_patch_add_markdown_file_uses_markdown_ui_extra(self) -> None:
@@ -68,6 +71,7 @@ class TestApplyPatchToolMarkdown(BaseTempDirTest):
 
         self.assertTrue(Path("doc.md").exists())
         self.assertEqual(Path("doc.md").read_text(encoding="utf-8"), "# Title\n\nHello")
+
 
 if __name__ == "__main__":
     unittest.main()

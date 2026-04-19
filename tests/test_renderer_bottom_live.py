@@ -33,6 +33,7 @@ def test_bottom_height_shrink_padding_not_applied_with_live_stream() -> None:
         renderer.console.render_lines(renderable, renderer.console.options, pad=False)
     )
 
+
 def test_display_image_prints_caption_then_image(monkeypatch: pytest.MonkeyPatch) -> None:
     from klaude_code.tui import renderer as renderer_module
     from klaude_code.tui.renderer import TUICommandRenderer
@@ -57,6 +58,7 @@ def test_display_image_prints_caption_then_image(monkeypatch: pytest.MonkeyPatch
     assert "\n↓ Demo\n" in rendered
     assert "<image>\n" in rendered
     assert rendered.index("↓ Demo") < rendered.index("<image>\n")
+
 
 def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail_lines() -> None:
     from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
@@ -83,6 +85,7 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail
     assert lines[0] == f"{' ' * BASH_OUTPUT_LEFT_PADDING}… (more {hidden} lines)"
     assert lines[1:] == [f"{' ' * BASH_OUTPUT_LEFT_PADDING}line-{i}" for i in range(hidden, 12)]
 
+
 def test_display_bash_command_end_clears_live_tail() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
@@ -98,6 +101,7 @@ def test_display_bash_command_end_clears_live_tail() -> None:
 
     assert renderer._stream_renderable is None
     assert renderer._bash_stream_active is False
+
 
 def test_bash_mode_delta_uses_live_tail_renderable() -> None:
     from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
@@ -117,6 +121,7 @@ def test_bash_mode_delta_uses_live_tail_renderable() -> None:
         for line in renderer.console.render_lines(renderer._stream_renderable, renderer.console.options, pad=False)
     ]
     assert lines == [f"{' ' * BASH_OUTPUT_LEFT_PADDING}hello"]
+
 
 def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
@@ -142,6 +147,7 @@ def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
 
     assert len(lines) == len(current_stream_lines)
 
+
 def test_bottom_renderable_keeps_blank_line_between_bash_live_region_and_status() -> None:
     from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
     from klaude_code.tui.renderer import TUICommandRenderer
@@ -166,6 +172,7 @@ def test_bottom_renderable_keeps_blank_line_between_bash_live_region_and_status(
     assert line_text[0] == f"{' ' * BASH_OUTPUT_LEFT_PADDING}bash output"
     assert line_text[1].strip() == ""
     assert line_text[2].startswith(STATUS_DEFAULT_TEXT)
+
 
 def test_bottom_renderable_adds_blank_line_above_status_before_bash_stream_starts() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer

@@ -83,6 +83,7 @@ class OperationCompletionAwaiter:
             self._completed_operation_ids.add(operation_id)
             future.set_result(None)
 
+
 class RuntimeFacade:
     """Runtime entry for CLI/TUI operation submission and lifecycle control."""
 
@@ -499,6 +500,7 @@ class RuntimeFacade:
                 operation_id=operation.id,
             )
             raise
+
 
 def _should_mark_running_on_accept(operation: op.Operation) -> bool:
     return isinstance(

@@ -14,6 +14,7 @@ class AggregatedUsage(BaseModel):
     by_model: list[TaskMetadata]
     task_count: int
 
+
 class MessageStats(BaseModel):
     user_messages: int
     assistant_messages: int
@@ -24,6 +25,7 @@ class MessageStats(BaseModel):
     def total_messages(self) -> int:
         return self.user_messages + self.assistant_messages + self.tool_results
 
+
 def format_tokens(tokens: int) -> str:
     """Format token count with K/M suffix for readability."""
     if tokens >= 1_000_000:
@@ -31,6 +33,7 @@ def format_tokens(tokens: int) -> str:
     if tokens >= 1_000:
         return f"{tokens / 1_000:.1f}K"
     return str(tokens)
+
 
 def format_cost(cost: float | None, currency: str = "USD") -> str:
     """Format cost with currency symbol."""
@@ -40,6 +43,7 @@ def format_cost(cost: float | None, currency: str = "USD") -> str:
     if cost < 0.01:
         return f"{symbol}{cost:.4f}"
     return f"{symbol}{cost:.2f}"
+
 
 def accumulate_session_usage(session: Session) -> AggregatedUsage:
     """Accumulate usage statistics from all TaskMetadataItems in session history."""
@@ -82,6 +86,7 @@ def accumulate_session_usage(session: Session) -> AggregatedUsage:
 
     return AggregatedUsage(total=total, by_model=by_model, task_count=task_count)
 
+
 def collect_message_stats(session: Session) -> MessageStats:
     user_messages = 0
     assistant_messages = 0
@@ -105,6 +110,7 @@ def collect_message_stats(session: Session) -> MessageStats:
         tool_calls=tool_calls,
         tool_results=tool_results,
     )
+
 
 def build_session_stats_ui_extra(session: Session) -> SessionStatsUIExtra:
     aggregated = accumulate_session_usage(session)

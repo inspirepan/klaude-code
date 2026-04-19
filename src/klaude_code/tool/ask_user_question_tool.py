@@ -20,6 +20,7 @@ class AskUserQuestionOptionInput(BaseModel):
     description: str
     markdown: str | None = None
 
+
 class AskUserQuestionQuestionInput(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -28,10 +29,12 @@ class AskUserQuestionQuestionInput(BaseModel):
     options: list[AskUserQuestionOptionInput] = Field(min_length=2, max_length=4)
     multi_select: bool = Field(default=False, alias="multiSelect")
 
+
 class AskUserQuestionArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     questions: list[AskUserQuestionQuestionInput] = Field(min_length=1, max_length=4)
+
 
 @register(tools.ASK_USER_QUESTION)
 class AskUserQuestionTool(ToolABC):

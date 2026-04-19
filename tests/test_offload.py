@@ -28,6 +28,7 @@ class TestReadToolStrategy:
         assert result.was_truncated is False
         assert result.output == long_text
 
+
 class TestHeadTailOffloadStrategy:
     """Test HeadTailOffloadStrategy for Bash and generic tools."""
 
@@ -101,6 +102,7 @@ class TestHeadTailOffloadStrategy:
             assert result.original_length == 100
             assert result.truncated_chars == 100 - 10 - 10
 
+
 class TestStrategyRegistry:
     """Test strategy selection via get_strategy."""
 
@@ -123,6 +125,7 @@ class TestStrategyRegistry:
     def test_none_gets_default(self):
         strategy = get_strategy(None)
         assert isinstance(strategy, HeadTailOffloadStrategy)
+
 
 class TestOffloadToolOutput:
     """Test main entry point offload_tool_output."""
@@ -153,6 +156,7 @@ class TestOffloadToolOutput:
         assert result.was_truncated is False
         assert result.offloaded_path is None
 
+
 class TestOffloadResult:
     """Test OffloadResult dataclass."""
 
@@ -176,9 +180,11 @@ class TestOffloadResult:
         assert result.original_length == 1000
         assert result.truncated_chars == 500
 
+
 # ============================================================================
 # Property-based tests
 # ============================================================================
+
 
 @given(
     text=st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=5000),

@@ -51,6 +51,7 @@ def test_list_sessions_includes_todos_and_file_change_summary(app_env: AppEnv) -
         },
     }
 
+
 def test_list_sessions_defaults_missing_summary_fields(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
     meta_path = next((app_env.home_dir / ".klaude" / "projects").glob(f"*/sessions/{session_id}/meta.json"))

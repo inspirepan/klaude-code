@@ -59,6 +59,7 @@ COMPLETION_TRUNCATION_SYMBOL = "…"
 
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
 
+
 def _get_git_info() -> tuple[str | None, str | None]:
     """Return (repo_display, branch) by reading .git directly, no subprocess.
 
@@ -106,6 +107,7 @@ def _get_git_info() -> tuple[str | None, str | None]:
         return None, None
     return None, None
 
+
 def _trim_formatted_text_with_ellipsis(
     formatted_text: StyleAndTextTuples,
     max_width: int,
@@ -135,9 +137,11 @@ def _trim_formatted_text_with_ellipsis(
     used_width = max_width - remaining_width
     return result, used_width
 
+
 # ---------------------------------------------------------------------------
 # Layout helpers
 # ---------------------------------------------------------------------------
+
 
 def _left_align_completion_menus(container: Container) -> None:
     """Force completion menus to render at column 0.
@@ -159,6 +163,7 @@ def _left_align_completion_menus(container: Container) -> None:
     for child in container.get_children():
         _left_align_completion_menus(child)
 
+
 def _find_window_for_buffer(container: Container, target_buffer: Buffer) -> Window | None:
     if isinstance(container, Window):
         content = container.content
@@ -170,6 +175,7 @@ def _find_window_for_buffer(container: Container, target_buffer: Buffer) -> Wind
         if found is not None:
             return found
     return None
+
 
 def _patch_completion_menu_controls(container: Container) -> None:
     """Replace prompt_toolkit completion menu controls with customized versions."""
@@ -183,9 +189,11 @@ def _patch_completion_menu_controls(container: Container) -> None:
     for child in container.get_children():
         _patch_completion_menu_controls(child)
 
+
 # ---------------------------------------------------------------------------
 # Custom completion menu control
 # ---------------------------------------------------------------------------
+
 
 def _strip_dim_fg(fragments: StyleAndTextTuples) -> StyleAndTextTuples:
     """Strip 'ansibrightblack' (dim directory color) so the selection foreground takes effect."""
@@ -196,6 +204,7 @@ def _strip_dim_fg(fragments: StyleAndTextTuples) -> StyleAndTextTuples:
             style = style.replace("ansibrightblack", "").strip()
         result.append((style, item[1], *item[2:]))  # type: ignore[arg-type]
     return result
+
 
 class _KlaudeCompletionsMenuControl(pt_menus.CompletionsMenuControl):
     """CompletionsMenuControl with stable 2-char left prefix.
@@ -306,9 +315,11 @@ class _KlaudeCompletionsMenuControl(pt_menus.CompletionsMenuControl):
             style=style_str,
         )
 
+
 # ---------------------------------------------------------------------------
 # PromptToolkitInput
 # ---------------------------------------------------------------------------
+
 
 class PromptToolkitInput(InputProviderABC):
     def __init__(

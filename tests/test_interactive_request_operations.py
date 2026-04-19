@@ -16,12 +16,15 @@ from klaude_code.session.session import Session
 
 T = TypeVar("T")
 
+
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
+
 
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
+
 
 class _FakeAgentRunner:
     def __init__(self, session: Session) -> None:
@@ -52,6 +55,7 @@ class _FakeAgentRunner:
         assert session_id == self._agent.session.id
         return self._llm_clients
 
+
 def _build_handler(
     *,
     session: Session,
@@ -77,6 +81,7 @@ def _build_handler(
         current_session_id=lambda: session.id,
         on_model_change=None,
     )
+
 
 def test_request_model_operation_single_match_dispatches_change(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -114,6 +119,7 @@ def test_request_model_operation_single_match_dispatches_change(
 
     arun(_test())
 
+
 def test_request_model_operation_cancelled_emits_no_change(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     async def _test() -> None:
         session = Session(work_dir=tmp_path)
@@ -147,6 +153,7 @@ def test_request_model_operation_cancelled_emits_no_change(monkeypatch: pytest.M
 
     arun(_test())
 
+
 def test_request_model_operation_no_match_emits_notice(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     async def _test() -> None:
         session = Session(work_dir=tmp_path)
@@ -173,6 +180,7 @@ def test_request_model_operation_no_match_emits_notice(monkeypatch: pytest.Monke
         assert emitted[0].is_error is False
 
     arun(_test())
+
 
 def test_request_model_operation_uses_initial_search_text_for_picker(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -246,6 +254,7 @@ def test_request_model_operation_uses_initial_search_text_for_picker(
 
     arun(_test())
 
+
 def test_request_model_operation_same_runtime_model_still_saves_default(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -292,6 +301,7 @@ def test_request_model_operation_same_runtime_model_still_saves_default(
         assert emitted[0].content == "Main model: gpt@openai (saved in ~/.klaude/klaude-config.yaml)"
 
     arun(_test())
+
 
 def test_request_sub_agent_model_operation_selects_fast_model(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     async def _test() -> None:

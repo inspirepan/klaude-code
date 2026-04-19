@@ -27,6 +27,7 @@ FORK_SELECT_STYLE = merge_styles(
     ]
 )
 
+
 @dataclass
 class ForkPoint:
     """A fork point in conversation history."""
@@ -40,6 +41,7 @@ class ForkPoint:
     compaction_first_kept_index: int | None = None
     compaction_tokens_before: int | None = None
 
+
 def _truncate(text: str, max_len: int = 60) -> str:
     """Truncate text to max_len, adding ellipsis if needed."""
     text = text.replace("\n", " ").strip()
@@ -47,12 +49,14 @@ def _truncate(text: str, max_len: int = 60) -> str:
         return text
     return text[: max_len - 1] + "…"
 
+
 def _first_non_empty_line(text: str) -> str:
     for line in text.splitlines():
         stripped = line.strip()
         if stripped:
             return stripped
     return ""
+
 
 def _preview_compaction_summary(summary: str) -> str:
     """Return a human-friendly preview line for a CompactionEntry summary.
@@ -93,6 +97,7 @@ def _preview_compaction_summary(summary: str) -> str:
 
     # Fallback: first non-empty line.
     return _first_non_empty_line(cleaned)
+
 
 def _build_fork_points(conversation_history: list[message.HistoryEvent]) -> list[ForkPoint]:
     """Build list of fork points from conversation history.
@@ -173,6 +178,7 @@ def _build_fork_points(conversation_history: list[message.HistoryEvent]) -> list
 
     return fork_points
 
+
 def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int]]:
     """Build SelectItem list from fork points."""
     items: list[SelectItem[int]] = []
@@ -237,6 +243,7 @@ def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int]]:
 
     return items
 
+
 def _select_fork_point_sync(fork_points: list[ForkPoint]) -> int | Literal["cancelled"]:
     """Interactive fork point selection (sync version for asyncio.to_thread).
 
@@ -272,6 +279,7 @@ def _select_fork_point_sync(fork_points: list[ForkPoint]) -> int | Literal["canc
         return result
     except KeyboardInterrupt:
         return "cancelled"
+
 
 class ForkSessionCommand(CommandABC):
     """Fork current session to a new session id and show a resume command."""

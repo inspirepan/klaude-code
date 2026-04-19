@@ -16,9 +16,11 @@ from klaude_code.tool.rewind_tool import RewindTool
 def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
 
+
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
+
 
 def _tool_context(rewind_manager: RewindManager | None) -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
@@ -29,6 +31,7 @@ def _tool_context(rewind_manager: RewindManager | None) -> ToolContext:
         work_dir=Path("/tmp"),
         rewind_manager=rewind_manager,
     )
+
 
 def test_rewind_manager_send_and_fetch() -> None:
     manager = RewindManager()
@@ -46,6 +49,7 @@ def test_rewind_manager_send_and_fetch() -> None:
     assert pending.rationale == "test rationale"
     assert manager.fetch_pending() is None
 
+
 def test_rewind_manager_rejects_invalid_checkpoint() -> None:
     manager = RewindManager()
     manager.set_n_checkpoints(2)
@@ -59,6 +63,7 @@ def test_rewind_manager_rejects_invalid_checkpoint() -> None:
 
     with pytest.raises(ValueError):
         manager.send_rewind(1, "note", "rationale")
+
 
 def test_session_revert_to_checkpoint(tmp_path: Path) -> None:
     async def _test() -> None:
@@ -82,6 +87,7 @@ def test_session_revert_to_checkpoint(tmp_path: Path) -> None:
 
     arun(_test())
 
+
 def test_rewind_tool_success() -> None:
     async def _test() -> None:
         manager = RewindManager()
@@ -98,6 +104,7 @@ def test_rewind_tool_success() -> None:
 
     arun(_test())
 
+
 def test_rewind_tool_rejects_missing_manager() -> None:
     async def _test() -> None:
         result = await RewindTool.call('{"checkpoint_id": 0, "note": "keep", "rationale": "test"}', _tool_context(None))
@@ -107,6 +114,7 @@ def test_rewind_tool_rejects_missing_manager() -> None:
         await close_default_store()
 
     arun(_test())
+
 
 def test_rewind_tool_invalid_args() -> None:
     async def _test() -> None:

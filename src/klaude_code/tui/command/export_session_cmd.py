@@ -23,14 +23,17 @@ Arguments:
                If omitted, writes `klaude-session-<session>.html` in the work dir.
 """
 
+
 class _ExportSessionArgumentParser(argparse.ArgumentParser):
     def error(self, message: str) -> NoReturn:
         raise ValueError(message)
+
 
 def _create_parser() -> _ExportSessionArgumentParser:
     parser = _ExportSessionArgumentParser(prog="/export-session", add_help=False)
     parser.add_argument("output", nargs="?")
     return parser
+
 
 class ExportSessionCommand(CommandABC):
     @property
@@ -86,6 +89,7 @@ class ExportSessionCommand(CommandABC):
             content += "\nOpened in the default app."
         return _command_output(agent, content)
 
+
 def _resolve_output_path(work_dir: Path, session_id: str, title: str | None, raw_output: str | None) -> Path:
     if raw_output:
         output_path = Path(raw_output).expanduser()
@@ -98,15 +102,18 @@ def _resolve_output_path(work_dir: Path, session_id: str, title: str | None, raw
         return output_path.resolve()
     return (work_dir / _default_file_name(session_id, title)).resolve()
 
+
 def _default_file_name(session_id: str, title: str | None) -> str:
     title_slug = _slugify(title or "")
     if title_slug:
         return f"klaude-session-{title_slug}-{session_id[:8]}.html"
     return f"klaude-session-{session_id[:8]}.html"
 
+
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip()).strip("-").lower()
     return slug[:40].strip("-")
+
 
 def _open_exported_html(output_path: Path) -> bool:
     if sys.platform != "darwin":
@@ -116,6 +123,7 @@ def _open_exported_html(output_path: Path) -> bool:
     except OSError:
         return False
     return True
+
 
 def _command_output(agent: Agent, content: str, *, is_error: bool = False) -> CommandResult:
     return CommandResult(

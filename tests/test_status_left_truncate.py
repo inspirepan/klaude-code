@@ -23,11 +23,13 @@ def test_truncate_right_noop_when_fits() -> None:
     result = truncate_right(text, 3, console=console)
     assert result.plain == "abc"
 
+
 def test_truncate_right_keeps_prefix_with_ellipsis() -> None:
     console = Console()
     text = Text("abcdef")
     result = truncate_right(text, 4, console=console)
     assert result.plain == "abc…"
+
 
 def test_truncate_right_uses_cell_width_for_wide_chars() -> None:
     console = Console()
@@ -35,11 +37,13 @@ def test_truncate_right_uses_cell_width_for_wide_chars() -> None:
     result = truncate_right(text, 5, console=console)
     assert result.plain == "你好…"
 
+
 def test_truncate_right_tiny_width_returns_ellipsis_only() -> None:
     console = Console()
     text = Text("abcdef")
     result = truncate_right(text, 1, console=console)
     assert result.plain == "…"
+
 
 def test_truncate_status_with_pipe_truncates_left_side() -> None:
     console = Console()
@@ -50,17 +54,20 @@ def test_truncate_status_with_pipe_truncates_left_side() -> None:
     # prefix is "Find model definitions". Result: "Find model definitions… | Finding esc to interrupt"
     assert result.plain == "Find model definitions… | Finding esc to interrupt"
 
+
 def test_truncate_status_without_pipe_falls_back() -> None:
     console = Console()
     text = Text("very long status description")
     result = truncate_status(text, 15, console=console)
     assert result.plain == "very long stat…"
 
+
 def test_truncate_status_when_pipe_right_part_too_long() -> None:
     console = Console()
     text = Text("todo | super long tool right hand activity")
     result = truncate_status(text, 20, console=console)
     assert result.plain == "todo | super long t…"
+
 
 def test_shimmer_status_with_right_text_renders_two_lines() -> None:
     console = Console(file=io.StringIO(), force_terminal=True, width=120, theme=get_theme().app_theme)
@@ -77,6 +84,7 @@ def test_shimmer_status_with_right_text_renders_two_lines() -> None:
     assert "Loading…" in first_line
     assert "95.1% · esc to interrupt" in second_line
 
+
 def test_shimmer_status_without_primary_line_renders_status_and_metadata() -> None:
     console = Console(file=io.StringIO(), force_terminal=True, width=120, theme=get_theme().app_theme)
     status = StackedStatusText(
@@ -90,6 +98,7 @@ def test_shimmer_status_without_primary_line_renders_status_and_metadata() -> No
     second_line = "".join(segment.text for segment in lines[1] if segment.text)
     assert "Typing…" in first_line
     assert "95.1% · esc to interrupt" in second_line
+
 
 def test_stacked_status_adds_leading_blank_line_when_enabled() -> None:
     console = Console(file=io.StringIO(), force_terminal=True, width=120, theme=get_theme().app_theme)
@@ -107,6 +116,7 @@ def test_stacked_status_adds_leading_blank_line_when_enabled() -> None:
     assert first_line == ""
     assert "Finding searching" in second_line
     assert "95.1% · esc to interrupt" in third_line
+
 
 def test_third_line_drops_hint_before_compact_when_full_metadata_fits() -> None:
     state = SpinnerStatusState()
@@ -133,6 +143,7 @@ def test_third_line_drops_hint_before_compact_when_full_metadata_fits() -> None:
     third_line = "".join(segment.text for segment in lines[-1] if segment.text)
     assert third_line == right_text.plain
     assert "esc to interrupt" not in third_line
+
 
 def test_third_line_compacts_tokens_after_dropping_hint() -> None:
     state = SpinnerStatusState()
@@ -168,6 +179,7 @@ def test_third_line_compacts_tokens_after_dropping_hint() -> None:
     assert "esc to interrupt" not in third_line
     assert "↑" in third_line
 
+
 def test_third_line_shows_compact_with_hint_when_only_that_fits() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
@@ -202,6 +214,7 @@ def test_third_line_shows_compact_with_hint_when_only_that_fits() -> None:
 
     third_line = "".join(segment.text for segment in lines[-1] if segment.text)
     assert third_line == compact_plain + separator + hint
+
 
 def test_third_line_avoids_compact_when_full_metadata_still_fits() -> None:
     state = SpinnerStatusState()

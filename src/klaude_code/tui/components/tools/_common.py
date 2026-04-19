@@ -27,8 +27,10 @@ BASH_OUTPUT_LEFT_PADDING = 7
 BASH_TOOL_CALL_DIVIDER_THRESHOLD = 10
 BASH_TOOL_CALL_DIVIDER_WIDTH = 12
 
+
 def is_sub_agent_tool(tool_name: str) -> bool:
     return _is_sub_agent_tool(tool_name)
+
 
 def get_agent_active_form(arguments: str) -> str:
     """Return active form text for Agent tool based on its arguments."""
@@ -56,6 +58,7 @@ def get_agent_active_form(arguments: str) -> str:
         return _DEFAULT
     return profile.active_form or _DEFAULT
 
+
 def render_path(path: str, style: str, is_directory: bool = False) -> Text:
     if path.startswith(str(Path().cwd())):
         path = path.replace(str(Path().cwd()), "").lstrip("/")
@@ -66,6 +69,7 @@ def render_path(path: str, style: str, is_directory: bool = False) -> Text:
     if is_directory:
         path = path.rstrip("/") + "/"
     return Text(path, style=style, overflow="fold")
+
 
 def render_tool_call_tree(
     *,
@@ -86,6 +90,7 @@ def render_tool_call_tree(
         style=ThemeKey.TOOL_RESULT_TREE_PREFIX,
         style_first=ThemeKey.TOOL_MARK,
     )
+
 
 def render_generic_tool_call(tool_name: str, arguments: str, markup: str = MARK_GENERIC) -> RenderableType:
     if not arguments:
@@ -116,6 +121,7 @@ def render_generic_tool_call(tool_name: str, arguments: str, markup: str = MARK_
 
     return render_tool_call_tree(mark=markup, tool_name=tool_name, details=details)
 
+
 def render_generic_tool_result(result: str, *, is_error: bool = False) -> RenderableType:
     """Render a generic tool result as truncated text."""
     style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT
@@ -124,6 +130,7 @@ def render_generic_tool_result(result: str, *, is_error: bool = False) -> Render
     text.no_wrap = True
     text.overflow = "ellipsis"
     return text
+
 
 def render_fallback_tool_result(tool_name: str, result: str, *, is_error: bool = False) -> RenderableType:
     del tool_name

@@ -1,4 +1,3 @@
-
 # pyright: reportPrivateUsage=false, reportUnusedFunction=false
 import asyncio
 import json
@@ -35,16 +34,20 @@ class _ForkSessionDummyAgent:
     def get_llm_client(self) -> NoReturn:  # pragma: no cover
         raise NotImplementedError
 
+
 def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
+
 
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
 
+
 # =====================
 # Tests for session.py
 # =====================
+
 
 class TestSession:
     """Tests for Session class."""
@@ -105,6 +108,7 @@ class TestSession:
         session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("World")))
         assert session.messages_count == 2
 
+
 class TestSessionDirectories:
     """Tests for Session directory methods."""
 
@@ -115,6 +119,7 @@ class TestSessionDirectories:
     def test_sessions_dir_under_base(self, tmp_path: Path):
         sessions_dir = Session.paths(tmp_path).sessions_dir
         assert sessions_dir.name == "sessions"
+
 
 class TestSessionNeedTurnStart:
     """Tests for Session.need_turn_start method."""
@@ -147,6 +152,7 @@ class TestSessionNeedTurnStart:
         prev = message.AssistantMessage(parts=message.text_parts_from_str("Hello"))
         item = message.AssistantMessage(parts=message.text_parts_from_str("Follow-up"))
         assert session.need_turn_start(prev, item) is False
+
 
 class TestSessionPersistence:
     """Tests for Session save/load with file system."""
@@ -509,9 +515,7 @@ class TestSessionPersistence:
                 [
                     message.UserMessage(parts=message.text_parts_from_str("find foo")),
                     message.AssistantMessage(parts=message.text_parts_from_str("found it")),
-                    TaskMetadataItem(
-                        main_agent=TaskMetadata(model_name="test", turn_count=1, task_duration_s=2.0)
-                    ),
+                    TaskMetadataItem(main_agent=TaskMetadata(model_name="test", turn_count=1, task_duration_s=2.0)),
                 ]
             )
             await sub_session.wait_for_flush()
@@ -614,9 +618,7 @@ class TestSessionPersistence:
             sub_session.append_history(
                 [
                     message.AssistantMessage(parts=message.text_parts_from_str("done")),
-                    TaskMetadataItem(
-                        main_agent=TaskMetadata(model_name="test", turn_count=1, task_duration_s=1.0)
-                    ),
+                    TaskMetadataItem(main_agent=TaskMetadata(model_name="test", turn_count=1, task_duration_s=1.0)),
                 ]
             )
             await sub_session.wait_for_flush()
@@ -760,6 +762,7 @@ class TestSessionPersistence:
 
         arun(_test())
 
+
 class TestSessionListAndClean:
     """Tests for Session.list_sessions and clean methods."""
 
@@ -843,6 +846,7 @@ class TestSessionListAndClean:
 
         backfilled = json.loads(meta_path.read_text(encoding="utf-8"))
         assert backfilled["user_messages"] == ["m1", "m2"]
+
 
 class TestForkSessionCommand:
     def test_fork_session_empty_does_not_create_session(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -985,6 +989,7 @@ class TestForkSessionCommand:
 
         arun(_test())
 
+
 class TestStripDanglingToolCalls:
     """Tests for Session._strip_dangling_tool_calls."""
 
@@ -1123,6 +1128,7 @@ class TestStripDanglingToolCalls:
         assert synthetic.call_id == "c1"
         assert synthetic.status == "error"
 
+
 class TestGetLlmHistoryDanglingToolCalls:
     """Integration tests: get_llm_history strips dangling tool calls."""
 
@@ -1171,8 +1177,9 @@ class TestGetLlmHistoryDanglingToolCalls:
         assert isinstance(assistant, message.AssistantMessage)
         assert len([p for p in assistant.parts if isinstance(p, message.ToolCallPart)]) == 1
 
+
 class TestSessionMetaBrief:
-    """Tests for Session.SessionMetaBrief """
+    """Tests for Session.SessionMetaBrief"""
 
     def test_create_meta_brief(self):
         meta = Session.SessionMetaBrief(
@@ -1213,6 +1220,7 @@ class TestSessionMetaBrief:
         assert meta.session_state is None
         assert meta.archived is False
 
+
 class TestSessionTitle:
     def test_update_title_persists_to_meta(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
@@ -1233,6 +1241,7 @@ class TestSessionTitle:
 
         arun(_test())
 
+
 class TestSessionExists:
     def test_returns_false_when_missing(self, tmp_path: Path):
         assert Session.exists("does-not-exist", work_dir=tmp_path) is False
@@ -1251,6 +1260,7 @@ class TestSessionExists:
             await close_default_store()
 
         arun(_test())
+
 
 class TestCliResume:
     def test_errors_when_session_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -1296,6 +1306,7 @@ class TestCliResume:
             assert "cannot be combined" in result.output
         finally:
             _cli_main.asyncio.run = _orig_run  # type: ignore[assignment]
+
 
 class TestFindSessionsByPrefix:
     """Tests for Session.find_sessions_by_prefix method."""
@@ -1391,6 +1402,7 @@ class TestFindSessionsByPrefix:
 
         arun(_test())
 
+
 class TestShortestUniquePrefix:
     """Tests for Session.shortest_unique_prefix method."""
 
@@ -1443,9 +1455,7 @@ class TestShortestUniquePrefix:
             await main.wait_for_flush()
 
             sub = Session.create(id="abcd2222", work_dir=project_dir)
-            sub.sub_agent_state = SubAgentState(
-                sub_agent_type="Task", sub_agent_desc="test", sub_agent_prompt="test"
-            )
+            sub.sub_agent_state = SubAgentState(sub_agent_type="Task", sub_agent_desc="test", sub_agent_prompt="test")
             sub.append_history([message.AssistantMessage(parts=message.text_parts_from_str("Done"))])
             await sub.wait_for_flush()
 

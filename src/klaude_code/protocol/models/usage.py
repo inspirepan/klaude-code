@@ -60,4 +60,5 @@ class Usage(BaseModel):
             return None
         return (self.context_size / effective_limit) * 100
 
+
 __all__ = ["Usage"]

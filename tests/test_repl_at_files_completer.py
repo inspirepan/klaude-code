@@ -11,6 +11,7 @@ from klaude_code.tui.input.completers import _AtFilesCompleter, _CmdResult  # py
 if TYPE_CHECKING:
     import pytest
 
+
 def test_at_files_completer_returns_git_candidates(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Ensure non-empty git candidates are not accidentally dropped.
 
@@ -42,6 +43,7 @@ def test_at_files_completer_returns_git_candidates(monkeypatch: pytest.MonkeyPat
     assert completions
     inserted = {c.text for c in completions}
     assert "@src/ " in inserted or "@src/main.py " in inserted
+
 
 def test_at_files_completer_preserves_dotfile_prefix(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Ensure dotfile paths like '.claude/' are not mangled.
@@ -77,6 +79,7 @@ def test_at_files_completer_preserves_dotfile_prefix(monkeypatch: pytest.MonkeyP
     assert completions
     inserted = {c.text for c in completions}
     assert "@.claude/skills/publish/scripts/update_changelog.py " in inserted
+
 
 @pytest.mark.parametrize(
     ("text", "should_match"),
@@ -117,6 +120,7 @@ def test_at_files_completer_allows_cjk_without_space(
     assert ("@src/ " in inserted or "@src/main.py " in inserted) is should_match
     assert call_count == (1 if should_match else 0)
 
+
 def test_at_files_completer_formats_display_labels() -> None:
     """Display labels show full path with dim directory prefix."""
 
@@ -145,6 +149,7 @@ def test_at_files_completer_formats_display_labels() -> None:
 
     # Root-level file has no directory prefix
     assert _plain(labels[2]) == "pyproject.toml"
+
 
 def test_git_paths_for_keyword_includes_all_tools_dirs_even_when_many_files_match(
     monkeypatch: pytest.MonkeyPatch,
@@ -186,6 +191,7 @@ def test_git_paths_for_keyword_includes_all_tools_dirs_even_when_many_files_matc
         "video/tools/",
         "three_d/tools/",
     }.issubset(set(candidates))
+
 
 def test_complete_paths_refines_past_incomplete_git_results(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A narrower query must not reuse an incomplete cached git result set."""

@@ -7,6 +7,7 @@ class FileDiffStats(BaseModel):
     added: int = 0
     removed: int = 0
 
+
 class FileChangeSummary(BaseModel):
     created_files: list[str] = Field(default_factory=list)
     edited_files: list[str] = Field(default_factory=list)
@@ -34,6 +35,7 @@ class FileChangeSummary(BaseModel):
         stats.added += added
         stats.removed += removed
 
+
 class FileStatus(BaseModel):
     """Tracks file state including modification time and content hash."""
 
@@ -47,5 +49,6 @@ class FileStatus(BaseModel):
     skill_attachment_source: Literal["dynamic", "explicit"] | None = None
     is_directory: bool = False
     read_complete: bool = False
+
 
 __all__ = ["FileChangeSummary", "FileDiffStats", "FileStatus"]

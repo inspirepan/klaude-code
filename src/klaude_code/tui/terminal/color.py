@@ -17,6 +17,7 @@ BEL: Final[int] = 7
 # Match OSC 11 response like: ESC ] 11 ; <payload> BEL/ST
 _OSC_BG_REGEX = re.compile(r"\x1b]11;([^\x07\x1b\\]*)")
 
+
 def is_light_terminal_background(timeout: float = 0.5) -> bool | None:
     """Detect whether the current terminal background is light.
 
@@ -31,6 +32,7 @@ def is_light_terminal_background(timeout: float = 0.5) -> bool | None:
     # Same luminance formula as codex-rs: 0.299*r + 0.587*g + 0.114*b > 128.0
     y = 0.299 * float(r) + 0.587 * float(g) + 0.114 * float(b)
     return y > 128.0
+
 
 def _query_color_slot(slot: int, timeout: float) -> tuple[int, int, int] | None:
     """Query an OSC color slot (10=fg, 11=bg) and return RGB if possible.
@@ -91,6 +93,7 @@ def _query_color_slot(slot: int, timeout: float) -> tuple[int, int, int] | None:
 
     return _parse_osc_color_response(raw)
 
+
 def _send_osc_query(tty_fp: BinaryIO, slot: int) -> None:
     """Send OSC color query for the given slot to the TTY."""
 
@@ -103,6 +106,7 @@ def _send_osc_query(tty_fp: BinaryIO, slot: int) -> None:
             f"Failed to write OSC color query to /dev/tty: {exc}",
             debug_type=DebugType.TERMINAL,
         )
+
 
 def _read_osc_response(fd: int, timeout: float) -> bytes | None:
     """Read a single OSC response terminated by BEL or ST from the TTY.
@@ -151,6 +155,7 @@ def _read_osc_response(fd: int, timeout: float) -> bytes | None:
         return bytes(buf)
     return None
 
+
 def _parse_osc_color_response(data: bytes) -> tuple[int, int, int] | None:
     """Extract an RGB triple from an OSC 11 response payload.
 
@@ -173,6 +178,7 @@ def _parse_osc_color_response(data: bytes) -> tuple[int, int, int] | None:
 
     rgb = _parse_rgb_spec(payload)
     return rgb
+
 
 def _parse_rgb_spec(spec: str) -> tuple[int, int, int] | None:
     """Parse a color specification like `rgb:rrrr/gggg/bbbb` or `#rrggbb`."""
@@ -204,6 +210,7 @@ def _parse_rgb_spec(spec: str) -> tuple[int, int, int] | None:
         return r, g, b
 
     return None
+
 
 def _scale_hex_component(component: str) -> int:
     """Scale 1-4 digit hex component to 0-255 range."""

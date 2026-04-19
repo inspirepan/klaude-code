@@ -27,12 +27,14 @@ def _last_spinner_update(cmds: Sequence[RenderCommand]) -> SpinnerUpdate:
             return cmd
     raise AssertionError("SpinnerUpdate not found")
 
+
 def _line_plain(line: object) -> str:
     if isinstance(line, SpinnerStatusLine):
         return _line_plain(line.text)
     if isinstance(line, Text):
         return line.plain
     return str(line)
+
 
 def _right_plain(update: SpinnerUpdate) -> str:
     right = update.right_text
@@ -42,6 +44,7 @@ def _right_plain(update: SpinnerUpdate) -> str:
     if isinstance(plain, str):
         return plain
     return str(right)
+
 
 def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     machine = DisplayStateMachine()
@@ -74,6 +77,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
         span.style == "italic" and first_line.plain[span.start : span.end] == "searching xxxxx"
         for span in first_line.spans
     )
+
 
 def test_sub_agent_status_line_shows_tool_counts() -> None:
     machine = DisplayStateMachine()
@@ -115,6 +119,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     lines = [_line_plain(line) for line in update.status_lines]
     assert lines == ["Finding: searching yyyyy | Bashing × 2"]
 
+
 def test_main_session_bash_tool_streams_append_only_and_keeps_success_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -146,6 +151,7 @@ def test_main_session_bash_tool_streams_append_only_and_keeps_success_result(
     )
     assert any(isinstance(cmd, RenderBashCommandEnd) for cmd in result_cmds)
     assert any(isinstance(cmd, RenderToolResult) for cmd in result_cmds)
+
 
 def test_main_session_bash_tool_buffers_before_delay_and_falls_back_to_tool_result(
     monkeypatch: pytest.MonkeyPatch,
@@ -190,6 +196,7 @@ def test_main_session_bash_tool_buffers_before_delay_and_falls_back_to_tool_resu
     assert not any(isinstance(cmd, RenderBashCommandEnd) for cmd in result_cmds)
     assert any(isinstance(cmd, RenderToolResult) for cmd in result_cmds)
 
+
 def test_sub_agent_todo_write_result_is_rendered() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
@@ -229,6 +236,7 @@ def test_sub_agent_todo_write_result_is_rendered() -> None:
     assert tool_results[0].event.tool_name == tools.TODO_WRITE
     assert tool_results[0].is_sub_agent_session is True
 
+
 def test_main_session_bash_tool_flushes_buffer_after_delay(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(machine_module, "BASH_STREAM_DELAY_SEC", 3.0)
     machine = DisplayStateMachine()
@@ -266,6 +274,7 @@ def test_main_session_bash_tool_flushes_buffer_after_delay(monkeypatch: pytest.M
     bash_chunks = [cmd.event.content for cmd in stream_cmds if isinstance(cmd, AppendBashCommandOutput)]
     assert bash_chunks == ["hello\n", "world\n"]
 
+
 def test_bash_mode_end_emits_final_tool_result_from_streamed_output() -> None:
     machine = DisplayStateMachine()
     session_id = "main"
@@ -284,6 +293,7 @@ def test_bash_mode_end_emits_final_tool_result_from_streamed_output() -> None:
     assert tool_results[0].event.status == "success"
     assert not any(isinstance(cmd, PrintBlankLine) for cmd in end_cmds)
 
+
 def test_bash_mode_end_includes_nonzero_exit_message_in_final_tool_result() -> None:
     machine = DisplayStateMachine()
     session_id = "main"
@@ -297,6 +307,7 @@ def test_bash_mode_end_includes_nonzero_exit_message_in_final_tool_result() -> N
     assert len(tool_results) == 1
     assert tool_results[0].event.result == "Command exited with code 2"
     assert tool_results[0].event.status == "success"
+
 
 def test_sub_agent_bash_tool_output_delta_is_ignored() -> None:
     machine = DisplayStateMachine()
@@ -327,6 +338,7 @@ def test_sub_agent_bash_tool_output_delta_is_ignored() -> None:
 
     assert cmds == []
 
+
 def test_sub_agent_status_lines_cap_with_more_indicator() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
@@ -353,6 +365,7 @@ def test_sub_agent_status_lines_cap_with_more_indicator() -> None:
     assert lines[0] == "Finding: searching 0 | Running…"
     assert lines[4] == "Finding: searching 4 | Running…"
     assert lines[5] == "… (more 2 lines)"
+
 
 def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
     machine = DisplayStateMachine()
@@ -384,6 +397,7 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
     assert finish_update.reset_bottom_height is True
     assert finish_update.leading_blank_line is False
 
+
 def test_sub_agent_finish_emits_blank_line_after_result() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
@@ -414,6 +428,7 @@ def test_sub_agent_finish_emits_blank_line_after_result() -> None:
 
     assert print_blank_line_index > render_task_finish_index
 
+
 def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
@@ -430,6 +445,7 @@ def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> N
     assert update.leading_blank_line is False
     assert len(update.status_lines) == 1
     assert _line_plain(update.status_lines[0]).startswith("Running Task")
+
 
 def test_main_bash_tool_call_adds_blank_line_before_stream_starts() -> None:
     machine = DisplayStateMachine()
@@ -450,6 +466,7 @@ def test_main_bash_tool_call_adds_blank_line_before_stream_starts() -> None:
     assert len(update.status_lines) == 1
     assert _line_plain(update.status_lines[0]).startswith("Bashing")
 
+
 def test_main_session_composing_keeps_sub_agent_activity_priority() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
@@ -469,6 +486,7 @@ def test_main_session_composing_keeps_sub_agent_activity_priority() -> None:
     assert len(update.status_lines) == 1
     assert _line_plain(update.status_lines[0]).startswith("Running Task")
     assert "Typing" not in _line_plain(update.status_lines[0])
+
 
 def test_interrupt_clears_stale_sub_agent_status_lines() -> None:
     machine = DisplayStateMachine()
@@ -497,6 +515,7 @@ def test_interrupt_clears_stale_sub_agent_status_lines() -> None:
     assert len(update.status_lines) == 1
     assert update.status_lines[0].session_id is None
     assert "Finding" not in _line_plain(update.status_lines[0])
+
 
 def test_sub_agent_non_retry_error_clears_status_lines() -> None:
     machine = DisplayStateMachine()
@@ -530,6 +549,7 @@ def test_sub_agent_non_retry_error_clears_status_lines() -> None:
     assert len(update.status_lines) == 1
     assert update.status_lines[0].session_id is None
     assert "Finding" not in _line_plain(update.status_lines[0])
+
 
 def test_failed_agent_tool_result_clears_sub_agent_status_line() -> None:
     machine = DisplayStateMachine()
@@ -573,6 +593,7 @@ def test_failed_agent_tool_result_clears_sub_agent_status_line() -> None:
     assert len(update.status_lines) == 1
     assert update.status_lines[0].session_id is None
     assert "Finding" not in _line_plain(update.status_lines[0])
+
 
 def test_main_session_tokens_accumulate_across_task_boundaries() -> None:
     machine = DisplayStateMachine()

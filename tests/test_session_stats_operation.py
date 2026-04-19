@@ -14,12 +14,15 @@ from klaude_code.session.session import Session
 
 T = TypeVar("T")
 
+
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
+
 
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
+
 
 class _FakeAgentRunner:
     def __init__(self, session: Session) -> None:
@@ -28,6 +31,7 @@ class _FakeAgentRunner:
     async def ensure_agent(self, session_id: str) -> Any:
         assert session_id == self._agent.session.id
         return self._agent
+
 
 def test_get_session_stats_operation_emits_status_event(tmp_path: Path) -> None:
     async def _test() -> None:

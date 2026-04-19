@@ -14,7 +14,9 @@ class _Result:
         self.returncode = returncode
         self.stdout = stdout
 
+
 type _LogObject = str | tuple[str, str]
+
 
 def test_upgrade_command_updates_clean_editable_local_git_checkout(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     source_path = tmp_path / "klaude-code"
@@ -69,12 +71,14 @@ def test_upgrade_command_updates_clean_editable_local_git_checkout(monkeypatch: 
     ]
     assert "Update complete. Please re-run `klaude` to use the new version." in messages
 
+
 def test_print_version_uses_display_version(monkeypatch: MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     monkeypatch.setattr(update, "get_display_version", lambda: "1.2.3 (editable)")
 
     self_update.version_command()
 
     assert capsys.readouterr().out == "klaude-code 1.2.3 (editable)\n"
+
 
 def test_upgrade_command_rejects_dirty_local_git_checkout(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     source_path = tmp_path / "klaude-code"

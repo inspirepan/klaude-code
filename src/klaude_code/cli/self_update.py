@@ -12,16 +12,19 @@ def _print_version() -> None:
 
     print(f"{PACKAGE_NAME} {get_display_version()}")
 
+
 def version_option_callback(value: bool) -> None:
     """Show version and exit."""
     if value:
         _print_version()
         raise typer.Exit(0)
 
+
 def version_command() -> None:
     """Show version and exit."""
 
     _print_version()
+
 
 def _upgrade_local_git_install(install_kind: str, source_path: str) -> None:
     from klaude_code.log import log
@@ -86,6 +89,7 @@ def _upgrade_local_git_install(install_kind: str, source_path: str) -> None:
         raise typer.Exit(install_result.returncode or 1)
 
     log("Update complete. Please re-run `klaude` to use the new version.")
+
 
 def upgrade_command(
     check: bool = typer.Option(
@@ -167,6 +171,7 @@ def upgrade_command(
         raise typer.Exit(result.returncode or 1)
 
     log("Update complete. Please re-run `klaude` to use the new version.")
+
 
 def register_self_upgrade_commands(app: typer.Typer) -> None:
     """Register self-update and version subcommands to the given Typer app."""

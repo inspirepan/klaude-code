@@ -13,6 +13,7 @@ def _llm_config(*, context_limit: int, max_tokens: int | None) -> llm_param.LLMC
         max_tokens=max_tokens,
     )
 
+
 def test_threshold_uses_estimated_tokens_when_history_grew_after_last_usage(tmp_path: Path) -> None:
     session = Session(id="threshold-stale-usage", work_dir=tmp_path)
     session.conversation_history = [
@@ -35,6 +36,7 @@ def test_threshold_uses_estimated_tokens_when_history_grew_after_last_usage(tmp_
     )
 
     assert should_compact is True
+
 
 def test_threshold_only_estimates_increment_after_last_usage(tmp_path: Path) -> None:
     session = Session(id="threshold-increment-only", work_dir=tmp_path)
@@ -60,6 +62,7 @@ def test_threshold_only_estimates_increment_after_last_usage(tmp_path: Path) -> 
 
     assert should_compact is False
 
+
 def test_threshold_subtracts_max_tokens_from_context_limit(tmp_path: Path) -> None:
     session = Session(id="threshold-max-tokens", work_dir=tmp_path)
     session.conversation_history = [
@@ -76,6 +79,7 @@ def test_threshold_subtracts_max_tokens_from_context_limit(tmp_path: Path) -> No
     )
 
     assert should_compact is True
+
 
 def test_threshold_triggers_on_boundary(tmp_path: Path) -> None:
     session = Session(id="threshold-boundary", work_dir=tmp_path)

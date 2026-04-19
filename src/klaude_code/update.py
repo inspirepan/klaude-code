@@ -28,12 +28,14 @@ INSTALL_KIND_DIRECT_URL = "direct_url"
 INSTALL_KIND_LOCAL = "local"
 INSTALL_KIND_EDITABLE = "editable"
 
+
 class InstallationInfo(NamedTuple):
     """Current package installation metadata."""
 
     version: str | None
     install_kind: str
     source_url: str | None
+
 
 class VersionInfo(NamedTuple):
     """Version check result."""
@@ -43,6 +45,7 @@ class VersionInfo(NamedTuple):
     update_available: bool
     install_kind: str = INSTALL_KIND_UNKNOWN
 
+
 class PersistedUpdateInfo(NamedTuple):
     checked_at: float
     installed: str | None
@@ -50,19 +53,24 @@ class PersistedUpdateInfo(NamedTuple):
     update_available: bool
     install_kind: str = INSTALL_KIND_UNKNOWN
 
+
 class StartupUpdateSummary(NamedTuple):
     message: str
     level: Literal["info", "warn"] = "warn"
+
 
 _cached_installation_info: InstallationInfo | None = None
 _background_check_lock = threading.Lock()
 _background_check_in_progress = False
 
+
 def _has_uv() -> bool:
     return shutil.which("uv") is not None
 
+
 def _get_update_state_path() -> Path:
     return Path.home() / ".klaude" / UPDATE_STATE_FILE
+
 
 def _classify_install_kind(source_url: str | None, direct_url_data: dict[str, Any] | None) -> str:
     if isinstance(direct_url_data, dict):
@@ -77,6 +85,7 @@ def _classify_install_kind(source_url: str | None, direct_url_data: dict[str, An
     if source_url.startswith("file://"):
         return INSTALL_KIND_LOCAL
     return INSTALL_KIND_DIRECT_URL
+
 
 def get_installation_info() -> InstallationInfo:
     """Get current installation metadata for this running package."""
@@ -114,6 +123,7 @@ def get_installation_info() -> InstallationInfo:
     _cached_installation_info = info
     return info
 
+
 def get_display_version() -> str:
     """Get a user-facing version label.
 
@@ -126,6 +136,7 @@ def get_display_version() -> str:
     if install_info.install_kind == INSTALL_KIND_EDITABLE:
         return f"{version} (editable)"
     return version
+
 
 def get_install_source_path() -> str | None:
     """Return local filesystem path when installed from a local file URL."""
@@ -143,6 +154,7 @@ def get_install_source_path() -> str | None:
     if parsed.netloc and parsed.netloc != "localhost":
         return f"//{parsed.netloc}{path}"
     return path
+
 
 def _get_installed_version() -> str | None:
     try:
@@ -167,6 +179,7 @@ def _get_installed_version() -> str | None:
     except (OSError, subprocess.SubprocessError):
         return None
 
+
 def _get_latest_version() -> str | None:
     try:
         with urllib.request.urlopen(PYPI_URL, timeout=5) as response:
@@ -174,6 +187,7 @@ def _get_latest_version() -> str | None:
             return data.get("info", {}).get("version")
     except (OSError, json.JSONDecodeError, ValueError):
         return None
+
 
 def _parse_version(v: str) -> tuple[int, ...]:
     parts: list[int] = []
@@ -188,6 +202,7 @@ def _parse_version(v: str) -> tuple[int, ...]:
             parts.append(int(digits))
     return tuple(parts)
 
+
 def _compare_versions(installed: str, latest: str) -> bool:
     try:
         installed_tuple = _parse_version(installed)
@@ -195,6 +210,7 @@ def _compare_versions(installed: str, latest: str) -> bool:
         return latest_tuple > installed_tuple
     except ValueError:
         return False
+
 
 def _fetch_version_info() -> VersionInfo | None:
     if not _has_uv():
@@ -215,9 +231,11 @@ def _fetch_version_info() -> VersionInfo | None:
         install_kind=install_info.install_kind,
     )
 
+
 def check_for_updates_blocking() -> VersionInfo | None:
     """Check for updates synchronously (no caching)."""
     return _fetch_version_info()
+
 
 def write_persisted_update_info(info: PersistedUpdateInfo) -> None:
     path = _get_update_state_path()
@@ -230,6 +248,7 @@ def write_persisted_update_info(info: PersistedUpdateInfo) -> None:
         "install_kind": info.install_kind,
     }
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
 
 def _load_persisted_update_info() -> PersistedUpdateInfo | None:
     path = _get_update_state_path()
@@ -270,6 +289,7 @@ def _load_persisted_update_info() -> PersistedUpdateInfo | None:
         install_kind=install_kind,
     )
 
+
 def persist_current_update_info() -> None:
     global _background_check_in_progress
 
@@ -290,6 +310,7 @@ def persist_current_update_info() -> None:
         with _background_check_lock:
             _background_check_in_progress = False
 
+
 def _start_background_update_check() -> None:
     global _background_check_in_progress
 
@@ -301,8 +322,10 @@ def _start_background_update_check() -> None:
     thread = threading.Thread(target=persist_current_update_info, daemon=True)
     thread.start()
 
+
 def _is_persisted_update_info_fresh(info: PersistedUpdateInfo) -> bool:
     return (time.time() - info.checked_at) < CHECK_INTERVAL_SECONDS
+
 
 def _build_update_message(
     installed: str | None, latest: str | None, install_kind: str, *, update_available: bool
@@ -327,6 +350,7 @@ def _build_update_message(
             "reinstall from the source URL if needed."
         )
     return f"PyPI {latest} available. Current {installed_display} (PyPI install); run `klaude upgrade`."
+
 
 def get_startup_update_summary() -> StartupUpdateSummary | None:
     """Return startup welcome update info and trigger a background refresh when needed."""

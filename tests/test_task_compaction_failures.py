@@ -22,15 +22,19 @@ from klaude_code.tool.core.context import build_todo_context
 def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
 
+
 def _always_compact(**_: Any) -> bool:
     return True
+
 
 def _never_compact(**_: Any) -> bool:
     return False
 
+
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
+
 
 def _build_executor(session: Session, *, sub_agent_state: SubAgentState | None = None) -> TaskExecutor:
     llm_config = SimpleNamespace(model_id="test-model")
@@ -57,6 +61,7 @@ def _build_executor(session: Session, *, sub_agent_state: SubAgentState | None =
             sub_agent_state=sub_agent_state,
         )
     )
+
 
 def test_threshold_compaction_failure_emits_error_once_per_task(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -109,6 +114,7 @@ def test_threshold_compaction_failure_emits_error_once_per_task(
 
     arun(_test())
 
+
 def test_threshold_nothing_to_compact_keeps_future_threshold_checks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -156,6 +162,7 @@ def test_threshold_nothing_to_compact_keeps_future_threshold_checks(
         await close_default_store()
 
     arun(_test())
+
 
 def test_overflow_compaction_failure_stops_without_turn_retries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -210,6 +217,7 @@ def test_overflow_compaction_failure_stops_without_turn_retries(
         await close_default_store()
 
     arun(_test())
+
 
 def test_overflow_compaction_failure_raises_for_sub_agents(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"

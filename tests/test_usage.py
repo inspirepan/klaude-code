@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 # Strategy generators
 # ============================================================================
 
+
 @st.composite
 def usage_instances(draw: st.DrawFn) -> Usage:
     """Generate Usage instances with valid token counts."""
@@ -45,6 +46,7 @@ def usage_instances(draw: st.DrawFn) -> Usage:
         cache_read_cost=cache_read_cost,
     )
 
+
 @st.composite
 def cost_configs(draw: st.DrawFn) -> "llm_param.Cost":
     """Generate Cost configurations."""
@@ -57,9 +59,11 @@ def cost_configs(draw: st.DrawFn) -> "llm_param.Cost":
         currency=draw(st.sampled_from(["USD", "CNY"])),
     )
 
+
 # ============================================================================
 # Property-based tests
 # ============================================================================
+
 
 @given(usage=usage_instances(), cost_config=cost_configs())
 @settings(max_examples=100, deadline=None)
@@ -87,6 +91,7 @@ def test_calculate_cost_non_negative(usage: Usage, cost_config: "llm_param.Cost"
     assert fresh_usage.input_cost >= 0
     assert fresh_usage.output_cost >= 0
     assert fresh_usage.cache_read_cost >= 0
+
 
 @given(usage=usage_instances())
 @settings(max_examples=50, deadline=None)

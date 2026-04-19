@@ -44,6 +44,7 @@ _ANSI_ESCAPE_RE = re.compile(
 
 _STREAM_POLL_INTERVAL_SEC = 0.05
 
+
 @register(tools.BASH)
 class BashTool(ToolABC):
     @classmethod

@@ -11,8 +11,8 @@ from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExe
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import events, llm_param, message
 from klaude_code.session.session import Session
-from klaude_code.tool.core.context import build_todo_context
 from klaude_code.tool.core.abc import ToolABC
+from klaude_code.tool.core.context import build_todo_context
 
 
 class ScriptedLLMStream(LLMStreamABC):
@@ -50,6 +50,7 @@ class ScriptedLLMStream(LLMStreamABC):
             stop_reason="aborted",
         )
 
+
 class FakeLLMClient(LLMClientABC):
     """Fake LLM client with a queue of scripted responses."""
 
@@ -86,6 +87,7 @@ class FakeLLMClient(LLMClientABC):
         entry = self._responses.pop(0)
         items = entry(param) if callable(entry) else entry
         return ScriptedLLMStream(items)
+
 
 @dataclass
 class Harness:
@@ -147,6 +149,7 @@ class Harness:
                 if text:
                     texts.append(text)
         return texts
+
 
 async def create_harness(
     *,

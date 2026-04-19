@@ -15,9 +15,11 @@ def build_structured_diff(before: str, after: str, *, file_path: str) -> DiffUIE
     raw_unified_diff = build_unified_diff_text(before, after, from_file=file_path)
     return DiffUIExtra(files=[file_diff], raw_unified_diff=raw_unified_diff)
 
+
 def build_structured_file_diff(before: str, after: str, *, file_path: str) -> DiffFileDiff:
     """Build a structured diff for a single file."""
     return _build_file_diff(before, after, file_path=file_path)
+
 
 def build_unified_diff_text(before: str, after: str, *, from_file: str, to_file: str | None = None) -> str:
     """Build raw unified diff text using default context lines."""
@@ -31,6 +33,7 @@ def build_unified_diff_text(before: str, after: str, *, from_file: str, to_file:
         lineterm="",
     )
     return "\n".join(lines)
+
 
 def _build_file_diff(before: str, after: str, *, file_path: str) -> DiffFileDiff:
     before_lines = _split_lines(before)
@@ -99,10 +102,12 @@ def _build_file_diff(before: str, after: str, *, file_path: str) -> DiffFileDiff
         stats_remove=stats_remove,
     )
 
+
 def _split_lines(text: str) -> list[str]:
     if not text:
         return []
     return text.splitlines()
+
 
 def _ctx_line(text: str, new_line_no: int) -> DiffLine:
     return DiffLine(
@@ -111,6 +116,7 @@ def _ctx_line(text: str, new_line_no: int) -> DiffLine:
         spans=[DiffSpan(op="equal", text=text)],
     )
 
+
 def _gap_line() -> DiffLine:
     return DiffLine(
         kind="gap",
@@ -118,16 +124,20 @@ def _gap_line() -> DiffLine:
         spans=[DiffSpan(op="equal", text="")],
     )
 
+
 def _add_line(spans: list[DiffSpan], new_line_no: int) -> DiffLine:
     return DiffLine(kind="add", new_line_no=new_line_no, spans=_ensure_spans(spans))
 
+
 def _remove_line(spans: list[DiffSpan]) -> DiffLine:
     return DiffLine(kind="remove", new_line_no=None, spans=_ensure_spans(spans))
+
 
 def _ensure_spans(spans: list[DiffSpan]) -> list[DiffSpan]:
     if spans:
         return spans
     return [DiffSpan(op="equal", text="")]
+
 
 def _diff_line_spans(old_line: str, new_line: str) -> tuple[list[DiffSpan], list[DiffSpan]]:
     if not _should_char_diff(old_line, new_line):
@@ -155,6 +165,7 @@ def _diff_line_spans(old_line: str, new_line: str) -> tuple[list[DiffSpan], list
             add_spans.append(DiffSpan(op="insert", text=text))
 
     return _ensure_spans(remove_spans), _ensure_spans(add_spans)
+
 
 def _should_char_diff(old_line: str, new_line: str) -> bool:
     return len(old_line) <= DIFF_MAX_LINE_LENGTH_FOR_CHAR_DIFF and len(new_line) <= DIFF_MAX_LINE_LENGTH_FOR_CHAR_DIFF

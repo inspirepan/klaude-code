@@ -20,6 +20,7 @@ class TestMakeCacheKey:
     def test_multiple_parts(self) -> None:
         assert make_cache_key("fetch", "https://Example.COM", "extra") == "fetch|https://example.com|extra"
 
+
 class TestCacheGetSet:
     def setup_method(self) -> None:
         _cache.clear()

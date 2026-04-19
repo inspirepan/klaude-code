@@ -55,15 +55,18 @@ class ToolCallLike(Protocol):
     @property
     def tool_name(self) -> str: ...
 
+
 # =============================================================================
 # Data Structures
 # =============================================================================
+
 
 class OffloadPolicy(Enum):
     """When to offload full output to filesystem."""
 
     NEVER = auto()  # Never offload (e.g., Read - source file exists)
     ON_THRESHOLD = auto()  # Offload only when exceeding size threshold
+
 
 @dataclass
 class OffloadResult:
@@ -75,9 +78,11 @@ class OffloadResult:
     original_length: int = 0
     truncated_chars: int = 0
 
+
 # =============================================================================
 # Strategy Interface
 # =============================================================================
+
 
 class OffloadStrategy(ABC):
     """Base class for tool-specific offload strategies."""
@@ -87,9 +92,11 @@ class OffloadStrategy(ABC):
         """Process tool output: truncate and optionally offload."""
         ...
 
+
 # =============================================================================
 # Strategy Implementations
 # =============================================================================
+
 
 class ReadToolStrategy(OffloadStrategy):
     """Strategy for Read tool output.
@@ -102,6 +109,7 @@ class ReadToolStrategy(OffloadStrategy):
 
     def process(self, output: str, tool_call: ToolCallLike | None = None) -> OffloadResult:
         return OffloadResult(output=output, was_truncated=False, original_length=len(output))
+
 
 class HeadTailOffloadStrategy(OffloadStrategy):
     """Strategy for Bash and generic tools.
@@ -233,6 +241,7 @@ class HeadTailOffloadStrategy(OffloadStrategy):
             truncated_chars=hidden,
         )
 
+
 # =============================================================================
 # Strategy Registry
 # =============================================================================
@@ -243,15 +252,18 @@ _STRATEGY_REGISTRY: dict[str, OffloadStrategy] = {
 
 _DEFAULT_STRATEGY = HeadTailOffloadStrategy()
 
+
 def get_strategy(tool_name: str | None) -> OffloadStrategy:
     """Get the appropriate strategy for a tool."""
     if tool_name and tool_name in _STRATEGY_REGISTRY:
         return _STRATEGY_REGISTRY[tool_name]
     return _DEFAULT_STRATEGY
 
+
 # =============================================================================
 # Public API
 # =============================================================================
+
 
 def offload_tool_output(output: str, tool_call: ToolCallLike | None = None) -> OffloadResult:
     """Process tool output with appropriate offload/truncation strategy.

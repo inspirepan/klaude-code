@@ -31,6 +31,7 @@ if TYPE_CHECKING:
         UserInteractionRespondOperation,
     )
 
+
 class OperationHandler(Protocol):
     """Protocol defining the interface for handling operations."""
 

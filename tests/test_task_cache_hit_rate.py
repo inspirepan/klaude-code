@@ -14,6 +14,7 @@ def test_cache_hit_rate_uses_cache_write_aware_previous_input() -> None:
     assert acc.last_turn_cache_hit_rate is not None
     assert acc.last_turn_cache_hit_rate == 1.0
 
+
 def test_cache_hit_rate_preserves_previous_behavior_without_cache_write() -> None:
     acc = MetadataAccumulator(model_name="gpt-5")
 

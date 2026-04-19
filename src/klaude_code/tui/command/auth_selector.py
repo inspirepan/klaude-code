@@ -29,6 +29,7 @@ def _get_oauth_auth_state(provider_name: str) -> tuple[bool, bool]:
     except Exception:
         return False, False
 
+
 def _api_key_source(env_var: str) -> str | None:
     """Return the source of the API key: 'env' for OS environment, 'configured' for auth store, or None."""
     try:
@@ -41,6 +42,7 @@ def _api_key_source(env_var: str) -> str | None:
         return None
     except Exception:
         return None
+
 
 def _oauth_title(label: str, provider_name: str) -> list[tuple[str, str]]:
     title: list[tuple[str, str]] = [
@@ -55,6 +57,7 @@ def _oauth_title(label: str, provider_name: str) -> list[tuple[str, str]]:
     title.append(("", "\n"))
     return title
 
+
 def _api_key_title(label: str, env_var: str) -> list[tuple[str, str]]:
     title: list[tuple[str, str]] = [
         ("", f"{label} "),
@@ -67,6 +70,7 @@ def _api_key_title(label: str, env_var: str) -> list[tuple[str, str]]:
         title.append(("ansigreen", " ✓ configured"))
     title.append(("", "\n"))
     return title
+
 
 def _aws_bedrock_source() -> str | None:
     """Return the source of AWS Bedrock credentials: 'env', 'configured', or None."""
@@ -93,6 +97,7 @@ def _aws_bedrock_source() -> str | None:
     except Exception:
         return None
 
+
 def _aws_bedrock_title() -> list[tuple[str, str]]:
     title: list[tuple[str, str]] = [
         ("", "AWS Bedrock "),
@@ -105,6 +110,7 @@ def _aws_bedrock_title() -> list[tuple[str, str]]:
         title.append(("ansigreen", " ✓ configured"))
     title.append(("", "\n"))
     return title
+
 
 def _google_vertex_source() -> str | None:
     """Return the source of Google Vertex credentials: 'env', 'configured', or None."""
@@ -131,6 +137,7 @@ def _google_vertex_source() -> str | None:
     except Exception:
         return None
 
+
 def _google_vertex_title() -> list[tuple[str, str]]:
     title: list[tuple[str, str]] = [
         ("", "Google Vertex "),
@@ -143,6 +150,7 @@ def _google_vertex_title() -> list[tuple[str, str]]:
         title.append(("ansigreen", " ✓ configured"))
     title.append(("", "\n"))
     return title
+
 
 def select_provider(
     *,

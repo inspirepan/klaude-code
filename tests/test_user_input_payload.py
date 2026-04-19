@@ -9,6 +9,7 @@ def test_user_input_payload_creation_text_only() -> None:
     assert payload.text == "Hello, world!"
     assert payload.images is None
 
+
 def test_user_input_payload_creation_with_images() -> None:
     """Test creating UserInputPayload with text and images."""
     image = message.ImageURLPart(url="data:image/png;base64,abc123", id=None)
@@ -19,6 +20,7 @@ def test_user_input_payload_creation_with_images() -> None:
     img = payload.images[0]
     assert isinstance(img, message.ImageURLPart)
     assert img.url == "data:image/png;base64,abc123"
+
 
 def test_user_input_payload_images_preserved_in_user_message_item() -> None:
     """Test that images from UserInputPayload flow to UserMessage correctly."""
@@ -33,6 +35,7 @@ def test_user_input_payload_images_preserved_in_user_message_item() -> None:
     assert len(image_parts) == 1
     assert image_parts[0].id == "img-1"
 
+
 def test_user_input_payload_multiple_images() -> None:
     """Test UserInputPayload with multiple images."""
     images: list[message.ImageURLPart | message.ImageFilePart] = [
@@ -45,6 +48,7 @@ def test_user_input_payload_multiple_images() -> None:
     for i, img in enumerate(payload.images):
         assert isinstance(img, message.ImageURLPart)
         assert img.id == f"id-{i}"
+
 
 def test_user_input_payload_empty_text() -> None:
     """Test UserInputPayload with empty text but images."""

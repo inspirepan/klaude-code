@@ -18,11 +18,13 @@ def arun(coro: Any) -> Any:
     """Helper to run async coroutines."""
     return asyncio.run(coro)
 
+
 def _tool_context(*, run_subtask: RunSubtask | None = None) -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
     return ToolContext(
         file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path("/tmp"), run_subtask=run_subtask
     )
+
 
 def test_agent_tool_schema() -> None:
     schema = AgentTool.schema()
@@ -35,17 +37,20 @@ def test_agent_tool_schema() -> None:
     assert "general-purpose" in schema.parameters["properties"]["type"]["enum"]
     assert "resume" not in schema.parameters["properties"]
 
+
 def test_agent_tool_call_invalid_json() -> None:
     result = arun(AgentTool.call("not valid json", _tool_context()))
 
     assert result.status == "error"
     assert result.output_text is not None and "Invalid JSON" in result.output_text
 
+
 def test_agent_tool_call_without_runner() -> None:
     result = arun(AgentTool.call('{"description":"d","prompt":"p"}', _tool_context()))
 
     assert result.status == "error"
     assert result.output_text is not None and "No sub-agent runner" in result.output_text
+
 
 def test_agent_tool_call_includes_session_id() -> None:
     captured: dict[str, Any] = {}
@@ -74,6 +79,7 @@ def test_agent_tool_call_includes_session_id() -> None:
     assert result.ui_extra is not None
     assert result.ui_extra.session_id == "abc123def456"
 
+
 class TestSubAgentProfile:
     def test_default_values(self) -> None:
         profile = SubAgentProfile(name="Minimal")
@@ -82,6 +88,7 @@ class TestSubAgentProfile:
         assert profile.tool_set == ()
         assert profile.active_form == ""
         assert profile.invoker_summary == ""
+
 
 class TestSubAgentRegistration:
     def test_is_sub_agent_tool(self) -> None:

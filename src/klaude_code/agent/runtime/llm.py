@@ -17,6 +17,7 @@ from klaude_code.protocol.tools import SubAgentType
 def _default_sub_clients() -> dict[SubAgentType, LLMClientABC]:
     return {}
 
+
 @dataclass
 class LLMClients:
     """Container for LLM clients used by main agent and sub-agents."""
@@ -40,6 +41,7 @@ class LLMClients:
 
     def get_fast_client(self) -> LLMClientABC:
         return self.fast or self.main
+
 
 def build_llm_clients(
     config: Config,
@@ -112,8 +114,10 @@ def build_llm_clients(
         compact=compact_client,
     )
 
+
 def clone_llm_client(client: LLMClientABC) -> LLMClientABC:
     return create_llm_client(client.get_llm_config().model_copy(deep=True))
+
 
 def clone_llm_clients(template: LLMClients) -> LLMClients:
     return LLMClients(
