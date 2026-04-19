@@ -27,6 +27,8 @@ BASH_OUTPUT_LEFT_PADDING = 7
 BASH_TOOL_CALL_DIVIDER_THRESHOLD = 10
 BASH_TOOL_CALL_DIVIDER_WIDTH = 12
 
+ToolResultStatus = Literal["success", "error", "aborted"]
+
 
 def is_sub_agent_tool(tool_name: str) -> bool:
     return _is_sub_agent_tool(tool_name)
@@ -122,9 +124,17 @@ def render_generic_tool_call(tool_name: str, arguments: str, markup: str = MARK_
     return render_tool_call_tree(mark=markup, tool_name=tool_name, details=details)
 
 
-def render_generic_tool_result(result: str, *, is_error: bool = False) -> RenderableType:
+def tool_result_style(status: ToolResultStatus, *, success_style: str = ThemeKey.TOOL_RESULT) -> str:
+    if status == "aborted":
+        return ThemeKey.INTERRUPT
+    if status == "error":
+        return ThemeKey.ERROR
+    return success_style
+
+
+def render_generic_tool_result(result: str, *, status: ToolResultStatus = "success") -> RenderableType:
     """Render a generic tool result as truncated text."""
-    style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT
+    style = tool_result_style(status)
     text = truncate_middle(result, base_style=style)
     # Tool results should not reflow/wrap; use ellipsis when exceeding terminal width.
     text.no_wrap = True
@@ -132,6 +142,6 @@ def render_generic_tool_result(result: str, *, is_error: bool = False) -> Render
     return text
 
 
-def render_fallback_tool_result(tool_name: str, result: str, *, is_error: bool = False) -> RenderableType:
+def render_fallback_tool_result(tool_name: str, result: str, *, status: ToolResultStatus = "success") -> RenderableType:
     del tool_name
-    return render_generic_tool_result(result, is_error=is_error)
+    return render_generic_tool_result(result, status=status)

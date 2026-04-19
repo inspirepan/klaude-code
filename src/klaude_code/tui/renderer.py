@@ -558,7 +558,8 @@ class TUICommandRenderer:
 
         if is_sub_agent and e.is_error:
             error_msg = truncate_head(e.result)
-            self.print(c_errors.render_tool_error(error_msg))
+            style = ThemeKey.INTERRUPT if e.status == "aborted" else ThemeKey.ERROR
+            self.print(c_errors.render_tool_error(error_msg, style=style))
             return True
 
         if not is_sub_agent and isinstance(e.ui_extra, ImageUIExtra):
