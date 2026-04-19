@@ -5,7 +5,8 @@ import io
 
 from rich.console import Console
 
-from klaude_code.protocol import events, message, model, tools
+from klaude_code.protocol import events, message, tools
+from klaude_code.protocol.models import DeveloperUIExtra, SkillActivatedUIItem, SubAgentState
 from klaude_code.tui.commands import (
     FlushOpenBlocks,
     PrintBlankLine,
@@ -28,7 +29,6 @@ def _renderer_and_output() -> tuple[TUICommandRenderer, io.StringIO]:
     renderer.console.push_theme(renderer.themes.markdown_theme)
     return renderer, output
 
-
 def test_turn_start_does_not_add_extra_blank_line_before_retry_error() -> None:
     renderer, output = _renderer_and_output()
     session_id = "main"
@@ -47,7 +47,6 @@ def test_turn_start_does_not_add_extra_blank_line_before_retry_error() -> None:
     rendered = output.getvalue()
     assert "✘ Retrying 1/10" in rendered
 
-
 def test_notice_leaves_blank_line_before_next_input() -> None:
     renderer, output = _renderer_and_output()
     session_id = "main"
@@ -64,7 +63,6 @@ def test_notice_leaves_blank_line_before_next_input() -> None:
 
     rendered = output.getvalue()
     assert "Log file: /tmp/debug.log\n\n❯ next" in rendered
-
 
 def test_multiline_error_continuation_uses_single_grid_indent() -> None:
     renderer, output = _renderer_and_output()
@@ -95,7 +93,6 @@ def test_multiline_error_continuation_uses_single_grid_indent() -> None:
     assert lines[2].rstrip() == "  Report: /tmp/cache-break.txt"
     assert not lines[2].startswith("    Report:")
 
-
 def test_developer_messages_stay_grouped_until_turn_boundary() -> None:
     renderer, output = _renderer_and_output()
     session_id = "main"
@@ -108,7 +105,7 @@ def test_developer_messages_stay_grouped_until_turn_boundary() -> None:
                         session_id=session_id,
                         item=message.DeveloperMessage(
                             parts=[],
-                            ui_extra=model.DeveloperUIExtra(items=[model.SkillActivatedUIItem(name="commit")]),
+                            ui_extra=DeveloperUIExtra(items=[SkillActivatedUIItem(name="commit")]),
                         ),
                     )
                 ),
@@ -117,7 +114,7 @@ def test_developer_messages_stay_grouped_until_turn_boundary() -> None:
                         session_id=session_id,
                         item=message.DeveloperMessage(
                             parts=[],
-                            ui_extra=model.DeveloperUIExtra(items=[model.SkillActivatedUIItem(name="submit-pr")]),
+                            ui_extra=DeveloperUIExtra(items=[SkillActivatedUIItem(name="submit-pr")]),
                         ),
                     )
                 ),
@@ -129,7 +126,6 @@ def test_developer_messages_stay_grouped_until_turn_boundary() -> None:
     rendered = output.getvalue()
     assert "+ Activated skill commit\n+ Activated skill submit-pr\n\n" in rendered
     assert "+ Activated skill commit\n\n+ Activated skill submit-pr" not in rendered
-
 
 def test_tool_call_and_result_stay_grouped_until_next_visible_block() -> None:
     renderer, output = _renderer_and_output()
@@ -165,7 +161,6 @@ def test_tool_call_and_result_stay_grouped_until_next_visible_block() -> None:
     assert "next" in rendered
     assert "\n\n└ hi" not in rendered
 
-
 def test_turn_start_flushes_open_tool_block_before_spinner_updates() -> None:
     renderer, output = _renderer_and_output()
     machine = DisplayStateMachine()
@@ -195,13 +190,12 @@ def test_turn_start_flushes_open_tool_block_before_spinner_updates() -> None:
     assert renderer._tool_block_open is False  # type: ignore[reportPrivateUsage]
     assert output.getvalue().endswith("\n\n")
 
-
 def test_sub_agent_call_prompt_renders_as_markdown() -> None:
     renderer, output = _renderer_and_output()
 
     renderer.console.print(
         render_sub_agent_call(
-            model.SubAgentState(
+            SubAgentState(
                 sub_agent_type="finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="## Plan\n\n- item",

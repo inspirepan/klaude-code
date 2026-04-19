@@ -6,7 +6,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from klaude_code.protocol import llm_param, message, model, tools, user_interaction
+from klaude_code.protocol import llm_param, message, tools, user_interaction
+from klaude_code.protocol.models import AskUserQuestionSummaryItem, AskUserQuestionSummaryUIExtra
 from klaude_code.tool.context import ToolContext
 from klaude_code.tool.tool_abc import ToolABC, load_desc
 from klaude_code.tool.tool_registry import register
@@ -19,7 +20,6 @@ class AskUserQuestionOptionInput(BaseModel):
     description: str
     markdown: str | None = None
 
-
 class AskUserQuestionQuestionInput(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -28,12 +28,10 @@ class AskUserQuestionQuestionInput(BaseModel):
     options: list[AskUserQuestionOptionInput] = Field(min_length=2, max_length=4)
     multi_select: bool = Field(default=False, alias="multiSelect")
 
-
 class AskUserQuestionArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     questions: list[AskUserQuestionQuestionInput] = Field(min_length=1, max_length=4)
-
 
 @register(tools.ASK_USER_QUESTION)
 class AskUserQuestionTool(ToolABC):
@@ -217,26 +215,26 @@ class AskUserQuestionTool(ToolABC):
     def _format_cancelled_output(
         cls,
         questions: list[user_interaction.AskUserQuestionQuestion],
-    ) -> tuple[str, model.AskUserQuestionSummaryUIExtra]:
+    ) -> tuple[str, AskUserQuestionSummaryUIExtra]:
         blocks: list[str] = []
-        summary_items: list[model.AskUserQuestionSummaryItem] = []
+        summary_items: list[AskUserQuestionSummaryItem] = []
         summary = "(User declined to answer questions)"
         for question in questions:
             blocks.append(f"Question: {question.question}\nAnswer: {summary}")
             summary_items.append(
-                model.AskUserQuestionSummaryItem(question=question.question, summary=summary, answered=False)
+                AskUserQuestionSummaryItem(question=question.question, summary=summary, answered=False)
             )
-        return cls._BLOCK_SEPARATOR.join(blocks), model.AskUserQuestionSummaryUIExtra(items=summary_items)
+        return cls._BLOCK_SEPARATOR.join(blocks), AskUserQuestionSummaryUIExtra(items=summary_items)
 
     @classmethod
     def _format_submitted_output(
         cls,
         questions: list[user_interaction.AskUserQuestionQuestion],
         answers: list[user_interaction.AskUserQuestionAnswer],
-    ) -> tuple[str, model.AskUserQuestionSummaryUIExtra]:
+    ) -> tuple[str, AskUserQuestionSummaryUIExtra]:
         answers_by_question_id = {answer.question_id: answer for answer in answers}
         blocks: list[str] = []
-        summary_items: list[model.AskUserQuestionSummaryItem] = []
+        summary_items: list[AskUserQuestionSummaryItem] = []
         no_answer_summary = "(No answer provided)"
 
         for question in questions:
@@ -244,7 +242,7 @@ class AskUserQuestionTool(ToolABC):
             if answer is None:
                 blocks.append(f"Question: {question.question}\nAnswer: {no_answer_summary}")
                 summary_items.append(
-                    model.AskUserQuestionSummaryItem(
+                    AskUserQuestionSummaryItem(
                         question=question.question,
                         summary=no_answer_summary,
                         answered=False,
@@ -288,7 +286,7 @@ class AskUserQuestionTool(ToolABC):
                         block += "\n" + "\n".join(annotation_lines)
                     blocks.append(block)
                     summary_items.append(
-                        model.AskUserQuestionSummaryItem(
+                        AskUserQuestionSummaryItem(
                             question=question.question,
                             summary="\n".join(selected_lines),
                             answered=True,
@@ -297,7 +295,7 @@ class AskUserQuestionTool(ToolABC):
                 else:
                     blocks.append(f"Question: {question.question}\nAnswer: {no_answer_summary}")
                     summary_items.append(
-                        model.AskUserQuestionSummaryItem(
+                        AskUserQuestionSummaryItem(
                             question=question.question,
                             summary=no_answer_summary,
                             answered=False,
@@ -311,11 +309,11 @@ class AskUserQuestionTool(ToolABC):
                 block += "\n" + "\n".join(annotation_lines)
             blocks.append(block)
             summary_items.append(
-                model.AskUserQuestionSummaryItem(
+                AskUserQuestionSummaryItem(
                     question=question.question,
                     summary=single_line,
                     answered=bool(selected_lines),
                 )
             )
 
-        return cls._BLOCK_SEPARATOR.join(blocks), model.AskUserQuestionSummaryUIExtra(items=summary_items)
+        return cls._BLOCK_SEPARATOR.join(blocks), AskUserQuestionSummaryUIExtra(items=summary_items)

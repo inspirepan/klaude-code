@@ -12,11 +12,9 @@ def is_directory(path: str) -> bool:
     """Check if path is a directory."""
     return os.path.isdir(path)
 
-
 def file_exists(path: str) -> bool:
     """Check if path exists."""
     return os.path.exists(path)
-
 
 def detect_encoding(path: str) -> str:
     """Detect file encoding by checking for UTF-16LE BOM."""
@@ -29,7 +27,6 @@ def detect_encoding(path: str) -> str:
         pass
     return "utf-8"
 
-
 def read_text(path: str) -> str:
     """Read text from file with automatic encoding detection."""
     encoding = detect_encoding(path)
@@ -38,14 +35,12 @@ def read_text(path: str) -> str:
     # Normalize CRLF to LF
     return content.replace("\r\n", "\n")
 
-
 def read_text_with_encoding(path: str) -> tuple[str, str]:
     """Read text from file, returning (content, encoding)."""
     encoding = detect_encoding(path)
     with open(path, encoding=encoding, errors="replace") as f:
         content = f.read()
     return content.replace("\r\n", "\n"), encoding
-
 
 def write_text(path: str, content: str, encoding: str = "utf-8") -> None:
     """Write text to file, creating parent directories if needed.
@@ -63,11 +58,9 @@ def write_text(path: str, content: str, encoding: str = "utf-8") -> None:
         with open(path, "w", encoding=encoding) as f:
             f.write(content)
 
-
 def hash_text_sha256(content: str) -> str:
     """Return SHA-256 for the given text content encoded as UTF-8."""
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
-
 
 def is_blocked_device_path(file_path: str) -> bool:
     """Check if file_path is a device path that would hang the process."""
@@ -80,14 +73,12 @@ def is_blocked_device_path(file_path: str) -> bool:
         file_path.endswith("/fd/0") or file_path.endswith("/fd/1") or file_path.endswith("/fd/2")
     )
 
-
 # -- Quote normalization utilities (curly quotes <-> straight quotes) --
 
 LEFT_SINGLE_CURLY = "\u2018"  # '
 RIGHT_SINGLE_CURLY = "\u2019"  # '
 LEFT_DOUBLE_CURLY = "\u201c"  # "
 RIGHT_DOUBLE_CURLY = "\u201d"  # "
-
 
 def normalize_quotes(s: str) -> str:
     """Convert curly quotes to straight quotes."""
@@ -97,7 +88,6 @@ def normalize_quotes(s: str) -> str:
         .replace(LEFT_DOUBLE_CURLY, '"')
         .replace(RIGHT_DOUBLE_CURLY, '"')
     )
-
 
 def find_actual_string(file_content: str, search_string: str) -> str | None:
     """Find the actual string in file content, accounting for quote normalization.
@@ -114,13 +104,11 @@ def find_actual_string(file_content: str, search_string: str) -> str | None:
         return file_content[idx : idx + len(search_string)]
     return None
 
-
 def _is_opening_context(chars: list[str], index: int) -> bool:
     if index == 0:
         return True
     prev = chars[index - 1]
     return prev in {" ", "\t", "\n", "\r", "(", "[", "{", "\u2014", "\u2013"}
-
 
 def _apply_curly_double_quotes(s: str) -> str:
     chars = list(s)
@@ -131,7 +119,6 @@ def _apply_curly_double_quotes(s: str) -> str:
         else:
             result.append(ch)
     return "".join(result)
-
 
 def _apply_curly_single_quotes(s: str) -> str:
     chars = list(s)
@@ -148,7 +135,6 @@ def _apply_curly_single_quotes(s: str) -> str:
         else:
             result.append(ch)
     return "".join(result)
-
 
 def preserve_quote_style(old_string: str, actual_old_string: str, new_string: str) -> str:
     """When old_string matched via quote normalization, apply the same curly style to new_string."""
@@ -167,7 +153,6 @@ def preserve_quote_style(old_string: str, actual_old_string: str, new_string: st
     if has_single:
         result = _apply_curly_single_quotes(result)
     return result
-
 
 def strip_trailing_whitespace(s: str) -> str:
     """Strip trailing whitespace from each line, preserving line endings."""

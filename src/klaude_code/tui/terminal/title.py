@@ -15,7 +15,6 @@ _blink_task: asyncio.Task[None] | None = None
 _blink_model_name: str | None = None
 _blink_session_title: str | None = None
 
-
 def _format_session_title(session_title: str | None) -> str | None:
     if not session_title:
         return None
@@ -23,7 +22,6 @@ def _format_session_title(session_title: str | None) -> str | None:
     if not single_line:
         return None
     return single_line[:80]
-
 
 def set_terminal_title(title: str) -> None:
     """Set terminal window title using an ANSI escape sequence."""
@@ -40,7 +38,6 @@ def set_terminal_title(title: str) -> None:
     stream.write(f"\033]0;{title}\007")
     with contextlib.suppress(Exception):
         stream.flush()
-
 
 def update_terminal_title(
     model_name: str | None = None,
@@ -70,11 +67,9 @@ def update_terminal_title(
 
     set_terminal_title(title)
 
-
 # ---------------------------------------------------------------------------
 # Terminal title blink (hollow/solid circle alternation while task is active)
 # ---------------------------------------------------------------------------
-
 
 async def _blink_loop() -> None:
     idx = 0
@@ -87,7 +82,6 @@ async def _blink_loop() -> None:
         idx = 1 - idx
         await asyncio.sleep(_BLINK_INTERVAL)
 
-
 def start_terminal_title_blink(model_name: str | None, session_title: str | None) -> None:
     """Start alternating the terminal title prefix between hollow and solid circle."""
     global _blink_task, _blink_model_name, _blink_session_title
@@ -95,7 +89,6 @@ def start_terminal_title_blink(model_name: str | None, session_title: str | None
     _blink_model_name = model_name
     _blink_session_title = session_title
     _blink_task = asyncio.create_task(_blink_loop())
-
 
 def update_blink_params(model_name: str | None = None, session_title: str | None = None) -> None:
     """Update parameters for a running blink loop (picked up on next tick)."""
@@ -105,10 +98,8 @@ def update_blink_params(model_name: str | None = None, session_title: str | None
     if session_title is not None:
         _blink_session_title = session_title
 
-
 def is_title_blinking() -> bool:
     return _blink_task is not None and not _blink_task.done()
-
 
 def stop_terminal_title_blink() -> None:
     """Cancel the blink loop if running."""

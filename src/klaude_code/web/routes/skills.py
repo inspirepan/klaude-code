@@ -7,16 +7,13 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])
 
-
 class SkillItem(BaseModel):
     name: str
     description: str
     location: str
 
-
 class SkillsResponse(BaseModel):
     items: list[SkillItem]
-
 
 @router.get("")
 async def list_skills(

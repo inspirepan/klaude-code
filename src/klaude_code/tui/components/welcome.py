@@ -23,7 +23,6 @@ class _RoundedTree(Tree):
         ("    ", "│   ", "├── ", "╰── "),
     ]
 
-
 def _format_memory_path(path: str, *, work_dir: Path) -> str:
     """Format memory path for display - show relative path or ~ for home."""
     p = Path(path)
@@ -35,7 +34,6 @@ def _format_memory_path(path: str, *, work_dir: Path) -> str:
         return f"~/{p.relative_to(Path.home())}"
     except ValueError:
         return path
-
 
 def _shorten_warning_path(warning: str, work_dir: Path) -> str:
     """Shorten absolute paths in warning messages for display.
@@ -59,7 +57,6 @@ def _shorten_warning_path(warning: str, work_dir: Path) -> str:
             short = short[: -len("/SKILL.md")]
         return short + message
     return _format_memory_path(path_str, work_dir=work_dir) + message
-
 
 def _build_multi_column_tree(
     title: str,
@@ -94,14 +91,12 @@ def _build_multi_column_tree(
         tree.add(scope_text)
     return tree
 
-
 def _build_update_tree(update_info: events.WelcomeUpdateInfo) -> Tree:
     title_style = ThemeKey.WARN_BOLD if update_info.level == "warn" else ThemeKey.WELCOME_HIGHLIGHT
     body_style = ThemeKey.WARN if update_info.level == "warn" else ThemeKey.WELCOME_INFO
     tree = _RoundedTree(Text("update", style=title_style), guide_style=ThemeKey.LINES)
     tree.add(Text(update_info.message, style=body_style))
     return tree
-
 
 def _build_shortcuts_tree() -> Tree:
     tree = _RoundedTree(Text("shortcuts", style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
@@ -120,7 +115,6 @@ def _build_shortcuts_tree() -> Tree:
         row.append(f" {desc}", style=ThemeKey.WELCOME_INFO)
         tree.add(row)
     return tree
-
 
 def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     """Render the welcome panel with model info and settings."""

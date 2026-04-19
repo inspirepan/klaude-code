@@ -12,7 +12,6 @@ class _PendingInteraction:
     session_id: str
     future: asyncio.Future[user_interaction.UserInteractionResponse]
 
-
 class WebInteractionHandler(InteractionHandlerABC):
     """Bridges runtime interaction requests and WebSocket responses."""
 

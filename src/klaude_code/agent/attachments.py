@@ -33,7 +33,24 @@ from klaude_code.agent.memory import (
     load_auto_memory,
     truncate_memory_content,
 )
-from klaude_code.protocol import message, model, tools
+from klaude_code.protocol import message, tools
+from klaude_code.protocol.models import (
+    AtFileImagesUIItem,
+    AtFileOp,
+    AtFileOpsUIItem,
+    DeveloperUIExtra,
+    DeveloperUIItem,
+    ExternalFileChangesUIItem,
+    FileStatus,
+    MemoryFileLoaded,
+    MemoryLoadedUIItem,
+    PasteFilesUIItem,
+    SkillActivatedUIItem,
+    SkillDiscoveredUIItem,
+    SkillListingUIItem,
+    TodoAttachmentUIItem,
+    UserImagesUIItem,
+)
 from klaude_code.session import Session
 from klaude_code.skill.loader import (
     Skill,
@@ -75,7 +92,6 @@ SLASH_SKILL_PATTERN = re.compile(r"(?:^|\s)(?://|/)skill:(?P<skill>[^\s/]+)(?=\s
 
 SYSTEM_SKILL_LISTING_MARKER_NAME = ".klaude-system-skill-listing"
 
-
 class AtFileRef:
     """Parsed @file reference with optional line range."""
 
@@ -85,7 +101,6 @@ class AtFileRef:
         self.path = path
         self.line_start = line_start
         self.line_end = line_end
-
 
 def _parse_at_file_ref(raw: str) -> AtFileRef:
     """Parse a raw @-mention string into path + optional line range.
@@ -113,7 +128,6 @@ def _parse_at_file_ref(raw: str) -> AtFileRef:
     line_end = int(line_end_str) if line_end_str else line_start
     return AtFileRef(base_path, line_start, line_end)
 
-
 def get_at_patterns(session: Session) -> list[AtFileRef]:
     """Get @ patterns from the last user message."""
     for item in reversed(session.conversation_history):
@@ -129,7 +143,6 @@ def get_at_patterns(session: Session) -> list[AtFileRef]:
                         refs.append(_parse_at_file_ref(path_str))
             return refs
     return []
-
 
 def get_skills_from_user_input(session: Session) -> list[str]:
     """Get explicit skill references from last user input."""
@@ -148,7 +161,6 @@ def get_skills_from_user_input(session: Session) -> list[str]:
             return result
     return []
 
-
 def _is_tracked_file_unchanged(session: Session, path: str) -> bool:
     status = session.file_tracker.get(path)
     if status is None or status.content_sha256 is None:
@@ -165,11 +177,10 @@ def _is_tracked_file_unchanged(session: Session, path: str) -> bool:
     current_sha256 = _compute_file_content_sha256(path)
     return current_sha256 is not None and current_sha256 == status.content_sha256
 
-
 async def _load_at_file(
     session: Session,
     ref: AtFileRef,
-    at_ops: list[model.AtFileOp],
+    at_ops: list[AtFileOp],
     formatted_blocks: list[str],
     collected_images: list[message.ImageURLPart],
     collected_image_paths: list[str],
@@ -191,7 +202,7 @@ async def _load_at_file(
         # Already-read optimization: if file is unchanged and no line range specified,
         # emit a lightweight "already in context" note instead of re-reading.
         if _is_tracked_file_unchanged(session, path_str) and ref.line_start is None:
-            at_ops.append(model.AtFileOp(operation="Read", path=path_str))
+            at_ops.append(AtFileOp(operation="Read", path=path_str))
             formatted_blocks.append(fmt_file_already_in_context(path_str, tools.READ))
             return
 
@@ -207,7 +218,7 @@ async def _load_at_file(
 
         tool_args = args.model_dump_json(exclude_none=True)
         formatted_blocks.append(fmt_tool_result(tools.READ, tool_args, tool_result.output_text))
-        at_ops.append(model.AtFileOp(operation="Read", path=path_str))
+        at_ops.append(AtFileOp(operation="Read", path=path_str))
         if images:
             collected_images.extend(images)
             collected_image_paths.append(path_str)
@@ -218,7 +229,7 @@ async def _load_at_file(
 
         tool_args = args.model_dump_json(exclude_none=True)
         formatted_blocks.append(fmt_tool_result(tools.BASH, tool_args, tool_result.output_text))
-        at_ops.append(model.AtFileOp(operation="List", path=path_str + "/"))
+        at_ops.append(AtFileOp(operation="List", path=path_str + "/"))
         _mark_directory_accessed(session, path_str)
 
         # Discover memory files (AGENTS.md/CLAUDE.md) along the path from work_dir to this directory
@@ -233,7 +244,6 @@ async def _load_at_file(
             discovered_memories.append(memory)
         skill_discovery_paths.append(path_str)
 
-
 async def at_file_reader_attachment(
     session: Session,
 ) -> message.DeveloperMessage | None:
@@ -242,7 +252,7 @@ async def at_file_reader_attachment(
     if not refs:
         return None
 
-    at_ops: list[model.AtFileOp] = []
+    at_ops: list[AtFileOp] = []
     formatted_blocks: list[str] = []
     collected_images: list[message.ImageURLPart] = []
     collected_image_paths: list[str] = []
@@ -277,12 +287,12 @@ async def at_file_reader_attachment(
         return None
 
     at_files_str = "\n\n".join(formatted_blocks)
-    ui_items: list[model.DeveloperUIItem] = [model.AtFileOpsUIItem(ops=at_ops)]
+    ui_items: list[DeveloperUIItem] = [AtFileOpsUIItem(ops=at_ops)]
     if collected_image_paths:
-        ui_items.append(model.AtFileImagesUIItem(paths=collected_image_paths))
+        ui_items.append(AtFileImagesUIItem(paths=collected_image_paths))
     if discovered_memories:
-        loaded_files = [model.MemoryFileLoaded(path=m.path) for m in discovered_memories]
-        ui_items.append(model.MemoryLoadedUIItem(files=loaded_files))
+        loaded_files = [MemoryFileLoaded(path=m.path) for m in discovered_memories]
+        ui_items.append(MemoryLoadedUIItem(files=loaded_files))
     if dynamic_skill_attachment is not None and dynamic_skill_attachment.ui_extra is not None:
         ui_items.extend(dynamic_skill_attachment.ui_extra.items)
     return message.DeveloperMessage(
@@ -290,9 +300,8 @@ async def at_file_reader_attachment(
             f"""<system-reminder>{at_files_str}\n</system-reminder>""",
             collected_images or None,
         ),
-        ui_extra=model.DeveloperUIExtra(items=ui_items),
+        ui_extra=DeveloperUIExtra(items=ui_items),
     )
-
 
 def _compute_diff_snippet(old_content: str, new_content: str, path: str) -> str:
     """Compute a contextual diff snippet between old and new file content.
@@ -327,7 +336,6 @@ def _compute_diff_snippet(old_content: str, new_content: str, path: str) -> str:
         diff_lines.append("  ------")
 
     return "\n".join(diff_lines).rstrip("\n -")
-
 
 async def file_changed_externally_attachment(
     session: Session,
@@ -405,13 +413,12 @@ async def file_changed_externally_attachment(
                 f"""<system-reminder>{changed_files_str}</system-reminder>""",
                 collected_images or None,
             ),
-            ui_extra=model.DeveloperUIExtra(
-                items=[model.ExternalFileChangesUIItem(paths=[file_path for file_path, _, _ in changed_files])]
+            ui_extra=DeveloperUIExtra(
+                items=[ExternalFileChangesUIItem(paths=[file_path for file_path, _, _ in changed_files])]
             ),
         )
 
     return None
-
 
 def _compute_file_content_sha256(path: str) -> str | None:
     """Compute SHA-256 for file content using the same decoding behavior as ReadTool."""
@@ -430,7 +437,6 @@ def _compute_file_content_sha256(path: str) -> str | None:
     except (FileNotFoundError, IsADirectoryError, OSError, PermissionError, UnicodeDecodeError):
         return None
 
-
 def get_last_user_message_image_paths(session: Session) -> list[str]:
     """Get image file paths from the last user message in conversation history."""
     for item in reversed(session.conversation_history):
@@ -446,7 +452,6 @@ def get_last_user_message_image_paths(session: Session) -> list[str]:
             return paths
     return []
 
-
 async def image_attachment(session: Session) -> message.DeveloperMessage | None:
     """Attach images from the last user message."""
     image_paths = get_last_user_message_image_paths(session)
@@ -455,9 +460,8 @@ async def image_attachment(session: Session) -> message.DeveloperMessage | None:
 
     return message.DeveloperMessage(
         parts=[],
-        ui_extra=model.DeveloperUIExtra(items=[model.UserImagesUIItem(count=len(image_paths), paths=image_paths)]),
+        ui_extra=DeveloperUIExtra(items=[UserImagesUIItem(count=len(image_paths), paths=image_paths)]),
     )
-
 
 async def paste_file_attachment(session: Session) -> message.DeveloperMessage | None:
     """Remind agent about paste files the user provided."""
@@ -469,16 +473,14 @@ async def paste_file_attachment(session: Session) -> message.DeveloperMessage | 
                 parts=message.text_parts_from_str(
                     f"<system-reminder>{fmt_paste_file_hint(item.pasted_files)}\n</system-reminder>"
                 ),
-                ui_extra=model.DeveloperUIExtra(items=[model.PasteFilesUIItem(tags=item.pasted_files)]),
+                ui_extra=DeveloperUIExtra(items=[PasteFilesUIItem(tags=item.pasted_files)]),
             )
     return None
-
 
 def _get_dynamic_skills_for_session(session: Session) -> list[Skill]:
     if not session.file_tracker:
         return []
     return discover_skills_near_paths(session.file_tracker.keys(), work_dir=session.work_dir)
-
 
 def _find_dynamic_skill(session: Session, name: str, *, allow_short_fallback: bool = False) -> Skill | None:
     dynamic_skills = _get_dynamic_skills_for_session(session)
@@ -493,13 +495,11 @@ def _find_dynamic_skill(session: Session, name: str, *, allow_short_fallback: bo
 
     return None
 
-
 def _get_static_skill_loader_for_session(session: Session) -> SkillLoader:
     install_system_skills()
     loader = SkillLoader()
     loader.discover_skills(work_dir=session.work_dir)
     return loader
-
 
 def _resolve_skill_for_input(session: Session, skill_name: str) -> Skill | None:
     dynamic_exact = _find_dynamic_skill(session, skill_name)
@@ -520,13 +520,11 @@ def _resolve_skill_for_input(session: Session, skill_name: str) -> Skill | None:
 
     return static_loader.get_skill(skill_name)
 
-
 def _read_skill_content(skill: Skill) -> str | None:
     if not skill.skill_path.exists() or not skill.skill_path.is_file():
         return None
     content = skill.skill_path.read_text(encoding="utf-8", errors="replace")
     return content or None
-
 
 def _mark_skill_loaded(session: Session, path: str, content: str, *, source: Literal["dynamic", "explicit"]) -> None:
     existing = session.file_tracker.get(path)
@@ -534,7 +532,7 @@ def _mark_skill_loaded(session: Session, path: str, content: str, *, source: Lit
         mtime = Path(path).stat().st_mtime
     except (OSError, FileNotFoundError):
         mtime = 0.0
-    session.file_tracker[path] = model.FileStatus(
+    session.file_tracker[path] = FileStatus(
         mtime=mtime,
         content_sha256=hash_text_sha256(content),
         is_memory=existing.is_memory if existing else False,
@@ -545,14 +543,13 @@ def _mark_skill_loaded(session: Session, path: str, content: str, *, source: Lit
         read_complete=existing.read_complete if existing else False,
     )
 
-
 def _mark_directory_accessed(session: Session, path: str) -> None:
     existing = session.file_tracker.get(path)
     try:
         mtime = Path(path).stat().st_mtime
     except (OSError, FileNotFoundError):
         mtime = 0.0
-    session.file_tracker[path] = model.FileStatus(
+    session.file_tracker[path] = FileStatus(
         mtime=mtime,
         content_sha256=None,
         is_memory=existing.is_memory if existing else False,
@@ -562,7 +559,6 @@ def _mark_directory_accessed(session: Session, path: str) -> None:
         is_directory=True,
         read_complete=existing.read_complete if existing else False,
     )
-
 
 def _get_loaded_skill_paths_by_name(session: Session, *, dynamic_only: bool) -> dict[str, str]:
     loader = SkillLoader()
@@ -580,7 +576,6 @@ def _get_loaded_skill_paths_by_name(session: Session, *, dynamic_only: bool) -> 
 
     return result
 
-
 def _format_skill_block_str(skill: Skill, skill_content: str, *, explicit: bool) -> str:
     return fmt_skill_block(
         skill_name=skill.name,
@@ -590,35 +585,29 @@ def _format_skill_block_str(skill: Skill, skill_content: str, *, explicit: bool)
         explicit=explicit,
     )
 
-
 def _build_skills_xml(skills: Sequence[Skill]) -> str:
     loader = SkillLoader()
     loader.loaded_skills = {skill.name: skill for skill in _sort_skills_for_listing(skills)}
     return loader.get_skills_xml().rstrip()
 
-
 def _format_dynamic_available_skills_str(skills: list[Skill]) -> str:
     return fmt_dynamic_available_skills(_build_skills_xml(skills))
 
-
 def _format_available_skills_str(skills: list[Skill]) -> str:
     return fmt_available_skills(_build_skills_xml(skills))
-
 
 def _sort_skills_for_listing(skills: Sequence[Skill]) -> list[Skill]:
     location_order = {"project": 0, "user": 1, "system": 2}
     return sorted(skills, key=lambda skill: (location_order.get(skill.location, 3), skill.name))
 
-
 def _get_system_skill_listing_marker_path(session: Session) -> str:
     return str((session.work_dir / SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
-
 
 def _extract_skill_listing_paths(message_item: message.DeveloperMessage) -> tuple[dict[str, str], bool] | None:
     if message_item.ui_extra is None:
         return None
 
-    listing_items = [item for item in message_item.ui_extra.items if isinstance(item, model.SkillListingUIItem)]
+    listing_items = [item for item in message_item.ui_extra.items if isinstance(item, SkillListingUIItem)]
     if not listing_items:
         return None
 
@@ -632,7 +621,6 @@ def _extract_skill_listing_paths(message_item: message.DeveloperMessage) -> tupl
         return None
 
     return filtered_paths, any(item.incremental for item in listing_items)
-
 
 def _restore_available_skill_paths_from_history(session: Session) -> dict[str, str]:
     restored_paths: dict[str, str] = {}
@@ -657,7 +645,6 @@ def _restore_available_skill_paths_from_history(session: Session) -> dict[str, s
     _mark_system_skill_listing_loaded(session, restored_paths)
     return restored_paths
 
-
 def _load_cached_skill_listing_paths(cached_content: str | None) -> dict[str, str] | None:
     if not cached_content:
         return None
@@ -672,7 +659,6 @@ def _load_cached_skill_listing_paths(cached_content: str | None) -> dict[str, st
     loaded_dict = cast(dict[object, object], loaded)
     return {str(name): str(path) for name, path in loaded_dict.items()}
 
-
 def _get_available_skill_paths_by_name(session: Session) -> dict[str, str]:
     status = session.file_tracker.get(_get_system_skill_listing_marker_path(session))
     if status is None or not status.is_skill_listing:
@@ -685,12 +671,11 @@ def _get_available_skill_paths_by_name(session: Session) -> dict[str, str]:
         return cached_paths
     return _restore_available_skill_paths_from_history(session)
 
-
 def _mark_system_skill_listing_loaded(session: Session, skill_paths_by_name: dict[str, str]) -> None:
     marker_path = _get_system_skill_listing_marker_path(session)
     existing = session.file_tracker.get(marker_path)
     serialized_state = json.dumps(skill_paths_by_name, sort_keys=True)
-    session.file_tracker[marker_path] = model.FileStatus(
+    session.file_tracker[marker_path] = FileStatus(
         mtime=0.0,
         content_sha256=hash_text_sha256(serialized_state),
         is_memory=existing.is_memory if existing else False,
@@ -702,13 +687,11 @@ def _mark_system_skill_listing_loaded(session: Session, skill_paths_by_name: dic
         read_complete=existing.read_complete if existing else False,
     )
 
-
 def _get_available_skills_for_session(session: Session) -> list[Skill]:
     install_system_skills()
     loader = SkillLoader()
     loader.discover_skills(work_dir=session.work_dir)
     return list(loader.loaded_skills.values())
-
 
 def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bool) -> tuple[list[str], list[Skill]]:
     skill_blocks: list[str] = []
@@ -744,7 +727,6 @@ def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bo
 
     return skill_blocks, activated_skills
 
-
 def _collect_dynamic_skills(session: Session, skills: list[Skill]) -> list[Skill]:
     activated_skills: list[Skill] = []
     loaded_dynamic_paths_by_name = _get_loaded_skill_paths_by_name(session, dynamic_only=True)
@@ -771,7 +753,6 @@ def _collect_dynamic_skills(session: Session, skills: list[Skill]) -> list[Skill
 
     return activated_skills
 
-
 def _build_skill_attachment(
     session: Session, skills: list[Skill], *, explicit: bool
 ) -> message.DeveloperMessage | None:
@@ -780,13 +761,12 @@ def _build_skill_attachment(
     if not skill_blocks:
         return None
 
-    ui_items: list[model.DeveloperUIItem] = [model.SkillActivatedUIItem(name=skill.name) for skill in activated_skills]
+    ui_items: list[DeveloperUIItem] = [SkillActivatedUIItem(name=skill.name) for skill in activated_skills]
 
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(f"<system-reminder>{chr(10).join(skill_blocks)}\n</system-reminder>"),
-        ui_extra=model.DeveloperUIExtra(items=ui_items),
+        ui_extra=DeveloperUIExtra(items=ui_items),
     )
-
 
 def _build_dynamic_skill_listing_attachment(session: Session, skills: list[Skill]) -> message.DeveloperMessage | None:
     activated_skills = _collect_dynamic_skills(session, skills)
@@ -794,12 +774,11 @@ def _build_dynamic_skill_listing_attachment(session: Session, skills: list[Skill
         return None
 
     content = _format_dynamic_available_skills_str(activated_skills)
-    ui_items: list[model.DeveloperUIItem] = [model.SkillDiscoveredUIItem(name=skill.name) for skill in activated_skills]
+    ui_items: list[DeveloperUIItem] = [SkillDiscoveredUIItem(name=skill.name) for skill in activated_skills]
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
-        ui_extra=model.DeveloperUIExtra(items=ui_items),
+        ui_extra=DeveloperUIExtra(items=ui_items),
     )
-
 
 async def available_skills_attachment(session: Session) -> message.DeveloperMessage | None:
     """Attach the available-skill listing and re-announce static skills when their resolved metadata changes."""
@@ -825,16 +804,15 @@ async def available_skills_attachment(session: Session) -> message.DeveloperMess
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
         attachment_position="prepend",
-        ui_extra=model.DeveloperUIExtra(
+        ui_extra=DeveloperUIExtra(
             items=[
-                model.SkillListingUIItem(
+                SkillListingUIItem(
                     names=[skill.name for skill in updated_skills],
                     incremental=bool(previous_skill_paths),
                 )
             ]
         ),
     )
-
 
 async def skill_attachment(session: Session) -> message.DeveloperMessage | None:
     """Load skill content when user references skills with explicit skill syntax."""
@@ -856,7 +834,6 @@ async def skill_attachment(session: Session) -> message.DeveloperMessage | None:
         resolved_skills.append(skill)
 
     return _build_skill_attachment(session, resolved_skills, explicit=True)
-
 
 def _is_memory_loaded(session: Session, path: str) -> bool:
     """Check if a memory file has already been loaded or read unchanged.
@@ -881,7 +858,6 @@ def _is_memory_loaded(session: Session, path: str) -> bool:
         if _is_tracked_file_unchanged(session, p):
             return True
     return False
-
 
 def _mark_memory_loaded(session: Session, path: str) -> None:
     """Mark a file as loaded memory in file_tracker.
@@ -908,7 +884,7 @@ def _mark_memory_loaded(session: Session, path: str) -> None:
 
     for p in paths_to_mark:
         existing = session.file_tracker.get(p)
-        session.file_tracker[p] = model.FileStatus(
+        session.file_tracker[p] = FileStatus(
             mtime=mtime,
             content_sha256=content_sha256,
             is_memory=True,
@@ -919,19 +895,17 @@ def _mark_memory_loaded(session: Session, path: str) -> None:
             read_complete=existing.read_complete if existing else False,
         )
 
-
 def _count_memory_session_bytes(session: Session) -> int:
     """Count cumulative bytes of memory content already injected in this session."""
     total = 0
     for item in session.conversation_history:
         if isinstance(item, message.DeveloperMessage) and item.ui_extra:
             for ui_item in item.ui_extra.items:
-                if isinstance(ui_item, model.MemoryLoadedUIItem):
+                if isinstance(ui_item, MemoryLoadedUIItem):
                     # Estimate bytes from the text parts of this developer message
                     total += sum(len(p.text.encode("utf-8")) for p in item.parts if isinstance(p, message.TextPart))
                     break
     return total
-
 
 async def memory_attachment(session: Session) -> message.DeveloperMessage | None:
     """CLAUDE.md AGENTS.md and per-project MEMORY.md with budget limits."""
@@ -986,8 +960,8 @@ async def memory_attachment(session: Session) -> message.DeveloperMessage | None
             auto_memory_hint = fmt_auto_memory_hint(auto_memory_path)
 
     if memories or auto_memory_hint:
-        loaded_files = [model.MemoryFileLoaded(path=memory.path) for memory in memories]
-        ui_items: list[model.DeveloperUIItem] = [model.MemoryLoadedUIItem(files=loaded_files)] if loaded_files else []
+        loaded_files = [MemoryFileLoaded(path=memory.path) for memory in memories]
+        ui_items: list[DeveloperUIItem] = [MemoryLoadedUIItem(files=loaded_files)] if loaded_files else []
         content_text = format_memories_attachment(memories, include_header=True) if memories else ""
         if auto_memory_hint:
             if content_text:
@@ -997,10 +971,9 @@ async def memory_attachment(session: Session) -> message.DeveloperMessage | None
         return message.DeveloperMessage(
             parts=message.text_parts_from_str(content_text),
             attachment_position="prepend",
-            ui_extra=model.DeveloperUIExtra(items=ui_items),
+            ui_extra=DeveloperUIExtra(items=ui_items),
         )
     return None
-
 
 async def last_path_memory_attachment(
     session: Session,
@@ -1022,14 +995,13 @@ async def last_path_memory_attachment(
     )
 
     if memories:
-        loaded_files = [model.MemoryFileLoaded(path=memory.path) for memory in memories]
+        loaded_files = [MemoryFileLoaded(path=memory.path) for memory in memories]
         return message.DeveloperMessage(
             parts=message.text_parts_from_str(format_memories_attachment(memories, include_header=False)),
             attachment_position="prepend",
-            ui_extra=model.DeveloperUIExtra(items=[model.MemoryLoadedUIItem(files=loaded_files)]),
+            ui_extra=DeveloperUIExtra(items=[MemoryLoadedUIItem(files=loaded_files)]),
         )
     return None
-
 
 async def last_path_skill_attachment(session: Session) -> message.DeveloperMessage | None:
     """Announce nested project-local skills discovered near accessed paths."""
@@ -1037,7 +1009,6 @@ async def last_path_skill_attachment(session: Session) -> message.DeveloperMessa
     if not dynamic_skills:
         return None
     return _build_dynamic_skill_listing_attachment(session, dynamic_skills)
-
 
 def _count_assistant_turns_since(session: Session) -> tuple[int, int]:
     """Count assistant turns since last TodoWrite and since last todo_attachment.
@@ -1063,7 +1034,7 @@ def _count_assistant_turns_since(session: Session) -> tuple[int, int]:
         # Check for previous todo_attachment in developer messages
         if not found_attachment and isinstance(item, message.DeveloperMessage) and item.ui_extra:
             for ui_item in item.ui_extra.items:
-                if isinstance(ui_item, model.TodoAttachmentUIItem):
+                if isinstance(ui_item, TodoAttachmentUIItem):
                     found_attachment = True
                     break
 
@@ -1071,7 +1042,6 @@ def _count_assistant_turns_since(session: Session) -> tuple[int, int]:
             break
 
     return turns_since_write, turns_since_attachment
-
 
 async def todo_attachment(session: Session) -> message.DeveloperMessage | None:
     """Periodically attach a todo nudge if TodoWrite hasn't been used recently."""
@@ -1092,15 +1062,14 @@ async def todo_attachment(session: Session) -> message.DeveloperMessage | None:
 
     content = fmt_todo_nudge(todo_str)
 
-    reason: model.TodoAttachmentUIItem = model.TodoAttachmentUIItem(
+    reason: TodoAttachmentUIItem = TodoAttachmentUIItem(
         reason="not_used_recently" if session.todos else "empty"
     )
 
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
-        ui_extra=model.DeveloperUIExtra(items=[reason]),
+        ui_extra=DeveloperUIExtra(items=[reason]),
     )
-
 
 type Attachment = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
 
@@ -1121,7 +1090,6 @@ _SEQUENTIAL_ATTACHMENTS: frozenset[str] = frozenset(
         "last_path_skill_attachment",
     }
 )
-
 
 async def collect_attachments(
     session: Session,

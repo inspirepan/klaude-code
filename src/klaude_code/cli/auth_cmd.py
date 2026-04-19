@@ -22,7 +22,6 @@ class _LazyProviderHelp:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._resolve(), name)
 
-
 def login_command(
     provider: str | None = typer.Argument(None, help=cast(str, _LazyProviderHelp())),
 ) -> None:
@@ -37,7 +36,6 @@ def login_command(
 
     execute_login(provider)
 
-
 def logout_command(
     provider: str | None = typer.Argument(None, help=cast(str, _LazyProviderHelp())),
 ) -> None:
@@ -51,7 +49,6 @@ def logout_command(
             return
 
     execute_logout(provider)
-
 
 def register_auth_commands(app: typer.Typer) -> None:
     """Register auth commands to the given Typer app."""

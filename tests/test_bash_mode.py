@@ -13,10 +13,8 @@ from klaude_code.session.session import Session
 
 pytestmark = pytest.mark.usefixtures("isolated_home")
 
-
 def arun(coro: Any) -> Any:
     return asyncio.run(coro)
-
 
 def _run_and_collect_output(*, session: Session, session_id: str, command: str) -> str:
     emitted: list[events.Event] = []
@@ -28,7 +26,6 @@ def _run_and_collect_output(*, session: Session, session_id: str, command: str) 
 
     chunks = [evt.content for evt in emitted if isinstance(evt, events.BashCommandOutputDeltaEvent)]
     return "".join(chunks)
-
 
 def test_bash_mode_pwd_uses_session_work_dir_with_interactive_shell(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -48,7 +45,6 @@ def test_bash_mode_pwd_uses_session_work_dir_with_interactive_shell(
     output = _run_and_collect_output(session=session, session_id="s1", command="pwd")
 
     assert str(work_dir) in output.splitlines()
-
 
 def test_bash_mode_runs_basic_echo(monkeypatch: pytest.MonkeyPatch) -> None:
     real_bash = shutil.which("bash")

@@ -32,7 +32,6 @@ def test_bedrock_client_reports_missing_optional_dependencies(monkeypatch: pytes
     with pytest.raises(ModuleNotFoundError, match="Bedrock support requires boto3 and botocore"):
         BedrockClient.create(config)
 
-
 def test_bedrock_request_uses_converse_fields_for_opus_47() -> None:
     param = llm_param.LLMCallParameter(
         input=[message.UserMessage(parts=[message.TextPart(text="hi")])],
@@ -61,7 +60,6 @@ def test_bedrock_request_uses_converse_fields_for_opus_47() -> None:
     ]
     assert "context_management" not in request
 
-
 def test_bedrock_request_keeps_non_opus47_temperature_and_interleaved_beta() -> None:
     param = llm_param.LLMCallParameter(
         input=[message.UserMessage(parts=[message.TextPart(text="hi")])],
@@ -85,7 +83,6 @@ def test_bedrock_request_keeps_non_opus47_temperature_and_interleaved_beta() -> 
         ],
     }
 
-
 def test_bedrock_request_keeps_thinking_for_arn_models() -> None:
     param = llm_param.LLMCallParameter(
         input=[message.UserMessage(parts=[message.TextPart(text="hi")])],
@@ -102,7 +99,6 @@ def test_bedrock_request_keeps_thinking_for_arn_models() -> None:
         "anthropic_beta": [ANTHROPIC_BETA_CONTEXT_MANAGEMENT],
         "output_config": {"effort": "high"},
     }
-
 
 def test_bedrock_request_fetches_remote_image_urls(monkeypatch: pytest.MonkeyPatch) -> None:
     class _Response:

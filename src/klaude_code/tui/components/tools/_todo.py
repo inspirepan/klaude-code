@@ -7,7 +7,8 @@ from rich.panel import Panel
 from rich.text import Text
 
 from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH, TAB_EXPAND_WIDTH
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events
+from klaude_code.protocol.models import TodoListUIExtra
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import MARK_PLAN, render_tool_call_tree
@@ -16,7 +17,6 @@ from klaude_code.tui.components.tools._common import MARK_PLAN, render_tool_call
 MARK_TODO_PENDING = "\u25a2"
 MARK_TODO_IN_PROGRESS = "\u25c9"
 MARK_TODO_COMPLETED = "\u2714"
-
 
 def render_todo_write_tool_call(arguments: str) -> RenderableType:
     tool_name = "Update To-Dos"
@@ -33,9 +33,8 @@ def render_todo_write_tool_call(arguments: str) -> RenderableType:
 
     return render_tool_call_tree(mark=MARK_PLAN, tool_name=tool_name, details=details)
 
-
 def render_todo(tr: events.ToolResultEvent) -> RenderableType:
-    assert isinstance(tr.ui_extra, model.TodoListUIExtra)
+    assert isinstance(tr.ui_extra, TodoListUIExtra)
     ui_extra = tr.ui_extra.todo_list
     todo_grid = create_grid()
     for todo in ui_extra.todos:
@@ -65,7 +64,6 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
         border_style=ThemeKey.LINES,
         expand=False,
     )
-
 
 def render_todo_message(result: str, *, is_error: bool = False) -> RenderableType:
     style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT

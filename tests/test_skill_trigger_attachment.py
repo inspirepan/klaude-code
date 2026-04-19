@@ -6,23 +6,27 @@ import pytest
 
 import klaude_code.agent.attachments as attachments
 from klaude_code.agent.attachments import get_skills_from_user_input
-from klaude_code.protocol import message, model
+from klaude_code.protocol import message
+from klaude_code.protocol.models import (
+    DeveloperUIExtra,
+    FileStatus,
+    SkillActivatedUIItem,
+    SkillDiscoveredUIItem,
+    SkillListingUIItem,
+)
 from klaude_code.session.session import Session
 from klaude_code.skill.loader import Skill, get_candidate_skill_dirs_for_anchor
 from klaude_code.tool.file._utils import hash_text_sha256
 
 pytestmark = pytest.mark.usefixtures("isolated_home")
 
-
 def _arun(coro):  # type: ignore
     return asyncio.run(coro)  # type: ignore
-
 
 def _build_session_with_user_text(text: str) -> Session:
     session = Session(work_dir=Path.cwd())
     session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(text)))
     return session
-
 
 def _make_skill(name: str, *, root: Path, location: str = "system", description: str | None = None) -> Skill:
     skill_dir = root / name
@@ -34,46 +38,37 @@ def _make_skill(name: str, *, root: Path, location: str = "system", description:
         base_dir=skill_dir,
     )
 
-
 def test_get_skill_from_slash_token() -> None:
     session = _build_session_with_user_text("please /skill:commit now")
     assert get_skills_from_user_input(session) == ["commit"]
-
 
 def test_get_skill_from_double_slash_token() -> None:
     session = _build_session_with_user_text("please //skill:commit now")
     assert get_skills_from_user_input(session) == ["commit"]
 
-
 def test_get_skill_ignores_path_like_slash_token() -> None:
     session = _build_session_with_user_text("/Users/root/code/project")
     assert get_skills_from_user_input(session) == []
-
 
 def test_get_skill_ignores_command_name_for_slash_token() -> None:
     session = _build_session_with_user_text("/model")
     assert get_skills_from_user_input(session) == []
 
-
 def test_get_skill_with_prefix_can_match_command_name() -> None:
     session = _build_session_with_user_text("/skill:model")
     assert get_skills_from_user_input(session) == ["model"]
-
 
 def test_get_skill_ignores_legacy_dollar_token() -> None:
     session = _build_session_with_user_text("please $commit now")
     assert get_skills_from_user_input(session) == []
 
-
 def test_get_multiple_skills_from_user_input() -> None:
     session = _build_session_with_user_text("//skill:commit  //skill:submit-pr")
     assert get_skills_from_user_input(session) == ["commit", "submit-pr"]
 
-
 def test_get_skills_deduplicates() -> None:
     session = _build_session_with_user_text("/skill:commit /skill:commit")
     assert get_skills_from_user_input(session) == ["commit"]
-
 
 def test_skill_attachment_tracks_skill_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     skill_dir = tmp_path / "demo-skill"
@@ -103,7 +98,6 @@ def test_skill_attachment_tracks_skill_file(tmp_path: Path, monkeypatch: pytest.
     assert tracked.content_sha256 == hash_text_sha256(skill_content)
     assert tracked.is_memory is False
 
-
 def test_skill_attachment_loads_multiple_skills(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     skills: dict[str, Skill] = {}
     for name in ("alpha", "beta"):
@@ -129,7 +123,7 @@ def test_skill_attachment_loads_multiple_skills(tmp_path: Path, monkeypatch: pyt
 
     assert attachment is not None
     assert attachment.ui_extra is not None
-    activated = [item for item in attachment.ui_extra.items if isinstance(item, model.SkillActivatedUIItem)]
+    activated = [item for item in attachment.ui_extra.items if isinstance(item, SkillActivatedUIItem)]
     assert [item.name for item in activated] == ["alpha", "beta"]
 
     text = message.join_text_parts(attachment.parts)
@@ -138,7 +132,6 @@ def test_skill_attachment_loads_multiple_skills(tmp_path: Path, monkeypatch: pyt
 
     assert str(skills["alpha"].skill_path) in session.file_tracker
     assert str(skills["beta"].skill_path) in session.file_tracker
-
 
 def test_skill_attachment_hot_reloads_new_static_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     work_dir = tmp_path / "repo"
@@ -170,7 +163,6 @@ def test_skill_attachment_hot_reloads_new_static_skill(tmp_path: Path, monkeypat
     assert "# Late skill" in text
     assert str(skill_path.resolve()) in session.file_tracker
 
-
 def test_available_skills_attachment_injects_listing_once_per_compaction_window(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -190,8 +182,8 @@ def test_available_skills_attachment_injects_listing_once_per_compaction_window(
     assert first_attachment.attachment_position == "prepend"
     assert first_attachment.ui_extra is not None
 
-    listing = [item for item in first_attachment.ui_extra.items if isinstance(item, model.SkillListingUIItem)]
-    assert listing == [model.SkillListingUIItem(names=["submit-pr", "commit"])]
+    listing = [item for item in first_attachment.ui_extra.items if isinstance(item, SkillListingUIItem)]
+    assert listing == [SkillListingUIItem(names=["submit-pr", "commit"])]
 
     first_text = message.join_text_parts(first_attachment.parts)
     assert "# Skills" in first_text
@@ -207,7 +199,6 @@ def test_available_skills_attachment_injects_listing_once_per_compaction_window(
     second_attachment = _arun(attachments.available_skills_attachment(session))
     assert second_attachment is not None
     assert "<available_skills>" in message.join_text_parts(second_attachment.parts)
-
 
 def test_available_skills_attachment_hot_reloads_only_new_skills(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -231,15 +222,14 @@ def test_available_skills_attachment_hot_reloads_only_new_skills(
     second_attachment = _arun(attachments.available_skills_attachment(session))
     assert second_attachment is not None
     assert second_attachment.ui_extra is not None
-    listing = [item for item in second_attachment.ui_extra.items if isinstance(item, model.SkillListingUIItem)]
-    assert listing == [model.SkillListingUIItem(names=["publish"], incremental=True)]
+    listing = [item for item in second_attachment.ui_extra.items if isinstance(item, SkillListingUIItem)]
+    assert listing == [SkillListingUIItem(names=["publish"], incremental=True)]
     second_text = message.join_text_parts(second_attachment.parts)
     assert "The available skill metadata changed" in second_text
     assert "<name>publish</name>" in second_text
     assert "<name>commit</name>" not in second_text
 
     assert _arun(attachments.available_skills_attachment(session)) is None
-
 
 def test_available_skills_attachment_reannounces_skill_when_path_changes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -261,13 +251,12 @@ def test_available_skills_attachment_reannounces_skill_when_path_changes(
     second_attachment = _arun(attachments.available_skills_attachment(session))
     assert second_attachment is not None
     assert second_attachment.ui_extra is not None
-    listing = [item for item in second_attachment.ui_extra.items if isinstance(item, model.SkillListingUIItem)]
-    assert listing == [model.SkillListingUIItem(names=["commit"], incremental=True)]
+    listing = [item for item in second_attachment.ui_extra.items if isinstance(item, SkillListingUIItem)]
+    assert listing == [SkillListingUIItem(names=["commit"], incremental=True)]
     second_text = message.join_text_parts(second_attachment.parts)
     assert "The available skill metadata changed" in second_text
     assert "<name>commit</name>" in second_text
     assert str(override_root / "commit" / "SKILL.md") in second_text
-
 
 def test_available_skills_attachment_resume_keeps_listing_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -290,7 +279,6 @@ def test_available_skills_attachment_resume_keeps_listing_state(
     }
     assert _arun(attachments.available_skills_attachment(resumed)) is None
 
-
 def test_available_skills_attachment_restores_state_from_history_for_legacy_session(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -304,17 +292,16 @@ def test_available_skills_attachment_restores_state_from_history_for_legacy_sess
                 f"<system-reminder>{attachments._format_available_skills_str(skills)}\n</system-reminder>"  # pyright: ignore[reportPrivateUsage]
             ),
             attachment_position="prepend",
-            ui_extra=model.DeveloperUIExtra(items=[model.SkillListingUIItem(names=["commit"])]),
+            ui_extra=DeveloperUIExtra(items=[SkillListingUIItem(names=["commit"])]),
         )
     )
     marker_path = str((tmp_path / attachments.SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
-    session.file_tracker[marker_path] = model.FileStatus(mtime=0.0, is_skill_listing=True)
+    session.file_tracker[marker_path] = FileStatus(mtime=0.0, is_skill_listing=True)
 
     assert _arun(attachments.available_skills_attachment(session)) is None
     assert session.file_tracker[marker_path].skill_listing_paths_by_name == {
         "commit": str((tmp_path / "commit" / "SKILL.md").resolve())
     }
-
 
 def test_available_skills_attachment_reinjects_after_attachment_flags_reset_even_with_history(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -339,7 +326,6 @@ def test_available_skills_attachment_reinjects_after_attachment_flags_reset_even
     assert "<available_skills>" in second_text
     assert "<name>commit</name>" in second_text
 
-
 def test_last_path_skill_attachment_discovers_nested_project_skill(tmp_path: Path) -> None:
     work_dir = tmp_path / "repo"
     target_file = work_dir / "src" / "feature" / "app.py"
@@ -352,7 +338,7 @@ def test_last_path_skill_attachment_discovers_nested_project_skill(tmp_path: Pat
     skill_path.write_text("---\nname: local-skill\ndescription: nested skill\n---\n# Local skill\n", encoding="utf-8")
 
     session = Session(work_dir=work_dir)
-    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+    session.file_tracker[str(target_file.resolve())] = FileStatus(
         mtime=target_file.stat().st_mtime,
         content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
     )
@@ -361,7 +347,7 @@ def test_last_path_skill_attachment_discovers_nested_project_skill(tmp_path: Pat
 
     assert attachment is not None
     assert attachment.ui_extra is not None
-    discovered = [item for item in attachment.ui_extra.items if isinstance(item, model.SkillDiscoveredUIItem)]
+    discovered = [item for item in attachment.ui_extra.items if isinstance(item, SkillDiscoveredUIItem)]
     assert [item.name for item in discovered] == ["local-skill"]
 
     text = message.join_text_parts(attachment.parts)
@@ -373,7 +359,6 @@ def test_last_path_skill_attachment_discovers_nested_project_skill(tmp_path: Pat
     tracked = session.file_tracker[str(skill_path.resolve())]
     assert tracked.is_skill is True
     assert tracked.content_sha256 == hash_text_sha256(skill_path.read_text(encoding="utf-8"))
-
 
 def test_last_path_skill_attachment_same_directory_second_file_does_not_repeat(tmp_path: Path) -> None:
     work_dir = tmp_path / "repo"
@@ -390,7 +375,7 @@ def test_last_path_skill_attachment_same_directory_second_file_does_not_repeat(t
     skill_path.write_text("---\nname: build\ndescription: build skill\n---\n# Build\n", encoding="utf-8")
 
     session = Session(work_dir=work_dir)
-    session.file_tracker[str(file1.resolve())] = model.FileStatus(
+    session.file_tracker[str(file1.resolve())] = FileStatus(
         mtime=file1.stat().st_mtime,
         content_sha256=hash_text_sha256(file1.read_text(encoding="utf-8")),
     )
@@ -400,7 +385,7 @@ def test_last_path_skill_attachment_same_directory_second_file_does_not_repeat(t
     first_text = message.join_text_parts(first_attachment.parts)
     assert "<name>build</name>" in first_text
 
-    session.file_tracker[str(file2.resolve())] = model.FileStatus(
+    session.file_tracker[str(file2.resolve())] = FileStatus(
         mtime=file2.stat().st_mtime,
         content_sha256=hash_text_sha256(file2.read_text(encoding="utf-8")),
     )
@@ -410,7 +395,6 @@ def test_last_path_skill_attachment_same_directory_second_file_does_not_repeat(t
     tracked = session.file_tracker[str(skill_path.resolve())]
     assert tracked.is_skill is True
     assert tracked.skill_attachment_source == "dynamic"
-
 
 def test_last_path_skill_attachment_prefers_deeper_skill_with_same_name(tmp_path: Path) -> None:
     work_dir = tmp_path / "repo"
@@ -433,7 +417,7 @@ def test_last_path_skill_attachment_prefers_deeper_skill_with_same_name(tmp_path
     )
 
     session = Session(work_dir=work_dir)
-    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+    session.file_tracker[str(target_file.resolve())] = FileStatus(
         mtime=target_file.stat().st_mtime,
         content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
     )
@@ -445,7 +429,6 @@ def test_last_path_skill_attachment_prefers_deeper_skill_with_same_name(tmp_path
     assert "<description>deep</description>" in text
     assert "<description>shallow</description>" not in text
     assert "# Deep" not in text
-
 
 def test_last_path_skill_attachment_reloads_when_skill_changes(tmp_path: Path) -> None:
     work_dir = tmp_path / "repo"
@@ -459,7 +442,7 @@ def test_last_path_skill_attachment_reloads_when_skill_changes(tmp_path: Path) -
     skill_path.write_text("---\nname: refresh-skill\ndescription: v1\n---\nversion one\n", encoding="utf-8")
 
     session = Session(work_dir=work_dir)
-    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+    session.file_tracker[str(target_file.resolve())] = FileStatus(
         mtime=target_file.stat().st_mtime,
         content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
     )
@@ -480,7 +463,6 @@ def test_last_path_skill_attachment_reloads_when_skill_changes(tmp_path: Path) -
     assert "<description>v2</description>" in second_text
     assert "version two" not in second_text
 
-
 def test_last_path_skill_attachment_supersedes_prior_same_name_skill(tmp_path: Path) -> None:
     work_dir = tmp_path / "repo"
 
@@ -499,7 +481,7 @@ def test_last_path_skill_attachment_supersedes_prior_same_name_skill(tmp_path: P
     second_skill.write_text("---\nname: shared\ndescription: second\n---\n# Second\n", encoding="utf-8")
 
     session = Session(work_dir=work_dir)
-    session.file_tracker[str(first_file.resolve())] = model.FileStatus(
+    session.file_tracker[str(first_file.resolve())] = FileStatus(
         mtime=first_file.stat().st_mtime,
         content_sha256=hash_text_sha256(first_file.read_text(encoding="utf-8")),
     )
@@ -508,7 +490,7 @@ def test_last_path_skill_attachment_supersedes_prior_same_name_skill(tmp_path: P
     assert first_attachment is not None
     assert "<description>first</description>" in message.join_text_parts(first_attachment.parts)
 
-    session.file_tracker[str(second_file.resolve())] = model.FileStatus(
+    session.file_tracker[str(second_file.resolve())] = FileStatus(
         mtime=second_file.stat().st_mtime,
         content_sha256=hash_text_sha256(second_file.read_text(encoding="utf-8")),
     )
@@ -518,7 +500,6 @@ def test_last_path_skill_attachment_supersedes_prior_same_name_skill(tmp_path: P
     second_text = message.join_text_parts(second_attachment.parts)
     assert "<description>second</description>" in second_text
     assert str(second_skill.resolve()) in session.file_tracker
-
 
 def test_at_dir_skill_anchor_survives_attachment_reset(tmp_path: Path) -> None:
     from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
@@ -555,7 +536,6 @@ def test_at_dir_skill_anchor_survives_attachment_reset(tmp_path: Path) -> None:
     second_attachment = _arun(attachments.last_path_skill_attachment(session))
     assert second_attachment is not None
     assert "<name>local-dir-skill</name>" in message.join_text_parts(second_attachment.parts)
-
 
 def test_skill_attachment_prefers_dynamic_skill_over_static_with_same_name(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -598,7 +578,7 @@ def test_skill_attachment_prefers_dynamic_skill_over_static_with_same_name(
     monkeypatch.setattr(attachments, "_get_static_skill_loader_for_session", _mock_loader)
 
     session = Session(work_dir=work_dir)
-    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+    session.file_tracker[str(target_file.resolve())] = FileStatus(
         mtime=target_file.stat().st_mtime,
         content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
     )
@@ -610,7 +590,6 @@ def test_skill_attachment_prefers_dynamic_skill_over_static_with_same_name(
     text = message.join_text_parts(attachment.parts)
     assert "# Dynamic commit" in text
     assert "# Static commit" not in text
-
 
 def test_skill_attachment_preserves_exact_namespaced_static_skill(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -652,7 +631,7 @@ def test_skill_attachment_preserves_exact_namespaced_static_skill(
     monkeypatch.setattr(attachments, "_get_static_skill_loader_for_session", _mock_loader)
 
     session = Session(work_dir=work_dir)
-    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+    session.file_tracker[str(target_file.resolve())] = FileStatus(
         mtime=target_file.stat().st_mtime,
         content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
     )
@@ -664,7 +643,6 @@ def test_skill_attachment_preserves_exact_namespaced_static_skill(
     text = message.join_text_parts(attachment.parts)
     assert "# Static namespaced commit" in text
     assert "# Dynamic commit" not in text
-
 
 def test_last_path_skill_attachment_does_not_override_explicit_skill(tmp_path: Path) -> None:
     work_dir = tmp_path / "repo"
@@ -689,11 +667,11 @@ def test_last_path_skill_attachment_does_not_override_explicit_skill(tmp_path: P
     )
 
     session = Session(work_dir=work_dir)
-    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+    session.file_tracker[str(target_file.resolve())] = FileStatus(
         mtime=target_file.stat().st_mtime,
         content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
     )
-    session.file_tracker[str(explicit_skill_path.resolve())] = model.FileStatus(
+    session.file_tracker[str(explicit_skill_path.resolve())] = FileStatus(
         mtime=explicit_skill_path.stat().st_mtime,
         content_sha256=hash_text_sha256(explicit_skill_path.read_text(encoding="utf-8")),
         is_skill=True,
@@ -701,7 +679,6 @@ def test_last_path_skill_attachment_does_not_override_explicit_skill(tmp_path: P
     )
 
     assert _arun(attachments.last_path_skill_attachment(session)) is None
-
 
 def test_last_path_skill_attachment_discovers_external_repo_root_skill(tmp_path: Path) -> None:
     work_dir = tmp_path / "repo"
@@ -720,7 +697,7 @@ def test_last_path_skill_attachment_discovers_external_repo_root_skill(tmp_path:
     skill_path.write_text("---\nname: writer\ndescription: external writer skill\n---\n# Writer\n", encoding="utf-8")
 
     session = Session(work_dir=work_dir)
-    session.file_tracker[str(target_file.resolve())] = model.FileStatus(
+    session.file_tracker[str(target_file.resolve())] = FileStatus(
         mtime=target_file.stat().st_mtime,
         content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
     )
@@ -732,7 +709,6 @@ def test_last_path_skill_attachment_discovers_external_repo_root_skill(tmp_path:
     assert "<name>writer</name>" in text
     assert "<description>external writer skill</description>" in text
     assert "# Writer" not in text
-
 
 def test_candidate_skill_dir_discovery_uses_cache(tmp_path: Path) -> None:
     get_candidate_skill_dirs_for_anchor.cache_clear()

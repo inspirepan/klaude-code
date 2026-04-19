@@ -12,7 +12,6 @@ class CopilotAuthState(BaseAuthState):
     enterprise_domain: str | None = None
     copilot_base_url: str = "https://api.individual.githubcopilot.com"
 
-
 class CopilotTokenManager(BaseTokenManager[CopilotAuthState]):
     """Manage GitHub Copilot OAuth tokens."""
 

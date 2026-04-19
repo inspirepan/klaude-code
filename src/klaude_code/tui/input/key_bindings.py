@@ -52,7 +52,6 @@ def copy_to_clipboard(text: str) -> None:
     except (OSError, subprocess.SubprocessError):
         pass
 
-
 def create_key_bindings(
     capture_clipboard_tag: Callable[[], str | None],
     at_token_pattern: re.Pattern[str],

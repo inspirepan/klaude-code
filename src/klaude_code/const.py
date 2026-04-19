@@ -23,13 +23,11 @@ def _get_int_env(name: str, default: int) -> int:
     except ValueError:
         return default
 
-
 def get_system_temp() -> str:
     """Return system-level temp directory: /tmp on Unix, system temp on Windows."""
     if sys.platform == "win32":
         return tempfile.gettempdir()
     return "/tmp"
-
 
 # =============================================================================
 # Agent / LLM Configuration
@@ -40,7 +38,6 @@ RETRY_PRESERVE_PARTIAL_MESSAGE = True  # Preserve partial message on stream erro
 LLM_HTTP_TIMEOUT_TOTAL = 300.0  # HTTP timeout for LLM API requests (seconds)
 LLM_HTTP_TIMEOUT_CONNECT = 15.0  # HTTP connect timeout (seconds)
 LLM_HTTP_TIMEOUT_READ = 285.0  # HTTP read timeout (seconds)
-
 
 ANTHROPIC_BETA_INTERLEAVED_THINKING = "interleaved-thinking-2025-05-14"  # Anthropic API beta flag
 ANTHROPIC_BETA_CONTEXT_MANAGEMENT = "context-management-2025-06-27"  # Anthropic API beta flag for context editing
@@ -62,7 +59,6 @@ EMPTY_TOOL_OUTPUT_MESSAGE = (
 DEFAULT_MAX_TOKENS = 32000  # Default maximum tokens for LLM responses
 DEFAULT_TEMPERATURE = 1.0  # Default temperature for LLM requests
 DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS = 2048  # Default thinking budget tokens for Anthropic models
-
 
 # =============================================================================
 # Tool - Read
@@ -98,7 +94,6 @@ FILE_UNCHANGED_STUB = (
     "in this conversation is still current -- refer to that instead of re-reading."
 )
 
-
 # =============================================================================
 # Tool - Bash / Shell
 # =============================================================================
@@ -106,7 +101,6 @@ FILE_UNCHANGED_STUB = (
 BASH_DEFAULT_TIMEOUT_MS = 120000  # Default timeout for bash commands (milliseconds)
 BASH_TERMINATE_TIMEOUT_SEC = 1.0  # Timeout before escalating to SIGKILL (seconds)
 BASH_MODE_SESSION_OUTPUT_MAX_BYTES = 200 * 1024 * 1024  # Max command output captured for session history
-
 
 # =============================================================================
 # Tool - Web
@@ -122,14 +116,12 @@ WEB_SEARCH_MAX_RESULTS_LIMIT = 20  # Maximum number of search results allowed
 WEB_CACHE_TTL_SECONDS = 900  # TTL for web search/fetch cache (15 minutes)
 WEB_CACHE_MAX_ENTRIES = 100  # Maximum entries in web cache
 
-
 # =============================================================================
 # Tool - Diff
 # =============================================================================
 
 DIFF_MAX_LINE_LENGTH_FOR_CHAR_DIFF = 2000  # Maximum line length for character-level diff
 DIFF_DEFAULT_CONTEXT_LINES = 3  # Default number of context lines in diff output
-
 
 # =============================================================================
 # Tool - Output Truncation
@@ -142,7 +134,6 @@ TOOL_OUTPUT_MAX_LINES = 2000  # Maximum lines for tool output before truncation
 TOOL_OUTPUT_DISPLAY_HEAD_LINES = 1000  # Lines to show from the beginning of truncated output
 TOOL_OUTPUT_DISPLAY_TAIL_LINES = 1000  # Lines to show from the end of truncated output
 TOOL_OUTPUT_TRUNCATION_DIR = get_system_temp()  # Directory for saving full truncated output
-
 
 # =============================================================================
 # UI - Display
@@ -164,7 +155,6 @@ URL_TRUNCATE_MAX_LENGTH = 400  # Maximum length for URL truncation in display
 QUERY_DISPLAY_TRUNCATE_LENGTH = 80  # Maximum length for search query display
 NOTIFY_COMPACT_LIMIT = 160  # Maximum length for notification body text
 
-
 # =============================================================================
 # UI - Markdown Streaming
 # =============================================================================
@@ -176,7 +166,6 @@ MARKDOWN_STREAM_SYNCHRONIZED_OUTPUT_ENABLED = True  # Use terminal "Synchronized
 STREAM_MAX_HEIGHT_SHRINK_RESET_LINES = 5  # Reset stream height ceiling after this shrinkage
 MARKDOWN_LEFT_MARGIN = 2  # Left margin (columns) for markdown rendering
 MARKDOWN_RIGHT_MARGIN = 0  # Right margin (columns) for markdown rendering
-
 
 # =============================================================================
 # UI - Spinner / Status
@@ -203,7 +192,6 @@ STATUS_SHIMMER_BAND_HALF_WIDTH = 5.0  # Half-width of shimmer band in characters
 STATUS_SHIMMER_ALPHA_SCALE = 0.7  # Scale factor for shimmer intensity
 STATUS_SHOW_BUFFER_LENGTH = False  # Show character count (e.g., "(213)") during text generation
 
-
 # =============================================================================
 # UI - Completion System
 # =============================================================================
@@ -211,7 +199,6 @@ STATUS_SHOW_BUFFER_LENGTH = False  # Show character count (e.g., "(213)") during
 COMPLETER_DEBOUNCE_SEC = 0.25  # Debounce time for file path completion (seconds)
 COMPLETER_CACHE_TTL_SEC = 60.0  # Cache TTL for completion results (seconds)
 COMPLETER_CMD_TIMEOUT_SEC = 3.0  # Timeout for completion subprocess commands (seconds)
-
 
 # =============================================================================
 # Debug / Logging
@@ -222,11 +209,9 @@ DEFAULT_DEBUG_LOG_FILE = DEFAULT_DEBUG_LOG_DIR / "debug.log"  # Default debug lo
 LOG_MAX_BYTES = 10 * 1024 * 1024  # Maximum log file size before rotation (10MB)
 LOG_BACKUP_COUNT = 3  # Number of backup log files to keep
 
-
 # =============================================================================
 # Project Paths
 # =============================================================================
-
 
 def find_git_repo_root(*, work_dir: Path) -> Path | None:
     """Find nearest git repository root by walking parents and checking for .git."""
@@ -238,11 +223,9 @@ def find_git_repo_root(*, work_dir: Path) -> Path | None:
             return None
         current = current.parent
 
-
 def project_key_from_path(path: Path) -> str:
     """Derive the project key from an explicit directory path."""
     return str(path.resolve()).strip("/").replace("/", "-")
-
 
 @dataclass(frozen=True)
 class ProjectPaths:

@@ -16,13 +16,10 @@ from klaude_code.protocol import op
 
 T = TypeVar("T")
 
-
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
 
-
 # ── SessionActor holder tests ──
-
 
 def _make_actor(session_id: str = "s1") -> SessionActor:
     async def _handle(_op: op.Operation) -> None:
@@ -32,7 +29,6 @@ def _make_actor(session_id: str = "s1") -> SessionActor:
         pass
 
     return SessionActor(session_id=session_id, handle_operation=_handle, reject_operation=_reject)
-
 
 def test_acquire_holder_fresh() -> None:
     async def _test() -> None:
@@ -44,7 +40,6 @@ def test_acquire_holder_fresh() -> None:
 
     arun(_test())
 
-
 def test_acquire_same_key_is_idempotent() -> None:
     async def _test() -> None:
         actor = _make_actor()
@@ -54,7 +49,6 @@ def test_acquire_same_key_is_idempotent() -> None:
         await actor.stop()
 
     arun(_test())
-
 
 def test_acquire_different_key_denied() -> None:
     async def _test() -> None:
@@ -66,7 +60,6 @@ def test_acquire_different_key_denied() -> None:
         await actor.stop()
 
     arun(_test())
-
 
 def test_release_starts_grace_period() -> None:
     async def _test() -> None:
@@ -90,7 +83,6 @@ def test_release_starts_grace_period() -> None:
 
     arun(_test())
 
-
 def test_reacquire_during_grace_period() -> None:
     async def _test() -> None:
         actor = _make_actor()
@@ -104,7 +96,6 @@ def test_reacquire_during_grace_period() -> None:
         await actor.stop()
 
     arun(_test())
-
 
 def test_same_key_denied_after_grace_period() -> None:
     async def _test() -> None:
@@ -123,7 +114,6 @@ def test_same_key_denied_after_grace_period() -> None:
 
     arun(_test())
 
-
 def test_force_release_clears_holder() -> None:
     async def _test() -> None:
         actor = _make_actor()
@@ -139,7 +129,6 @@ def test_force_release_clears_holder() -> None:
 
     arun(_test())
 
-
 def test_release_wrong_key_noop() -> None:
     async def _test() -> None:
         actor = _make_actor()
@@ -149,7 +138,6 @@ def test_release_wrong_key_noop() -> None:
         await actor.stop()
 
     arun(_test())
-
 
 def test_snapshot_includes_holder_key() -> None:
     async def _test() -> None:
@@ -161,9 +149,7 @@ def test_snapshot_includes_holder_key() -> None:
 
     arun(_test())
 
-
 # ── SessionRegistry holder tests ──
-
 
 def _make_registry() -> SessionRegistry:
     async def _handle(_op: op.Operation) -> None:
@@ -173,7 +159,6 @@ def _make_registry() -> SessionRegistry:
         pass
 
     return SessionRegistry(handle_operation=_handle, reject_operation=_reject)
-
 
 def test_registry_acquire_and_check() -> None:
     async def _test() -> None:
@@ -185,7 +170,6 @@ def test_registry_acquire_and_check() -> None:
         await registry.stop()
 
     arun(_test())
-
 
 def test_registry_release_and_cleanup() -> None:
     async def _test() -> None:
@@ -204,7 +188,6 @@ def test_registry_release_and_cleanup() -> None:
 
     arun(_test())
 
-
 def test_registry_force_release() -> None:
     async def _test() -> None:
         registry = _make_registry()
@@ -215,7 +198,6 @@ def test_registry_force_release() -> None:
         await registry.stop()
 
     arun(_test())
-
 
 def test_registry_nonexistent_session() -> None:
     async def _test() -> None:

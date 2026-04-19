@@ -21,7 +21,6 @@ _EXTERNAL_CONTENT_START = "<<<EXTERNAL_UNTRUSTED_CONTENT>>>"
 _EXTERNAL_CONTENT_END = "<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>"
 _WEB_FETCH_SAVED_PATH_PREFIX = "[Full content saved to "
 
-
 def _truncate_url(url: str, max_length: int = URL_TRUNCATE_MAX_LENGTH) -> str:
     """Truncate URL for display, preserving domain and path structure."""
     if len(url) <= max_length:
@@ -36,7 +35,6 @@ def _truncate_url(url: str, max_length: int = URL_TRUNCATE_MAX_LENGTH) -> str:
         return display_url
     # Truncate with ellipsis
     return display_url[: max_length - 1] + "\u2026"
-
 
 def extract_web_result_for_display(result: str) -> str:
     """Extract readable web content from wrapped external-content payloads for TUI display."""
@@ -68,7 +66,6 @@ def extract_web_result_for_display(result: str) -> str:
         return saved_path_hint
     return content
 
-
 def render_web_fetch_tool_call(arguments: str) -> RenderableType:
     tool_name = "Fetch Web"
 
@@ -85,7 +82,6 @@ def render_web_fetch_tool_call(arguments: str) -> RenderableType:
     summary = Text(_truncate_url(url), ThemeKey.TOOL_PARAM_FILE_PATH) if url else Text("(no url)", ThemeKey.TOOL_PARAM)
 
     return render_tool_call_tree(mark=MARK_WEB_FETCH, tool_name=tool_name, details=summary)
-
 
 def render_web_search_tool_call(arguments: str) -> RenderableType:
     tool_name = "Search Web"

@@ -59,7 +59,6 @@ class TestIsPrivateIp:
     def test_public_v6(self) -> None:
         assert _is_private_ip("2607:f8b0:4004:800::200e") is False
 
-
 class TestIsBlockedHostname:
     def test_localhost(self) -> None:
         assert _is_blocked_hostname("localhost") is True
@@ -86,7 +85,6 @@ class TestIsBlockedHostname:
 
     def test_trailing_dot(self) -> None:
         assert _is_blocked_hostname("localhost.") is True
-
 
 class TestCheckSsrf:
     def test_no_hostname(self) -> None:

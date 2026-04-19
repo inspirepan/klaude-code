@@ -5,7 +5,6 @@ from dataclasses import dataclass
 class HandoffRequest:
     goal: str
 
-
 class HandoffManager:
     """Manage pending handoff requests for a task run."""
 

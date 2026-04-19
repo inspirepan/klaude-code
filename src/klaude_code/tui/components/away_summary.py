@@ -7,7 +7,6 @@ from klaude_code.tui.components.rich.theme import ThemeKey
 
 RECAP_MARK = "※"
 
-
 def render_away_summary(e: events.AwaySummaryEvent) -> RenderableType:
     """Render a 'while you were away' recap as a two-column grid:
     ※ | recap: <text>

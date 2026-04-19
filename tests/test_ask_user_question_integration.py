@@ -14,10 +14,8 @@ from klaude_code.tool.context import TodoContext, ToolContext
 
 T = TypeVar("T")
 
-
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
-
 
 def _arguments() -> str:
     return json.dumps(
@@ -36,12 +34,10 @@ def _arguments() -> str:
         }
     )
 
-
 @dataclass
 class _PendingState:
     request: PendingUserInteractionRequest
     future: asyncio.Future[user_interaction.UserInteractionResponse]
-
 
 class _InteractionHarness:
     def __init__(self, emit_event: Callable[[events.Event], Awaitable[None]]):
@@ -112,7 +108,6 @@ class _InteractionHarness:
                 pending.future.cancel()
         return cancelled
 
-
 def test_ask_user_question_end_to_end_submitted() -> None:
     async def _test() -> None:
         emitted: list[events.Event] = []
@@ -170,7 +165,6 @@ def test_ask_user_question_end_to_end_submitted() -> None:
         assert isinstance(emitted[0], events.UserInteractionRequestEvent)
 
     arun(_test())
-
 
 def test_ask_user_question_end_to_end_cancelled_by_manager() -> None:
     async def _test() -> None:

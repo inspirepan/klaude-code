@@ -8,11 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from klaude_code.protocol import model
+from klaude_code.protocol.models import SessionOwner
 
 type TodoSummary = dict[str, str]
 type FileChangeSummary = dict[str, list[str] | int | dict[str, dict[str, int]]]
-
 
 def _read_json_dict(path: Path) -> dict[str, Any] | None:
     try:
@@ -23,13 +22,11 @@ def _read_json_dict(path: Path) -> dict[str, Any] | None:
         return None
     return cast(dict[str, Any], raw)
 
-
 def _iter_meta_files(home: Path) -> list[Path]:
     projects_dir = home / ".klaude" / "projects"
     if not projects_dir.exists():
         return []
     return list(projects_dir.glob("*/sessions/*/meta.json"))
-
 
 @dataclass(frozen=True)
 class SessionSummary:
@@ -42,12 +39,11 @@ class SessionSummary:
     messages_count: int
     model_name: str | None
     session_state: Literal["idle", "running", "waiting_user_input"] | None
-    runtime_owner: model.SessionOwner | None
+    runtime_owner: SessionOwner | None
     runtime_owner_heartbeat_at: float | None
     archived: bool
     todos: list[TodoSummary]
     file_change_summary: FileChangeSummary
-
 
 def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id: str) -> SessionSummary | None:
     if data.get("sub_agent_state") is not None:
@@ -95,7 +91,7 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
     runtime_owner_raw = data.get("runtime_owner")
     if isinstance(runtime_owner_raw, dict):
         try:
-            runtime_owner = model.SessionOwner.model_validate(runtime_owner_raw)
+            runtime_owner = SessionOwner.model_validate(runtime_owner_raw)
         except Exception:
             runtime_owner = None
     else:
@@ -177,7 +173,6 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
         file_change_summary=file_change_summary,
     )
 
-
 def group_sessions(summaries: list[SessionSummary]) -> list[dict[str, Any]]:
     groups_by_work_dir: dict[str, list[SessionSummary]] = {}
     ordered = sorted(summaries, key=lambda item: item.updated_at, reverse=True)
@@ -206,7 +201,6 @@ def group_sessions(summaries: list[SessionSummary]) -> list[dict[str, Any]]:
         }
         for work_dir, sessions in groups_by_work_dir.items()
     ]
-
 
 class SessionIndex:
     def __init__(self, *, home: Path) -> None:
@@ -254,7 +248,6 @@ class SessionIndex:
         with self._lock:
             return self._sessions_by_id.pop(session_id, None)
 
-
 def list_main_sessions(home: Path) -> list[SessionSummary]:
     summaries: list[SessionSummary] = []
     for meta_path in _iter_meta_files(home):
@@ -268,7 +261,6 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
     summaries.sort(key=lambda item: item.updated_at, reverse=True)
     return summaries
 
-
 def list_file_running_states(home: Path) -> dict[str, Literal["running", "waiting_user_input"]]:
     """Return session IDs whose on-disk meta records a non-idle state (lightweight scan)."""
     result: dict[str, Literal["running", "waiting_user_input"]] = {}
@@ -281,7 +273,6 @@ def list_file_running_states(home: Path) -> dict[str, Literal["running", "waitin
             sid = str(data.get("id", meta_path.parent.name))
             result[sid] = state
     return result
-
 
 def read_session_user_messages(home: Path, session_ids: set[str]) -> dict[str, list[str]]:
     """Read user_messages from meta.json for the given session IDs."""
@@ -306,7 +297,6 @@ def read_session_user_messages(home: Path, session_ids: set[str]) -> dict[str, l
             break
     return result
 
-
 def read_session_titles(home: Path, session_ids: set[str]) -> dict[str, str | None]:
     """Read title from meta.json for the given session IDs."""
     if not session_ids:
@@ -323,7 +313,6 @@ def read_session_titles(home: Path, session_ids: set[str]) -> dict[str, str | No
         if len(result) == len(session_ids):
             break
     return result
-
 
 def search_sessions(home: Path, query: str) -> list[SessionSummary]:
     """Search sessions by title, user messages, and work_dir.
@@ -349,14 +338,12 @@ def search_sessions(home: Path, query: str) -> list[SessionSummary]:
     results.sort(key=lambda item: item.updated_at, reverse=True)
     return results
 
-
 def _session_matches_query(summary: SessionSummary, query_lower: str) -> bool:
     if summary.title and query_lower in summary.title.lower():
         return True
     if query_lower in summary.work_dir.lower():
         return True
     return any(query_lower in msg.lower() for msg in summary.user_messages)
-
 
 def resolve_session_work_dir(home: Path, session_id: str) -> Path | None:
     for meta_path in _iter_meta_files(home):
@@ -373,7 +360,6 @@ def resolve_session_work_dir(home: Path, session_id: str) -> Path | None:
             return None
         return Path(work_dir)
     return None
-
 
 def soft_delete_session(home: Path, session_id: str) -> bool:
     now = time.time()

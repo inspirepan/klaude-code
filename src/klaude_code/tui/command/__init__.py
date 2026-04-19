@@ -13,7 +13,6 @@ from .types import CommandInfo, CommandName
 # Lazy load commands to avoid heavy imports at module load time
 _commands_loaded = False
 
-
 def ensure_commands_loaded() -> None:
     """Ensure all commands are loaded (lazy initialization).
 
@@ -64,7 +63,6 @@ def ensure_commands_loaded() -> None:
     register(RecapCommand())
     register(DebugCommand())
 
-
 # Lazy accessors for command classes
 def __getattr__(name: str) -> object:
     _commands_map = {
@@ -91,7 +89,6 @@ def __getattr__(name: str) -> object:
         module = importlib.import_module(f".{_commands_map[name]}", __package__)
         return getattr(module, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
 
 __all__ = [
     # Command classes are lazily loaded via __getattr__

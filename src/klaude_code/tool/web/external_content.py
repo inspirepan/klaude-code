@@ -44,13 +44,11 @@ _ANGLE_MAP: dict[int, str] = {
     0xFE65: ">",
 }
 
-
 def _fold_char(char: str) -> str:
     code = ord(char)
     if 0xFF21 <= code <= 0xFF3A or 0xFF41 <= code <= 0xFF5A:
         return chr(code - _FULLWIDTH_ASCII_OFFSET)
     return _ANGLE_MAP.get(code, char)
-
 
 def _sanitize_markers(content: str) -> str:
     """Replace boundary markers in content to prevent marker injection."""
@@ -58,7 +56,6 @@ def _sanitize_markers(content: str) -> str:
     if "external_untrusted_content" not in folded.lower():
         return content
     return _MARKER_PATTERN.sub("[[MARKER_SANITIZED]]", content)
-
 
 def wrap_web_content(content: str, source: str = "Web Fetch", include_warning: bool = True) -> str:
     """Wrap external web content with security boundaries.

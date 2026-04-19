@@ -29,7 +29,6 @@ def test_default_startup_opens_browser(monkeypatch: pytest.MonkeyPatch) -> None:
     server.open_browser("http://127.0.0.1:8765/", no_open=False)
     assert opened == ["http://127.0.0.1:8765/"]
 
-
 def test_no_open_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     opened: list[str] = []
 
@@ -41,7 +40,6 @@ def test_no_open_flag(monkeypatch: pytest.MonkeyPatch) -> None:
 
     server.open_browser("http://127.0.0.1:8765/", no_open=True)
     assert opened == []
-
 
 def test_fallback_to_static_when_no_node(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_root = tmp_path / "repo"
@@ -60,7 +58,6 @@ def test_fallback_to_static_when_no_node(tmp_path: Path, monkeypatch: pytest.Mon
     assert plan.mode == "static"
     assert plan.process is None
     assert plan.url == "http://127.0.0.1:8765/"
-
 
 def test_prepare_frontend_reinstalls_missing_dependencies_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_root = tmp_path / "repo"
@@ -121,7 +118,6 @@ def test_prepare_frontend_reinstalls_missing_dependencies_once(tmp_path: Path, m
     ]
     assert len(terminated) == 1
 
-
 def test_prepare_frontend_installs_when_declared_dependency_is_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -176,7 +172,6 @@ def test_prepare_frontend_installs_when_declared_dependency_is_missing(
         ("pnpm", "run", "dev", "--host", "127.0.0.1", "--port", "8766", "--strictPort"),
     ]
 
-
 def test_start_web_server_aborts_before_init_when_already_running(monkeypatch: pytest.MonkeyPatch) -> None:
     initialize_called = False
 
@@ -197,7 +192,6 @@ def test_start_web_server_aborts_before_init_when_already_running(monkeypatch: p
         arun(server.start_web_server(no_open=True))
 
     assert initialize_called is False
-
 
 def test_packaged_env_serves_static(tmp_path: Path) -> None:
     static_dir = tmp_path / "dist"

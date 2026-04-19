@@ -6,7 +6,16 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 
-from klaude_code.protocol import events, model, tools
+from klaude_code.protocol import events, tools
+from klaude_code.protocol.models import (
+    AskUserQuestionSummaryUIExtra,
+    DiffUIExtra,
+    MarkdownDocUIExtra,
+    MultiUIExtra,
+    ReadPreviewUIExtra,
+    TodoListUIExtra,
+    ToolResultUIExtra,
+)
 from klaude_code.tui.components import diffs as r_diffs
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.components.rich.quote import TreeQuote
@@ -62,12 +71,10 @@ def _tool_result_display_name(tool_name: str) -> str:
         case _:
             return tool_name
 
-
 def _tool_result_content_indent(tool_name: str) -> int:
     if tool_name in {tools.TODO_WRITE, tools.ASK_USER_QUESTION}:
         return 0
     return len(_tool_result_display_name(tool_name)) + 1
-
 
 # Tool name to active form mapping (for spinner status)
 _TOOL_ACTIVE_FORM: dict[str, str] = {
@@ -85,7 +92,6 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.HANDOFF: "Packing Context",
 }
 
-
 def get_tool_active_form(tool_name: str) -> str:
     """Get the active form of a tool name for spinner status.
 
@@ -95,7 +101,6 @@ def get_tool_active_form(tool_name: str) -> str:
         return _TOOL_ACTIVE_FORM[tool_name]
 
     return f"Calling {tool_name}"
-
 
 def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
     """Unified entry point for rendering tool calls.
@@ -130,28 +135,25 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
         case _:
             return render_generic_tool_call(e.tool_name, e.arguments)
 
-
-def _extract_diff(ui_extra: model.ToolResultUIExtra | None) -> model.DiffUIExtra | None:
-    if isinstance(ui_extra, model.DiffUIExtra):
+def _extract_diff(ui_extra: ToolResultUIExtra | None) -> DiffUIExtra | None:
+    if isinstance(ui_extra, DiffUIExtra):
         return ui_extra
-    if isinstance(ui_extra, model.MultiUIExtra):
+    if isinstance(ui_extra, MultiUIExtra):
         for item in ui_extra.items:
-            if isinstance(item, model.DiffUIExtra):
+            if isinstance(item, DiffUIExtra):
                 return item
     return None
 
-
-def _extract_markdown_doc(ui_extra: model.ToolResultUIExtra | None) -> model.MarkdownDocUIExtra | None:
-    if isinstance(ui_extra, model.MarkdownDocUIExtra):
+def _extract_markdown_doc(ui_extra: ToolResultUIExtra | None) -> MarkdownDocUIExtra | None:
+    if isinstance(ui_extra, MarkdownDocUIExtra):
         return ui_extra
-    if isinstance(ui_extra, model.MultiUIExtra):
+    if isinstance(ui_extra, MultiUIExtra):
         for item in ui_extra.items:
-            if isinstance(item, model.MarkdownDocUIExtra):
+            if isinstance(item, MarkdownDocUIExtra):
                 return item
     return None
 
-
-def render_markdown_doc(md_ui: model.MarkdownDocUIExtra, *, code_theme: str) -> RenderableType:
+def render_markdown_doc(md_ui: MarkdownDocUIExtra, *, code_theme: str) -> RenderableType:
     """Render markdown document content in a panel with 2-char left indent and top margin."""
     # Limit panel width to min(100, terminal_width) minus left indent (2)
     terminal_width = shutil.get_terminal_size().columns
@@ -166,7 +168,6 @@ def render_markdown_doc(md_ui: model.MarkdownDocUIExtra, *, code_theme: str) -> 
     )
     # (top, right, bottom, left) - 1 line top margin, 2-char left indent
     return Padding(panel, (1, 0, 0, 2))
-
 
 def render_tool_result(
     e: events.ToolResultEvent,
@@ -195,13 +196,13 @@ def render_tool_result(
         return wrap(render_fallback_tool_result(e.tool_name, e.result, is_error=True))
 
     # Render multiple ui blocks if present
-    if isinstance(e.ui_extra, model.MultiUIExtra) and e.ui_extra.items:
+    if isinstance(e.ui_extra, MultiUIExtra) and e.ui_extra.items:
         rendered: list[RenderableType] = []
         for item in e.ui_extra.items:
-            if isinstance(item, model.MarkdownDocUIExtra):
+            if isinstance(item, MarkdownDocUIExtra):
                 # Markdown docs render without TreeQuote wrap (already has 2-char indent)
                 rendered.append(render_markdown_doc(item, code_theme=code_theme))
-            elif isinstance(item, model.DiffUIExtra):
+            elif isinstance(item, DiffUIExtra):
                 show_file_name = e.tool_name == tools.APPLY_PATCH
                 rendered.append(wrap(r_diffs.render_structured_diff(item, show_file_name=show_file_name)))
         return Group(*rendered) if rendered else None
@@ -216,7 +217,7 @@ def render_tool_result(
 
     match e.tool_name:
         case tools.READ:
-            if isinstance(e.ui_extra, model.ReadPreviewUIExtra):
+            if isinstance(e.ui_extra, ReadPreviewUIExtra):
                 return wrap(render_read_preview(e.ui_extra))
             return None
         case tools.EDIT:
@@ -234,7 +235,7 @@ def render_tool_result(
                 return wrap(r_diffs.render_structured_diff(diff_ui, show_file_name=True))
             return _render_fallback()
         case tools.TODO_WRITE:
-            if isinstance(e.ui_extra, model.TodoListUIExtra):
+            if isinstance(e.ui_extra, TodoListUIExtra):
                 return render_todo(e)
             result = e.result if len(e.result.strip()) > 0 else "(no content)"
             return render_todo_message(result, is_error=e.is_error)
@@ -246,7 +247,7 @@ def render_tool_result(
                 return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
             return wrap(render_fallback_tool_result(e.tool_name, display_result, is_error=e.is_error))
         case tools.ASK_USER_QUESTION:
-            if isinstance(e.ui_extra, model.AskUserQuestionSummaryUIExtra):
+            if isinstance(e.ui_extra, AskUserQuestionSummaryUIExtra):
                 return render_ask_user_question_summary(e.ui_extra)
             if len(e.result.strip()) == 0:
                 return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))

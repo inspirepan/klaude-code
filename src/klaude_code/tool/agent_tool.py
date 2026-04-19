@@ -1,3 +1,4 @@
+
 """Agent tool implementation for running sub-agents by type."""
 
 from __future__ import annotations
@@ -6,7 +7,8 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from klaude_code.protocol import llm_param, message, model, tools
+from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState
 from klaude_code.protocol.sub_agent import (
     get_all_names,
     get_sub_agent_profile,
@@ -31,7 +33,6 @@ def _agent_description() -> str:
     types_section = "\n".join(type_lines) if type_lines else "- general-purpose"
 
     return load_desc(Path(__file__).parent / "agent_tool.md", {"types_section": types_section})
-
 
 AGENT_SCHEMA = llm_param.ToolSchema(
     name=tools.AGENT,
@@ -58,7 +59,6 @@ AGENT_SCHEMA = llm_param.ToolSchema(
         "additionalProperties": False,
     },
 )
-
 
 @register(tools.AGENT)
 class AgentTool(ToolABC):
@@ -109,7 +109,7 @@ class AgentTool(ToolABC):
 
         try:
             result = await runner(
-                model.SubAgentState(
+                SubAgentState(
                     sub_agent_type=profile.name,
                     sub_agent_desc=description,
                     sub_agent_prompt=sub_agent_prompt,
@@ -125,6 +125,6 @@ class AgentTool(ToolABC):
         return message.ToolResultMessage(
             status="success" if not result.error else "error",
             output_text=result.task_result,
-            ui_extra=model.SessionIdUIExtra(session_id=result.session_id),
+            ui_extra=SessionIdUIExtra(session_id=result.session_id),
             task_metadata=result.task_metadata,
         )

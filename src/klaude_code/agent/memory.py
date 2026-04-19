@@ -20,14 +20,12 @@ AUTO_MEMORY_FILE = "MEMORY.md"
 AUTO_MEMORY_MAX_LINES = 200
 MEMORY_MAX_BYTES_PER_FILE = 4096
 
-
 class Memory(BaseModel):
     """Represents a loaded memory file."""
 
     path: str
     instruction: str
     content: str
-
 
 def get_project_memory_dirs(*, work_dir: Path) -> list[Path]:
     """Return project memory search directories, including git root when available."""
@@ -48,7 +46,6 @@ def get_project_memory_dirs(*, work_dir: Path) -> list[Path]:
         deduped_dirs.append(resolved)
     return deduped_dirs
 
-
 def get_memory_paths(*, work_dir: Path) -> list[tuple[Path, str]]:
     """Return all possible memory file paths with their descriptions."""
     user_dirs = [Path.home() / ".claude", Path.home() / ".codex", Path.home() / ".klaude", Path.home() / ".agents"]
@@ -62,7 +59,6 @@ def get_memory_paths(*, work_dir: Path) -> list[tuple[Path, str]]:
         for fname in MEMORY_FILE_NAMES:
             paths.append((d / fname, PROJECT_MEMORY_INSTRUCTION))
     return paths
-
 
 def get_existing_memory_files(*, work_dir: Path) -> dict[str, list[str]]:
     """Return existing memory file paths grouped by location (user/project)."""
@@ -79,7 +75,6 @@ def get_existing_memory_files(*, work_dir: Path) -> dict[str, list[str]]:
 
     return result
 
-
 def get_existing_memory_paths_by_location(*, work_dir: Path) -> dict[str, list[str]]:
     """Return existing memory file paths grouped by location for WelcomeEvent."""
     result = get_existing_memory_files(work_dir=work_dir)
@@ -93,11 +88,9 @@ def get_existing_memory_paths_by_location(*, work_dir: Path) -> dict[str, list[s
         return {}
     return result
 
-
 def format_memory_content(memory: Memory) -> str:
     """Format a single memory file content for display."""
     return f"Contents of {memory.path} ({memory.instruction}):\n\n{memory.content}"
-
 
 def format_memories_attachment(memories: list[Memory], include_header: bool = True) -> str:
     """Format memory files into a system-reminder attachment string."""
@@ -109,7 +102,6 @@ Loaded memory files. Follow these instructions. Do not mention them to the user 
 {memories_str}
 </system-reminder>"""
     return f"<system-reminder>{memories_str}\n</system-reminder>"
-
 
 def truncate_memory_content(text: str, path: str) -> str:
     """Truncate memory content to the shared per-file limits used by attachments."""
@@ -133,7 +125,6 @@ def truncate_memory_content(text: str, path: str) -> str:
             f"Use the Read tool to view the complete file at: {path}"
         )
     return result
-
 
 def discover_memory_files_near_paths(
     paths: list[str],
@@ -209,7 +200,6 @@ def discover_memory_files_near_paths(
 
     return memories
 
-
 def get_auto_memory_path(work_dir: Path) -> Path:
     """Return the path to the per-project MEMORY.md (may not exist yet).
 
@@ -218,7 +208,6 @@ def get_auto_memory_path(work_dir: Path) -> Path:
     paths = ProjectPaths(project_key=project_key_from_path(work_dir))
     paths.memory_dir.mkdir(parents=True, exist_ok=True)
     return paths.memory_dir / AUTO_MEMORY_FILE
-
 
 def load_auto_memory(work_dir: Path) -> Memory | None:
     """Load the per-project MEMORY.md from the auto-memory directory.

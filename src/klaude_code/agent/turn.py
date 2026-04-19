@@ -9,6 +9,7 @@ from klaude_code.agent.rewind import RewindManager
 from klaude_code.const import (
     RETRY_PRESERVE_PARTIAL_MESSAGE,
 )
+from klaude_code.protocol.models import SubAgentState
 from klaude_code.tool import ToolABC
 from klaude_code.tool.context import ToolContext
 
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, llm_param, message, model
+from klaude_code.protocol import events, llm_param, message
 from klaude_code.tool.tool_runner import (
     ToolCallRequest,
     ToolExecutionCallStarted,
@@ -35,7 +36,6 @@ class TurnError(Exception):
 
     pass
 
-
 @dataclass
 class TurnExecutionContext:
     """Execution context required to run a single turn."""
@@ -45,11 +45,10 @@ class TurnExecutionContext:
     system_prompt: str | None
     tools: list[llm_param.ToolSchema]
     tool_registry: dict[str, type[ToolABC]]
-    sub_agent_state: model.SubAgentState | None = None
+    sub_agent_state: SubAgentState | None = None
     rewind_manager: RewindManager | None = None
     handoff_manager: HandoffManager | None = None
     prev_turn_input_tokens: int = 0
-
 
 @dataclass
 class TurnResult:
@@ -59,7 +58,6 @@ class TurnResult:
     tool_calls: list[ToolCallRequest]
     stream_error: message.StreamErrorItem | None
     continue_agent: bool = field(default=True)
-
 
 def _build_continuation_prompt(partial_text: str) -> str:
     return (
@@ -72,7 +70,6 @@ def _build_continuation_prompt(partial_text: str) -> str:
         "Please continue from where it left off without repeating content you've already provided."
         "</system-reminder>"
     )
-
 
 def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEvent) -> list[events.Event]:
     """Translate internal tool executor events into public protocol events."""
@@ -123,7 +120,6 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
             )
 
     return ui_events
-
 
 class TurnExecutor:
     """Executes a single model turn including tool calls.

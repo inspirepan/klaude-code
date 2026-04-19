@@ -22,20 +22,16 @@ def _make_tool_result(
 ) -> message.ToolResultMessage:
     return message.ToolResultMessage(status="success", output_text=output, call_id=call_id, parts=parts or [])
 
-
 def _empty_attachment() -> DeveloperAttachment:
     return DeveloperAttachment()
-
 
 def _content_parts(msg: dict[str, object]) -> list[dict[str, Any]]:
     content = msg["content"]
     assert isinstance(content, list)
     return cast(list[dict[str, Any]], content)
 
-
 def _as_messages(msgs: list[dict[str, object]]) -> list[chat.ChatCompletionMessageParam]:
     return cast(list[chat.ChatCompletionMessageParam], msgs)
-
 
 def test_chat_completions_tool_message_content_is_string() -> None:
     msg = _make_tool_result("hello world")
@@ -43,13 +39,11 @@ def test_chat_completions_tool_message_content_is_string() -> None:
 
     assert tool_msg["content"] == "hello world"
 
-
 def test_chat_completions_tool_message_empty_output_still_string() -> None:
     msg = _make_tool_result("   ")
     tool_msg, _ = build_tool_message_for_chat_completions(msg, _empty_attachment())
 
     assert tool_msg["content"] == "   "
-
 
 def test_build_tool_message_content_is_list() -> None:
     msg = _make_tool_result("some output")
@@ -57,7 +51,6 @@ def test_build_tool_message_content_is_list() -> None:
     parts = _content_parts(tool_msg)
 
     assert parts[0] == {"type": "text", "text": "some output"}
-
 
 def test_rewrite_tool_message_for_claude_converts_string_to_list() -> None:
     msg = _make_tool_result("result text")
@@ -67,7 +60,6 @@ def test_rewrite_tool_message_for_claude_converts_string_to_list() -> None:
 
     parts = _content_parts(tool_msg)
     assert parts == [{"type": "text", "text": "result text"}]
-
 
 def test_add_cache_control_attaches_to_tool_message_list() -> None:
     tool_msg: dict[str, object] = {
@@ -80,7 +72,6 @@ def test_add_cache_control_attaches_to_tool_message_list() -> None:
 
     parts = _content_parts(tool_msg)
     assert parts[-1].get("cache_control") == {"type": "ephemeral"}
-
 
 def test_add_cache_control_attaches_to_last_tool_in_sequence() -> None:
     user_msg: dict[str, object] = {"role": "user", "content": [{"type": "text", "text": "hi"}]}
@@ -103,7 +94,6 @@ def test_add_cache_control_attaches_to_last_tool_in_sequence() -> None:
     parts_1 = _content_parts(tool_msg_1)
     assert "cache_control" not in parts_1[-1]
 
-
 def test_add_cache_control_noop_when_disabled() -> None:
     tool_msg: dict[str, object] = {
         "role": "tool",
@@ -116,7 +106,6 @@ def test_add_cache_control_noop_when_disabled() -> None:
     parts = _content_parts(tool_msg)
     assert "cache_control" not in parts[-1]
 
-
 def test_openrouter_non_claude_keeps_tool_content_as_string() -> None:
     history: list[message.Message] = [_make_tool_result("plain tool result")]
 
@@ -124,7 +113,6 @@ def test_openrouter_non_claude_keeps_tool_content_as_string() -> None:
 
     assert messages[0]["role"] == "tool"
     assert messages[0]["content"] == "plain tool result"
-
 
 def test_openrouter_non_claude_strips_internal_system_boundary() -> None:
     messages = convert_history_to_input(
@@ -135,7 +123,6 @@ def test_openrouter_non_claude_strips_internal_system_boundary() -> None:
 
     assert messages == [{"role": "system", "content": "static\n\ndynamic"}]
 
-
 def test_openrouter_claude_rewrites_tool_content_to_list_with_cache_control() -> None:
     history: list[message.Message] = [_make_tool_result("claude tool result")]
 
@@ -145,7 +132,6 @@ def test_openrouter_claude_rewrites_tool_content_to_list_with_cache_control() ->
     assert messages[0]["content"] == [
         {"type": "text", "text": "claude tool result", "cache_control": {"type": "ephemeral"}}
     ]
-
 
 def test_openrouter_claude_splits_system_prompt_cache_boundary() -> None:
     messages = convert_history_to_input(
@@ -161,7 +147,6 @@ def test_openrouter_claude_splits_system_prompt_cache_boundary() -> None:
             "content": [{"type": "text", "text": "dynamic", "cache_control": {"type": "ephemeral"}}],
         },
     ]
-
 
 def test_openrouter_claude_with_tool_images_keeps_tool_list_and_user_image_message() -> None:
     history: list[message.Message] = [

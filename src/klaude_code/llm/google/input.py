@@ -28,7 +28,6 @@ def _data_url_to_blob(url: str) -> types.Blob:
     media_type, _, decoded = parse_data_url(url)
     return types.Blob(data=decoded, mime_type=media_type)
 
-
 def _image_part_to_part(image: ImagePart) -> types.Part | None:
     url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image_url_to_request_url(image)
     if url is None:
@@ -38,7 +37,6 @@ def _image_part_to_part(image: ImagePart) -> types.Part | None:
     # Best-effort: Gemini supports file URIs, and may accept public HTTPS URLs.
     return types.Part(file_data=types.FileData(file_uri=url))
 
-
 def _image_part_to_function_response_part(image: ImagePart) -> types.FunctionResponsePart | None:
     url = image_file_to_data_url(image) if isinstance(image, message.ImageFilePart) else image_url_to_request_url(image)
     if url is None:
@@ -47,7 +45,6 @@ def _image_part_to_function_response_part(image: ImagePart) -> types.FunctionRes
         media_type, _, decoded = parse_data_url(url)
         return types.FunctionResponsePart.from_bytes(data=decoded, mime_type=media_type)
     return types.FunctionResponsePart.from_uri(file_uri=url)
-
 
 def _user_message_to_content(msg: message.UserMessage, attachment: DeveloperAttachment) -> types.Content:
     parts: list[types.Part] = []
@@ -69,7 +66,6 @@ def _user_message_to_content(msg: message.UserMessage, attachment: DeveloperAtta
     if not parts:
         parts.append(types.Part(text=""))
     return types.Content(role="user", parts=parts)
-
 
 def _tool_messages_to_contents(
     msgs: list[tuple[message.ToolResultMessage, DeveloperAttachment]], model_name: str | None
@@ -127,7 +123,6 @@ def _tool_messages_to_contents(
     contents.extend(extra_image_contents)
     return contents
 
-
 def _decode_thought_signature(sig: str | None) -> bytes | None:
     """Decode base64 thought signature to bytes."""
     if not sig:
@@ -136,7 +131,6 @@ def _decode_thought_signature(sig: str | None) -> bytes | None:
         return b64decode(sig)
     except (BinasciiError, ValueError):
         return None
-
 
 def _assistant_message_to_content(msg: message.AssistantMessage, model_name: str | None) -> types.Content | None:
     parts: list[types.Part] = []
@@ -196,7 +190,6 @@ def _assistant_message_to_content(msg: message.AssistantMessage, model_name: str
         return None
     return types.Content(role="model", parts=parts)
 
-
 def convert_history_to_contents(
     history: list[message.Message],
     model_name: str | None,
@@ -229,7 +222,6 @@ def convert_history_to_contents(
 
     flush_tool_messages()
     return contents
-
 
 def convert_tool_schema(tools: list[llm_param.ToolSchema] | None) -> list[types.Tool]:
     if tools is None or len(tools) == 0:

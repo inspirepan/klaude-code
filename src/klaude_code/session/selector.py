@@ -11,7 +11,6 @@ def _format_time(ts: float) -> str:
     dt = datetime.fromtimestamp(ts)
     return dt.strftime("%m-%d %H:%M")
 
-
 @dataclass(frozen=True, slots=True)
 class SessionSelectOption:
     """Option data for session selection UI."""
@@ -23,11 +22,9 @@ class SessionSelectOption:
     relative_time: str
     model_name: str
 
-
 def _format_message(msg: str) -> str:
     """Format a user message for display (strip and collapse newlines)."""
     return msg.strip().replace("\n", " ")
-
 
 def format_user_messages_display(messages: list[str]) -> list[str]:
     """Format user messages for display in session selection.
@@ -49,7 +46,6 @@ def format_user_messages_display(messages: list[str]) -> list[str]:
     result.append("⋮")
     result.extend(messages[-3:])
     return result
-
 
 def build_session_select_options(work_dir: Path) -> list[SessionSelectOption]:
     """Build session selection options data.

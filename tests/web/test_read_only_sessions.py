@@ -66,7 +66,6 @@ def _write_foreign_session(
         encoding="utf-8",
     )
 
-
 @pytest.fixture
 def readonly_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     home_dir = tmp_path / "home"
@@ -116,7 +115,6 @@ def readonly_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         assert isinstance(runtime, RuntimeFacade)
         yield client, runtime, work_dir, fake_llm
 
-
 def test_websocket_rejects_commands_for_foreign_running_session(
     readonly_env: tuple[TestClient, RuntimeFacade, Path, FakeLLMClient],
 ) -> None:
@@ -134,7 +132,6 @@ def test_websocket_rejects_commands_for_foreign_running_session(
 
     assert runtime.session_registry.has_session_actor(session_id) is False
 
-
 def test_rest_message_rejects_foreign_running_session(
     readonly_env: tuple[TestClient, RuntimeFacade, Path, FakeLLMClient],
 ) -> None:
@@ -145,7 +142,6 @@ def test_rest_message_rejects_foreign_running_session(
     response = client.post(f"/api/sessions/{session_id}/message", json={"text": "hello"})
     assert response.status_code == 409
     assert "read-only" in response.text
-
 
 def test_stale_owner_allows_web_takeover(
     readonly_env: tuple[TestClient, RuntimeFacade, Path, FakeLLMClient],
@@ -176,7 +172,6 @@ def test_stale_owner_allows_web_takeover(
 
     assert runtime.session_registry.has_session_actor(session_id) is True
 
-
 def test_foreign_idle_tui_session_stays_read_only(
     readonly_env: tuple[TestClient, RuntimeFacade, Path, FakeLLMClient],
 ) -> None:
@@ -204,7 +199,6 @@ def test_foreign_idle_tui_session_stays_read_only(
         error = websocket.receive_json()
         assert error["type"] == "error"
         assert error["code"] == "session_read_only"
-
 
 def test_foreign_idle_web_session_is_not_read_only(
     readonly_env: tuple[TestClient, RuntimeFacade, Path, FakeLLMClient],

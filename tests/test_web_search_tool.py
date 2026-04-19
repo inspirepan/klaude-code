@@ -22,12 +22,10 @@ def _tool_context() -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
     return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path("/tmp"))
 
-
 @pytest.fixture(autouse=True)
 def _no_web_search_api_keys() -> Iterator[None]:  # pyright: ignore[reportUnusedFunction]
     with patch.dict(os.environ, {"BRAVE_API_KEY": "", "EXA_API_KEY": ""}):
         yield
-
 
 def _fake_search(_query: str, _max_results: int) -> list[SearchResult]:
     return [
@@ -35,14 +33,11 @@ def _fake_search(_query: str, _max_results: int) -> list[SearchResult]:
         SearchResult(title="Result 2", url="https://example.com/2", snippet="Second result", position=2),
     ]
 
-
 def _fake_brave(query: str, max_results: int, _api_key: str) -> list[SearchResult]:
     return _fake_search(query, max_results)
 
-
 def _fake_exa(query: str, max_results: int, _api_key: str) -> list[SearchResult]:
     return _fake_search(query, max_results)
-
 
 class TestWebSearchSecurity:
     """Exa is now the primary search provider; these tests use Exa mocks."""
@@ -86,7 +81,6 @@ class TestWebSearchSecurity:
             assert "<search_results>" in result.output_text
             assert "Result 1" in result.output_text
 
-
 class TestWebSearchCaching:
     def test_cache_hit(self) -> None:
         web_cache.clear()
@@ -126,7 +120,6 @@ class TestWebSearchCaching:
             asyncio.run(WebSearchTool.call(args1, _tool_context()))
             asyncio.run(WebSearchTool.call(args2, _tool_context()))
             assert call_count == 2
-
 
 class TestApiKeySelection:
     """Exa is now preferred over Brave. The lookup order is:

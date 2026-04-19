@@ -32,9 +32,7 @@ class FocusState(str, Enum):
     FOCUSED = "focused"
     BLURRED = "blurred"
 
-
 Subscriber = Callable[[FocusState], None]
-
 
 class FocusTracker:
     def __init__(self) -> None:
@@ -82,9 +80,7 @@ class FocusTracker:
 
         return _unsubscribe
 
-
 _tracker: FocusTracker | None = None
-
 
 def get_focus_tracker() -> FocusTracker:
     global _tracker

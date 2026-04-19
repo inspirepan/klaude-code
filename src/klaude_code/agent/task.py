@@ -24,7 +24,15 @@ from klaude_code.const import (
 )
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, message, model, tools, user_interaction
+from klaude_code.protocol import events, message, tools, user_interaction
+from klaude_code.protocol.models import (
+    FileChangeSummary,
+    FileStatus,
+    SubAgentState,
+    TaskMetadata,
+    TaskMetadataItem,
+    Usage,
+)
 from klaude_code.session.session import Session
 from klaude_code.tool import FileTracker, TodoContext, ToolABC
 from klaude_code.tool.context import RunSubtask
@@ -39,7 +47,6 @@ type RequestUserInteraction = Callable[
     Awaitable[user_interaction.UserInteractionResponse],
 ]
 
-
 class MetadataAccumulator:
     """Accumulates response metadata across multiple turns.
 
@@ -48,8 +55,8 @@ class MetadataAccumulator:
     """
 
     def __init__(self, model_name: str) -> None:
-        self._main_agent = model.TaskMetadata(model_name=model_name)
-        self._sub_agent_metadata: list[model.TaskMetadata] = []
+        self._main_agent = TaskMetadata(model_name=model_name)
+        self._sub_agent_metadata: list[TaskMetadata] = []
         self._throughput_weighted_sum: float = 0.0
         self._throughput_tracked_tokens: int = 0
         self._first_token_latency_sum: float = 0.0
@@ -75,7 +82,7 @@ class MetadataAccumulator:
     def last_turn_prev_input_tokens(self) -> int:
         return self.cache.last_prev_input_tokens
 
-    def add(self, turn_usage: model.Usage) -> CacheBreakReport | None:
+    def add(self, turn_usage: Usage) -> CacheBreakReport | None:
         """Merge a turn's usage into the accumulated state.
 
         Returns a ``CacheBreakReport`` when a prompt-prefix cache break is
@@ -85,10 +92,10 @@ class MetadataAccumulator:
         usage = turn_usage
 
         if self._main_agent.usage is None:
-            self._main_agent.usage = model.Usage()
+            self._main_agent.usage = Usage()
         acc_usage = self._main_agent.usage
 
-        model.TaskMetadata.merge_usage(acc_usage, usage)
+        TaskMetadata.merge_usage(acc_usage, usage)
         acc_usage.currency = usage.currency
 
         if usage.context_size is not None:
@@ -117,11 +124,11 @@ class MetadataAccumulator:
 
         return cache_break
 
-    def add_sub_agent_metadata(self, sub_agent_metadata: model.TaskMetadata) -> None:
+    def add_sub_agent_metadata(self, sub_agent_metadata: TaskMetadata) -> None:
         """Add sub-agent task metadata to the accumulated state."""
         self._sub_agent_metadata.append(sub_agent_metadata)
 
-    def get_partial(self, task_duration_s: float) -> model.TaskMetadata | None:
+    def get_partial(self, task_duration_s: float) -> TaskMetadata | None:
         """Return a snapshot of main agent metadata without modifying accumulator state.
 
         Returns None if no usage data has been accumulated yet.
@@ -143,7 +150,7 @@ class MetadataAccumulator:
 
         usage_copy.cache_hit_rate = self.cache.avg_hit_rate
 
-        return model.TaskMetadata(
+        return TaskMetadata(
             model_name=self._main_agent.model_name,
             provider=self._main_agent.provider,
             usage=usage_copy,
@@ -151,7 +158,7 @@ class MetadataAccumulator:
             turn_count=self._turn_count,
         )
 
-    def get_partial_item(self, task_duration_s: float) -> model.TaskMetadataItem | None:
+    def get_partial_item(self, task_duration_s: float) -> TaskMetadataItem | None:
         """Return a snapshot of full metadata (main + sub-agents) without modifying state.
 
         Returns None if no usage data has been accumulated yet.
@@ -160,12 +167,12 @@ class MetadataAccumulator:
         if main_agent is None:
             return None
 
-        return model.TaskMetadataItem(
+        return TaskMetadataItem(
             main_agent=main_agent,
             sub_agent_task_metadata=list(self._sub_agent_metadata),
         )
 
-    def finalize(self, task_duration_s: float) -> model.TaskMetadataItem:
+    def finalize(self, task_duration_s: float) -> TaskMetadataItem:
         """Return the final accumulated metadata with computed throughput and duration."""
         if self._main_agent.usage is not None:
             if self._throughput_tracked_tokens > 0:
@@ -184,8 +191,7 @@ class MetadataAccumulator:
 
         self._main_agent.task_duration_s = task_duration_s
         self._main_agent.turn_count = self._turn_count
-        return model.TaskMetadataItem(main_agent=self._main_agent, sub_agent_task_metadata=self._sub_agent_metadata)
-
+        return TaskMetadataItem(main_agent=self._main_agent, sub_agent_task_metadata=self._sub_agent_metadata)
 
 @dataclass
 class SessionContext:
@@ -199,11 +205,10 @@ class SessionContext:
     get_conversation_history: Callable[[], list[message.HistoryEvent]]
     append_history: Callable[[Sequence[message.HistoryEvent]], None]
     file_tracker: FileTracker
-    file_change_summary: model.FileChangeSummary
+    file_change_summary: FileChangeSummary
     todo_context: TodoContext
     run_subtask: RunSubtask | None
     request_user_interaction: RequestUserInteraction | None
-
 
 @dataclass
 class TaskExecutionContext:
@@ -213,10 +218,9 @@ class TaskExecutionContext:
     session_ctx: SessionContext
     profile: AgentProfile
     tool_registry: dict[str, type[ToolABC]]
-    sub_agent_state: model.SubAgentState | None
+    sub_agent_state: SubAgentState | None
     # LLM client for compaction (uses main if not set)
     compact_llm_client: LLMClientABC | None = None
-
 
 class TaskExecutor:
     """Executes a complete task (multiple turns until no more tool calls).
@@ -248,7 +252,7 @@ class TaskExecutor:
         self._last_interrupt_prefill_text = None
         return text
 
-    def get_partial_metadata(self) -> model.TaskMetadata | None:
+    def get_partial_metadata(self) -> TaskMetadata | None:
         """Get the currently accumulated metadata without finalizing.
 
         Returns partial metadata that can be used if the task is interrupted.
@@ -726,8 +730,7 @@ class TaskExecutor:
             task_result=task_result,
         )
 
-
-def _reset_attachment_loaded_flags(file_tracker: dict[str, model.FileStatus]) -> None:
+def _reset_attachment_loaded_flags(file_tracker: dict[str, FileStatus]) -> None:
     """Remove attachment-only entries so transient reminders can re-inject after compaction."""
     transient_paths = [
         path
@@ -736,7 +739,6 @@ def _reset_attachment_loaded_flags(file_tracker: dict[str, model.FileStatus]) ->
     ]
     for path in transient_paths:
         del file_tracker[path]
-
 
 def _retry_delay_seconds(attempt: int) -> float:
     """Compute exponential backoff delay for the given attempt count."""

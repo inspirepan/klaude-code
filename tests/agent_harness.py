@@ -50,7 +50,6 @@ class ScriptedLLMStream(LLMStreamABC):
             stop_reason="aborted",
         )
 
-
 class FakeLLMClient(LLMClientABC):
     """Fake LLM client with a queue of scripted responses."""
 
@@ -87,7 +86,6 @@ class FakeLLMClient(LLMClientABC):
         entry = self._responses.pop(0)
         items = entry(param) if callable(entry) else entry
         return ScriptedLLMStream(items)
-
 
 @dataclass
 class Harness:
@@ -149,7 +147,6 @@ class Harness:
                 if text:
                     texts.append(text)
         return texts
-
 
 async def create_harness(
     *,

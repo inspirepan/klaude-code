@@ -25,7 +25,6 @@ def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
     assert len(candidates) == 1
     return candidates[0]
 
-
 def _session_state_from_meta(meta_path: Path) -> str | None:
     try:
         raw_obj = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -36,10 +35,8 @@ def _session_state_from_meta(meta_path: Path) -> str | None:
     state = raw.get("session_state")
     return state if isinstance(state, str) else None
 
-
 def _wait_until_idle(meta_path: Path, *, timeout_s: float = 2.0) -> None:
     _wait_until_state(meta_path, "idle", timeout_s=timeout_s)
-
 
 def _wait_until_state(meta_path: Path, expected: str, *, timeout_s: float = 2.0) -> None:
     deadline = time.time() + timeout_s
@@ -48,7 +45,6 @@ def _wait_until_state(meta_path: Path, expected: str, *, timeout_s: float = 2.0)
             return
         time.sleep(0.01)
     raise AssertionError(f"session_state did not become {expected!r}, got: {_session_state_from_meta(meta_path)!r}")
-
 
 @pytest.fixture
 def slow_session_writer(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -59,7 +55,6 @@ def slow_session_writer(monkeypatch: pytest.MonkeyPatch) -> None:
         original(self, batch)
 
     monkeypatch.setattr(JsonlSessionWriter, "_write_batch_sync", _slow_write_batch_sync)
-
 
 def test_session_state_becomes_idle_after_task_finish(app_env: AppEnv, slow_session_writer: None) -> None:
     app_env.fake_llm.enqueue(
@@ -79,7 +74,6 @@ def test_session_state_becomes_idle_after_task_finish(app_env: AppEnv, slow_sess
         _ = collect_events_until(websocket, "task.finish")
 
     _wait_until_idle(meta_path)
-
 
 def test_init_agent_creates_idle_meta_before_first_async_flush(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, slow_session_writer: None
@@ -129,7 +123,6 @@ def test_init_agent_creates_idle_meta_before_first_async_flush(
 
     arun(_run())
 
-
 def test_session_state_becomes_idle_after_interrupt(app_env: AppEnv, slow_session_writer: None) -> None:
     app_env.fake_llm.enqueue(
         message.AssistantTextDelta(content="still running"),
@@ -152,7 +145,6 @@ def test_session_state_becomes_idle_after_interrupt(app_env: AppEnv, slow_sessio
         _ = collect_events_until(websocket, "task.finish")
 
     _wait_until_idle(meta_path)
-
 
 def test_session_state_stays_waiting_during_user_interaction(app_env: AppEnv, slow_session_writer: None) -> None:
     ask_args = {
@@ -218,7 +210,6 @@ def test_session_state_stays_waiting_during_user_interaction(app_env: AppEnv, sl
         _ = collect_events_until(websocket, "task.finish")
 
     _wait_until_idle(meta_path)
-
 
 def test_ws_init_does_not_override_persisted_running_state(app_env: AppEnv) -> None:
     session_id = app_env.create_session()

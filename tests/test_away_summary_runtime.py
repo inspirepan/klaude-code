@@ -31,7 +31,6 @@ class _FakeLLMClient(LLMClientABC):
     async def call(self, param: llm_param.LLMCallParameter) -> Any:
         raise AssertionError("generate_away_summary should be monkeypatched in this test")
 
-
 def test_manual_recap_emits_spinner_events_but_auto_does_not(tmp_path: Path, monkeypatch: Any) -> None:
     async def _test() -> None:
         emitted: list[Any] = []
@@ -91,26 +90,20 @@ def test_manual_recap_emits_spinner_events_but_auto_does_not(tmp_path: Path, mon
 
     asyncio.run(_test())
 
-
 async def _noop_request_user_interaction(_request: Any) -> Any:
     raise RuntimeError("should not be called")
-
 
 def _noop_child_task_state_change(_session_id: str, _task_id: str, _active: bool) -> None:
     return None
 
-
 def _unexpected_session_actor(_sid: str) -> Any:
     raise RuntimeError("should not be called")
-
 
 def _noop_register_task(_session_id: str, _operation_id: str, _task_id: str, _task: asyncio.Task[None]) -> None:
     return None
 
-
 def _noop_remove_task(_session_id: str, _task_id: str) -> None:
     return None
-
 
 def cast_any(value: object) -> Any:
     return value

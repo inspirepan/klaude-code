@@ -43,12 +43,13 @@ from klaude_code.llm.stream_parts import (
 )
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import is_opus_47_model, supports_adaptive_thinking
+from klaude_code.protocol.models import StopReason, Usage
 
 
-def _map_anthropic_stop_reason(reason: str) -> model.StopReason | None:
-    mapping: dict[str, model.StopReason] = {
+def _map_anthropic_stop_reason(reason: str) -> StopReason | None:
+    mapping: dict[str, StopReason] = {
         "end_turn": "stop",
         "stop_sequence": "stop",
         "max_tokens": "length",
@@ -60,7 +61,6 @@ def _map_anthropic_stop_reason(reason: str) -> model.StopReason | None:
         "aborted": "aborted",
     }
     return mapping.get(reason)
-
 
 class AnthropicStreamStateManager:
     """Manages streaming state for Anthropic API responses.
@@ -75,7 +75,7 @@ class AnthropicStreamStateManager:
         self.response_id: str | None = None
         self._pending_signature: str | None = None
         self._pending_signature_thinking_index: int | None = None
-        self.stop_reason: model.StopReason | None = None
+        self.stop_reason: StopReason | None = None
 
         # Tool call state
         self.current_tool_name: str | None = None
@@ -168,7 +168,6 @@ class AnthropicStreamStateManager:
         """
         return build_partial_message(self.assistant_parts, response_id=self.response_id)
 
-
 def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStreaming:
     """Build Anthropic API request parameters."""
     messages = convert_history_to_input(param.input, param.model_id)
@@ -245,7 +244,6 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
 
     return payload
 
-
 async def parse_anthropic_stream(
     stream: Any,
     param: llm_param.LLMCallParameter,
@@ -319,7 +317,7 @@ async def parse_anthropic_stream(
             case BetaRawMessageDeltaEvent() as event:
                 total_input = state.input_token + state.cached_token + state.cache_write_token
                 metadata_tracker.set_usage(
-                    model.Usage(
+                    Usage(
                         input_tokens=total_input,
                         output_tokens=event.usage.output_tokens,
                         cached_tokens=state.cached_token,
@@ -347,7 +345,6 @@ async def parse_anthropic_stream(
         usage=metadata,
         stop_reason=state.stop_reason,
     )
-
 
 class AnthropicLLMStream(LLMStreamABC):
     """LLMStream implementation for Anthropic-compatible clients."""
@@ -397,7 +394,6 @@ class AnthropicLLMStream(LLMStreamABC):
         if self._completed:
             return None
         return self._state.get_partial_message()
-
 
 @register(llm_param.LLMClientProtocol.ANTHROPIC)
 class AnthropicClient(LLMClientABC):

@@ -18,12 +18,10 @@ def _llm_config() -> LLMConfigParameter:
         model_id="gpt-demo",
     )
 
-
 def _last_title_cmd(cmds: Sequence[object]) -> UpdateTerminalTitlePrefix:
     matches = [cmd for cmd in cmds if isinstance(cmd, UpdateTerminalTitlePrefix)]
     assert matches
     return matches[-1]
-
 
 def test_welcome_updates_terminal_title_with_session_title() -> None:
     machine = DisplayStateMachine()
@@ -42,7 +40,6 @@ def test_welcome_updates_terminal_title_with_session_title() -> None:
     assert cmd.prefix is None
     assert cmd.model_name == "gpt-5"
     assert cmd.session_title == "Fix session title generation"
-
 
 def test_title_change_preserves_active_terminal_prefix() -> None:
     machine = DisplayStateMachine()
@@ -66,7 +63,6 @@ def test_title_change_preserves_active_terminal_prefix() -> None:
     update_title_cmd = _last_title_cmd(update_cmds)
     assert update_title_cmd.prefix == "\u26ac"
     assert update_title_cmd.session_title == "New title"
-
 
 def test_update_terminal_title_prefers_session_title(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: list[str] = []

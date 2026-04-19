@@ -12,7 +12,6 @@ from klaude_code.skill.system_skills import install_system_skills
 _loader: SkillLoader | None = None
 _initialized: bool = False
 
-
 def _ensure_initialized() -> SkillLoader:
     """Ensure the skill system is initialized and return the loader.
 
@@ -28,7 +27,6 @@ def _ensure_initialized() -> SkillLoader:
     assert _loader is not None
     return _loader
 
-
 def get_skill_loader() -> SkillLoader:
     """Get the global skill loader instance.
 
@@ -38,7 +36,6 @@ def get_skill_loader() -> SkillLoader:
         The global SkillLoader instance
     """
     return _ensure_initialized()
-
 
 def get_skill(name: str) -> Skill | None:
     """Get a skill by name.
@@ -50,7 +47,6 @@ def get_skill(name: str) -> Skill | None:
         Skill object or None if not found
     """
     return _ensure_initialized().get_skill(name)
-
 
 def get_available_skills() -> list[tuple[str, str, str]]:
     """Get list of available skills for completion and display.
@@ -65,7 +61,6 @@ def get_available_skills() -> list[tuple[str, str, str]]:
     location_order = {"project": 0, "user": 1, "system": 2}
     skills.sort(key=lambda x: location_order.get(x[2], 3))
     return skills
-
 
 def get_available_skills_for_work_dir(work_dir: Path) -> list[tuple[str, str, str]]:
     """Get available skills for a specific project directory.
@@ -86,7 +81,6 @@ def get_available_skills_for_work_dir(work_dir: Path) -> list[tuple[str, str, st
     skills.sort(key=lambda x: location_order.get(x[2], 3))
     return skills
 
-
 def get_skill_warnings_by_location() -> dict[str, list[str]]:
     """Get skill discovery warnings grouped by location."""
     loader = _ensure_initialized()
@@ -99,7 +93,6 @@ def get_skill_warnings_by_location() -> dict[str, list[str]]:
     if not result["user"] and not result["project"] and not result["system"]:
         return {}
     return result
-
 
 def list_skill_names() -> list[str]:
     """Get list of all loaded skill names.

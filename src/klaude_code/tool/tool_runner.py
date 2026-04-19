@@ -3,7 +3,8 @@ from collections.abc import AsyncGenerator, Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 from klaude_code.const import CANCEL_OUTPUT
-from klaude_code.protocol import message, model
+from klaude_code.protocol import message
+from klaude_code.protocol.models import SessionIdUIExtra, TaskMetadata, TodoItem, TodoListUIExtra, ToolSideEffect
 from klaude_code.tool.context import ToolContext
 from klaude_code.tool.offload import offload_tool_output
 from klaude_code.tool.tool_abc import ToolABC, ToolConcurrencyPolicy
@@ -15,7 +16,6 @@ class ToolCallRequest:
     call_id: str
     tool_name: str
     arguments_json: str
-
 
 async def run_tool(
     tool_call: ToolCallRequest,
@@ -58,13 +58,11 @@ async def run_tool(
             tool_name=tool_call.tool_name,
         )
 
-
 @dataclass
 class ToolExecutionCallStarted:
     """Represents the start of a tool call execution."""
 
     tool_call: ToolCallRequest
-
 
 @dataclass
 class ToolExecutionResult:
@@ -76,13 +74,11 @@ class ToolExecutionResult:
     # Used by UI to decide whether to close the tree prefix.
     is_last_in_turn: bool = False
 
-
 @dataclass
 class ToolExecutionTodoChange:
     """Represents a todo list change side effect emitted by a tool."""
 
-    todos: list[model.TodoItem]
-
+    todos: list[TodoItem]
 
 @dataclass
 class ToolExecutionOutputDelta:
@@ -91,9 +87,7 @@ class ToolExecutionOutputDelta:
     tool_call: ToolCallRequest
     content: str
 
-
 ToolExecutorEvent = ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange | ToolExecutionOutputDelta
-
 
 class ToolExecutor:
     """Execute and coordinate a batch of tool calls for a single turn.
@@ -120,7 +114,7 @@ class ToolExecutor:
         self._call_event_emitted: set[str] = set()
         self._concurrent_tasks: set[asyncio.Task[list[ToolExecutorEvent]]] = set()
         self._sub_agent_session_ids: dict[str, str] = {}
-        self._sub_agent_metadata_getters: dict[str, Callable[[], model.TaskMetadata | None]] = {}
+        self._sub_agent_metadata_getters: dict[str, Callable[[], TaskMetadata | None]] = {}
         self._sub_agent_progress_getters: dict[str, Callable[[], str | None]] = {}
 
     async def run_tools(self, tool_calls: list[ToolCallRequest]) -> AsyncGenerator[ToolExecutorEvent]:
@@ -230,7 +224,7 @@ class ToolExecutor:
                 output_text=cancel_output,
                 status="aborted",
                 tool_name=tool_call.tool_name,
-                ui_extra=model.SessionIdUIExtra(session_id=session_id) if session_id else None,
+                ui_extra=SessionIdUIExtra(session_id=session_id) if session_id else None,
                 task_metadata=task_metadata,
             )
 
@@ -290,7 +284,7 @@ class ToolExecutor:
             if tool_call.call_id not in self._sub_agent_session_ids:
                 self._sub_agent_session_ids[tool_call.call_id] = session_id
 
-        def _register_metadata_getter(getter: Callable[[], model.TaskMetadata | None]) -> None:
+        def _register_metadata_getter(getter: Callable[[], TaskMetadata | None]) -> None:
             self._sub_agent_metadata_getters[tool_call.call_id] = getter
 
         def _register_progress_getter(getter: Callable[[], str | None]) -> None:
@@ -350,9 +344,9 @@ class ToolExecutor:
         side_effect_events: list[ToolExecutorEvent] = []
 
         for side_effect in side_effects:
-            if side_effect == model.ToolSideEffect.TODO_CHANGE:
-                todos: list[model.TodoItem] | None = None
-                if isinstance(tool_result.ui_extra, model.TodoListUIExtra):
+            if side_effect == ToolSideEffect.TODO_CHANGE:
+                todos: list[TodoItem] | None = None
+                if isinstance(tool_result.ui_extra, TodoListUIExtra):
                     todos = tool_result.ui_extra.todo_list.todos
                 if todos is not None:
                     side_effect_events.append(ToolExecutionTodoChange(todos=todos))

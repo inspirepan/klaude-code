@@ -12,7 +12,6 @@ def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
     assert len(candidates) == 1
     return candidates[0]
 
-
 def _update_meta(app_env: AppEnv, session_id: str, updates: dict[str, Any]) -> dict[str, Any]:
     meta_path = _meta_path_for_session(app_env, session_id)
     raw_meta_obj = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -22,13 +21,11 @@ def _update_meta(app_env: AppEnv, session_id: str, updates: dict[str, Any]) -> d
     meta_path.write_text(json.dumps(raw_meta, ensure_ascii=False, indent=2), encoding="utf-8")
     return raw_meta
 
-
 def test_search_sessions_empty_query_returns_empty(app_env: AppEnv) -> None:
     app_env.create_session()
     response = app_env.client.get("/api/sessions/search", params={"q": ""})
     assert response.status_code == 200
     assert response.json()["results"] == []
-
 
 def test_search_sessions_no_match(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
@@ -37,7 +34,6 @@ def test_search_sessions_no_match(app_env: AppEnv) -> None:
     response = app_env.client.get("/api/sessions/search", params={"q": "nonexistent_xyz"})
     assert response.status_code == 200
     assert response.json()["results"] == []
-
 
 def test_search_sessions_by_title(app_env: AppEnv) -> None:
     s1 = app_env.create_session()
@@ -52,7 +48,6 @@ def test_search_sessions_by_title(app_env: AppEnv) -> None:
     assert results[0]["id"] == s1
     assert results[0]["title"] == "Fix login bug"
 
-
 def test_search_sessions_by_user_message(app_env: AppEnv) -> None:
     s1 = app_env.create_session()
     _update_meta(app_env, s1, {"user_messages": ["Help me write a unit test", "Also add type hints"]})
@@ -62,7 +57,6 @@ def test_search_sessions_by_user_message(app_env: AppEnv) -> None:
     results = response.json()["results"]
     assert len(results) == 1
     assert results[0]["id"] == s1
-
 
 def test_search_sessions_by_work_dir(app_env: AppEnv) -> None:
     s1 = app_env.create_session()
@@ -74,7 +68,6 @@ def test_search_sessions_by_work_dir(app_env: AppEnv) -> None:
     assert len(results) == 1
     assert results[0]["id"] == s1
 
-
 def test_search_sessions_case_insensitive(app_env: AppEnv) -> None:
     s1 = app_env.create_session()
     _update_meta(app_env, s1, {"title": "Fix Login Bug"})
@@ -84,7 +77,6 @@ def test_search_sessions_case_insensitive(app_env: AppEnv) -> None:
     results = response.json()["results"]
     assert len(results) == 1
     assert results[0]["id"] == s1
-
 
 def test_search_sessions_includes_archived(app_env: AppEnv) -> None:
     s1 = app_env.create_session()
@@ -101,7 +93,6 @@ def test_search_sessions_includes_archived(app_env: AppEnv) -> None:
     assert s2 in ids
     archived_result = next(r for r in results if r["id"] == s2)
     assert archived_result["archived"] is True
-
 
 def test_search_sessions_returns_expected_fields(app_env: AppEnv) -> None:
     s1 = app_env.create_session()
@@ -127,7 +118,6 @@ def test_search_sessions_returns_expected_fields(app_env: AppEnv) -> None:
     assert "work_dir" in result
     assert "created_at" in result
     assert "updated_at" in result
-
 
 def test_search_sessions_sorted_by_updated_at(app_env: AppEnv) -> None:
     s1 = app_env.create_session()

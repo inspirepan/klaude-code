@@ -13,18 +13,17 @@ from klaude_code.agent.compaction.prompts import (
 )
 from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import DiffFileDiff, DiffUIExtra, FileStatus
 from klaude_code.session.session import Session, close_default_store
 
 
 def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
 
-
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
-
 
 class _StaticTextStream(LLMStreamABC):
     def __init__(self, text: str) -> None:
@@ -39,7 +38,6 @@ class _StaticTextStream(LLMStreamABC):
     def get_partial_message(self) -> message.AssistantMessage | None:
         return self._message
 
-
 class _ErrorStream(LLMStreamABC):
     def __init__(self, error: str) -> None:
         self._error = error
@@ -52,7 +50,6 @@ class _ErrorStream(LLMStreamABC):
 
     def get_partial_message(self) -> message.AssistantMessage | None:
         return None
-
 
 class _CapturingSummarizerClient(LLMClientABC):
     """Deterministic LLM client stub for compaction.
@@ -79,7 +76,6 @@ class _CapturingSummarizerClient(LLMClientABC):
             return _StaticTextStream("TASK_PREFIX_SUMMARY")
         return _StaticTextStream("HISTORY_SUMMARY")
 
-
 class _FlakySummarizerClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter, failures_before_success: int) -> None:
         super().__init__(config)
@@ -97,14 +93,11 @@ class _FlakySummarizerClient(LLMClientABC):
             return _ErrorStream("transient network")
         return _StaticTextStream("RETRY_OK")
 
-
 def _text_user(text: str) -> message.UserMessage:
     return message.UserMessage(parts=message.text_parts_from_str(text))
 
-
 def _text_assistant(text: str) -> message.AssistantMessage:
     return message.AssistantMessage(parts=message.text_parts_from_str(text), response_id=None)
-
 
 def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
@@ -115,7 +108,7 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
         session = Session.create(id="compaction-e2e", work_dir=project_dir)
 
         # Used by _collect_file_operations() as read files.
-        session.file_tracker["docs/a.md"] = model.FileStatus(mtime=0.0)
+        session.file_tracker["docs/a.md"] = FileStatus(mtime=0.0)
 
         # Build a history that triggers split-task compaction:
         # - Old history (to summarize) includes tool calls/results and large outputs.
@@ -154,7 +147,7 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
                 tool_name="edit",
                 status="success",
                 output_text="ok",
-                ui_extra=model.DiffUIExtra(files=[model.DiffFileDiff(file_path="src/foo.py", lines=[], stats_add=1)]),
+                ui_extra=DiffUIExtra(files=[DiffFileDiff(file_path="src/foo.py", lines=[], stats_add=1)]),
             ),
             _text_user("new task: implement foo"),
             _text_assistant("recent assistant: " + ("r" * 5000)),
@@ -222,7 +215,6 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
         await close_default_store()
 
     arun(_test())
-
 
 def test_call_summarizer_fails_fast_on_stream_error() -> None:
     llm_config = llm_param.LLMConfigParameter(

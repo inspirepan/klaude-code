@@ -32,7 +32,6 @@ _NEEDS_CONVERSION = {".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
 _PIXELS_PER_COL = 9
 _PIXELS_PER_ROW = 18
 
-
 def _get_png_dimensions(data: bytes) -> tuple[int, int] | None:
     """Extract width and height from PNG header (IHDR chunk)."""
     # PNG signature (8 bytes) + IHDR length (4 bytes) + "IHDR" (4 bytes) + width (4 bytes) + height (4 bytes)
@@ -41,7 +40,6 @@ def _get_png_dimensions(data: bytes) -> tuple[int, int] | None:
     width = int.from_bytes(data[16:20], "big")
     height = int.from_bytes(data[20:24], "big")
     return width, height
-
 
 def _convert_to_png(path: Path) -> bytes | None:
     """Convert image to PNG using sips (macOS) or convert (ImageMagick)."""
@@ -62,7 +60,6 @@ def _convert_to_png(path: Path) -> bytes | None:
         if result.returncode == 0:
             return Path(tmp_path).read_bytes()
     return None
-
 
 def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> None:
     """Print an image to the terminal using Kitty graphics protocol.
@@ -151,7 +148,6 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
         out.flush()
     except Exception:
         print(f"[[Image: {path}]]", file=file or sys.stdout, flush=True)
-
 
 def _write_kitty_graphics(out: IO[str], encoded_data: str, *, size_param: str) -> None:
     """Write Kitty graphics protocol escape sequences.

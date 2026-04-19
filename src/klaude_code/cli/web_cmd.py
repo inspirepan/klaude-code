@@ -26,11 +26,9 @@ def _resolve_web_server_entrypoint() -> tuple[Callable[..., Awaitable[None]], ty
         raise
     return start_web_server, WebServerAlreadyRunningError
 
-
 async def run_web_server(*, host: str, port: int, no_open: bool, debug: bool) -> None:
     start_web_server, _ = _resolve_web_server_entrypoint()
     await start_web_server(host=host, port=port, no_open=no_open, debug=debug)
-
 
 def run_web_server_command(*, host: str, port: int, no_open: bool, debug: bool) -> None:
     _, web_server_already_running_error = _resolve_web_server_entrypoint()
@@ -60,7 +58,6 @@ def run_web_server_command(*, host: str, port: int, no_open: bool, debug: bool) 
             debug_type=DebugType.EXECUTION,
         )
         raise typer.Exit(130) from None
-
 
 def register_web_commands(app: typer.Typer) -> None:
     @app.command("web")

@@ -28,7 +28,6 @@ def _assistant_message_to_openai(msg: message.AssistantMessage) -> chat.ChatComp
     assistant_message.update(build_assistant_common_fields(msg))
     return cast(chat.ChatCompletionMessageParam, assistant_message)
 
-
 def convert_history_to_input(
     history: list[message.Message],
     system: str | None = None,
@@ -61,7 +60,6 @@ def convert_history_to_input(
                 continue
 
     return messages
-
 
 def convert_tool_schema(
     tools: list[llm_param.ToolSchema] | None,

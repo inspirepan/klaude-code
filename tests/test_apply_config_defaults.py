@@ -5,7 +5,6 @@ from klaude_code.protocol import llm_param, message
 def _dummy_history() -> list[message.Message]:
     return [message.UserMessage(parts=[message.TextPart(text="hi")])]
 
-
 def test_apply_config_defaults_applies_missing_fields() -> None:
     config = llm_param.LLMConfigParameter(
         protocol=llm_param.LLMClientProtocol.OPENROUTER,
@@ -28,7 +27,6 @@ def test_apply_config_defaults_applies_missing_fields() -> None:
     assert param.verbosity == "high"
     assert param.thinking is not None and param.thinking.reasoning_effort == "high"
     assert param.provider_routing is not None and param.provider_routing.sort == "latency"
-
 
 def test_apply_config_defaults_does_not_override_existing_fields() -> None:
     config = llm_param.LLMConfigParameter(

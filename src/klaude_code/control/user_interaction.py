@@ -6,7 +6,6 @@ from klaude_code.protocol import user_interaction
 
 __all__ = ["PendingUserInteractionRequest"]
 
-
 @dataclass(frozen=True)
 class PendingUserInteractionRequest:
     request_id: str

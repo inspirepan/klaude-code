@@ -46,7 +46,6 @@ def test_google_vertex_client_loads_credentials_with_cloud_platform_scope(monkey
     http_options = captured["client_kwargs"]["http_options"]
     assert http_options.timeout == int(LLM_HTTP_TIMEOUT_TOTAL * 1000)
 
-
 def test_google_vertex_client_sets_timeout_when_custom_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 

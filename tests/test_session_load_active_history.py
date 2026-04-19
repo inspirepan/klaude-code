@@ -10,12 +10,10 @@ from klaude_code.session.session import Session
 def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
 
-
 def _text(item: message.HistoryEvent) -> str | None:
     if isinstance(item, message.UserMessage | message.AssistantMessage | message.DeveloperMessage):
         return message.join_text_parts(item.parts)
     return None
-
 
 def test_load_applies_rewind_semantics(isolated_home: Path, tmp_path: Path) -> None:
     del isolated_home
@@ -65,7 +63,6 @@ def test_load_applies_rewind_semantics(isolated_home: Path, tmp_path: Path) -> N
 
     arun(_test())
 
-
 def test_load_keeps_only_latest_compaction_prefix(isolated_home: Path, tmp_path: Path) -> None:
     del isolated_home
     project_dir = tmp_path / "project"
@@ -112,7 +109,6 @@ def test_load_keeps_only_latest_compaction_prefix(isolated_home: Path, tmp_path:
         ]
 
     arun(_test())
-
 
 def test_load_replays_rewind_before_dropping_compacted_prefix(isolated_home: Path, tmp_path: Path) -> None:
     del isolated_home

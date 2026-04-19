@@ -30,7 +30,6 @@ ANTHROPIC_LEVELS: list[tuple[str, int | None]] = [
     ("high (31999 tokens)", 31999),
 ]
 
-
 def get_levels_for_responses(model_name: str | None) -> list[str]:
     """Get thinking levels for responses protocol."""
     if is_gpt52_model(model_name):
@@ -40,7 +39,6 @@ def get_levels_for_responses(model_name: str | None) -> list[str]:
     if is_gemini_flash_model(model_name):
         return RESPONSES_GEMINI_FLASH_LEVELS
     return RESPONSES_LEVELS
-
 
 def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
     """Format the current thinking configuration for display."""
@@ -109,11 +107,9 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
 
     return "unknown protocol"
 
-
 # ---------------------------------------------------------------------------
 # Thinking picker data structures
 # ---------------------------------------------------------------------------
-
 
 @dataclass
 class ThinkingOption:
@@ -126,7 +122,6 @@ class ThinkingOption:
 
     label: str
     value: str
-
 
 @dataclass
 class ThinkingPickerData:
@@ -142,23 +137,19 @@ class ThinkingPickerData:
     message: str
     current_value: str | None
 
-
 def _build_effort_options(levels: list[str]) -> list[ThinkingOption]:
     """Build effort-based thinking options."""
     return [ThinkingOption(label=level, value=f"effort:{level}") for level in levels]
 
-
 def _build_budget_options() -> list[ThinkingOption]:
     """Build budget-based thinking options."""
     return [ThinkingOption(label=label, value=f"budget:{tokens or 0}") for label, tokens in ANTHROPIC_LEVELS]
-
 
 def _build_budget_with_adaptive_options() -> list[ThinkingOption]:
     """Build budget-based options with adaptive appended at the end."""
     options = _build_budget_options()
     options.append(ThinkingOption(label="adaptive", value="adaptive:adaptive"))
     return options
-
 
 def _build_adaptive_only_options() -> list[ThinkingOption]:
     """Build options for models that only support adaptive thinking (e.g. Opus 4.7)."""
@@ -167,13 +158,11 @@ def _build_adaptive_only_options() -> list[ThinkingOption]:
         ThinkingOption(label="adaptive", value="adaptive:adaptive"),
     ]
 
-
 def _get_current_effort_value(thinking: llm_param.Thinking | None) -> str | None:
     """Get current value for effort-based thinking."""
     if thinking and thinking.reasoning_effort:
         return f"effort:{thinking.reasoning_effort}"
     return None
-
 
 def _get_current_budget_value(thinking: llm_param.Thinking | None) -> str | None:
     """Get current value for budget-based thinking."""
@@ -183,7 +172,6 @@ def _get_current_budget_value(thinking: llm_param.Thinking | None) -> str | None
         if thinking.budget_tokens:
             return f"budget:{thinking.budget_tokens}"
     return None
-
 
 def _get_current_budget_or_adaptive_value(thinking: llm_param.Thinking | None) -> str | None:
     """Get current value for budget-or-adaptive thinking."""
@@ -196,7 +184,6 @@ def _get_current_budget_or_adaptive_value(thinking: llm_param.Thinking | None) -
             return f"budget:{thinking.budget_tokens}"
     return None
 
-
 def _get_current_adaptive_only_value(thinking: llm_param.Thinking | None) -> str | None:
     """Get current value for models that only allow off or adaptive."""
     if thinking:
@@ -205,7 +192,6 @@ def _get_current_adaptive_only_value(thinking: llm_param.Thinking | None) -> str
         if thinking.type == "disabled":
             return "adaptive:disabled"
     return None
-
 
 def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPickerData | None:
     """Get thinking picker data based on LLM config.
@@ -315,7 +301,6 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
         )
 
     return None
-
 
 def parse_thinking_value(value: str) -> llm_param.Thinking | None:
     """Parse a thinking value string into a Thinking object.

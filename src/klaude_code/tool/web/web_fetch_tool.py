@@ -39,7 +39,6 @@ _READABILITY_MAX_HTML_CHARS = 3_000_000
 _RETRY_HTTP_STATUS_CODES = frozenset({500, 502, 503, 504})
 _MAX_FETCH_RETRIES = 2
 
-
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Suppress automatic redirects so we can check each hop for SSRF."""
 
@@ -55,12 +54,10 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
         del req, fp, code, msg, headers, newurl
         return None
 
-
 def _build_opener() -> urllib.request.OpenerDirector:
     """Build opener with manual redirect handling and per-request cookie jar."""
     cookie_jar = http.cookiejar.CookieJar()
     return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar), _NoRedirectHandler)
-
 
 def _encode_url(url: str) -> str:
     """Encode non-ASCII characters in URL to make it safe for HTTP requests."""
@@ -72,7 +69,6 @@ def _encode_url(url: str) -> str:
     except UnicodeError:
         netloc = parsed.netloc
     return urlunparse((parsed.scheme, netloc, encoded_path, parsed.params, encoded_query, parsed.fragment))
-
 
 def _extract_content_type_and_charset(response: HTTPResponse) -> tuple[str, str | None]:
     """Extract the base content type and charset from Content-Type header."""
@@ -88,7 +84,6 @@ def _extract_content_type_and_charset(response: HTTPResponse) -> tuple[str, str 
             break
 
     return content_type, charset
-
 
 def _decompress(data: bytes, content_encoding: str) -> bytes:
     """Decompress response body based on Content-Encoding header."""
@@ -109,7 +104,6 @@ def _decompress(data: bytes, content_encoding: str) -> bytes:
                 return data
     return data
 
-
 def _detect_encoding(data: bytes, declared_charset: str | None) -> str:
     """Detect the encoding of the data."""
     if declared_charset:
@@ -129,7 +123,6 @@ def _detect_encoding(data: bytes, declared_charset: str | None) -> str:
 
     return "utf-8"
 
-
 def _decode_content(data: bytes, declared_charset: str | None) -> str:
     """Decode bytes to string with automatic encoding detection."""
     encoding = _detect_encoding(data, declared_charset)
@@ -138,13 +131,11 @@ def _decode_content(data: bytes, declared_charset: str | None) -> str:
     except (UnicodeDecodeError, LookupError):
         return data.decode("utf-8", errors="replace")
 
-
 def _strip_noise_elements(html: str) -> str:
     """Remove script and style elements to reduce size and noise before extraction."""
     html = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
     html = re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.DOTALL | re.IGNORECASE)
     return html
-
 
 def _html_to_markdown_fallback(html: str) -> str:
     """Simple regex-based HTML to text conversion as a fallback."""
@@ -162,7 +153,6 @@ def _html_to_markdown_fallback(html: str) -> str:
     text = re.sub(r"&#39;", "'", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
-
 
 def _convert_html_to_markdown(html: str) -> str:
     """Convert HTML to Markdown using readability-lxml + trafilatura, with fallback."""
@@ -199,7 +189,6 @@ def _convert_html_to_markdown(html: str) -> str:
 
     return _html_to_markdown_fallback(stripped)
 
-
 def _format_json(text: str) -> str:
     """Format JSON with indentation."""
     try:
@@ -207,7 +196,6 @@ def _format_json(text: str) -> str:
         return json.dumps(parsed, indent=2, ensure_ascii=False)
     except json.JSONDecodeError:
         return text
-
 
 def _extract_url_filename(url: str) -> str:
     """Extract a safe filename from a URL."""
@@ -217,7 +205,6 @@ def _extract_url_filename(url: str) -> str:
     name = f"{host}_{path}" if path else host
     name = re.sub(r"[^a-zA-Z0-9_\-]", "_", name)
     return name[:URL_FILENAME_MAX_LENGTH]
-
 
 def _save_binary_content(url: str, data: bytes, extension: str = ".bin") -> str | None:
     """Save binary content to file. Returns file path or None on failure."""
@@ -231,7 +218,6 @@ def _save_binary_content(url: str, data: bytes, extension: str = ".bin") -> str 
     except OSError:
         return None
 
-
 def _save_text_content(url: str, content: str) -> str | None:
     """Save text content to file. Returns file path or None on failure."""
     try:
@@ -244,12 +230,10 @@ def _save_text_content(url: str, content: str) -> str | None:
     except OSError:
         return None
 
-
 def _is_pdf_url(url: str) -> bool:
     """Check if URL points to a PDF file."""
     parsed = urlparse(url)
     return parsed.path.lower().endswith(".pdf") or "/pdf/" in parsed.path.lower()
-
 
 def _process_content(content_type: str, text: str) -> str:
     """Process content based on Content-Type header."""
@@ -261,7 +245,6 @@ def _process_content(content_type: str, text: str) -> str:
         return _format_json(text)
     else:
         return text
-
 
 def _fetch_url(
     url: str,
@@ -324,7 +307,6 @@ def _fetch_url(
 
     raise urllib.error.URLError(f"Too many redirects (max {max_redirects})")
 
-
 def _fetch_url_with_retry(
     url: str,
     timeout: int = WEB_FETCH_DEFAULT_TIMEOUT_SEC,
@@ -351,7 +333,6 @@ def _fetch_url_with_retry(
                 continue
             raise
     raise last_exc
-
 
 @register(tools.WEB_FETCH)
 class WebFetchTool(ToolABC):

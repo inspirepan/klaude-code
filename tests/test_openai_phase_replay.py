@@ -30,7 +30,6 @@ class _ListAsyncIterator:
         self._index += 1
         return item
 
-
 def _basic_call_param(input_messages: list[message.Message]) -> llm_param.LLMCallParameter:
     return llm_param.LLMCallParameter(
         input=input_messages,
@@ -38,7 +37,6 @@ def _basic_call_param(input_messages: list[message.Message]) -> llm_param.LLMCal
         session_id="test-session",
         tools=[],
     )
-
 
 def _collect_stream(stream: object) -> list[message.LLMStreamItem]:
     async def _collect() -> list[message.LLMStreamItem]:
@@ -50,13 +48,11 @@ def _collect_stream(stream: object) -> list[message.LLMStreamItem]:
 
     return asyncio.run(_collect())
 
-
 def _stream_event(value: dict[str, Any]) -> responses.ResponseStreamEvent:
     return cast(
         responses.ResponseStreamEvent,
         construct_type_unchecked(value=value, type_=cast(Any, responses.ResponseStreamEvent)),
     )
-
 
 def _assistant_item_phase(input_items: object) -> str | None:
     assert isinstance(input_items, list)
@@ -70,7 +66,6 @@ def _assistant_item_phase(input_items: object) -> str | None:
             return phase
     return None
 
-
 def test_responses_input_preserves_assistant_phase() -> None:
     history: list[message.Message] = [
         message.AssistantMessage(
@@ -81,7 +76,6 @@ def test_responses_input_preserves_assistant_phase() -> None:
 
     items = convert_history_to_input(history, model_name="gpt-5.4")
     assert _assistant_item_phase(items) == "commentary"
-
 
 def test_responses_stream_keeps_phase_from_output_item_done() -> None:
     events = [
@@ -123,7 +117,6 @@ def test_responses_stream_keeps_phase_from_output_item_done() -> None:
     final_message = next(item for item in items if isinstance(item, message.AssistantMessage))
     assert final_message.phase == "commentary"
 
-
 def test_responses_stream_keeps_phase_from_completed_response_output() -> None:
     events = [
         _stream_event(
@@ -157,7 +150,6 @@ def test_responses_stream_keeps_phase_from_completed_response_output() -> None:
     items = _collect_stream(stream)
     final_message = next(item for item in items if isinstance(item, message.AssistantMessage))
     assert final_message.phase == "final_answer"
-
 
 def test_responses_and_codex_payload_replay_assistant_phase() -> None:
     param = _basic_call_param(

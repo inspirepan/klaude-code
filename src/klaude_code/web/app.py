@@ -37,7 +37,6 @@ def resolve_static_dir() -> Path | None:
             return candidate
     return None
 
-
 def create_app(
     *,
     runtime: RuntimeFacade | None = None,
@@ -135,7 +134,6 @@ def create_app(
             )
 
     return app
-
 
 def _apply_session_meta_message(session_live: SessionLiveState, message: SessionMetaRelayMessage) -> None:
     if message.kind == "delete":

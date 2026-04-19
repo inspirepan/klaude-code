@@ -31,7 +31,6 @@ def test_cli_logout_without_provider_uses_selector(monkeypatch: pytest.MonkeyPat
     assert selector_calls == [(True, True, "Select provider to logout:")]
     assert logout_calls == ["github-copilot"]
 
-
 def test_cli_logout_cancelled_when_selector_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     logout_calls: list[str] = []
 

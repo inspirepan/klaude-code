@@ -17,7 +17,6 @@ _OVERFLOW_PATTERNS = [
 
 _STATUS_CODE_PATTERN = re.compile(r"^4(00|13|29)\s*(status code)?\s*\(no body\)", re.IGNORECASE)
 
-
 def is_context_overflow(error_message: str | None) -> bool:
     if not error_message:
         return False

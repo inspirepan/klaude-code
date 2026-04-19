@@ -24,17 +24,14 @@ REDIRECT_URI = "http://localhost:1455/auth/callback"
 REDIRECT_PORT = 1455
 SCOPE = "openid profile email offline_access"
 
-
 def generate_code_verifier() -> str:
     """Generate a random code verifier for PKCE."""
     return secrets.token_urlsafe(64)[:128]
-
 
 def generate_code_challenge(verifier: str) -> str:
     """Generate code challenge from verifier using S256 method."""
     digest = hashlib.sha256(verifier.encode()).digest()
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
-
 
 def build_authorize_url(code_challenge: str, state: str) -> str:
     """Build the authorization URL with all required parameters."""
@@ -51,7 +48,6 @@ def build_authorize_url(code_challenge: str, state: str) -> str:
         "originator": "pi",
     }
     return f"{AUTHORIZE_URL}?{urlencode(params)}"
-
 
 class OAuthCallbackHandler(BaseHTTPRequestHandler):
     """HTTP request handler for OAuth callback."""
@@ -94,7 +90,6 @@ class OAuthCallbackHandler(BaseHTTPRequestHandler):
             </body></html>
             """
         self.wfile.write(html.encode())
-
 
 class CodexOAuth:
     """Handle OAuth PKCE flow for Codex authentication."""

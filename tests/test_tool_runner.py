@@ -1,6 +1,5 @@
-# pyright: reportPrivateUsage=false
-"""Tests for tool_runner module."""
 
+# pyright: reportPrivateUsage=false
 from __future__ import annotations
 
 import asyncio
@@ -12,7 +11,16 @@ from typing import Any
 
 import pytest
 
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import (
+    SessionIdUIExtra,
+    TaskMetadata,
+    TodoItem,
+    TodoListUIExtra,
+    TodoUIExtra,
+    ToolSideEffect,
+    Usage,
+)
 from klaude_code.tool.context import TodoContext, ToolContext
 from klaude_code.tool.shell.bash_tool import BashTool
 from klaude_code.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata
@@ -32,11 +40,9 @@ def _tool_context() -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
     return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path("/tmp"))
 
-
 def arun(coro: Any) -> Any:
     """Helper to run async coroutines."""
     return asyncio.run(coro)
-
 
 class MockSuccessTool(ToolABC):
     """Mock tool that succeeds."""
@@ -56,7 +62,6 @@ class MockSuccessTool(ToolABC):
         del context
         return message.ToolResultMessage(status="success", output_text="Success!")
 
-
 class MockErrorTool(ToolABC):
     """Mock tool that raises an exception."""
 
@@ -75,7 +80,6 @@ class MockErrorTool(ToolABC):
         del context
         raise ValueError("Something went wrong")
 
-
 class MockTodoChangeTool(ToolABC):
     """Mock tool that triggers todo change side effect."""
 
@@ -92,15 +96,14 @@ class MockTodoChangeTool(ToolABC):
     async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         del arguments
         del context
-        todos = [model.TodoItem(content="Test todo", status="pending")]
-        ui_extra = model.TodoListUIExtra(todo_list=model.TodoUIExtra(todos=todos, new_completed=[]))
+        todos = [TodoItem(content="Test todo", status="pending")]
+        ui_extra = TodoListUIExtra(todo_list=TodoUIExtra(todos=todos, new_completed=[]))
         return message.ToolResultMessage(
             status="success",
             output_text="Todo updated",
             ui_extra=ui_extra,
-            side_effects=[model.ToolSideEffect.TODO_CHANGE],
+            side_effects=[ToolSideEffect.TODO_CHANGE],
         )
-
 
 class MockConcurrentTool(ToolABC):
     """Mock tool marked as concurrent."""
@@ -124,7 +127,6 @@ class MockConcurrentTool(ToolABC):
         del context
         return message.ToolResultMessage(status="success", output_text="Concurrent!")
 
-
 class MockStreamingTool(ToolABC):
     """Mock tool that emits incremental output."""
 
@@ -145,7 +147,6 @@ class MockStreamingTool(ToolABC):
             await context.emit_tool_output_delta("beta")
         return message.ToolResultMessage(status="success", output_text="alphabeta")
 
-
 class MockSlowStreamingTool(ToolABC):
     """Mock tool that emits one chunk, waits, then returns."""
 
@@ -165,7 +166,6 @@ class MockSlowStreamingTool(ToolABC):
             await context.emit_tool_output_delta("first")
         await asyncio.sleep(0.2)
         return message.ToolResultMessage(status="success", output_text="done")
-
 
 class TestRunTool:
     """Test run_tool function."""
@@ -220,7 +220,6 @@ class TestRunTool:
         assert result.status == "error"
         assert result.output_text is not None and "ValueError" in result.output_text
         assert "Something went wrong" in result.output_text
-
 
 class TestToolExecutor:
     """Test ToolExecutor class."""
@@ -398,7 +397,7 @@ class TestToolExecutor:
 
         assert len(events) == 2
         assert isinstance(events[1], ToolExecutionResult)
-        assert isinstance(events[1].tool_result.ui_extra, model.SessionIdUIExtra)
+        assert isinstance(events[1].tool_result.ui_extra, SessionIdUIExtra)
         assert events[1].tool_result.ui_extra.session_id == "session_abc"
 
     def test_cancel_includes_task_metadata_when_available(self, executor: ToolExecutor):
@@ -410,9 +409,9 @@ class TestToolExecutor:
             arguments_json="{}",
         )
         executor._unfinished_calls["test_123"] = tool_call
-        executor._sub_agent_metadata_getters["test_123"] = lambda: model.TaskMetadata(
+        executor._sub_agent_metadata_getters["test_123"] = lambda: TaskMetadata(
             model_name="test-model",
-            usage=model.Usage(input_tokens=100, output_tokens=50),
+            usage=Usage(input_tokens=100, output_tokens=50),
             description="Test sub-agent",
         )
 
@@ -447,7 +446,6 @@ class TestToolExecutor:
         """Test cancel with no unfinished calls."""
         events = list(executor.on_interrupt())
         assert events == []
-
 
 class TestToolExecutorPartition:
     """Test ToolExecutor._partition_tool_calls static method."""
@@ -529,7 +527,6 @@ class TestToolExecutorPartition:
         assert sequential[0].tool_name == "Read"
         assert {c.tool_name for c in concurrent} == {"WebSearch", "WebFetch", "Agent"}
 
-
 class TestToolExecutorEvents:
     """Test ToolExecutor event dataclasses."""
 
@@ -551,13 +548,12 @@ class TestToolExecutorEvents:
     def test_tool_execution_todo_change(self):
         """Test ToolExecutionTodoChange dataclass."""
         todos = [
-            model.TodoItem(content="Task 1", status="pending"),
-            model.TodoItem(content="Task 2", status="completed"),
+            TodoItem(content="Task 1", status="pending"),
+            TodoItem(content="Task 2", status="completed"),
         ]
         event = ToolExecutionTodoChange(todos=todos)
         assert len(event.todos) == 2
         assert event.todos[0].content == "Task 1"
-
 
 class TestBuildToolSideEffectEvents:
     """Test ToolExecutor._build_tool_side_effect_events method."""
@@ -578,13 +574,13 @@ class TestBuildToolSideEffectEvents:
 
     def test_todo_change_side_effect(self, executor: ToolExecutor):
         """Test todo change side effect generates event."""
-        todos = [model.TodoItem(content="Task", status="pending")]
-        ui_extra = model.TodoListUIExtra(todo_list=model.TodoUIExtra(todos=todos, new_completed=[]))
+        todos = [TodoItem(content="Task", status="pending")]
+        ui_extra = TodoListUIExtra(todo_list=TodoUIExtra(todos=todos, new_completed=[]))
         result = message.ToolResultMessage(
             status="success",
             output_text="Done",
             ui_extra=ui_extra,
-            side_effects=[model.ToolSideEffect.TODO_CHANGE],
+            side_effects=[ToolSideEffect.TODO_CHANGE],
         )
         events = executor._build_tool_side_effect_events(result)
 
@@ -597,11 +593,10 @@ class TestBuildToolSideEffectEvents:
         result = message.ToolResultMessage(
             status="success",
             output_text="Done",
-            side_effects=[model.ToolSideEffect.TODO_CHANGE],
+            side_effects=[ToolSideEffect.TODO_CHANGE],
         )
         events = executor._build_tool_side_effect_events(result)
         assert events == []
-
 
 class TestBashToolCancellation:
     def test_bash_tool_propagates_cancelled_error(self) -> None:
@@ -617,7 +612,6 @@ class TestBashToolCancellation:
                 await task
 
         arun(_run())
-
 
 class TestBashToolStreaming:
     def test_bash_tool_sets_python_unbuffered(self) -> None:

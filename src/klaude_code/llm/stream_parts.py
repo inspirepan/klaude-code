@@ -18,7 +18,6 @@ def append_text_part(parts: MutableSequence[message.Part], text: str) -> int | N
     parts.append(message.TextPart(text=text))
     return len(parts) - 1
 
-
 def append_thinking_text_part(
     parts: MutableSequence[message.Part],
     text: str,
@@ -55,7 +54,6 @@ def append_thinking_text_part(
     )
     return len(parts) - 1
 
-
 def degrade_thinking_to_text(parts: list[message.Part]) -> list[message.Part]:
     """Degrade thinking parts into a regular TextPart.
 
@@ -87,7 +85,6 @@ def degrade_thinking_to_text(parts: list[message.Part]) -> list[message.Part]:
 
     return [message.TextPart(text=thinking_block), *non_thinking_parts]
 
-
 def build_partial_parts(parts: list[message.Part]) -> list[message.Part]:
     """Build parts for error/interrupt recovery, keeping only plain text content."""
     return [
@@ -95,7 +92,6 @@ def build_partial_parts(parts: list[message.Part]) -> list[message.Part]:
         for p in parts
         if not isinstance(p, (message.ToolCallPart, message.ThinkingTextPart, message.ThinkingSignaturePart))
     ]
-
 
 def build_partial_message(
     parts: list[message.Part],

@@ -12,7 +12,8 @@ from klaude_code.const import (
     DEFAULT_MAX_TOKENS,
 )
 from klaude_code.llm import LLMClientABC
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import DiffUIExtra, MarkdownDocUIExtra, MultiUIExtra
 from klaude_code.session.session import Session
 
 from .prompts import (
@@ -28,19 +29,16 @@ _MAX_TOOL_CALL_CHARS = 2000
 _DEFAULT_IMAGE_TOKENS = 1200
 _SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>", re.DOTALL)
 
-
 class CompactionReason(str, Enum):
     THRESHOLD = "threshold"
     OVERFLOW = "overflow"
     MANUAL = "manual"
-
 
 @dataclass(frozen=True)
 class CompactionConfig:
     reserve_tokens: int
     keep_recent_tokens: int
     max_summary_tokens: int
-
 
 @dataclass(frozen=True)
 class CompactionResult:
@@ -60,7 +58,6 @@ class CompactionResult:
             kept_items_brief=self.kept_items_brief,
         )
 
-
 def _resolve_compaction_config(llm_config: llm_param.LLMConfigParameter) -> CompactionConfig:
     default_reserve = 16384
     default_keep = 20000
@@ -76,7 +73,6 @@ def _resolve_compaction_config(llm_config: llm_param.LLMConfigParameter) -> Comp
             keep_recent = min(keep_recent, max_keep)
     max_summary = max(1024, int(reserve * 0.8))
     return CompactionConfig(reserve_tokens=reserve, keep_recent_tokens=keep_recent, max_summary_tokens=max_summary)
-
 
 def should_compact_threshold(
     *,
@@ -109,7 +105,6 @@ def should_compact_threshold(
         tokens_before += _estimate_tokens_after_last_successful_usage(session)
     return tokens_before >= effective_context_limit - compaction_config.reserve_tokens
 
-
 def _has_compaction_after_last_successful_usage(session: Session) -> bool:
     """Return True if the newest compaction entry is newer than the last usable assistant usage.
 
@@ -133,14 +128,12 @@ def _has_compaction_after_last_successful_usage(session: Session) -> bool:
 
     return last_compaction_idx > last_usage_idx
 
-
 def _estimate_tokens_after_last_successful_usage(session: Session) -> int:
     history = session.conversation_history
     last_usage_idx = _last_successful_usage_index(history)
     if last_usage_idx is None:
         return 0
     return sum(_estimate_tokens(item) for item in history[last_usage_idx + 1 :] if isinstance(item, message.Message))
-
 
 def _last_successful_usage_index(history: list[message.HistoryEvent]) -> int | None:
     for idx in range(len(history) - 1, -1, -1):
@@ -153,7 +146,6 @@ def _last_successful_usage_index(history: list[message.HistoryEvent]) -> int | N
             continue
         return idx
     return None
-
 
 async def run_compaction(
     *,
@@ -228,7 +220,6 @@ async def run_compaction(
         kept_items_brief=kept_items_brief,
     )
 
-
 def collect_kept_items_brief(history: list[message.HistoryEvent], cut_index: int) -> list[message.KeptItemBrief]:
     """Extract brief info about kept (non-compacted) messages."""
     items: list[message.KeptItemBrief] = []
@@ -268,7 +259,6 @@ def collect_kept_items_brief(history: list[message.HistoryEvent], cut_index: int
     _flush_tool_counts()
     return items
 
-
 def _normalize_tool_name(tool_name: str) -> str:
     """Return tool name as-is (no normalization).
 
@@ -277,7 +267,6 @@ def _normalize_tool_name(tool_name: str) -> str:
     """
 
     return tool_name.strip()
-
 
 def _call_args_probably_modify_file(args: dict[str, object]) -> bool:
     """Heuristically detect file modifications from tool call arguments.
@@ -298,7 +287,6 @@ def _call_args_probably_modify_file(args: dict[str, object]) -> bool:
     # Batch edits.
     edits = args.get("edits")
     return isinstance(edits, list)
-
 
 def collect_file_operations(
     *,
@@ -327,7 +315,6 @@ def collect_file_operations(
     modified_files = sorted(modified_set)
     return message.CompactionDetails(read_files=read_files, modified_files=modified_files)
 
-
 def _extract_file_ops_from_tool_calls(
     msg: message.AssistantMessage, read_set: set[str], modified_set: set[str]
 ) -> None:
@@ -352,25 +339,23 @@ def _extract_file_ops_from_tool_calls(
         if _call_args_probably_modify_file(args_dict):
             modified_set.add(path)
 
-
 def _extract_modified_files_from_tool_result(msg: message.ToolResultMessage, modified_set: set[str]) -> None:
     ui_extra = msg.ui_extra
     if ui_extra is None:
         return
     match ui_extra:
-        case model.DiffUIExtra() as diff:
+        case DiffUIExtra() as diff:
             modified_set.update(file.file_path for file in diff.files)
-        case model.MarkdownDocUIExtra() as doc:
+        case MarkdownDocUIExtra() as doc:
             modified_set.add(doc.file_path)
-        case model.MultiUIExtra() as multi:
+        case MultiUIExtra() as multi:
             for item in multi.items:
-                if isinstance(item, model.DiffUIExtra):
+                if isinstance(item, DiffUIExtra):
                     modified_set.update(file.file_path for file in item.files)
-                elif isinstance(item, model.MarkdownDocUIExtra):
+                elif isinstance(item, MarkdownDocUIExtra):
                     modified_set.add(item.file_path)
         case _:
             pass
-
 
 def format_file_operations(read_files: list[str], modified_files: list[str]) -> str:
     sections: list[str] = []
@@ -382,7 +367,6 @@ def format_file_operations(read_files: list[str], modified_files: list[str]) -> 
         return ""
     return "\n\n" + "\n\n".join(sections)
 
-
 def _find_last_compaction(
     history: list[message.HistoryEvent],
 ) -> tuple[int, message.CompactionEntry | None]:
@@ -391,7 +375,6 @@ def _find_last_compaction(
         if isinstance(item, message.CompactionEntry):
             return idx, item
     return -1, None
-
 
 def _find_cut_index(history: list[message.HistoryEvent], start_index: int, keep_recent_tokens: int) -> int:
     tokens = 0
@@ -412,7 +395,6 @@ def _find_cut_index(history: list[message.HistoryEvent], start_index: int, keep_
             cut_index = idx
             break
     return cut_index
-
 
 def _adjust_cut_index(history: list[message.HistoryEvent], cut_index: int, start_index: int) -> int:
     if not history:
@@ -446,7 +428,6 @@ def _adjust_cut_index(history: list[message.HistoryEvent], cut_index: int, start
 
     return cut_index
 
-
 def _find_anchor_index(history: list[message.HistoryEvent], start: int, *, forward: bool) -> int | None:
     indices = range(start, len(history)) if forward else range(start, -1, -1)
     for idx in indices:
@@ -454,7 +435,6 @@ def _find_anchor_index(history: list[message.HistoryEvent], start: int, *, forwa
         if isinstance(item, (message.UserMessage, message.ToolResultMessage)):
             return idx
     return None
-
 
 def _is_split_task(history: list[message.HistoryEvent], start_index: int, cut_index: int) -> bool:
     if cut_index <= start_index:
@@ -464,13 +444,11 @@ def _is_split_task(history: list[message.HistoryEvent], start_index: int, cut_in
     task_start_index = _find_task_start_index(history, start_index, cut_index)
     return task_start_index >= 0
 
-
 def _find_task_start_index(history: list[message.HistoryEvent], start_index: int, cut_index: int) -> int:
     for idx in range(cut_index, start_index - 1, -1):
         if isinstance(history[idx], message.UserMessage):
             return idx
     return -1
-
 
 def collect_messages(history: list[message.HistoryEvent], start_index: int, end_index: int) -> list[message.Message]:
     if end_index < start_index:
@@ -480,7 +458,6 @@ def collect_messages(history: list[message.HistoryEvent], start_index: int, end_
         for item in history[start_index:end_index]
         if isinstance(item, message.Message) and not isinstance(item, message.SystemMessage)
     ]
-
 
 async def _build_summary(
     *,
@@ -521,7 +498,6 @@ async def _build_summary(
         cancel,
     )
 
-
 async def _generate_summary(
     messages_to_summarize: list[message.Message],
     llm_client: LLMClientABC,
@@ -555,7 +531,6 @@ async def _generate_summary(
         cancel=cancel,
     )
 
-
 async def _generate_task_prefix_summary(
     messages: list[message.Message],
     llm_client: LLMClientABC,
@@ -577,7 +552,6 @@ async def _generate_task_prefix_summary(
         cancel=cancel,
     )
 
-
 async def _call_summarizer(
     *,
     input: list[message.Message],
@@ -593,7 +567,6 @@ async def _call_summarizer(
         max_tokens=max_tokens,
         cancel=cancel,
     )
-
 
 async def _call_summarizer_once(
     *,
@@ -631,7 +604,6 @@ async def _call_summarizer_once(
     if not text.strip():
         raise ValueError("Summarizer returned empty output")
     return text.strip()
-
 
 def serialize_conversation(messages: list[message.Message]) -> str:
     parts: list[str] = []
@@ -674,15 +646,12 @@ def serialize_conversation(messages: list[message.Message]) -> str:
                 parts.append(f"[System]: {text}")
     return "\n\n".join(parts)
 
-
 def _strip_system_reminders(text: str) -> str:
     """Remove <system-reminder>...</system-reminder> blocks from text."""
     return _SYSTEM_REMINDER_RE.sub("", text).strip()
 
-
 def _join_text_parts(parts: Sequence[message.Part]) -> str:
     return "".join(part.text for part in parts if isinstance(part, message.TextPart))
-
 
 def _render_images(parts: Sequence[message.Part]) -> str:
     images: list[str] = []
@@ -695,16 +664,13 @@ def _render_images(parts: Sequence[message.Part]) -> str:
         return ""
     return "image: " + ", ".join(images)
 
-
 def _truncate_text(text: str, max_chars: int) -> str:
     if len(text) <= max_chars:
         return text
     return text[:max_chars] + "...(truncated)"
 
-
 def estimate_history_tokens(history: list[message.HistoryEvent]) -> int:
     return sum(_estimate_tokens(item) for item in history if isinstance(item, message.Message))
-
 
 def _estimate_tokens(msg: message.Message) -> int:
     chars = 0
@@ -724,11 +690,9 @@ def _estimate_tokens(msg: message.Message) -> int:
         chars += sum(len(part.text) for part in msg.parts if isinstance(part, message.TextPart))
     return max(1, (chars + 3) // 4)
 
-
 def _count_image_tokens(parts: list[message.Part]) -> int:
     count = sum(1 for part in parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart)))
     return count * _DEFAULT_IMAGE_TOKENS
-
 
 def get_last_context_tokens(session: Session) -> int | None:
     for item in reversed(session.conversation_history):
@@ -744,7 +708,6 @@ def get_last_context_tokens(session: Session) -> int | None:
         return usage.total_tokens
     return None
 
-
 def _get_last_context_limit(session: Session) -> int | None:
     for item in reversed(session.conversation_history):
         if not isinstance(item, message.AssistantMessage):
@@ -754,7 +717,6 @@ def _get_last_context_limit(session: Session) -> int | None:
         if item.usage.context_limit is not None:
             return item.usage.context_limit
     return None
-
 
 def _get_last_max_tokens(session: Session) -> int | None:
     for item in reversed(session.conversation_history):

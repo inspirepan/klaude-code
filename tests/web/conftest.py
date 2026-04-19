@@ -15,7 +15,8 @@ from klaude_code.agent.runtime_llm import LLMClients
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.control.event_bus import EventBus
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import Usage
 from klaude_code.session.session import close_default_store
 from klaude_code.web.app import create_app
 from klaude_code.web.interaction import WebInteractionHandler
@@ -23,10 +24,8 @@ from klaude_code.web.state import WebAppState
 
 T = TypeVar("T")
 
-
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
-
 
 class ScriptedLLMStream(LLMStreamABC):
     def __init__(self, items: list[message.LLMStreamItem], *, delay_s: float = 0.0) -> None:
@@ -64,7 +63,6 @@ class ScriptedLLMStream(LLMStreamABC):
             stop_reason="aborted",
         )
 
-
 class FakeLLMClient(LLMClientABC):
     def __init__(self) -> None:
         super().__init__(
@@ -91,7 +89,6 @@ class FakeLLMClient(LLMClientABC):
         items, delay_s = self._responses.pop(0)
         return ScriptedLLMStream(items, delay_s=delay_s)
 
-
 @dataclass
 class AppEnv:
     client: TestClient
@@ -109,7 +106,6 @@ class AppEnv:
         response = self.client.post("/api/sessions", json=payload)
         assert response.status_code == 200
         return str(response.json()["session_id"])
-
 
 @pytest.fixture
 def app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -180,14 +176,13 @@ def app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     # Explicitly clean up temporary session artifacts produced by each test.
     shutil.rmtree(home_dir / ".klaude", ignore_errors=True)
 
-
 def usage(
     *,
     input_tokens: int = 10,
     output_tokens: int = 5,
     cached_tokens: int = 0,
-) -> model.Usage:
-    return model.Usage(
+) -> Usage:
+    return Usage(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cached_tokens=cached_tokens,
@@ -197,12 +192,10 @@ def usage(
         provider="test",
     )
 
-
 def receive_events(websocket: Any) -> list[dict[str, Any]]:
     """Receive a single WS frame and unwrap batched arrays into individual events."""
     raw: list[dict[str, Any]] | dict[str, Any] = websocket.receive_json()
     return raw if isinstance(raw, list) else [raw]
-
 
 def collect_events_until(websocket: Any, target_type: str, max_events: int = 200) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
@@ -213,14 +206,12 @@ def collect_events_until(websocket: Any, target_type: str, max_events: int = 200
                 return events
     raise AssertionError(f"Did not receive event type: {target_type}")
 
-
 def wait_for_event(websocket: Any, event_type: str, max_events: int = 200) -> dict[str, Any]:
     for _ in range(max_events):
         for event in receive_events(websocket):
             if event.get("event_type") == event_type:
                 return event
     raise AssertionError(f"Did not receive event type: {event_type}")
-
 
 def consume_ws_handshake(websocket: Any) -> dict[str, Any]:
     """Read the connection_info frame and usage snapshot. Return the usage snapshot."""
@@ -229,7 +220,6 @@ def consume_ws_handshake(websocket: Any) -> dict[str, Any]:
     usage_snapshot = websocket.receive_json()
     assert usage_snapshot["event_type"] == "usage.snapshot"
     return usage_snapshot
-
 
 def extract_text(events: list[dict[str, Any]]) -> str:
     return "".join(

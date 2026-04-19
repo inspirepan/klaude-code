@@ -5,16 +5,15 @@ from rich.style import Style
 from rich.text import Text
 
 from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
-from klaude_code.protocol import model
+from klaude_code.protocol.models import SubAgentState
 from klaude_code.tui.components.common import format_more_lines_indicator, format_pascal_case
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 _SUB_AGENT_PROMPT_MAX_LINES = 20
 
-
 def render_sub_agent_call(
-    e: model.SubAgentState,
+    e: SubAgentState,
     style: Style | None = None,
     *,
     code_theme: str = "monokai",
@@ -50,7 +49,6 @@ def render_sub_agent_call(
 
     elements.append(Text())
     return Group(*elements)
-
 
 def render_sub_agent_result(
     result: str,

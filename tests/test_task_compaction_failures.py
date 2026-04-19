@@ -12,7 +12,8 @@ import klaude_code.agent.task as task_module
 from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.agent.turn import TurnError
-from klaude_code.protocol import events, message, model
+from klaude_code.protocol import events, message
+from klaude_code.protocol.models import SubAgentState
 from klaude_code.session.session import Session, close_default_store
 from klaude_code.tool.context import build_todo_context
 
@@ -20,21 +21,17 @@ from klaude_code.tool.context import build_todo_context
 def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
 
-
 def _always_compact(**_: Any) -> bool:
     return True
 
-
 def _never_compact(**_: Any) -> bool:
     return False
-
 
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
 
-
-def _build_executor(session: Session, *, sub_agent_state: model.SubAgentState | None = None) -> TaskExecutor:
+def _build_executor(session: Session, *, sub_agent_state: SubAgentState | None = None) -> TaskExecutor:
     llm_config = SimpleNamespace(model_id="test-model")
     llm_client = SimpleNamespace(model_name="test-model", get_llm_config=lambda: llm_config)
 
@@ -59,7 +56,6 @@ def _build_executor(session: Session, *, sub_agent_state: model.SubAgentState | 
             sub_agent_state=sub_agent_state,
         )
     )
-
 
 def test_threshold_compaction_failure_emits_error_once_per_task(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -112,7 +108,6 @@ def test_threshold_compaction_failure_emits_error_once_per_task(
 
     arun(_test())
 
-
 def test_threshold_nothing_to_compact_keeps_future_threshold_checks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -160,7 +155,6 @@ def test_threshold_nothing_to_compact_keeps_future_threshold_checks(
         await close_default_store()
 
     arun(_test())
-
 
 def test_overflow_compaction_failure_stops_without_turn_retries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -216,7 +210,6 @@ def test_overflow_compaction_failure_stops_without_turn_retries(
 
     arun(_test())
 
-
 def test_overflow_compaction_failure_raises_for_sub_agents(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()
@@ -254,7 +247,7 @@ def test_overflow_compaction_failure_raises_for_sub_agents(tmp_path: Path, monke
 
         executor = _build_executor(
             session,
-            sub_agent_state=model.SubAgentState(
+            sub_agent_state=SubAgentState(
                 sub_agent_type="general-purpose",
                 sub_agent_desc="sub task",
                 sub_agent_prompt="hello",

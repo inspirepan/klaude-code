@@ -8,14 +8,13 @@ from typing import Any, TypeVar, cast
 
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
-from klaude_code.protocol import events, model, user_interaction
+from klaude_code.protocol import events, user_interaction
+from klaude_code.protocol.models import SessionRuntimeState
 
 T = TypeVar("T")
 
-
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
-
 
 def _pending_request(request_id: str, session_id: str) -> PendingUserInteractionRequest:
     return PendingUserInteractionRequest(
@@ -37,7 +36,6 @@ def _pending_request(request_id: str, session_id: str) -> PendingUserInteraction
             ]
         ),
     )
-
 
 def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -> None:
     class _StubSessionRegistry:
@@ -108,14 +106,13 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
 
     arun(_test())
 
-
 def test_runtime_stop_persists_running_sessions_as_idle(monkeypatch: Any, tmp_path: Path) -> None:
-    persisted: list[tuple[str, model.SessionRuntimeState, Path]] = []
+    persisted: list[tuple[str, SessionRuntimeState, Path]] = []
 
     class _StubSession:
         def __init__(self, work_dir: Path) -> None:
             self.work_dir = work_dir
-            self.session_state = model.SessionRuntimeState.RUNNING
+            self.session_state = SessionRuntimeState.RUNNING
             self.flushed = False
 
         async def wait_for_flush(self) -> None:
@@ -172,7 +169,7 @@ def test_runtime_stop_persists_running_sessions_as_idle(monkeypatch: Any, tmp_pa
         async def stop(self) -> None:
             self.stopped = True
 
-    def _persist_runtime_state(session_id: str, session_state: model.SessionRuntimeState, work_dir: Path) -> None:
+    def _persist_runtime_state(session_id: str, session_state: SessionRuntimeState, work_dir: Path) -> None:
         persisted.append((session_id, session_state, work_dir))
 
     monkeypatch.setattr(
@@ -196,8 +193,8 @@ def test_runtime_stop_persists_running_sessions_as_idle(monkeypatch: Any, tmp_pa
 
         assert task.cancelled() is True
         assert session.flushed is True
-        assert session.session_state == model.SessionRuntimeState.IDLE
-        assert persisted == [("s1", model.SessionRuntimeState.IDLE, tmp_path)]
+        assert session.session_state == SessionRuntimeState.IDLE
+        assert persisted == [("s1", SessionRuntimeState.IDLE, tmp_path)]
         assert runtime_any.session_registry.stopped is True
         assert runtime_any._operation_awaiter.stopped is True
         assert runtime_any._operation_dispatcher.cleared is True

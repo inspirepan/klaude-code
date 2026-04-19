@@ -16,7 +16,6 @@ from klaude_code.protocol import llm_param, message
 def _dummy_history() -> list[message.Message]:
     return [message.UserMessage(parts=[message.TextPart(text="hi")])]
 
-
 def _dummy_tools() -> list[llm_param.ToolSchema]:
     return [
         llm_param.ToolSchema(
@@ -35,7 +34,6 @@ def _dummy_tools() -> list[llm_param.ToolSchema]:
         )
     ]
 
-
 class _FakeAnthropicStream:
     def __init__(self, events: list[object]) -> None:
         self._events = events
@@ -53,7 +51,6 @@ class _FakeAnthropicStream:
         for event in self._events:
             yield event
 
-
 def test_build_payload_omits_interleaved_beta_for_adaptive_sonnet_46() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
@@ -65,7 +62,6 @@ def test_build_payload_omits_interleaved_beta_for_adaptive_sonnet_46() -> None:
 
     # Adaptive thinking has interleaved-thinking built in; no beta header needed
     assert ANTHROPIC_BETA_INTERLEAVED_THINKING not in payload.get("betas", [])
-
 
 def test_build_payload_adds_context_management_beta_when_thinking_enabled() -> None:
     param = llm_param.LLMCallParameter(
@@ -81,7 +77,6 @@ def test_build_payload_adds_context_management_beta_when_thinking_enabled() -> N
         "edits": [{"type": "clear_thinking_20251015", "keep": "all"}],
     }
 
-
 def test_build_payload_skips_context_management_without_thinking() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
@@ -92,7 +87,6 @@ def test_build_payload_skips_context_management_without_thinking() -> None:
 
     assert "context_management" not in payload
     assert ANTHROPIC_BETA_CONTEXT_MANAGEMENT not in payload.get("betas", [])
-
 
 def test_build_payload_omits_temperature_for_opus_47() -> None:
     param = llm_param.LLMCallParameter(
@@ -105,7 +99,6 @@ def test_build_payload_omits_temperature_for_opus_47() -> None:
 
     assert "temperature" not in payload
 
-
 def test_build_payload_includes_temperature_for_opus_46() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
@@ -116,7 +109,6 @@ def test_build_payload_includes_temperature_for_opus_46() -> None:
     payload = build_payload(param)
 
     assert "temperature" in payload
-
 
 def test_build_payload_sets_thinking_display_summarized_for_opus_47() -> None:
     param = llm_param.LLMCallParameter(
@@ -132,7 +124,6 @@ def test_build_payload_sets_thinking_display_summarized_for_opus_47() -> None:
     assert thinking["type"] == "adaptive"  # type: ignore[index]
     assert thinking["display"] == "summarized"  # type: ignore[index]
 
-
 def test_build_payload_no_thinking_display_for_opus_46() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
@@ -146,7 +137,6 @@ def test_build_payload_no_thinking_display_for_opus_46() -> None:
     assert thinking is not None
     assert "display" not in thinking  # type: ignore[operator]
 
-
 def test_build_payload_includes_interleaved_beta_when_needed() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
@@ -157,7 +147,6 @@ def test_build_payload_includes_interleaved_beta_when_needed() -> None:
     payload = build_payload(param)
 
     assert ANTHROPIC_BETA_INTERLEAVED_THINKING in payload.get("betas", [])
-
 
 def test_build_payload_enables_eager_input_streaming_for_claude_tools() -> None:
     param = llm_param.LLMCallParameter(
@@ -171,7 +160,6 @@ def test_build_payload_enables_eager_input_streaming_for_claude_tools() -> None:
     tools = list(payload.get("tools", []))
     assert tools[0]["eager_input_streaming"] is True  # type: ignore[typeddict-item]
 
-
 def test_build_payload_does_not_enable_eager_input_streaming_for_opus_47() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
@@ -184,7 +172,6 @@ def test_build_payload_does_not_enable_eager_input_streaming_for_opus_47() -> No
     tools = list(payload.get("tools", []))
     assert "eager_input_streaming" not in tools[0]
 
-
 def test_build_payload_does_not_enable_eager_input_streaming_for_non_claude_models() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
@@ -196,7 +183,6 @@ def test_build_payload_does_not_enable_eager_input_streaming_for_non_claude_mode
 
     tools = list(payload.get("tools", []))
     assert "eager_input_streaming" not in tools[0]
-
 
 def test_parse_anthropic_stream_reads_stop_reason_from_nested_delta() -> None:
     param = llm_param.LLMCallParameter(

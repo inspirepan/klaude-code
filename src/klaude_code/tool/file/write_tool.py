@@ -8,7 +8,8 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from klaude_code.const import EDIT_MAX_FILE_SIZE
-from klaude_code.protocol import llm_param, message, model, tools
+from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models import FileStatus, MarkdownDocUIExtra, ToolResultUIExtra
 from klaude_code.tool.context import ToolContext
 from klaude_code.tool.file._utils import (
     detect_encoding,
@@ -26,7 +27,6 @@ from klaude_code.tool.tool_registry import register
 class WriteArguments(BaseModel):
     file_path: str
     content: str
-
 
 @register(tools.WRITE)
 class WriteTool(ToolABC):
@@ -70,7 +70,7 @@ class WriteTool(ToolABC):
 
         file_tracker = context.file_tracker
         exists = file_exists(file_path)
-        tracked_status: model.FileStatus | None = None
+        tracked_status: FileStatus | None = None
 
         if exists:
             # OOM guard: reject files larger than EDIT_MAX_FILE_SIZE
@@ -142,7 +142,7 @@ class WriteTool(ToolABC):
             is_mem = existing.is_memory if existing else False
             is_skill = existing.is_skill if existing else False
             is_dir = existing.is_directory if existing else False
-            file_tracker[file_path] = model.FileStatus(
+            file_tracker[file_path] = FileStatus(
                 mtime=Path(file_path).stat().st_mtime,
                 content_sha256=hash_text_sha256(args.content),
                 cached_content=args.content,
@@ -166,9 +166,9 @@ class WriteTool(ToolABC):
 
         # For markdown files, use MarkdownDocUIExtra to render content as markdown
         # Otherwise, build diff between previous and new content
-        ui_extra: model.ToolResultUIExtra | None
+        ui_extra: ToolResultUIExtra | None
         if file_path.endswith(".md") and not exists:
-            ui_extra = model.MarkdownDocUIExtra(file_path=file_path, content=args.content)
+            ui_extra = MarkdownDocUIExtra(file_path=file_path, content=args.content)
         else:
             ui_extra = build_structured_diff(before, args.content, file_path=file_path)
 

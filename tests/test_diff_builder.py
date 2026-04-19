@@ -1,11 +1,11 @@
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from klaude_code.protocol import model
+from klaude_code.protocol.models import DiffUIExtra
 from klaude_code.tool.file.diff_builder import build_structured_diff
 
 
-def _find_spans(diff: model.DiffUIExtra, kind: str, op: str) -> list[str]:
+def _find_spans(diff: DiffUIExtra, kind: str, op: str) -> list[str]:
     spans: list[str] = []
     for line in diff.files[0].lines:
         if line.kind != kind:
@@ -14,7 +14,6 @@ def _find_spans(diff: model.DiffUIExtra, kind: str, op: str) -> list[str]:
             if span.op == op:
                 spans.append(span.text)
     return spans
-
 
 def test_char_level_spans_for_replacement():
     before = "hello world\n"
@@ -31,7 +30,6 @@ def test_char_level_spans_for_replacement():
     assert diff.raw_unified_diff.startswith("--- greeting.txt\n+++ greeting.txt")
     assert "@@" in diff.raw_unified_diff
 
-
 def test_replace_blocks_are_grouped_remove_then_add() -> None:
     before = "a\nb\nc\n"
     after = "x\ny\nz\n"
@@ -42,11 +40,9 @@ def test_replace_blocks_are_grouped_remove_then_add() -> None:
     assert kinds == ["remove", "remove", "remove", "add", "add", "add"]
     assert [line.new_line_no for line in diff.files[0].lines if line.kind == "add"] == [1, 2, 3]
 
-
 # ============================================================================
 # Property-based tests for diff_builder
 # ============================================================================
-
 
 @given(
     before=st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=500),
@@ -62,7 +58,6 @@ def test_diff_builder_stats_match_lines(before: str, after: str) -> None:
 
     assert diff.files[0].stats_add == actual_add
     assert diff.files[0].stats_remove == actual_remove
-
 
 @given(
     text=st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=500),

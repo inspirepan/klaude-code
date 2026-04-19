@@ -28,7 +28,6 @@ def list_models(
 
     display_models_and_providers(config, show_all=show_all)
 
-
 def edit_config() -> None:
     """Edit config file"""
     from klaude_code.config import config_path, create_example_config, example_config_path
@@ -80,7 +79,6 @@ def edit_config() -> None:
         log((f"Error: Editor '{editor}' not found", "red"))
         log("Please install a text editor or set your $EDITOR environment variable")
         raise typer.Exit(1) from None
-
 
 def register_config_commands(app: typer.Typer) -> None:
     """Register config commands to the given Typer app."""

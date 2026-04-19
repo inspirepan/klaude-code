@@ -15,7 +15,6 @@ import yaml
 if TYPE_CHECKING:
     from klaude_code.config.config import Config
 
-
 @dataclass(frozen=True)
 class ApiKeyInfo:
     """Information about a supported API key."""
@@ -23,7 +22,6 @@ class ApiKeyInfo:
     env_var: str
     name: str
     description: str
-
 
 # All supported API keys with their metadata
 SUPPORTED_API_KEYS: tuple[ApiKeyInfo, ...] = (
@@ -41,7 +39,6 @@ SUPPORTED_API_KEYS: tuple[ApiKeyInfo, ...] = (
     ApiKeyInfo("EXA_API_KEY", "Exa Search", "Exa Search API key (for WebSearch tool)"),
 )
 
-
 @lru_cache(maxsize=1)
 def _load_builtin_yaml() -> dict[str, Any]:
     """Load the built-in config YAML asset."""
@@ -49,7 +46,6 @@ def _load_builtin_yaml() -> dict[str, Any]:
     yaml_content = (assets / "builtin_config.yaml").read_text()
     data: dict[str, Any] = yaml.safe_load(yaml_content)
     return data
-
 
 def get_builtin_config() -> "Config":
     """Load built-in configuration from YAML asset."""

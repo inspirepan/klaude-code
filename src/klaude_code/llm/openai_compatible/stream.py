@@ -1,3 +1,4 @@
+
 """Shared stream processing utilities for Chat Completions streaming.
 
 This module provides reusable primitives for OpenAI-compatible providers:
@@ -34,7 +35,8 @@ from klaude_code.llm.stream_parts import (
 )
 from klaude_code.llm.usage import MetadataTracker, convert_usage
 from klaude_code.log import log_debug
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import StopReason
 
 
 def normalize_tool_name(name: str) -> str:
@@ -49,7 +51,6 @@ def normalize_tool_name(name: str) -> str:
         log_debug(f"Gemini-3 tool name normalized: {name} -> {normalized}")
         return normalized
     return name
-
 
 class StreamStateManager:
     """Manages streaming state and accumulates parts in stream order.
@@ -68,7 +69,7 @@ class StreamStateManager:
         self.assistant_parts: list[message.Part] = []
         self._tool_part_index_by_tc_index: dict[int, int] = {}
         self._emitted_tool_start_indices: set[int] = set()
-        self.stop_reason: model.StopReason | None = None
+        self.stop_reason: StopReason | None = None
 
     def set_response_id(self, response_id: str) -> None:
         """Set the response ID once received from the stream."""
@@ -145,7 +146,6 @@ class StreamStateManager:
         """
         return build_partial_message(self.assistant_parts, response_id=self.response_id)
 
-
 @dataclass(slots=True)
 class ReasoningDeltaResult:
     """Result of processing a single provider delta for reasoning signals."""
@@ -158,7 +158,6 @@ class ReasoningDeltaResult:
     reasoning_format: str | None = None  # e.g. "MiniMax-response-v1"
     reasoning_id: str | None = None
 
-
 class ReasoningDetail(pydantic.BaseModel):
     """Structured reasoning detail used by OpenRouter and MiniMax (reasoning_details array)."""
 
@@ -170,7 +169,6 @@ class ReasoningDetail(pydantic.BaseModel):
     summary: str | None = None
     text: str | None = None
     signature: str | None = None  # Claude's signature
-
 
 class ReasoningHandlerABC(ABC):
     """Provider-specific reasoning handler for Chat Completions streaming."""
@@ -187,9 +185,7 @@ class ReasoningHandlerABC(ABC):
     def flush(self) -> list[message.Part]:
         """Flush buffered reasoning content (usually at stage transition/finalize)."""
 
-
 REASONING_FIELDS = ("reasoning_content", "reasoning", "reasoning_text")
-
 
 class DefaultReasoningHandler(ReasoningHandlerABC):
     """Handles OpenAI-compatible reasoning fields.
@@ -282,9 +278,8 @@ class DefaultReasoningHandler(ReasoningHandlerABC):
     def flush(self) -> list[message.Part]:
         return []
 
-
-def _map_finish_reason(reason: str) -> model.StopReason | None:
-    mapping: dict[str, model.StopReason] = {
+def _map_finish_reason(reason: str) -> StopReason | None:
+    mapping: dict[str, StopReason] = {
         "stop": "stop",
         "length": "length",
         "tool_calls": "tool_use",
@@ -293,7 +288,6 @@ def _map_finish_reason(reason: str) -> model.StopReason | None:
         "cancelled": "aborted",
     }
     return mapping.get(reason)
-
 
 async def parse_chat_completions_stream(
     stream: AsyncStream[ChatCompletionChunk],
@@ -420,7 +414,6 @@ async def parse_chat_completions_stream(
         usage=metadata,
         stop_reason=state.stop_reason,
     )
-
 
 class OpenAILLMStream(LLMStreamABC):
     """LLMStream implementation for OpenAI-compatible clients."""

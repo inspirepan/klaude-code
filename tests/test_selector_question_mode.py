@@ -36,7 +36,6 @@ def test_select_question_returns_none_without_tty(monkeypatch: MonkeyPatch) -> N
     )
     assert result is None
 
-
 def test_select_questions_returns_none_without_tty(monkeypatch: MonkeyPatch) -> None:
     class _NoTTY:
         def isatty(self) -> bool:
@@ -60,7 +59,6 @@ def test_select_questions_returns_none_without_tty(monkeypatch: MonkeyPatch) -> 
     )
     assert result is None
 
-
 def test_normalize_question_selection_single_select_other_overrides_previous_choice() -> None:
     question = QuestionPrompt(
         header="Role",
@@ -77,7 +75,6 @@ def test_normalize_question_selection_single_select_other_overrides_previous_cho
 
     assert result == ["__other__"]
 
-
 def test_normalize_question_selection_multi_select_appends_other() -> None:
     question = QuestionPrompt(
         header="Focus",
@@ -93,7 +90,6 @@ def test_normalize_question_selection_multi_select_appends_other() -> None:
     result = _normalize_question_selection(question, ["a"], "custom")
 
     assert result == ["a", "__other__"]
-
 
 def test_has_unconfirmed_edits_is_false_before_first_confirmation() -> None:
     question = QuestionPrompt(
@@ -112,7 +108,6 @@ def test_has_unconfirmed_edits_is_false_before_first_confirmation() -> None:
 
     assert _has_unconfirmed_edits(question, confirmed, draft, is_answered=False) is False
 
-
 def test_has_unconfirmed_edits_is_true_after_confirmed_answer_changes() -> None:
     question = QuestionPrompt(
         header="Role",
@@ -130,7 +125,6 @@ def test_has_unconfirmed_edits_is_true_after_confirmed_answer_changes() -> None:
 
     assert _has_unconfirmed_edits(question, confirmed, draft, is_answered=True) is True
 
-
 def test_has_unconfirmed_edits_is_false_for_equivalent_other_with_whitespace() -> None:
     question = QuestionPrompt(
         header="Role",
@@ -147,7 +141,6 @@ def test_has_unconfirmed_edits_is_false_for_equivalent_other_with_whitespace() -
     draft: QuestionSelectResult[str] = QuestionSelectResult(selected_values=["a"], input_text="custom   ")
 
     assert _has_unconfirmed_edits(question, confirmed, draft, is_answered=True) is False
-
 
 def test_preview_question_does_not_imply_selection_from_focus() -> None:
     question = QuestionPrompt(
@@ -170,7 +163,6 @@ def test_preview_question_does_not_imply_selection_from_focus() -> None:
         )
         is False
     )
-
 
 def test_regular_single_select_still_implies_selection_from_focus() -> None:
     question = QuestionPrompt(

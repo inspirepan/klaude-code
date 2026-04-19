@@ -10,10 +10,8 @@ from klaude_code.protocol import events
 
 T = TypeVar("T")
 
-
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
-
 
 def test_operation_completion_awaiter_resolves_on_operation_finished() -> None:
     async def _test() -> None:
@@ -38,7 +36,6 @@ def test_operation_completion_awaiter_resolves_on_operation_finished() -> None:
         await awaiter.stop()
 
     arun(_test())
-
 
 def test_operation_completion_awaiter_resolves_on_operation_rejected() -> None:
     async def _test() -> None:

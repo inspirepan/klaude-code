@@ -11,14 +11,23 @@ from typing import Any, cast
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
 from klaude_code.const import ProjectPaths, project_key_from_path
-from klaude_code.protocol import events, llm_param, message, model
+from klaude_code.protocol import events, llm_param, message
+from klaude_code.protocol.models import (
+    FileChangeSummary,
+    FileStatus,
+    SessionIdUIExtra,
+    SessionOwner,
+    SessionRuntimeState,
+    SubAgentState,
+    TaskMetadataItem,
+    TodoItem,
+)
 from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
 
 _DEFAULT_STORES: dict[str, JsonlSessionStore] = {}
 
 _CHECKPOINT_RE = re.compile(r"<system-reminder>Checkpoint (\d+)</system-reminder>")
 _XML_TAG_RE_CACHE: dict[str, re.Pattern[str]] = {}
-
 
 def _extract_xml_tag(text: str, tag: str) -> str:
     """Extract content between <tag>...</tag>."""
@@ -29,13 +38,11 @@ def _extract_xml_tag(text: str, tag: str) -> str:
     match = pat.search(text)
     return match.group(1) if match else ""
 
-
 def _extract_checkpoint_id(text: str) -> int | None:
     match = _CHECKPOINT_RE.search(text)
     if match is None:
         return None
     return int(match.group(1))
-
 
 def _read_json_dict(path: Path) -> dict[str, Any] | None:
     try:
@@ -45,7 +52,6 @@ def _read_json_dict(path: Path) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
     return cast(dict[str, Any], raw)
-
 
 def _find_checkpoint_index_in_history(history: Sequence[message.HistoryEvent], checkpoint_id: int) -> int | None:
     target_text = f"<system-reminder>Checkpoint {checkpoint_id}</system-reminder>"
@@ -57,7 +63,6 @@ def _find_checkpoint_index_in_history(history: Sequence[message.HistoryEvent], c
             return i
     return None
 
-
 def _apply_rewind_entry_to_history(
     history: list[message.HistoryEvent],
     entry: message.RewindEntry,
@@ -66,7 +71,6 @@ def _apply_rewind_entry_to_history(
     if target_idx is None:
         return [*history, entry]
     return [*history[: target_idx + 1], entry]
-
 
 def _rebuild_loaded_history(raw_history: Iterable[message.HistoryEvent]) -> list[message.HistoryEvent]:
     active_history: list[message.HistoryEvent] = []
@@ -90,7 +94,6 @@ def _rebuild_loaded_history(raw_history: Iterable[message.HistoryEvent]) -> list
     normalized_compaction = last_compaction.model_copy(update={"first_kept_index": 1})
     return [normalized_compaction, *kept]
 
-
 def get_store_for_path(work_dir: Path) -> JsonlSessionStore:
     """Return a session store for the given work directory."""
     project_key = project_key_from_path(work_dir)
@@ -100,26 +103,24 @@ def get_store_for_path(work_dir: Path) -> JsonlSessionStore:
         _DEFAULT_STORES[project_key] = store
     return store
 
-
 async def close_default_store() -> None:
     stores = list(_DEFAULT_STORES.values())
     _DEFAULT_STORES.clear()
     for store in stores:
         await store.aclose()
 
-
 class Session(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     work_dir: Path
     title: str | None = None
     conversation_history: list[message.HistoryEvent] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    sub_agent_state: model.SubAgentState | None = None
-    file_tracker: dict[str, model.FileStatus] = Field(default_factory=dict)
-    file_change_summary: model.FileChangeSummary = Field(default_factory=model.FileChangeSummary)
-    todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    sub_agent_state: SubAgentState | None = None
+    file_tracker: dict[str, FileStatus] = Field(default_factory=dict)
+    file_change_summary: FileChangeSummary = Field(default_factory=FileChangeSummary)
+    todos: list[TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     model_name: str | None = None
-    session_state: model.SessionRuntimeState | None = None
-    runtime_owner: model.SessionOwner | None = None
+    session_state: SessionRuntimeState | None = None
+    runtime_owner: SessionOwner | None = None
     runtime_owner_heartbeat_at: float | None = None
     archived: bool = False
 
@@ -212,36 +213,36 @@ class Session(BaseModel):
 
         sub_agent_state_raw = raw.get("sub_agent_state")
         sub_agent_state = (
-            model.SubAgentState.model_validate(sub_agent_state_raw) if isinstance(sub_agent_state_raw, dict) else None
+            SubAgentState.model_validate(sub_agent_state_raw) if isinstance(sub_agent_state_raw, dict) else None
         )
 
         file_tracker_raw = raw.get("file_tracker")
-        file_tracker: dict[str, model.FileStatus] = {}
+        file_tracker: dict[str, FileStatus] = {}
         if isinstance(file_tracker_raw, dict):
             for k, v in cast(dict[object, object], file_tracker_raw).items():
                 if isinstance(k, str) and isinstance(v, dict):
                     try:
-                        file_tracker[k] = model.FileStatus.model_validate(v)
+                        file_tracker[k] = FileStatus.model_validate(v)
                     except ValidationError:
                         continue
 
         file_change_summary_raw = raw.get("file_change_summary")
         if isinstance(file_change_summary_raw, dict):
             try:
-                file_change_summary = model.FileChangeSummary.model_validate(file_change_summary_raw)
+                file_change_summary = FileChangeSummary.model_validate(file_change_summary_raw)
             except ValidationError:
-                file_change_summary = model.FileChangeSummary()
+                file_change_summary = FileChangeSummary()
         else:
-            file_change_summary = model.FileChangeSummary()
+            file_change_summary = FileChangeSummary()
 
         todos_raw = raw.get("todos")
-        todos: list[model.TodoItem] = []
+        todos: list[TodoItem] = []
         if isinstance(todos_raw, list):
             for todo_raw in cast(list[object], todos_raw):
                 if not isinstance(todo_raw, dict):
                     continue
                 try:
-                    todos.append(model.TodoItem.model_validate(todo_raw))
+                    todos.append(TodoItem.model_validate(todo_raw))
                 except ValidationError:
                     continue
 
@@ -251,13 +252,13 @@ class Session(BaseModel):
         model_name = raw.get("model_name") if isinstance(raw.get("model_name"), str) else None
         session_state_raw = raw.get("session_state")
         try:
-            session_state = model.SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
+            session_state = SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
         except ValueError:
             session_state = None
         runtime_owner_raw = raw.get("runtime_owner")
         if isinstance(runtime_owner_raw, dict):
             try:
-                runtime_owner = model.SessionOwner.model_validate(runtime_owner_raw)
+                runtime_owner = SessionOwner.model_validate(runtime_owner_raw)
             except ValidationError:
                 runtime_owner = None
         else:
@@ -304,14 +305,14 @@ class Session(BaseModel):
         return session
 
     @classmethod
-    def persist_runtime_state(cls, session_id: str, session_state: model.SessionRuntimeState, work_dir: Path) -> None:
+    def persist_runtime_state(cls, session_id: str, session_state: SessionRuntimeState, work_dir: Path) -> None:
         store = get_store_for_path(work_dir)
         # Runtime state transitions should not affect session recency ordering.
         # Only content writes (append_history) update `updated_at`.
         store.update_meta(session_id, {"session_state": session_state.value})
 
     @classmethod
-    def persist_runtime_owner(cls, session_id: str, runtime_owner: model.SessionOwner | None, work_dir: Path) -> None:
+    def persist_runtime_owner(cls, session_id: str, runtime_owner: SessionOwner | None, work_dir: Path) -> None:
         store = get_store_for_path(work_dir)
         store.update_meta(
             session_id,
@@ -624,7 +625,7 @@ class Session(BaseModel):
 
     def _has_task_completed(self) -> bool:
         """Check whether this session's task has completed (normally or via interruption)."""
-        return any(isinstance(it, model.TaskMetadataItem) for it in self.conversation_history)
+        return any(isinstance(it, TaskMetadataItem) for it in self.conversation_history)
 
     def get_history_item(self, *, emit_finish: bool = True) -> Iterable[events.ReplayEventUnion]:
         seen_sub_agent_sessions: set[str] = set()
@@ -819,7 +820,7 @@ class Session(BaseModel):
                             images=images or None,
                             timestamp=msg_ts,
                         )
-                case model.TaskMetadataItem() as mt:
+                case TaskMetadataItem() as mt:
                     yield events.TaskMetadataEvent(
                         session_id=self.id, metadata=mt, is_partial=mt.is_partial, timestamp=msg_ts
                     )
@@ -901,7 +902,7 @@ class Session(BaseModel):
         self, tool_result: message.ToolResultMessage, seen_sub_agent_sessions: set[str]
     ) -> Iterable[events.ReplayEventUnion]:
         ui_extra = tool_result.ui_extra
-        if not isinstance(ui_extra, model.SessionIdUIExtra):
+        if not isinstance(ui_extra, SessionIdUIExtra):
             return
         yield from self._iter_sub_agent_history_by_id(ui_extra.session_id, seen_sub_agent_sessions)
 
@@ -915,7 +916,7 @@ class Session(BaseModel):
         user_messages: list[str] = []
         messages_count: int = -1
         model_name: str | None = None
-        session_state: model.SessionRuntimeState | None = None
+        session_state: SessionRuntimeState | None = None
         archived: bool = False
 
     @classmethod
@@ -988,7 +989,7 @@ class Session(BaseModel):
             session_state_raw = data.get("session_state")
             try:
                 session_state = (
-                    model.SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
+                    SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
                 )
             except ValueError:
                 session_state = None

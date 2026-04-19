@@ -15,7 +15,6 @@ def _copilot_state_payload() -> dict[str, object]:
         "copilot_base_url": "https://api.individual.githubcopilot.com",
     }
 
-
 def test_load_migrates_legacy_copilot_storage_key(tmp_path: Path) -> None:
     auth_file = tmp_path / "klaude-auth.json"
     auth_file.write_text(json.dumps({"copilot": _copilot_state_payload()}))
@@ -29,7 +28,6 @@ def test_load_migrates_legacy_copilot_storage_key(tmp_path: Path) -> None:
     saved = json.loads(auth_file.read_text())
     assert "github-copilot" in saved
     assert "copilot" not in saved
-
 
 def test_delete_cleans_legacy_and_new_copilot_storage_keys(tmp_path: Path) -> None:
     auth_file = tmp_path / "klaude-auth.json"

@@ -1,6 +1,7 @@
+
 """Tests for todo-related tools."""
 
-from klaude_code.protocol.model import TodoItem
+from klaude_code.protocol.models import TodoItem
 from klaude_code.tool.todo.todo_write_tool import TodoWriteArguments, get_new_completed_todos
 
 
@@ -86,7 +87,6 @@ class TestGetNewCompletedTodos:
         ]
         result = get_new_completed_todos(old_todos, new_todos)
         assert result == []
-
 
 class TestTodoWriteArguments:
     """Test TodoWriteArguments validation."""

@@ -15,7 +15,6 @@ def load_desc(path: Path, substitutions: dict[str, str] | None = None) -> str:
         description = string.Template(description).substitute(substitutions)
     return description
 
-
 class ToolABC(ABC):
     @classmethod
     def metadata(cls) -> "ToolMetadata":
@@ -31,11 +30,9 @@ class ToolABC(ABC):
     async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         raise NotImplementedError
 
-
 class ToolConcurrencyPolicy(str, Enum):
     SEQUENTIAL = "sequential"
     CONCURRENT = "concurrent"
-
 
 @dataclass(frozen=True)
 class ToolMetadata:

@@ -53,7 +53,6 @@ AGENT_FINDER_INST = (
 )
 AGENT_FINDER_PARALLEL_INST = """- Launch multiple finder sub-agents in parallel when tasks are independent."""
 
-
 TODO_FREQUENT_USAGE_INST = """- Use `TodoWrite` frequently for planning and tracking progress on multi-step tasks."""
 TODO_COMPLETE_IMMEDIATELY_INST = """- Mark todos completed immediately when finished. Do not batch-complete later."""
 
@@ -81,13 +80,11 @@ REWIND_CHECKPOINT_INST = """- After each new user message, the system automatica
 
 EXTERNAL_REFS_INST = """- Pull in external references when uncertainty or risk is meaningful: unclear APIs/behavior, security-sensitive flows, migrations, performance-critical paths, or best-in-class patterns proven in open source or other language ecosystems. Prefer official docs first, then source."""
 
-
 @cache
 def load_prompt_by_path(prompt_path: str) -> str:
     """Load and cache a prompt file path relative to klaude_code package."""
 
     return files("klaude_code").joinpath(prompt_path).read_text(encoding="utf-8").strip()
-
 
 def load_main_base_prompt(model_name: str) -> str:
     """Load base prompt content for main agents.
@@ -98,7 +95,6 @@ def load_main_base_prompt(model_name: str) -> str:
     if model_id.is_gpt5_model(model_name):
         return load_prompt_by_path("prompts/base-system-prompt-gpt.md")
     return load_prompt_by_path("prompts/base-system-prompt.md")
-
 
 def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchema]) -> str:
     """Build tool strategy guidance based on currently available tools."""
@@ -150,18 +146,15 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
     lines.extend(strategy_lines)
     return "\n".join(lines)
 
-
 def build_main_system_prompt(model_name: str, available_tools: list[llm_param.ToolSchema]) -> str:
     """Build main-agent system prompt from base prompt plus dynamic tool strategy."""
 
     base_prompt = load_main_base_prompt(model_name)
     return base_prompt + build_dynamic_tool_strategy_prompt(available_tools)
 
-
 def _get_available_commands() -> list[str]:
     """Return list of available bash commands with descriptions."""
     return [f"{cmd}: {desc}" for cmd, desc in COMMAND_DESCRIPTIONS.items() if shutil.which(cmd) is not None]
-
 
 def build_sub_agent_env_info(work_dir: Path) -> str:
     """Build environment info block for sub-agents, appended at the end of their prompt."""
@@ -182,7 +175,6 @@ def build_sub_agent_env_info(work_dir: Path) -> str:
             env_lines.append(f"- {cmd}")
 
     return "\n".join(env_lines)
-
 
 def _build_env_info(model_name: str, work_dir: Path) -> str:
     """Build environment info section with dynamic runtime values."""
@@ -223,14 +215,12 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
     env_lines.append("</env>")
     return "\n".join(env_lines)
 
-
 def _build_auto_memory_prompt(work_dir: Path) -> str:
     """Build auto-memory prompt with the project-specific memory directory path."""
     paths = ProjectPaths(project_key=project_key_from_path(work_dir))
     memory_dir = str(paths.memory_dir)
     template = load_prompt_by_path("prompts/auto-memory-prompt.md")
     return "\n\n" + template.format(memory_dir=memory_dir)
-
 
 def load_system_prompt(
     model_name: str,

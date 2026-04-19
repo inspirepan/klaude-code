@@ -1,6 +1,12 @@
 from rich.console import Console
 
-from klaude_code.protocol import events, message, model
+from klaude_code.protocol import events, message
+from klaude_code.protocol.models import (
+    DeveloperUIExtra,
+    SkillActivatedUIItem,
+    SkillDiscoveredUIItem,
+    SkillListingUIItem,
+)
 from klaude_code.tui.components.developer import render_developer_message
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 
@@ -11,7 +17,7 @@ def test_render_developer_message_skill_name_uses_skill_style() -> None:
         session_id="test-session",
         item=message.DeveloperMessage(
             parts=[],
-            ui_extra=model.DeveloperUIExtra(items=[model.SkillActivatedUIItem(name="commit")]),
+            ui_extra=DeveloperUIExtra(items=[SkillActivatedUIItem(name="commit")]),
         ),
     )
 
@@ -31,17 +37,16 @@ def test_render_developer_message_skill_name_uses_skill_style() -> None:
 
     assert style_at(skill_name_start) == console.get_style(ThemeKey.TOOL_PARAM_FILE_PATH_SKILL_NAME)
 
-
 def test_render_developer_message_discovered_skills_are_grouped_without_skill_style() -> None:
     console = Console(width=120, record=False, force_terminal=False, theme=get_theme().app_theme)
     event = events.DeveloperMessageEvent(
         session_id="test-session",
         item=message.DeveloperMessage(
             parts=[],
-            ui_extra=model.DeveloperUIExtra(
+            ui_extra=DeveloperUIExtra(
                 items=[
-                    model.SkillDiscoveredUIItem(name="commit"),
-                    model.SkillDiscoveredUIItem(name="submit-pr"),
+                    SkillDiscoveredUIItem(name="commit"),
+                    SkillDiscoveredUIItem(name="submit-pr"),
                 ]
             ),
         ),
@@ -66,14 +71,13 @@ def test_render_developer_message_discovered_skills_are_grouped_without_skill_st
     assert style_at(skill_name_start) == console.get_style(ThemeKey.ATTACHMENT)
     assert style_at(second_skill_start) == console.get_style(ThemeKey.ATTACHMENT)
 
-
 def test_render_developer_message_available_skills_use_skill_style() -> None:
     console = Console(width=120, record=False, force_terminal=False, theme=get_theme().app_theme)
     event = events.DeveloperMessageEvent(
         session_id="test-session",
         item=message.DeveloperMessage(
             parts=[],
-            ui_extra=model.DeveloperUIExtra(items=[model.SkillListingUIItem(names=["commit", "submit-pr"])]),
+            ui_extra=DeveloperUIExtra(items=[SkillListingUIItem(names=["commit", "submit-pr"])]),
         ),
     )
 
@@ -83,15 +87,14 @@ def test_render_developer_message_available_skills_use_skill_style() -> None:
     assert full_text == "+ 2 available skills"
     assert all(style == console.get_style(ThemeKey.ATTACHMENT) for _, style in parts if _.strip())
 
-
 def test_render_developer_message_incremental_available_skills_lists_names() -> None:
     console = Console(width=120, record=False, force_terminal=False, theme=get_theme().app_theme)
     event = events.DeveloperMessageEvent(
         session_id="test-session",
         item=message.DeveloperMessage(
             parts=[],
-            ui_extra=model.DeveloperUIExtra(
-                items=[model.SkillListingUIItem(names=["commit", "submit-pr"], incremental=True)]
+            ui_extra=DeveloperUIExtra(
+                items=[SkillListingUIItem(names=["commit", "submit-pr"], incremental=True)]
             ),
         ),
     )

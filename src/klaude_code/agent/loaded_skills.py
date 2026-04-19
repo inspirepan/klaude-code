@@ -35,7 +35,6 @@ def get_loaded_skill_names_by_location() -> dict[str, list[str]]:
     result["system"].sort()
     return result
 
-
 def get_loaded_skill_warnings_by_location() -> dict[str, list[str]]:
     """Return skill discovery warnings grouped by location."""
 

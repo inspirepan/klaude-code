@@ -17,14 +17,12 @@ SKILL_XML_ENTRY_PATTERN = re.compile(
     re.DOTALL,
 )
 
-
 def extract_skill_listing_paths_from_xml(skills_xml: str) -> dict[str, str]:
     """Extract skill-name to skill-path mappings from serialized skill listing XML."""
     return {
         html.unescape(match.group("name")): html.unescape(match.group("location"))
         for match in SKILL_XML_ENTRY_PATTERN.finditer(skills_xml)
     }
-
 
 def _find_git_repo_root(start: Path) -> Path | None:
     current = start.resolve()
@@ -34,7 +32,6 @@ def _find_git_repo_root(start: Path) -> Path | None:
         if current.parent == current:
             return None
         current = current.parent
-
 
 def _resolve_skill_discovery_scope(path: Path, work_dir: Path) -> tuple[Path, Path, bool]:
     resolved_work_dir = work_dir.resolve()
@@ -50,7 +47,6 @@ def _resolve_skill_discovery_scope(path: Path, work_dir: Path) -> tuple[Path, Pa
         return anchor_dir, anchor_dir, True
 
     return anchor_dir, resolved_work_dir, False
-
 
 @lru_cache(maxsize=512)
 def get_candidate_skill_dirs_for_anchor(
@@ -83,10 +79,8 @@ def get_candidate_skill_dirs_for_anchor(
 
     return tuple(sorted(candidate_dirs.items()))
 
-
 # Backward-compatible alias for internal callers that still use the old name.
 _get_candidate_skill_dirs_for_anchor = get_candidate_skill_dirs_for_anchor
-
 
 @dataclass
 class Skill:
@@ -110,7 +104,6 @@ class Skill:
         if self.metadata and "short-description" in self.metadata:
             return self.metadata["short-description"]
         return self.description
-
 
 class SkillLoader:
     """Load and manage Claude Skills from SKILL.md files"""
@@ -411,7 +404,6 @@ class SkillLoader:
         Returns XML-like metadata used in the system prompt.
         """
         return self.get_skills_xml()
-
 
 def discover_skills_near_paths(paths: Iterable[str], *, work_dir: Path) -> list[Skill]:
     """Discover project-local skills from nested skill dirs near accessed paths.

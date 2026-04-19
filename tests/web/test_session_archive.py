@@ -13,7 +13,6 @@ def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
     assert len(candidates) == 1
     return candidates[0]
 
-
 def _find_listed_session(groups: list[dict[str, Any]], session_id: str) -> dict[str, Any]:
     sessions: list[dict[str, Any]] = []
     for group in groups:
@@ -29,7 +28,6 @@ def _find_listed_session(groups: list[dict[str, Any]], session_id: str) -> dict[
             return session
     raise AssertionError(f"Session not found in listing: {session_id}")
 
-
 def _update_meta(app_env: AppEnv, session_id: str, updates: dict[str, Any]) -> dict[str, Any]:
     meta_path = _meta_path_for_session(app_env, session_id)
     raw_meta_obj = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -38,7 +36,6 @@ def _update_meta(app_env: AppEnv, session_id: str, updates: dict[str, Any]) -> d
     raw_meta.update(updates)
     meta_path.write_text(json.dumps(raw_meta, ensure_ascii=False, indent=2), encoding="utf-8")
     return raw_meta
-
 
 def test_archive_session_marks_metadata_and_listed_flag(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
@@ -62,11 +59,9 @@ def test_archive_session_marks_metadata_and_listed_flag(app_env: AppEnv) -> None
     assert isinstance(raw_meta, dict)
     assert raw_meta["archived"] is True
 
-
 def test_archive_session_not_found(app_env: AppEnv) -> None:
     response = app_env.client.post("/api/sessions/missing/archive")
     assert response.status_code == 404
-
 
 def test_unarchive_session_marks_metadata_and_listed_flag(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
@@ -89,11 +84,9 @@ def test_unarchive_session_marks_metadata_and_listed_flag(app_env: AppEnv) -> No
     assert isinstance(raw_meta, dict)
     assert raw_meta["archived"] is False
 
-
 def test_unarchive_session_not_found(app_env: AppEnv) -> None:
     response = app_env.client.post("/api/sessions/missing/unarchive")
     assert response.status_code == 404
-
 
 def test_cleanup_archives_sessions_older_than_three_days_or_without_diff(app_env: AppEnv) -> None:
     now = time.time()
@@ -149,7 +142,6 @@ def test_cleanup_archives_sessions_older_than_three_days_or_without_diff(app_env
     assert old_meta["archived"] is True
     assert no_diff_meta["archived"] is True
     assert recent_diff_meta["archived"] is False
-
 
 def test_cleanup_skips_running_sessions(app_env: AppEnv) -> None:
     """Running/waiting sessions should not be archived by cleanup even if eligible."""

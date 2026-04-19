@@ -6,7 +6,6 @@ from typing import cast
 
 type JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
-
 def canonicalize_json(value: object) -> JsonValue:
     """Return a JSON-equivalent value with stable dict key ordering.
 
@@ -28,7 +27,6 @@ def canonicalize_json(value: object) -> JsonValue:
         return [canonicalize_json(v) for v in cast(tuple[object, ...], value)]
 
     return cast(JsonValue, value)
-
 
 def dumps_canonical_json(value: object) -> str:
     """Dump JSON with stable key order and no insignificant whitespace."""

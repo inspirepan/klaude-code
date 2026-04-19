@@ -55,7 +55,6 @@ class ModelSwitcher:
         agent.session.model_thinking = thinking
         return previous
 
-
 class ConfigHandler:
     def __init__(
         self,

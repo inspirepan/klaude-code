@@ -1,3 +1,4 @@
+
 """Prompt-prefix cache tracking: hit rate computation and break detection.
 
 Consolidates all cache-related turn-over-turn tracking:
@@ -16,7 +17,8 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from klaude_code.const import DEFAULT_DEBUG_LOG_DIR
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param
+from klaude_code.protocol.models import Usage
 
 _REPORT_DIR = DEFAULT_DEBUG_LOG_DIR / "cache-break-reports"
 
@@ -26,11 +28,9 @@ _DROP_RATIO = 0.05  # Minimum relative drop (5%)
 _TTL_5MIN_S = 5 * 60
 _TTL_1HOUR_S = 60 * 60
 
-
 def _hash(data: object) -> str:
     raw = json.dumps(data, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
-
 
 @dataclass
 class _Snapshot:
@@ -39,7 +39,6 @@ class _Snapshot:
     model_name: str
     system_chars: int
     tool_names: list[str]
-
 
 @dataclass
 class CacheBreakReport:
@@ -124,7 +123,6 @@ class CacheBreakReport:
         path.write_text("\n".join(lines) + "\n")
         return str(path)
 
-
 class CacheTracker:
     """Tracks prompt-prefix cache across turns.
 
@@ -178,7 +176,7 @@ class CacheTracker:
         )
         self._call_count += 1
 
-    def update(self, usage: model.Usage) -> CacheBreakReport | None:
+    def update(self, usage: Usage) -> CacheBreakReport | None:
         """Process a turn's usage: compute hit rate and check for cache break.
 
         Returns a ``CacheBreakReport`` if a break is detected, ``None`` otherwise.

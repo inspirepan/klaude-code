@@ -1,12 +1,13 @@
 from rich.console import Console
 
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events
+from klaude_code.protocol.models import TaskMetadata, TaskMetadataItem, Usage
 from klaude_code.tui.components.metadata import render_task_metadata
 from klaude_code.tui.components.rich.theme import get_theme
 
 
 def test_task_metadata_wraps_details_under_identity_column() -> None:
-    usage = model.Usage(
+    usage = Usage(
         input_tokens=10300,
         output_tokens=905,
         reasoning_tokens=382,
@@ -17,14 +18,14 @@ def test_task_metadata_wraps_details_under_identity_column() -> None:
         input_cost=0.01,
         output_cost=0.0207,
     )
-    metadata = model.TaskMetadata(
+    metadata = TaskMetadata(
         model_name="gpt-5.3-codex",
         provider="openai/codex",
         usage=usage,
         turn_count=1,
         task_duration_s=18,
     )
-    event = events.TaskMetadataEvent(session_id="test", metadata=model.TaskMetadataItem(main_agent=metadata))
+    event = events.TaskMetadataEvent(session_id="test", metadata=TaskMetadataItem(main_agent=metadata))
 
     console = Console(width=80, record=True, force_terminal=False)
     console.print(render_task_metadata(event))
@@ -40,18 +41,17 @@ def test_task_metadata_wraps_details_under_identity_column() -> None:
     indent = len(lines[1]) - len(lines[1].lstrip(" "))
     assert indent >= 2
 
-
 def test_sub_agent_description_shows_before_token_details() -> None:
     event = events.TaskMetadataEvent(
         session_id="test",
-        metadata=model.TaskMetadataItem(
-            main_agent=model.TaskMetadata(model_name="main-model"),
+        metadata=TaskMetadataItem(
+            main_agent=TaskMetadata(model_name="main-model"),
             sub_agent_task_metadata=[
-                model.TaskMetadata(
+                TaskMetadata(
                     sub_agent_name="research",
                     description="scan repo",
                     model_name="sub-model",
-                    usage=model.Usage(input_tokens=1000, output_tokens=200),
+                    usage=Usage(input_tokens=1000, output_tokens=200),
                 )
             ],
         ),
@@ -70,19 +70,18 @@ def test_sub_agent_description_shows_before_token_details() -> None:
     assert token_idx != -1
     assert description_idx < model_idx < token_idx
 
-
 def test_sub_agent_identity_splits_name_and_model_on_narrow_width() -> None:
     event = events.TaskMetadataEvent(
         session_id="test",
-        metadata=model.TaskMetadataItem(
-            main_agent=model.TaskMetadata(model_name="main-model"),
+        metadata=TaskMetadataItem(
+            main_agent=TaskMetadata(model_name="main-model"),
             sub_agent_task_metadata=[
-                model.TaskMetadata(
+                TaskMetadata(
                     sub_agent_name="finder",
                     description="tool flow scan",
                     model_name="anthropic/claude-haiku-4.5",
                     provider="google/gemini",
-                    usage=model.Usage(input_tokens=1200, output_tokens=300),
+                    usage=Usage(input_tokens=1200, output_tokens=300),
                 )
             ],
         ),
@@ -97,16 +96,15 @@ def test_sub_agent_identity_splits_name_and_model_on_narrow_width() -> None:
 
     assert model_idx == finder_idx + 1
 
-
 def test_task_metadata_shows_cache_write_tokens() -> None:
-    usage = model.Usage(
+    usage = Usage(
         input_tokens=30_000,
         cached_tokens=20_000,
         cache_write_tokens=5_000,
         output_tokens=2_000,
     )
-    metadata = model.TaskMetadata(model_name="claude-sonnet-4-6", usage=usage)
-    event = events.TaskMetadataEvent(session_id="test", metadata=model.TaskMetadataItem(main_agent=metadata))
+    metadata = TaskMetadata(model_name="claude-sonnet-4-6", usage=usage)
+    event = events.TaskMetadataEvent(session_id="test", metadata=TaskMetadataItem(main_agent=metadata))
 
     console = Console(width=120, record=True, force_terminal=False, theme=get_theme().app_theme)
     console.print(render_task_metadata(event))
@@ -116,10 +114,9 @@ def test_task_metadata_shows_cache_write_tokens() -> None:
     assert "cache 20k" in output
     assert "cache write 5k" in output
 
-
 def test_task_metadata_keeps_duration_and_steps_inline_without_worked_summary() -> None:
-    metadata = model.TaskMetadata(model_name="claude-sonnet-4-6", turn_count=2, task_duration_s=288)
-    event = events.TaskMetadataEvent(session_id="test", metadata=model.TaskMetadataItem(main_agent=metadata))
+    metadata = TaskMetadata(model_name="claude-sonnet-4-6", turn_count=2, task_duration_s=288)
+    event = events.TaskMetadataEvent(session_id="test", metadata=TaskMetadataItem(main_agent=metadata))
 
     console = Console(width=120, record=True, force_terminal=False, theme=get_theme().app_theme)
     console.print(render_task_metadata(event))

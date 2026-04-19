@@ -38,7 +38,6 @@ def _tool_context() -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
     return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path("/tmp"))
 
-
 class TestHelperFunctions:
     """Test helper functions for content processing."""
 
@@ -189,7 +188,6 @@ class TestHelperFunctions:
         assert _is_pdf_url("https://example.com/page.html") is False
         assert _is_pdf_url("https://example.com/api/pdf_info") is False
 
-
 class TestWebFetchTool:
     """Test WebFetchTool class."""
 
@@ -276,7 +274,6 @@ class TestWebFetchTool:
             assert result1.status == "success"
             assert result2.status == "success"
             assert call_count == 1  # Only fetched once
-
 
 class TestFetchUrlRedirectHandling:
     def test_follow_redirect_http_errors_and_reuse_single_opener(self) -> None:
@@ -440,7 +437,6 @@ class TestFetchUrlRedirectHandling:
         assert "%253A" not in redirects[0]
         assert "%253A" not in mock_opener.requested_urls[1]
 
-
 class TestDecompress:
     """Test gzip/deflate decompression."""
 
@@ -469,7 +465,6 @@ class TestDecompress:
         data = b"some data"
         assert _decompress(data, "br") == data
 
-
 class TestStripNoiseElements:
     """Test script/style stripping before extraction."""
 
@@ -495,7 +490,6 @@ class TestStripNoiseElements:
         result = _strip_noise_elements(html)
         assert "function foo" not in result
         assert "article" in result
-
 
 class TestFetchUrlWithRetry:
     """Test retry behaviour on transient errors."""
@@ -596,7 +590,6 @@ class TestFetchUrlWithRetry:
         assert 504 in _RETRY_HTTP_STATUS_CODES
         assert 404 not in _RETRY_HTTP_STATUS_CODES
         assert 429 not in _RETRY_HTTP_STATUS_CODES
-
 
 class TestGzipFetchIntegration:
     """Test that gzip-compressed responses are correctly decoded end-to-end."""

@@ -45,7 +45,6 @@ class Palette:
     yellow_background: str
     user_message_background: str
 
-
 LIGHT_PALETTE = Palette(
     red="#b83838",
     yellow="#b8860b",
@@ -121,7 +120,6 @@ DARK_PALETTE = Palette(
     yellow_background="#423720",
     user_message_background="#1f2933",
 )
-
 
 class ThemeKey(str, Enum):
     LINES = "lines"
@@ -263,7 +261,6 @@ class ThemeKey(str, Enum):
     def __str__(self) -> str:
         return self.value
 
-
 @dataclass
 class Themes:
     app_theme: Theme
@@ -271,7 +268,6 @@ class Themes:
     thinking_markdown_theme: Theme
     code_theme: str
     sub_agent_styles: list[Style]
-
 
 def get_theme(theme: str | None = None) -> Themes:
     palette = LIGHT_PALETTE if theme == "light" else DARK_PALETTE

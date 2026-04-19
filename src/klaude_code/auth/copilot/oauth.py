@@ -15,7 +15,6 @@ from klaude_code.auth.copilot.token_manager import CopilotAuthState, CopilotToke
 def _decode_base64(value: str) -> str:
     return base64.b64decode(value).decode()
 
-
 # GitHub Copilot OAuth app client id
 CLIENT_ID = _decode_base64("SXYxLmI1MDdhMDhjODdlY2ZlOTg=")
 
@@ -25,7 +24,6 @@ COPILOT_STATIC_HEADERS = {
     "Editor-Plugin-Version": "copilot-chat/0.35.0",
     "Copilot-Integration-Id": "vscode-chat",
 }
-
 
 def normalize_domain(input_value: str) -> str | None:
     """Normalize a GitHub domain or URL into hostname."""
@@ -38,13 +36,11 @@ def normalize_domain(input_value: str) -> str | None:
     except ValueError:
         return None
 
-
 def _urls(domain: str) -> tuple[str, str, str]:
     device_code_url = f"https://{domain}/login/device/code"
     access_token_url = f"https://{domain}/login/oauth/access_token"
     copilot_token_url = f"https://api.{domain}/copilot_internal/v2/token"
     return device_code_url, access_token_url, copilot_token_url
-
 
 def _base_url_from_copilot_token(token: str) -> str | None:
     match = re.search(r"proxy-ep=([^;]+)", token)
@@ -54,7 +50,6 @@ def _base_url_from_copilot_token(token: str) -> str | None:
     api_host = proxy_host.replace("proxy.", "api.", 1)
     return f"https://{api_host}"
 
-
 def get_copilot_base_url(token: str, enterprise_domain: str | None) -> str:
     from_token = _base_url_from_copilot_token(token)
     if from_token:
@@ -62,7 +57,6 @@ def get_copilot_base_url(token: str, enterprise_domain: str | None) -> str:
     if enterprise_domain:
         return f"https://copilot-api.{enterprise_domain}"
     return "https://api.individual.githubcopilot.com"
-
 
 class CopilotOAuth:
     """Handle OAuth device flow for GitHub Copilot authentication."""

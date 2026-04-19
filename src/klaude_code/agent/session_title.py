@@ -16,7 +16,6 @@ _SESSION_TITLE_SYSTEM_PROMPT = (
 
 _SESSION_TITLE_MAX_TOKENS = 4096
 
-
 def _build_session_title_input(user_messages: list[str], *, previous_title: str | None = None) -> list[message.Message]:
     current_user_message = user_messages[-1].strip()
     previous_user_messages = [msg.strip() for msg in user_messages[:-1] if msg.strip()]
@@ -49,14 +48,12 @@ def _build_session_title_input(user_messages: list[str], *, previous_title: str 
         )
     ]
 
-
 def _normalize_session_title(raw: str) -> str | None:
     title = " ".join(raw.split()).strip().strip("\"'`“”‘’")
     title = re.sub(r"\s*\|\s*", " — ", title, count=1)
     if not title:
         return None
     return title[:120]
-
 
 async def generate_session_title(
     *, llm_client: LLMClientABC, user_messages: list[str], previous_title: str | None = None

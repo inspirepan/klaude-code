@@ -21,7 +21,6 @@ def test_load_auto_memory_without_truncation(monkeypatch: pytest.MonkeyPatch, tm
     assert loaded.instruction == "auto memory, persisted across sessions"
     assert loaded.content == "line1\nline2\n"
 
-
 def test_load_auto_memory_with_truncation_notice(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     lines = [f"line {i}" for i in range(1, memory.AUTO_MEMORY_MAX_LINES + 6)]
     file_path = tmp_path / "MEMORY.md"
@@ -41,7 +40,6 @@ def test_load_auto_memory_with_truncation_notice(monkeypatch: pytest.MonkeyPatch
     )
     assert len(loaded.content.splitlines()) == memory.AUTO_MEMORY_MAX_LINES
     assert loaded.content.splitlines()[-1] == f"line {memory.AUTO_MEMORY_MAX_LINES}"
-
 
 def test_get_existing_memory_files_includes_git_root_memories(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     fake_home = tmp_path / "home"
@@ -76,7 +74,6 @@ def test_get_existing_memory_files_includes_git_root_memories(monkeypatch: pytes
     }
     assert result["user"] == []
 
-
 def test_get_existing_memory_files_does_not_scan_parent_without_git(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -98,7 +95,6 @@ def test_get_existing_memory_files_does_not_scan_parent_without_git(
 
     assert result["project"] == [str(work_agents)]
     assert result["user"] == []
-
 
 def test_discover_memory_files_near_paths_deduplicates_symlinks(tmp_path: Path) -> None:
     """When CLAUDE.md is a symlink to AGENTS.md, only one should be loaded."""
@@ -123,7 +119,6 @@ def test_discover_memory_files_near_paths_deduplicates_symlinks(tmp_path: Path) 
 
     assert len(memories) == 1
     assert memories[0].content.strip() == "shared instructions"
-
 
 def test_discover_memory_files_near_paths_truncates_content(tmp_path: Path) -> None:
     work_dir = tmp_path / "repo"

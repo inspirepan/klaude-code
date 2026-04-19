@@ -10,10 +10,8 @@ from pathlib import Path
 # @file reader
 # ---------------------------------------------------------------------------
 
-
 def fmt_file_already_in_context(path: str, read_tool_name: str) -> str:
     return f"Note: {path} is already in context and unchanged. Use the {read_tool_name} tool if you need to re-read it."
-
 
 def fmt_tool_result(tool_name: str, tool_args: str, output: str) -> str:
     return (
@@ -22,11 +20,9 @@ def fmt_tool_result(tool_name: str, tool_args: str, output: str) -> str:
         f"{output}\n"
     )
 
-
 # ---------------------------------------------------------------------------
 # External file changes
 # ---------------------------------------------------------------------------
-
 
 def fmt_file_changed_externally(file_path: str, file_content: str) -> str:
     return (
@@ -37,11 +33,9 @@ def fmt_file_changed_externally(file_path: str, file_content: str) -> str:
         f"Here are the relevant changes:\n\n{file_content}"
     )
 
-
 # ---------------------------------------------------------------------------
 # Skills
 # ---------------------------------------------------------------------------
-
 
 def fmt_skill_block(
     skill_name: str,
@@ -68,14 +62,12 @@ def fmt_skill_block(
 {skill_content}
 </skill>"""
 
-
 def fmt_dynamic_available_skills(skills_xml: str) -> str:
     return f"""The following skills are available from directories you have accessed.
 
 <available_skills>
 {skills_xml}
 </available_skills>"""
-
 
 def fmt_available_skills(skills_xml: str) -> str:
     return f"""# Skills
@@ -98,7 +90,6 @@ The list below is metadata only. The full instructions live in the referenced fi
 {skills_xml}
 </available_skills>"""
 
-
 def fmt_available_skills_added(skills_xml: str) -> str:
     return f"""The available skill metadata changed. Apply the same skill-loading rules from the earlier skill listing.
 
@@ -106,33 +97,26 @@ def fmt_available_skills_added(skills_xml: str) -> str:
 {skills_xml}
 </available_skills>"""
 
-
 # ---------------------------------------------------------------------------
 # Memory
 # ---------------------------------------------------------------------------
 
-
 def fmt_memory_truncated(budget_bytes: int) -> str:
     return f"\n\n> Memory truncated due to session budget ({budget_bytes} bytes total)."
 
-
 def fmt_auto_memory_hint(auto_memory_path: Path) -> str:
     return f"\n\nNo auto memory file yet for this project. Create {auto_memory_path} when you need to persist memories."
-
 
 # ---------------------------------------------------------------------------
 # Todo nudge
 # ---------------------------------------------------------------------------
 
-
 def fmt_todo_items(todo_items_str: str) -> str:
     return f"\n\nHere are the existing contents of your todo list:\n\n[{todo_items_str}]"
-
 
 # ---------------------------------------------------------------------------
 # Paste files
 # ---------------------------------------------------------------------------
-
 
 def fmt_paste_file_hint(pasted_files: dict[str, str]) -> str:
     mapping = "\n".join(f"- <{tag}> saved to: {path}" for tag, path in pasted_files.items())
@@ -144,11 +128,9 @@ def fmt_paste_file_hint(pasted_files: dict[str, str]) -> str:
         "use Bash commands (cp, mv, cat, etc.) to operate on the file directly instead of repeating it."
     )
 
-
 # ---------------------------------------------------------------------------
 # Todo nudge
 # ---------------------------------------------------------------------------
-
 
 def fmt_todo_nudge(todo_str: str) -> str:
     return (

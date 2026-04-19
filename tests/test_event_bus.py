@@ -10,14 +10,11 @@ from klaude_code.protocol import events
 
 T = TypeVar("T")
 
-
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
 
-
 def _event(session_id: str, content: str) -> events.UserMessageEvent:
     return events.UserMessageEvent(session_id=session_id, content=content)
-
 
 def test_event_bus_disconnects_slow_subscriber_on_overflow() -> None:
     async def _test() -> None:
@@ -39,7 +36,6 @@ def test_event_bus_disconnects_slow_subscriber_on_overflow() -> None:
         assert collected[0].content == "first"
 
     arun(_test())
-
 
 def test_event_bus_filters_by_session() -> None:
     async def _test() -> None:
@@ -73,7 +69,6 @@ def test_event_bus_filters_by_session() -> None:
         assert s1_collected[0].event.content == "hello s1"
 
     arun(_test())
-
 
 def test_event_bus_bridge_wait_for_drain() -> None:
     async def _test() -> None:
@@ -109,7 +104,6 @@ def test_event_bus_bridge_wait_for_drain() -> None:
 
     arun(_test())
 
-
 def test_event_bus_envelope_has_seq_and_event_type() -> None:
     async def _test() -> None:
         bus = EventBus()
@@ -138,7 +132,6 @@ def test_event_bus_envelope_has_seq_and_event_type() -> None:
         assert second.durability == "ephemeral"
 
     arun(_test())
-
 
 def test_event_bus_envelope_carries_operation_task_and_causation_metadata() -> None:
     async def _test() -> None:

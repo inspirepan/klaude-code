@@ -19,8 +19,9 @@ from klaude_code.const import (
     STATUS_SHOW_BUFFER_LENGTH,
     STATUS_THINKING_TEXT,
 )
-from klaude_code.protocol import events, model, tools
+from klaude_code.protocol import events, tools
 from klaude_code.protocol.model_id import is_gemini_model_any, is_grok_model
+from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState, Usage
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
 from klaude_code.tui.commands import (
     AppendAssistant,
@@ -87,10 +88,8 @@ STATUS_LEFT_MIN_WIDTH_CELLS = 10
 SUB_AGENT_STATUS_MAX_LINES = 5
 BASH_STREAM_DELAY_SEC = 3.0
 
-
 def _empty_bash_chunks() -> list[str]:
     return []
-
 
 @dataclass
 class _PendingBashToolOutput:
@@ -98,20 +97,16 @@ class _PendingBashToolOutput:
     chunks: list[str] = field(default_factory=_empty_bash_chunks)
     streaming_started: bool = False
 
-
 def _normalize_status_text(text: str | None) -> str:
     if text is None:
         return ""
     return text.replace("\n", " ").strip()
 
-
 def _empty_status_tool_counts() -> dict[str, int]:
     return {}
 
-
 def _empty_status_tool_ids() -> dict[str, str]:
     return {}
-
 
 class SpinnerPhase(Enum):
     WAITING = auto()
@@ -121,7 +116,6 @@ class SpinnerPhase(Enum):
     RECAPPING = auto()
     RUNNING = auto()
     CUSTOM = auto()
-
 
 class ActivityState:
     """Tracks tool activity for spinner display."""
@@ -193,7 +187,6 @@ class ActivityState:
 
     def has_activity_label(self, label: str) -> bool:
         return label in self._tool_calls
-
 
 class SpinnerStatusState:
     """State machine for spinner status plus task/session metadata."""
@@ -310,7 +303,7 @@ class SpinnerStatusState:
         if self._phase is SpinnerPhase.COMPOSING:
             self.enter_waiting()
 
-    def set_context_usage(self, usage: model.Usage) -> None:
+    def set_context_usage(self, usage: Usage) -> None:
         has_token_usage = any(
             (
                 usage.input_tokens,
@@ -475,11 +468,10 @@ class SpinnerStatusState:
             lambda: _render(compact=True),
         )
 
-
 @dataclass
 class _SessionState:
     session_id: str
-    sub_agent_state: model.SubAgentState | None = None
+    sub_agent_state: SubAgentState | None = None
     model_id: str | None = None
     assistant_stream_active: bool = False
     thinking_stream_active: bool = False
@@ -554,7 +546,6 @@ class _SessionState:
         if self.task_active:
             return STATUS_RUNNING_TEXT
         return None
-
 
 class DisplayStateMachine:
     """Simplified, session-aware REPL UI state machine.
@@ -1178,7 +1169,7 @@ class DisplayStateMachine:
                     cmds.extend(self._spinner_update_commands())
                 elif not is_replay and is_sub_agent_tool(e.tool_name):
                     self._spinner.finish_sub_agent_tool_call(e.tool_call_id)
-                    if e.is_error and isinstance(e.ui_extra, model.SessionIdUIExtra):
+                    if e.is_error and isinstance(e.ui_extra, SessionIdUIExtra):
                         failed_sub_session = self._sessions.get(e.ui_extra.session_id)
                         if failed_sub_session is not None and failed_sub_session.is_sub_agent:
                             failed_sub_session.task_active = False

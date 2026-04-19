@@ -26,7 +26,6 @@ class OperationLifecycleHooks:
         Awaitable[None],
     ]
 
-
 class SessionRegistry:
     def __init__(
         self,
@@ -412,7 +411,6 @@ class SessionRegistry:
             return
         with contextlib.suppress(Exception):
             await hooks.on_operation_accepted(operation)
-
 
 def _should_preempt_control(runtime: SessionActor, operation: op.Operation) -> bool:
     if not runtime.has_active_root_task():

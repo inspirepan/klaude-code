@@ -11,10 +11,8 @@ from klaude_code.tui.command.web_cmd import WebCommand
 def arun(coro: Any) -> Any:
     return asyncio.run(coro)
 
-
 def _agent() -> Any:
     return SimpleNamespace(session=SimpleNamespace(id="s1"))
-
 
 def test_web_command_requests_web_mode_with_defaults() -> None:
     result = arun(WebCommand().run(_agent(), message.UserInputPayload(text="")))
@@ -26,7 +24,6 @@ def test_web_command_requests_web_mode_with_defaults() -> None:
     assert result.web_mode_request.debug is None
     assert result.events is not None
     assert result.events[0].content == "Switching to web mode..."
-
 
 def test_web_command_parses_flags() -> None:
     result = arun(
@@ -42,7 +39,6 @@ def test_web_command_parses_flags() -> None:
     assert result.web_mode_request.no_open is True
     assert result.web_mode_request.debug is True
 
-
 def test_web_command_help_does_not_switch_modes() -> None:
     result = arun(WebCommand().run(_agent(), message.UserInputPayload(text="--help")))
 
@@ -50,7 +46,6 @@ def test_web_command_help_does_not_switch_modes() -> None:
     assert result.events is not None
     assert result.events[0].is_error is False
     assert "Usage: /web" in result.events[0].content
-
 
 def test_web_command_invalid_args_show_error() -> None:
     result = arun(WebCommand().run(_agent(), message.UserInputPayload(text="--port nope")))

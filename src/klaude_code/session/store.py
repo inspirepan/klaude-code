@@ -12,7 +12,15 @@ from pathlib import Path
 from typing import Any, cast
 
 from klaude_code.const import ProjectPaths
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import (
+    FileChangeSummary,
+    FileStatus,
+    SessionOwner,
+    SessionRuntimeState,
+    SubAgentState,
+    TodoItem,
+)
 from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
 
 _RUNTIME_META_KEYS = ("session_state", "runtime_owner", "runtime_owner_heartbeat_at")
@@ -21,7 +29,6 @@ type SessionMetaObserver = Callable[[str, dict[str, Any]], None]
 
 _SESSION_META_OBSERVERS: list[SessionMetaObserver] = []
 _SESSION_META_OBSERVERS_LOCK = threading.Lock()
-
 
 def register_session_meta_observer(observer: SessionMetaObserver) -> Callable[[], None]:
     with _SESSION_META_OBSERVERS_LOCK:
@@ -33,17 +40,14 @@ def register_session_meta_observer(observer: SessionMetaObserver) -> Callable[[]
 
     return _unregister
 
-
 def _notify_session_meta_observers(session_id: str, meta: dict[str, Any]) -> None:
     with _SESSION_META_OBSERVERS_LOCK:
         observers = list(_SESSION_META_OBSERVERS)
     for observer in observers:
         observer(session_id, dict(meta))
 
-
 class _WriterClosedError(RuntimeError):
     pass
-
 
 @dataclass
 class _WriteBatch:
@@ -51,7 +55,6 @@ class _WriteBatch:
     items: Sequence[message.HistoryEvent]
     meta: dict[str, Any]
     done: asyncio.Future[None]
-
 
 class JsonlSessionWriter:
     def __init__(self, paths: ProjectPaths, *, meta_lock: LockType) -> None:
@@ -135,7 +138,6 @@ class JsonlSessionWriter:
 
         if not batch.done.done():
             batch.done.set_result(None)
-
 
 class JsonlSessionStore:
     def __init__(self, *, project_key: str) -> None:
@@ -252,23 +254,22 @@ class JsonlSessionStore:
                     fut.exception()
         self._last_flush.clear()
 
-
 def build_meta_snapshot(
     *,
     session_id: str,
     work_dir: Path,
     title: str | None,
-    sub_agent_state: model.SubAgentState | None,
-    file_tracker: dict[str, model.FileStatus],
-    file_change_summary: model.FileChangeSummary,
-    todos: list[model.TodoItem],
+    sub_agent_state: SubAgentState | None,
+    file_tracker: dict[str, FileStatus],
+    file_change_summary: FileChangeSummary,
+    todos: list[TodoItem],
     user_messages: list[str],
     created_at: float,
     updated_at: float,
     messages_count: int,
     model_name: str | None,
-    session_state: model.SessionRuntimeState | None,
-    runtime_owner: model.SessionOwner | None,
+    session_state: SessionRuntimeState | None,
+    runtime_owner: SessionOwner | None,
     runtime_owner_heartbeat_at: float | None,
     archived: bool,
     model_config_name: str | None,

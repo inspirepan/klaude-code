@@ -30,19 +30,15 @@ _IMAGE_MIME_SUFFIXES: Final = {
     "image/webp": ".webp",
 }
 
-
 class UploadImageRequest(BaseModel):
     data_url: str
     file_name: str | None = None
 
-
 class ListDirsResponse(BaseModel):
     items: list[str]
 
-
 class SearchFilesResponse(BaseModel):
     items: list[str]
-
 
 def _run_search_command(cmd: list[str], *, cwd: Path) -> list[str]:
     try:
@@ -62,10 +58,8 @@ def _run_search_command(cmd: list[str], *, cwd: Path) -> list[str]:
         return []
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
-
 def _normalize_search_path(path: str) -> str:
     return path.removeprefix("./").removeprefix(".\\")
-
 
 def _rank_paths(work_dir: Path, paths: list[str], *, keyword: str) -> list[str]:
     ranked: list[tuple[str, tuple[int, int, int, int, int, int, int, int]]] = []
@@ -118,7 +112,6 @@ def _rank_paths(work_dir: Path, paths: list[str], *, keyword: str) -> list[str]:
             unique_paths.append(normalized)
     return unique_paths
 
-
 def _search_current_dir(work_dir: Path, *, limit: int) -> list[str]:
     try:
         items = list(work_dir.iterdir())
@@ -142,7 +135,6 @@ def _search_current_dir(work_dir: Path, *, limit: int) -> list[str]:
         if len(results) >= limit:
             break
     return results
-
 
 def _search_with_fd(work_dir: Path, *, keyword: str, limit: int) -> list[str]:
     if shutil.which("fd") is None:
@@ -181,7 +173,6 @@ def _search_with_fd(work_dir: Path, *, keyword: str, limit: int) -> list[str]:
     ]
     return immediate + _run_search_command(command, cwd=work_dir)
 
-
 def _search_with_rg(work_dir: Path, *, keyword: str, limit: int) -> list[str]:
     if shutil.which("rg") is None:
         return []
@@ -198,7 +189,6 @@ def _search_with_rg(work_dir: Path, *, keyword: str, limit: int) -> list[str]:
     ]
     matches = [path for path in _run_search_command(command, cwd=work_dir) if keyword in path.lower()]
     return matches[: limit * 4]
-
 
 def _search_with_python(work_dir: Path, *, keyword: str, limit: int) -> list[str]:
     paths: list[str] = []
@@ -223,7 +213,6 @@ def _search_with_python(work_dir: Path, *, keyword: str, limit: int) -> list[str
         return []
     return paths
 
-
 def _search_paths(work_dir: Path, *, query: str, limit: int) -> list[str]:
     keyword = query.strip().lower()
     if not keyword:
@@ -238,14 +227,12 @@ def _search_paths(work_dir: Path, *, query: str, limit: int) -> list[str]:
         return []
     return _rank_paths(work_dir, candidates, keyword=keyword)[:limit]
 
-
 def _resolve_image_suffix(*, mime_type: str, file_name: str | None) -> str | None:
     suffix = Path(file_name).suffix.lower() if file_name else ""
     guessed_mime, _ = mimetypes.guess_type(f"x{suffix}") if suffix else (None, None)
     if suffix and guessed_mime == mime_type and suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
         return suffix
     return _IMAGE_MIME_SUFFIXES.get(mime_type)
-
 
 def _list_dirs(path_input: str, *, limit: int) -> list[str]:
     """List directories matching a partial filesystem path for workspace completion."""
@@ -279,7 +266,6 @@ def _list_dirs(path_input: str, *, limit: int) -> list[str]:
             break
     return results
 
-
 @router.get("/list-dirs")
 async def list_dirs(
     path: str = Query("", description="Partial filesystem path to complete"),
@@ -289,7 +275,6 @@ async def list_dirs(
     if not path.strip():
         return ListDirsResponse(items=[])
     return ListDirsResponse(items=_list_dirs(path.strip(), limit=limit))
-
 
 @router.get("")
 async def get_file(
@@ -316,7 +301,6 @@ async def get_file(
         raise HTTPException(status_code=404, detail="file not found")
     return FileResponse(path=str(resolved))
 
-
 @router.get("/search")
 async def search_files(
     query: str = Query("", description="Path fragment after @"),
@@ -338,7 +322,6 @@ async def search_files(
         work_dir = candidate
 
     return SearchFilesResponse(items=_search_paths(work_dir, query=query, limit=limit))
-
 
 @router.post("/images")
 async def upload_image(

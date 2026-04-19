@@ -36,7 +36,6 @@ from .conftest import FakeLLMClient
 # Helpers
 # ---------------------------------------------------------------------------
 
-
 def _write_session_meta(
     *,
     work_dir: Path,
@@ -83,7 +82,6 @@ def _write_session_meta(
         encoding="utf-8",
     )
 
-
 def _write_history_events(work_dir: Path, session_id: str, items: list[message.HistoryEvent]) -> None:
     """Write history events directly to the session's events.jsonl."""
     store = get_store_for_path(work_dir)
@@ -92,7 +90,6 @@ def _write_history_events(work_dir: Path, session_id: str, items: list[message.H
     with open(events_path, "a", encoding="utf-8") as f:
         for item in items:
             f.write(encode_jsonl_line(item))
-
 
 def _publish_remote_event(
     socket_path: Path,
@@ -117,11 +114,9 @@ def _publish_remote_event(
 
     asyncio.run(_send())
 
-
 # ---------------------------------------------------------------------------
 # Unit tests for _collect_descendant_session_ids
 # ---------------------------------------------------------------------------
-
 
 def test_collect_descendant_session_ids_empty(tmp_path: Path, isolated_home: Path) -> None:
     work_dir = tmp_path / "work"
@@ -131,7 +126,6 @@ def test_collect_descendant_session_ids_empty(tmp_path: Path, isolated_home: Pat
 
     result = _collect_descendant_session_ids(session_id, work_dir)
     assert result == set()
-
 
 def test_collect_descendant_session_ids_one_child(tmp_path: Path, isolated_home: Path) -> None:
     work_dir = tmp_path / "work"
@@ -154,7 +148,6 @@ def test_collect_descendant_session_ids_one_child(tmp_path: Path, isolated_home:
 
     result = _collect_descendant_session_ids(parent_id, work_dir)
     assert result == {child_id}
-
 
 def test_collect_descendant_session_ids_nested(tmp_path: Path, isolated_home: Path) -> None:
     work_dir = tmp_path / "work"
@@ -193,7 +186,6 @@ def test_collect_descendant_session_ids_nested(tmp_path: Path, isolated_home: Pa
     result = _collect_descendant_session_ids(parent_id, work_dir)
     assert result == {child_id, grandchild_id}
 
-
 def test_collect_descendant_session_ids_missing_child_history(tmp_path: Path, isolated_home: Path) -> None:
     """If a child session's history file doesn't exist, it should be in the result but not cause errors."""
     work_dir = tmp_path / "work"
@@ -219,11 +211,9 @@ def test_collect_descendant_session_ids_missing_child_history(tmp_path: Path, is
     result = _collect_descendant_session_ids(parent_id, work_dir)
     assert result == {child_id}
 
-
 # ---------------------------------------------------------------------------
 # Integration test: WebSocket forwards child session events
 # ---------------------------------------------------------------------------
-
 
 def test_websocket_forwards_child_session_events_without_snapshot(
     tmp_path: Path,

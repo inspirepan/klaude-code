@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from klaude_code.protocol import tools
-
-if TYPE_CHECKING:
-    from klaude_code.protocol import model
+from klaude_code.protocol.models import TaskMetadata
 
 
 @dataclass
@@ -14,8 +11,7 @@ class SubAgentResult:
     task_result: str
     session_id: str
     error: bool = False
-    task_metadata: model.TaskMetadata | None = None
-
+    task_metadata: TaskMetadata | None = None
 
 @dataclass(frozen=True)
 class SubAgentProfile:
@@ -46,15 +42,12 @@ class SubAgentProfile:
     # UI display
     active_form: str = ""  # Active form for spinner status (e.g., "Tasking", "Finding")
 
-
 _PROFILES: dict[str, SubAgentProfile] = {}
-
 
 def register_sub_agent(profile: SubAgentProfile) -> None:
     if profile.name in _PROFILES:
         raise ValueError(f"Duplicate sub agent profile: {profile.name}")
     _PROFILES[profile.name] = profile
-
 
 def get_sub_agent_profile(sub_agent_type: tools.SubAgentType) -> SubAgentProfile:
     try:
@@ -62,20 +55,16 @@ def get_sub_agent_profile(sub_agent_type: tools.SubAgentType) -> SubAgentProfile
     except KeyError as exc:
         raise KeyError(f"Unknown sub agent type: {sub_agent_type}") from exc
 
-
 def iter_sub_agent_profiles() -> list[SubAgentProfile]:
     return list(_PROFILES.values())
 
-
 def get_all_names() -> list[str]:
     return list(_PROFILES.keys())
-
 
 def is_sub_agent_tool(tool_name: str) -> bool:
     from klaude_code.protocol import tools
 
     return tool_name == tools.AGENT
-
 
 # Import sub-agent modules to trigger registration
 from klaude_code.protocol.sub_agent import finder as finder  # noqa: E402

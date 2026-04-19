@@ -79,13 +79,11 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
 
     return payload
 
-
 CODEX_HEADERS = {
     "originator": "pi",
     "User-Agent": CODEX_USER_AGENT,
     "OpenAI-Beta": "responses=experimental",
 }
-
 
 @register(llm_param.LLMClientProtocol.CODEX_OAUTH)
 class CodexClient(LLMClientABC):

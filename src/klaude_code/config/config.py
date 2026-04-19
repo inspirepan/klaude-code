@@ -25,10 +25,8 @@ _PROVIDER_NAME_ALIASES = {
     "copilot": "github-copilot",
 }
 
-
 def normalize_provider_name(provider_name: str) -> str:
     return _PROVIDER_NAME_ALIASES.get(provider_name.casefold(), provider_name)
-
 
 def parse_env_var_syntax(value: str | None) -> tuple[str | None, str | None]:
     """Parse a value that may use ${ENV_VAR} syntax.
@@ -59,12 +57,10 @@ def parse_env_var_syntax(value: str | None) -> tuple[str | None, str | None]:
 
     return None, value
 
-
 def resolve_api_key(value: str | None) -> str | None:
     """Resolve an API key value, expanding ${ENV_VAR} syntax if present."""
     _, resolved = parse_env_var_syntax(value)
     return resolved
-
 
 def _normalize_model_preference(value: Any) -> ModelPreference:
     if value is None:
@@ -81,7 +77,6 @@ def _normalize_model_preference(value: Any) -> ModelPreference:
         return normalized_list or None
     return value
 
-
 def _iter_model_preference_values(value: ModelPreference) -> list[str]:
     if value is None:
         return []
@@ -89,17 +84,14 @@ def _iter_model_preference_values(value: ModelPreference) -> list[str]:
         return [value]
     return list(value)
 
-
 def format_model_preference(value: ModelPreference) -> str | None:
     choices = _iter_model_preference_values(value)
     if not choices:
         return None
     return " > ".join(choices)
 
-
 config_path = Path.home() / ".klaude" / "klaude-config.yaml"
 example_config_path = Path.home() / ".klaude" / "klaude-config.example.yaml"
-
 
 class ModelConfig(llm_param.LLMConfigModelParameter):
     """Model configuration that flattens LLMConfigModelParameter fields."""
@@ -112,7 +104,6 @@ class ModelConfig(llm_param.LLMConfigModelParameter):
         if not data.get("model_name") and data.get("model_id"):
             data["model_name"] = data["model_id"]
         return data
-
 
 class ProviderConfig(llm_param.LLMConfigProviderParameter):
     """Full provider configuration (used in merged config)."""
@@ -189,7 +180,6 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
 
         return self.get_resolved_api_key() is None
 
-
 class UserProviderConfig(BaseModel):
     """User provider configuration (allows partial overrides).
 
@@ -225,7 +215,6 @@ class UserProviderConfig(BaseModel):
             payload["provider_name"] = normalize_provider_name(provider_name)
         return payload
 
-
 class ModelEntry(llm_param.LLMConfigModelParameter):
     """Model entry with provider info, flattens LLMConfigModelParameter fields."""
 
@@ -241,7 +230,6 @@ class ModelEntry(llm_param.LLMConfigModelParameter):
         """
 
         return f"{self.model_name}@{self.provider}"
-
 
 class UserConfig(BaseModel):
     """User configuration (what gets saved to disk)."""
@@ -275,7 +263,6 @@ class UserConfig(BaseModel):
             normalized[canonical] = normalized_value
         data["sub_agent_models"] = normalized
         return data
-
 
 class Config(BaseModel):
     """Merged configuration (builtin + user) for runtime use."""
@@ -541,7 +528,6 @@ class Config(BaseModel):
 
         await asyncio.to_thread(_save_config)
 
-
 def get_example_config() -> UserConfig:
     """Generate example config for user reference (will be commented out)."""
     return UserConfig(
@@ -572,7 +558,6 @@ def get_example_config() -> UserConfig:
         ],
     )
 
-
 def _merge_model(builtin: ModelConfig, user: ModelConfig) -> ModelConfig:
     """Merge user model config with builtin model config.
 
@@ -586,7 +571,6 @@ def _merge_model(builtin: ModelConfig, user: ModelConfig) -> ModelConfig:
         if value is not None:
             merged_data[key] = value
     return ModelConfig.model_validate(merged_data)
-
 
 def _merge_provider(builtin: ProviderConfig, user: UserProviderConfig) -> ProviderConfig:
     """Merge user provider config with builtin provider config.
@@ -618,7 +602,6 @@ def _merge_provider(builtin: ProviderConfig, user: UserProviderConfig) -> Provid
 
     merged_data["model_list"] = [m.model_dump() for m in merged_models.values()]
     return ProviderConfig.model_validate(merged_data)
-
 
 def _merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Config:
     """Merge user config with builtin config.
@@ -687,7 +670,6 @@ def _merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Co
     merged.set_user_config(user_config)
     return merged
 
-
 def _load_user_config() -> UserConfig | None:
     """Load user config from disk. Returns None if file doesn't exist or is empty."""
     if not config_path.exists():
@@ -705,7 +687,6 @@ def _load_user_config() -> UserConfig | None:
         log(f"Invalid config file: {config_path}")
         log(str(e))
         raise ValueError(f"Invalid config file: {config_path}") from e
-
 
 def create_example_config() -> bool:
     """Create example config file if it doesn't exist.
@@ -734,7 +715,6 @@ def create_example_config() -> bool:
     example_config_path.write_text(header + yaml_str)
     return True
 
-
 def _load_config_uncached() -> Config:
     """Load and merge builtin + user config. Always returns a valid Config."""
     builtin_config = get_builtin_config()
@@ -743,11 +723,9 @@ def _load_config_uncached() -> Config:
 
     return _merge_configs(user_config, builtin_config)
 
-
 @lru_cache(maxsize=1)
 def _load_config_cached() -> Config:
     return _load_config_uncached()
-
 
 def load_config() -> Config:
     """Load config from disk (builtin + user merged).
@@ -761,7 +739,6 @@ def load_config() -> Config:
     except ValueError:
         _load_config_cached.cache_clear()
         raise
-
 
 def print_no_available_models_hint() -> None:
     """Print helpful message when no models are available due to missing API keys."""
@@ -782,7 +759,6 @@ def print_no_available_models_hint() -> None:
             log(f"  {key_info.env_var:<{max_len}}  {key_info.description}")
     log("")
     log(f"Or add custom providers in: {config_path}")
-
 
 # Expose cache control for tests and callers that need to invalidate the cache.
 load_config.cache_clear = _load_config_cached.cache_clear  # type: ignore[attr-defined]

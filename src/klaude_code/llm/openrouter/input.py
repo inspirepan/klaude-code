@@ -85,7 +85,6 @@ def _assistant_message_to_openrouter(
 
     return cast(chat.ChatCompletionMessageParam, assistant_message)
 
-
 def _add_cache_control(messages: list[chat.ChatCompletionMessageParam], use_cache_control: bool) -> None:
     if not use_cache_control or len(messages) == 0:
         return
@@ -99,13 +98,11 @@ def _add_cache_control(messages: list[chat.ChatCompletionMessageParam], use_cach
                     last_part["cache_control"] = {"type": "ephemeral"}
             break
 
-
 def _rewrite_tool_message_for_claude(tool_message: dict[str, object]) -> None:
     content = tool_message.get("content")
     if not isinstance(content, str):
         return
     tool_message["content"] = [{"type": "text", "text": content}]
-
 
 def convert_history_to_input(
     history: list[message.Message],

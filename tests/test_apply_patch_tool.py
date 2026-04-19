@@ -7,13 +7,14 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+from klaude_code.protocol.models import DiffUIExtra
+
 # Ensure imports from src/
 ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from klaude_code.protocol.model import DiffUIExtra  # noqa: E402
 from klaude_code.session.session import Session  # noqa: E402
 from klaude_code.tool import ApplyPatchTool  # noqa: E402
 from klaude_code.tool.context import ToolContext, build_todo_context  # noqa: E402
@@ -21,7 +22,6 @@ from klaude_code.tool.context import ToolContext, build_todo_context  # noqa: E4
 
 def arun(coro: Any) -> Any:
     return asyncio.run(coro)
-
 
 def _tool_context() -> ToolContext:
     session = Session(work_dir=Path.cwd())
@@ -33,7 +33,6 @@ def _tool_context() -> ToolContext:
         file_change_summary=session.file_change_summary,
     )
 
-
 class BaseTempDirTest(unittest.TestCase):
     def setUp(self) -> None:
         self._orig_cwd = os.getcwd()
@@ -43,7 +42,6 @@ class BaseTempDirTest(unittest.TestCase):
     def tearDown(self) -> None:
         os.chdir(self._orig_cwd)
         self._tmp.cleanup()
-
 
 class TestApplyPatchTool(BaseTempDirTest):
     def test_apply_patch_add_file(self) -> None:
@@ -274,7 +272,6 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertIn("Failed changes:", result.output_text)
         self.assertTrue(Path("moved.txt").exists())
         self.assertFalse(Path("rename-me.txt").exists())
-
 
 if __name__ == "__main__":
     unittest.main()

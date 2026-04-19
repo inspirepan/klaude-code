@@ -11,7 +11,6 @@ def _build_input(text: str) -> PromptToolkitInput:
     prompt_input._session = SimpleNamespace(default_buffer=SimpleNamespace(text=text))
     return prompt_input  # type: ignore[return-value]
 
-
 def test_set_next_prefill_stores_text() -> None:
     prompt_input: Any = _build_input("hello")
     prompt_input._next_prefill_text = None

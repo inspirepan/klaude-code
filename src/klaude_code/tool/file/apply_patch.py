@@ -14,33 +14,27 @@ class ActionType(str, Enum):
     DELETE = "delete"
     UPDATE = "update"
 
-
 class FileChange(BaseModel):
     type: ActionType
     old_content: str | None = None
     new_content: str | None = None
     move_path: str | None = None
 
-
 class Commit(BaseModel):
     changes: dict[str, FileChange] = Field(default_factory=dict)
-
 
 def _new_str_list() -> list[str]:
     # Returns a new list[str] for pydantic Field default_factory
     return []
-
 
 class Chunk(BaseModel):
     orig_index: int = -1  # line index of the first line in the original file
     del_lines: list[str] = Field(default_factory=_new_str_list)
     ins_lines: list[str] = Field(default_factory=_new_str_list)
 
-
 def _new_chunk_list() -> list["Chunk"]:
     # Returns a new list[Chunk] for pydantic Field default_factory
     return []
-
 
 class PatchAction(BaseModel):
     type: ActionType
@@ -48,53 +42,42 @@ class PatchAction(BaseModel):
     chunks: list[Chunk] = Field(default_factory=_new_chunk_list)
     move_path: str | None = None
 
-
 class Patch(BaseModel):
     actions: dict[str, PatchAction] = Field(default_factory=dict)
-
 
 class PatchSection(BaseModel):
     type: ActionType
     path: str
     text: str
 
-
 def _new_patch_section_list() -> list[PatchSection]:
     return []
-
 
 class PatchGroup(BaseModel):
     path: str
     sections: list[PatchSection] = Field(default_factory=_new_patch_section_list)
 
-
 def _new_commit_list() -> list[Commit]:
     return []
-
 
 class PatchSuccess(BaseModel):
     path: str
     change: FileChange
     commits: list[Commit] = Field(default_factory=_new_commit_list)
 
-
 class PatchFailure(BaseModel):
     path: str
     error: str
 
-
 def _new_patch_success_list() -> list[PatchSuccess]:
     return []
-
 
 def _new_patch_failure_list() -> list[PatchFailure]:
     return []
 
-
 class PatchResult(BaseModel):
     successes: list[PatchSuccess] = Field(default_factory=_new_patch_success_list)
     failures: list[PatchFailure] = Field(default_factory=_new_patch_failure_list)
-
 
 class Parser(BaseModel):
     current_files: dict[str, str] = Field(default_factory=dict)
@@ -231,7 +214,6 @@ class Parser(BaseModel):
             new_file="\n".join(lines),
         )
 
-
 def find_context_core(lines: list[str], context: list[str], start: int) -> tuple[int, int]:
     if not context:
         # print("context is empty")
@@ -251,7 +233,6 @@ def find_context_core(lines: list[str], context: list[str], start: int) -> tuple
             return i, 100
     return -1, 0
 
-
 def find_context(lines: list[str], context: list[str], start: int, eof: bool) -> tuple[int, int]:
     if eof:
         new_index, fuzz = find_context_core(lines, context, len(lines) - len(context))
@@ -260,7 +241,6 @@ def find_context(lines: list[str], context: list[str], start: int, eof: bool) ->
         new_index, fuzz = find_context_core(lines, context, start)
         return new_index, fuzz + 10000
     return find_context_core(lines, context, start)
-
 
 def peek_next_section(lines: list[str], index: int) -> tuple[list[str], list[Chunk], int, bool]:
     old: list[str] = []
@@ -334,9 +314,7 @@ def peek_next_section(lines: list[str], index: int) -> tuple[list[str], list[Chu
         raise DiffError(f"Nothing in this section - {index=} {lines[index]}")
     return old, chunks, index, False
 
-
 _PATCH_ACTION_PREFIXES = ("*** Update File: ", "*** Delete File: ", "*** Add File: ")
-
 
 def _duplicate_path_error(action_type: ActionType, path: str) -> "DiffError":
     prefix = {
@@ -345,7 +323,6 @@ def _duplicate_path_error(action_type: ActionType, path: str) -> "DiffError":
         ActionType.ADD: "Add File Error",
     }[action_type]
     return DiffError(f"{prefix}: Duplicate Path: {path}")
-
 
 def _parse_section_header(line: str) -> tuple[ActionType, str]:
     for prefix, action_type in (
@@ -357,13 +334,11 @@ def _parse_section_header(line: str) -> tuple[ActionType, str]:
             return action_type, line[len(prefix) :]
     raise DiffError(f"Unknown Line: {line}")
 
-
 def _patch_lines(text: str) -> list[str]:
     lines = text.strip().split("\n")
     if len(lines) < 2 or not lines[0].startswith("*** Begin Patch") or lines[-1] != "*** End Patch":
         raise DiffError('Invalid patch text, expected "*** Begin Patch" and "*** End Patch"')
     return lines
-
 
 def split_patch_sections(text: str) -> list[PatchSection]:
     lines = _patch_lines(text)
@@ -390,7 +365,6 @@ def split_patch_sections(text: str) -> list[PatchSection]:
 
     return sections
 
-
 def group_patch_sections(text: str) -> list[PatchGroup]:
     groups_by_path: dict[str, PatchGroup] = {}
     for section in split_patch_sections(text):
@@ -403,7 +377,6 @@ def group_patch_sections(text: str) -> list[PatchGroup]:
         group.sections.append(section)
     return list(groups_by_path.values())
 
-
 def text_to_patch(text: str, orig: dict[str, str]) -> tuple[Patch, int]:
     lines = _patch_lines(text)
 
@@ -415,7 +388,6 @@ def text_to_patch(text: str, orig: dict[str, str]) -> tuple[Patch, int]:
     parser.parse()
     return parser.patch, parser.fuzz
 
-
 def identify_files_needed(text: str) -> list[str]:
     lines = text.strip().split("\n")
     result: set[str] = set()
@@ -425,7 +397,6 @@ def identify_files_needed(text: str) -> list[str]:
         if line.startswith("*** Delete File: "):
             result.add(line[len("*** Delete File: ") :])
     return list(result)
-
 
 def _get_updated_file(text: str, action: PatchAction, path: str) -> str:
     assert action.type == ActionType.UPDATE
@@ -462,7 +433,6 @@ def _get_updated_file(text: str, action: PatchAction, path: str) -> str:
     assert dest_index == len(dest_lines)
     return "\n".join(dest_lines)
 
-
 def patch_to_commit(patch: Patch, orig: dict[str, str]) -> Commit:
     commit = Commit()
     for path, action in patch.actions.items():
@@ -480,10 +450,8 @@ def patch_to_commit(patch: Patch, orig: dict[str, str]) -> Commit:
             )
     return commit
 
-
 class DiffError(ValueError):
     pass
-
 
 def _apply_commit_to_contents(commit: Commit, files: dict[str, str]) -> None:
     def write_fn(path: str, content: str) -> None:
@@ -495,7 +463,6 @@ def _apply_commit_to_contents(commit: Commit, files: dict[str, str]) -> None:
         del files[path]
 
     apply_commit(commit, write_fn, remove_fn)
-
 
 def _flatten_commits(path: str, commits: list[Commit]) -> FileChange:
     if not commits:
@@ -513,11 +480,9 @@ def _flatten_commits(path: str, commits: list[Commit]) -> FileChange:
         move_path=last.move_path,
     )
 
-
 def iter_successful_changes(result: PatchResult):
     for success in result.successes:
         yield success.path, success.change
-
 
 def describe_change(path: str, change: FileChange) -> str:
     if change.type == ActionType.DELETE:
@@ -525,7 +490,6 @@ def describe_change(path: str, change: FileChange) -> str:
     if change.type == ActionType.UPDATE and change.move_path and change.move_path != path:
         return f"{path} -> {change.move_path}"
     return path
-
 
 def build_patch_result(text: str, open_fn: Callable[[str], str]) -> PatchResult:
     result = PatchResult()
@@ -572,11 +536,9 @@ def build_patch_result(text: str, open_fn: Callable[[str], str]) -> PatchResult:
 
     return result
 
-
 def iter_commits(result: PatchResult) -> Iterator[Commit]:
     for success in result.successes:
         yield from success.commits
-
 
 def format_patch_result(result: PatchResult) -> str:
     if not result.failures:
@@ -591,7 +553,6 @@ def format_patch_result(result: PatchResult) -> str:
     for failure in result.failures:
         lines.append(f"- {failure.path}: {failure.error}")
     return "\n".join(lines)
-
 
 def apply_commit(
     commit: Commit,
@@ -616,7 +577,6 @@ def apply_commit(
                     raise DiffError(f"Missing new_content for UPDATE: {path}")
                 write_fn(path, change.new_content)
 
-
 def process_patch(
     text: str,
     open_fn: Callable[[str], str],
@@ -631,11 +591,9 @@ def process_patch(
         apply_commit(commit, write_fn, remove_fn)
     return format_patch_result(result)
 
-
 def open_file(path: str) -> str:
     with open(path) as f:
         return f.read()
-
 
 def write_file(path: str, content: str) -> None:
     if "/" in path:
@@ -644,10 +602,8 @@ def write_file(path: str, content: str) -> None:
     with open(path, "w") as f:
         f.write(content)
 
-
 def remove_file(path: str) -> None:
     os.remove(path)
-
 
 def main():
     import sys
@@ -662,7 +618,6 @@ def main():
         print(str(e))
         return
     print(result)
-
 
 if __name__ == "__main__":
     main()

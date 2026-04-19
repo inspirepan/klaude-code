@@ -62,6 +62,5 @@ class TestCompactionBoundaries(unittest.TestCase):
         if len(llm_history) > 1:
             self.assertFalse(isinstance(llm_history[1], message.ToolResultMessage))
 
-
 if __name__ == "__main__":
     unittest.main()

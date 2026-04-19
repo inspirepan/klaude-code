@@ -15,10 +15,8 @@ _BLOCKED_HOSTNAMES = frozenset({"localhost", "metadata.google.internal"})
 _BLOCKED_SUFFIXES = (".localhost", ".local", ".internal")
 _BENCHMARK_NETWORK = ipaddress.ip_network("198.18.0.0/15")
 
-
 class SSRFBlockedError(Exception):
     """Raised when a URL is blocked by SSRF protection."""
-
 
 def _is_private_ip(ip_str: str) -> bool:
     """Check if an IP address is private, loopback, link-local, or reserved."""
@@ -28,7 +26,6 @@ def _is_private_ip(ip_str: str) -> bool:
         return False  # not an IP address, skip IP check (DNS resolution will handle it)
     return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved
 
-
 def _is_blocked_hostname(hostname: str) -> bool:
     """Check if hostname is in the blocklist."""
     normalized = hostname.lower().rstrip(".")
@@ -36,13 +33,11 @@ def _is_blocked_hostname(hostname: str) -> bool:
         return True
     return any(normalized.endswith(suffix) for suffix in _BLOCKED_SUFFIXES)
 
-
 def _is_benchmark_ip(ip_str: str) -> bool:
     try:
         return ipaddress.ip_address(ip_str) in _BENCHMARK_NETWORK
     except ValueError:
         return False
-
 
 def check_ssrf(url: str) -> None:
     """Validate that a URL does not target private/internal resources.

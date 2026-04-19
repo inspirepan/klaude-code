@@ -2,12 +2,12 @@ from rich.console import RenderableType
 from rich.text import Text
 
 from klaude_code.const import DIFF_PREFIX_WIDTH, TAB_EXPAND_WIDTH
-from klaude_code.protocol import model
+from klaude_code.protocol.models import DiffFileDiff, DiffLine, DiffUIExtra
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 
-def render_structured_diff(ui_extra: model.DiffUIExtra, show_file_name: bool = False) -> RenderableType:
+def render_structured_diff(ui_extra: DiffUIExtra, show_file_name: bool = False) -> RenderableType:
     files = ui_extra.files
     if not files:
         return Text("")
@@ -30,8 +30,7 @@ def render_structured_diff(ui_extra: model.DiffUIExtra, show_file_name: bool = F
 
     return grid
 
-
-def _render_file_header(file_diff: model.DiffFileDiff) -> tuple[Text, Text]:
+def _render_file_header(file_diff: DiffFileDiff) -> tuple[Text, Text]:
     file_text = Text(file_diff.file_path, style=ThemeKey.DIFF_FILE_NAME)
     stats_text = Text()
     if file_diff.stats_add > 0:
@@ -58,8 +57,7 @@ def _render_file_header(file_diff: model.DiffFileDiff) -> tuple[Text, Text]:
     prefix = Text(f"{file_mark:>{DIFF_PREFIX_WIDTH}}  ", style=ThemeKey.DIFF_FILE_NAME)
     return prefix, file_line
 
-
-def _make_structured_prefix(line: model.DiffLine, width: int) -> str:
+def _make_structured_prefix(line: DiffLine, width: int) -> str:
     if line.kind == "gap":
         return f"{'⋮':>{width}}  "
     number = " " * width
@@ -68,8 +66,7 @@ def _make_structured_prefix(line: model.DiffLine, width: int) -> str:
     marker = "+" if line.kind == "add" else "-" if line.kind == "remove" else " "
     return f"{number} {marker}"
 
-
-def _render_structured_line(line: model.DiffLine) -> Text:
+def _render_structured_line(line: DiffLine) -> Text:
     if line.kind == "gap":
         return Text("")
     text = Text()
@@ -77,7 +74,6 @@ def _render_structured_line(line: model.DiffLine) -> Text:
         content = span.text.expandtabs(TAB_EXPAND_WIDTH)
         text.append(content, style=_span_style(line.kind, span.op))
     return text
-
 
 def _span_style(line_kind: str, span_op: str) -> ThemeKey:
     if line_kind == "add":

@@ -6,7 +6,8 @@ from prompt_toolkit.document import Document
 
 from klaude_code.agent.attachments import at_file_reader_attachment, image_attachment
 from klaude_code.llm import image as image_module
-from klaude_code.protocol import events, message, model
+from klaude_code.protocol import events, message
+from klaude_code.protocol.models import AtFileOpsUIItem, UserImagesUIItem
 from klaude_code.session.session import Session
 from klaude_code.tui.components.developer import render_developer_message
 from klaude_code.tui.components.user_input import INLINE_RENDER_PATTERN, render_user_input
@@ -15,7 +16,6 @@ from klaude_code.tui.input.completers import create_repl_completer
 
 def _arun(coro):  # type: ignore
     return asyncio.run(coro)  # type: ignore
-
 
 def _extract_plain_text(renderable: object) -> str:
     from rich.console import Console
@@ -26,7 +26,6 @@ def _extract_plain_text(renderable: object) -> str:
     console.print(renderable)
     output = console.export_text(styles=False)
     return output
-
 
 def test_at_files_completer_quotes_paths_with_spaces(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """End-to-end: @ completion should wrap suggestions that contain spaces in quotes.
@@ -64,7 +63,6 @@ def test_at_files_completer_quotes_paths_with_spaces(tmp_path: Path, monkeypatch
     assert any("dir with spaces" in t for t in insert_texts), insert_texts
     assert any((t.startswith('@"') and t.endswith(' "')) or t.endswith('" ') for t in insert_texts), insert_texts
 
-
 def test_at_file_reader_attachment_and_developer_render_chain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """End-to-end: @ patterns in user input -> attachment -> developer message render.
 
@@ -91,7 +89,7 @@ def test_at_file_reader_attachment_and_developer_render_chain(tmp_path: Path, mo
     assert attachment is not None
     assert attachment.ui_extra is not None
 
-    at_file_items = [ui_item for ui_item in attachment.ui_extra.items if isinstance(ui_item, model.AtFileOpsUIItem)]
+    at_file_items = [ui_item for ui_item in attachment.ui_extra.items if isinstance(ui_item, AtFileOpsUIItem)]
     assert len(at_file_items) == 1
     assert len(at_file_items[0].ops) == 1
 
@@ -105,7 +103,6 @@ def test_at_file_reader_attachment_and_developer_render_chain(tmp_path: Path, mo
     plain = _extract_plain_text(rendered)
 
     assert "ReadMe File.txt" in plain
-
 
 def test_render_user_input_highlights_full_at_pattern() -> None:
     """render_user_input should highlight full @... or @"..." segments.
@@ -123,7 +120,6 @@ def test_render_user_input_highlights_full_at_pattern() -> None:
     assert "@src/file.py" in plain
     assert '@"dir with spaces/my file.txt"' in plain
 
-
 def test_at_file_render_pattern_ignores_mid_word_at() -> None:
     """INLINE_RENDER_PATTERN should not match email-like mid-word @ symbols.
 
@@ -137,7 +133,6 @@ def test_at_file_render_pattern_ignores_mid_word_at() -> None:
     # But it should still match when @ starts a token at line start or after space
     assert INLINE_RENDER_PATTERN.search("@src/file.py") is not None
     assert INLINE_RENDER_PATTERN.search("See @src/file.py for details") is not None
-
 
 def test_image_attachment_keeps_display_paths_for_frozen_history_images(tmp_path: Path) -> None:
     image_path = tmp_path / "pasted.png"
@@ -155,6 +150,6 @@ def test_image_attachment_keeps_display_paths_for_frozen_history_images(tmp_path
     attachment = _arun(image_attachment(session))
     assert attachment is not None
     assert attachment.ui_extra is not None
-    user_image_items = [item for item in attachment.ui_extra.items if isinstance(item, model.UserImagesUIItem)]
+    user_image_items = [item for item in attachment.ui_extra.items if isinstance(item, UserImagesUIItem)]
     assert len(user_image_items) == 1
     assert user_image_items[0].paths == [str(image_path)]

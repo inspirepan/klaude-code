@@ -12,7 +12,6 @@ from klaude_code.tui.command import logout_cmd
 
 pytestmark = pytest.mark.usefixtures("isolated_home")
 
-
 class _DummyAgent:
     def __init__(self, session: Session):
         self.session = session
@@ -21,10 +20,8 @@ class _DummyAgent:
     def get_llm_client(self) -> Any:  # pragma: no cover
         raise NotImplementedError
 
-
 def arun(coro: Any) -> Any:
     return asyncio.run(coro)
-
 
 def test_logout_command_uses_selector_when_provider_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     session = Session.create(work_dir=Path.cwd())
@@ -50,7 +47,6 @@ def test_logout_command_uses_selector_when_provider_missing(monkeypatch: pytest.
     assert logout_calls == ["codex"]
     assert result.events is not None
     assert result.events[0].content == "Logout flow completed."
-
 
 def test_logout_command_returns_cancelled_when_selector_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     session = Session.create(work_dir=Path.cwd())

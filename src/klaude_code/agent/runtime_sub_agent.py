@@ -1,3 +1,4 @@
+
 """Sub-agent execution and event forwarding."""
 
 from __future__ import annotations
@@ -10,7 +11,8 @@ from klaude_code.agent.agent_profile import ModelProfileProvider
 from klaude_code.agent.runtime_llm import LLMClients
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.system_prompt import build_sub_agent_env_info, load_prompt_by_path
-from klaude_code.protocol import events, message, model
+from klaude_code.protocol import events, message
+from klaude_code.protocol.models import SubAgentState, TaskMetadata
 from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
 from klaude_code.session.session import Session
 
@@ -34,11 +36,11 @@ class SubAgentExecutor:
     async def run_sub_agent(
         self,
         parent_agent: Agent,
-        state: model.SubAgentState,
+        state: SubAgentState,
         *,
         llm_clients: LLMClients | None = None,
         record_session_id: Callable[[str], None] | None = None,
-        register_metadata_getter: Callable[[Callable[[], model.TaskMetadata | None]], None] | None = None,
+        register_metadata_getter: Callable[[Callable[[], TaskMetadata | None]], None] | None = None,
         register_progress_getter: Callable[[Callable[[], str | None]], None] | None = None,
     ) -> SubAgentResult:
         parent_session = parent_agent.session
@@ -98,7 +100,7 @@ class SubAgentExecutor:
             debug_type=DebugType.EXECUTION,
         )
 
-        def _get_partial_metadata() -> model.TaskMetadata | None:
+        def _get_partial_metadata() -> TaskMetadata | None:
             metadata = child_agent.get_partial_metadata()
             if metadata is not None:
                 metadata.sub_agent_name = state.sub_agent_type
@@ -127,7 +129,7 @@ class SubAgentExecutor:
 
         try:
             result: str = ""
-            task_metadata: model.TaskMetadata | None = None
+            task_metadata: TaskMetadata | None = None
             sub_agent_input = message.UserInputPayload(text=state.sub_agent_prompt, images=None)
             history_items: list[message.HistoryEvent] = []
             if state.fork_context:

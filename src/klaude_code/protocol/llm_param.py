@@ -25,13 +25,11 @@ class LLMClientProtocol(Enum):
             return cls.GITHUB_COPILOT_OAUTH
         return None
 
-
 class ToolSchema(BaseModel):
     name: str
     type: Literal["function"]
     description: str
     parameters: JsonSchemaValue
-
 
 class Thinking(BaseModel):
     """
@@ -46,7 +44,6 @@ class Thinking(BaseModel):
     type: Literal["enabled", "disabled", "adaptive"] | None = None
     budget_tokens: int | None = None
 
-
 class Cost(BaseModel):
     """Cost configuration per million tokens."""
 
@@ -55,7 +52,6 @@ class Cost(BaseModel):
     cache_read: float = 0.0  # Cache read price per million tokens
     cache_write: float = 0.0  # Cache write price per million tokens (ignored in calculation for now)
     currency: Literal["USD", "CNY"] = "USD"  # Currency for cost display
-
 
 class OpenRouterProviderRouting(BaseModel):
     """
@@ -96,7 +92,6 @@ class OpenRouterProviderRouting(BaseModel):
 
     experimental: Experimental | None = None
 
-
 class LLMConfigProviderParameter(BaseModel):
     provider_name: str = ""
     protocol: LLMClientProtocol
@@ -123,7 +118,6 @@ class LLMConfigProviderParameter(BaseModel):
             return "github-copilot"
         return value
 
-
 class LLMConfigModelParameter(BaseModel):
     model_id: str | None = None
     disabled: bool = False
@@ -149,7 +143,6 @@ class LLMConfigModelParameter(BaseModel):
     # Cost configuration (USD per million tokens)
     cost: Cost | None = None
 
-
 class LLMConfigParameter(LLMConfigProviderParameter, LLMConfigModelParameter):
     """
     Parameter support in config yaml
@@ -163,7 +156,6 @@ class LLMConfigParameter(LLMConfigProviderParameter, LLMConfigModelParameter):
     """
 
     pass
-
 
 class LLMCallParameter(LLMConfigModelParameter):
     """

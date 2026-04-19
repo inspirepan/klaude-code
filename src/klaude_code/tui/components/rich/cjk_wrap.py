@@ -10,15 +10,12 @@ from typing import Any, cast
 def _is_cjk_char(ch: str) -> bool:
     return unicodedata.east_asian_width(ch) in ("W", "F")
 
-
 def _contains_cjk(text: str) -> bool:
     return any(_is_cjk_char(ch) for ch in text)
-
 
 def _is_ascii_word_char(ch: str) -> bool:
     o = ord(ch)
     return (48 <= o <= 57) or (65 <= o <= 90) or (97 <= o <= 122) or ch in "_."
-
 
 def _find_prefix_len_for_remaining(word: str, remaining_space: int) -> int:
     """Find a prefix length (in chars) that fits remaining_space.
@@ -58,9 +55,7 @@ def _find_prefix_len_for_remaining(word: str, remaining_space: int) -> int:
 
     return best
 
-
 _rich_cjk_wrap_patch_installed = False
-
 
 def install_rich_cjk_wrap_patch() -> bool:
     """Install a monkey-patch that improves CJK line wrapping in Rich.

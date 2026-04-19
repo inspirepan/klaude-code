@@ -10,35 +10,31 @@ from hypothesis import strategies as st
 from klaude_code.llm import image as image_module
 from klaude_code.llm.anthropic.input import convert_history_to_input as anthropic_history
 from klaude_code.llm.anthropic.input import convert_system_to_input as anthropic_system_input
+from klaude_code.protocol.models import Usage
 
 if TYPE_CHECKING:
-    from klaude_code.protocol import message, model
+    from klaude_code.protocol import message
 from klaude_code.llm.openai_compatible.input import convert_history_to_input as openai_history
 from klaude_code.llm.openai_responses.input import convert_history_to_input as responses_history
 from klaude_code.llm.openrouter.input import convert_history_to_input as openrouter_history
-from klaude_code.protocol import message, model
+from klaude_code.protocol import message
 
 SAMPLE_IMAGE_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
 SAMPLE_DATA_URL = f"data:image/png;base64,{SAMPLE_IMAGE_BASE64}"
 
-
 def _make_image_part() -> message.ImageURLPart:
     return message.ImageURLPart(url=SAMPLE_DATA_URL, id=None)
 
-
 def _parts(*parts: message.Part) -> list[message.Part]:
     return list(parts)
-
 
 def _ensure_dict(value: object) -> dict[str, Any]:
     assert isinstance(value, dict)
     return cast(dict[str, Any], value)
 
-
 def _ensure_list(value: object) -> list[Any]:
     assert isinstance(value, list)
     return cast(list[Any], value)
-
 
 def test_anthropic_history_includes_image_blocks():
     image_part = _make_image_part()
@@ -74,7 +70,6 @@ def test_anthropic_history_includes_image_blocks():
     second_tool_block = _ensure_dict(tool_blocks[1])
     assert second_tool_block["type"] == "image"
 
-
 def test_anthropic_system_input_splits_static_and_dynamic_blocks() -> None:
     blocks = anthropic_system_input(
         "static\n\n__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\n\ndynamic",
@@ -84,7 +79,6 @@ def test_anthropic_system_input_splits_static_and_dynamic_blocks() -> None:
         {"type": "text", "text": "static"},
         {"type": "text", "text": "dynamic", "cache_control": {"type": "ephemeral"}},
     ]
-
 
 def test_anthropic_history_keeps_frozen_user_images_stable_when_more_images_are_added(
     monkeypatch: pytest.MonkeyPatch,
@@ -108,7 +102,6 @@ def test_anthropic_history_keeps_frozen_user_images_stable_when_more_images_are_
     first_blocks = _ensure_list(first["content"])
     first_image = _ensure_dict(first_blocks[1])
     assert _ensure_dict(first_image["source"])["data"] == SAMPLE_IMAGE_BASE64
-
 
 def test_openai_compatible_history_includes_image_url_parts():
     image_part = _make_image_part()
@@ -149,7 +142,6 @@ def test_openai_compatible_history_includes_image_url_parts():
     assert image_block["type"] == "image_url"
     assert _ensure_dict(image_block["image_url"])["url"] == SAMPLE_DATA_URL
 
-
 def test_openrouter_history_includes_image_url_parts():
     image_part = _make_image_part()
     history: list[message.Message] = [
@@ -173,7 +165,6 @@ def test_openrouter_history_includes_image_url_parts():
     image_url = _ensure_dict(second_part["image_url"])
     assert image_url["url"] == SAMPLE_DATA_URL
 
-
 def test_openrouter_history_ignores_assistant_images():
     with tempfile.TemporaryDirectory() as tmpdir:
         img_path = Path(tmpdir) / "assistant.png"
@@ -190,7 +181,6 @@ def test_openrouter_history_ignores_assistant_images():
         assert first["role"] == "assistant"
         assert "images" not in first
 
-
 def test_openai_compatible_history_ignores_assistant_images():
     with tempfile.TemporaryDirectory() as tmpdir:
         img_path = Path(tmpdir) / "assistant.png"
@@ -206,7 +196,6 @@ def test_openai_compatible_history_ignores_assistant_images():
         first = _ensure_dict(messages[0])
         assert first["role"] == "assistant"
         assert "images" not in first
-
 
 def test_responses_history_includes_image_inputs():
     image_part = _make_image_part()
@@ -239,7 +228,6 @@ def test_responses_history_includes_image_inputs():
     second_tool_part = _ensure_dict(tool_parts[1])
     assert second_tool_part["type"] == "input_image"
 
-
 def test_responses_history_function_call_output_can_be_string():
     history: list[message.Message] = [
         message.ToolResultMessage(
@@ -260,7 +248,6 @@ def test_responses_history_function_call_output_can_be_string():
     assert tool_item["type"] == "function_call_output"
     assert tool_item["output"] == "done"
     assert tool_item["status"] == "completed"
-
 
 def test_responses_history_assistant_and_reasoning_include_status_in_string_mode():
     history: list[message.Message] = [
@@ -287,7 +274,6 @@ def test_responses_history_assistant_and_reasoning_include_status_in_string_mode
     assert assistant_item["role"] == "assistant"
     assert assistant_item["status"] == "completed"
 
-
 def test_developer_message_images_propagate_to_user_group():
     image_part = _make_image_part()
     history: list[message.Message] = [
@@ -312,7 +298,6 @@ def test_developer_message_images_propagate_to_user_group():
     user_parts = _ensure_list(user_item["content"])
     assert _ensure_dict(user_parts[1])["type"] == "input_text"
     assert _ensure_dict(user_parts[2])["type"] == "input_image"
-
 
 def test_developer_message_with_prepend_marker_prepends_user_content_across_providers():
     history: list[message.Message] = [
@@ -344,7 +329,6 @@ def test_developer_message_with_prepend_marker_prepends_user_content_across_prov
     assert _ensure_dict(responses_user_content[0])["text"] == "MEMORY\n"
     assert _ensure_dict(responses_user_content[1])["text"] == "USER"
 
-
 def test_developer_message_with_prepend_marker_prepends_tool_output_across_providers():
     history: list[message.Message] = [
         message.ToolResultMessage(call_id="call-1", tool_name="Read", status="success", output_text="TOOL"),
@@ -371,7 +355,6 @@ def test_developer_message_with_prepend_marker_prepends_tool_output_across_provi
     responses_tool_output = _ensure_list(responses_tool_item["output"])
     assert _ensure_dict(responses_tool_output[0])["text"] == "MEMORY\n\nTOOL"
 
-
 def test_anthropic_tool_group_includes_developer_images():
     image_part = _make_image_part()
     history: list[message.Message] = [
@@ -390,17 +373,13 @@ def test_anthropic_tool_group_includes_developer_images():
     tool_blocks = _ensure_list(tool_entry["content"])
     assert _ensure_dict(tool_blocks[-1])["type"] == "image"
 
-
 # ============================================================================
 # Property-based tests for Usage model
 # ============================================================================
 
-
 @st.composite
-def usage_instances(draw: st.DrawFn) -> "model.Usage":
+def usage_instances(draw: st.DrawFn) -> "Usage":
     """Generate Usage instances with valid token counts."""
-    from klaude_code.protocol.model import Usage
-
     input_tokens = draw(st.integers(min_value=0, max_value=1_000_000))
     cached_tokens = draw(st.integers(min_value=0, max_value=input_tokens))
     output_tokens = draw(st.integers(min_value=0, max_value=1_000_000))
@@ -427,17 +406,15 @@ def usage_instances(draw: st.DrawFn) -> "model.Usage":
         cache_read_cost=cache_read_cost,
     )
 
-
 @given(usage=usage_instances())
 @settings(max_examples=100, deadline=None)
-def test_usage_total_tokens_computed_correctly(usage: "model.Usage") -> None:
+def test_usage_total_tokens_computed_correctly(usage: "Usage") -> None:
     """Property: total_tokens = input_tokens + output_tokens."""
     assert usage.total_tokens == usage.input_tokens + usage.output_tokens
 
-
 @given(usage=usage_instances())
 @settings(max_examples=100, deadline=None)
-def test_usage_total_cost_computed_correctly(usage: "model.Usage") -> None:
+def test_usage_total_cost_computed_correctly(usage: "Usage") -> None:
     """Property: total_cost = sum of non-None cost components."""
     costs = [usage.input_cost, usage.output_cost, usage.cache_read_cost]
     non_none = [c for c in costs if c is not None]
@@ -448,10 +425,9 @@ def test_usage_total_cost_computed_correctly(usage: "model.Usage") -> None:
     else:
         assert usage.total_cost is None
 
-
 @given(usage=usage_instances())
 @settings(max_examples=100, deadline=None)
-def test_usage_context_usage_percent_bounds(usage: "model.Usage") -> None:
+def test_usage_context_usage_percent_bounds(usage: "Usage") -> None:
     """Property: context_usage_percent is None or non-negative."""
     if usage.context_usage_percent is not None:
         assert usage.context_usage_percent >= 0

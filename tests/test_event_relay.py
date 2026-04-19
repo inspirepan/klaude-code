@@ -12,10 +12,8 @@ from klaude_code.protocol import events
 
 T = TypeVar("T")
 
-
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
-
 
 def test_event_relay_round_trips_ephemeral_event(tmp_path: Path) -> None:
     async def _test() -> None:
@@ -42,7 +40,6 @@ def test_event_relay_round_trips_ephemeral_event(tmp_path: Path) -> None:
         assert envelope.event.content == "hello"
 
     arun(_test())
-
 
 def test_event_relay_server_closes_idle_connections_on_shutdown(tmp_path: Path) -> None:
     async def _test() -> None:

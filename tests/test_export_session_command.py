@@ -13,7 +13,6 @@ from klaude_code.tui.command.export_session_cmd import ExportSessionCommand
 
 pytestmark = pytest.mark.usefixtures("isolated_home")
 
-
 class _DummyAgent:
     def __init__(self, session: Session, *, system_prompt: str = "", tools: list[llm_param.ToolSchema] | None = None):
         self.session = session
@@ -21,7 +20,6 @@ class _DummyAgent:
 
     def get_llm_client(self) -> Any:  # pragma: no cover
         return self.profile.llm_client
-
 
 class _DummyProfile:
     def __init__(self, *, system_prompt: str, tools: list[llm_param.ToolSchema]):
@@ -41,10 +39,8 @@ class _DummyProfile:
     def tools(self) -> list[llm_param.ToolSchema]:
         return self._tools
 
-
 def arun(coro: Any) -> Any:
     return asyncio.run(coro)
-
 
 def test_export_session_command_writes_html_with_prompt_and_tools(tmp_path: Path) -> None:
     session = Session.create(work_dir=tmp_path)
@@ -110,7 +106,6 @@ def test_export_session_command_writes_html_with_prompt_and_tools(tmp_path: Path
     assert "Checkpoint 1" in html_text
     assert "call_1" in html_text
     assert "Opened in the default app." in result.events[0].content
-
 
 def test_export_session_command_rejects_empty_session(tmp_path: Path) -> None:
     session = Session.create(work_dir=tmp_path)

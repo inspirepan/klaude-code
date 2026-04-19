@@ -19,10 +19,8 @@ from klaude_code.protocol.user_interaction import (
 
 T = TypeVar("T")
 
-
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
-
 
 def test_user_interaction_request_event_model() -> None:
     payload = AskUserQuestionRequestPayload(
@@ -52,7 +50,6 @@ def test_user_interaction_request_event_model() -> None:
     assert event.payload.kind == "ask_user_question"
     assert event.payload.questions[0].options[0].id == "a"
 
-
 def test_user_interaction_response_submitted_and_cancelled() -> None:
     submitted = UserInteractionResponse(
         status="submitted",
@@ -78,7 +75,6 @@ def test_user_interaction_response_submitted_and_cancelled() -> None:
     cancelled = UserInteractionResponse(status="cancelled", payload=None)
     assert cancelled.status == "cancelled"
     assert cancelled.payload is None
-
 
 def test_operation_select_payload_model() -> None:
     payload = OperationSelectRequestPayload(
@@ -111,7 +107,6 @@ def test_operation_select_payload_model() -> None:
     assert response.payload is not None
     assert response.payload.kind == "operation_select"
     assert response.payload.selected_option_id == "openai@gpt-5"
-
 
 def test_user_interaction_respond_operation_executes_handler() -> None:
     called: dict[str, bool] = {"ok": False}

@@ -7,7 +7,8 @@ from typing import ClassVar
 
 import pytest
 
-from klaude_code.protocol import events, llm_param, message, model
+from klaude_code.protocol import events, llm_param, message
+from klaude_code.protocol.models import Usage
 from klaude_code.tool.context import ToolContext
 from klaude_code.tool.tool_abc import ToolABC
 from tests.agent_harness import create_harness
@@ -16,16 +17,13 @@ from tests.agent_harness import create_harness
 def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
 
-
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
 
-
 # ---------------------------------------------------------------------------
 # Mock tools
 # ---------------------------------------------------------------------------
-
 
 class MockEchoTool(ToolABC):
     calls: ClassVar[list[str]] = []
@@ -48,7 +46,6 @@ class MockEchoTool(ToolABC):
             output_text=f"echo: {args['text']}",
         )
 
-
 class MockUpperTool(ToolABC):
     calls: ClassVar[list[str]] = []
 
@@ -70,20 +67,17 @@ class MockUpperTool(ToolABC):
             output_text=args["text"].upper(),
         )
 
-
 @pytest.fixture(autouse=True)
 def _reset_tool_calls() -> None:  # pyright: ignore[reportUnusedFunction]
     MockEchoTool.calls = []
     MockUpperTool.calls = []
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-
-def _make_usage() -> model.Usage:
-    return model.Usage(
+def _make_usage() -> Usage:
+    return Usage(
         input_tokens=10,
         output_tokens=5,
         context_size=15,
@@ -92,14 +86,12 @@ def _make_usage() -> model.Usage:
         provider="test",
     )
 
-
 def _text_assistant_message(text: str, *, stop_reason: str = "stop") -> message.AssistantMessage:
     return message.AssistantMessage(
         parts=[message.TextPart(text=text)],
         stop_reason=stop_reason,  # type: ignore[arg-type]
         usage=_make_usage(),
     )
-
 
 def _tool_call_assistant_message(
     calls: list[tuple[str, str, str]],
@@ -123,11 +115,9 @@ def _tool_call_assistant_message(
         usage=_make_usage(),
     )
 
-
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-
 
 def test_basic_text_response(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Basic prompt -> text response."""
@@ -152,7 +142,6 @@ def test_basic_text_response(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
         assert len(finish_events) == 1
 
     arun(_test())
-
 
 def test_tool_call_then_followup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Tool call turn -> follow-up text response."""
@@ -203,7 +192,6 @@ def test_tool_call_then_followup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 
     arun(_test())
 
-
 def test_multiple_tool_calls_in_one_response(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Multiple tool calls in one response."""
     project_dir = tmp_path / "project"
@@ -243,7 +231,6 @@ def test_multiple_tool_calls_in_one_response(tmp_path: Path, monkeypatch: pytest
 
     arun(_test())
 
-
 def test_stream_error_triggers_retry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Stream error triggers retry, final result recovered."""
     project_dir = tmp_path / "project"
@@ -274,7 +261,6 @@ def test_stream_error_triggers_retry(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
     arun(_test())
 
-
 def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Stream-error turns must not emit UsageEvent: empty usage would otherwise
     show up as a false prompt-cache-break alert (cached tokens dropping to 0)."""
@@ -282,7 +268,7 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
     project_dir.mkdir()
 
     # Usage with a real cached-token baseline, mimicking a healthy cached turn.
-    cached_usage = model.Usage(
+    cached_usage = Usage(
         input_tokens=60_000,
         cached_tokens=52_000,
         output_tokens=5,
@@ -309,10 +295,10 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
         # attempt 2 recovers.
         harness.fake_llm.enqueue(
             message.StreamErrorItem(error="RemoteProtocolError peer closed connection"),
-            message.AssistantMessage(parts=[], stop_reason="error", usage=model.Usage()),
+            message.AssistantMessage(parts=[], stop_reason="error", usage=Usage()),
         )
         # Turn 2 recovery: same prompt, cache still warm.
-        recovered_usage = model.Usage(
+        recovered_usage = Usage(
             input_tokens=60_100,
             cached_tokens=52_000,
             output_tokens=5,
@@ -346,7 +332,6 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
 
     arun(_test())
 
-
 def test_task_lifecycle_events(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """All lifecycle events are emitted."""
     project_dir = tmp_path / "project"
@@ -369,7 +354,6 @@ def test_task_lifecycle_events(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         assert events.TaskFinishEvent in event_types
 
     arun(_test())
-
 
 def test_llm_receives_correct_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """LLM call receives user message and tool schemas in params."""
@@ -408,7 +392,6 @@ def test_llm_receives_correct_context(tmp_path: Path, monkeypatch: pytest.Monkey
         assert "echo" in tool_names
 
     arun(_test())
-
 
 def test_multi_turn_tool_loop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Two consecutive tool calls before final text (3 turns total)."""

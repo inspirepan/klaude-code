@@ -27,7 +27,6 @@ def test_notify_ask_user_question_emits_terminal_notification() -> None:
     assert sent.title == "Input Required"
     assert sent.body == "2 questions waiting for your answer"
 
-
 def test_notify_ask_user_question_skips_empty_payload() -> None:
     notifier = Mock(spec=TerminalNotifier)
     display = TUIDisplay(notifier=notifier)
@@ -35,7 +34,6 @@ def test_notify_ask_user_question_skips_empty_payload() -> None:
     display.notify_ask_user_question(question_count=0)
 
     notifier.notify.assert_not_called()
-
 
 def test_hide_progress_ui_flushes_open_renderer_blocks() -> None:
     display = TUIDisplay(notifier=Mock(spec=TerminalNotifier))

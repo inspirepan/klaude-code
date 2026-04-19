@@ -1,3 +1,4 @@
+
 """Agent lifecycle, task execution, and session management operations."""
 
 from __future__ import annotations
@@ -30,7 +31,8 @@ from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.image import freeze_image_for_history
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, message, model, op, user_interaction
+from klaude_code.protocol import events, message, op, user_interaction
+from klaude_code.protocol.models import SubAgentState, TaskMetadata
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
 from klaude_code.update import get_startup_update_summary
@@ -48,7 +50,6 @@ def _has_summary_since_last_user_turn(session: Session) -> bool:
             return True
     return False
 
-
 @dataclass
 class ActiveTask:
     """Track an in-flight runtime task."""
@@ -57,7 +58,6 @@ class ActiveTask:
     operation_id: str
     task: asyncio.Task[None]
     session_id: str
-
 
 class AgentOperationHandler:
     """Coordinate agent lifecycle and in-flight tasks for operation execution."""
@@ -753,9 +753,9 @@ class AgentOperationHandler:
             )
 
             async def _runner(
-                state: model.SubAgentState,
+                state: SubAgentState,
                 record_session_id: Callable[[str], None] | None,
-                register_metadata_getter: Callable[[Callable[[], model.TaskMetadata | None]], None] | None,
+                register_metadata_getter: Callable[[Callable[[], TaskMetadata | None]], None] | None,
                 register_progress_getter: Callable[[Callable[[], str | None]], None] | None,
             ) -> SubAgentResult:
                 session_clients = self.get_session_llm_clients(session_id)
@@ -892,7 +892,6 @@ class AgentOperationHandler:
         finally:
             self._remove_task(session_id=session_id, task_id=task_id)
 
-
 class AgentRunner:
     def __init__(self, operation_handler: AgentOperationHandler) -> None:
         self._operation_handler = operation_handler
@@ -960,7 +959,6 @@ class AgentRunner:
 
     def clear_active_tasks(self) -> None:
         self._operation_handler.clear_active_tasks()
-
 
 class BashRunner:
     def __init__(self, operation_handler: AgentOperationHandler) -> None:

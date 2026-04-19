@@ -96,6 +96,5 @@ Summarize the prefix to provide context for the retained suffix:
 
 Be concise. Focus on what's needed to understand the kept suffix."""
 
-
 COMPACTION_SUMMARY_PREFIX = """The conversation history before this point was compacted into the following summary:
 """

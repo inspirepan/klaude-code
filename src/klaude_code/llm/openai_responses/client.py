@@ -21,20 +21,20 @@ from klaude_code.llm.stream_parts import (
 )
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import AssistantPhase, StopReason, Usage
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
 
 def _merge_assistant_phase(
-    current: model.AssistantPhase | None,
-    candidate: model.AssistantPhase | None,
-) -> model.AssistantPhase | None:
+    current: AssistantPhase | None,
+    candidate: AssistantPhase | None,
+) -> AssistantPhase | None:
     if candidate is None:
         return current
     if candidate == "final_answer":
         return "final_answer"
     return current or candidate
-
 
 def build_payload(
     param: llm_param.LLMCallParameter,
@@ -82,7 +82,6 @@ def build_payload(
 
     return payload
 
-
 class ResponsesStreamStateManager:
     """Manages streaming state for Responses API and provides partial message access.
 
@@ -95,12 +94,12 @@ class ResponsesStreamStateManager:
         self.model_id = model_id
         self.response_id: str | None = None
         self.assistant_parts: list[message.Part] = []
-        self.assistant_phase: model.AssistantPhase | None = None
-        self.stop_reason: model.StopReason | None = None
+        self.assistant_phase: AssistantPhase | None = None
+        self.stop_reason: StopReason | None = None
         self._new_thinking_part: bool = True  # Start fresh for first thinking part
         self._summary_count: int = 0  # Track number of summary parts seen
 
-    def set_assistant_phase(self, phase: model.AssistantPhase | None) -> None:
+    def set_assistant_phase(self, phase: AssistantPhase | None) -> None:
         self.assistant_phase = _merge_assistant_phase(self.assistant_phase, phase)
 
     def start_new_thinking_part(self) -> bool:
@@ -166,7 +165,6 @@ class ResponsesStreamStateManager:
             phase=self.assistant_phase,
         )
 
-
 async def parse_responses_stream(
     stream: AsyncIterable[responses.ResponseStreamEvent],
     *,
@@ -176,7 +174,7 @@ async def parse_responses_stream(
 ) -> AsyncGenerator[message.LLMStreamItem]:
     """Parse OpenAI Responses API stream events into stream items."""
 
-    def map_stop_reason(status: str | None, reason: str | None) -> model.StopReason | None:
+    def map_stop_reason(status: str | None, reason: str | None) -> StopReason | None:
         if reason:
             normalized = reason.strip().lower()
             if normalized in {"max_output_tokens", "length", "max_tokens"}:
@@ -197,7 +195,7 @@ async def parse_responses_stream(
             error_reason = response.incomplete_details.reason
         if response.usage is not None:
             metadata_tracker.set_usage(
-                model.Usage(
+                Usage(
                     input_tokens=response.usage.input_tokens,
                     output_tokens=response.usage.output_tokens,
                     cached_tokens=response.usage.input_tokens_details.cached_tokens,
@@ -352,7 +350,6 @@ async def parse_responses_stream(
         stop_reason=state.stop_reason,
     )
 
-
 class ResponsesLLMStream(LLMStreamABC):
     """LLMStream implementation for Responses API clients."""
 
@@ -387,7 +384,6 @@ class ResponsesLLMStream(LLMStreamABC):
         if self._completed:
             return None
         return self._state.get_partial_message()
-
 
 @register(llm_param.LLMClientProtocol.RESPONSES)
 class ResponsesClient(LLMClientABC):

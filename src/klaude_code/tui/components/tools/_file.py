@@ -32,7 +32,6 @@ def render_edit_tool_call(arguments: str) -> RenderableType:
         )
     return render_tool_call_tree(mark=MARK_EDIT, tool_name=tool_name, details=details)
 
-
 def render_write_tool_call(arguments: str) -> RenderableType:
     tool_name = "Write"
     try:
@@ -45,7 +44,6 @@ def render_write_tool_call(arguments: str) -> RenderableType:
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
     return render_tool_call_tree(mark=MARK_WRITE, tool_name=tool_name, details=details)
-
 
 def render_apply_patch_tool_call(arguments: str) -> RenderableType:
     tool_name = "Patch"

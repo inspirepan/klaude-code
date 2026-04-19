@@ -8,14 +8,12 @@ _REGISTRY: dict[str, type[ToolABC]] = {}
 
 T = TypeVar("T", bound=ToolABC)
 
-
 def register(name: str) -> Callable[[type[T]], type[T]]:
     def _decorator(cls: type[T]) -> type[T]:
         _REGISTRY[name] = cls
         return cls
 
     return _decorator
-
 
 def get_tool_schemas(tool_names: list[str]) -> list[llm_param.ToolSchema]:
     schemas: list[llm_param.ToolSchema] = []
@@ -24,7 +22,6 @@ def get_tool_schemas(tool_names: list[str]) -> list[llm_param.ToolSchema]:
             raise ValueError(f"Unknown Tool: {tool_name}")
         schemas.append(_REGISTRY[tool_name].schema())
     return schemas
-
 
 def get_registry() -> dict[str, type[ToolABC]]:
     """Get the global tool registry."""

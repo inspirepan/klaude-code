@@ -9,7 +9,6 @@ from klaude_code.tui.terminal.selector import SelectItem, build_model_select_ite
 def _title_text(item: SelectItem[str]) -> str:
     return "".join(text for _, text in item.title)
 
-
 def test_build_model_select_items_hides_provider_on_each_model_row() -> None:
     models = [
         SimpleNamespace(

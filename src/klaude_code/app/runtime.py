@@ -30,7 +30,6 @@ SESSION_IDLE_TTL_SECONDS = 30 * 60
 SESSION_IDLE_RECLAIM_INTERVAL_SECONDS = 60
 SESSION_OWNER_HEARTBEAT_INTERVAL_SECONDS = 5
 
-
 @dataclass
 class AppInitConfig:
     """Configuration for initializing the application runtime."""
@@ -40,7 +39,6 @@ class AppInitConfig:
     vanilla: bool
     runtime_kind: Literal["tui", "web"] = "tui"
     enable_event_relay_client: bool = True
-
 
 @dataclass
 class AppComponents:
@@ -63,7 +61,6 @@ class AppComponents:
         """Wait until EventBus subscription has consumed pending events."""
         await self.event_bus_subscription.wait_for_drain()
 
-
 async def _consume_display_from_subscription(
     subscription: EventSubscription,
     display: DisplayABC,
@@ -81,18 +78,15 @@ async def _consume_display_from_subscription(
             log(f"Error in display event stream, {e.__class__.__name__}, {e}")
             log(traceback.format_exc())
 
-
 async def _reclaim_idle_sessions_loop(runtime: RuntimeFacade) -> None:
     while True:
         await asyncio.sleep(SESSION_IDLE_RECLAIM_INTERVAL_SECONDS)
         await runtime.reclaim_idle_sessions(idle_for_seconds=SESSION_IDLE_TTL_SECONDS)
 
-
 async def _heartbeat_session_owners_loop(runtime: RuntimeFacade) -> None:
     while True:
         await asyncio.sleep(SESSION_OWNER_HEARTBEAT_INTERVAL_SECONDS)
         await runtime.heartbeat_session_owners()
-
 
 async def _consume_interactions_from_subscription(
     subscription: EventSubscription,
@@ -120,7 +114,6 @@ async def _consume_interactions_from_subscription(
                 response=response,
             )
         )
-
 
 async def initialize_app_components(
     *,
@@ -227,7 +220,6 @@ async def initialize_app_components(
         owner_heartbeat_task=owner_heartbeat_task,
     )
 
-
 async def initialize_session(
     runtime: RuntimeFacade,
     wait_for_display_idle: Callable[[], Awaitable[None]],
@@ -246,7 +238,6 @@ async def initialize_session(
         await runtime.try_acquire_holder(active_session_id, holder_key)
 
     return active_session_id
-
 
 def backfill_session_model_config(
     agent: Agent | None,
@@ -268,7 +259,6 @@ def backfill_session_model_config(
 
     if agent.session.model_thinking is None and agent.profile:
         agent.session.model_thinking = agent.profile.llm_client.get_llm_config().thinking
-
 
 async def cleanup_app_components(components: AppComponents) -> None:
     """Clean up all runtime components."""
@@ -331,7 +321,6 @@ async def cleanup_app_components(components: AppComponents) -> None:
             stream = getattr(sys, "__stdout__", None) or sys.stdout
             stream.write("\033[?25h")
             stream.flush()
-
 
 async def handle_keyboard_interrupt(runtime: RuntimeFacade) -> None:
     """Handle Ctrl+C by logging and interrupting only if a task is running."""

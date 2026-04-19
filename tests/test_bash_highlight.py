@@ -14,7 +14,6 @@ def get_spans_by_style(text: Text, style: ThemeKey) -> list[str]:
             result.append(text.plain[span.start : span.end])
     return result
 
-
 class TestHighlightBashCommand:
     """Tests for highlight_bash_command function."""
 

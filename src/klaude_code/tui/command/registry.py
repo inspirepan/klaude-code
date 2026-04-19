@@ -10,12 +10,10 @@ if TYPE_CHECKING:
 
 _COMMANDS: dict[CommandName | str, "CommandABC"] = {}
 
-
 def _command_key_to_str(key: CommandName | str) -> str:
     if isinstance(key, CommandName):
         return key.value
     return key
-
 
 def _resolve_command_key(command_name_raw: str) -> CommandName | str | None:
     """Resolve raw command token to a registered command key.
@@ -72,11 +70,9 @@ def _resolve_command_key(command_name_raw: str) -> CommandName | str | None:
 
     return None
 
-
 def register(cmd: "CommandABC") -> None:
     """Register a command instance. Order of registration determines display order."""
     _COMMANDS[cmd.name] = cmd
-
 
 def _ensure_commands_loaded() -> None:
     """Ensure all commands are loaded (lazy initialization)."""
@@ -84,12 +80,10 @@ def _ensure_commands_loaded() -> None:
 
     ensure_commands_loaded()
 
-
 def get_commands() -> dict[CommandName | str, "CommandABC"]:
     """Get all registered commands."""
     _ensure_commands_loaded()
     return _COMMANDS.copy()
-
 
 def get_command_info_list() -> list[CommandInfo]:
     """Get lightweight command metadata for UI purposes.
@@ -107,17 +101,14 @@ def get_command_info_list() -> list[CommandInfo]:
         for cmd in _COMMANDS.values()
     ]
 
-
 def get_command_names() -> frozenset[str]:
     """Get all registered command names as a frozen set for fast lookup."""
     _ensure_commands_loaded()
     return frozenset(_command_key_to_str(key) for key in _COMMANDS)
 
-
 def is_slash_command_name(name: str) -> bool:
     _ensure_commands_loaded()
     return _resolve_command_key(name) is not None
-
 
 async def dispatch_command(user_input: message.UserInputPayload, agent: Agent, *, submission_id: str) -> CommandResult:
     _ensure_commands_loaded()
@@ -178,7 +169,6 @@ async def dispatch_command(user_input: message.UserInputPayload, agent: Agent, *
                 )
             ]
         )
-
 
 def has_interactive_command(raw: str) -> bool:
     _ensure_commands_loaded()

@@ -6,16 +6,15 @@ from collections.abc import Awaitable, Callable, Coroutine
 from pathlib import Path
 from typing import Any, TypeVar
 
-from klaude_code.protocol import model, user_interaction
+from klaude_code.protocol import user_interaction
+from klaude_code.protocol.models import AskUserQuestionSummaryUIExtra
 from klaude_code.tool.ask_user_question_tool import AskUserQuestionTool
 from klaude_code.tool.context import TodoContext, ToolContext
 
 T = TypeVar("T")
 
-
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
-
 
 def _context(
     callback: (
@@ -35,7 +34,6 @@ def _context(
         request_user_interaction=callback,
     )
 
-
 def test_ask_user_question_requires_interaction_callback() -> None:
     arguments = {
         "questions": [
@@ -53,7 +51,6 @@ def test_ask_user_question_requires_interaction_callback() -> None:
     result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context()))
     assert result.status == "error"
     assert "not available" in result.output_text
-
 
 def test_ask_user_question_success_response() -> None:
     async def _callback(
@@ -98,10 +95,9 @@ def test_ask_user_question_success_response() -> None:
     assert result.status == "success"
     assert result.continue_agent is True
     assert result.output_text == "Question: What should we do?\nAnswer:\n- A: Option A\n- Other: custom"
-    assert isinstance(result.ui_extra, model.AskUserQuestionSummaryUIExtra)
+    assert isinstance(result.ui_extra, AskUserQuestionSummaryUIExtra)
     assert result.ui_extra.items[0].summary == "A: Option A\nOther: custom"
     assert result.ui_extra.items[0].answered is True
-
 
 def test_ask_user_question_single_select_annotation_is_included_for_model_only() -> None:
     async def _callback(
@@ -150,10 +146,9 @@ def test_ask_user_question_single_select_annotation_is_included_for_model_only()
     assert result.output_text == (
         "Question: Which design should we ship?\nAnswer: A: Option A\nSelected markdown:\n# Design A\n\nFast path"
     )
-    assert isinstance(result.ui_extra, model.AskUserQuestionSummaryUIExtra)
+    assert isinstance(result.ui_extra, AskUserQuestionSummaryUIExtra)
     assert result.ui_extra.items[0].summary == "A: Option A"
     assert result.ui_extra.items[0].answered is True
-
 
 def test_ask_user_question_cancelled_response_returns_aborted() -> None:
     async def _callback(
@@ -182,10 +177,9 @@ def test_ask_user_question_cancelled_response_returns_aborted() -> None:
     assert result.status == "success"
     assert result.continue_agent is False
     assert result.output_text == "Question: What should we do?\nAnswer: (User declined to answer questions)"
-    assert isinstance(result.ui_extra, model.AskUserQuestionSummaryUIExtra)
+    assert isinstance(result.ui_extra, AskUserQuestionSummaryUIExtra)
     assert result.ui_extra.items[0].summary == "(User declined to answer questions)"
     assert result.ui_extra.items[0].answered is False
-
 
 def test_ask_user_question_single_select_format() -> None:
     async def _callback(
@@ -226,7 +220,6 @@ def test_ask_user_question_single_select_format() -> None:
     assert result.status == "success"
     assert result.output_text == "Question: Choose one\nAnswer: B: Option B"
 
-
 def test_ask_user_question_input_only_formats_as_other() -> None:
     async def _callback(
         _request_id: str,
@@ -265,7 +258,6 @@ def test_ask_user_question_input_only_formats_as_other() -> None:
     result = arun(AskUserQuestionTool.call(json.dumps(arguments), _context(_callback)))
     assert result.status == "success"
     assert result.output_text == "Question: 请选择一个选项以确认工具可用：\nAnswer: Other: 自定义内容"
-
 
 def test_ask_user_question_missing_answer_and_separator_format() -> None:
     async def _callback(

@@ -11,7 +11,6 @@ from klaude_code.tool.tool_registry import register
 class HandoffArguments(BaseModel):
     goal: str = Field(description="What the fresh context should focus on - describe what needs to happen next")
 
-
 @register(tools.HANDOFF)
 class HandoffTool(ToolABC):
     @classmethod

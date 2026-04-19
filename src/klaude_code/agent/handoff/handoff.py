@@ -26,7 +26,6 @@ from .prompts import HANDOFF_EXTRACTION_PROMPT, HANDOFF_SUMMARY_PREFIX, HANDOFF_
 if TYPE_CHECKING:
     from klaude_code.session.session import Session
 
-
 async def run_handoff(
     *,
     session: Session,
@@ -100,7 +99,6 @@ async def run_handoff(
         kept_items_brief=kept_items_brief,
     )
 
-
 async def _extract_context(
     *,
     serialized: str,
@@ -122,7 +120,6 @@ async def _extract_context(
         llm_client=llm_client,
         cancel=cancel,
     )
-
 
 async def _call_extractor(
     *,
@@ -156,7 +153,6 @@ async def _call_extractor(
                 continue
 
     raise RuntimeError("Extractor retry loop exited unexpectedly")
-
 
 async def _call_extractor_once(
     *,
@@ -192,7 +188,6 @@ async def _call_extractor_once(
     if not text.strip():
         raise ValueError("Context extractor returned empty output")
     return text.strip()
-
 
 def _retry_delay_seconds(attempt: int) -> float:
     capped_attempt = max(1, attempt)

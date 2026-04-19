@@ -20,7 +20,6 @@ def arun(coro: Any) -> Any:
 
     return asyncio.run(coro)
 
-
 class _DummyCommand(CommandABC):
     def __init__(self, name: CommandName | str, action_text: str, *, interactive: bool = False):
         self._name = name
@@ -52,7 +51,6 @@ class _DummyCommand(CommandABC):
             ]
         )
 
-
 class _DummyAgent:
     # Only needed for error-path in dispatch; not used in these tests.
     session = type("Sess", (), {"id": "dummy"})()  # type: ignore[assignment]
@@ -61,14 +59,12 @@ class _DummyAgent:
     def get_llm_client(self) -> Any:
         raise NotImplementedError
 
-
 @pytest.fixture
 def _isolated_registry(monkeypatch: pytest.MonkeyPatch) -> dict[CommandName | str, CommandABC]:
     monkeypatch.setattr(registry, "_ensure_commands_loaded", lambda: None)
     commands_map: dict[CommandName | str, CommandABC] = {}
     monkeypatch.setattr(registry, "_COMMANDS", commands_map)
     return commands_map
-
 
 def test_dispatch_prefix_prefers_base_command_when_other_is_extension(
     _isolated_registry: dict[CommandName | str, CommandABC],
@@ -88,7 +84,6 @@ def test_dispatch_prefix_prefers_base_command_when_other_is_extension(
     assert isinstance(result.operations[0], op.RunAgentOperation)
     assert result.operations[0].input.text == "compact:foo"
 
-
 def test_dispatch_prefix_can_target_extension_command(
     _isolated_registry: dict[CommandName | str, CommandABC],
 ) -> None:
@@ -107,7 +102,6 @@ def test_dispatch_prefix_can_target_extension_command(
     assert isinstance(result.operations[0], op.RunAgentOperation)
     assert result.operations[0].input.text == "compact-doc:bar"
 
-
 def test_slash_command_name_supports_prefix_match(
     _isolated_registry: dict[CommandName | str, CommandABC],
 ) -> None:
@@ -119,7 +113,6 @@ def test_slash_command_name_supports_prefix_match(
 
     assert registry.is_slash_command_name("comp") is True
     assert registry.is_slash_command_name("compact-d") is True
-
 
 def test_dispatch_ambiguous_prefix_falls_back_to_agent(
     _isolated_registry: dict[CommandName | str, CommandABC],

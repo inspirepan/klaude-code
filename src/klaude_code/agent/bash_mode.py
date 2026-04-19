@@ -30,7 +30,6 @@ from klaude_code.tool.offload import offload_tool_output
 class _BashModeToolCall:
     tool_name: str = "Bash"
 
-
 _ANSI_ESCAPE_RE = re.compile(
     r"""
     \x1B
@@ -46,10 +45,8 @@ _ANSI_ESCAPE_RE = re.compile(
     re.VERBOSE | re.DOTALL,
 )
 
-
 def _escape_xml(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
 
 def _resolve_shell_command(command_text: str) -> list[str]:
     # Use the user's default shell when possible.
@@ -66,7 +63,6 @@ def _resolve_shell_command(command_text: str) -> list[str]:
     if shell_path and shell_name in {"bash", "zsh", "fish"}:
         return [shell_path, "-ilc", command_text]
     return ["bash", "-ilc", command_text]
-
 
 async def _terminate_process(proc: asyncio.subprocess.Process) -> None:
     if proc.returncode is not None:
@@ -94,7 +90,6 @@ async def _terminate_process(proc: asyncio.subprocess.Process) -> None:
     with contextlib.suppress(Exception):
         await asyncio.wait_for(proc.wait(), timeout=BASH_TERMINATE_TIMEOUT_SEC)
 
-
 async def _emit_clean_chunk(
     *,
     emit_event: Callable[[events.Event], Awaitable[None]],
@@ -110,7 +105,6 @@ async def _emit_clean_chunk(
         await emit_event(events.BashCommandOutputDeltaEvent(session_id=session_id, content=cleaned))
         with contextlib.suppress(Exception):
             out_file.write(cleaned)
-
 
 async def run_bash_command(
     *,

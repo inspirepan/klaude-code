@@ -55,6 +55,5 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
 
     return render_tool_call_tree(mark=MARK_BASH, tool_name=tool_name, details=None)
 
-
 def indent_bash_output(content: RenderableType) -> RenderableType:
     return Padding(content, (0, 0, 0, BASH_OUTPUT_LEFT_PADDING))

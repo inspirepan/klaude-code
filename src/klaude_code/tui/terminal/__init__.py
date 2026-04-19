@@ -55,7 +55,6 @@ def supports_osc8_hyperlinks() -> bool:
     # Default to False for unknown terminals
     return False
 
-
 @lru_cache(maxsize=1)
 def supports_kitty_graphics() -> bool:
     """Check if the current terminal supports the Kitty graphics protocol."""

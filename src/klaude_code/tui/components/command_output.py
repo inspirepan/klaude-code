@@ -4,7 +4,8 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events
+from klaude_code.protocol.models import SessionIdUIExtra
 from klaude_code.session import Session
 from klaude_code.tui.components.common import truncate_middle
 from klaude_code.tui.components.rich.theme import ThemeKey
@@ -12,12 +13,11 @@ from klaude_code.tui.components.rich.theme import ThemeKey
 
 def render_notice(e: events.NoticeEvent) -> RenderableType:
     """Render a generic notice event."""
-    if isinstance(e.ui_extra, model.SessionIdUIExtra):
+    if isinstance(e.ui_extra, SessionIdUIExtra):
         return _render_fork_session_output(e)
     content = e.content or "(no content)"
     style: str = e.style if e.style else (ThemeKey.ERROR if e.is_error else ThemeKey.COMMAND_OUTPUT)
     return truncate_middle(content, base_style=style)
-
 
 def render_session_stats(e: events.SessionStatsEvent) -> RenderableType:
     """Render session stats with overview and per-model breakdown."""
@@ -93,14 +93,12 @@ def render_session_stats(e: events.SessionStatsEvent) -> RenderableType:
 
     return Group(*blocks)
 
-
 def _format_tokens(tokens: int) -> str:
     if tokens >= 1_000_000:
         return f"{tokens / 1_000_000:.2f}M"
     if tokens >= 1_000:
         return f"{tokens / 1_000:.1f}K"
     return str(tokens)
-
 
 def _format_cost(cost: float | None, currency: str = "USD") -> str:
     if cost is None:
@@ -110,13 +108,11 @@ def _format_cost(cost: float | None, currency: str = "USD") -> str:
         return f"{symbol}{cost:.4f}"
     return f"{symbol}{cost:.2f}"
 
-
 def _format_int(value: int) -> str:
     return f"{value:,}"
 
-
 def _render_fork_session_output(e: events.NoticeEvent) -> RenderableType:
-    if not isinstance(e.ui_extra, model.SessionIdUIExtra):
+    if not isinstance(e.ui_extra, SessionIdUIExtra):
         return Text(e.content, style=ThemeKey.TOOL_RESULT)
 
     grid = Table.grid(padding=(0, 1))

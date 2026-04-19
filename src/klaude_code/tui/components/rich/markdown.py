@@ -40,7 +40,6 @@ _ORDERED_LIST_LINE_RE = re.compile(r"^\s{0,3}\d+[.)]\s+.+")
 _ORDERED_LIST_MARKER_PREFIX_RE = re.compile(r"^\s{0,3}\d{1,9}\s*$")
 _LOCAL_IMAGE_MARKDOWN_LINE_RE = re.compile(r"^\s*!\[[^\]]*\]\((?P<path>/[^)]+)\)\s*$")
 
-
 class ThinkingHTMLBlock(MarkdownElement):
     """Render `<thinking>...</thinking>` HTML blocks as Rich Markdown.
 
@@ -90,7 +89,6 @@ class ThinkingHTMLBlock(MarkdownElement):
         text.append("</thinking>", style="markdown.thinking.tag")
         yield text
 
-
 class NoInsetCodeBlock(CodeBlock):
     """A code block with syntax highlighting using markdown fence style."""
 
@@ -119,7 +117,6 @@ class NoInsetCodeBlock(CodeBlock):
             yield Text(code)
         yield Text("```", style=fence_style)
 
-
 class ThinkingCodeBlock(CodeBlock):
     """A code block for thinking content that uses simple ``` delimiters."""
 
@@ -134,7 +131,6 @@ class ThinkingCodeBlock(CodeBlock):
         yield Text(code, style=code_style)
         yield Text("```", style=fence_style)
 
-
 class Divider(MarkdownElement):
     """A horizontal rule with an extra blank line below."""
 
@@ -142,7 +138,6 @@ class Divider(MarkdownElement):
         style = console.get_style("markdown.hr", default="none")
         width = min(options.max_width, 100)
         yield Text("-" * width, style=style)
-
 
 class MarkdownTable(TableElement):
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
@@ -163,7 +158,6 @@ class MarkdownTable(TableElement):
 
         yield table
 
-
 class LeftHeading(Heading):
     """A heading class that renders left-justified."""
 
@@ -179,7 +173,6 @@ class LeftHeading(Heading):
             yield text
         else:
             yield text
-
 
 class CheckboxListItem(ListItem):
     """A list item that renders checkbox syntax as Unicode symbols."""
@@ -229,7 +222,6 @@ class CheckboxListItem(ListItem):
                 yield from line
             yield new_line
 
-
 class LocalImageItem(ImageItem):
     """Image element that collects local file paths for external rendering."""
 
@@ -254,7 +246,6 @@ class LocalImageItem(ImageItem):
             return
         yield from super().__rich_console__(console, options)
 
-
 class NoInsetMarkdown(Markdown):
     """Markdown with code blocks that have no padding and left-justified headings."""
 
@@ -274,7 +265,6 @@ class NoInsetMarkdown(Markdown):
         super().__init__(*args, **kwargs)
         self.collected_images: list[tuple[str, str]] = []
 
-
 class ThinkingMarkdown(Markdown):
     """Markdown for thinking content with grey-styled code blocks and left-justified headings."""
 
@@ -293,7 +283,6 @@ class ThinkingMarkdown(Markdown):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.collected_images: list[tuple[str, str]] = []
-
 
 class MarkdownStream:
     """Block-based streaming Markdown renderer.

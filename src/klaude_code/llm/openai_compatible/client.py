@@ -46,7 +46,6 @@ def build_payload(param: llm_param.LLMCallParameter) -> tuple[CompletionCreatePa
 
     return payload, extra_body
 
-
 @register(llm_param.LLMClientProtocol.OPENAI)
 class OpenAICompatibleClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter):

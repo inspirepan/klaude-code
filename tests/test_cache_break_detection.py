@@ -3,16 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from klaude_code.agent.cache_break_detection import CacheTracker
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param
+from klaude_code.protocol.models import Usage
 
 
 def _make_tools(*names: str) -> list[llm_param.ToolSchema]:
     return [llm_param.ToolSchema(name=n, type="function", description=f"tool {n}", parameters={}) for n in names]
 
-
-def _make_usage(cached: int = 0, input_tokens: int = 0, cache_write: int = 0) -> model.Usage:
-    return model.Usage(cached_tokens=cached, input_tokens=input_tokens, cache_write_tokens=cache_write)
-
+def _make_usage(cached: int = 0, input_tokens: int = 0, cache_write: int = 0) -> Usage:
+    return Usage(cached_tokens=cached, input_tokens=input_tokens, cache_write_tokens=cache_write)
 
 class TestCacheTrackerHitRate:
     def test_first_turn_no_hit_rate(self) -> None:
@@ -40,7 +39,6 @@ class TestCacheTrackerHitRate:
         # cached + cache_write > input_tokens
         t.update(_make_usage(cached=8_000, input_tokens=5_000, cache_write=4_000))
         assert t.prev_turn_input_tokens == 12_000  # max(5000, 8000+4000)
-
 
 class TestCacheTrackerBreakDetection:
     def test_first_call_no_report(self) -> None:

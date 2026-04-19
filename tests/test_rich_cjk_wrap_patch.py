@@ -14,7 +14,6 @@ def _render(text: str, width: int) -> str:
     console.print(text, markup=False)
     return buffer.getvalue()
 
-
 def test_rich_cjk_wrap_patch_changes_line_breaks() -> None:
     sample = textwrap.dedent(
         """\
@@ -32,7 +31,6 @@ def test_rich_cjk_wrap_patch_changes_line_breaks() -> None:
     assert "Typer \n的" not in rendered
     assert "main.\npy" not in rendered
 
-
 def test_rich_cjk_wrap_patch_avoids_splitting_parenthetical_phrase() -> None:
     sample = (
         "• 重新赢得信任：Meta 的文化没有显赫的头衔红利 (No titles)，即使是资深工程师，"
@@ -49,7 +47,6 @@ def test_rich_cjk_wrap_patch_avoids_splitting_parenthetical_phrase() -> None:
 
     rendered = _render(sample, width=width)
     assert "(No\n" not in rendered
-
 
 def test_rich_cjk_wrap_in_table_cell_no_fold() -> None:
     """CJK splitting should work in table cells where overflow != fold."""
@@ -75,7 +72,6 @@ def test_rich_cjk_wrap_in_table_cell_no_fold() -> None:
         if stripped == "4":
             raise AssertionError(f"'4' is isolated on a line:\n{output}")
 
-
 def test_rich_cjk_wrap_patch_avoids_splitting_after_open_paren() -> None:
     sample = "• 深度的“制造者时间” (Deep Maker Time)：由于无法通过会议进行同步沟通，他避开了大公司的会议地狱。"
 
@@ -89,11 +85,9 @@ def test_rich_cjk_wrap_patch_avoids_splitting_after_open_paren() -> None:
     rendered = _render(sample, width=width)
     assert "(Deep\n" not in rendered
 
-
 # ============================================================================
 # Property-based tests for cjk_wrap
 # ============================================================================
-
 
 @given(
     text=st.text(
@@ -123,7 +117,6 @@ def test_cjk_wrap_preserves_text(text: str, width: int) -> None:
         # All break positions should be within text
         for pos in breaks:
             assert 0 <= pos <= len(text)
-
 
 @given(ch=st.characters())
 @settings(max_examples=200, deadline=None)

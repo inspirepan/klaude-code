@@ -18,7 +18,8 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
     os.sys.path.insert(0, str(SRC_DIR))  # type: ignore
 
 from klaude_code.agent.attachments import at_file_reader_attachment  # noqa: E402
-from klaude_code.protocol import message, model  # noqa: E402
+from klaude_code.protocol import message  # noqa: E402
+from klaude_code.protocol.models import AtFileOp, AtFileOpsUIItem, FileStatus, MemoryLoadedUIItem  # noqa: E402
 from klaude_code.session.session import Session  # noqa: E402
 from klaude_code.tool import (  # noqa: E402
     BashTool,
@@ -31,19 +32,16 @@ from klaude_code.tool.context import ToolContext  # noqa: E402
 
 _TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
 
-
 def arun(coro) -> Any:  # type: ignore
     return asyncio.run(coro)  # type: ignore
 
-
-def _get_at_file_ops(attachment: message.DeveloperMessage) -> list[model.AtFileOp]:
+def _get_at_file_ops(attachment: message.DeveloperMessage) -> list[AtFileOp]:
     if attachment.ui_extra is None:
         return []
     for ui_item in attachment.ui_extra.items:
-        if isinstance(ui_item, model.AtFileOpsUIItem):
+        if isinstance(ui_item, AtFileOpsUIItem):
             return ui_item.ops
     return []
-
 
 class BaseTempDirTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -62,7 +60,6 @@ class BaseTempDirTest(unittest.TestCase):
     def tearDown(self) -> None:
         os.chdir(self._orig_cwd)
         self._tmp.cleanup()
-
 
 class TestReadTool(BaseTempDirTest):
     def test_read_basic_and_tracking(self):
@@ -202,7 +199,6 @@ class TestReadTool(BaseTempDirTest):
         res = arun(ReadTool.call(json.dumps({"file_path": file_path}), self.tool_context))
         self.assertEqual(res.status, "error")
         self.assertIn("maximum supported size (64.00MB)", res.output_text or "")
-
 
 class TestAttachments(BaseTempDirTest):
     def test_at_file_reader_attachment_includes_images(self):
@@ -349,7 +345,7 @@ class TestAttachments(BaseTempDirTest):
 
         # Memory file should be reflected in UI
         assert attachment.ui_extra is not None
-        memory_items = [i for i in attachment.ui_extra.items if isinstance(i, model.MemoryLoadedUIItem)]
+        memory_items = [i for i in attachment.ui_extra.items if isinstance(i, MemoryLoadedUIItem)]
         self.assertEqual(len(memory_items), 1)
         self.assertEqual(len(memory_items[0].files), 1)
         self.assertTrue(memory_items[0].files[0].path.endswith("AGENTS.md"))
@@ -390,7 +386,7 @@ class TestAttachments(BaseTempDirTest):
 
         # Pre-mark the memory as loaded (simulating memory_attachment having loaded it)
         agents_path = str(agents_md.resolve())
-        self.session.file_tracker[agents_path] = model.FileStatus(
+        self.session.file_tracker[agents_path] = FileStatus(
             mtime=agents_md.stat().st_mtime,
             content_sha256=hashlib.sha256(agents_md.read_bytes()).hexdigest(),
             is_memory=True,
@@ -409,9 +405,8 @@ class TestAttachments(BaseTempDirTest):
 
         # No MemoryLoadedUIItem
         assert attachment.ui_extra is not None
-        memory_items = [i for i in attachment.ui_extra.items if isinstance(i, model.MemoryLoadedUIItem)]
+        memory_items = [i for i in attachment.ui_extra.items if isinstance(i, MemoryLoadedUIItem)]
         self.assertEqual(len(memory_items), 0)
-
 
 class TestEditTool(BaseTempDirTest):
     def test_edit_requires_read_first(self):
@@ -643,7 +638,6 @@ class TestEditTool(BaseTempDirTest):
         self.assertEqual(self.session.file_change_summary.diff_lines_added, 1)
         self.assertEqual(self.session.file_change_summary.diff_lines_removed, 1)
 
-
 class TestWriteTool(BaseTempDirTest):
     def test_write_records_created_and_edited_files_with_diff_totals(self):
         p = os.path.abspath("write_target.txt")
@@ -671,7 +665,6 @@ class TestWriteTool(BaseTempDirTest):
         self.assertEqual(self.session.file_change_summary.edited_files, [p])
         self.assertEqual(self.session.file_change_summary.diff_lines_added, 3)
         self.assertEqual(self.session.file_change_summary.diff_lines_removed, 1)
-
 
 class TestBashToolFileTracking(BaseTempDirTest):
     def test_bash_cat_counts_as_read_for_edit(self):
@@ -780,11 +773,9 @@ class TestBashToolFileTracking(BaseTempDirTest):
         self.assertNotIn(str(src), self.session.file_tracker)
         self.assertIn(str(dst), self.session.file_tracker)
 
-
 # ============================================================================
 # Property-based tests for EditTool
 # ============================================================================
-
 
 @st.composite
 def edit_scenarios(draw: st.DrawFn) -> tuple[str, str, str, bool]:
@@ -804,7 +795,6 @@ def edit_scenarios(draw: st.DrawFn) -> tuple[str, str, str, bool]:
     replace_all = draw(st.booleans())
 
     return base, old_string, new_string, replace_all
-
 
 @st.composite
 def edit_scenarios_with_match(draw: st.DrawFn) -> tuple[str, str, str]:
@@ -835,7 +825,6 @@ def edit_scenarios_with_match(draw: st.DrawFn) -> tuple[str, str, str]:
 
     return content, old_string, new_string
 
-
 @given(scenario=edit_scenarios())
 @settings(max_examples=100, deadline=None)
 def test_edit_tool_valid_detects_same_strings(scenario: tuple[str, str, str, bool]) -> None:
@@ -849,7 +838,6 @@ def test_edit_tool_valid_detects_same_strings(scenario: tuple[str, str, str, boo
     if old_string == new_string:
         assert result is not None
         assert "same" in result.lower()
-
 
 @given(scenario=edit_scenarios())
 @settings(max_examples=100, deadline=None)
@@ -866,7 +854,6 @@ def test_edit_tool_valid_detects_missing_string(scenario: tuple[str, str, str, b
         assert result is not None
         assert "not found" in result.lower()
 
-
 @given(scenario=edit_scenarios_with_match())
 @settings(max_examples=100, deadline=None)
 def test_edit_tool_execute_replace_all_removes_all(scenario: tuple[str, str, str]) -> None:
@@ -878,7 +865,6 @@ def test_edit_tool_execute_replace_all_removes_all(scenario: tuple[str, str, str
     result = EditTool.execute(content=content, old_string=old_string, new_string=new_string, replace_all=True)
 
     assert old_string not in result
-
 
 @given(scenario=edit_scenarios_with_match())
 @settings(max_examples=100, deadline=None)
@@ -895,7 +881,6 @@ def test_edit_tool_execute_single_replace_count(scenario: tuple[str, str, str]) 
     # Should have one less occurrence
     assert result.count(old_string) == original_count - 1
 
-
 class TestBlockedDevicePaths(BaseTempDirTest):
     def test_read_blocked_device_path(self):
         res = arun(ReadTool.call(json.dumps({"file_path": "/dev/zero"}), self.tool_context))
@@ -906,7 +891,6 @@ class TestBlockedDevicePaths(BaseTempDirTest):
         res = arun(ReadTool.call(json.dumps({"file_path": "/proc/self/fd/0"}), self.tool_context))
         self.assertEqual(res.status, "error")
         self.assertIn("would block or produce infinite output", res.output_text or "")
-
 
 class TestOOMGuard(BaseTempDirTest):
     def test_edit_rejects_huge_file(self):
@@ -919,7 +903,6 @@ class TestOOMGuard(BaseTempDirTest):
         from klaude_code.const import EDIT_MAX_FILE_SIZE
 
         self.assertEqual(EDIT_MAX_FILE_SIZE, 1024 * 1024 * 1024)
-
 
 class TestSmartDeletion(BaseTempDirTest):
     def test_delete_line_removes_trailing_newline(self):
@@ -971,7 +954,6 @@ class TestSmartDeletion(BaseTempDirTest):
             content = f.read()
         self.assertEqual(content, "line1\nline3\n")
 
-
 class TestQuoteNormalization(BaseTempDirTest):
     def test_edit_matches_curly_quotes(self):
         p = os.path.abspath("curly.txt")
@@ -1000,7 +982,6 @@ class TestQuoteNormalization(BaseTempDirTest):
         # new_string should have curly quotes preserved
         self.assertIn("\u201c", content)
         self.assertIn("\u201d", content)
-
 
 class TestReadDedup(BaseTempDirTest):
     def test_read_dedup_returns_unchanged_stub(self):
@@ -1064,7 +1045,6 @@ class TestReadDedup(BaseTempDirTest):
         self.assertIn("line2", res.output_text or "")
         self.assertNotIn("unchanged", res.output_text or "")
 
-
 class TestTrailingWhitespaceCleanup(BaseTempDirTest):
     def test_edit_strips_trailing_whitespace(self):
         p = os.path.abspath("trailing_ws.py")
@@ -1116,7 +1096,6 @@ class TestTrailingWhitespaceCleanup(BaseTempDirTest):
         # Trailing spaces should be preserved in markdown
         self.assertEqual(content, "Line one  \nLine two\n")
 
-
 class TestNotebookSupport(BaseTempDirTest):
     def test_read_notebook(self):
         p = os.path.abspath("test.ipynb")
@@ -1147,7 +1126,6 @@ class TestNotebookSupport(BaseTempDirTest):
         self.assertIn("[code]", res.output_text or "")
         self.assertIn("[markdown]", res.output_text or "")
         self.assertIn("[output]", res.output_text or "")
-
 
 class TestUTF16LESupport(BaseTempDirTest):
     def test_read_utf16le_file(self):
@@ -1188,7 +1166,6 @@ class TestUTF16LESupport(BaseTempDirTest):
             raw = f.read()
         content = raw.decode("utf-16-le")
         self.assertIn("HELLO", content)
-
 
 if __name__ == "__main__":
     unittest.main()

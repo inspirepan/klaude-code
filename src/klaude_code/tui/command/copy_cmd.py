@@ -48,7 +48,6 @@ class CopyCommand(CommandABC):
         label = "last assistant message" if n == 1 else f"assistant message #{n} from the end"
         return _command_output(agent, f"Copied {label} to clipboard.")
 
-
 def _collect_assistant_text(history: list[message.HistoryEvent], n: int) -> str:
     """Collect the Nth-latest assistant response (n=1 is the most recent)."""
     seen = 0
@@ -60,14 +59,11 @@ def _collect_assistant_text(history: list[message.HistoryEvent], n: int) -> str:
                 return _format_assistant(msg)
     return ""
 
-
 def _count_assistant(history: list[message.HistoryEvent]) -> int:
     return sum(1 for m in history if isinstance(m, message.AssistantMessage))
 
-
 def _format_assistant(msg: message.AssistantMessage) -> str:
     return message.join_text_parts(msg.parts).strip()
-
 
 def _command_output(agent: Agent, content: str, *, is_error: bool = False) -> CommandResult:
     return CommandResult(

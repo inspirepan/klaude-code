@@ -5,18 +5,19 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
 
-from klaude_code.protocol import model, user_interaction
+from klaude_code.protocol import user_interaction
+from klaude_code.protocol.models import FileChangeSummary, FileStatus, SubAgentState, TaskMetadata, TodoItem
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
 
-type FileTracker = MutableMapping[str, model.FileStatus]
+type FileTracker = MutableMapping[str, FileStatus]
 
-GetMetadataFn = Callable[[], model.TaskMetadata | None]
+GetMetadataFn = Callable[[], TaskMetadata | None]
 GetProgressFn = Callable[[], str | None]
 
 RunSubtask = Callable[
     [
-        model.SubAgentState,
+        SubAgentState,
         Callable[[str], None] | None,
         Callable[[GetMetadataFn], None] | None,
         Callable[[GetProgressFn], None] | None,
@@ -36,7 +37,6 @@ RequestUserInteraction = Callable[
 
 EmitToolOutputDelta = Callable[[str], Awaitable[None]]
 
-
 @dataclass
 class TodoContext:
     """Todo access interface exposed to tools.
@@ -45,9 +45,8 @@ class TodoContext:
     a new list; they cannot access the full Session object.
     """
 
-    get_todos: Callable[[], list[model.TodoItem]]
-    set_todos: Callable[[list[model.TodoItem]], None]
-
+    get_todos: Callable[[], list[TodoItem]]
+    set_todos: Callable[[list[TodoItem]], None]
 
 @dataclass
 class SessionTodoStore:
@@ -55,12 +54,11 @@ class SessionTodoStore:
 
     session: Session
 
-    def get(self) -> list[model.TodoItem]:
+    def get(self) -> list[TodoItem]:
         return self.session.todos
 
-    def set(self, todos: list[model.TodoItem]) -> None:
+    def set(self, todos: list[TodoItem]) -> None:
         self.session.todos = todos
-
 
 def build_todo_context(session: Session) -> TodoContext:
     """Create a TodoContext backed by the given session."""
@@ -68,14 +66,11 @@ def build_todo_context(session: Session) -> TodoContext:
     store = SessionTodoStore(session)
     return TodoContext(get_todos=store.get, set_todos=store.set)
 
-
 class HandoffManagerABC(Protocol):
     def send_handoff(self, goal: str) -> str: ...
 
-
 class RewindManagerABC(Protocol):
     def send_rewind(self, checkpoint_id: int, note: str, rationale: str) -> str: ...
-
 
 @dataclass(frozen=True)
 class ToolContext:
@@ -89,7 +84,7 @@ class ToolContext:
     todo_context: TodoContext
     session_id: str
     work_dir: Path
-    file_change_summary: model.FileChangeSummary | None = None
+    file_change_summary: FileChangeSummary | None = None
     run_subtask: RunSubtask | None = None
     record_sub_agent_session_id: Callable[[str], None] | None = None
     register_sub_agent_metadata_getter: Callable[[GetMetadataFn], None] | None = None

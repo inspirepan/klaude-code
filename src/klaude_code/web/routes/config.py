@@ -12,7 +12,6 @@ from klaude_code.web.state import WebAppState, get_web_state
 router = APIRouter(prefix="/api/config", tags=["config"])
 _WEB_STATE_DEP: Final = Depends(get_web_state)
 
-
 @router.get("/models")
 async def list_models() -> dict[str, list[dict[str, str | bool | list[str]]]]:
     config = load_config()
@@ -31,12 +30,10 @@ async def list_models() -> dict[str, list[dict[str, str | bool | list[str]]]]:
     ]
     return {"models": models}
 
-
 def _get_input_history_path(work_dir: Path, home_dir: Path) -> Path:
     """Derive the input_history.txt path, matching prompt_toolkit.py logic."""
     project = str(work_dir).strip("/").replace("/", "-")
     return home_dir / ".klaude" / "projects" / project / "input" / "input_history.txt"
-
 
 def _parse_input_history(text: str, limit: int) -> list[str]:
     """Parse prompt_toolkit FileHistory format into a list of entries (newest first).
@@ -69,7 +66,6 @@ def _parse_input_history(text: str, limit: int) -> list[str]:
                 break
 
     return result
-
 
 @router.get("/input-history")
 async def get_input_history(

@@ -14,7 +14,6 @@ class _DummyServer:
     def serve_forever(self) -> None:  # pragma: no cover
         raise NotImplementedError
 
-
 def test_create_server_with_fallback_uses_start_port(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[int] = []
 
@@ -28,7 +27,6 @@ def test_create_server_with_fallback_uses_start_port(monkeypatch: pytest.MonkeyP
 
     assert port == 8765
     assert calls == [8765]
-
 
 def test_create_server_with_fallback_increments_when_port_in_use(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[int] = []
@@ -47,7 +45,6 @@ def test_create_server_with_fallback_increments_when_port_in_use(monkeypatch: py
     assert port == 8767
     assert calls == [8765, 8766, 8767]
 
-
 def test_create_server_with_fallback_raises_non_address_in_use_error(monkeypatch: pytest.MonkeyPatch) -> None:
     def _fake_http_server(_address: tuple[str, int], _handler: Any) -> _DummyServer:
         raise OSError(errno.EACCES, "Permission denied")
@@ -56,7 +53,6 @@ def test_create_server_with_fallback_raises_non_address_in_use_error(monkeypatch
 
     with pytest.raises(OSError, match="Permission denied"):
         log_viewer._create_server_with_fallback(8765)  # pyright: ignore[reportPrivateUsage]
-
 
 def test_list_log_files_sorts_by_mtime_desc(tmp_path: Path) -> None:
     log_dir = tmp_path / "logs"
@@ -72,7 +68,6 @@ def test_list_log_files_sorts_by_mtime_desc(tmp_path: Path) -> None:
     files = log_viewer._list_log_files(log_dir.resolve())  # pyright: ignore[reportPrivateUsage]
 
     assert [file["relative_path"] for file in files] == ["2026-02-28/110000-2.log", "2026-02-27/100000-1.log"]
-
 
 def test_is_path_within_checks_directory_boundary(tmp_path: Path) -> None:
     root = tmp_path / "logs-root"

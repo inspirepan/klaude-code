@@ -30,7 +30,6 @@ logger.setLevel(logging.DEBUG)
 # Console for direct output (user-facing messages)
 log_console = Console()
 
-
 class DebugType(str, Enum):
     """Debug message categories for filtering."""
 
@@ -45,7 +44,6 @@ class DebugType(str, Enum):
     EVENT_BUS = "event_bus"
     OPERATION = "operation"
 
-
 # Handler references for reconfiguration
 _file_handler: RotatingFileHandler | None = None
 _console_handler: RichHandler | None = None
@@ -54,7 +52,6 @@ _current_log_file: Path | None = None
 
 LOG_RETENTION_DAYS = 3
 LOG_MAX_TOTAL_BYTES = 200 * 1024 * 1024
-
 
 class GzipRotatingFileHandler(RotatingFileHandler):
     """Rotating file handler that gzips rolled files."""
@@ -70,7 +67,6 @@ class GzipRotatingFileHandler(RotatingFileHandler):
         with open(source, "rb") as source_file, gzip.open(dest, "wb") as dest_file:
             shutil.copyfileobj(source_file, dest_file)
         Path(source).unlink(missing_ok=True)
-
 
 def set_debug_logging(
     enabled: bool,
@@ -136,7 +132,6 @@ def set_debug_logging(
         _console_handler.setLevel(logging.DEBUG)
         logger.addHandler(_console_handler)
 
-
 def log(*objects: str | tuple[str, str]) -> None:
     """Output user-facing messages to console.
 
@@ -146,7 +141,6 @@ def log(*objects: str | tuple[str, str]) -> None:
     log_console.print(
         *((Text(obj[0], style=obj[1]) if isinstance(obj, tuple) else Text(obj)) for obj in objects),
     )
-
 
 def log_debug(
     *objects: str | tuple[str, str],
@@ -170,7 +164,6 @@ def log_debug(
     }
     logger.debug(message, extra=extra)
 
-
 def _build_message(objects: Iterable[str | tuple[str, str]]) -> str:
     """Build plain text message from objects."""
     parts: list[str] = []
@@ -181,11 +174,9 @@ def _build_message(objects: Iterable[str | tuple[str, str]]) -> str:
             parts.append(obj)
     return " ".join(parts)
 
-
 def is_debug_enabled() -> bool:
     """Check if debug logging is currently enabled."""
     return _debug_enabled
-
 
 def prepare_debug_log_file(log_file: str | os.PathLike[str] | None = None) -> Path:
     """Prepare and remember the log file path for this session."""
@@ -194,12 +185,10 @@ def prepare_debug_log_file(log_file: str | os.PathLike[str] | None = None) -> Pa
     _current_log_file = _resolve_log_file(log_file)
     return _current_log_file
 
-
 def get_current_log_file() -> Path | None:
     """Return the currently active log file path, if any."""
 
     return _current_log_file
-
 
 def _resolve_log_file(log_file: str | os.PathLike[str] | None) -> Path:
     """Resolve the log file path and ensure directories exist."""
@@ -216,7 +205,6 @@ def _resolve_log_file(log_file: str | os.PathLike[str] | None) -> Path:
     _refresh_latest_symlink(path)
     return path
 
-
 def _build_default_log_file_path() -> Path:
     """Build a per-session log path under the default log directory."""
 
@@ -225,7 +213,6 @@ def _build_default_log_file_path() -> Path:
     session_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{now.strftime('%H%M%S')}-{os.getpid()}.log"
     return session_dir / filename
-
 
 def _refresh_latest_symlink(target: Path) -> None:
     """Point the debug.log symlink at the latest session file."""
@@ -237,7 +224,6 @@ def _refresh_latest_symlink(target: Path) -> None:
     except OSError:
         # Non-blocking best-effort; logging should still proceed
         return
-
 
 def _prune_old_logs(log_root: Path, keep_days: int, max_total_bytes: int) -> None:
     """Remove logs older than keep_days or when exceeding max_total_bytes."""
@@ -280,7 +266,6 @@ def _prune_old_logs(log_root: Path, keep_days: int, max_total_bytes: int) -> Non
         if total_size <= max_total_bytes:
             break
 
-
 def _trash_path(path: Path) -> None:
     """Send a path to trash, falling back to unlink if trash is unavailable."""
 
@@ -295,19 +280,16 @@ def _trash_path(path: Path) -> None:
     except FileNotFoundError:
         path.unlink(missing_ok=True)
 
-
 # Debug JSON serialization utilities
 _DEBUG_TRUNCATE_PREFIX_CHARS = 96
 
 # Keys whose values should be truncated (e.g., signatures, large payloads)
 _TRUNCATE_KEYS = {"thought_signature", "thoughtSignature"}
 
-
 def _truncate_debug_str(value: str, *, prefix_chars: int = _DEBUG_TRUNCATE_PREFIX_CHARS) -> str:
     if len(value) <= prefix_chars:
         return value
     return f"{value[:prefix_chars]}...(truncated,len={len(value)})"
-
 
 def _sanitize_debug_value(value: object) -> object:
     if isinstance(value, datetime):
@@ -322,7 +304,6 @@ def _sanitize_debug_value(value: object) -> object:
     if isinstance(value, dict):
         return _sanitize_debug_dict(value)  # type: ignore[arg-type]
     return value
-
 
 def _sanitize_debug_dict(obj: dict[object, object]) -> dict[object, object]:
     sanitized: dict[object, object] = {}
@@ -345,7 +326,6 @@ def _sanitize_debug_dict(obj: dict[object, object]) -> dict[object, object]:
             sanitized["data"] = _truncate_debug_str(encoded)
 
     return sanitized
-
 
 def debug_json(value: object) -> str:
     """Serialize a value to JSON for debug logging, truncating large payloads."""

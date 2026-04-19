@@ -15,7 +15,6 @@ def test_replay_interrupt_has_blank_lines_around_render() -> None:
     assert isinstance(cmds[2], RenderInterrupt)
     assert not any(isinstance(cmd, PrintBlankLine) for cmd in cmds)
 
-
 def test_interrupt_without_notice_skips_render_interrupt() -> None:
     m = DisplayStateMachine()
 

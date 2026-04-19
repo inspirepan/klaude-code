@@ -12,7 +12,6 @@ from klaude_code.protocol import message
 def _payload_from_data_url(data_url: str) -> bytes:
     return b64decode(data_url.split(",", 1)[1])
 
-
 def test_image_file_to_data_url_resizes_when_size_exceeds_limit(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -41,7 +40,6 @@ def test_image_file_to_data_url_resizes_when_size_exceeds_limit(
     assert result is not None
     assert _payload_from_data_url(result) == b"small"
 
-
 def test_image_file_to_data_url_keeps_image_when_size_within_limit(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -62,7 +60,6 @@ def test_image_file_to_data_url_keeps_image_when_size_within_limit(
     assert result is not None
     assert _payload_from_data_url(result) == b"0123456789ABCDEF"
 
-
 def test_normalize_image_data_url_resizes_large_inline_image(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(image_module, "_MAX_IMAGE_SIZE_BYTES", 10)
     original_url = f"data:image/png;base64,{b64encode(b'0123456789ABCDEF').decode('ascii')}"
@@ -82,7 +79,6 @@ def test_normalize_image_data_url_resizes_large_inline_image(monkeypatch: pytest
 
     normalized = image_module.normalize_image_data_url(original_url)
     assert _payload_from_data_url(normalized) == b"tiny"
-
 
 def test_normalize_image_data_url_resizes_when_base64_payload_exceeds_limit(
     monkeypatch: pytest.MonkeyPatch,
@@ -108,7 +104,6 @@ def test_normalize_image_data_url_resizes_when_base64_payload_exceeds_limit(
     assert _payload_from_data_url(normalized) == b"tiny"
     assert len(normalized.split(",", 1)[1]) <= 20
 
-
 def test_normalize_image_data_url_keeps_non_image_media_type(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(image_module, "_MAX_IMAGE_SIZE_BYTES", 10)
     original_url = f"data:text/plain;base64,{b64encode(b'0123456789ABCDEF').decode('ascii')}"
@@ -116,45 +111,34 @@ def test_normalize_image_data_url_keeps_non_image_media_type(monkeypatch: pytest
     normalized = image_module.normalize_image_data_url(original_url)
     assert normalized == original_url
 
-
 def test_normalize_image_data_url_keeps_non_data_url() -> None:
     url = "https://example.com/demo.png"
     assert image_module.normalize_image_data_url(url) == url
 
-
 # --- detect_mime_type_from_bytes ---
-
 
 def test_detect_mime_type_from_bytes_png() -> None:
     assert image_module.detect_mime_type_from_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 16) == "image/png"
 
-
 def test_detect_mime_type_from_bytes_jpeg() -> None:
     assert image_module.detect_mime_type_from_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 10) == "image/jpeg"
-
 
 def test_detect_mime_type_from_bytes_gif87a() -> None:
     assert image_module.detect_mime_type_from_bytes(b"GIF87a" + b"\x00" * 10) == "image/gif"
 
-
 def test_detect_mime_type_from_bytes_gif89a() -> None:
     assert image_module.detect_mime_type_from_bytes(b"GIF89a" + b"\x00" * 10) == "image/gif"
-
 
 def test_detect_mime_type_from_bytes_webp() -> None:
     assert image_module.detect_mime_type_from_bytes(b"RIFF\x00\x00\x00\x00WEBP" + b"\x00" * 20) == "image/webp"
 
-
 def test_detect_mime_type_from_bytes_unknown() -> None:
     assert image_module.detect_mime_type_from_bytes(b"not an image") is None
-
 
 def test_detect_mime_type_from_bytes_empty() -> None:
     assert image_module.detect_mime_type_from_bytes(b"") is None
 
-
 # --- MIME type correction ---
-
 
 def test_normalize_image_data_url_corrects_wrong_mime(monkeypatch: pytest.MonkeyPatch) -> None:
     """A PNG image declared as image/jpeg should be corrected to image/png."""
@@ -165,7 +149,6 @@ def test_normalize_image_data_url_corrects_wrong_mime(monkeypatch: pytest.Monkey
     corrected = image_module.normalize_image_data_url(wrong_url)
     assert corrected.startswith("data:image/png;base64,")
     assert _payload_from_data_url(corrected) == png_bytes
-
 
 def test_resize_image_bytes_if_needed_downscales_oversized_dimensions(
     monkeypatch: pytest.MonkeyPatch,
@@ -192,7 +175,6 @@ def test_resize_image_bytes_if_needed_downscales_oversized_dimensions(
     assert len(resize_calls) == 1
     # scale = min(8000/16000, 8000/8000) = 0.5
     assert resize_calls[0] == (8000, 4000)
-
 
 def test_resize_image_bytes_if_needed_uses_custom_max_dimension(
     monkeypatch: pytest.MonkeyPatch,
@@ -222,7 +204,6 @@ def test_resize_image_bytes_if_needed_uses_custom_max_dimension(
     # scale = min(2000/4000, 2000/3000) = 0.5
     assert resize_calls[0] == (2000, 1500)
 
-
 def test_resize_image_bytes_if_needed_skips_within_dimension_limits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -237,7 +218,6 @@ def test_resize_image_bytes_if_needed_skips_within_dimension_limits(
     original = b"small-image"
     result = image_module._resize_image_bytes_if_needed(original, "image/png")  # pyright: ignore[reportPrivateUsage]
     assert result is original
-
 
 def test_image_file_to_data_url_corrects_wrong_extension(
     monkeypatch: pytest.MonkeyPatch,
@@ -256,7 +236,6 @@ def test_image_file_to_data_url_corrects_wrong_extension(
     assert result.startswith("data:image/png;base64,")
     assert _payload_from_data_url(result) == png_bytes
 
-
 def test_freeze_image_for_history_converts_file_part_to_frozen_data_url(tmp_path: Path) -> None:
     png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
     path = tmp_path / "history.png"
@@ -271,7 +250,6 @@ def test_freeze_image_for_history_converts_file_part_to_frozen_data_url(tmp_path
     assert frozen.source_file_path == str(path)
     assert frozen.url.startswith("data:image/png;base64,")
     assert _payload_from_data_url(frozen.url) == png_bytes
-
 
 def test_image_url_to_request_url_keeps_frozen_data_url(monkeypatch: pytest.MonkeyPatch) -> None:
     frozen = message.ImageURLPart(url="data:image/png;base64,abc123", frozen=True)

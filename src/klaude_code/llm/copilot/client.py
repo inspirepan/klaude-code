@@ -52,7 +52,6 @@ from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 def _is_copilot_anthropic_model(model_id: str | None) -> bool:
     return is_claude_model_any(model_id)
 
-
 def _build_responses_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsStreaming:
     """Build Copilot Responses API request payload."""
     inputs = convert_responses_history_to_input(param.input, param.model_id)
@@ -82,7 +81,6 @@ def _build_responses_payload(param: llm_param.LLMCallParameter) -> ResponseCreat
         payload["text"] = {"verbosity": param.verbosity}  # type: ignore[typeddict-item]
 
     return payload
-
 
 def _build_anthropic_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStreaming:
     """Build Copilot Anthropic Messages API request payload."""
@@ -134,13 +132,11 @@ def _build_anthropic_payload(param: llm_param.LLMCallParameter) -> MessageCreate
 
     return payload
 
-
 def _infer_copilot_initiator(messages: list[message.Message]) -> str:
     if not messages:
         return "user"
     last = messages[-1]
     return "agent" if last.role != "user" else "user"
-
 
 def _has_copilot_vision_input(messages: list[message.Message]) -> bool:
     for msg in messages:
@@ -150,7 +146,6 @@ def _has_copilot_vision_input(messages: list[message.Message]) -> bool:
             return True
     return False
 
-
 def _build_copilot_dynamic_headers(param: llm_param.LLMCallParameter) -> dict[str, str]:
     headers: dict[str, str] = {
         "X-Initiator": _infer_copilot_initiator(param.input),
@@ -159,7 +154,6 @@ def _build_copilot_dynamic_headers(param: llm_param.LLMCallParameter) -> dict[st
     if _has_copilot_vision_input(param.input):
         headers["Copilot-Vision-Request"] = "true"
     return headers
-
 
 @register(llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH)
 class CopilotClient(LLMClientABC):

@@ -26,7 +26,6 @@ def test_response_complete_renders_final_content_when_no_deltas() -> None:
     assert start_i < append_i < end_i
     assert cmds[append_i].content == "Hello\n\nWorld"  # type: ignore[attr-defined]
 
-
 def test_response_complete_does_not_duplicate_when_streaming_happened() -> None:
     m = DisplayStateMachine()
     session_id = "s1"
@@ -46,7 +45,6 @@ def test_response_complete_does_not_duplicate_when_streaming_happened() -> None:
     )
 
     assert not any(isinstance(c, AppendAssistant) for c in cmds)
-
 
 def test_response_complete_finalizes_unended_assistant_stream() -> None:
     m = DisplayStateMachine()

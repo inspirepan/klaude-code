@@ -14,7 +14,6 @@ from klaude_code.session.session import Session
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
 
-
 class _FakeRuntime:
     def __init__(self, *, has_running: bool = False, session_id: str | None = "s1") -> None:
         self._has_running = has_running
@@ -31,11 +30,9 @@ class _FakeRuntime:
         self.submitted.append(operation)
         return operation.id
 
-
 async def _flush(loop_cycles: int = 5) -> None:
     for _ in range(loop_cycles):
         await asyncio.sleep(0)
-
 
 def test_task_finish_then_prompt_idle_submits_operation() -> None:
     async def _body() -> _FakeRuntime:
@@ -57,7 +54,6 @@ def test_task_finish_then_prompt_idle_submits_operation() -> None:
     assert runtime.submitted[0].source == "auto"
     assert runtime.submitted[0].session_id == "s1"
 
-
 def test_user_activity_cancels_idle_submit() -> None:
     async def _body() -> _FakeRuntime:
         runtime = _FakeRuntime()
@@ -76,7 +72,6 @@ def test_user_activity_cancels_idle_submit() -> None:
 
     runtime = arun(_body())
     assert runtime.submitted == []
-
 
 def test_prompt_end_cancels_idle_submit() -> None:
     async def _body() -> _FakeRuntime:
@@ -97,7 +92,6 @@ def test_prompt_end_cancels_idle_submit() -> None:
     runtime = arun(_body())
     assert runtime.submitted == []
 
-
 def test_prompt_idle_requires_completed_task() -> None:
     async def _body() -> _FakeRuntime:
         runtime = _FakeRuntime()
@@ -112,7 +106,6 @@ def test_prompt_idle_requires_completed_task() -> None:
 
     runtime = arun(_body())
     assert runtime.submitted == []
-
 
 def test_running_task_skips_idle_submit() -> None:
     async def _body() -> _FakeRuntime:
@@ -131,11 +124,9 @@ def test_running_task_skips_idle_submit() -> None:
     runtime = arun(_body())
     assert runtime.submitted == []
 
-
 # ---------------------------------------------------------------------------
 # Persistence / dedup / replay behavior (handler-layer contract)
 # ---------------------------------------------------------------------------
-
 
 def _seed_session(items: list[message.HistoryEvent]) -> Session:
     """Build a session with pre-populated history, skipping the flush path
@@ -143,7 +134,6 @@ def _seed_session(items: list[message.HistoryEvent]) -> Session:
     session = Session.create(work_dir=Path("/tmp"))
     session.conversation_history.extend(items)
     return session
-
 
 def test_has_summary_since_last_user_turn_basic() -> None:
     session = _seed_session([])
@@ -159,7 +149,6 @@ def test_has_summary_since_last_user_turn_basic() -> None:
     session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("next")))
     assert not _has_summary_since_last_user_turn(session)
 
-
 def test_has_summary_ignores_bash_mode_user() -> None:
     session = _seed_session(
         [
@@ -170,7 +159,6 @@ def test_has_summary_ignores_bash_mode_user() -> None:
         ]
     )
     assert _has_summary_since_last_user_turn(session)
-
 
 def test_away_summary_entry_replays_as_event() -> None:
     session = _seed_session(
@@ -188,7 +176,6 @@ def test_away_summary_entry_replays_as_event() -> None:
     finish_index = next(i for i, event in enumerate(replay) if isinstance(event, events.TaskFinishEvent))
     recap_index = next(i for i, event in enumerate(replay) if isinstance(event, events.AwaySummaryEvent))
     assert finish_index < recap_index
-
 
 def test_away_summary_filtered_from_llm_input() -> None:
     """AwaySummaryEntry must not leak into LLM turn input — it's not a Message."""

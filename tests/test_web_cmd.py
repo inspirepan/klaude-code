@@ -10,7 +10,6 @@ from typer.testing import CliRunner
 
 pytestmark = pytest.mark.usefixtures("isolated_home")
 
-
 def test_web_command_exits_cleanly_on_keyboard_interrupt(monkeypatch: pytest.MonkeyPatch) -> None:
     from klaude_code.cli.main import app
     from klaude_code.web import server as web_server
@@ -30,7 +29,6 @@ def test_web_command_exits_cleanly_on_keyboard_interrupt(monkeypatch: pytest.Mon
     assert result.exit_code == 130
     assert "Traceback" not in result.output
 
-
 def test_web_command_exits_cleanly_when_server_already_running(monkeypatch: pytest.MonkeyPatch) -> None:
     from klaude_code.cli.main import app
     from klaude_code.web import server as web_server
@@ -47,7 +45,6 @@ def test_web_command_exits_cleanly_when_server_already_running(monkeypatch: pyte
     assert result.exit_code == 0
     assert "Web server is already running" in result.output
     assert "Traceback" not in result.output
-
 
 def test_main_callback_starts_web_mode_after_tui_returns_request(monkeypatch: pytest.MonkeyPatch) -> None:
     import klaude_code.config as config_module

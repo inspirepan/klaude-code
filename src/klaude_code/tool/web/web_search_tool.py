@@ -23,7 +23,6 @@ from klaude_code.tool.web.web_cache import get_cached, make_cache_key, set_cache
 _BRAVE_LLM_CONTEXT_URL = "https://api.search.brave.com/res/v1/llm/context"
 _EXA_SEARCH_URL = "https://api.exa.ai/search"
 
-
 @dataclass
 class SearchResult:
     """A single search result."""
@@ -32,7 +31,6 @@ class SearchResult:
     url: str
     snippet: str
     position: int
-
 
 def _parse_brave_response(raw: bytes) -> list[SearchResult]:
     """Parse Brave LLM Context API response into SearchResult list."""
@@ -55,7 +53,6 @@ def _parse_brave_response(raw: bytes) -> list[SearchResult]:
         results.append(SearchResult(title=title, url=item_url, snippet=snippet, position=i + 1))
     return results
 
-
 def _search_brave(query: str, max_results: int, api_key: str) -> list[SearchResult]:
     """Perform a web search using Brave LLM Context API."""
     params = urllib.parse.urlencode({"q": query, "count": max_results})
@@ -63,7 +60,6 @@ def _search_brave(query: str, max_results: int, api_key: str) -> list[SearchResu
     req = urllib.request.Request(url, headers={"Accept": "application/json", "X-Subscription-Token": api_key})
     with urllib.request.urlopen(req, timeout=30) as resp:
         return _parse_brave_response(resp.read())
-
 
 def _parse_exa_response(raw: bytes) -> list[SearchResult]:
     """Parse Exa search response into SearchResult list."""
@@ -87,7 +83,6 @@ def _parse_exa_response(raw: bytes) -> list[SearchResult]:
 
     return results
 
-
 def _search_exa(query: str, max_results: int, api_key: str) -> list[SearchResult]:
     """Perform a web search using Exa Search API."""
     payload = {
@@ -109,7 +104,6 @@ def _search_exa(query: str, max_results: int, api_key: str) -> list[SearchResult
     with urllib.request.urlopen(req, timeout=30) as resp:
         return _parse_exa_response(resp.read())
 
-
 def _format_results(results: list[SearchResult]) -> str:
     """Format search results for LLM consumption."""
     if not results:
@@ -129,7 +123,6 @@ def _format_results(results: list[SearchResult]) -> str:
         )
 
     return "<search_results>\n" + "\n".join(parts) + "\n</search_results>"
-
 
 @register(tools.WEB_SEARCH)
 class WebSearchTool(ToolABC):

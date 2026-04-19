@@ -38,7 +38,6 @@ class AgentProfile:
     tools: list[llm_param.ToolSchema]
     attachments: list[Attachment]
 
-
 MAIN_AGENT_COMMON_BASE_TOOLS: list[str] = [tools.BASH, tools.READ]
 MAIN_AGENT_GPT5_DIFF_TOOLS: list[str] = [tools.APPLY_PATCH, tools.TODO_WRITE]
 MAIN_AGENT_NON_GPT5_DIFF_TOOLS: list[str] = [tools.EDIT, tools.WRITE, tools.TODO_WRITE]
@@ -49,7 +48,6 @@ MAIN_AGENT_COMMON_TOOLS: list[str] = [
     tools.WEB_SEARCH,
     tools.ASK_USER_QUESTION,
 ]
-
 
 def load_agent_tools(
     model_name: str,
@@ -82,7 +80,6 @@ def load_agent_tools(
 
     return get_tool_schemas(tool_names)
 
-
 def load_agent_attachments(
     model_name: str,
     sub_agent_type: str | None = None,
@@ -113,7 +110,6 @@ def load_agent_attachments(
     ]
     return attachments
 
-
 class ModelProfileProvider(Protocol):
     """Strategy interface for constructing agent profiles."""
 
@@ -124,7 +120,6 @@ class ModelProfileProvider(Protocol):
         *,
         work_dir: Path,
     ) -> AgentProfile: ...
-
 
 class DefaultModelProfileProvider(ModelProfileProvider):
     """Default provider backed by global prompts/tool/attachment registries."""
@@ -152,7 +147,6 @@ class DefaultModelProfileProvider(ModelProfileProvider):
             tools=agent_tools,
             attachments=agent_attachments,
         )
-
 
 class VanillaModelProfileProvider(ModelProfileProvider):
     """Provider that strips prompts, attachments, and tools for vanilla mode."""
