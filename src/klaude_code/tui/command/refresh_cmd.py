@@ -1,6 +1,6 @@
-from klaude_code.agent.loaded_skills import (
-    get_loaded_skill_names_by_location,
-    get_loaded_skill_warnings_by_location,
+from klaude_code.agent.skill_inventory import (
+    get_skill_names_by_location,
+    get_skill_warnings_by_location,
 )
 from klaude_code.protocol import events, message
 
@@ -35,8 +35,8 @@ class RefreshTerminalCommand(CommandABC):
                     session_id=agent.session.id,
                     work_dir=str(agent.session.work_dir),
                     llm_config=agent.get_llm_client().get_llm_config(),
-                    loaded_skills=get_loaded_skill_names_by_location(),
-                    loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
+                    loaded_skills=get_skill_names_by_location(),
+                    loaded_skill_warnings=get_skill_warnings_by_location(),
                 ),
                 events.ReplayHistoryEvent(
                     session_id=agent.session.id,

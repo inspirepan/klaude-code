@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 
-def get_loaded_skill_names_by_location() -> dict[str, list[str]]:
-    """Return loaded skill names grouped by location.
+def get_skill_names_by_location() -> dict[str, list[str]]:
+    """Return available skill names grouped by location.
 
     The UI should not import the skill system directly. Core can expose a
     lightweight summary suitable for WelcomeEvent rendering.
@@ -35,7 +35,8 @@ def get_loaded_skill_names_by_location() -> dict[str, list[str]]:
     result["system"].sort()
     return result
 
-def get_loaded_skill_warnings_by_location() -> dict[str, list[str]]:
+
+def get_skill_warnings_by_location() -> dict[str, list[str]]:
     """Return skill discovery warnings grouped by location."""
 
     try:
