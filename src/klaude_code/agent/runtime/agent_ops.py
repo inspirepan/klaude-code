@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
+from klaude_code.agent.attachments.memory import get_existing_memory_paths_by_location
 from klaude_code.agent.away_summary import generate_away_summary
 from klaude_code.agent.bash_mode import run_bash_command
 from klaude_code.agent.compaction import CompactionReason, run_compaction
@@ -19,7 +20,6 @@ from klaude_code.agent.loaded_skills import (
     get_loaded_skill_names_by_location,
     get_loaded_skill_warnings_by_location,
 )
-from klaude_code.agent.memory import get_existing_memory_paths_by_location
 from klaude_code.agent.runtime.llm import LLMClients, clone_llm_clients
 from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
 from klaude_code.agent.session_title import generate_session_title

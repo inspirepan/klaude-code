@@ -6,13 +6,6 @@ import shlex
 from collections.abc import Callable
 from pathlib import Path
 
-from klaude_code.agent.attachment_prompts import (
-    fmt_file_already_in_context,
-    fmt_file_changed_externally,
-    fmt_paste_file_hint,
-    fmt_tool_result,
-)
-from klaude_code.agent.memory import Memory, discover_memory_files_near_paths, format_memory_content
 from klaude_code.protocol import message, tools
 from klaude_code.protocol.models import (
     AtFileImagesUIItem,
@@ -30,6 +23,7 @@ from klaude_code.session import Session
 from klaude_code.skill.loader import Skill, discover_skills_near_paths
 from klaude_code.tool import BashTool, ReadTool
 
+from .memory import Memory, discover_memory_files_near_paths, format_memory_content
 from .state import (
     build_attachment_tool_context,
     compute_file_content_sha256,
@@ -39,13 +33,45 @@ from .state import (
     mark_memory_loaded,
 )
 
-# Match @ preceded by whitespace, start of line, or → (ReadTool line number arrow)
-# Supports optional line range suffix: @file.txt#L10-20 or @file.txt#L10
-# Plain paths stop at whitespace and at CJK/fullwidth punctuation so that
-# e.g. "我们有一个 @foo.tsx，能不能..." does not swallow the trailing "，能不能..." into the path.
+
+def _fmt_file_already_in_context(path: str, read_tool_name: str) -> str:
+    return f"Note: {path} is already in context and unchanged. Use the {read_tool_name} tool if you need to re-read it."
+
+
+def _fmt_tool_result(tool_name: str, tool_args: str, output: str) -> str:
+    return (
+        f"Called the {tool_name} tool with the following input: {tool_args}\n"
+        f"Result of calling the {tool_name} tool:\n"
+        f"{output}\n"
+    )
+
+
+def _fmt_file_changed_externally(file_path: str, file_content: str) -> str:
+    return (
+        f"Note: {file_path} was modified, either by the user or by a linter. "
+        "Don't tell the user this, since they are already aware. "
+        "This change was intentional, so make sure to take it into account "
+        "as you proceed (ie. don't revert it unless the user asks you to). "
+        f"Here are the relevant changes:\n\n{file_content}"
+    )
+
+
+def _fmt_paste_file_hint(pasted_files: dict[str, str]) -> str:
+    mapping = "\n".join(f"- <{tag}> saved to: {path}" for tag, path in pasted_files.items())
+    return (
+        "The user's message contains pasted content wrapped in XML tags. "
+        "Each paste has been saved to a file for convenient editing:\n"
+        f"{mapping}\n\n"
+        "When you need to execute the pasted content in Bash or write it into a code file, "
+        "use Bash commands (cp, mv, cat, etc.) to operate on the file directly instead of repeating it."
+    )
+
+
+# Match @ preceded by whitespace, start of line, or -> (ReadTool line number arrow)
+# Supports optional line range suffix: @file.txt#L10-20 or @file.txt#L10.
 _AT_PLAIN_STOP_CHARS = (
-    r"\u3000-\u303f"  # CJK symbols and punctuation
-    r"\uff01-\uff0f"  # fullwidth ASCII punctuation
+    r"\u3000-\u303f"
+    r"\uff01-\uff0f"
     r"\uff1a-\uff20"
     r"\uff3b-\uff40"
     r"\uff5b-\uff65"
@@ -65,8 +91,6 @@ class AtFileRef:
 
 
 def _parse_at_file_ref(raw: str) -> AtFileRef:
-    """Parse a raw @-mention string into path + optional line range."""
-
     match = re.match(r"^(.+?)#L(\d+)(?:-(\d+))?$", raw)
     if not match:
         return AtFileRef(raw)
@@ -111,8 +135,6 @@ async def _load_at_file(
     discovered_memories: list[Memory],
     skill_discovery_paths: list[str],
 ) -> None:
-    """Load a single @ file or directory reference."""
-
     path = Path(ref.path).resolve()
     path_str = str(path)
     tool_context = build_attachment_tool_context(session)
@@ -120,7 +142,7 @@ async def _load_at_file(
     if path.exists() and path.is_file():
         if is_tracked_file_unchanged(session, path_str) and ref.line_start is None:
             at_ops.append(AtFileOp(operation="Read", path=path_str))
-            formatted_blocks.append(fmt_file_already_in_context(path_str, tools.READ))
+            formatted_blocks.append(_fmt_file_already_in_context(path_str, tools.READ))
             return
 
         read_kwargs: dict[str, object] = {"file_path": path_str}
@@ -132,7 +154,7 @@ async def _load_at_file(
         tool_result = await ReadTool.call_with_args(args, tool_context)
         images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
 
-        formatted_blocks.append(fmt_tool_result(tools.READ, args.model_dump_json(exclude_none=True), tool_result.output_text))
+        formatted_blocks.append(_fmt_tool_result(tools.READ, args.model_dump_json(exclude_none=True), tool_result.output_text))
         at_ops.append(AtFileOp(operation="Read", path=path_str))
         if images:
             collected_images.extend(images)
@@ -144,7 +166,7 @@ async def _load_at_file(
         args = BashTool.BashArguments(command=f"ls {quoted_path}")
         tool_result = await BashTool.call_with_args(args, tool_context)
 
-        formatted_blocks.append(fmt_tool_result(tools.BASH, args.model_dump_json(exclude_none=True), tool_result.output_text))
+        formatted_blocks.append(_fmt_tool_result(tools.BASH, args.model_dump_json(exclude_none=True), tool_result.output_text))
         at_ops.append(AtFileOp(operation="List", path=path_str + "/"))
         mark_directory_accessed(session, path_str)
 
@@ -244,8 +266,6 @@ async def at_file_reader_attachment(
 
 
 def _compute_diff_snippet(old_content: str, new_content: str) -> str:
-    """Compute a contextual diff snippet between old and new file content."""
-
     old_lines = old_content.splitlines(keepends=True)
     new_lines = new_content.splitlines(keepends=True)
 
@@ -282,7 +302,6 @@ async def file_changed_externally_attachment(session: Session) -> message.Develo
 
     changed_files: list[tuple[str, str]] = []
     collected_images: list[message.ImageURLPart] = []
-
     for path, status in list(session.file_tracker.items()):
         if status.is_directory:
             continue
@@ -318,9 +337,7 @@ async def file_changed_externally_attachment(session: Session) -> message.Develo
     if not changed_files:
         return None
 
-    changed_files_str = "\n\n".join(
-        fmt_file_changed_externally(file_path, file_content) for file_path, file_content in changed_files
-    )
+    changed_files_str = "\n\n".join(_fmt_file_changed_externally(file_path, file_content) for file_path, file_content in changed_files)
     return message.DeveloperMessage(
         parts=message.parts_from_text_and_images(
             f"<system-reminder>{changed_files_str}</system-reminder>",
@@ -368,7 +385,7 @@ async def paste_file_attachment(session: Session) -> message.DeveloperMessage | 
         if isinstance(item, message.UserMessage) and item.pasted_files:
             return message.DeveloperMessage(
                 parts=message.text_parts_from_str(
-                    f"<system-reminder>{fmt_paste_file_hint(item.pasted_files)}\n</system-reminder>"
+                    f"<system-reminder>{_fmt_paste_file_hint(item.pasted_files)}\n</system-reminder>"
                 ),
                 ui_extra=DeveloperUIExtra(items=[PasteFilesUIItem(tags=item.pasted_files)]),
             )
