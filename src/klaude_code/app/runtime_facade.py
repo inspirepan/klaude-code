@@ -14,7 +14,7 @@ from klaude_code.agent.agent_profile import ModelProfileProvider
 from klaude_code.agent.runtime.dispatcher import OperationDispatcher, OperationDispatcherPorts
 from klaude_code.agent.runtime.llm import LLMClients
 from klaude_code.control.event_bus import EventBus, event_publish_context
-from klaude_code.control.session_registry import OperationLifecycleHooks, SessionRegistry
+from klaude_code.control.runtime.registry import OperationLifecycleHooks, SessionRegistry
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, op, user_interaction

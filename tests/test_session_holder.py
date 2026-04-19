@@ -7,11 +7,11 @@ import time
 from collections.abc import Coroutine
 from typing import Any, TypeVar
 
-from klaude_code.control.session_actor import (
+from klaude_code.control.runtime.actor import (
     HOLDER_GRACE_SECONDS,
     SessionActor,
 )
-from klaude_code.control.session_registry import SessionRegistry
+from klaude_code.control.runtime.registry import SessionRegistry
 from klaude_code.protocol import op
 
 T = TypeVar("T")

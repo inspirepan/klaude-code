@@ -25,7 +25,7 @@ from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
 from klaude_code.agent.session_title import generate_session_title
 from klaude_code.config import load_config
 from klaude_code.control.event_bus import event_publish_context
-from klaude_code.control.session_actor import SessionActor
+from klaude_code.control.runtime.actor import SessionActor
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.image import freeze_image_for_history
