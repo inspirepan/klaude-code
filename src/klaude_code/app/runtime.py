@@ -14,7 +14,7 @@ from klaude_code.agent.agent_profile import (
     DefaultModelProfileProvider,
     VanillaModelProfileProvider,
 )
-from klaude_code.agent.runtime_llm import build_llm_clients
+from klaude_code.agent.runtime.llm import build_llm_clients
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.config import Config, load_config

@@ -12,7 +12,7 @@ from klaude_code.protocol import llm_param, op, user_interaction
 
 if TYPE_CHECKING:
     from klaude_code.agent.agent import Agent
-    from klaude_code.agent.runtime_llm import LLMClients
+    from klaude_code.agent.runtime.llm import LLMClients
 
 @dataclass(frozen=True)
 class _StopSignal:

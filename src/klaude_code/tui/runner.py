@@ -10,7 +10,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from klaude_code.agent.compaction import should_compact_threshold
-from klaude_code.agent.runtime_away_summary import AwaySummaryCoordinator
+from klaude_code.agent.runtime.away_summary import AwaySummaryCoordinator
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.app.runtime import (
     AppInitConfig,

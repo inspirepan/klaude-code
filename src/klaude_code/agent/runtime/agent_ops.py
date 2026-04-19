@@ -20,8 +20,8 @@ from klaude_code.agent.loaded_skills import (
     get_loaded_skill_warnings_by_location,
 )
 from klaude_code.agent.memory import get_existing_memory_paths_by_location
-from klaude_code.agent.runtime_llm import LLMClients, clone_llm_clients
-from klaude_code.agent.runtime_sub_agent import SubAgentExecutor
+from klaude_code.agent.runtime.llm import LLMClients, clone_llm_clients
+from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
 from klaude_code.agent.session_title import generate_session_title
 from klaude_code.config import load_config
 from klaude_code.control.event_bus import event_publish_context

@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
-from klaude_code.agent.runtime_llm import LLMClients
+from klaude_code.agent.runtime.llm import LLMClients
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.system_prompt import build_sub_agent_env_info, load_prompt_by_path
 from klaude_code.protocol import events, message
