@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from klaude_code.agent.agent_profile import AgentProfile
+from klaude_code.agent.attachments.collection import collect_attachments
 from klaude_code.agent.cache_break_detection import CacheBreakReport, CacheTracker
 from klaude_code.agent.compaction import (
     CompactionReason,
@@ -350,8 +351,6 @@ class TaskExecutor:
 
         while True:
             # Process attachments in parallel with error isolation
-            from klaude_code.agent.attachments import collect_attachments
-
             attachment_results = await collect_attachments(ctx.session, profile.attachments)
             for item in attachment_results:
                 ctx.session.append_history([item])

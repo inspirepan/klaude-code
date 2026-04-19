@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from prompt_toolkit.document import Document
 
-from klaude_code.agent.attachments import at_file_reader_attachment, image_attachment
+from klaude_code.agent.attachments.files import at_file_reader_attachment, image_attachment
 from klaude_code.llm import image as image_module
 from klaude_code.protocol import events, message
 from klaude_code.protocol.models import AtFileOpsUIItem, UserImagesUIItem

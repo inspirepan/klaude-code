@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from klaude_code.agent.attachments import memory
+import klaude_code.agent.attachments.memory as memory
 
 
 def test_load_auto_memory_without_truncation(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

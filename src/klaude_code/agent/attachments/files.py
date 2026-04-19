@@ -3,7 +3,6 @@ from __future__ import annotations
 import difflib
 import re
 import shlex
-from collections.abc import Callable
 from pathlib import Path
 
 from klaude_code.protocol import message, tools
@@ -20,10 +19,11 @@ from klaude_code.protocol.models import (
     UserImagesUIItem,
 )
 from klaude_code.session import Session
-from klaude_code.skill.loader import Skill, discover_skills_near_paths
+from klaude_code.skill.loader import discover_skills_near_paths
 from klaude_code.tool import BashTool, ReadTool
 
 from .memory import Memory, discover_memory_files_near_paths, format_memory_content
+from .skills import build_dynamic_skill_listing_attachment
 from .state import (
     build_attachment_tool_context,
     compute_file_content_sha256,
@@ -193,7 +193,6 @@ def _append_dynamic_skill_listing(
     skill_discovery_paths: list[str],
     formatted_blocks: list[str],
     ui_items: list[DeveloperUIItem],
-    build_dynamic_skill_listing_attachment: Callable[[Session, list[Skill]], message.DeveloperMessage | None],
 ) -> None:
     dynamic_skill_attachment = build_dynamic_skill_listing_attachment(
         session,
@@ -209,11 +208,7 @@ def _append_dynamic_skill_listing(
         ui_items.extend(dynamic_skill_attachment.ui_extra.items)
 
 
-async def at_file_reader_attachment(
-    session: Session,
-    *,
-    build_dynamic_skill_listing_attachment: Callable[[Session, list[Skill]], message.DeveloperMessage | None],
-) -> message.DeveloperMessage | None:
+async def at_file_reader_attachment(session: Session) -> message.DeveloperMessage | None:
     """Parse @foo/bar references from the last user message and load them."""
 
     refs = get_at_patterns(session)
@@ -245,7 +240,6 @@ async def at_file_reader_attachment(
         skill_discovery_paths,
         formatted_blocks,
         ui_items,
-        build_dynamic_skill_listing_attachment,
     )
 
     if not formatted_blocks:

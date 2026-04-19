@@ -4,8 +4,9 @@ from typing import Any, ClassVar
 
 import pytest
 
-import klaude_code.agent.attachments as attachments
-from klaude_code.agent.attachments import get_skills_from_user_input
+import klaude_code.agent.attachments.skills as skill_attachments
+from klaude_code.agent.attachments.files import at_file_reader_attachment
+from klaude_code.agent.attachments.skills import get_skills_from_user_input
 from klaude_code.protocol import message
 from klaude_code.protocol.models import (
     DeveloperUIExtra,
@@ -88,10 +89,10 @@ def test_skill_attachment_tracks_skill_file(tmp_path: Path, monkeypatch: pytest.
     def _mock_resolve_skill(_session: Session, _name: str) -> Skill:
         return skill
 
-    monkeypatch.setattr(attachments, "_resolve_skill_for_input", _mock_resolve_skill)
+    monkeypatch.setattr(skill_attachments, "resolve_skill_for_input", _mock_resolve_skill)
 
     session = _build_session_with_user_text("/skill:demo")
-    attachment = _arun(attachments.skill_attachment(session))
+    attachment = _arun(skill_attachments.skill_attachment(session))
 
     assert attachment is not None
     tracked = session.file_tracker[str(skill_path)]
@@ -116,10 +117,10 @@ def test_skill_attachment_loads_multiple_skills(tmp_path: Path, monkeypatch: pyt
     def _mock_resolve_skill(_session: Session, name: str) -> Skill | None:
         return skills.get(name)
 
-    monkeypatch.setattr(attachments, "_resolve_skill_for_input", _mock_resolve_skill)
+    monkeypatch.setattr(skill_attachments, "resolve_skill_for_input", _mock_resolve_skill)
 
     session = _build_session_with_user_text("//skill:alpha //skill:beta")
-    attachment = _arun(attachments.skill_attachment(session))
+    attachment = _arun(skill_attachments.skill_attachment(session))
 
     assert attachment is not None
     assert attachment.ui_extra is not None
@@ -139,14 +140,14 @@ def test_skill_attachment_hot_reloads_new_static_skill(tmp_path: Path, monkeypat
     user_skills_dir = tmp_path / "user-skills"
     user_skills_dir.mkdir()
 
-    monkeypatch.setattr(attachments.SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
-    monkeypatch.setattr(attachments.SkillLoader, "USER_SKILLS_DIRS", [user_skills_dir])
-    monkeypatch.setattr(attachments.SkillLoader, "PROJECT_SKILLS_DIRS", [])
+    monkeypatch.setattr(skill_attachments.SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
+    monkeypatch.setattr(skill_attachments.SkillLoader, "USER_SKILLS_DIRS", [user_skills_dir])
+    monkeypatch.setattr(skill_attachments.SkillLoader, "PROJECT_SKILLS_DIRS", [])
 
     session = Session(work_dir=work_dir)
     session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("/skill:late-skill")))
 
-    assert _arun(attachments.skill_attachment(session)) is None
+    assert _arun(skill_attachments.skill_attachment(session)) is None
 
     skill_dir = user_skills_dir / "late-skill"
     skill_dir.mkdir()
@@ -156,7 +157,7 @@ def test_skill_attachment_hot_reloads_new_static_skill(tmp_path: Path, monkeypat
         encoding="utf-8",
     )
 
-    attachment = _arun(attachments.skill_attachment(session))
+    attachment = _arun(skill_attachments.skill_attachment(session))
 
     assert attachment is not None
     text = message.join_text_parts(attachment.parts)
@@ -172,12 +173,12 @@ def test_available_skills_attachment_injects_listing_once_per_compaction_window(
         _make_skill("commit", root=tmp_path, location="system"),
         _make_skill("submit-pr", root=tmp_path, location="user"),
     ]
-    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: skills)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+    monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: skills)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     session = Session(work_dir=tmp_path)
     session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("help")))
 
-    first_attachment = _arun(attachments.available_skills_attachment(session))
+    first_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert first_attachment is not None
     assert first_attachment.attachment_position == "prepend"
     assert first_attachment.ui_extra is not None
@@ -192,11 +193,11 @@ def test_available_skills_attachment_injects_listing_once_per_compaction_window(
     assert "<name>commit</name>" in first_text
     assert any(status.is_skill_listing for status in session.file_tracker.values())
 
-    assert _arun(attachments.available_skills_attachment(session)) is None
+    assert _arun(skill_attachments.available_skills_attachment(session)) is None
 
     _reset_attachment_loaded_flags(session.file_tracker)
 
-    second_attachment = _arun(attachments.available_skills_attachment(session))
+    second_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert second_attachment is not None
     assert "<available_skills>" in message.join_text_parts(second_attachment.parts)
 
@@ -204,22 +205,22 @@ def test_available_skills_attachment_hot_reloads_only_new_skills(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     skills = [_make_skill("commit", root=tmp_path, location="system", description="initial commit skill")]
-    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+    monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     session = Session(work_dir=tmp_path)
     session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("help")))
 
-    first_attachment = _arun(attachments.available_skills_attachment(session))
+    first_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert first_attachment is not None
     first_text = message.join_text_parts(first_attachment.parts)
     assert "<name>commit</name>" in first_text
 
     skills[0] = _make_skill("commit", root=tmp_path, location="system", description="updated commit skill")
-    assert _arun(attachments.available_skills_attachment(session)) is None
+    assert _arun(skill_attachments.available_skills_attachment(session)) is None
 
     skills.append(_make_skill("publish", root=tmp_path, location="user", description="publish skill"))
 
-    second_attachment = _arun(attachments.available_skills_attachment(session))
+    second_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert second_attachment is not None
     assert second_attachment.ui_extra is not None
     listing = [item for item in second_attachment.ui_extra.items if isinstance(item, SkillListingUIItem)]
@@ -229,7 +230,7 @@ def test_available_skills_attachment_hot_reloads_only_new_skills(
     assert "<name>publish</name>" in second_text
     assert "<name>commit</name>" not in second_text
 
-    assert _arun(attachments.available_skills_attachment(session)) is None
+    assert _arun(skill_attachments.available_skills_attachment(session)) is None
 
 def test_available_skills_attachment_reannounces_skill_when_path_changes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -237,18 +238,18 @@ def test_available_skills_attachment_reannounces_skill_when_path_changes(
     initial_root = tmp_path / "initial"
     override_root = tmp_path / "override"
     skills = [_make_skill("commit", root=initial_root, location="system", description="initial commit skill")]
-    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+    monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     session = Session(work_dir=tmp_path)
     session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("help")))
 
-    first_attachment = _arun(attachments.available_skills_attachment(session))
+    first_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert first_attachment is not None
     assert "<name>commit</name>" in message.join_text_parts(first_attachment.parts)
 
     skills[0] = _make_skill("commit", root=override_root, location="project", description="override commit skill")
 
-    second_attachment = _arun(attachments.available_skills_attachment(session))
+    second_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert second_attachment is not None
     assert second_attachment.ui_extra is not None
     listing = [item for item in second_attachment.ui_extra.items if isinstance(item, SkillListingUIItem)]
@@ -262,43 +263,43 @@ def test_available_skills_attachment_resume_keeps_listing_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     skills = [_make_skill("commit", root=tmp_path, location="system", description="initial commit skill")]
-    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+    monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     session = Session(work_dir=tmp_path)
     session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("help")))
 
-    first_attachment = _arun(attachments.available_skills_attachment(session))
+    first_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert first_attachment is not None
 
     session.ensure_meta_exists()
     resumed = Session.load_meta(session.id, work_dir=tmp_path)
 
-    marker_path = str((tmp_path / attachments.SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
+    marker_path = str((tmp_path / skill_attachments.SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
     assert resumed.file_tracker[marker_path].skill_listing_paths_by_name == {
         "commit": str((tmp_path / "commit" / "SKILL.md").resolve())
     }
-    assert _arun(attachments.available_skills_attachment(resumed)) is None
+    assert _arun(skill_attachments.available_skills_attachment(resumed)) is None
 
 def test_available_skills_attachment_restores_state_from_history_for_legacy_session(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     skills = [_make_skill("commit", root=tmp_path, location="system", description="initial commit skill")]
-    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+    monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     session = Session(work_dir=tmp_path)
     session.conversation_history.append(
         message.DeveloperMessage(
             parts=message.text_parts_from_str(
-                f"<system-reminder>{attachments._format_available_skills_str(skills)}\n</system-reminder>"  # pyright: ignore[reportPrivateUsage]
+                f"<system-reminder>{skill_attachments.format_available_skills_str(skills)}\n</system-reminder>"  # pyright: ignore[reportPrivateUsage]
             ),
             attachment_position="prepend",
             ui_extra=DeveloperUIExtra(items=[SkillListingUIItem(names=["commit"])]),
         )
     )
-    marker_path = str((tmp_path / attachments.SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
+    marker_path = str((tmp_path / skill_attachments.SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
     session.file_tracker[marker_path] = FileStatus(mtime=0.0, is_skill_listing=True)
 
-    assert _arun(attachments.available_skills_attachment(session)) is None
+    assert _arun(skill_attachments.available_skills_attachment(session)) is None
     assert session.file_tracker[marker_path].skill_listing_paths_by_name == {
         "commit": str((tmp_path / "commit" / "SKILL.md").resolve())
     }
@@ -309,18 +310,18 @@ def test_available_skills_attachment_reinjects_after_attachment_flags_reset_even
     from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
 
     skills = [_make_skill("commit", root=tmp_path, location="system", description="initial commit skill")]
-    monkeypatch.setattr(attachments, "_get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+    monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     session = Session(work_dir=tmp_path)
     session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("help")))
 
-    first_attachment = _arun(attachments.available_skills_attachment(session))
+    first_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert first_attachment is not None
     session.conversation_history.append(first_attachment)
 
     _reset_attachment_loaded_flags(session.file_tracker)
 
-    second_attachment = _arun(attachments.available_skills_attachment(session))
+    second_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert second_attachment is not None
     second_text = message.join_text_parts(second_attachment.parts)
     assert "<available_skills>" in second_text
@@ -343,7 +344,7 @@ def test_last_path_skill_attachment_discovers_nested_project_skill(tmp_path: Pat
         content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
     )
 
-    attachment = _arun(attachments.last_path_skill_attachment(session))
+    attachment = _arun(skill_attachments.last_path_skill_attachment(session))
 
     assert attachment is not None
     assert attachment.ui_extra is not None
@@ -380,7 +381,7 @@ def test_last_path_skill_attachment_same_directory_second_file_does_not_repeat(t
         content_sha256=hash_text_sha256(file1.read_text(encoding="utf-8")),
     )
 
-    first_attachment = _arun(attachments.last_path_skill_attachment(session))
+    first_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert first_attachment is not None
     first_text = message.join_text_parts(first_attachment.parts)
     assert "<name>build</name>" in first_text
@@ -390,7 +391,7 @@ def test_last_path_skill_attachment_same_directory_second_file_does_not_repeat(t
         content_sha256=hash_text_sha256(file2.read_text(encoding="utf-8")),
     )
 
-    assert _arun(attachments.last_path_skill_attachment(session)) is None
+    assert _arun(skill_attachments.last_path_skill_attachment(session)) is None
     assert str(skill_path.resolve()) in session.file_tracker
     tracked = session.file_tracker[str(skill_path.resolve())]
     assert tracked.is_skill is True
@@ -422,7 +423,7 @@ def test_last_path_skill_attachment_prefers_deeper_skill_with_same_name(tmp_path
         content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
     )
 
-    attachment = _arun(attachments.last_path_skill_attachment(session))
+    attachment = _arun(skill_attachments.last_path_skill_attachment(session))
 
     assert attachment is not None
     text = message.join_text_parts(attachment.parts)
@@ -447,17 +448,17 @@ def test_last_path_skill_attachment_reloads_when_skill_changes(tmp_path: Path) -
         content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
     )
 
-    first_attachment = _arun(attachments.last_path_skill_attachment(session))
+    first_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert first_attachment is not None
     first_text = message.join_text_parts(first_attachment.parts)
     assert "<description>v1</description>" in first_text
     assert "version one" not in first_text
 
-    assert _arun(attachments.last_path_skill_attachment(session)) is None
+    assert _arun(skill_attachments.last_path_skill_attachment(session)) is None
 
     skill_path.write_text("---\nname: refresh-skill\ndescription: v2\n---\nversion two\n", encoding="utf-8")
 
-    second_attachment = _arun(attachments.last_path_skill_attachment(session))
+    second_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert second_attachment is not None
     second_text = message.join_text_parts(second_attachment.parts)
     assert "<description>v2</description>" in second_text
@@ -486,7 +487,7 @@ def test_last_path_skill_attachment_supersedes_prior_same_name_skill(tmp_path: P
         content_sha256=hash_text_sha256(first_file.read_text(encoding="utf-8")),
     )
 
-    first_attachment = _arun(attachments.last_path_skill_attachment(session))
+    first_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert first_attachment is not None
     assert "<description>first</description>" in message.join_text_parts(first_attachment.parts)
 
@@ -495,7 +496,7 @@ def test_last_path_skill_attachment_supersedes_prior_same_name_skill(tmp_path: P
         content_sha256=hash_text_sha256(second_file.read_text(encoding="utf-8")),
     )
 
-    second_attachment = _arun(attachments.last_path_skill_attachment(session))
+    second_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert second_attachment is not None
     second_text = message.join_text_parts(second_attachment.parts)
     assert "<description>second</description>" in second_text
@@ -522,7 +523,7 @@ def test_at_dir_skill_anchor_survives_attachment_reset(tmp_path: Path) -> None:
         message.UserMessage(parts=message.text_parts_from_str(f"@{target_dir.resolve()}"))
     )
 
-    first_attachment = _arun(attachments.at_file_reader_attachment(session))
+    first_attachment = _arun(at_file_reader_attachment(session))
     assert first_attachment is not None
     first_text = message.join_text_parts(first_attachment.parts)
     assert "<available_skills>" in first_text
@@ -533,7 +534,7 @@ def test_at_dir_skill_anchor_survives_attachment_reset(tmp_path: Path) -> None:
 
     _reset_attachment_loaded_flags(session.file_tracker)
 
-    second_attachment = _arun(attachments.last_path_skill_attachment(session))
+    second_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert second_attachment is not None
     assert "<name>local-dir-skill</name>" in message.join_text_parts(second_attachment.parts)
 
@@ -575,7 +576,7 @@ def test_skill_attachment_prefers_dynamic_skill_over_static_with_same_name(
     def _mock_loader(_session: Session) -> Any:
         return _Loader()
 
-    monkeypatch.setattr(attachments, "_get_static_skill_loader_for_session", _mock_loader)
+    monkeypatch.setattr(skill_attachments, "get_static_skill_loader_for_session", _mock_loader)
 
     session = Session(work_dir=work_dir)
     session.file_tracker[str(target_file.resolve())] = FileStatus(
@@ -584,7 +585,7 @@ def test_skill_attachment_prefers_dynamic_skill_over_static_with_same_name(
     )
     session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("/skill:commit")))
 
-    attachment = _arun(attachments.skill_attachment(session))
+    attachment = _arun(skill_attachments.skill_attachment(session))
 
     assert attachment is not None
     text = message.join_text_parts(attachment.parts)
@@ -628,7 +629,7 @@ def test_skill_attachment_preserves_exact_namespaced_static_skill(
     def _mock_loader(_session: Session) -> Any:
         return _Loader()
 
-    monkeypatch.setattr(attachments, "_get_static_skill_loader_for_session", _mock_loader)
+    monkeypatch.setattr(skill_attachments, "get_static_skill_loader_for_session", _mock_loader)
 
     session = Session(work_dir=work_dir)
     session.file_tracker[str(target_file.resolve())] = FileStatus(
@@ -637,7 +638,7 @@ def test_skill_attachment_preserves_exact_namespaced_static_skill(
     )
     session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("/skill:team:commit")))
 
-    attachment = _arun(attachments.skill_attachment(session))
+    attachment = _arun(skill_attachments.skill_attachment(session))
 
     assert attachment is not None
     text = message.join_text_parts(attachment.parts)
@@ -678,7 +679,7 @@ def test_last_path_skill_attachment_does_not_override_explicit_skill(tmp_path: P
         skill_attachment_source="explicit",
     )
 
-    assert _arun(attachments.last_path_skill_attachment(session)) is None
+    assert _arun(skill_attachments.last_path_skill_attachment(session)) is None
 
 def test_last_path_skill_attachment_discovers_external_repo_root_skill(tmp_path: Path) -> None:
     work_dir = tmp_path / "repo"
@@ -702,7 +703,7 @@ def test_last_path_skill_attachment_discovers_external_repo_root_skill(tmp_path:
         content_sha256=hash_text_sha256(target_file.read_text(encoding="utf-8")),
     )
 
-    attachment = _arun(attachments.last_path_skill_attachment(session))
+    attachment = _arun(skill_attachments.last_path_skill_attachment(session))
 
     assert attachment is not None
     text = message.join_text_parts(attachment.parts)

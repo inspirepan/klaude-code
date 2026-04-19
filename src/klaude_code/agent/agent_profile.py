@@ -7,16 +7,17 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from klaude_code.config.config import Config
 
-from klaude_code.agent.attachments import (
-    Attachment,
+from klaude_code.agent.attachments.collection import Attachment
+from klaude_code.agent.attachments.files import (
     at_file_reader_attachment,
-    available_skills_attachment,
     file_changed_externally_attachment,
     image_attachment,
-    last_path_memory_attachment,
-    last_path_skill_attachment,
-    memory_attachment,
     paste_file_attachment,
+)
+from klaude_code.agent.attachments.memory import last_path_memory_attachment, memory_attachment
+from klaude_code.agent.attachments.skills import (
+    available_skills_attachment,
+    last_path_skill_attachment,
     skill_attachment,
 )
 from klaude_code.llm import LLMClientABC

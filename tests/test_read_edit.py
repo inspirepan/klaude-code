@@ -17,7 +17,7 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
     os.sys.path.insert(0, str(SRC_DIR))  # type: ignore
 
-from klaude_code.agent.attachments import at_file_reader_attachment  # noqa: E402
+from klaude_code.agent.attachments.files import at_file_reader_attachment  # noqa: E402
 from klaude_code.protocol import message  # noqa: E402
 from klaude_code.protocol.models import AtFileOp, AtFileOpsUIItem, FileStatus, MemoryLoadedUIItem  # noqa: E402
 from klaude_code.session.session import Session  # noqa: E402
