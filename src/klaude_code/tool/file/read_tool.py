@@ -23,10 +23,10 @@ from klaude_code.const import (
 from klaude_code.llm.image import detect_mime_type_from_bytes
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import FileStatus, ImageUIExtra, ReadPreviewLine, ReadPreviewUIExtra
-from klaude_code.tool.context import FileTracker, ToolContext
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.context import FileTracker, ToolContext
+from klaude_code.tool.core.registry import register
 from klaude_code.tool.file._utils import detect_encoding, file_exists, is_blocked_device_path, is_directory, read_text
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
 
 _IMAGE_MIME_TYPES: dict[str, str] = {
     ".png": "image/png",

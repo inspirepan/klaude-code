@@ -14,9 +14,9 @@ from klaude_code.protocol.sub_agent import (
     get_sub_agent_profile,
     iter_sub_agent_profiles,
 )
-from klaude_code.tool.context import ToolContext
-from klaude_code.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
-from klaude_code.tool.tool_registry import register
+from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
+from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.registry import register
 
 
 def _agent_description() -> str:

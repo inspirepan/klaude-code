@@ -296,7 +296,7 @@ class TestHandoffTool:
         assert "goal" in schema.parameters["properties"]
 
     def test_call_with_no_manager(self) -> None:
-        from klaude_code.tool.context import TodoContext, ToolContext
+        from klaude_code.tool.core.context import TodoContext, ToolContext
 
         ctx = ToolContext(
             file_tracker={},
@@ -314,7 +314,7 @@ class TestHandoffTool:
         arun(_test())
 
     def test_call_with_manager(self) -> None:
-        from klaude_code.tool.context import TodoContext, ToolContext
+        from klaude_code.tool.core.context import TodoContext, ToolContext
 
         manager = HandoffManager()
         ctx = ToolContext(

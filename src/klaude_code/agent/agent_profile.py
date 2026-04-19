@@ -26,7 +26,7 @@ from klaude_code.protocol.model_id import (
     is_gpt5_model,
 )
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
-from klaude_code.tool.tool_registry import get_tool_schemas
+from klaude_code.tool.core.registry import get_tool_schemas
 
 
 @dataclass(frozen=True)

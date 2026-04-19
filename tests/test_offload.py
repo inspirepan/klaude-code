@@ -8,7 +8,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from klaude_code.protocol import message, tools
-from klaude_code.tool.offload import (
+from klaude_code.tool.core.offload import (
     HeadTailOffloadStrategy,
     OffloadPolicy,
     OffloadResult,

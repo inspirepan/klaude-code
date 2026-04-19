@@ -35,7 +35,7 @@ from klaude_code.protocol.models import (
 )
 from klaude_code.session.session import Session
 from klaude_code.tool import FileTracker, TodoContext, ToolABC
-from klaude_code.tool.context import RunSubtask
+from klaude_code.tool.core.context import RunSubtask
 
 type RequestUserInteraction = Callable[
     [

@@ -12,7 +12,7 @@ from klaude_code.agent.task import SessionContext
 from klaude_code.agent.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import llm_param, message
-from klaude_code.tool.tool_runner import ToolCallRequest, ToolExecutionResult
+from klaude_code.tool.core.runner import ToolCallRequest, ToolExecutionResult
 
 
 class ErrorWithPartialTextStream(LLMStreamABC):

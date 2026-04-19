@@ -2,7 +2,7 @@ import unittest
 
 from klaude_code.agent.turn import ToolCallRequest, build_events_from_tool_executor_event
 from klaude_code.protocol import events, message
-from klaude_code.tool.tool_runner import ToolExecutionResult
+from klaude_code.tool.core.runner import ToolExecutionResult
 
 
 class TestInterruptEventEmission(unittest.TestCase):

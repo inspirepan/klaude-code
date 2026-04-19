@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from klaude_code.const import CANCEL_OUTPUT
 from klaude_code.protocol import message
 from klaude_code.protocol.models import SessionIdUIExtra, TaskMetadata, TodoItem, TodoListUIExtra, ToolSideEffect
-from klaude_code.tool.context import ToolContext
-from klaude_code.tool.offload import offload_tool_output
-from klaude_code.tool.tool_abc import ToolABC, ToolConcurrencyPolicy
+from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy
+from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.offload import offload_tool_output
 
 
 @dataclass(frozen=True)

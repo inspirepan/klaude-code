@@ -18,9 +18,9 @@ Create a new file (e.g. `my_tool.py` or `category/my_tool.py`). Implement `ToolA
 
 ```python
 from klaude_code.protocol import llm_param, message, tools
-from klaude_code.tool.context import ToolContext
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
+from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.registry import register
 
 @register(tools.MY_TOOL)
 class MyTool(ToolABC):

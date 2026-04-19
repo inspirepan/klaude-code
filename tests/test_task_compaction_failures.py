@@ -16,7 +16,7 @@ from klaude_code.protocol import events, message
 from klaude_code.protocol.models import SubAgentState
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import close_default_store
-from klaude_code.tool.context import build_todo_context
+from klaude_code.tool.core.context import build_todo_context
 
 
 def arun(coro: object) -> object:

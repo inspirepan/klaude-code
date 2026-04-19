@@ -11,7 +11,7 @@ from klaude_code.const import (
 )
 from klaude_code.protocol.models import SubAgentState
 from klaude_code.tool import ToolABC
-from klaude_code.tool.context import ToolContext
+from klaude_code.tool.core.context import ToolContext
 
 if TYPE_CHECKING:
     from klaude_code.agent.task import SessionContext
@@ -20,7 +20,7 @@ from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, llm_param, message
-from klaude_code.tool.tool_runner import (
+from klaude_code.tool.core.runner import (
     ToolCallRequest,
     ToolExecutionCallStarted,
     ToolExecutionOutputDelta,

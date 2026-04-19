@@ -17,7 +17,7 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
 
 from klaude_code.session.session import Session  # noqa: E402
 from klaude_code.tool import ApplyPatchTool  # noqa: E402
-from klaude_code.tool.context import ToolContext, build_todo_context  # noqa: E402
+from klaude_code.tool.core.context import ToolContext, build_todo_context  # noqa: E402
 
 
 def arun(coro: Any) -> Any:

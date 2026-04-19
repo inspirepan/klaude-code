@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from klaude_code.tool import WebSearchTool
-from klaude_code.tool.context import TodoContext, ToolContext
+from klaude_code.tool.core.context import TodoContext, ToolContext
 from klaude_code.tool.web.external_content import (
     _BOUNDARY_END,  # pyright: ignore[reportPrivateUsage]
     _BOUNDARY_START,  # pyright: ignore[reportPrivateUsage]

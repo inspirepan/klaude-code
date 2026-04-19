@@ -16,9 +16,9 @@ from klaude_code.protocol.models import SessionIdUIExtra
 from klaude_code.protocol.sub_agent import SubAgentResult, is_sub_agent_tool
 from klaude_code.tool import ToolABC
 from klaude_code.tool.agent_tool import AgentTool
-from klaude_code.tool.context import TodoContext, ToolContext
-from klaude_code.tool.tool_abc import ToolConcurrencyPolicy, ToolMetadata
-from klaude_code.tool.tool_runner import ToolCallRequest, ToolExecutionResult, ToolExecutor
+from klaude_code.tool.core.abc import ToolConcurrencyPolicy, ToolMetadata
+from klaude_code.tool.core.context import TodoContext, ToolContext
+from klaude_code.tool.core.runner import ToolCallRequest, ToolExecutionResult, ToolExecutor
 
 
 def _tool_context() -> ToolContext:

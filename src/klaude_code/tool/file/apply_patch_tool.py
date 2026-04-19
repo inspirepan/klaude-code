@@ -20,12 +20,12 @@ from klaude_code.protocol.models import (
     ToolResultUIExtra,
     ToolStatus,
 )
-from klaude_code.tool.context import FileTracker, ToolContext
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.context import FileTracker, ToolContext
+from klaude_code.tool.core.registry import register
 from klaude_code.tool.file import apply_patch as apply_patch_module
 from klaude_code.tool.file._utils import hash_text_sha256
 from klaude_code.tool.file.diff_builder import build_structured_file_diff, build_unified_diff_text
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
 
 
 class ApplyPatchHandler:

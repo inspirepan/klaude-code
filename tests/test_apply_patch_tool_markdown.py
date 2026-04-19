@@ -15,7 +15,7 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
 
 from klaude_code.protocol.models import DiffUIExtra, MarkdownDocUIExtra, MultiUIExtra  # noqa: E402
 from klaude_code.tool import ApplyPatchTool  # noqa: E402
-from klaude_code.tool.context import TodoContext, ToolContext  # noqa: E402
+from klaude_code.tool.core.context import TodoContext, ToolContext  # noqa: E402
 
 
 def arun(coro: Any) -> Any:

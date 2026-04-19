@@ -60,7 +60,7 @@ from klaude_code.skill.loader import (
 )
 from klaude_code.skill.system_skills import install_system_skills
 from klaude_code.tool import BashTool, ReadTool, build_todo_context
-from klaude_code.tool.context import ToolContext
+from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.file._utils import hash_text_sha256
 
 logger = logging.getLogger(__name__)

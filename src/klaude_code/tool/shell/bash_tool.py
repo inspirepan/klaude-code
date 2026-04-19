@@ -14,10 +14,10 @@ from pydantic import BaseModel
 from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS, BASH_TERMINATE_TIMEOUT_SEC
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import FileStatus
-from klaude_code.tool.context import ToolContext
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.registry import register
 from klaude_code.tool.shell.command_safety import is_safe_command
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
 
 # Regex to strip ANSI and terminal control sequences from command output
 #

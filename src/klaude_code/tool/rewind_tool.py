@@ -3,9 +3,9 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from klaude_code.protocol import llm_param, message, tools
-from klaude_code.tool.context import ToolContext
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.registry import register
 
 
 class RewindArguments(BaseModel):

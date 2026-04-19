@@ -9,7 +9,7 @@ from klaude_code.agent.rewind import RewindManager
 from klaude_code.protocol import message
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import close_default_store
-from klaude_code.tool.context import TodoContext, ToolContext
+from klaude_code.tool.core.context import TodoContext, ToolContext
 from klaude_code.tool.rewind_tool import RewindTool
 
 

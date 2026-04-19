@@ -14,9 +14,9 @@ from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExe
 from klaude_code.protocol import events, message, tools
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import close_default_store
-from klaude_code.tool.context import build_todo_context
+from klaude_code.tool.core.context import build_todo_context
 from klaude_code.tool.rewind_tool import RewindTool
-from klaude_code.tool.tool_registry import get_tool_schemas
+from klaude_code.tool.core.registry import get_tool_schemas
 
 
 def arun(coro: object) -> object:

@@ -4,9 +4,9 @@ from pydantic import BaseModel
 
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import TodoItem, TodoListUIExtra, TodoUIExtra, ToolSideEffect, todo_list_str
-from klaude_code.tool.context import ToolContext
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.registry import register
 
 
 def get_new_completed_todos(old_todos: list[TodoItem], new_todos: list[TodoItem]) -> list[str]:

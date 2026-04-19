@@ -10,7 +10,9 @@ from pydantic import BaseModel
 from klaude_code.const import EDIT_MAX_FILE_SIZE
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import FileStatus, MarkdownDocUIExtra, ToolResultUIExtra
-from klaude_code.tool.context import ToolContext
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.registry import register
 from klaude_code.tool.file._utils import (
     detect_encoding,
     file_exists,
@@ -20,8 +22,6 @@ from klaude_code.tool.file._utils import (
     write_text,
 )
 from klaude_code.tool.file.diff_builder import build_structured_diff, build_structured_file_diff
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
 
 
 class WriteArguments(BaseModel):

@@ -8,9 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from klaude_code.protocol import llm_param, message, tools, user_interaction
 from klaude_code.protocol.models import AskUserQuestionSummaryItem, AskUserQuestionSummaryUIExtra
-from klaude_code.tool.context import ToolContext
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.registry import register
 
 
 class AskUserQuestionOptionInput(BaseModel):

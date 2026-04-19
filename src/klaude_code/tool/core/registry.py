@@ -2,7 +2,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from klaude_code.protocol import llm_param
-from klaude_code.tool.tool_abc import ToolABC
+from klaude_code.tool.core.abc import ToolABC
 
 _REGISTRY: dict[str, type[ToolABC]] = {}
 

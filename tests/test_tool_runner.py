@@ -21,10 +21,9 @@ from klaude_code.protocol.models import (
     ToolSideEffect,
     Usage,
 )
-from klaude_code.tool.context import TodoContext, ToolContext
-from klaude_code.tool.shell.bash_tool import BashTool
-from klaude_code.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata
-from klaude_code.tool.tool_runner import (
+from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata
+from klaude_code.tool.core.context import TodoContext, ToolContext
+from klaude_code.tool.core.runner import (
     ToolCallRequest,
     ToolExecutionCallStarted,
     ToolExecutionOutputDelta,
@@ -34,6 +33,7 @@ from klaude_code.tool.tool_runner import (
     ToolExecutorEvent,
     run_tool,
 )
+from klaude_code.tool.shell.bash_tool import BashTool
 
 
 def _tool_context() -> ToolContext:

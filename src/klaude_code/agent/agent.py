@@ -11,7 +11,7 @@ from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.models import TaskMetadata
 from klaude_code.session import Session
 from klaude_code.tool import build_todo_context, get_registry
-from klaude_code.tool.context import RunSubtask
+from klaude_code.tool.core.context import RunSubtask
 
 
 class Agent:

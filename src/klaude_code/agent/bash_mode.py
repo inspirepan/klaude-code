@@ -23,7 +23,7 @@ from typing import TextIO
 from klaude_code.const import BASH_MODE_SESSION_OUTPUT_MAX_BYTES, BASH_TERMINATE_TIMEOUT_SEC, TOOL_OUTPUT_TRUNCATION_DIR
 from klaude_code.protocol import events, message
 from klaude_code.session.session import Session
-from klaude_code.tool.offload import offload_tool_output
+from klaude_code.tool.core.offload import offload_tool_output
 
 
 @dataclass(frozen=True)

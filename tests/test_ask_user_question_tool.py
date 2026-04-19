@@ -9,7 +9,7 @@ from typing import Any, TypeVar
 from klaude_code.protocol import user_interaction
 from klaude_code.protocol.models import AskUserQuestionSummaryUIExtra
 from klaude_code.tool.ask_user_question_tool import AskUserQuestionTool
-from klaude_code.tool.context import TodoContext, ToolContext
+from klaude_code.tool.core.context import TodoContext, ToolContext
 
 T = TypeVar("T")
 
