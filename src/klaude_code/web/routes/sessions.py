@@ -16,7 +16,8 @@ from klaude_code.protocol import events as protocol_events
 from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
 from klaude_code.protocol.models import SessionRuntimeState
-from klaude_code.session.session import Session, get_store_for_path
+from klaude_code.session.session import Session
+from klaude_code.session.store_registry import get_store_for_path
 from klaude_code.web.session_access import load_session_read_only
 from klaude_code.web.session_index import (
     list_file_running_states,

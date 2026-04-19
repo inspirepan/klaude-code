@@ -23,7 +23,7 @@ from klaude_code.control.event_bus import EventBus, event_publish_context
 from klaude_code.control.event_relay import EventRelayPublisher, event_relay_socket_path
 from klaude_code.protocol import events, message
 from klaude_code.session.codec import encode_jsonl_line
-from klaude_code.session.session import close_default_store, get_store_for_path
+from klaude_code.session.store_registry import close_default_store, get_store_for_path
 from klaude_code.web.app import create_app
 from klaude_code.web.interaction import WebInteractionHandler
 from klaude_code.web.live_events import WebLiveEvents, start_web_live_events

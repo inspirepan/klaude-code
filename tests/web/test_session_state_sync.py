@@ -14,7 +14,8 @@ from klaude_code.agent.runtime_llm import LLMClients
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.control.event_bus import EventBus
 from klaude_code.protocol import message, op
-from klaude_code.session.session import Session, close_default_store
+from klaude_code.session.session import Session
+from klaude_code.session.store_registry import close_default_store
 from klaude_code.session.store import JsonlSessionWriter
 
 from .conftest import AppEnv, FakeLLMClient, arun, collect_events_until, consume_ws_handshake, receive_events, usage

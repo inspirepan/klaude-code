@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import time
 import uuid
 from collections.abc import Iterable, Sequence
@@ -10,7 +9,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
-from klaude_code.const import ProjectPaths, project_key_from_path
+from klaude_code.const import ProjectPaths
 from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
@@ -22,92 +21,16 @@ from klaude_code.protocol.models import (
     TaskMetadataItem,
     TodoItem,
 )
+from klaude_code.session.history import (
+    extract_checkpoint_id,
+    extract_xml_tag,
+    find_checkpoint_index_in_history,
+    rebuild_loaded_history,
+)
+from klaude_code.session.meta import parse_session_meta, parse_session_state, read_json_dict
 from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
+from klaude_code.session.store_registry import get_store_for_path
 
-_DEFAULT_STORES: dict[str, JsonlSessionStore] = {}
-
-_CHECKPOINT_RE = re.compile(r"<system-reminder>Checkpoint (\d+)</system-reminder>")
-_XML_TAG_RE_CACHE: dict[str, re.Pattern[str]] = {}
-
-def _extract_xml_tag(text: str, tag: str) -> str:
-    """Extract content between <tag>...</tag>."""
-    pat = _XML_TAG_RE_CACHE.get(tag)
-    if pat is None:
-        pat = re.compile(rf"<{re.escape(tag)}>(.*?)</{re.escape(tag)}>", re.DOTALL)
-        _XML_TAG_RE_CACHE[tag] = pat
-    match = pat.search(text)
-    return match.group(1) if match else ""
-
-def _extract_checkpoint_id(text: str) -> int | None:
-    match = _CHECKPOINT_RE.search(text)
-    if match is None:
-        return None
-    return int(match.group(1))
-
-def _read_json_dict(path: Path) -> dict[str, Any] | None:
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return None
-    if not isinstance(raw, dict):
-        return None
-    return cast(dict[str, Any], raw)
-
-def _find_checkpoint_index_in_history(history: Sequence[message.HistoryEvent], checkpoint_id: int) -> int | None:
-    target_text = f"<system-reminder>Checkpoint {checkpoint_id}</system-reminder>"
-    for i, item in enumerate(history):
-        if not isinstance(item, message.DeveloperMessage):
-            continue
-        text = message.join_text_parts(item.parts)
-        if target_text in text:
-            return i
-    return None
-
-def _apply_rewind_entry_to_history(
-    history: list[message.HistoryEvent],
-    entry: message.RewindEntry,
-) -> list[message.HistoryEvent]:
-    target_idx = _find_checkpoint_index_in_history(history, entry.checkpoint_id)
-    if target_idx is None:
-        return [*history, entry]
-    return [*history[: target_idx + 1], entry]
-
-def _rebuild_loaded_history(raw_history: Iterable[message.HistoryEvent]) -> list[message.HistoryEvent]:
-    active_history: list[message.HistoryEvent] = []
-    for item in raw_history:
-        if isinstance(item, message.RewindEntry):
-            active_history = _apply_rewind_entry_to_history(active_history, item)
-            continue
-        active_history.append(item)
-
-    last_compaction: message.CompactionEntry | None = None
-    for item in reversed(active_history):
-        if isinstance(item, message.CompactionEntry):
-            last_compaction = item
-            break
-
-    if last_compaction is None:
-        return active_history
-
-    cut_index = min(max(last_compaction.first_kept_index, 0), len(active_history))
-    kept = [item for item in active_history[cut_index:] if not isinstance(item, message.CompactionEntry)]
-    normalized_compaction = last_compaction.model_copy(update={"first_kept_index": 1})
-    return [normalized_compaction, *kept]
-
-def get_store_for_path(work_dir: Path) -> JsonlSessionStore:
-    """Return a session store for the given work directory."""
-    project_key = project_key_from_path(work_dir)
-    store = _DEFAULT_STORES.get(project_key)
-    if store is None:
-        store = JsonlSessionStore(project_key=project_key)
-        _DEFAULT_STORES[project_key] = store
-    return store
-
-async def close_default_store() -> None:
-    stores = list(_DEFAULT_STORES.values())
-    _DEFAULT_STORES.clear()
-    for store in stores:
-        await store.aclose()
 
 class Session(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
@@ -185,7 +108,7 @@ class Session(BaseModel):
     def has_user_messages(cls, id: str, work_dir: Path) -> bool:
         """Return True when the session contains at least one non-empty user message."""
 
-        raw = _read_json_dict(cls.paths(work_dir).meta_file(id))
+        raw = read_json_dict(cls.paths(work_dir).meta_file(id))
         if raw is not None:
             user_messages_raw = raw.get("user_messages")
             if isinstance(user_messages_raw, list):
@@ -207,101 +130,32 @@ class Session(BaseModel):
         if raw is None:
             return Session(id=id, work_dir=work_dir)
 
-        work_dir_str = raw.get("work_dir")
-        if not isinstance(work_dir_str, str) or not work_dir_str:
-            work_dir_str = str(work_dir)
-
-        sub_agent_state_raw = raw.get("sub_agent_state")
-        sub_agent_state = (
-            SubAgentState.model_validate(sub_agent_state_raw) if isinstance(sub_agent_state_raw, dict) else None
-        )
-
-        file_tracker_raw = raw.get("file_tracker")
-        file_tracker: dict[str, FileStatus] = {}
-        if isinstance(file_tracker_raw, dict):
-            for k, v in cast(dict[object, object], file_tracker_raw).items():
-                if isinstance(k, str) and isinstance(v, dict):
-                    try:
-                        file_tracker[k] = FileStatus.model_validate(v)
-                    except ValidationError:
-                        continue
-
-        file_change_summary_raw = raw.get("file_change_summary")
-        if isinstance(file_change_summary_raw, dict):
-            try:
-                file_change_summary = FileChangeSummary.model_validate(file_change_summary_raw)
-            except ValidationError:
-                file_change_summary = FileChangeSummary()
-        else:
-            file_change_summary = FileChangeSummary()
-
-        todos_raw = raw.get("todos")
-        todos: list[TodoItem] = []
-        if isinstance(todos_raw, list):
-            for todo_raw in cast(list[object], todos_raw):
-                if not isinstance(todo_raw, dict):
-                    continue
-                try:
-                    todos.append(TodoItem.model_validate(todo_raw))
-                except ValidationError:
-                    continue
-
-        created_at = float(raw.get("created_at", time.time()))
-        updated_at = float(raw.get("updated_at", created_at))
-        title = raw.get("title") if isinstance(raw.get("title"), str) else None
-        model_name = raw.get("model_name") if isinstance(raw.get("model_name"), str) else None
-        session_state_raw = raw.get("session_state")
-        try:
-            session_state = SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
-        except ValueError:
-            session_state = None
-        runtime_owner_raw = raw.get("runtime_owner")
-        if isinstance(runtime_owner_raw, dict):
-            try:
-                runtime_owner = SessionOwner.model_validate(runtime_owner_raw)
-            except ValidationError:
-                runtime_owner = None
-        else:
-            runtime_owner = None
-        runtime_owner_heartbeat_raw = raw.get("runtime_owner_heartbeat_at")
-        runtime_owner_heartbeat_at = (
-            float(runtime_owner_heartbeat_raw) if isinstance(runtime_owner_heartbeat_raw, int | float) else None
-        )
-        model_config_name = raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None
-        archived_raw = raw.get("archived")
-        archived = archived_raw if isinstance(archived_raw, bool) else False
-
-        next_checkpoint_id = int(raw.get("next_checkpoint_id", 0))
-
-        model_thinking_raw = raw.get("model_thinking")
-        model_thinking = (
-            llm_param.Thinking.model_validate(model_thinking_raw) if isinstance(model_thinking_raw, dict) else None
-        )
+        meta = parse_session_meta(raw, work_dir=work_dir)
 
         return Session(
             id=id,
-            work_dir=Path(work_dir_str),
-            sub_agent_state=sub_agent_state,
-            file_tracker=file_tracker,
-            file_change_summary=file_change_summary,
-            todos=todos,
-            created_at=created_at,
-            updated_at=updated_at,
-            title=title,
-            model_name=model_name,
-            session_state=session_state,
-            runtime_owner=runtime_owner,
-            runtime_owner_heartbeat_at=runtime_owner_heartbeat_at,
-            archived=archived,
-            model_config_name=model_config_name,
-            model_thinking=model_thinking,
-            next_checkpoint_id=next_checkpoint_id,
+            work_dir=meta.work_dir,
+            sub_agent_state=meta.sub_agent_state,
+            file_tracker=meta.file_tracker,
+            file_change_summary=meta.file_change_summary,
+            todos=meta.todos,
+            created_at=meta.created_at,
+            updated_at=meta.updated_at,
+            title=meta.title,
+            model_name=meta.model_name,
+            session_state=meta.session_state,
+            runtime_owner=meta.runtime_owner,
+            runtime_owner_heartbeat_at=meta.runtime_owner_heartbeat_at,
+            archived=meta.archived,
+            model_config_name=meta.model_config_name,
+            model_thinking=meta.model_thinking,
+            next_checkpoint_id=meta.next_checkpoint_id,
         )
 
     @classmethod
     def load(cls, id: str, work_dir: Path) -> Session:
         session = cls.load_meta(id, work_dir)
-        session.conversation_history = _rebuild_loaded_history(session._store.iter_history(id))
+        session.conversation_history = rebuild_loaded_history(session._store.iter_history(id))
         return session
 
     @classmethod
@@ -425,7 +279,7 @@ class Session(BaseModel):
         return checkpoint_id
 
     def find_checkpoint_index(self, checkpoint_id: int) -> int | None:
-        return _find_checkpoint_index_in_history(self.conversation_history, checkpoint_id)
+        return find_checkpoint_index_in_history(self.conversation_history, checkpoint_id)
 
     def get_user_message_before_checkpoint(self, checkpoint_id: int) -> str | None:
         checkpoint_idx = self.find_checkpoint_index(checkpoint_id)
@@ -448,7 +302,7 @@ class Session(BaseModel):
             if not isinstance(item, message.DeveloperMessage):
                 continue
             text = message.join_text_parts(item.parts)
-            checkpoint_id = _extract_checkpoint_id(text)
+            checkpoint_id = extract_checkpoint_id(text)
             if checkpoint_id is None:
                 continue
             checkpoints[checkpoint_id] = last_user_message
@@ -588,7 +442,7 @@ class Session(BaseModel):
         latest_id: str | None = None
         latest_ts: float = -1.0
         for meta_path in store.iter_meta_files():
-            data = _read_json_dict(meta_path)
+            data = read_json_dict(meta_path)
             if data is None:
                 continue
             if data.get("sub_agent_state") is not None:
@@ -791,7 +645,7 @@ class Session(BaseModel):
                 case message.UserMessage() as um:
                     if um.source == "bash_mode":
                         text = message.join_text_parts(um.parts)
-                        cmd = _extract_xml_tag(text, "bash-input")
+                        cmd = extract_xml_tag(text, "bash-input")
                         if cmd:
                             yield events.UserMessageEvent(
                                 content=f"!{cmd}",
@@ -799,7 +653,7 @@ class Session(BaseModel):
                                 timestamp=msg_ts,
                             )
                             yield events.BashCommandStartEvent(session_id=self.id, command=cmd, timestamp=msg_ts)
-                        stdout = _extract_xml_tag(text, "bash-stdout")
+                        stdout = extract_xml_tag(text, "bash-stdout")
                         if stdout and stdout != "(no output)":
                             yield events.BashCommandOutputDeltaEvent(
                                 session_id=self.id, content=stdout, timestamp=msg_ts
@@ -964,7 +818,7 @@ class Session(BaseModel):
 
         items: list[Session.SessionMetaBrief] = []
         for meta_path in store.iter_meta_files():
-            data = _read_json_dict(meta_path)
+            data = read_json_dict(meta_path)
             if data is None:
                 continue
             if data.get("sub_agent_state") is not None:
@@ -987,12 +841,7 @@ class Session(BaseModel):
             messages_count = int(data.get("messages_count", -1))
             model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
             session_state_raw = data.get("session_state")
-            try:
-                session_state = (
-                    SessionRuntimeState(session_state_raw) if isinstance(session_state_raw, str) else None
-                )
-            except ValueError:
-                session_state = None
+            session_state = parse_session_state(session_state_raw)
             archived_raw = data.get("archived")
             archived = archived_raw if isinstance(archived_raw, bool) else False
 
@@ -1034,7 +883,7 @@ class Session(BaseModel):
         matches: set[str] = set()
 
         for meta_path in store.iter_meta_files():
-            data = _read_json_dict(meta_path)
+            data = read_json_dict(meta_path)
             if data is None:
                 continue
             # Exclude sub-agent sessions.
@@ -1062,7 +911,7 @@ class Session(BaseModel):
         other_ids: list[str] = []
 
         for meta_path in store.iter_meta_files():
-            data = _read_json_dict(meta_path)
+            data = read_json_dict(meta_path)
             if data is None:
                 continue
             if data.get("sub_agent_state") is not None:

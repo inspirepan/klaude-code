@@ -22,8 +22,9 @@ from klaude_code.protocol.models import (
     TodoItem,
     Usage,
 )
-from klaude_code.session.session import Session, close_default_store
+from klaude_code.session.session import Session
 from klaude_code.session.store import JsonlSessionWriter, build_meta_snapshot
+from klaude_code.session.store_registry import close_default_store
 
 
 class _ForkSessionDummyAgent:

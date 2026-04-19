@@ -17,7 +17,7 @@ from klaude_code.control.event_bus import EventBus
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import Usage
-from klaude_code.session.session import close_default_store
+from klaude_code.session.store_registry import close_default_store
 from klaude_code.web.app import create_app
 from klaude_code.web.interaction import WebInteractionHandler
 from klaude_code.web.state import WebAppState

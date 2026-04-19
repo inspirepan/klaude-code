@@ -14,7 +14,8 @@ from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExe
 from klaude_code.agent.turn import TurnError
 from klaude_code.protocol import events, message
 from klaude_code.protocol.models import SubAgentState
-from klaude_code.session.session import Session, close_default_store
+from klaude_code.session.session import Session
+from klaude_code.session.store_registry import close_default_store
 from klaude_code.tool.context import build_todo_context
 
 

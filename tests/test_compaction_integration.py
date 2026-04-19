@@ -15,7 +15,8 @@ from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import DiffFileDiff, DiffUIExtra, FileStatus
-from klaude_code.session.session import Session, close_default_store
+from klaude_code.session.session import Session
+from klaude_code.session.store_registry import close_default_store
 
 
 def arun(coro: object) -> object:

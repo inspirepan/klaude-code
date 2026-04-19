@@ -13,7 +13,7 @@ from klaude_code.agent.runtime_llm import LLMClients
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.control.event_bus import EventBus
 from klaude_code.protocol import message
-from klaude_code.session.session import close_default_store, get_store_for_path
+from klaude_code.session.store_registry import close_default_store, get_store_for_path
 from klaude_code.web.app import create_app
 from klaude_code.web.interaction import WebInteractionHandler
 from klaude_code.web.state import WebAppState

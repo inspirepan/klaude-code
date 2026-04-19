@@ -23,8 +23,9 @@ from klaude_code.control.event_relay import EventRelayPublisher, event_relay_soc
 from klaude_code.control.session_meta_relay import SessionMetaRelayPublisher, session_meta_relay_socket_path
 from klaude_code.log import DebugType, log, log_debug, set_debug_logging
 from klaude_code.protocol import events, op, user_interaction
-from klaude_code.session.session import Session, close_default_store
+from klaude_code.session.session import Session
 from klaude_code.session.store import register_session_meta_observer
+from klaude_code.session.store_registry import close_default_store
 
 SESSION_IDLE_TTL_SECONDS = 30 * 60
 SESSION_IDLE_RECLAIM_INTERVAL_SECONDS = 60

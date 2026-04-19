@@ -18,7 +18,8 @@ from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, llm_param, message, op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
 from klaude_code.protocol.models import TaskMetadataItem, Usage
-from klaude_code.session.session import Session, get_store_for_path
+from klaude_code.session.session import Session
+from klaude_code.session.store_registry import get_store_for_path
 from klaude_code.web.session_access import load_session_read_only
 from klaude_code.web.session_index import resolve_session_work_dir
 from klaude_code.web.state import get_web_state_from_ws
