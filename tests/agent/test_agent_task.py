@@ -11,7 +11,7 @@ from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.models import Usage
 from klaude_code.tool.core.abc import ToolABC
 from klaude_code.tool.core.context import ToolContext
-from tests.agent_harness import create_harness
+from tests.agent.agent_harness import create_harness
 
 
 def arun(coro: object) -> object:
