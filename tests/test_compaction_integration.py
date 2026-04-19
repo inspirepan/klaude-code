@@ -6,13 +6,13 @@ import pytest
 
 import klaude_code.agent.compaction.compaction as compaction_module
 from klaude_code.agent.compaction import CompactionReason, run_compaction
-from klaude_code.agent.compaction.prompts import (
+from klaude_code.llm import LLMClientABC
+from klaude_code.llm.client import LLMStreamABC
+from klaude_code.prompts.compaction import (
     COMPACTION_SUMMARY_PREFIX,
     SUMMARIZATION_PROMPT,
     TASK_PREFIX_SUMMARIZATION_PROMPT,
 )
-from klaude_code.llm import LLMClientABC
-from klaude_code.llm.client import LLMStreamABC
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import DiffFileDiff, DiffUIExtra, FileStatus
 from klaude_code.session.session import Session
@@ -22,9 +22,11 @@ from klaude_code.session.store_registry import close_default_store
 def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
 
+
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
+
 
 class _StaticTextStream(LLMStreamABC):
     def __init__(self, text: str) -> None:
@@ -39,6 +41,7 @@ class _StaticTextStream(LLMStreamABC):
     def get_partial_message(self) -> message.AssistantMessage | None:
         return self._message
 
+
 class _ErrorStream(LLMStreamABC):
     def __init__(self, error: str) -> None:
         self._error = error
@@ -51,6 +54,7 @@ class _ErrorStream(LLMStreamABC):
 
     def get_partial_message(self) -> message.AssistantMessage | None:
         return None
+
 
 class _CapturingSummarizerClient(LLMClientABC):
     """Deterministic LLM client stub for compaction.
@@ -77,6 +81,7 @@ class _CapturingSummarizerClient(LLMClientABC):
             return _StaticTextStream("TASK_PREFIX_SUMMARY")
         return _StaticTextStream("HISTORY_SUMMARY")
 
+
 class _FlakySummarizerClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter, failures_before_success: int) -> None:
         super().__init__(config)
@@ -94,11 +99,14 @@ class _FlakySummarizerClient(LLMClientABC):
             return _ErrorStream("transient network")
         return _StaticTextStream("RETRY_OK")
 
+
 def _text_user(text: str) -> message.UserMessage:
     return message.UserMessage(parts=message.text_parts_from_str(text))
 
+
 def _text_assistant(text: str) -> message.AssistantMessage:
     return message.AssistantMessage(parts=message.text_parts_from_str(text), response_id=None)
+
 
 def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
@@ -216,6 +224,7 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
         await close_default_store()
 
     arun(_test())
+
 
 def test_call_summarizer_fails_fast_on_stream_error() -> None:
     llm_config = llm_param.LLMConfigParameter(

@@ -6,6 +6,14 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Literal, cast
 
+from klaude_code.prompts.attachments import (
+    AVAILABLE_SKILLS_ADDED_TEMPLATE,
+    AVAILABLE_SKILLS_TEMPLATE,
+    DYNAMIC_AVAILABLE_SKILLS_TEMPLATE,
+    SKILL_BLOCK_TEMPLATE,
+    SKILL_DISCOVERED_PREFACE_TEMPLATE,
+    SKILL_EXPLICIT_PREFACE_TEMPLATE,
+)
 from klaude_code.protocol import message
 from klaude_code.protocol.models import (
     DeveloperUIExtra,
@@ -41,58 +49,28 @@ def _fmt_skill_block(
     explicit: bool,
 ) -> str:
     if explicit:
-        preface = f'The user activated the "{skill_name}" skill, prioritize this skill'
+        preface = SKILL_EXPLICIT_PREFACE_TEMPLATE.format(skill_name=skill_name)
     else:
-        preface = (
-            f'The "{skill_name}" skill was discovered near files already accessed in this session. '
-            "Apply it when relevant to the current work."
-        )
-    return f"""{preface}
-<skill>
-<name>{skill_name}</name>
-<location>{skill_path}</location>
-<base_dir>{base_dir}</base_dir>
-
-{skill_content}
-</skill>"""
+        preface = SKILL_DISCOVERED_PREFACE_TEMPLATE.format(skill_name=skill_name)
+    return SKILL_BLOCK_TEMPLATE.format(
+        preface=preface,
+        skill_name=skill_name,
+        skill_path=skill_path,
+        base_dir=base_dir,
+        skill_content=skill_content,
+    )
 
 
 def _fmt_dynamic_available_skills(skills_xml: str) -> str:
-    return f"""The following skills are available from directories you have accessed.
-
-<available_skills>
-{skills_xml}
-</available_skills>"""
+    return DYNAMIC_AVAILABLE_SKILLS_TEMPLATE.format(skills_xml=skills_xml)
 
 
 def _fmt_available_skills(skills_xml: str) -> str:
-    return f"""# Skills
-
-Skills are optional task-specific instructions stored as `SKILL.md` files.
-
-How to use skills:
-- Use the metadata in <available_skills> to decide whether a skill applies.
-- When the task matches a skill's description, use the `Read` tool to load the `SKILL.md` at the given <location>.
-- Treat the skill <base_dir> as the working directory when following the skill instructions.
-- Resolve any relative paths in SKILL.md (such as `scripts/...`, `references/...`, `assets/...`) against that <base_dir>.
-
-Important:
-- Only use skills listed in <available_skills> below.
-- Keep context small: do NOT load skill files unless needed.
-
-The list below is metadata only. The full instructions live in the referenced file.
-
-<available_skills>
-{skills_xml}
-</available_skills>"""
+    return AVAILABLE_SKILLS_TEMPLATE.format(skills_xml=skills_xml)
 
 
 def _fmt_available_skills_added(skills_xml: str) -> str:
-    return f"""The available skill metadata changed. Apply the same skill-loading rules from the earlier skill listing.
-
-<available_skills>
-{skills_xml}
-</available_skills>"""
+    return AVAILABLE_SKILLS_ADDED_TEMPLATE.format(skills_xml=skills_xml)
 
 
 def get_skills_from_user_input(session: Session) -> list[str]:
@@ -377,7 +355,9 @@ def _collect_dynamic_skills(session: Session, skills: list[Skill]) -> list[Skill
     return activated_skills
 
 
-def _build_skill_attachment(session: Session, skills: list[Skill], *, explicit: bool) -> message.DeveloperMessage | None:
+def _build_skill_attachment(
+    session: Session, skills: list[Skill], *, explicit: bool
+) -> message.DeveloperMessage | None:
     skill_blocks, activated_skills = _collect_skill_blocks(session, skills, explicit=explicit)
     if not skill_blocks:
         return None
@@ -415,17 +395,27 @@ async def available_skills_attachment_for(
 
     previous_skill_paths = _get_available_skill_paths_by_name(session)
     current_skill_paths = {skill.name: str(skill.skill_path) for skill in skills}
-    updated_skills = [skill for skill in skills if previous_skill_paths.get(skill.name) != current_skill_paths[skill.name]]
+    updated_skills = [
+        skill for skill in skills if previous_skill_paths.get(skill.name) != current_skill_paths[skill.name]
+    ]
     if not updated_skills:
         return None
 
     _mark_system_skill_listing_loaded(session, current_skill_paths)
-    content = _fmt_available_skills_added(_build_skills_xml(updated_skills)) if previous_skill_paths else format_available_skills_str(skills)
+    content = (
+        _fmt_available_skills_added(_build_skills_xml(updated_skills))
+        if previous_skill_paths
+        else format_available_skills_str(skills)
+    )
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(f"<system-reminder>{content}\n</system-reminder>"),
         attachment_position="prepend",
         ui_extra=DeveloperUIExtra(
-            items=[SkillListingUIItem(names=[skill.name for skill in updated_skills], incremental=bool(previous_skill_paths))]
+            items=[
+                SkillListingUIItem(
+                    names=[skill.name for skill in updated_skills], incremental=bool(previous_skill_paths)
+                )
+            ]
         ),
     )
 

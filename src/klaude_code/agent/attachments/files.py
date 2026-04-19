@@ -5,6 +5,12 @@ import re
 import shlex
 from pathlib import Path
 
+from klaude_code.prompts.attachments import (
+    FILE_ALREADY_IN_CONTEXT_TEMPLATE,
+    FILE_CHANGED_EXTERNALLY_TEMPLATE,
+    PASTE_FILE_HINT_TEMPLATE,
+    TOOL_RESULT_TEMPLATE,
+)
 from klaude_code.protocol import message, tools
 from klaude_code.protocol.models import (
     AtFileImagesUIItem,
@@ -35,36 +41,20 @@ from .state import (
 
 
 def _fmt_file_already_in_context(path: str, read_tool_name: str) -> str:
-    return f"Note: {path} is already in context and unchanged. Use the {read_tool_name} tool if you need to re-read it."
+    return FILE_ALREADY_IN_CONTEXT_TEMPLATE.format(path=path, read_tool_name=read_tool_name)
 
 
 def _fmt_tool_result(tool_name: str, tool_args: str, output: str) -> str:
-    return (
-        f"Called the {tool_name} tool with the following input: {tool_args}\n"
-        f"Result of calling the {tool_name} tool:\n"
-        f"{output}\n"
-    )
+    return TOOL_RESULT_TEMPLATE.format(tool_name=tool_name, tool_args=tool_args, output=output)
 
 
 def _fmt_file_changed_externally(file_path: str, file_content: str) -> str:
-    return (
-        f"Note: {file_path} was modified, either by the user or by a linter. "
-        "Don't tell the user this, since they are already aware. "
-        "This change was intentional, so make sure to take it into account "
-        "as you proceed (ie. don't revert it unless the user asks you to). "
-        f"Here are the relevant changes:\n\n{file_content}"
-    )
+    return FILE_CHANGED_EXTERNALLY_TEMPLATE.format(file_path=file_path, file_content=file_content)
 
 
 def _fmt_paste_file_hint(pasted_files: dict[str, str]) -> str:
     mapping = "\n".join(f"- <{tag}> saved to: {path}" for tag, path in pasted_files.items())
-    return (
-        "The user's message contains pasted content wrapped in XML tags. "
-        "Each paste has been saved to a file for convenient editing:\n"
-        f"{mapping}\n\n"
-        "When you need to execute the pasted content in Bash or write it into a code file, "
-        "use Bash commands (cp, mv, cat, etc.) to operate on the file directly instead of repeating it."
-    )
+    return PASTE_FILE_HINT_TEMPLATE.format(mapping=mapping)
 
 
 # Match @ preceded by whitespace, start of line, or -> (ReadTool line number arrow)
@@ -154,7 +144,9 @@ async def _load_at_file(
         tool_result = await ReadTool.call_with_args(args, tool_context)
         images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
 
-        formatted_blocks.append(_fmt_tool_result(tools.READ, args.model_dump_json(exclude_none=True), tool_result.output_text))
+        formatted_blocks.append(
+            _fmt_tool_result(tools.READ, args.model_dump_json(exclude_none=True), tool_result.output_text)
+        )
         at_ops.append(AtFileOp(operation="Read", path=path_str))
         if images:
             collected_images.extend(images)
@@ -166,7 +158,9 @@ async def _load_at_file(
         args = BashTool.BashArguments(command=f"ls {quoted_path}")
         tool_result = await BashTool.call_with_args(args, tool_context)
 
-        formatted_blocks.append(_fmt_tool_result(tools.BASH, args.model_dump_json(exclude_none=True), tool_result.output_text))
+        formatted_blocks.append(
+            _fmt_tool_result(tools.BASH, args.model_dump_json(exclude_none=True), tool_result.output_text)
+        )
         at_ops.append(AtFileOp(operation="List", path=path_str + "/"))
         mark_directory_accessed(session, path_str)
 
@@ -248,7 +242,9 @@ async def at_file_reader_attachment(session: Session) -> message.DeveloperMessag
     if collected_image_paths:
         ui_items.append(AtFileImagesUIItem(paths=collected_image_paths))
     if discovered_memories:
-        ui_items.append(MemoryLoadedUIItem(files=[MemoryFileLoaded(path=memory.path) for memory in discovered_memories]))
+        ui_items.append(
+            MemoryLoadedUIItem(files=[MemoryFileLoaded(path=memory.path) for memory in discovered_memories])
+        )
 
     return message.DeveloperMessage(
         parts=message.parts_from_text_and_images(
@@ -310,7 +306,9 @@ async def file_changed_externally_attachment(session: Session) -> message.Develo
                 continue
 
             old_content = status.cached_content
-            tool_result = await ReadTool.call_with_args(ReadTool.ReadArguments(file_path=path), build_attachment_tool_context(session))
+            tool_result = await ReadTool.call_with_args(
+                ReadTool.ReadArguments(file_path=path), build_attachment_tool_context(session)
+            )
             if tool_result.status != "success" or old_content is None:
                 continue
 
@@ -331,13 +329,17 @@ async def file_changed_externally_attachment(session: Session) -> message.Develo
     if not changed_files:
         return None
 
-    changed_files_str = "\n\n".join(_fmt_file_changed_externally(file_path, file_content) for file_path, file_content in changed_files)
+    changed_files_str = "\n\n".join(
+        _fmt_file_changed_externally(file_path, file_content) for file_path, file_content in changed_files
+    )
     return message.DeveloperMessage(
         parts=message.parts_from_text_and_images(
             f"<system-reminder>{changed_files_str}</system-reminder>",
             collected_images or None,
         ),
-        ui_extra=DeveloperUIExtra(items=[ExternalFileChangesUIItem(paths=[file_path for file_path, _ in changed_files])]),
+        ui_extra=DeveloperUIExtra(
+            items=[ExternalFileChangesUIItem(paths=[file_path for file_path, _ in changed_files])]
+        ),
     )
 
 

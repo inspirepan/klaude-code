@@ -6,6 +6,16 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from klaude_code.const import ProjectPaths, find_git_repo_root, project_key_from_path
+from klaude_code.prompts.attachments import (
+    AUTO_MEMORY_HINT_TEMPLATE,
+    AUTO_MEMORY_INSTRUCTION,
+    DISCOVERED_MEMORY_INSTRUCTION,
+    MEMORY_FILE_TRUNCATED_TEMPLATE,
+    MEMORY_HEADER,
+    MEMORY_TRUNCATED_TEMPLATE,
+    PROJECT_MEMORY_INSTRUCTION,
+    USER_MEMORY_INSTRUCTION,
+)
 from klaude_code.protocol import message
 from klaude_code.protocol.models import DeveloperUIExtra, DeveloperUIItem, MemoryFileLoaded, MemoryLoadedUIItem
 from klaude_code.session import Session
@@ -13,11 +23,6 @@ from klaude_code.session import Session
 from .state import is_memory_loaded, mark_memory_loaded
 
 MEMORY_FILE_NAMES = ["AGENTS.md", "CLAUDE.md", "AGENT.md"]
-
-USER_MEMORY_INSTRUCTION = "user's private global instructions for all projects"
-PROJECT_MEMORY_INSTRUCTION = "project instructions, checked into the codebase"
-DISCOVERED_MEMORY_INSTRUCTION = "project instructions, discovered near last accessed path"
-AUTO_MEMORY_INSTRUCTION = "auto memory, persisted across sessions"
 
 AUTO_MEMORY_FILE = "MEMORY.md"
 AUTO_MEMORY_MAX_LINES = 200
@@ -34,11 +39,11 @@ class Memory(BaseModel):
 
 
 def _fmt_memory_truncated(budget_bytes: int) -> str:
-    return f"\n\n> Memory truncated due to session budget ({budget_bytes} bytes total)."
+    return MEMORY_TRUNCATED_TEMPLATE.format(budget_bytes=budget_bytes)
 
 
 def _fmt_auto_memory_hint(auto_memory_path: Path) -> str:
-    return f"\n\nNo auto memory file yet for this project. Create {auto_memory_path} when you need to persist memories."
+    return AUTO_MEMORY_HINT_TEMPLATE.format(auto_memory_path=auto_memory_path)
 
 
 def get_project_memory_dirs(*, work_dir: Path) -> list[Path]:
@@ -118,7 +123,7 @@ def format_memories_attachment(memories: list[Memory], include_header: bool = Tr
     memories_str = "\n\n".join(format_memory_content(memory) for memory in memories)
     if include_header:
         return f"""<system-reminder>
-Loaded memory files. Follow these instructions. Do not mention them to the user unless explicitly asked.
+{MEMORY_HEADER}
 
 {memories_str}
 </system-reminder>"""
@@ -142,10 +147,7 @@ def truncate_memory_content(text: str, path: str) -> str:
         truncated = True
 
     if truncated:
-        result += (
-            f"\n\n> This memory file was truncated ({MEMORY_MAX_BYTES_PER_FILE} byte limit). "
-            f"Use the Read tool to view the complete file at: {path}"
-        )
+        result += MEMORY_FILE_TRUNCATED_TEMPLATE.format(max_bytes=MEMORY_MAX_BYTES_PER_FILE, path=path)
     return result
 
 
@@ -247,7 +249,9 @@ def _count_memory_session_bytes(session: Session) -> int:
         if isinstance(item, message.DeveloperMessage) and item.ui_extra:
             for ui_item in item.ui_extra.items:
                 if isinstance(ui_item, MemoryLoadedUIItem):
-                    total += sum(len(part.text.encode("utf-8")) for part in item.parts if isinstance(part, message.TextPart))
+                    total += sum(
+                        len(part.text.encode("utf-8")) for part in item.parts if isinstance(part, message.TextPart)
+                    )
                     break
     return total
 

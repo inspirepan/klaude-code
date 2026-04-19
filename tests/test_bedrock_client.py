@@ -2,9 +2,10 @@ from typing import Any, ClassVar
 
 import pytest
 
-from klaude_code.const import ANTHROPIC_BETA_CONTEXT_MANAGEMENT, CLAUDE_CODE_IDENTITY
+from klaude_code.const import ANTHROPIC_BETA_CONTEXT_MANAGEMENT
 from klaude_code.llm.bedrock_anthropic import client as bedrock_client_module
 from klaude_code.llm.bedrock_anthropic.client import BedrockClient, build_bedrock_request
+from klaude_code.prompts.messages import CLAUDE_CODE_IDENTITY
 from klaude_code.protocol import llm_param, message
 
 
@@ -31,6 +32,7 @@ def test_bedrock_client_reports_missing_optional_dependencies(monkeypatch: pytes
 
     with pytest.raises(ModuleNotFoundError, match="Bedrock support requires boto3 and botocore"):
         BedrockClient.create(config)
+
 
 def test_bedrock_request_uses_converse_fields_for_opus_47() -> None:
     param = llm_param.LLMCallParameter(
@@ -60,6 +62,7 @@ def test_bedrock_request_uses_converse_fields_for_opus_47() -> None:
     ]
     assert "context_management" not in request
 
+
 def test_bedrock_request_keeps_non_opus47_temperature_and_interleaved_beta() -> None:
     param = llm_param.LLMCallParameter(
         input=[message.UserMessage(parts=[message.TextPart(text="hi")])],
@@ -83,6 +86,7 @@ def test_bedrock_request_keeps_non_opus47_temperature_and_interleaved_beta() -> 
         ],
     }
 
+
 def test_bedrock_request_keeps_thinking_for_arn_models() -> None:
     param = llm_param.LLMCallParameter(
         input=[message.UserMessage(parts=[message.TextPart(text="hi")])],
@@ -99,6 +103,7 @@ def test_bedrock_request_keeps_thinking_for_arn_models() -> None:
         "anthropic_beta": [ANTHROPIC_BETA_CONTEXT_MANAGEMENT],
         "output_config": {"effort": "high"},
     }
+
 
 def test_bedrock_request_fetches_remote_image_urls(monkeypatch: pytest.MonkeyPatch) -> None:
     class _Response:

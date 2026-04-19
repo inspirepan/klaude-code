@@ -17,7 +17,6 @@ from anthropic.types.beta.beta_tool_result_block_param import BetaToolResultBloc
 from anthropic.types.beta.beta_tool_use_block_param import BetaToolUseBlockParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
-from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.llm.image import (
     MAX_IMAGE_DIMENSION,
     image_file_to_data_url,
@@ -31,6 +30,7 @@ from klaude_code.llm.input_common import (
     merge_attachment_text,
     split_thinking_parts,
 )
+from klaude_code.prompts.messages import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import model_supports_eager_input_streaming, model_supports_unsigned_thinking
 from klaude_code.protocol.system_prompt import SYSTEM_PROMPT_DYNAMIC_BOUNDARY, split_system_prompt_for_cache
@@ -46,6 +46,7 @@ _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
 _MANY_IMAGE_DIMENSION = 2000
 _MANY_IMAGE_THRESHOLD = 2
 
+
 def _count_images(messages: list[tuple[message.Message, DeveloperAttachment]]) -> int:
     count = 0
     for msg, attachment in messages:
@@ -53,6 +54,7 @@ def _count_images(messages: list[tuple[message.Message, DeveloperAttachment]]) -
             count += sum(1 for p in msg.parts if isinstance(p, (message.ImageURLPart, message.ImageFilePart)))
         count += len(attachment.images)
     return count
+
 
 def _image_part_to_block(image: ImagePart, *, max_dimension: int) -> BetaImageBlockParam | None:
     url = (
@@ -79,6 +81,7 @@ def _image_part_to_block(image: ImagePart, *, max_dimension: int) -> BetaImageBl
     source_url: BetaURLImageSourceParam = {"type": "url", "url": url}
     return {"type": "image", "source": source_url}
 
+
 def _user_message_to_message(
     msg: message.UserMessage,
     attachment: DeveloperAttachment,
@@ -104,6 +107,7 @@ def _user_message_to_message(
     if not blocks:
         blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": ""}))
     return {"role": "user", "content": blocks}
+
 
 def _tool_message_to_block(
     msg: message.ToolResultMessage,
@@ -132,12 +136,14 @@ def _tool_message_to_block(
         "content": tool_content,
     }
 
+
 def _tool_blocks_to_message(blocks: list[BetaToolResultBlockParam]) -> BetaMessageParam:
     """Convert one or more tool_result blocks to a single user message."""
     return {
         "role": "user",
         "content": blocks,
     }
+
 
 def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str | None) -> BetaMessageParam:
     content: list[BetaContentBlockParam] = []
@@ -234,6 +240,7 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
 
     return {"role": "assistant", "content": content}
 
+
 def _add_cache_control(messages: list[BetaMessageParam]) -> None:
     if len(messages) > 0:
         last_message = messages[-1]
@@ -242,6 +249,7 @@ def _add_cache_control(messages: list[BetaMessageParam]) -> None:
             last_content_part = content_list[-1]
             if last_content_part.get("type", "") in ["text", "tool_result", "tool_use"]:
                 last_content_part["cache_control"] = {"type": "ephemeral"}  # type: ignore
+
 
 def convert_history_to_input(
     history: list[message.Message],
@@ -280,6 +288,7 @@ def convert_history_to_input(
     _add_cache_control(messages)
     return messages
 
+
 def convert_system_to_input(
     system: str | None, system_messages: list[message.SystemMessage] | None = None
 ) -> list[BetaTextBlockParam]:
@@ -314,6 +323,7 @@ def convert_system_to_input(
     if not has_explicit_cache_block:
         blocks[-1]["cache_control"] = {"type": "ephemeral"}
     return blocks
+
 
 def convert_tool_schema(
     tools: list[llm_param.ToolSchema] | None,

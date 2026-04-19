@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 
 from klaude_code.agent.handoff import HandoffManager, run_handoff
-from klaude_code.agent.handoff.prompts import HANDOFF_SUMMARY_PREFIX
 from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
+from klaude_code.prompts.handoff import HANDOFF_SUMMARY_PREFIX
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import FileStatus
 from klaude_code.session.session import Session
@@ -17,9 +17,11 @@ from klaude_code.tool.handoff_tool import HandoffTool
 def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
 
+
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
+
 
 class _StaticTextStream(LLMStreamABC):
     def __init__(self, text: str) -> None:
@@ -34,6 +36,7 @@ class _StaticTextStream(LLMStreamABC):
     def get_partial_message(self) -> message.AssistantMessage | None:
         return self._message
 
+
 class _CapturingClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter) -> None:
         super().__init__(config)
@@ -47,15 +50,19 @@ class _CapturingClient(LLMClientABC):
         self.calls.append(param)
         return _StaticTextStream("EXTRACTED_CONTEXT")
 
+
 def _text_user(text: str) -> message.UserMessage:
     return message.UserMessage(parts=message.text_parts_from_str(text))
+
 
 def _text_assistant(text: str) -> message.AssistantMessage:
     return message.AssistantMessage(parts=message.text_parts_from_str(text), response_id=None)
 
+
 # ---------------------------------------------------------------------------
 # HandoffManager tests
 # ---------------------------------------------------------------------------
+
 
 class TestHandoffManager:
     def test_send_and_fetch(self) -> None:
@@ -80,9 +87,11 @@ class TestHandoffManager:
         manager = HandoffManager()
         assert manager.fetch_pending() is None
 
+
 # ---------------------------------------------------------------------------
 # run_handoff tests
 # ---------------------------------------------------------------------------
+
 
 class TestRunHandoff:
     def test_handoff_produces_compaction_result(self, tmp_path: Path) -> None:
@@ -244,9 +253,11 @@ class TestRunHandoff:
 
         arun(_test())
 
+
 # ---------------------------------------------------------------------------
 # Memory reset tests
 # ---------------------------------------------------------------------------
+
 
 class TestMemoryReset:
     def test_reset_attachment_loaded_flags(self) -> None:
@@ -285,9 +296,11 @@ class TestMemoryReset:
         assert "src/foo.py" in file_tracker
         assert "src/bar.py" in file_tracker
 
+
 # ---------------------------------------------------------------------------
 # HandoffTool tests
 # ---------------------------------------------------------------------------
+
 
 class TestHandoffTool:
     def test_schema(self) -> None:

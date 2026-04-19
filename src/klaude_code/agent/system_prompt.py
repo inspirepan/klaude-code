@@ -80,11 +80,13 @@ REWIND_CHECKPOINT_INST = """- After each new user message, the system automatica
 
 EXTERNAL_REFS_INST = """- Pull in external references when uncertainty or risk is meaningful: unclear APIs/behavior, security-sensitive flows, migrations, performance-critical paths, or best-in-class patterns proven in open source or other language ecosystems. Prefer official docs first, then source."""
 
+
 @cache
 def load_prompt_by_path(prompt_path: str) -> str:
     """Load and cache a prompt file path relative to klaude_code package."""
 
     return files("klaude_code").joinpath(prompt_path).read_text(encoding="utf-8").strip()
+
 
 def load_main_base_prompt(model_name: str) -> str:
     """Load base prompt content for main agents.
@@ -93,8 +95,9 @@ def load_main_base_prompt(model_name: str) -> str:
     """
 
     if model_id.is_gpt5_model(model_name):
-        return load_prompt_by_path("prompts/base-system-prompt-gpt.md")
-    return load_prompt_by_path("prompts/base-system-prompt.md")
+        return load_prompt_by_path("prompts/system/base-system-prompt-gpt.md")
+    return load_prompt_by_path("prompts/system/base-system-prompt.md")
+
 
 def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchema]) -> str:
     """Build tool strategy guidance based on currently available tools."""
@@ -146,15 +149,18 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
     lines.extend(strategy_lines)
     return "\n".join(lines)
 
+
 def build_main_system_prompt(model_name: str, available_tools: list[llm_param.ToolSchema]) -> str:
     """Build main-agent system prompt from base prompt plus dynamic tool strategy."""
 
     base_prompt = load_main_base_prompt(model_name)
     return base_prompt + build_dynamic_tool_strategy_prompt(available_tools)
 
+
 def _get_available_commands() -> list[str]:
     """Return list of available bash commands with descriptions."""
     return [f"{cmd}: {desc}" for cmd, desc in COMMAND_DESCRIPTIONS.items() if shutil.which(cmd) is not None]
+
 
 def build_sub_agent_env_info(work_dir: Path) -> str:
     """Build environment info block for sub-agents, appended at the end of their prompt."""
@@ -175,6 +181,7 @@ def build_sub_agent_env_info(work_dir: Path) -> str:
             env_lines.append(f"- {cmd}")
 
     return "\n".join(env_lines)
+
 
 def _build_env_info(model_name: str, work_dir: Path) -> str:
     """Build environment info section with dynamic runtime values."""
@@ -215,12 +222,14 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
     env_lines.append("</env>")
     return "\n".join(env_lines)
 
+
 def _build_auto_memory_prompt(work_dir: Path) -> str:
     """Build auto-memory prompt with the project-specific memory directory path."""
     paths = ProjectPaths(project_key=project_key_from_path(work_dir))
     memory_dir = str(paths.memory_dir)
-    template = load_prompt_by_path("prompts/auto-memory-prompt.md")
+    template = load_prompt_by_path("prompts/system/auto-memory-prompt.md")
     return "\n\n" + template.format(memory_dir=memory_dir)
+
 
 def load_system_prompt(
     model_name: str,
@@ -240,10 +249,10 @@ def load_system_prompt(
 
     # Main agent prompt path (also used by sub-agents with use_main_prompt=True)
     base_prompt = build_main_system_prompt(model_name, available_tools or [])
-    git_hygiene_prompt = "\n\n" + load_prompt_by_path("prompts/git-workspace-hygiene-prompt.md")
-    conventions_prompt = "\n\n" + load_prompt_by_path("prompts/following-conventions-prompt.md")
+    git_hygiene_prompt = "\n\n" + load_prompt_by_path("prompts/system/git-workspace-hygiene-prompt.md")
+    conventions_prompt = "\n\n" + load_prompt_by_path("prompts/system/following-conventions-prompt.md")
     extended_thinking_prompt = (
-        "\n\n" + load_prompt_by_path("prompts/extended-thinking-prompt.md")
+        "\n\n" + load_prompt_by_path("prompts/system/extended-thinking-prompt.md")
         if model_id.supports_adaptive_thinking(model_name)
         else ""
     )

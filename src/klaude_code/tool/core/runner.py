@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator, Callable, Iterable, Sequence
 from dataclasses import dataclass
 
-from klaude_code.const import CANCEL_OUTPUT
+from klaude_code.prompts.messages import CANCEL_OUTPUT
 from klaude_code.protocol import message
 from klaude_code.protocol.models import SessionIdUIExtra, TaskMetadata, TodoItem, TodoListUIExtra, ToolSideEffect
 from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy
@@ -16,6 +16,7 @@ class ToolCallRequest:
     call_id: str
     tool_name: str
     arguments_json: str
+
 
 async def run_tool(
     tool_call: ToolCallRequest,
@@ -58,11 +59,13 @@ async def run_tool(
             tool_name=tool_call.tool_name,
         )
 
+
 @dataclass
 class ToolExecutionCallStarted:
     """Represents the start of a tool call execution."""
 
     tool_call: ToolCallRequest
+
 
 @dataclass
 class ToolExecutionResult:
@@ -74,11 +77,13 @@ class ToolExecutionResult:
     # Used by UI to decide whether to close the tree prefix.
     is_last_in_turn: bool = False
 
+
 @dataclass
 class ToolExecutionTodoChange:
     """Represents a todo list change side effect emitted by a tool."""
 
     todos: list[TodoItem]
+
 
 @dataclass
 class ToolExecutionOutputDelta:
@@ -87,7 +92,9 @@ class ToolExecutionOutputDelta:
     tool_call: ToolCallRequest
     content: str
 
+
 ToolExecutorEvent = ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange | ToolExecutionOutputDelta
+
 
 class ToolExecutor:
     """Execute and coordinate a batch of tool calls for a single turn.

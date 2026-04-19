@@ -1,4 +1,3 @@
-
 """Agent tool implementation for running sub-agents by type."""
 
 from __future__ import annotations
@@ -34,6 +33,7 @@ def _agent_description() -> str:
 
     return load_desc(Path(__file__).parent / "agent_tool.md", {"types_section": types_section})
 
+
 AGENT_SCHEMA = llm_param.ToolSchema(
     name=tools.AGENT,
     type="function",
@@ -59,6 +59,7 @@ AGENT_SCHEMA = llm_param.ToolSchema(
         "additionalProperties": False,
     },
 )
+
 
 @register(tools.AGENT)
 class AgentTool(ToolABC):

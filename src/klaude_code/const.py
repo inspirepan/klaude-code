@@ -23,11 +23,13 @@ def _get_int_env(name: str, default: int) -> int:
     except ValueError:
         return default
 
+
 def get_system_temp() -> str:
     """Return system-level temp directory: /tmp on Unix, system temp on Windows."""
     if sys.platform == "win32":
         return tempfile.gettempdir()
     return "/tmp"
+
 
 # =============================================================================
 # Agent / LLM Configuration
@@ -41,7 +43,6 @@ LLM_HTTP_TIMEOUT_READ = 285.0  # HTTP read timeout (seconds)
 
 ANTHROPIC_BETA_INTERLEAVED_THINKING = "interleaved-thinking-2025-05-14"  # Anthropic API beta flag
 ANTHROPIC_BETA_CONTEXT_MANAGEMENT = "context-management-2025-06-27"  # Anthropic API beta flag for context editing
-CLAUDE_CODE_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."  # Claude identity string
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"  # OpenRouter API base URL
 
@@ -52,10 +53,6 @@ LOW_CACHE_HIT_RATE_THRESHOLD = 0.9  # Cache hit rate below this triggers a warni
 THROUGHPUT_MIN_DURATION_SEC = 0.15  # Minimum duration (seconds) for throughput calculation
 INITIAL_RETRY_DELAY_S = 1.0  # Initial delay before retrying a failed turn (seconds)
 MAX_RETRY_DELAY_S = 30.0  # Maximum delay between retries (seconds)
-CANCEL_OUTPUT = "[Request interrupted by user for tool use]"  # Message shown when tool call is cancelled
-EMPTY_TOOL_OUTPUT_MESSAGE = (
-    "<system-reminder>Tool ran without output or errors</system-reminder>"  # Tool output placeholder
-)
 DEFAULT_MAX_TOKENS = 32000  # Default maximum tokens for LLM responses
 DEFAULT_TEMPERATURE = 1.0  # Default temperature for LLM requests
 DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS = 2048  # Default thinking budget tokens for Anthropic models
@@ -87,11 +84,6 @@ BLOCKED_DEVICE_PATHS = frozenset(
         "/dev/fd/1",
         "/dev/fd/2",
     }
-)
-
-FILE_UNCHANGED_STUB = (
-    "File unchanged since last read. The content from the earlier Read tool_result "
-    "in this conversation is still current -- refer to that instead of re-reading."
 )
 
 # =============================================================================
@@ -213,6 +205,7 @@ LOG_BACKUP_COUNT = 3  # Number of backup log files to keep
 # Project Paths
 # =============================================================================
 
+
 def find_git_repo_root(*, work_dir: Path) -> Path | None:
     """Find nearest git repository root by walking parents and checking for .git."""
     current = work_dir.resolve()
@@ -223,9 +216,11 @@ def find_git_repo_root(*, work_dir: Path) -> Path | None:
             return None
         current = current.parent
 
+
 def project_key_from_path(path: Path) -> str:
     """Derive the project key from an explicit directory path."""
     return str(path.resolve()).strip("/").replace("/", "-")
+
 
 @dataclass(frozen=True)
 class ProjectPaths:

@@ -6,7 +6,6 @@ from typing import Any, cast
 
 from openai.types import responses
 
-from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.llm.image import image_file_to_data_url, image_url_to_request_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
@@ -14,6 +13,7 @@ from klaude_code.llm.input_common import (
     merge_attachment_text,
     split_thinking_parts,
 )
+from klaude_code.prompts.messages import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.protocol import llm_param, message
 
 
@@ -21,6 +21,7 @@ def _image_to_url(image: message.ImageURLPart | message.ImageFilePart) -> str | 
     if isinstance(image, message.ImageFilePart):
         return image_file_to_data_url(image)
     return image_url_to_request_url(image)
+
 
 def _build_user_content_parts(
     user: message.UserMessage,
@@ -54,6 +55,7 @@ def _build_user_content_parts(
     if not parts:
         parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": ""}))
     return parts
+
 
 def _build_tool_result_item(
     tool: message.ToolResultMessage,
@@ -92,6 +94,7 @@ def _build_tool_result_item(
             )
     item["output"] = content_parts
     return cast(responses.ResponseInputItemParam, item)
+
 
 def convert_history_to_input(
     history: list[message.Message],
@@ -228,6 +231,7 @@ def convert_history_to_input(
 
     return items
 
+
 def convert_reasoning_inputs(
     text_content: str | None,
     signature: str | None,
@@ -246,6 +250,7 @@ def convert_reasoning_inputs(
     if include_status:
         result["status"] = "completed"
     return cast(responses.ResponseInputItemParam, result)
+
 
 def convert_tool_schema(
     tools: list[llm_param.ToolSchema] | None,

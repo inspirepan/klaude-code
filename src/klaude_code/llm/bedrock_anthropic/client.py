@@ -1,4 +1,3 @@
-
 """AWS Bedrock LLM client using native ConverseStream."""
 
 import asyncio
@@ -20,7 +19,6 @@ import httpx
 from klaude_code.const import (
     ANTHROPIC_BETA_CONTEXT_MANAGEMENT,
     ANTHROPIC_BETA_INTERLEAVED_THINKING,
-    CLAUDE_CODE_IDENTITY,
     DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
@@ -35,6 +33,7 @@ from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
+from klaude_code.prompts.messages import CLAUDE_CODE_IDENTITY
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import is_opus_47_model, supports_adaptive_thinking
 
@@ -51,11 +50,14 @@ _BotocoreEventStreamErrorType = cast(
     _botocore_exceptions.EventStreamError if _botocore_exceptions is not None else Exception,
 )
 
+
 class BedrockRequestError(Exception):
     pass
 
+
 class BedrockStreamError(Exception):
     pass
+
 
 def _map_bedrock_stop_reason(reason: str | None) -> StopReason | None:
     mapping: dict[str, StopReason] = {
@@ -71,6 +73,7 @@ def _map_bedrock_stop_reason(reason: str | None) -> StopReason | None:
     }
     return mapping.get(reason or "")
 
+
 def _is_govcloud_target(model_id: str, region: str | None) -> bool:
     region_lower = (region or "").lower()
     model_lower = model_id.lower()
@@ -79,6 +82,7 @@ def _is_govcloud_target(model_id: str, region: str | None) -> bool:
         or model_lower.startswith("us-gov.")
         or model_lower.startswith("arn:aws-us-gov:")
     )
+
 
 def _image_format_for_mime_type(mime_type: str) -> str:
     formats = {
@@ -91,6 +95,7 @@ def _image_format_for_mime_type(mime_type: str) -> str:
     if mime_type.lower() not in formats:
         raise BedrockRequestError(f"Unsupported Bedrock image MIME type: {mime_type}")
     return formats[mime_type.lower()]
+
 
 def _convert_image_source(source: dict[str, Any]) -> dict[str, Any]:
     source_type = source.get("type")
@@ -123,9 +128,11 @@ def _convert_image_source(source: dict[str, Any]) -> dict[str, Any]:
 
     raise BedrockRequestError(f"Unsupported Bedrock image source type: {source_type}")
 
+
 def _append_cache_point(target: list[dict[str, Any]], source_block: dict[str, Any]) -> None:
     if source_block.get("cache_control"):
         target.append({"cachePoint": {"type": "default"}})
+
 
 def _convert_content_block(block: dict[str, Any], *, model_id: str) -> list[dict[str, Any]]:
     block_type = block.get("type")
@@ -196,6 +203,7 @@ def _convert_content_block(block: dict[str, Any], *, model_id: str) -> list[dict
 
     raise BedrockRequestError(f"Unsupported Bedrock content block type: {block_type}")
 
+
 def _is_claude_bedrock_target(model_id: str) -> bool:
     model_lower = model_id.lower()
     return (
@@ -203,6 +211,7 @@ def _is_claude_bedrock_target(model_id: str) -> bool:
         or model_lower.startswith("arn:aws:bedrock:")
         or model_lower.startswith("arn:aws-us-gov:")
     )
+
 
 def _convert_messages(param: llm_param.LLMCallParameter) -> list[dict[str, Any]]:
     model_id = str(param.model_id)
@@ -219,6 +228,7 @@ def _convert_messages(param: llm_param.LLMCallParameter) -> list[dict[str, Any]]
 
     return result
 
+
 def _convert_system(param: llm_param.LLMCallParameter) -> list[dict[str, Any]]:
     system_messages = [msg for msg in param.input if isinstance(msg, message.SystemMessage)]
     system_blocks = convert_system_to_input(param.system, system_messages)
@@ -233,6 +243,7 @@ def _convert_system(param: llm_param.LLMCallParameter) -> list[dict[str, Any]]:
             result.append({"cachePoint": {"type": "default"}})
 
     return result
+
 
 def _convert_tool_config(tools: list[llm_param.ToolSchema] | None) -> dict[str, Any] | None:
     if not tools:
@@ -251,6 +262,7 @@ def _convert_tool_config(tools: list[llm_param.ToolSchema] | None) -> dict[str, 
         ],
         "toolChoice": {"auto": {}},
     }
+
 
 def _build_additional_model_request_fields(
     param: llm_param.LLMCallParameter,
@@ -289,6 +301,7 @@ def _build_additional_model_request_fields(
 
     return result or None
 
+
 def build_bedrock_request(
     param: llm_param.LLMCallParameter,
     *,
@@ -321,11 +334,13 @@ def build_bedrock_request(
 
     return request
 
+
 def _next_stream_event(iterator: Any) -> tuple[bool, dict[str, Any] | None]:
     try:
         return False, cast(dict[str, Any], next(iterator))
     except StopIteration:
         return True, None
+
 
 def _format_bedrock_stream_error(event: dict[str, Any]) -> str:
     for key in (
@@ -344,6 +359,7 @@ def _format_bedrock_stream_error(event: dict[str, Any]) -> str:
                     return f"{key}: {error_message}"
             return f"{key}: {value}"
     return json.dumps(event, ensure_ascii=False, default=str)
+
 
 async def parse_bedrock_stream(
     response: dict[str, Any],
@@ -463,6 +479,7 @@ async def parse_bedrock_stream(
         stop_reason=state.stop_reason,
     )
 
+
 class BedrockLLMStream(LLMStreamABC):
     def __init__(
         self,
@@ -508,6 +525,7 @@ class BedrockLLMStream(LLMStreamABC):
         if self._completed:
             return None
         return self._state.get_partial_message()
+
 
 @register(llm_param.LLMClientProtocol.BEDROCK)
 class BedrockClient(LLMClientABC):

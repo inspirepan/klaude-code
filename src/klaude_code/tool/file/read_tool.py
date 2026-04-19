@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field
 
 from klaude_code.const import (
     BINARY_CHECK_SIZE,
-    FILE_UNCHANGED_STUB,
     READ_CHAR_LIMIT_PER_LINE,
     READ_GLOBAL_LINE_CAP,
     READ_MAX_CHARS,
@@ -21,6 +20,7 @@ from klaude_code.const import (
     READ_PARTIAL_PREVIEW_MAX_LINES,
 )
 from klaude_code.llm.image import detect_mime_type_from_bytes
+from klaude_code.prompts.messages import FILE_UNCHANGED_STUB
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import FileStatus, ImageUIExtra, ReadPreviewLine, ReadPreviewUIExtra
 from klaude_code.tool.core.abc import ToolABC, load_desc
@@ -35,6 +35,7 @@ _IMAGE_MIME_TYPES: dict[str, str] = {
     ".gif": "image/gif",
     ".webp": "image/webp",
 }
+
 
 def _is_binary_file(file_path: str) -> bool:
     """Check if a file is binary by looking for null bytes in the first chunk.
@@ -51,9 +52,11 @@ def _is_binary_file(file_path: str) -> bool:
     except OSError:
         return False
 
+
 def _format_numbered_line(line_no: int, content: str) -> str:
     # 6-width right-aligned line number followed by a right arrow
     return f"{line_no:>6}→{content}"
+
 
 @dataclass
 class ReadOptions:
@@ -64,6 +67,7 @@ class ReadOptions:
     global_line_cap: int | None = READ_GLOBAL_LINE_CAP
     max_total_chars: int | None = READ_MAX_CHARS
 
+
 @dataclass
 class ReadSegmentResult:
     total_lines: int
@@ -72,6 +76,7 @@ class ReadSegmentResult:
     remaining_selected_beyond_cap: int
     remaining_due_to_char_limit: int
     content_sha256: str
+
 
 def _read_segment(options: ReadOptions) -> ReadSegmentResult:
     total_lines = 0
@@ -127,6 +132,7 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
         content_sha256=hasher.hexdigest(),
     )
 
+
 def _track_file_access(
     file_tracker: FileTracker | None,
     file_path: str,
@@ -155,8 +161,10 @@ def _track_file_access(
             read_complete=read_complete,
         )
 
+
 def _is_supported_image_file(file_path: str) -> bool:
     return Path(file_path).suffix.lower() in _IMAGE_MIME_TYPES
+
 
 def _image_mime_type(file_path: str) -> str:
     suffix = Path(file_path).suffix.lower()
@@ -164,6 +172,7 @@ def _image_mime_type(file_path: str) -> str:
     if mime_type is None:
         raise ValueError(f"Unsupported image file extension: {suffix}")
     return mime_type
+
 
 def _missing_file_directory_candidate(file_path: str) -> str | None:
     directory = os.path.dirname(file_path)
@@ -173,6 +182,7 @@ def _missing_file_directory_candidate(file_path: str) -> str | None:
 
     candidate = os.path.join(directory, stem)
     return candidate if is_directory(candidate) else None
+
 
 def _directory_file_preview(
     directory_path: str,
@@ -216,6 +226,7 @@ def _directory_file_preview(
     remaining = max(0, len(ranked_files) - len(preview))
     return preview, remaining
 
+
 def _missing_file_error(file_path: str) -> str:
     directory_candidate = _missing_file_directory_candidate(file_path)
 
@@ -237,11 +248,13 @@ def _missing_file_error(file_path: str) -> str:
 
     return f"<tool_use_error>{'\n'.join(message_lines)}</tool_use_error>"
 
+
 def _truncate_content(content: str, max_chars: int | None) -> tuple[str, bool]:
     """Truncate content to max_chars, returning (content, was_truncated)."""
     if max_chars is None or len(content) <= max_chars:
         return content, False
     return content[:max_chars], True
+
 
 @register(tools.READ)
 class ReadTool(ToolABC):

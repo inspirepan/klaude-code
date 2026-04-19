@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Sequence
 
+from klaude_code.prompts.messages import CHECKPOINT_TEMPLATE
 from klaude_code.protocol import message
 
 _CHECKPOINT_RE = re.compile(r"<system-reminder>Checkpoint (\d+)</system-reminder>")
@@ -30,7 +31,7 @@ def find_checkpoint_index_in_history(
     history: Sequence[message.HistoryEvent],
     checkpoint_id: int,
 ) -> int | None:
-    target_text = f"<system-reminder>Checkpoint {checkpoint_id}</system-reminder>"
+    target_text = CHECKPOINT_TEMPLATE.format(checkpoint_id=checkpoint_id)
     for idx, item in enumerate(history):
         if not isinstance(item, message.DeveloperMessage):
             continue

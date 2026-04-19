@@ -10,6 +10,7 @@ from typing import Any, cast
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
 from klaude_code.const import ProjectPaths
+from klaude_code.prompts.messages import CHECKPOINT_TEMPLATE, REWIND_REMINDER_TEMPLATE, TOOL_INTERRUPTED_MESSAGE
 from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
@@ -273,7 +274,7 @@ class Session(BaseModel):
         checkpoint_id = self.next_checkpoint_id
         self.next_checkpoint_id += 1
         checkpoint_msg = message.DeveloperMessage(
-            parts=[message.TextPart(text=f"<system-reminder>Checkpoint {checkpoint_id}</system-reminder>")]
+            parts=[message.TextPart(text=CHECKPOINT_TEMPLATE.format(checkpoint_id=checkpoint_id))]
         )
         self.append_history([checkpoint_msg])
         return checkpoint_id
@@ -354,7 +355,7 @@ class Session(BaseModel):
                         message.ToolResultMessage(
                             call_id=part.call_id,
                             tool_name=part.tool_name,
-                            output_text="Tool call was interrupted before completing (session was interrupted or restarted).",
+                            output_text=TOOL_INTERRUPTED_MESSAGE,
                             status="error",
                         )
                     )
@@ -369,9 +370,7 @@ class Session(BaseModel):
             if isinstance(item, message.RewindEntry):
                 return message.DeveloperMessage(
                     parts=[
-                        message.TextPart(
-                            text=f"<system-reminder>After this, some operations were performed and context was refined via Rewind. Rationale: {item.rationale}. Summary: {item.note}. Please continue.</system-reminder>"
-                        )
+                        message.TextPart(text=REWIND_REMINDER_TEMPLATE.format(rationale=item.rationale, note=item.note))
                     ]
                 )
             return item

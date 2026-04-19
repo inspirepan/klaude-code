@@ -7,20 +7,24 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMCallParameter, LLMConfigParameter
 
-from klaude_code.const import DEFAULT_MAX_TOKENS, EMPTY_TOOL_OUTPUT_MESSAGE
+from klaude_code.const import DEFAULT_MAX_TOKENS
 from klaude_code.llm.image import image_file_to_data_url, image_url_to_request_url
+from klaude_code.prompts.messages import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.protocol import message
 
 ImagePart = message.ImageURLPart | message.ImageFilePart
 
+
 def _empty_image_parts() -> list[ImagePart]:
     return []
+
 
 @dataclass
 class DeveloperAttachment:
     prefix_text: str = ""
     text: str = ""
     images: list[ImagePart] = field(default_factory=_empty_image_parts)
+
 
 def _extract_developer_content(msg: message.DeveloperMessage) -> tuple[str, list[ImagePart]]:
     text_parts: list[str] = []
@@ -31,6 +35,7 @@ def _extract_developer_content(msg: message.DeveloperMessage) -> tuple[str, list
         elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
             images.append(part)
     return "".join(text_parts), images
+
 
 def attach_developer_messages(
     messages: Iterable[message.Message],
@@ -67,6 +72,7 @@ def attach_developer_messages(
 
     return result
 
+
 def merge_attachment_text(tool_output: str | None, attachment_text: str, *, prefix_text: str = "") -> str:
     """Merge tool output with attachment text."""
     base = tool_output or ""
@@ -76,8 +82,10 @@ def merge_attachment_text(tool_output: str | None, attachment_text: str, *, pref
         base = f"{base}\n{attachment_text}" if base else attachment_text
     return base
 
+
 def collect_text_content(parts: list[message.Part]) -> str:
     return "".join(part.text for part in parts if isinstance(part, message.TextPart))
+
 
 def build_chat_content_parts(
     msg: message.UserMessage,
@@ -103,6 +111,7 @@ def build_chat_content_parts(
     if not parts:
         parts.append({"type": "text", "text": ""})
     return parts
+
 
 def build_tool_message(
     msg: message.ToolResultMessage,
@@ -134,6 +143,7 @@ def build_tool_message(
         "content": content,
         "tool_call_id": msg.call_id,
     }
+
 
 def build_tool_message_for_chat_completions(
     msg: message.ToolResultMessage,
@@ -188,6 +198,7 @@ def build_tool_message_for_chat_completions(
 
     return tool_message, user_message
 
+
 def build_assistant_common_fields(msg: message.AssistantMessage) -> dict[str, object]:
     result: dict[str, object] = {}
 
@@ -241,6 +252,7 @@ def build_assistant_common_fields(msg: message.AssistantMessage) -> dict[str, ob
 
     return result
 
+
 def split_thinking_parts(
     msg: message.AssistantMessage,
     model_name: str | None,
@@ -258,6 +270,7 @@ def split_thinking_parts(
                 continue
             native_parts.append(part)
     return native_parts, degraded_texts
+
 
 def apply_config_defaults(param: "LLMCallParameter", config: "LLMConfigParameter") -> "LLMCallParameter":
     """Apply config defaults to LLM call parameters."""

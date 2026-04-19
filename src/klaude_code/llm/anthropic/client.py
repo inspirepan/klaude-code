@@ -23,7 +23,6 @@ from anthropic.types.beta.message_create_params import MessageCreateParamsStream
 from klaude_code.const import (
     ANTHROPIC_BETA_CONTEXT_MANAGEMENT,
     ANTHROPIC_BETA_INTERLEAVED_THINKING,
-    CLAUDE_CODE_IDENTITY,
     DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
@@ -43,6 +42,7 @@ from klaude_code.llm.stream_parts import (
 )
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
+from klaude_code.prompts.messages import CLAUDE_CODE_IDENTITY
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import is_opus_47_model, supports_adaptive_thinking
 from klaude_code.protocol.models import StopReason, Usage
@@ -61,6 +61,7 @@ def _map_anthropic_stop_reason(reason: str) -> StopReason | None:
         "aborted": "aborted",
     }
     return mapping.get(reason)
+
 
 class AnthropicStreamStateManager:
     """Manages streaming state for Anthropic API responses.
@@ -168,6 +169,7 @@ class AnthropicStreamStateManager:
         """
         return build_partial_message(self.assistant_parts, response_id=self.response_id)
 
+
 def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStreaming:
     """Build Anthropic API request parameters."""
     messages = convert_history_to_input(param.input, param.model_id)
@@ -243,6 +245,7 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
         payload["betas"] = betas
 
     return payload
+
 
 async def parse_anthropic_stream(
     stream: Any,
@@ -346,6 +349,7 @@ async def parse_anthropic_stream(
         stop_reason=state.stop_reason,
     )
 
+
 class AnthropicLLMStream(LLMStreamABC):
     """LLMStream implementation for Anthropic-compatible clients."""
 
@@ -394,6 +398,7 @@ class AnthropicLLMStream(LLMStreamABC):
         if self._completed:
             return None
         return self._state.get_partial_message()
+
 
 @register(llm_param.LLMClientProtocol.ANTHROPIC)
 class AnthropicClient(LLMClientABC):
