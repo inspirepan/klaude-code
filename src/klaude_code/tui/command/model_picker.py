@@ -6,7 +6,7 @@ import sys
 from dataclasses import dataclass
 from enum import Enum
 
-from klaude_code.config.config import load_config
+from klaude_code.config.loader import load_config
 from klaude_code.config.model_matcher import match_model_from_config
 from klaude_code.log import log
 

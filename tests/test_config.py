@@ -1,9 +1,6 @@
 """Tests for the config module."""
 
 import asyncio
-
-# Import config module directly without triggering __init__.py
-import importlib.util
 import sys
 from pathlib import Path
 from typing import Any
@@ -11,26 +8,20 @@ from typing import Any
 import pytest
 import yaml
 
-# Avoid circular import by importing protocol first
 from klaude_code.protocol import llm_param
 
-_config_spec = importlib.util.spec_from_file_location(
-    "config_module",
-    Path(__file__).parent.parent / "src" / "klaude_code" / "config" / "config.py",
+import klaude_code.config.config as _config_module
+from klaude_code.config.config import (
+    Config,
+    ModelConfig,
+    ProviderConfig,
+    UserConfig,
+    UserProviderConfig,
+    config_path,
+    parse_env_var_syntax,
 )
-assert _config_spec is not None and _config_spec.loader is not None
-_config_module = importlib.util.module_from_spec(_config_spec)
-sys.modules["config_module"] = _config_module
-_config_spec.loader.exec_module(_config_module)
-
-Config = _config_module.Config
-UserConfig = _config_module.UserConfig
-ModelConfig = _config_module.ModelConfig
-ProviderConfig = _config_module.ProviderConfig
-UserProviderConfig = _config_module.UserProviderConfig
-config_path = _config_module.config_path
-load_config = _config_module.load_config
-parse_env_var_syntax = _config_module.parse_env_var_syntax
+from klaude_code.config.loader import load_config
+from klaude_code.config.merge import merge_configs
 
 
 def _auth_env_none(_key: str) -> str | None:
@@ -305,7 +296,7 @@ class TestConfig:
                 ]
             }
         )
-        config = _config_module._merge_configs(user_config, Config())
+        config = merge_configs(user_config, Config())
 
         llm_config = config.get_model_config("claude-sonnet-4-5@aws-bedrock-custom")
 
@@ -1625,7 +1616,7 @@ class TestOutOfBoxExperience:
             }
         )
 
-        merged = _config_module._merge_configs(user_config, builtin_config)
+        merged = merge_configs(user_config, builtin_config)
         provider = next(p for p in merged.provider_list if p.provider_name == "builtin")
         assert provider.disabled is False
 

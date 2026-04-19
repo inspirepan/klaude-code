@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 
 from klaude_code.config import Config
-from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
+from klaude_code.config.sub_agent_model import SubAgentModelResolver
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
@@ -87,7 +87,7 @@ def build_llm_clients(
     if skip_sub_agents:
         return LLMClients(main=main_client, main_model_alias=model_name, fast=fast_client, compact=compact_client)
 
-    helper = SubAgentModelHelper(config)
+    helper = SubAgentModelResolver(config)
     sub_agent_configs = helper.build_sub_agent_client_configs()
     user_sub_agent_models = config.get_user_sub_agent_models()
 

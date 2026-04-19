@@ -1,4 +1,4 @@
-"""Helper for sub-agent model availability and selection logic."""
+"""Sub-agent model availability and selection logic."""
 
 from __future__ import annotations
 
@@ -42,8 +42,8 @@ class EmptySubAgentModelBehavior:
     resolved_model_name: str | None
 
 
-class SubAgentModelHelper:
-    """Centralized logic for sub-agent availability and model selection."""
+class SubAgentModelResolver:
+    """Sub-agent model availability and selection."""
 
     def __init__(self, config: Config) -> None:
         self._config = config

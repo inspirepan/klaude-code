@@ -11,7 +11,7 @@ from klaude_code.agent.runtime.agent_ops import AgentRunner
 from klaude_code.agent.session_stats import build_session_stats_ui_extra
 from klaude_code.config import format_model_preference, load_config
 from klaude_code.config.model_matcher import match_model_from_config
-from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
+from klaude_code.config.sub_agent_model import SubAgentModelResolver
 from klaude_code.config.thinking import get_thinking_picker_data, parse_thinking_value
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.protocol import events, op, user_interaction
@@ -162,7 +162,7 @@ class ConfigHandler:
         session_clients = self._agent_runner.get_session_llm_clients(agent.session.id)
         config = load_config()
 
-        helper = SubAgentModelHelper(config)
+        helper = SubAgentModelResolver(config)
         sub_agent_type = operation.sub_agent_type
         model_name = operation.model_name
 
@@ -417,7 +417,7 @@ class ConfigHandler:
             agent = await self._agent_runner.ensure_agent(operation.session_id)
             session_clients = self._agent_runner.get_session_llm_clients(agent.session.id)
             config = load_config()
-            helper = SubAgentModelHelper(config)
+            helper = SubAgentModelResolver(config)
             main_model_name = session_clients.main.model_name
 
             target_options: list[user_interaction.OperationSelectOption] = [
