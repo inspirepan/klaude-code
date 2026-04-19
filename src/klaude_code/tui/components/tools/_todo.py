@@ -7,7 +7,8 @@ from rich.panel import Panel
 from rich.text import Text
 
 from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH, TAB_EXPAND_WIDTH
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events
+from klaude_code.protocol.models import TodoListUIExtra
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import MARK_PLAN, render_tool_call_tree
@@ -35,7 +36,7 @@ def render_todo_write_tool_call(arguments: str) -> RenderableType:
 
 
 def render_todo(tr: events.ToolResultEvent) -> RenderableType:
-    assert isinstance(tr.ui_extra, model.TodoListUIExtra)
+    assert isinstance(tr.ui_extra, TodoListUIExtra)
     ui_extra = tr.ui_extra.todo_list
     todo_grid = create_grid()
     for todo in ui_extra.todos:

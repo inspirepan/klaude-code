@@ -6,15 +6,17 @@ import pytest
 
 import klaude_code.agent.compaction.compaction as compaction_module
 from klaude_code.agent.compaction import CompactionReason, run_compaction
-from klaude_code.agent.compaction.prompts import (
+from klaude_code.llm import LLMClientABC
+from klaude_code.llm.client import LLMStreamABC
+from klaude_code.prompts.compaction import (
     COMPACTION_SUMMARY_PREFIX,
     SUMMARIZATION_PROMPT,
     TASK_PREFIX_SUMMARIZATION_PROMPT,
 )
-from klaude_code.llm import LLMClientABC
-from klaude_code.llm.client import LLMStreamABC
-from klaude_code.protocol import llm_param, message, model
-from klaude_code.session.session import Session, close_default_store
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import DiffFileDiff, DiffUIExtra, FileStatus
+from klaude_code.session.session import Session
+from klaude_code.session.store_registry import close_default_store
 
 
 def arun(coro: object) -> object:
@@ -115,7 +117,7 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
         session = Session.create(id="compaction-e2e", work_dir=project_dir)
 
         # Used by _collect_file_operations() as read files.
-        session.file_tracker["docs/a.md"] = model.FileStatus(mtime=0.0)
+        session.file_tracker["docs/a.md"] = FileStatus(mtime=0.0)
 
         # Build a history that triggers split-task compaction:
         # - Old history (to summarize) includes tool calls/results and large outputs.
@@ -154,7 +156,7 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
                 tool_name="edit",
                 status="success",
                 output_text="ok",
-                ui_extra=model.DiffUIExtra(files=[model.DiffFileDiff(file_path="src/foo.py", lines=[], stats_add=1)]),
+                ui_extra=DiffUIExtra(files=[DiffFileDiff(file_path="src/foo.py", lines=[], stats_add=1)]),
             ),
             _text_user("new task: implement foo"),
             _text_assistant("recent assistant: " + ("r" * 5000)),

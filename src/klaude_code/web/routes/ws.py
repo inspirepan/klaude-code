@@ -15,9 +15,11 @@ from pydantic import BaseModel, ValidationError
 
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, llm_param, message, model, op, user_interaction
+from klaude_code.protocol import events, llm_param, message, op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
-from klaude_code.session.session import Session, get_store_for_path
+from klaude_code.protocol.models import TaskMetadataItem, Usage
+from klaude_code.session.session import Session
+from klaude_code.session.store_registry import get_store_for_path
 from klaude_code.web.session_access import load_session_read_only
 from klaude_code.web.session_index import resolve_session_work_dir
 from klaude_code.web.state import get_web_state_from_ws
@@ -97,9 +99,9 @@ async def _send_error_frame(
     )
 
 
-def _extract_usage_from_history(history: list[message.HistoryEvent]) -> model.Usage | None:
+def _extract_usage_from_history(history: list[message.HistoryEvent]) -> Usage | None:
     for item in reversed(history):
-        if isinstance(item, model.TaskMetadataItem) and item.main_agent.usage is not None:
+        if isinstance(item, TaskMetadataItem) and item.main_agent.usage is not None:
             return item.main_agent.usage
         if isinstance(item, message.AssistantMessage) and item.usage is not None:
             return item.usage
@@ -107,7 +109,7 @@ def _extract_usage_from_history(history: list[message.HistoryEvent]) -> model.Us
 
 
 def _load_usage_snapshot(session_id: str, session_work_dir: Path, websocket: WebSocket) -> dict[str, Any]:
-    usage = model.Usage()
+    usage = Usage()
     state = get_web_state_from_ws(websocket)
 
     current_agent = state.runtime.current_agent

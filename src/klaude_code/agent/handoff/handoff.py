@@ -19,9 +19,8 @@ from klaude_code.const import (
     MAX_RETRY_DELAY_S,
 )
 from klaude_code.llm import LLMClientABC
+from klaude_code.prompts.handoff import HANDOFF_EXTRACTION_PROMPT, HANDOFF_SUMMARY_PREFIX, HANDOFF_SYSTEM_PROMPT
 from klaude_code.protocol import llm_param, message
-
-from .prompts import HANDOFF_EXTRACTION_PROMPT, HANDOFF_SUMMARY_PREFIX, HANDOFF_SYSTEM_PROMPT
 
 if TYPE_CHECKING:
     from klaude_code.session.session import Session

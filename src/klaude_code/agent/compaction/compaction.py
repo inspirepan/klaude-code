@@ -12,16 +12,16 @@ from klaude_code.const import (
     DEFAULT_MAX_TOKENS,
 )
 from klaude_code.llm import LLMClientABC
-from klaude_code.protocol import llm_param, message, model
-from klaude_code.session.session import Session
-
-from .prompts import (
+from klaude_code.prompts.compaction import (
     COMPACTION_SUMMARY_PREFIX,
     SUMMARIZATION_PROMPT,
     SUMMARIZATION_SYSTEM_PROMPT,
     TASK_PREFIX_SUMMARIZATION_PROMPT,
     UPDATE_SUMMARIZATION_PROMPT,
 )
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import DiffUIExtra, MarkdownDocUIExtra, MultiUIExtra
+from klaude_code.session.session import Session
 
 _MAX_TOOL_OUTPUT_CHARS = 4000
 _MAX_TOOL_CALL_CHARS = 2000
@@ -358,15 +358,15 @@ def _extract_modified_files_from_tool_result(msg: message.ToolResultMessage, mod
     if ui_extra is None:
         return
     match ui_extra:
-        case model.DiffUIExtra() as diff:
+        case DiffUIExtra() as diff:
             modified_set.update(file.file_path for file in diff.files)
-        case model.MarkdownDocUIExtra() as doc:
+        case MarkdownDocUIExtra() as doc:
             modified_set.add(doc.file_path)
-        case model.MultiUIExtra() as multi:
+        case MultiUIExtra() as multi:
             for item in multi.items:
-                if isinstance(item, model.DiffUIExtra):
+                if isinstance(item, DiffUIExtra):
                     modified_set.update(file.file_path for file in item.files)
-                elif isinstance(item, model.MarkdownDocUIExtra):
+                elif isinstance(item, MarkdownDocUIExtra):
                     modified_set.add(item.file_path)
         case _:
             pass

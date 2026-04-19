@@ -10,7 +10,6 @@ from typing import Any, cast
 
 from google.genai import types
 
-from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.llm.image import image_file_to_data_url, image_url_to_request_url, parse_data_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
@@ -20,6 +19,7 @@ from klaude_code.llm.input_common import (
     split_thinking_parts,
 )
 from klaude_code.llm.json_stable import canonicalize_json
+from klaude_code.prompts.messages import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import is_gemini3_model
 

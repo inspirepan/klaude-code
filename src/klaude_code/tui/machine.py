@@ -19,8 +19,9 @@ from klaude_code.const import (
     STATUS_SHOW_BUFFER_LENGTH,
     STATUS_THINKING_TEXT,
 )
-from klaude_code.protocol import events, model, tools
+from klaude_code.protocol import events, tools
 from klaude_code.protocol.model_id import is_gemini_model_any, is_grok_model
+from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState, Usage
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
 from klaude_code.tui.commands import (
     AppendAssistant,
@@ -310,7 +311,7 @@ class SpinnerStatusState:
         if self._phase is SpinnerPhase.COMPOSING:
             self.enter_waiting()
 
-    def set_context_usage(self, usage: model.Usage) -> None:
+    def set_context_usage(self, usage: Usage) -> None:
         has_token_usage = any(
             (
                 usage.input_tokens,
@@ -479,7 +480,7 @@ class SpinnerStatusState:
 @dataclass
 class _SessionState:
     session_id: str
-    sub_agent_state: model.SubAgentState | None = None
+    sub_agent_state: SubAgentState | None = None
     model_id: str | None = None
     assistant_stream_active: bool = False
     thinking_stream_active: bool = False
@@ -1178,7 +1179,7 @@ class DisplayStateMachine:
                     cmds.extend(self._spinner_update_commands())
                 elif not is_replay and is_sub_agent_tool(e.tool_name):
                     self._spinner.finish_sub_agent_tool_call(e.tool_call_id)
-                    if e.is_error and isinstance(e.ui_extra, model.SessionIdUIExtra):
+                    if e.is_error and isinstance(e.ui_extra, SessionIdUIExtra):
                         failed_sub_session = self._sessions.get(e.ui_extra.session_id)
                         if failed_sub_session is not None and failed_sub_session.is_sub_agent:
                             failed_sub_session.task_active = False

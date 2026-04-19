@@ -6,7 +6,7 @@ from rich.cells import cell_len
 from rich.console import Console
 from rich.text import Text
 
-from klaude_code.protocol import model
+from klaude_code.protocol.models import Usage
 from klaude_code.tui.components.rich.status import (
     StackedStatusText,
     current_hint_text,
@@ -121,7 +121,7 @@ def test_stacked_status_adds_leading_blank_line_when_enabled() -> None:
 def test_third_line_drops_hint_before_compact_when_full_metadata_fits() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
-        model.Usage(
+        Usage(
             input_tokens=30_000,
             cached_tokens=20_000,
             output_tokens=12_000,
@@ -148,7 +148,7 @@ def test_third_line_drops_hint_before_compact_when_full_metadata_fits() -> None:
 def test_third_line_compacts_tokens_after_dropping_hint() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
-        model.Usage(
+        Usage(
             input_tokens=300_000,
             cached_tokens=200_000,
             output_tokens=120_000,
@@ -183,7 +183,7 @@ def test_third_line_compacts_tokens_after_dropping_hint() -> None:
 def test_third_line_shows_compact_with_hint_when_only_that_fits() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
-        model.Usage(
+        Usage(
             input_tokens=300_000,
             cached_tokens=200_000,
             output_tokens=120_000,
@@ -219,7 +219,7 @@ def test_third_line_shows_compact_with_hint_when_only_that_fits() -> None:
 def test_third_line_avoids_compact_when_full_metadata_still_fits() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
-        model.Usage(
+        Usage(
             input_tokens=10_000,
             cached_tokens=0,
             output_tokens=5_000,

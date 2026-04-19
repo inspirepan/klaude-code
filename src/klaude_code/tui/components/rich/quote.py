@@ -9,7 +9,6 @@ from rich.style import Style
 if TYPE_CHECKING:
     from rich.console import RenderableType
 
-
 _MIN_CONTENT_WIDTH = 4
 
 

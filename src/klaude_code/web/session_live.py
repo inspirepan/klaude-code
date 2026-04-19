@@ -10,7 +10,7 @@ from typing import Any, Literal, cast
 from uuid import uuid4
 
 from klaude_code.app.runtime_facade import RuntimeFacade
-from klaude_code.protocol import model
+from klaude_code.protocol.models import SessionRuntimeState
 from klaude_code.web.session_access import is_session_read_only_for_runtime
 from klaude_code.web.session_index import SessionIndex, SessionSummary
 
@@ -104,12 +104,10 @@ class SessionEventStream:
 
 def _derive_session_state_from_snapshot(snapshot: Any) -> Literal["idle", "running", "waiting_user_input"]:
     if snapshot.pending_request_count > 0:
-        return cast(
-            Literal["idle", "running", "waiting_user_input"], model.SessionRuntimeState.WAITING_USER_INPUT.value
-        )
+        return cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.WAITING_USER_INPUT.value)
     if snapshot.active_root_task is not None or snapshot.child_task_count > 0:
-        return cast(Literal["idle", "running", "waiting_user_input"], model.SessionRuntimeState.RUNNING.value)
-    return cast(Literal["idle", "running", "waiting_user_input"], model.SessionRuntimeState.IDLE.value)
+        return cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.RUNNING.value)
+    return cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.IDLE.value)
 
 
 class SessionLiveState:
@@ -183,9 +181,7 @@ class SessionLiveState:
     ) -> Literal["idle", "running", "waiting_user_input"]:
         actor = self._runtime.session_registry.get_session_actor(session_id)
         if actor is None:
-            return fallback or cast(
-                Literal["idle", "running", "waiting_user_input"], model.SessionRuntimeState.IDLE.value
-            )
+            return fallback or cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.IDLE.value)
         snapshot = actor.snapshot()
         return _derive_session_state_from_snapshot(snapshot)
 

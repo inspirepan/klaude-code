@@ -53,7 +53,6 @@ AGENT_FINDER_INST = (
 )
 AGENT_FINDER_PARALLEL_INST = """- Launch multiple finder sub-agents in parallel when tasks are independent."""
 
-
 TODO_FREQUENT_USAGE_INST = """- Use `TodoWrite` frequently for planning and tracking progress on multi-step tasks."""
 TODO_COMPLETE_IMMEDIATELY_INST = """- Mark todos completed immediately when finished. Do not batch-complete later."""
 
@@ -96,8 +95,8 @@ def load_main_base_prompt(model_name: str) -> str:
     """
 
     if model_id.is_gpt5_model(model_name):
-        return load_prompt_by_path("prompts/base-system-prompt-gpt.md")
-    return load_prompt_by_path("prompts/base-system-prompt.md")
+        return load_prompt_by_path("prompts/system/base-system-prompt-gpt.md")
+    return load_prompt_by_path("prompts/system/base-system-prompt.md")
 
 
 def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchema]) -> str:
@@ -228,7 +227,7 @@ def _build_auto_memory_prompt(work_dir: Path) -> str:
     """Build auto-memory prompt with the project-specific memory directory path."""
     paths = ProjectPaths(project_key=project_key_from_path(work_dir))
     memory_dir = str(paths.memory_dir)
-    template = load_prompt_by_path("prompts/auto-memory-prompt.md")
+    template = load_prompt_by_path("prompts/system/auto-memory-prompt.md")
     return "\n\n" + template.format(memory_dir=memory_dir)
 
 
@@ -250,10 +249,10 @@ def load_system_prompt(
 
     # Main agent prompt path (also used by sub-agents with use_main_prompt=True)
     base_prompt = build_main_system_prompt(model_name, available_tools or [])
-    git_hygiene_prompt = "\n\n" + load_prompt_by_path("prompts/git-workspace-hygiene-prompt.md")
-    conventions_prompt = "\n\n" + load_prompt_by_path("prompts/following-conventions-prompt.md")
+    git_hygiene_prompt = "\n\n" + load_prompt_by_path("prompts/system/git-workspace-hygiene-prompt.md")
+    conventions_prompt = "\n\n" + load_prompt_by_path("prompts/system/following-conventions-prompt.md")
     extended_thinking_prompt = (
-        "\n\n" + load_prompt_by_path("prompts/extended-thinking-prompt.md")
+        "\n\n" + load_prompt_by_path("prompts/system/extended-thinking-prompt.md")
         if model_id.supports_adaptive_thinking(model_name)
         else ""
     )

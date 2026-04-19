@@ -16,7 +16,8 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from klaude_code.const import DEFAULT_DEBUG_LOG_DIR
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param
+from klaude_code.protocol.models import Usage
 
 _REPORT_DIR = DEFAULT_DEBUG_LOG_DIR / "cache-break-reports"
 
@@ -178,7 +179,7 @@ class CacheTracker:
         )
         self._call_count += 1
 
-    def update(self, usage: model.Usage) -> CacheBreakReport | None:
+    def update(self, usage: Usage) -> CacheBreakReport | None:
         """Process a turn's usage: compute hit rate and check for cache break.
 
         Returns a ``CacheBreakReport`` if a break is detected, ``None`` otherwise.

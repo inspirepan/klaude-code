@@ -5,10 +5,11 @@ import openai.types
 
 from klaude_code.const import THROUGHPUT_MIN_DURATION_SEC
 from klaude_code.llm.client import LLMStreamABC
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import Usage
 
 
-def calculate_cost(usage: model.Usage, cost_config: llm_param.Cost | None) -> None:
+def calculate_cost(usage: Usage, cost_config: llm_param.Cost | None) -> None:
     """Calculate and set cost fields on usage based on cost configuration.
 
     Note: input_tokens includes cached_tokens, so we need to subtract cached_tokens
@@ -38,7 +39,7 @@ class MetadataTracker:
         self._request_start_time: float = time.time()
         self._first_token_time: float | None = None
         self._last_token_time: float | None = None
-        self._usage = model.Usage()
+        self._usage = Usage()
         self._cost_config = cost_config
 
     def record_token(self) -> None:
@@ -48,7 +49,7 @@ class MetadataTracker:
             self._first_token_time = now
         self._last_token_time = now
 
-    def set_usage(self, usage: model.Usage) -> None:
+    def set_usage(self, usage: Usage) -> None:
         """Set the usage information."""
         preserved = {
             "response_id": self._usage.response_id,
@@ -71,7 +72,7 @@ class MetadataTracker:
         """Set the response ID."""
         self._usage.response_id = response_id
 
-    def finalize(self) -> model.Usage:
+    def finalize(self) -> Usage:
         """Finalize and return the usage item with calculated performance metrics."""
         if self._first_token_time is not None:
             self._usage.first_token_latency_ms = (self._first_token_time - self._request_start_time) * 1000
@@ -87,7 +88,7 @@ class MetadataTracker:
         return self._usage
 
     @property
-    def usage(self) -> model.Usage:
+    def usage(self) -> Usage:
         return self._usage
 
 
@@ -137,15 +138,15 @@ def convert_usage(
     usage: openai.types.CompletionUsage,
     context_limit: int | None = None,
     max_tokens: int | None = None,
-) -> model.Usage:
-    """Convert OpenAI CompletionUsage to internal Usage model.
+) -> Usage:
+    """Convert OpenAI CompletionUsage to internal Usage
 
     context_token is set to total_tokens from the API response,
     representing the actual context window usage for this turn.
     """
     completion_details = usage.completion_tokens_details
 
-    return model.Usage(
+    return Usage(
         input_tokens=usage.prompt_tokens,
         cached_tokens=(usage.prompt_tokens_details.cached_tokens if usage.prompt_tokens_details else 0) or 0,
         reasoning_tokens=(completion_details.reasoning_tokens if completion_details else 0) or 0,

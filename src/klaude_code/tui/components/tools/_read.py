@@ -6,7 +6,7 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 
 from klaude_code.const import DIFF_PREFIX_WIDTH, INVALID_TOOL_CALL_MAX_LENGTH, TAB_EXPAND_WIDTH
-from klaude_code.protocol import model
+from klaude_code.protocol.models import ReadPreviewUIExtra
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import MARK_READ, render_path, render_tool_call_tree
@@ -93,7 +93,7 @@ def render_read_tool_call(arguments: str) -> RenderableType:
     return render_tool_call_tree(mark=MARK_READ, tool_name=tool_name, details=details, overflow="fold")
 
 
-def render_read_preview(ui_extra: model.ReadPreviewUIExtra) -> RenderableType:
+def render_read_preview(ui_extra: ReadPreviewUIExtra) -> RenderableType:
     """Render read preview with line numbers aligned to diff style."""
     grid = create_grid(overflow="ellipsis")
     grid.padding = (0, 0)

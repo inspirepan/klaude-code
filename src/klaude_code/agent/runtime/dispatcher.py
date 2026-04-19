@@ -9,17 +9,17 @@ from typing import Literal
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import DefaultModelProfileProvider, ModelProfileProvider
-from klaude_code.agent.runtime_agent_ops import (
+from klaude_code.agent.runtime.agent_ops import (
     ActiveTask,
     AgentOperationHandler,
     AgentRunner,
     BashRunner,
 )
-from klaude_code.agent.runtime_config_ops import ConfigHandler, ModelSwitcher
-from klaude_code.agent.runtime_llm import LLMClients
-from klaude_code.agent.runtime_sub_agent import SubAgentExecutor
+from klaude_code.agent.runtime.config_ops import ConfigHandler, ModelSwitcher
+from klaude_code.agent.runtime.llm import LLMClients
+from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
 from klaude_code.control.event_bus import EventBus
-from klaude_code.control.session_actor import SessionActor
+from klaude_code.control.runtime.actor import SessionActor
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.op_handler import OperationHandler

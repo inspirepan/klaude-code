@@ -2,7 +2,8 @@ import json
 
 from rich.console import Console
 
-from klaude_code.protocol import events, model, tools
+from klaude_code.protocol import events, tools
+from klaude_code.protocol.models import TodoItem, TodoListUIExtra, TodoUIExtra
 from klaude_code.tui.components.rich.theme import get_theme
 from klaude_code.tui.components.tools import render_tool_call, render_tool_result
 
@@ -49,9 +50,9 @@ def test_render_todo_result_only_shows_todos() -> None:
         tool_name=tools.TODO_WRITE,
         result="Done",
         status="success",
-        ui_extra=model.TodoListUIExtra(
-            todo_list=model.TodoUIExtra(
-                todos=[model.TodoItem(content=todo_content, status="in_progress")],
+        ui_extra=TodoListUIExtra(
+            todo_list=TodoUIExtra(
+                todos=[TodoItem(content=todo_content, status="in_progress")],
                 new_completed=[],
             )
         ),

@@ -113,7 +113,7 @@ layers = [
     "klaude_code.web",
     "klaude_code.app",
     "klaude_code.agent",
-    "klaude_code.tool | klaude_code.prompts | klaude_code.control",
+    "klaude_code.tool | klaude_code.control",
     "klaude_code.skill",
     "klaude_code.session",
     "klaude_code.config",
@@ -121,6 +121,6 @@ layers = [
     "klaude_code.protocol",
     "klaude_code.auth",
     "klaude_code.log",
-    "klaude_code.const",
+    "klaude_code.prompts | klaude_code.const",
 ]
 ignore_imports = []

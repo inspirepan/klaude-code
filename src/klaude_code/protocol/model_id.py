@@ -5,7 +5,6 @@ This module lives in ``protocol`` so that both ``llm`` and ``config``
 layers can import it without violating the layered-architecture contract.
 """
 
-
 # -- Anthropic ----------------------------------------------------------------
 
 

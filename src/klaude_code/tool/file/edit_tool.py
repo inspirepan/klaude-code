@@ -8,8 +8,11 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from klaude_code.const import EDIT_MAX_FILE_SIZE
-from klaude_code.protocol import llm_param, message, model, tools
-from klaude_code.tool.context import ToolContext
+from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models import FileStatus
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.registry import register
 from klaude_code.tool.file._utils import (
     file_exists,
     find_actual_string,
@@ -21,8 +24,6 @@ from klaude_code.tool.file._utils import (
     write_text,
 )
 from klaude_code.tool.file.diff_builder import build_structured_diff
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
 
 
 @register(tools.EDIT)
@@ -244,7 +245,7 @@ class EditTool(ToolABC):
             is_mem = existing.is_memory if existing else False
             is_skill = existing.is_skill if existing else False
             is_dir = existing.is_directory if existing else False
-            file_tracker[file_path] = model.FileStatus(
+            file_tracker[file_path] = FileStatus(
                 mtime=Path(file_path).stat().st_mtime,
                 content_sha256=hash_text_sha256(after),
                 cached_content=after,

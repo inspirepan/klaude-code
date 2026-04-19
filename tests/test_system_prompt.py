@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from klaude_code.prompts.system_prompt import (
+from klaude_code.agent.system_prompt import (
     SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
     _build_env_info,  # pyright: ignore[reportPrivateUsage]
     build_dynamic_tool_strategy_prompt,

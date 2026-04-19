@@ -11,7 +11,8 @@ from typing import cast
 
 from markdown_it import MarkdownIt
 
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import TaskMetadata, TaskMetadataItem, Usage
 from klaude_code.session.session import Session
 
 _MARKDOWN = MarkdownIt("commonmark", {"html": False, "breaks": True}).enable("table").disable("emphasis")
@@ -1032,7 +1033,7 @@ def _render_header(
     system_prompt: str | None,
     tools: Sequence[llm_param.ToolSchema] | None,
 ) -> str:
-    assistant_usage = model.Usage()
+    assistant_usage = Usage()
     has_usage = False
     counts = {"user": 0, "assistant": 0, "tool": 0, "meta": 0, "tool_calls": 0}
 
@@ -1044,7 +1045,7 @@ def _render_header(
             counts["tool_calls"] += sum(1 for part in item.parts if isinstance(part, message.ToolCallPart))
             if item.usage is not None:
                 has_usage = True
-                model.TaskMetadata.merge_usage(assistant_usage, item.usage)
+                TaskMetadata.merge_usage(assistant_usage, item.usage)
         elif isinstance(item, message.ToolResultMessage):
             counts["tool"] += 1
         else:
@@ -1501,7 +1502,7 @@ def _meta_preview_and_title(item: message.HistoryEvent) -> tuple[str, str]:
         return f"Cache hit rate {item.cache_hit_rate:.1%}", "Cache"
     if isinstance(item, message.SpawnSubAgentEntry):
         return _text_preview(item.sub_agent_desc, fallback=item.sub_agent_type), "Sub Agent"
-    if isinstance(item, model.TaskMetadataItem):
+    if isinstance(item, TaskMetadataItem):
         model_name = item.main_agent.model_name or "task metadata"
         return model_name, "Task"
     if isinstance(item, message.StreamErrorItem):
@@ -1531,7 +1532,7 @@ def _format_datetime(value: datetime) -> str:
     return value.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _usage_summary(usage: model.Usage | None) -> str | None:
+def _usage_summary(usage: Usage | None) -> str | None:
     if usage is None:
         return None
     parts: list[str] = []

@@ -12,9 +12,11 @@ import klaude_code.agent.task as task_module
 from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.agent.turn import TurnError
-from klaude_code.protocol import events, message, model
-from klaude_code.session.session import Session, close_default_store
-from klaude_code.tool.context import build_todo_context
+from klaude_code.protocol import events, message
+from klaude_code.protocol.models import SubAgentState
+from klaude_code.session.session import Session
+from klaude_code.session.store_registry import close_default_store
+from klaude_code.tool.core.context import build_todo_context
 
 
 def arun(coro: object) -> object:
@@ -34,7 +36,7 @@ def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedF
     return isolated_home
 
 
-def _build_executor(session: Session, *, sub_agent_state: model.SubAgentState | None = None) -> TaskExecutor:
+def _build_executor(session: Session, *, sub_agent_state: SubAgentState | None = None) -> TaskExecutor:
     llm_config = SimpleNamespace(model_id="test-model")
     llm_client = SimpleNamespace(model_name="test-model", get_llm_config=lambda: llm_config)
 
@@ -254,7 +256,7 @@ def test_overflow_compaction_failure_raises_for_sub_agents(tmp_path: Path, monke
 
         executor = _build_executor(
             session,
-            sub_agent_state=model.SubAgentState(
+            sub_agent_state=SubAgentState(
                 sub_agent_type="general-purpose",
                 sub_agent_desc="sub task",
                 sub_agent_prompt="hello",

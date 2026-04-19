@@ -11,13 +11,14 @@ import pytest
 import klaude_code.tool as core_tool
 from klaude_code.agent.agent_profile import load_agent_tools
 from klaude_code.llm.client import LLMStreamABC
-from klaude_code.protocol import llm_param, message, model, tools
+from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models import SessionIdUIExtra
 from klaude_code.protocol.sub_agent import SubAgentResult, is_sub_agent_tool
 from klaude_code.tool import ToolABC
 from klaude_code.tool.agent_tool import AgentTool
-from klaude_code.tool.context import TodoContext, ToolContext
-from klaude_code.tool.tool_abc import ToolConcurrencyPolicy, ToolMetadata
-from klaude_code.tool.tool_runner import ToolCallRequest, ToolExecutionResult, ToolExecutor
+from klaude_code.tool.core.abc import ToolConcurrencyPolicy, ToolMetadata
+from klaude_code.tool.core.context import TodoContext, ToolContext
+from klaude_code.tool.core.runner import ToolCallRequest, ToolExecutionResult, ToolExecutor
 
 
 def _tool_context() -> ToolContext:
@@ -229,7 +230,7 @@ def test_agent_tool_concurrent_sub_agents_share_responses_client_safely() -> Non
         session_ids = {
             ui_extra.session_id
             for result in results
-            if isinstance((ui_extra := result.tool_result.ui_extra), model.SessionIdUIExtra)
+            if isinstance((ui_extra := result.tool_result.ui_extra), SessionIdUIExtra)
         }
 
         assert len(results) == 2

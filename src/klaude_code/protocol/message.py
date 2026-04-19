@@ -1,5 +1,4 @@
-"""
-Models for LLM API input and response items.
+"""Models for LLM API input and response items.
 
 History is persisted as HistoryEvent (messages + error/task metadata).
 Streaming-only items are emitted at runtime but never persisted.
@@ -11,7 +10,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from klaude_code.protocol.model import (
+from klaude_code.protocol.models import (
     AssistantPhase,
     DeveloperUIExtra,
     StopReason,
@@ -269,7 +268,6 @@ HistoryEvent = (
 StreamItem = AssistantTextDelta | ThinkingTextDelta | ToolCallStartDelta
 
 LLMStreamItem = HistoryEvent | StreamItem
-
 
 # User input
 

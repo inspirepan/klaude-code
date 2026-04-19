@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from klaude_code.protocol import model
+from klaude_code.protocol.models import SessionOwner, SessionRuntimeState
 from klaude_code.session.session import Session
 
 if TYPE_CHECKING:
@@ -13,8 +13,8 @@ if TYPE_CHECKING:
 OWNER_HEARTBEAT_TIMEOUT_SECONDS = 15.0
 
 _ACTIVE_SESSION_STATES = (
-    model.SessionRuntimeState.RUNNING,
-    model.SessionRuntimeState.WAITING_USER_INPUT,
+    SessionRuntimeState.RUNNING,
+    SessionRuntimeState.WAITING_USER_INPUT,
     "running",
     "waiting_user_input",
 )
@@ -30,8 +30,8 @@ def is_session_read_only_for_runtime(
     *,
     current_runtime_id: str,
     current_runtime_has_actor: bool,
-    session_state: model.SessionRuntimeState | str | None,
-    runtime_owner: model.SessionOwner | None,
+    session_state: SessionRuntimeState | str | None,
+    runtime_owner: SessionOwner | None,
     runtime_owner_heartbeat_at: float | None,
 ) -> bool:
     if current_runtime_has_actor:
@@ -51,8 +51,8 @@ def is_session_read_only(
     *,
     state: WebAppState,
     session_id: str,
-    session_state: model.SessionRuntimeState | str | None,
-    runtime_owner: model.SessionOwner | None,
+    session_state: SessionRuntimeState | str | None,
+    runtime_owner: SessionOwner | None,
     runtime_owner_heartbeat_at: float | None,
 ) -> bool:
     return is_session_read_only_for_runtime(

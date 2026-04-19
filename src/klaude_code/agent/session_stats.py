@@ -1,18 +1,21 @@
 from __future__ import annotations
 
-from klaude_code.protocol import message, model
+from pydantic import BaseModel
+
+from klaude_code.protocol import message
+from klaude_code.protocol.models import SessionStatsUIExtra, TaskMetadata, TaskMetadataItem, Usage
 from klaude_code.session.session import Session
 
 
-class AggregatedUsage(model.BaseModel):
+class AggregatedUsage(BaseModel):
     """Aggregated usage statistics including per-model breakdown."""
 
-    total: model.Usage
-    by_model: list[model.TaskMetadata]
+    total: Usage
+    by_model: list[TaskMetadata]
     task_count: int
 
 
-class MessageStats(model.BaseModel):
+class MessageStats(BaseModel):
     user_messages: int
     assistant_messages: int
     tool_calls: int
@@ -44,18 +47,18 @@ def format_cost(cost: float | None, currency: str = "USD") -> str:
 
 def accumulate_session_usage(session: Session) -> AggregatedUsage:
     """Accumulate usage statistics from all TaskMetadataItems in session history."""
-    all_metadata: list[model.TaskMetadata] = []
+    all_metadata: list[TaskMetadata] = []
     task_count = 0
 
     for item in session.conversation_history:
-        if isinstance(item, model.TaskMetadataItem):
+        if isinstance(item, TaskMetadataItem):
             task_count += 1
             all_metadata.append(item.main_agent)
             all_metadata.extend(item.sub_agent_task_metadata)
 
-    by_model = model.TaskMetadata.aggregate_by_model(all_metadata)
+    by_model = TaskMetadata.aggregate_by_model(all_metadata)
 
-    total = model.Usage()
+    total = Usage()
     for meta in by_model:
         if not meta.usage:
             continue
@@ -109,11 +112,11 @@ def collect_message_stats(session: Session) -> MessageStats:
     )
 
 
-def build_session_stats_ui_extra(session: Session) -> model.SessionStatsUIExtra:
+def build_session_stats_ui_extra(session: Session) -> SessionStatsUIExtra:
     aggregated = accumulate_session_usage(session)
     message_stats = collect_message_stats(session)
     events_file_path = str(Session.paths(session.work_dir).events_file(session.id))
-    return model.SessionStatsUIExtra(
+    return SessionStatsUIExtra(
         events_file_path=events_file_path,
         session_id=session.id,
         user_messages_count=message_stats.user_messages,

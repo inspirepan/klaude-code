@@ -6,9 +6,10 @@ from collections.abc import Awaitable, Callable, Coroutine
 from pathlib import Path
 from typing import Any, TypeVar
 
-from klaude_code.protocol import model, user_interaction
+from klaude_code.protocol import user_interaction
+from klaude_code.protocol.models import AskUserQuestionSummaryUIExtra
 from klaude_code.tool.ask_user_question_tool import AskUserQuestionTool
-from klaude_code.tool.context import TodoContext, ToolContext
+from klaude_code.tool.core.context import TodoContext, ToolContext
 
 T = TypeVar("T")
 
@@ -98,7 +99,7 @@ def test_ask_user_question_success_response() -> None:
     assert result.status == "success"
     assert result.continue_agent is True
     assert result.output_text == "Question: What should we do?\nAnswer:\n- A: Option A\n- Other: custom"
-    assert isinstance(result.ui_extra, model.AskUserQuestionSummaryUIExtra)
+    assert isinstance(result.ui_extra, AskUserQuestionSummaryUIExtra)
     assert result.ui_extra.items[0].summary == "A: Option A\nOther: custom"
     assert result.ui_extra.items[0].answered is True
 
@@ -150,7 +151,7 @@ def test_ask_user_question_single_select_annotation_is_included_for_model_only()
     assert result.output_text == (
         "Question: Which design should we ship?\nAnswer: A: Option A\nSelected markdown:\n# Design A\n\nFast path"
     )
-    assert isinstance(result.ui_extra, model.AskUserQuestionSummaryUIExtra)
+    assert isinstance(result.ui_extra, AskUserQuestionSummaryUIExtra)
     assert result.ui_extra.items[0].summary == "A: Option A"
     assert result.ui_extra.items[0].answered is True
 
@@ -182,7 +183,7 @@ def test_ask_user_question_cancelled_response_returns_aborted() -> None:
     assert result.status == "success"
     assert result.continue_agent is False
     assert result.output_text == "Question: What should we do?\nAnswer: (User declined to answer questions)"
-    assert isinstance(result.ui_extra, model.AskUserQuestionSummaryUIExtra)
+    assert isinstance(result.ui_extra, AskUserQuestionSummaryUIExtra)
     assert result.ui_extra.items[0].summary == "(User declined to answer questions)"
     assert result.ui_extra.items[0].answered is False
 

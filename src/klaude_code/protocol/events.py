@@ -8,7 +8,16 @@ from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field
 
-from klaude_code.protocol import llm_param, message, model, user_interaction
+from klaude_code.protocol import llm_param, message, user_interaction
+from klaude_code.protocol.models import (
+    SessionStatsUIExtra,
+    SubAgentState,
+    TaskMetadata,
+    TaskMetadataItem,
+    TodoItem,
+    ToolResultUIExtra,
+    Usage,
+)
 
 __all__ = [
     "AssistantTextDeltaEvent",
@@ -137,14 +146,14 @@ class DeveloperMessageEvent(Event):
 
 
 class TodoChangeEvent(Event):
-    todos: list[model.TodoItem]
+    todos: list[TodoItem]
 
 
 class NoticeEvent(Event):
     """Generic UI notice message. Not persisted to session history."""
 
     content: str = ""
-    ui_extra: model.ToolResultUIExtra | None = None
+    ui_extra: ToolResultUIExtra | None = None
     is_error: bool = False
     style: str | None = None
 
@@ -194,7 +203,7 @@ class CompactModelChangedEvent(Event):
 
 
 class SessionStatsEvent(Event):
-    stats: model.SessionStatsUIExtra
+    stats: SessionStatsUIExtra
 
 
 class SessionTitleChangedEvent(Event):
@@ -252,7 +261,7 @@ class BashCommandEndEvent(Event):
 
 
 class TaskStartEvent(Event):
-    sub_agent_state: model.SubAgentState | None = None
+    sub_agent_state: SubAgentState | None = None
     model_id: str | None = None
 
 
@@ -291,7 +300,7 @@ class TurnEndEvent(Event):
 
 
 class UsageEvent(ResponseEvent):
-    usage: model.Usage
+    usage: Usage
 
 
 class CacheHitRateEvent(Event):
@@ -301,7 +310,7 @@ class CacheHitRateEvent(Event):
 
 
 class TaskMetadataEvent(Event):
-    metadata: model.TaskMetadataItem
+    metadata: TaskMetadataItem
     # True when emitted as a best-effort snapshot (e.g. task cancellation/interrupt).
     # This can affect UI spacing because a partial task may not emit TaskFinishEvent.
     is_partial: bool = False
@@ -429,9 +438,9 @@ class ToolResultEvent(ResponseEvent):
     tool_call_id: str
     tool_name: str
     result: str
-    ui_extra: model.ToolResultUIExtra | None = None
+    ui_extra: ToolResultUIExtra | None = None
     status: Literal["success", "error", "aborted"]
-    task_metadata: model.TaskMetadata | None = None
+    task_metadata: TaskMetadata | None = None
     is_last_in_turn: bool = True
 
     @property

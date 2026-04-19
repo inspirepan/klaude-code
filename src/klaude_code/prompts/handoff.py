@@ -5,7 +5,6 @@ HANDOFF_SYSTEM_PROMPT = (
     "context summary."
 )
 
-
 HANDOFF_EXTRACTION_PROMPT = """The messages above are a conversation to extract context from. The assistant has decided to hand off work to a fresh context.
 
 The goal for the new context is:
@@ -26,7 +25,6 @@ Do not drop or weaken details from the goal. Preserve concrete requirements, con
 
 Be comprehensive but concise. Preserve exact file paths, function names, and error messages.
 Do NOT include meta-commentary about the conversation or summarization process."""
-
 
 HANDOFF_SUMMARY_PREFIX = """The conversation history was handed off to this fresh context. The previous context was compressed into the following summary:
 """

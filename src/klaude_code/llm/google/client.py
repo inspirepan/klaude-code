@@ -2,7 +2,6 @@
 # pyright: reportUnknownVariableType=false
 # pyright: reportUnknownArgumentType=false
 # pyright: reportAttributeAccessIssue=false
-
 import warnings
 from base64 import b64encode
 from collections.abc import AsyncGenerator, AsyncIterator
@@ -40,8 +39,9 @@ from klaude_code.llm.stream_parts import (
 )
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, debug_json, log_debug
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import supports_google_thinking
+from klaude_code.protocol.models import StopReason, Usage
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
 # Unified format for Google thought signatures
@@ -105,7 +105,7 @@ def _usage_from_metadata(
     *,
     context_limit: int | None,
     max_tokens: int | None,
-) -> model.Usage | None:
+) -> Usage | None:
     if usage is None:
         return None
 
@@ -120,7 +120,7 @@ def _usage_from_metadata(
     if total is None:
         total = prompt + response + thoughts
 
-    return model.Usage(
+    return Usage(
         input_tokens=prompt,
         cached_tokens=cached,
         output_tokens=response + thoughts,
@@ -163,9 +163,9 @@ def _encode_thought_signature(sig: bytes | str | None) -> str | None:
     return sig
 
 
-def _map_finish_reason(reason: str) -> model.StopReason | None:
+def _map_finish_reason(reason: str) -> StopReason | None:
     normalized = reason.strip().lower()
-    mapping: dict[str, model.StopReason] = {
+    mapping: dict[str, StopReason] = {
         "stop": "stop",
         "end_turn": "stop",
         "max_tokens": "length",
@@ -219,7 +219,7 @@ class GoogleStreamStateManager:
         self.param_model = param_model
         self.assistant_parts: list[message.Part] = []
         self.response_id: str | None = None
-        self.stop_reason: model.StopReason | None = None
+        self.stop_reason: StopReason | None = None
 
     def append_thinking_text(self, text: str) -> None:
         """Append thinking text, merging with previous ThinkingTextPart if possible."""

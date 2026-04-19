@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field
 
 from klaude_code.const import (
     BINARY_CHECK_SIZE,
-    FILE_UNCHANGED_STUB,
     READ_CHAR_LIMIT_PER_LINE,
     READ_GLOBAL_LINE_CAP,
     READ_MAX_CHARS,
@@ -21,12 +20,13 @@ from klaude_code.const import (
     READ_PARTIAL_PREVIEW_MAX_LINES,
 )
 from klaude_code.llm.image import detect_mime_type_from_bytes
-from klaude_code.protocol import llm_param, message, model, tools
-from klaude_code.protocol.model import ImageUIExtra, ReadPreviewLine, ReadPreviewUIExtra
-from klaude_code.tool.context import FileTracker, ToolContext
+from klaude_code.prompts.messages import FILE_UNCHANGED_STUB
+from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models import FileStatus, ImageUIExtra, ReadPreviewLine, ReadPreviewUIExtra
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.context import FileTracker, ToolContext
+from klaude_code.tool.core.registry import register
 from klaude_code.tool.file._utils import detect_encoding, file_exists, is_blocked_device_path, is_directory, read_text
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
 
 _IMAGE_MIME_TYPES: dict[str, str] = {
     ".png": "image/png",
@@ -150,7 +150,7 @@ def _track_file_access(
         is_mem = is_memory or (existing.is_memory if existing else False)
         is_skill_file = is_skill or (existing.is_skill if existing else False)
         is_dir = existing.is_directory if existing else False
-        file_tracker[file_path] = model.FileStatus(
+        file_tracker[file_path] = FileStatus(
             mtime=Path(file_path).stat().st_mtime,
             content_sha256=content_sha256,
             cached_content=cached_content,

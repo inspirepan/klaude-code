@@ -11,13 +11,14 @@ from uuid import uuid4
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
-from klaude_code.agent.runtime_dispatcher import OperationDispatcher, OperationDispatcherPorts
-from klaude_code.agent.runtime_llm import LLMClients
+from klaude_code.agent.runtime.dispatcher import OperationDispatcher, OperationDispatcherPorts
+from klaude_code.agent.runtime.llm import LLMClients
 from klaude_code.control.event_bus import EventBus, event_publish_context
-from klaude_code.control.session_registry import OperationLifecycleHooks, SessionRegistry
+from klaude_code.control.runtime.registry import OperationLifecycleHooks, SessionRegistry
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, model, op, user_interaction
+from klaude_code.protocol import events, op, user_interaction
+from klaude_code.protocol.models import SessionOwner, SessionRuntimeState
 from klaude_code.session.session import Session
 
 
@@ -135,11 +136,11 @@ class RuntimeFacade:
         self._operation_awaiter = OperationCompletionAwaiter(event_bus)
         self._stopped = False
 
-    def _session_owner(self) -> model.SessionOwner:
-        return model.SessionOwner(runtime_id=self.runtime_id, runtime_kind=self.runtime_kind, pid=self.pid)
+    def _session_owner(self) -> SessionOwner:
+        return SessionOwner(runtime_id=self.runtime_id, runtime_kind=self.runtime_kind, pid=self.pid)
 
     @property
-    def session_owner(self) -> model.SessionOwner:
+    def session_owner(self) -> SessionOwner:
         return self._session_owner()
 
     def _persist_session_owner(self, session_id: str, work_dir: Path | None = None) -> None:
@@ -191,17 +192,17 @@ class RuntimeFacade:
     def _on_operation_applied(self, operation: op.Operation) -> None:
         self.session_registry.apply_operation_effect(operation)
 
-    def _derive_session_state_from_snapshot(self, session_id: str) -> model.SessionRuntimeState:
+    def _derive_session_state_from_snapshot(self, session_id: str) -> SessionRuntimeState:
         snapshot = self.session_registry.snapshot(session_id)
         if snapshot is None:
-            return model.SessionRuntimeState.IDLE
+            return SessionRuntimeState.IDLE
         if snapshot.pending_request_count > 0:
-            return model.SessionRuntimeState.WAITING_USER_INPUT
+            return SessionRuntimeState.WAITING_USER_INPUT
         if snapshot.active_root_task is not None or snapshot.child_task_count > 0:
-            return model.SessionRuntimeState.RUNNING
-        return model.SessionRuntimeState.IDLE
+            return SessionRuntimeState.RUNNING
+        return SessionRuntimeState.IDLE
 
-    async def _persist_session_state(self, session_id: str, session_state: model.SessionRuntimeState) -> None:
+    async def _persist_session_state(self, session_id: str, session_state: SessionRuntimeState) -> None:
         try:
             runtime = self.session_registry.get_session_actor(session_id)
             if runtime is None:
@@ -220,7 +221,7 @@ class RuntimeFacade:
 
     async def _sync_session_state_from_snapshot(self, session_id: str) -> None:
         session_state = self._derive_session_state_from_snapshot(session_id)
-        if session_state == model.SessionRuntimeState.IDLE:
+        if session_state == SessionRuntimeState.IDLE:
             runtime = self.session_registry.get_session_actor(session_id)
             agent = runtime.get_agent() if runtime is not None else None
             if agent is not None:
@@ -245,7 +246,7 @@ class RuntimeFacade:
     ) -> user_interaction.UserInteractionResponse:
         runtime = self.session_registry.ensure_session_actor(request.session_id)
         future = runtime.open_pending_interaction(request)
-        await self._persist_session_state(request.session_id, model.SessionRuntimeState.WAITING_USER_INPUT)
+        await self._persist_session_state(request.session_id, SessionRuntimeState.WAITING_USER_INPUT)
         try:
             return await future
         finally:
@@ -273,7 +274,7 @@ class RuntimeFacade:
             operation_id=operation.id,
         )
         if _should_mark_running_on_accept(operation):
-            await self._persist_session_state(session_id, model.SessionRuntimeState.RUNNING)
+            await self._persist_session_state(session_id, SessionRuntimeState.RUNNING)
 
     async def _emit_operation_finished(
         self,
@@ -288,7 +289,7 @@ class RuntimeFacade:
             runtime = self.session_registry.get_session_actor(session_id)
             agent = runtime.get_agent() if runtime is not None else None
             if agent is not None:
-                agent.session.session_state = model.SessionRuntimeState.IDLE
+                agent.session.session_state = SessionRuntimeState.IDLE
                 agent.session.runtime_owner = self._session_owner()
                 agent.session.runtime_owner_heartbeat_at = time.time()
                 await asyncio.to_thread(agent.session.ensure_meta_exists)
@@ -353,7 +354,7 @@ class RuntimeFacade:
 
         closed = await self.session_registry.close_session(session_id, force=force)
         if closed:
-            await self._persist_session_state(session_id, model.SessionRuntimeState.IDLE)
+            await self._persist_session_state(session_id, SessionRuntimeState.IDLE)
             if work_dir is not None:
                 await asyncio.to_thread(self._clear_session_owner, session_id, work_dir)
             for request in cancelled_requests:
@@ -456,13 +457,13 @@ class RuntimeFacade:
                 await agent.session.wait_for_flush()
 
         for session_id, agent in sessions_to_idle:
-            agent.session.session_state = model.SessionRuntimeState.IDLE
+            agent.session.session_state = SessionRuntimeState.IDLE
             agent.session.runtime_owner = None
             with contextlib.suppress(Exception):
                 await asyncio.to_thread(
                     Session.persist_runtime_state,
                     session_id,
-                    model.SessionRuntimeState.IDLE,
+                    SessionRuntimeState.IDLE,
                     agent.session.work_dir,
                 )
             with contextlib.suppress(Exception):

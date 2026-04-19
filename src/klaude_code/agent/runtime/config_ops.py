@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
-from klaude_code.agent.runtime_agent_ops import AgentRunner
+from klaude_code.agent.runtime.agent_ops import AgentRunner
 from klaude_code.agent.session_stats import build_session_stats_ui_extra
 from klaude_code.config import format_model_preference, load_config
 from klaude_code.config.model_matcher import match_model_from_config

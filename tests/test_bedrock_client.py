@@ -2,9 +2,10 @@ from typing import Any, ClassVar
 
 import pytest
 
-from klaude_code.const import ANTHROPIC_BETA_CONTEXT_MANAGEMENT, CLAUDE_CODE_IDENTITY
+from klaude_code.const import ANTHROPIC_BETA_CONTEXT_MANAGEMENT
 from klaude_code.llm.bedrock_anthropic import client as bedrock_client_module
 from klaude_code.llm.bedrock_anthropic.client import BedrockClient, build_bedrock_request
+from klaude_code.prompts.messages import CLAUDE_CODE_IDENTITY
 from klaude_code.protocol import llm_param, message
 
 

@@ -9,7 +9,7 @@ from typing import Any, TypeVar, cast
 
 import pytest
 
-from klaude_code.agent import runtime_config_ops as runtime_mod
+from klaude_code.agent.runtime import config_ops as runtime_mod
 from klaude_code.config.model_matcher import ModelMatchResult
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.session.session import Session

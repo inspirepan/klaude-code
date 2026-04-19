@@ -5,7 +5,8 @@ from collections.abc import Sequence
 import pytest
 from rich.text import Text
 
-from klaude_code.protocol import events, model, tools
+from klaude_code.protocol import events, tools
+from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState, TodoItem, TodoListUIExtra, TodoUIExtra, Usage
 from klaude_code.tui import machine as machine_module
 from klaude_code.tui.commands import (
     AppendBashCommandOutput,
@@ -56,7 +57,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     cmds = machine.transition(
         events.TaskStartEvent(
             session_id=sub_session,
-            sub_agent_state=model.SubAgentState(
+            sub_agent_state=SubAgentState(
                 sub_agent_type="finder",
                 sub_agent_desc="searching xxxxx",
                 sub_agent_prompt="prompt",
@@ -87,7 +88,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     machine.transition(
         events.TaskStartEvent(
             session_id=sub_session,
-            sub_agent_state=model.SubAgentState(
+            sub_agent_state=SubAgentState(
                 sub_agent_type="finder",
                 sub_agent_desc="searching yyyyy",
                 sub_agent_prompt="prompt",
@@ -205,7 +206,7 @@ def test_sub_agent_todo_write_result_is_rendered() -> None:
     machine.transition(
         events.TaskStartEvent(
             session_id=sub_session,
-            sub_agent_state=model.SubAgentState(
+            sub_agent_state=SubAgentState(
                 sub_agent_type="finder",
                 sub_agent_desc="tracking progress",
                 sub_agent_prompt="prompt",
@@ -221,9 +222,9 @@ def test_sub_agent_todo_write_result_is_rendered() -> None:
             tool_name=tools.TODO_WRITE,
             result="Todos updated",
             status="success",
-            ui_extra=model.TodoListUIExtra(
-                todo_list=model.TodoUIExtra(
-                    todos=[model.TodoItem(content="Review matches", status="in_progress")],
+            ui_extra=TodoListUIExtra(
+                todo_list=TodoUIExtra(
+                    todos=[TodoItem(content="Review matches", status="in_progress")],
                     new_completed=[],
                 )
             ),
@@ -317,7 +318,7 @@ def test_sub_agent_bash_tool_output_delta_is_ignored() -> None:
     machine.transition(
         events.TaskStartEvent(
             session_id=sub_session,
-            sub_agent_state=model.SubAgentState(
+            sub_agent_state=SubAgentState(
                 sub_agent_type="finder",
                 sub_agent_desc="searching yyyyy",
                 sub_agent_prompt="prompt",
@@ -348,7 +349,7 @@ def test_sub_agent_status_lines_cap_with_more_indicator() -> None:
         cmds = machine.transition(
             events.TaskStartEvent(
                 session_id=f"sub-{idx}",
-                sub_agent_state=model.SubAgentState(
+                sub_agent_state=SubAgentState(
                     sub_agent_type="finder",
                     sub_agent_desc=f"searching {idx}",
                     sub_agent_prompt="prompt",
@@ -375,7 +376,7 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
     start_cmds = machine.transition(
         events.TaskStartEvent(
             session_id=sub_session,
-            sub_agent_state=model.SubAgentState(
+            sub_agent_state=SubAgentState(
                 sub_agent_type="finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
@@ -406,7 +407,7 @@ def test_sub_agent_finish_emits_blank_line_after_result() -> None:
     machine.transition(
         events.TaskStartEvent(
             session_id=sub_session,
-            sub_agent_state=model.SubAgentState(
+            sub_agent_state=SubAgentState(
                 sub_agent_type="finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
@@ -496,7 +497,7 @@ def test_interrupt_clears_stale_sub_agent_status_lines() -> None:
     machine.transition(
         events.TaskStartEvent(
             session_id=sub_session,
-            sub_agent_state=model.SubAgentState(
+            sub_agent_state=SubAgentState(
                 sub_agent_type="finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
@@ -525,7 +526,7 @@ def test_sub_agent_non_retry_error_clears_status_lines() -> None:
     machine.transition(
         events.TaskStartEvent(
             session_id=sub_session,
-            sub_agent_state=model.SubAgentState(
+            sub_agent_state=SubAgentState(
                 sub_agent_type="finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
@@ -559,7 +560,7 @@ def test_failed_agent_tool_result_clears_sub_agent_status_line() -> None:
     machine.transition(
         events.TaskStartEvent(
             session_id=sub_session,
-            sub_agent_state=model.SubAgentState(
+            sub_agent_state=SubAgentState(
                 sub_agent_type="finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="prompt",
@@ -582,7 +583,7 @@ def test_failed_agent_tool_result_clears_sub_agent_status_line() -> None:
             tool_name=tools.AGENT,
             result="Failed to run sub-agent",
             status="error",
-            ui_extra=model.SessionIdUIExtra(session_id=sub_session),
+            ui_extra=SessionIdUIExtra(session_id=sub_session),
         )
     )
     update = _last_spinner_update(cmds)
@@ -602,7 +603,7 @@ def test_main_session_tokens_accumulate_across_task_boundaries() -> None:
     usage_cmds = machine.transition(
         events.UsageEvent(
             session_id=session_id,
-            usage=model.Usage(
+            usage=Usage(
                 input_tokens=30_000,
                 cached_tokens=20_000,
                 output_tokens=12_000,
@@ -634,7 +635,7 @@ def test_main_session_tokens_accumulate_across_task_boundaries() -> None:
     usage_cmds = machine.transition(
         events.UsageEvent(
             session_id=session_id,
-            usage=model.Usage(
+            usage=Usage(
                 input_tokens=11_000,
                 cached_tokens=1_000,
                 output_tokens=7_000,

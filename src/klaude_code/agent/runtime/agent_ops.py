@@ -11,26 +11,27 @@ from uuid import uuid4
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
+from klaude_code.agent.attachments.memory import get_existing_memory_paths_by_location
 from klaude_code.agent.away_summary import generate_away_summary
 from klaude_code.agent.bash_mode import run_bash_command
 from klaude_code.agent.compaction import CompactionReason, run_compaction
-from klaude_code.agent.loaded_skills import (
-    get_loaded_skill_names_by_location,
-    get_loaded_skill_warnings_by_location,
-)
-from klaude_code.agent.memory import get_existing_memory_paths_by_location
-from klaude_code.agent.runtime_llm import LLMClients, clone_llm_clients
-from klaude_code.agent.runtime_sub_agent import SubAgentExecutor
+from klaude_code.agent.runtime.llm import LLMClients, clone_llm_clients
+from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
 from klaude_code.agent.session_title import generate_session_title
+from klaude_code.agent.skill_inventory import (
+    get_skill_names_by_location,
+    get_skill_warnings_by_location,
+)
 from klaude_code.config import load_config
 from klaude_code.control.event_bus import event_publish_context
-from klaude_code.control.session_actor import SessionActor
+from klaude_code.control.runtime.actor import SessionActor
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.image import freeze_image_for_history
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, message, model, op, user_interaction
+from klaude_code.protocol import events, message, op, user_interaction
+from klaude_code.protocol.models import SubAgentState, TaskMetadata
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
 from klaude_code.update import get_startup_update_summary
@@ -311,8 +312,8 @@ class AgentOperationHandler:
                 work_dir=str(session.work_dir),
                 llm_config=session_clients.main.get_llm_config(),
                 title=session.title,
-                loaded_skills=get_loaded_skill_names_by_location(),
-                loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
+                loaded_skills=get_skill_names_by_location(),
+                loaded_skill_warnings=get_skill_warnings_by_location(),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=session.work_dir),
                 startup_info=events.WelcomeStartupInfo(
                     update_info=(
@@ -642,8 +643,8 @@ class AgentOperationHandler:
                 work_dir=str(new_agent.session.work_dir),
                 llm_config=session_clients.main.get_llm_config(),
                 title=new_agent.session.title,
-                loaded_skills=get_loaded_skill_names_by_location(),
-                loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
+                loaded_skills=get_skill_names_by_location(),
+                loaded_skill_warnings=get_skill_warnings_by_location(),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=new_agent.session.work_dir),
             )
         )
@@ -686,8 +687,8 @@ class AgentOperationHandler:
                 work_dir=str(new_agent.session.work_dir),
                 llm_config=session_clients.main.get_llm_config(),
                 title=new_agent.session.title,
-                loaded_skills=get_loaded_skill_names_by_location(),
-                loaded_skill_warnings=get_loaded_skill_warnings_by_location(),
+                loaded_skills=get_skill_names_by_location(),
+                loaded_skill_warnings=get_skill_warnings_by_location(),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=new_agent.session.work_dir),
             )
         )
@@ -753,9 +754,9 @@ class AgentOperationHandler:
             )
 
             async def _runner(
-                state: model.SubAgentState,
+                state: SubAgentState,
                 record_session_id: Callable[[str], None] | None,
-                register_metadata_getter: Callable[[Callable[[], model.TaskMetadata | None]], None] | None,
+                register_metadata_getter: Callable[[Callable[[], TaskMetadata | None]], None] | None,
                 register_progress_getter: Callable[[Callable[[], str | None]], None] | None,
             ) -> SubAgentResult:
                 session_clients = self.get_session_llm_clients(session_id)

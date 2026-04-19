@@ -7,10 +7,12 @@ from collections.abc import Awaitable, Callable
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
-from klaude_code.agent.runtime_llm import LLMClients
+from klaude_code.agent.runtime.llm import LLMClients
+from klaude_code.agent.system_prompt import build_sub_agent_env_info, load_prompt_by_path
 from klaude_code.log import DebugType, log_debug
-from klaude_code.prompts.system_prompt import build_sub_agent_env_info, load_prompt_by_path
-from klaude_code.protocol import events, message, model
+from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT, FORK_CONTEXT_WITH_ROLE_PROMPT
+from klaude_code.protocol import events, message
+from klaude_code.protocol.models import SubAgentState, TaskMetadata
 from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
 from klaude_code.session.session import Session
 
@@ -34,11 +36,11 @@ class SubAgentExecutor:
     async def run_sub_agent(
         self,
         parent_agent: Agent,
-        state: model.SubAgentState,
+        state: SubAgentState,
         *,
         llm_clients: LLMClients | None = None,
         record_session_id: Callable[[str], None] | None = None,
-        register_metadata_getter: Callable[[Callable[[], model.TaskMetadata | None]], None] | None = None,
+        register_metadata_getter: Callable[[Callable[[], TaskMetadata | None]], None] | None = None,
         register_progress_getter: Callable[[Callable[[], str | None]], None] | None = None,
     ) -> SubAgentResult:
         parent_session = parent_agent.session
@@ -98,7 +100,7 @@ class SubAgentExecutor:
             debug_type=DebugType.EXECUTION,
         )
 
-        def _get_partial_metadata() -> model.TaskMetadata | None:
+        def _get_partial_metadata() -> TaskMetadata | None:
             metadata = child_agent.get_partial_metadata()
             if metadata is not None:
                 metadata.sub_agent_name = state.sub_agent_type
@@ -127,7 +129,7 @@ class SubAgentExecutor:
 
         try:
             result: str = ""
-            task_metadata: model.TaskMetadata | None = None
+            task_metadata: TaskMetadata | None = None
             sub_agent_input = message.UserInputPayload(text=state.sub_agent_prompt, images=None)
             history_items: list[message.HistoryEvent] = []
             if state.fork_context:
@@ -136,22 +138,9 @@ class SubAgentExecutor:
                     role_prompt = load_prompt_by_path(profile.prompt_file) + build_sub_agent_env_info(
                         parent_session.work_dir
                     )
-                    context_text = (
-                        "You are no longer the main coding agent. "
-                        "You are now acting as a specialized sub-agent. "
-                        "The conversation history above was forked from the parent session "
-                        "-- use it as background context only. "
-                        "Do NOT use the Agent tool to spawn sub-agents. "
-                        "Do NOT use the Rewind tool.\n\n" + role_prompt
-                    )
+                    context_text = FORK_CONTEXT_WITH_ROLE_PROMPT + role_prompt
                 else:
-                    context_text = (
-                        "You are a newly spawned agent with the full conversation context "
-                        "from the parent session. Treat the next user message as your new task, "
-                        "and use the conversation history as background context. "
-                        "Do NOT use the Agent tool to spawn sub-agents. "
-                        "Do NOT use the Rewind tool."
-                    )
+                    context_text = FORK_CONTEXT_GENERAL_PROMPT
                 history_items.append(
                     message.UserMessage(
                         parts=[message.TextPart(text=f"<system-reminder>{context_text}</system-reminder>")]

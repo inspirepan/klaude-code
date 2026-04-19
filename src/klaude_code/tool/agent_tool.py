@@ -6,15 +6,16 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from klaude_code.protocol import llm_param, message, model, tools
+from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState
 from klaude_code.protocol.sub_agent import (
     get_all_names,
     get_sub_agent_profile,
     iter_sub_agent_profiles,
 )
-from klaude_code.tool.context import ToolContext
-from klaude_code.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
-from klaude_code.tool.tool_registry import register
+from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
+from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.registry import register
 
 
 def _agent_description() -> str:
@@ -109,7 +110,7 @@ class AgentTool(ToolABC):
 
         try:
             result = await runner(
-                model.SubAgentState(
+                SubAgentState(
                     sub_agent_type=profile.name,
                     sub_agent_desc=description,
                     sub_agent_prompt=sub_agent_prompt,
@@ -125,6 +126,6 @@ class AgentTool(ToolABC):
         return message.ToolResultMessage(
             status="success" if not result.error else "error",
             output_text=result.task_result,
-            ui_extra=model.SessionIdUIExtra(session_id=result.session_id),
+            ui_extra=SessionIdUIExtra(session_id=result.session_id),
             task_metadata=result.task_metadata,
         )

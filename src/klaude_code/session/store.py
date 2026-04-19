@@ -12,7 +12,15 @@ from pathlib import Path
 from typing import Any, cast
 
 from klaude_code.const import ProjectPaths
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import (
+    FileChangeSummary,
+    FileStatus,
+    SessionOwner,
+    SessionRuntimeState,
+    SubAgentState,
+    TodoItem,
+)
 from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
 
 _RUNTIME_META_KEYS = ("session_state", "runtime_owner", "runtime_owner_heartbeat_at")
@@ -258,17 +266,17 @@ def build_meta_snapshot(
     session_id: str,
     work_dir: Path,
     title: str | None,
-    sub_agent_state: model.SubAgentState | None,
-    file_tracker: dict[str, model.FileStatus],
-    file_change_summary: model.FileChangeSummary,
-    todos: list[model.TodoItem],
+    sub_agent_state: SubAgentState | None,
+    file_tracker: dict[str, FileStatus],
+    file_change_summary: FileChangeSummary,
+    todos: list[TodoItem],
     user_messages: list[str],
     created_at: float,
     updated_at: float,
     messages_count: int,
     model_name: str | None,
-    session_state: model.SessionRuntimeState | None,
-    runtime_owner: model.SessionOwner | None,
+    session_state: SessionRuntimeState | None,
+    runtime_owner: SessionOwner | None,
     runtime_owner_heartbeat_at: float | None,
     archived: bool,
     model_config_name: str | None,

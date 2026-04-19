@@ -6,8 +6,8 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-from klaude_code.agent.runtime_agent_ops import AgentOperationHandler
-from klaude_code.agent.runtime_llm import LLMClients
+from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
+from klaude_code.agent.runtime.llm import LLMClients
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.protocol import events, llm_param, message, op
 from klaude_code.session.session import Session
@@ -71,7 +71,7 @@ def test_manual_recap_emits_spinner_events_but_auto_does_not(tmp_path: Path, mon
             compact=client,
         )
         monkeypatch.setattr(
-            "klaude_code.agent.runtime_agent_ops.generate_away_summary",
+            "klaude_code.agent.runtime.agent_ops.generate_away_summary",
             _fake_generate_away_summary,
         )
 

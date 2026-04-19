@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from klaude_code.protocol import model
+from klaude_code.protocol.models import SessionOwner
 
 type TodoSummary = dict[str, str]
 type FileChangeSummary = dict[str, list[str] | int | dict[str, dict[str, int]]]
@@ -42,7 +42,7 @@ class SessionSummary:
     messages_count: int
     model_name: str | None
     session_state: Literal["idle", "running", "waiting_user_input"] | None
-    runtime_owner: model.SessionOwner | None
+    runtime_owner: SessionOwner | None
     runtime_owner_heartbeat_at: float | None
     archived: bool
     todos: list[TodoSummary]
@@ -95,7 +95,7 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
     runtime_owner_raw = data.get("runtime_owner")
     if isinstance(runtime_owner_raw, dict):
         try:
-            runtime_owner = model.SessionOwner.model_validate(runtime_owner_raw)
+            runtime_owner = SessionOwner.model_validate(runtime_owner_raw)
         except Exception:
             runtime_owner = None
     else:

@@ -9,7 +9,7 @@ Python package with source code located in `src/klaude_code/`. Main modules incl
 - `src/klaude_code/config/`: Configuration loading, model config, builtin defaults
 - `src/klaude_code/agent/`: Agent runtime (agent loop, attachments, memory, context management)
 - `src/klaude_code/tool/`: Tool implementations (file, shell, web, agent, etc.)
-- `src/klaude_code/prompts/`: Prompt templates and system prompt builder
+- `src/klaude_code/prompts/`: Model-facing text resources (prompt templates, runtime messages, attachment reminders)
 - `src/klaude_code/control/`: Event bus, session orchestration, runtime facade
 - `src/klaude_code/llm/`: LLM client implementations per protocol
 - `src/klaude_code/protocol/`: Communication structures, event definitions, sub-agent profiles
@@ -64,10 +64,11 @@ Python tests are located in the `tests/` directory. Web frontend tests are in `w
 
 ## Architecture Constraints
 
-- Layered architecture enforced by import-linter: `cli > tui/web > app > agent > tool/prompts/control > skill > session > config > llm > protocol > auth > log/const`
-- `agent` can import from `tool`, `prompts`, `control`; reverse direction is forbidden
+- Layered architecture enforced by import-linter: `cli > tui/web > app > agent > tool/control > skill > session > config > llm > protocol > auth > log > prompts/const`
+- `prompts` is a bottom-layer pure-text package; every layer can import from it
+- System prompt builder lives in `agent/system_prompt.py`; `prompts/` holds only text resources
 - Sub-agent profiles are registered in `protocol/sub_agent/`, runtime logic lives in `agent/`
-- Prompt files live in `prompts/`, loaded via `load_prompt_by_path()`
+- Prompt markdown lives in `prompts/system/` and `prompts/sub_agents/`, loaded via `load_prompt_by_path()`
 - Context management (compaction, handoff, rewind) lives in `agent/compaction/`, `agent/handoff/`, `agent/rewind/`
 
 ## Commit Message Convention

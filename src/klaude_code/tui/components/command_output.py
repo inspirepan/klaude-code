@@ -4,7 +4,8 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events
+from klaude_code.protocol.models import SessionIdUIExtra
 from klaude_code.session import Session
 from klaude_code.tui.components.common import truncate_middle
 from klaude_code.tui.components.rich.theme import ThemeKey
@@ -12,7 +13,7 @@ from klaude_code.tui.components.rich.theme import ThemeKey
 
 def render_notice(e: events.NoticeEvent) -> RenderableType:
     """Render a generic notice event."""
-    if isinstance(e.ui_extra, model.SessionIdUIExtra):
+    if isinstance(e.ui_extra, SessionIdUIExtra):
         return _render_fork_session_output(e)
     content = e.content or "(no content)"
     style: str = e.style if e.style else (ThemeKey.ERROR if e.is_error else ThemeKey.COMMAND_OUTPUT)
@@ -116,7 +117,7 @@ def _format_int(value: int) -> str:
 
 
 def _render_fork_session_output(e: events.NoticeEvent) -> RenderableType:
-    if not isinstance(e.ui_extra, model.SessionIdUIExtra):
+    if not isinstance(e.ui_extra, SessionIdUIExtra):
         return Text(e.content, style=ThemeKey.TOOL_RESULT)
 
     grid = Table.grid(padding=(0, 1))

@@ -10,13 +10,14 @@ from hypothesis import strategies as st
 from klaude_code.llm import image as image_module
 from klaude_code.llm.anthropic.input import convert_history_to_input as anthropic_history
 from klaude_code.llm.anthropic.input import convert_system_to_input as anthropic_system_input
+from klaude_code.protocol.models import Usage
 
 if TYPE_CHECKING:
-    from klaude_code.protocol import message, model
+    from klaude_code.protocol import message
 from klaude_code.llm.openai_compatible.input import convert_history_to_input as openai_history
 from klaude_code.llm.openai_responses.input import convert_history_to_input as responses_history
 from klaude_code.llm.openrouter.input import convert_history_to_input as openrouter_history
-from klaude_code.protocol import message, model
+from klaude_code.protocol import message
 
 SAMPLE_IMAGE_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
 SAMPLE_DATA_URL = f"data:image/png;base64,{SAMPLE_IMAGE_BASE64}"
@@ -397,10 +398,8 @@ def test_anthropic_tool_group_includes_developer_images():
 
 
 @st.composite
-def usage_instances(draw: st.DrawFn) -> "model.Usage":
+def usage_instances(draw: st.DrawFn) -> "Usage":
     """Generate Usage instances with valid token counts."""
-    from klaude_code.protocol.model import Usage
-
     input_tokens = draw(st.integers(min_value=0, max_value=1_000_000))
     cached_tokens = draw(st.integers(min_value=0, max_value=input_tokens))
     output_tokens = draw(st.integers(min_value=0, max_value=1_000_000))
@@ -430,14 +429,14 @@ def usage_instances(draw: st.DrawFn) -> "model.Usage":
 
 @given(usage=usage_instances())
 @settings(max_examples=100, deadline=None)
-def test_usage_total_tokens_computed_correctly(usage: "model.Usage") -> None:
+def test_usage_total_tokens_computed_correctly(usage: "Usage") -> None:
     """Property: total_tokens = input_tokens + output_tokens."""
     assert usage.total_tokens == usage.input_tokens + usage.output_tokens
 
 
 @given(usage=usage_instances())
 @settings(max_examples=100, deadline=None)
-def test_usage_total_cost_computed_correctly(usage: "model.Usage") -> None:
+def test_usage_total_cost_computed_correctly(usage: "Usage") -> None:
     """Property: total_cost = sum of non-None cost components."""
     costs = [usage.input_cost, usage.output_cost, usage.cache_read_cost]
     non_none = [c for c in costs if c is not None]
@@ -451,7 +450,7 @@ def test_usage_total_cost_computed_correctly(usage: "model.Usage") -> None:
 
 @given(usage=usage_instances())
 @settings(max_examples=100, deadline=None)
-def test_usage_context_usage_percent_bounds(usage: "model.Usage") -> None:
+def test_usage_context_usage_percent_bounds(usage: "Usage") -> None:
     """Property: context_usage_percent is None or non-negative."""
     if usage.context_usage_percent is not None:
         assert usage.context_usage_percent >= 0

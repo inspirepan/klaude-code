@@ -13,9 +13,9 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from klaude_code.protocol import model  # noqa: E402
+from klaude_code.protocol.models import DiffUIExtra, MarkdownDocUIExtra, MultiUIExtra  # noqa: E402
 from klaude_code.tool import ApplyPatchTool  # noqa: E402
-from klaude_code.tool.context import TodoContext, ToolContext  # noqa: E402
+from klaude_code.tool.core.context import TodoContext, ToolContext  # noqa: E402
 
 
 def arun(coro: Any) -> Any:
@@ -58,15 +58,15 @@ class TestApplyPatchToolMarkdown(BaseTempDirTest):
         self.assertEqual(result.output_text, "Done!")
         # When adding markdown, apply_patch returns a MultiUIExtra containing markdown preview.
         # It should NOT include a diff ui block for the markdown add.
-        self.assertIsInstance(result.ui_extra, model.MultiUIExtra)
-        assert isinstance(result.ui_extra, model.MultiUIExtra)
+        self.assertIsInstance(result.ui_extra, MultiUIExtra)
+        assert isinstance(result.ui_extra, MultiUIExtra)
 
-        md_items = [i for i in result.ui_extra.items if isinstance(i, model.MarkdownDocUIExtra)]
+        md_items = [i for i in result.ui_extra.items if isinstance(i, MarkdownDocUIExtra)]
         self.assertEqual(len(md_items), 1)
         self.assertTrue(md_items[0].file_path.endswith("doc.md"))
         self.assertIn("# Title", md_items[0].content)
 
-        diff_items = [i for i in result.ui_extra.items if isinstance(i, model.DiffUIExtra)]
+        diff_items = [i for i in result.ui_extra.items if isinstance(i, DiffUIExtra)]
         self.assertEqual(len(diff_items), 0)
 
         self.assertTrue(Path("doc.md").exists())

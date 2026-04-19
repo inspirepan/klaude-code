@@ -10,13 +10,14 @@ from typing import Any, TypeVar, cast
 import pytest
 from fastapi.testclient import TestClient
 
-from klaude_code.agent import runtime_llm as agent_runtime
-from klaude_code.agent.runtime_llm import LLMClients
+from klaude_code.agent.runtime import llm as agent_runtime
+from klaude_code.agent.runtime.llm import LLMClients
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.control.event_bus import EventBus
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
-from klaude_code.protocol import llm_param, message, model
-from klaude_code.session.session import close_default_store
+from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import Usage
+from klaude_code.session.store_registry import close_default_store
 from klaude_code.web.app import create_app
 from klaude_code.web.interaction import WebInteractionHandler
 from klaude_code.web.state import WebAppState
@@ -186,8 +187,8 @@ def usage(
     input_tokens: int = 10,
     output_tokens: int = 5,
     cached_tokens: int = 0,
-) -> model.Usage:
-    return model.Usage(
+) -> Usage:
+    return Usage(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cached_tokens=cached_tokens,

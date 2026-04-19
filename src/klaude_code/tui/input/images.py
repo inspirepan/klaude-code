@@ -246,7 +246,6 @@ def has_clipboard_image() -> bool:
 # Image extraction from text
 # ---------------------------------------------------------------------------
 
-
 _MIME_TYPES: dict[str, str] = {
     ".png": "image/png",
     ".jpg": "image/jpeg",

@@ -7,7 +7,8 @@ from rich.tree import Tree
 
 from klaude_code.config.formatters import format_number
 from klaude_code.const import DEFAULT_MAX_TOKENS, LOW_CACHE_HIT_RATE_THRESHOLD
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events
+from klaude_code.protocol.models import TaskMetadata
 from klaude_code.tui.components.common import create_grid, format_elapsed_compact
 from klaude_code.tui.components.rich.theme import ThemeKey
 
@@ -22,7 +23,7 @@ class _RoundedTree(Tree):
     ]
 
 
-def _should_split_sub_agent_identity(metadata: model.TaskMetadata, *, max_width: int) -> bool:
+def _should_split_sub_agent_identity(metadata: TaskMetadata, *, max_width: int) -> bool:
     if not metadata.sub_agent_name:
         return False
 
@@ -38,7 +39,7 @@ def _should_split_sub_agent_identity(metadata: model.TaskMetadata, *, max_width:
     return details_width <= METADATA_MIN_DETAILS_WIDTH_FOR_SINGLE_LINE_IDENTITY
 
 
-def _build_identity_text(metadata: model.TaskMetadata, *, split_sub_agent_and_model: bool) -> Text:
+def _build_identity_text(metadata: TaskMetadata, *, split_sub_agent_and_model: bool) -> Text:
     identity = Text()
     has_description = bool(metadata.description)
 
@@ -73,7 +74,7 @@ def _build_identity_text(metadata: model.TaskMetadata, *, split_sub_agent_and_mo
 class _MetadataContent:
     def __init__(
         self,
-        metadata: model.TaskMetadata,
+        metadata: TaskMetadata,
         *,
         show_context_and_time: bool = True,
         show_turn_count: bool = True,
@@ -102,7 +103,7 @@ class _MetadataContent:
 
 
 def _build_metadata_content(
-    metadata: model.TaskMetadata,
+    metadata: TaskMetadata,
     *,
     identity: Text,
     show_context_and_time: bool = True,
@@ -213,7 +214,7 @@ def _build_metadata_content(
 
 
 def _build_metadata_content_renderable(
-    metadata: model.TaskMetadata,
+    metadata: TaskMetadata,
     *,
     show_context_and_time: bool = True,
     show_turn_count: bool = True,

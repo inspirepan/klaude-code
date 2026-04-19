@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from klaude_code.protocol import tools
-
-if TYPE_CHECKING:
-    from klaude_code.protocol import model
+from klaude_code.protocol.models import TaskMetadata
 
 
 @dataclass
@@ -14,7 +11,7 @@ class SubAgentResult:
     task_result: str
     session_id: str
     error: bool = False
-    task_metadata: model.TaskMetadata | None = None
+    task_metadata: TaskMetadata | None = None
 
 
 @dataclass(frozen=True)
@@ -30,7 +27,7 @@ class SubAgentProfile:
     name: str  # e.g., "general-purpose", "finder"
 
     # Sub-agent run configuration
-    prompt_file: str = ""  # Path relative to klaude_code package (e.g. "prompts/prompt-sub-agent-finder.md")
+    prompt_file: str = ""  # Path relative to klaude_code package (e.g. "prompts/sub_agents/prompt-sub-agent-finder.md")
     tool_set: tuple[str, ...] = ()  # Tools available to this sub agent
 
     # Entry-point metadata for Agent tool (RunSubAgent)

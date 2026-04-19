@@ -11,8 +11,8 @@ from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExe
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import events, llm_param, message
 from klaude_code.session.session import Session
-from klaude_code.tool.context import build_todo_context
-from klaude_code.tool.tool_abc import ToolABC
+from klaude_code.tool.core.abc import ToolABC
+from klaude_code.tool.core.context import build_todo_context
 
 
 class ScriptedLLMStream(LLMStreamABC):

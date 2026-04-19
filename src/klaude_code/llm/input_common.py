@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMCallParameter, LLMConfigParameter
 
-from klaude_code.const import DEFAULT_MAX_TOKENS, EMPTY_TOOL_OUTPUT_MESSAGE
+from klaude_code.const import DEFAULT_MAX_TOKENS
 from klaude_code.llm.image import image_file_to_data_url, image_url_to_request_url
+from klaude_code.prompts.messages import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.protocol import message
 
 ImagePart = message.ImageURLPart | message.ImageFilePart

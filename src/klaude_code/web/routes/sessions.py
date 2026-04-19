@@ -13,10 +13,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from klaude_code.protocol import events as protocol_events
-from klaude_code.protocol import model as protocol_model
 from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
-from klaude_code.session.session import Session, get_store_for_path
+from klaude_code.protocol.models import SessionRuntimeState
+from klaude_code.session.session import Session
+from klaude_code.session.store_registry import get_store_for_path
 from klaude_code.web.session_access import load_session_read_only
 from klaude_code.web.session_index import (
     list_file_running_states,
@@ -32,21 +33,19 @@ from klaude_code.web.state import WebAppState, get_web_state
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 WEB_STATE_DEP: Final = Depends(get_web_state)
-SESSION_STATE_IDLE: Final = cast(
-    Literal["idle", "running", "waiting_user_input"], protocol_model.SessionRuntimeState.IDLE.value
-)
+SESSION_STATE_IDLE: Final = cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.IDLE.value)
 
 
 def _derive_session_state_from_snapshot(snapshot: Any) -> Literal["idle", "running", "waiting_user_input"]:
     if snapshot.pending_request_count > 0:
         return cast(
             Literal["idle", "running", "waiting_user_input"],
-            protocol_model.SessionRuntimeState.WAITING_USER_INPUT.value,
+            SessionRuntimeState.WAITING_USER_INPUT.value,
         )
     if snapshot.active_root_task is not None or snapshot.child_task_count > 0:
         return cast(
             Literal["idle", "running", "waiting_user_input"],
-            protocol_model.SessionRuntimeState.RUNNING.value,
+            SessionRuntimeState.RUNNING.value,
         )
     return SESSION_STATE_IDLE
 

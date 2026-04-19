@@ -7,9 +7,10 @@ from typing import ClassVar
 
 import pytest
 
-from klaude_code.protocol import events, llm_param, message, model
-from klaude_code.tool.context import ToolContext
-from klaude_code.tool.tool_abc import ToolABC
+from klaude_code.protocol import events, llm_param, message
+from klaude_code.protocol.models import Usage
+from klaude_code.tool.core.abc import ToolABC
+from klaude_code.tool.core.context import ToolContext
 from tests.agent_harness import create_harness
 
 
@@ -82,8 +83,8 @@ def _reset_tool_calls() -> None:  # pyright: ignore[reportUnusedFunction]
 # ---------------------------------------------------------------------------
 
 
-def _make_usage() -> model.Usage:
-    return model.Usage(
+def _make_usage() -> Usage:
+    return Usage(
         input_tokens=10,
         output_tokens=5,
         context_size=15,
@@ -282,7 +283,7 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
     project_dir.mkdir()
 
     # Usage with a real cached-token baseline, mimicking a healthy cached turn.
-    cached_usage = model.Usage(
+    cached_usage = Usage(
         input_tokens=60_000,
         cached_tokens=52_000,
         output_tokens=5,
@@ -309,10 +310,10 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
         # attempt 2 recovers.
         harness.fake_llm.enqueue(
             message.StreamErrorItem(error="RemoteProtocolError peer closed connection"),
-            message.AssistantMessage(parts=[], stop_reason="error", usage=model.Usage()),
+            message.AssistantMessage(parts=[], stop_reason="error", usage=Usage()),
         )
         # Turn 2 recovery: same prompt, cache still warm.
-        recovered_usage = model.Usage(
+        recovered_usage = Usage(
             input_tokens=60_100,
             cached_tokens=52_000,
             output_tokens=5,

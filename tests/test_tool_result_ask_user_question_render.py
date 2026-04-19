@@ -1,6 +1,7 @@
 from rich.console import Console
 
-from klaude_code.protocol import events, model, tools
+from klaude_code.protocol import events, tools
+from klaude_code.protocol.models import AskUserQuestionSummaryItem, AskUserQuestionSummaryUIExtra
 from klaude_code.tui.components.rich.theme import get_theme
 from klaude_code.tui.components.tools import render_tool_result
 
@@ -46,14 +47,14 @@ def test_render_ask_user_question_tool_result_uses_structured_summary_ui_extra()
         result="legacy text should not be rendered when ui_extra exists",
         status="success",
         is_last_in_turn=True,
-        ui_extra=model.AskUserQuestionSummaryUIExtra(
+        ui_extra=AskUserQuestionSummaryUIExtra(
             items=[
-                model.AskUserQuestionSummaryItem(
+                AskUserQuestionSummaryItem(
                     question="Which stack should we use?",
                     summary="FastAPI, PostgreSQL",
                     answered=True,
                 ),
-                model.AskUserQuestionSummaryItem(
+                AskUserQuestionSummaryItem(
                     question="How should we deploy?",
                     summary="(No answer provided)",
                     answered=False,

@@ -5,10 +5,11 @@ from pathlib import Path
 import pytest
 
 from klaude_code.agent.handoff import HandoffManager, run_handoff
-from klaude_code.agent.handoff.prompts import HANDOFF_SUMMARY_PREFIX
 from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
-from klaude_code.protocol import llm_param, message, model, tools
+from klaude_code.prompts.handoff import HANDOFF_SUMMARY_PREFIX
+from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models import FileStatus
 from klaude_code.session.session import Session
 from klaude_code.tool.handoff_tool import HandoffTool
 
@@ -99,7 +100,7 @@ class TestRunHandoff:
 
         async def _test() -> None:
             session = Session.create(id="handoff-test", work_dir=project_dir)
-            session.file_tracker["src/auth.py"] = model.FileStatus(mtime=0.0)
+            session.file_tracker["src/auth.py"] = FileStatus(mtime=0.0)
 
             history: list[message.HistoryEvent] = [
                 _text_user("implement auth module"),
@@ -262,25 +263,25 @@ class TestMemoryReset:
     def test_reset_attachment_loaded_flags(self) -> None:
         from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
 
-        file_tracker: dict[str, model.FileStatus] = {
-            "src/foo.py": model.FileStatus(mtime=1.0, is_memory=False),
-            "/home/.claude/CLAUDE.md": model.FileStatus(mtime=2.0, is_memory=True),
-            "/home/.claude/memory/MEMORY.md": model.FileStatus(mtime=3.0, is_memory=True),
-            "/repo/src/.claude/skills/local/SKILL.md": model.FileStatus(
+        file_tracker: dict[str, FileStatus] = {
+            "src/foo.py": FileStatus(mtime=1.0, is_memory=False),
+            "/home/.claude/CLAUDE.md": FileStatus(mtime=2.0, is_memory=True),
+            "/home/.claude/memory/MEMORY.md": FileStatus(mtime=3.0, is_memory=True),
+            "/repo/src/.claude/skills/local/SKILL.md": FileStatus(
                 mtime=3.5,
                 is_skill=True,
                 skill_attachment_source="dynamic",
             ),
-            "/repo/.klaude-system-skill-listing": model.FileStatus(
+            "/repo/.klaude-system-skill-listing": FileStatus(
                 mtime=3.6,
                 is_skill_listing=True,
             ),
-            "/repo/src/.claude/skills/explicit/SKILL.md": model.FileStatus(
+            "/repo/src/.claude/skills/explicit/SKILL.md": FileStatus(
                 mtime=3.7,
                 is_skill=True,
                 skill_attachment_source="explicit",
             ),
-            "src/bar.py": model.FileStatus(mtime=4.0, is_memory=False),
+            "src/bar.py": FileStatus(mtime=4.0, is_memory=False),
         }
 
         _reset_attachment_loaded_flags(file_tracker)
@@ -308,7 +309,7 @@ class TestHandoffTool:
         assert "goal" in schema.parameters["properties"]
 
     def test_call_with_no_manager(self) -> None:
-        from klaude_code.tool.context import TodoContext, ToolContext
+        from klaude_code.tool.core.context import TodoContext, ToolContext
 
         ctx = ToolContext(
             file_tracker={},
@@ -326,7 +327,7 @@ class TestHandoffTool:
         arun(_test())
 
     def test_call_with_manager(self) -> None:
-        from klaude_code.tool.context import TodoContext, ToolContext
+        from klaude_code.tool.core.context import TodoContext, ToolContext
 
         manager = HandoffManager()
         ctx = ToolContext(

@@ -7,6 +7,8 @@ from collections.abc import AsyncGenerator
 from importlib.util import find_spec
 from typing import Any, cast, override
 
+from klaude_code.protocol.models import StopReason, Usage
+
 try:
     import botocore.exceptions as _botocore_exceptions  # pyright: ignore[reportMissingTypeStubs]
 except ModuleNotFoundError:
@@ -17,7 +19,6 @@ import httpx
 from klaude_code.const import (
     ANTHROPIC_BETA_CONTEXT_MANAGEMENT,
     ANTHROPIC_BETA_INTERLEAVED_THINKING,
-    CLAUDE_CODE_IDENTITY,
     DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
@@ -32,7 +33,8 @@ from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.prompts.messages import CLAUDE_CODE_IDENTITY
+from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import is_opus_47_model, supports_adaptive_thinking
 
 _BotocoreBotoCoreErrorType = cast(
@@ -57,8 +59,8 @@ class BedrockStreamError(Exception):
     pass
 
 
-def _map_bedrock_stop_reason(reason: str | None) -> model.StopReason | None:
-    mapping: dict[str, model.StopReason] = {
+def _map_bedrock_stop_reason(reason: str | None) -> StopReason | None:
+    mapping: dict[str, StopReason] = {
         "end_turn": "stop",
         "stop_sequence": "stop",
         "max_tokens": "length",
@@ -450,7 +452,7 @@ async def parse_bedrock_stream(
             cached_tokens = cast(int, usage.get("cacheReadInputTokens") or 0)
             cache_write_tokens = cast(int, usage.get("cacheWriteInputTokens") or 0)
             metadata_tracker.set_usage(
-                model.Usage(
+                Usage(
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
                     cached_tokens=cached_tokens,

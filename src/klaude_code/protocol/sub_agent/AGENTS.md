@@ -21,7 +21,7 @@ Sub-agent model priority is:
 
 Profiles with `fork_context=True` inherit the parent agent's full conversation history and profile (system prompt + tools). This maximizes prefix cache hits since the system prompt and tool definitions remain identical.
 
-Runtime behavior (in `agent/runtime_sub_agent.py`):
+Runtime behavior (in `agent/runtime/sub_agent.py`):
 - System prompt and tools: inherited from the parent agent (profile's `tool_set` is ignored)
 - Conversation history: forked up to the last AssistantMessage
 - Identity switch: injected as a `<system-reminder>` appended after the forked history

@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from klaude_code.control.session_actor import (
+from klaude_code.control.runtime.actor import (
     RuntimeTaskHandle,
     SessionActor,
     SessionActorSnapshot,

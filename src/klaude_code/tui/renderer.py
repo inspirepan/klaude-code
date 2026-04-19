@@ -25,7 +25,8 @@ from klaude_code.const import (
     STREAM_MAX_HEIGHT_SHRINK_RESET_LINES,
 )
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events
+from klaude_code.protocol.models import AtFileImagesUIItem, ImageUIExtra, SubAgentState, UserImagesUIItem
 from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
@@ -149,7 +150,7 @@ class _StreamState:
 class _SessionStatus:
     color: Style | None = None
     color_index: int | None = None
-    sub_agent_state: model.SubAgentState | None = None
+    sub_agent_state: SubAgentState | None = None
 
 
 class TUICommandRenderer:
@@ -218,7 +219,7 @@ class TUICommandRenderer:
     # Session helpers
     # ---------------------------------------------------------------------
 
-    def register_session(self, session_id: str, sub_agent_state: model.SubAgentState | None = None) -> None:
+    def register_session(self, session_id: str, sub_agent_state: SubAgentState | None = None) -> None:
         st = _SessionStatus(sub_agent_state=sub_agent_state)
         if sub_agent_state is not None:
             color, color_index = self._pick_sub_agent_color()
@@ -560,7 +561,7 @@ class TUICommandRenderer:
             self.print(c_errors.render_tool_error(error_msg))
             return True
 
-        if not is_sub_agent and isinstance(e.ui_extra, model.ImageUIExtra):
+        if not is_sub_agent and isinstance(e.ui_extra, ImageUIExtra):
             self.display_image(e.ui_extra.file_path)
 
         renderable = c_tools.render_tool_result(e, code_theme=self.themes.code_theme)
@@ -578,7 +579,7 @@ class TUICommandRenderer:
         # Display images from @ file references and user attachments
         if e.item.ui_extra:
             for ui_item in e.item.ui_extra.items:
-                if isinstance(ui_item, (model.AtFileImagesUIItem, model.UserImagesUIItem)):
+                if isinstance(ui_item, (AtFileImagesUIItem, UserImagesUIItem)):
                     for image_path in ui_item.paths:
                         self.display_image(image_path)
         return True

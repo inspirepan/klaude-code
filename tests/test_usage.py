@@ -6,9 +6,10 @@ from typing import TYPE_CHECKING
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-if TYPE_CHECKING:
-    from klaude_code.protocol import llm_param, model
+from klaude_code.protocol.models import Usage
 
+if TYPE_CHECKING:
+    from klaude_code.protocol import llm_param
 
 # ============================================================================
 # Strategy generators
@@ -16,9 +17,8 @@ if TYPE_CHECKING:
 
 
 @st.composite
-def usage_instances(draw: st.DrawFn) -> "model.Usage":
+def usage_instances(draw: st.DrawFn) -> Usage:
     """Generate Usage instances with valid token counts."""
-    from klaude_code.protocol.model import Usage
 
     input_tokens = draw(st.integers(min_value=0, max_value=1_000_000))
     cached_tokens = draw(st.integers(min_value=0, max_value=input_tokens))
@@ -67,10 +67,9 @@ def cost_configs(draw: st.DrawFn) -> "llm_param.Cost":
 
 @given(usage=usage_instances(), cost_config=cost_configs())
 @settings(max_examples=100, deadline=None)
-def test_calculate_cost_non_negative(usage: "model.Usage", cost_config: "llm_param.Cost") -> None:
+def test_calculate_cost_non_negative(usage: Usage, cost_config: "llm_param.Cost") -> None:
     """Property: all calculated costs are non-negative."""
     from klaude_code.llm.usage import calculate_cost
-    from klaude_code.protocol.model import Usage
 
     # Create a fresh usage to avoid mutation issues
     fresh_usage = Usage(
@@ -96,10 +95,9 @@ def test_calculate_cost_non_negative(usage: "model.Usage", cost_config: "llm_par
 
 @given(usage=usage_instances())
 @settings(max_examples=50, deadline=None)
-def test_calculate_cost_no_config_no_change(usage: "model.Usage") -> None:
+def test_calculate_cost_no_config_no_change(usage: Usage) -> None:
     """Property: None cost_config leaves usage unchanged."""
     from klaude_code.llm.usage import calculate_cost
-    from klaude_code.protocol.model import Usage
 
     fresh_usage = Usage(
         input_tokens=usage.input_tokens,

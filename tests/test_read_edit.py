@@ -17,8 +17,9 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
     os.sys.path.insert(0, str(SRC_DIR))  # type: ignore
 
-from klaude_code.agent.attachments import at_file_reader_attachment  # noqa: E402
-from klaude_code.protocol import message, model  # noqa: E402
+from klaude_code.agent.attachments.files import at_file_reader_attachment  # noqa: E402
+from klaude_code.protocol import message  # noqa: E402
+from klaude_code.protocol.models import AtFileOp, AtFileOpsUIItem, FileStatus, MemoryLoadedUIItem  # noqa: E402
 from klaude_code.session.session import Session  # noqa: E402
 from klaude_code.tool import (  # noqa: E402
     BashTool,
@@ -27,7 +28,7 @@ from klaude_code.tool import (  # noqa: E402
     WriteTool,
     build_todo_context,
 )
-from klaude_code.tool.context import ToolContext  # noqa: E402
+from klaude_code.tool.core.context import ToolContext  # noqa: E402
 
 _TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
 
@@ -36,11 +37,11 @@ def arun(coro) -> Any:  # type: ignore
     return asyncio.run(coro)  # type: ignore
 
 
-def _get_at_file_ops(attachment: message.DeveloperMessage) -> list[model.AtFileOp]:
+def _get_at_file_ops(attachment: message.DeveloperMessage) -> list[AtFileOp]:
     if attachment.ui_extra is None:
         return []
     for ui_item in attachment.ui_extra.items:
-        if isinstance(ui_item, model.AtFileOpsUIItem):
+        if isinstance(ui_item, AtFileOpsUIItem):
             return ui_item.ops
     return []
 
@@ -349,7 +350,7 @@ class TestAttachments(BaseTempDirTest):
 
         # Memory file should be reflected in UI
         assert attachment.ui_extra is not None
-        memory_items = [i for i in attachment.ui_extra.items if isinstance(i, model.MemoryLoadedUIItem)]
+        memory_items = [i for i in attachment.ui_extra.items if isinstance(i, MemoryLoadedUIItem)]
         self.assertEqual(len(memory_items), 1)
         self.assertEqual(len(memory_items[0].files), 1)
         self.assertTrue(memory_items[0].files[0].path.endswith("AGENTS.md"))
@@ -390,7 +391,7 @@ class TestAttachments(BaseTempDirTest):
 
         # Pre-mark the memory as loaded (simulating memory_attachment having loaded it)
         agents_path = str(agents_md.resolve())
-        self.session.file_tracker[agents_path] = model.FileStatus(
+        self.session.file_tracker[agents_path] = FileStatus(
             mtime=agents_md.stat().st_mtime,
             content_sha256=hashlib.sha256(agents_md.read_bytes()).hexdigest(),
             is_memory=True,
@@ -409,7 +410,7 @@ class TestAttachments(BaseTempDirTest):
 
         # No MemoryLoadedUIItem
         assert attachment.ui_extra is not None
-        memory_items = [i for i in attachment.ui_extra.items if isinstance(i, model.MemoryLoadedUIItem)]
+        memory_items = [i for i in attachment.ui_extra.items if isinstance(i, MemoryLoadedUIItem)]
         self.assertEqual(len(memory_items), 0)
 
 

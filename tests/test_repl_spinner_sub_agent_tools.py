@@ -4,8 +4,8 @@ from rich.cells import cell_len
 from rich.text import Text
 
 from klaude_code.const import STATUS_COMPACTING_TEXT, STATUS_DEFAULT_TEXT, STATUS_HANDOFF_TEXT
-from klaude_code.protocol import model
 from klaude_code.protocol.events import CompactionStartEvent
+from klaude_code.protocol.models import Usage
 from klaude_code.tui.commands import SpinnerUpdate
 from klaude_code.tui.machine import STATUS_LEFT_MIN_WIDTH_CELLS, DisplayStateMachine, SpinnerStatusState
 
@@ -162,7 +162,7 @@ def test_toast_has_highest_priority() -> None:
 def test_right_text_shows_context_limit_format() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
-        model.Usage(
+        Usage(
             input_tokens=30_000,
             cached_tokens=20_000,
             output_tokens=12_000,
@@ -181,7 +181,7 @@ def test_right_text_shows_context_limit_format() -> None:
 def test_right_text_shows_cache_hit_rate_next_to_cached_tokens() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
-        model.Usage(
+        Usage(
             input_tokens=30_000,
             cached_tokens=20_000,
             output_tokens=12_000,
@@ -201,7 +201,7 @@ def test_right_text_shows_cache_hit_rate_next_to_cached_tokens() -> None:
 def test_right_text_shows_cache_write_tokens() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
-        model.Usage(
+        Usage(
             input_tokens=30_000,
             cached_tokens=20_000,
             cache_write_tokens=5_000,
@@ -218,7 +218,7 @@ def test_right_text_shows_cache_write_tokens() -> None:
 def test_right_text_shows_cost_when_available() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
-        model.Usage(
+        Usage(
             input_tokens=30_000,
             cached_tokens=20_000,
             output_tokens=12_000,
@@ -238,7 +238,7 @@ def test_right_text_shows_cost_when_available() -> None:
 def test_right_text_tokens_accumulate_across_usage_events() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
-        model.Usage(
+        Usage(
             input_tokens=30_000,
             cached_tokens=20_000,
             output_tokens=12_000,
@@ -249,7 +249,7 @@ def test_right_text_tokens_accumulate_across_usage_events() -> None:
         )
     )
     state.set_context_usage(
-        model.Usage(
+        Usage(
             input_tokens=11_000,
             cached_tokens=1_000,
             output_tokens=7_000,
@@ -269,7 +269,7 @@ def test_right_text_tokens_accumulate_across_usage_events() -> None:
 def test_right_text_keeps_last_context_when_current_usage_has_no_context() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
-        model.Usage(
+        Usage(
             context_size=46_000,
             context_limit=300_000,
             max_tokens=100_000,
@@ -279,7 +279,7 @@ def test_right_text_keeps_last_context_when_current_usage_has_no_context() -> No
     assert right_text is not None
     assert "46k/200k (23.0%)" in right_text.plain
 
-    state.set_context_usage(model.Usage())
+    state.set_context_usage(Usage())
     right_text = state.get_right_text()
     assert right_text is not None
     assert "46k/200k (23.0%)" in right_text.plain

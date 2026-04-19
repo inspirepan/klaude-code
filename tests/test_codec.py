@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING, Any
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-if TYPE_CHECKING:
-    from klaude_code.protocol import message, model
+from klaude_code.protocol.models import TaskMetadataItem
 
+if TYPE_CHECKING:
+    from klaude_code.protocol import message
 
 # ============================================================================
 # Strategy generators for history items
@@ -71,10 +72,8 @@ def interrupt_entries() -> st.SearchStrategy["message.InterruptEntry"]:
     return st.builds(InterruptEntry, created_at=st.just(datetime.now()))
 
 
-def task_metadata_items() -> st.SearchStrategy["model.TaskMetadataItem"]:
+def task_metadata_items() -> st.SearchStrategy[TaskMetadataItem]:
     """Generate TaskMetadataItem instances."""
-    from klaude_code.protocol.model import TaskMetadataItem
-
     return st.builds(TaskMetadataItem, created_at=st.just(datetime.now()))
 
 
@@ -86,7 +85,6 @@ history_items = st.one_of(
     interrupt_entries(),
     task_metadata_items(),
 )
-
 
 # ============================================================================
 # Property-based tests

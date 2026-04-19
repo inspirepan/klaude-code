@@ -23,7 +23,6 @@ from anthropic.types.beta.message_create_params import MessageCreateParamsStream
 from klaude_code.const import (
     ANTHROPIC_BETA_CONTEXT_MANAGEMENT,
     ANTHROPIC_BETA_INTERLEAVED_THINKING,
-    CLAUDE_CODE_IDENTITY,
     DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
@@ -43,12 +42,14 @@ from klaude_code.llm.stream_parts import (
 )
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import llm_param, message, model
+from klaude_code.prompts.messages import CLAUDE_CODE_IDENTITY
+from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import is_opus_47_model, supports_adaptive_thinking
+from klaude_code.protocol.models import StopReason, Usage
 
 
-def _map_anthropic_stop_reason(reason: str) -> model.StopReason | None:
-    mapping: dict[str, model.StopReason] = {
+def _map_anthropic_stop_reason(reason: str) -> StopReason | None:
+    mapping: dict[str, StopReason] = {
         "end_turn": "stop",
         "stop_sequence": "stop",
         "max_tokens": "length",
@@ -75,7 +76,7 @@ class AnthropicStreamStateManager:
         self.response_id: str | None = None
         self._pending_signature: str | None = None
         self._pending_signature_thinking_index: int | None = None
-        self.stop_reason: model.StopReason | None = None
+        self.stop_reason: StopReason | None = None
 
         # Tool call state
         self.current_tool_name: str | None = None
@@ -319,7 +320,7 @@ async def parse_anthropic_stream(
             case BetaRawMessageDeltaEvent() as event:
                 total_input = state.input_token + state.cached_token + state.cache_write_token
                 metadata_tracker.set_usage(
-                    model.Usage(
+                    Usage(
                         input_tokens=total_input,
                         output_tokens=event.usage.output_tokens,
                         cached_tokens=state.cached_token,

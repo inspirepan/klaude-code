@@ -4,9 +4,10 @@ from pathlib import Path
 import pytest
 from prompt_toolkit.document import Document
 
-from klaude_code.agent.attachments import at_file_reader_attachment, image_attachment
+from klaude_code.agent.attachments.files import at_file_reader_attachment, image_attachment
 from klaude_code.llm import image as image_module
-from klaude_code.protocol import events, message, model
+from klaude_code.protocol import events, message
+from klaude_code.protocol.models import AtFileOpsUIItem, UserImagesUIItem
 from klaude_code.session.session import Session
 from klaude_code.tui.components.developer import render_developer_message
 from klaude_code.tui.components.user_input import INLINE_RENDER_PATTERN, render_user_input
@@ -91,7 +92,7 @@ def test_at_file_reader_attachment_and_developer_render_chain(tmp_path: Path, mo
     assert attachment is not None
     assert attachment.ui_extra is not None
 
-    at_file_items = [ui_item for ui_item in attachment.ui_extra.items if isinstance(ui_item, model.AtFileOpsUIItem)]
+    at_file_items = [ui_item for ui_item in attachment.ui_extra.items if isinstance(ui_item, AtFileOpsUIItem)]
     assert len(at_file_items) == 1
     assert len(at_file_items[0].ops) == 1
 
@@ -155,6 +156,6 @@ def test_image_attachment_keeps_display_paths_for_frozen_history_images(tmp_path
     attachment = _arun(image_attachment(session))
     assert attachment is not None
     assert attachment.ui_extra is not None
-    user_image_items = [item for item in attachment.ui_extra.items if isinstance(item, model.UserImagesUIItem)]
+    user_image_items = [item for item in attachment.ui_extra.items if isinstance(item, UserImagesUIItem)]
     assert len(user_image_items) == 1
     assert user_image_items[0].paths == [str(image_path)]

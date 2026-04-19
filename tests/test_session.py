@@ -1,6 +1,4 @@
 # pyright: reportPrivateUsage=false, reportUnusedFunction=false
-"""Tests for session module: selector and session functionality."""
-
 import asyncio
 import json
 import threading
@@ -11,9 +9,21 @@ from typing import Any, NoReturn
 import pytest
 from typer.testing import CliRunner
 
-from klaude_code.protocol import events, llm_param, message, model, op
-from klaude_code.session.session import Session, close_default_store
+from klaude_code.protocol import events, llm_param, message, op
+from klaude_code.protocol.models import (
+    FileChangeSummary,
+    FileStatus,
+    SessionIdUIExtra,
+    SessionRuntimeState,
+    SubAgentState,
+    TaskMetadata,
+    TaskMetadataItem,
+    TodoItem,
+    Usage,
+)
+from klaude_code.session.session import Session
 from klaude_code.session.store import JsonlSessionWriter, build_meta_snapshot
+from klaude_code.session.store_registry import close_default_store
 
 
 class _ForkSessionDummyAgent:
@@ -158,14 +168,14 @@ class TestSessionPersistence:
                 work_dir=project_dir,
                 title="Persisted title",
                 model_name="test-model",
-                session_state=model.SessionRuntimeState.RUNNING,
+                session_state=SessionRuntimeState.RUNNING,
                 archived=True,
                 model_config_name="test-config-model",
                 model_thinking=llm_param.Thinking(reasoning_effort="high"),
             )
-            session.todos = [model.TodoItem(content="Task 1", status="pending")]
-            session.file_tracker = {"/path/to/file": model.FileStatus(mtime=1234567890.0)}
-            session.file_change_summary = model.FileChangeSummary(
+            session.todos = [TodoItem(content="Task 1", status="pending")]
+            session.file_tracker = {"/path/to/file": FileStatus(mtime=1234567890.0)}
+            session.file_change_summary = FileChangeSummary(
                 created_files=["/path/to/created"],
                 edited_files=["/path/to/edited"],
                 diff_lines_added=5,
@@ -179,7 +189,7 @@ class TestSessionPersistence:
             assert loaded.work_dir == project_dir
             assert loaded.title == "Persisted title"
             assert loaded.model_name == "test-model"
-            assert loaded.session_state == model.SessionRuntimeState.RUNNING
+            assert loaded.session_state == SessionRuntimeState.RUNNING
             assert loaded.archived is True
             assert loaded.model_config_name == "test-config-model"
             assert loaded.model_thinking is not None
@@ -202,7 +212,7 @@ class TestSessionPersistence:
 
         async def _test() -> None:
             session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config-model")
-            session.session_state = model.SessionRuntimeState.IDLE
+            session.session_state = SessionRuntimeState.IDLE
             session.append_history(
                 [
                     message.UserMessage(parts=message.text_parts_from_str("Hello")),
@@ -214,7 +224,7 @@ class TestSessionPersistence:
             meta = Session.load_meta(session.id, work_dir=project_dir)
             assert meta.id == session.id
             assert meta.model_name == "test-model"
-            assert meta.session_state == model.SessionRuntimeState.IDLE
+            assert meta.session_state == SessionRuntimeState.IDLE
             assert meta.archived is False
             assert meta.model_config_name == "test-config-model"
             assert len(meta.conversation_history) == 0
@@ -271,12 +281,12 @@ class TestSessionPersistence:
             )
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("Hello"))])
 
-            Session.persist_runtime_state(session.id, model.SessionRuntimeState.RUNNING, project_dir)
+            Session.persist_runtime_state(session.id, SessionRuntimeState.RUNNING, project_dir)
 
             await session.wait_for_flush()
 
             loaded = Session.load_meta(session.id, work_dir=project_dir)
-            assert loaded.session_state == model.SessionRuntimeState.RUNNING
+            assert loaded.session_state == SessionRuntimeState.RUNNING
             await close_default_store()
 
         arun(_test())
@@ -290,7 +300,7 @@ class TestSessionPersistence:
 
         async def _test() -> None:
             session = Session(work_dir=project_dir)
-            session.session_state = model.SessionRuntimeState.RUNNING
+            session.session_state = SessionRuntimeState.RUNNING
             meta_path = Session.paths(project_dir).meta_file(session.id)
             meta_path.parent.mkdir(parents=True, exist_ok=True)
             meta_path.write_text(
@@ -332,7 +342,7 @@ class TestSessionPersistence:
                     update_started.set()
 
                     def _update_runtime_state() -> None:
-                        Session.persist_runtime_state(session.id, model.SessionRuntimeState.IDLE, project_dir)
+                        Session.persist_runtime_state(session.id, SessionRuntimeState.IDLE, project_dir)
                         update_finished.set()
 
                     threading.Thread(target=_update_runtime_state, daemon=True).start()
@@ -348,7 +358,7 @@ class TestSessionPersistence:
             assert update_finished.wait(timeout=1.0)
 
             loaded = Session.load_meta(session.id, work_dir=project_dir)
-            assert loaded.session_state == model.SessionRuntimeState.IDLE
+            assert loaded.session_state == SessionRuntimeState.IDLE
             await close_default_store()
 
         arun(_test())
@@ -428,7 +438,7 @@ class TestSessionPersistence:
                         tool_name="Agent",
                         output_text="Delegated to sub-agent",
                         status="success",
-                        ui_extra=model.SessionIdUIExtra(session_id=sub_session.id),
+                        ui_extra=SessionIdUIExtra(session_id=sub_session.id),
                     ),
                 ]
             )
@@ -472,7 +482,7 @@ class TestSessionPersistence:
 
         async def _test() -> None:
             sub_session = Session.create(id="sub-session", work_dir=project_dir)
-            sub_session.sub_agent_state = model.SubAgentState(
+            sub_session.sub_agent_state = SubAgentState(
                 sub_agent_type="Task",
                 sub_agent_desc="sub",
                 sub_agent_prompt="do something",
@@ -498,16 +508,14 @@ class TestSessionPersistence:
         async def _test() -> None:
             # Create a sub-agent session with a completed task (has TaskMetadataItem)
             sub_session = Session.create(id="spawn-sub", work_dir=project_dir)
-            sub_session.sub_agent_state = model.SubAgentState(
+            sub_session.sub_agent_state = SubAgentState(
                 sub_agent_type="Finder", sub_agent_desc="search files", sub_agent_prompt="find foo"
             )
             sub_session.append_history(
                 [
                     message.UserMessage(parts=message.text_parts_from_str("find foo")),
                     message.AssistantMessage(parts=message.text_parts_from_str("found it")),
-                    model.TaskMetadataItem(
-                        main_agent=model.TaskMetadata(model_name="test", turn_count=1, task_duration_s=2.0)
-                    ),
+                    TaskMetadataItem(main_agent=TaskMetadata(model_name="test", turn_count=1, task_duration_s=2.0)),
                 ]
             )
             await sub_session.wait_for_flush()
@@ -556,7 +564,7 @@ class TestSessionPersistence:
         async def _test() -> None:
             # Sub-agent session is still running (no TaskMetadataItem)
             sub_session = Session.create(id="running-sub", work_dir=project_dir)
-            sub_session.sub_agent_state = model.SubAgentState(
+            sub_session.sub_agent_state = SubAgentState(
                 sub_agent_type="Task", sub_agent_desc="do stuff", sub_agent_prompt="work"
             )
             sub_session.append_history(
@@ -604,15 +612,13 @@ class TestSessionPersistence:
 
         async def _test() -> None:
             sub_session = Session.create(id="dedup-sub", work_dir=project_dir)
-            sub_session.sub_agent_state = model.SubAgentState(
+            sub_session.sub_agent_state = SubAgentState(
                 sub_agent_type="Task", sub_agent_desc="test", sub_agent_prompt="test"
             )
             sub_session.append_history(
                 [
                     message.AssistantMessage(parts=message.text_parts_from_str("done")),
-                    model.TaskMetadataItem(
-                        main_agent=model.TaskMetadata(model_name="test", turn_count=1, task_duration_s=1.0)
-                    ),
+                    TaskMetadataItem(main_agent=TaskMetadata(model_name="test", turn_count=1, task_duration_s=1.0)),
                 ]
             )
             await sub_session.wait_for_flush()
@@ -640,7 +646,7 @@ class TestSessionPersistence:
                         tool_name="Agent",
                         output_text="done",
                         status="success",
-                        ui_extra=model.SessionIdUIExtra(session_id=sub_session.id),
+                        ui_extra=SessionIdUIExtra(session_id=sub_session.id),
                     ),
                 ]
             )
@@ -724,7 +730,7 @@ class TestSessionPersistence:
                     message.AssistantMessage(
                         response_id="resp-1",
                         parts=message.text_parts_from_str("done"),
-                        usage=model.Usage(
+                        usage=Usage(
                             input_tokens=30_000,
                             cached_tokens=20_000,
                             output_tokens=12_000,
@@ -877,11 +883,11 @@ class TestForkSessionCommand:
 
             session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config")
             session.model_thinking = llm_param.Thinking(type="enabled", budget_tokens=123)
-            session.file_tracker["/path/to/file"] = model.FileStatus(mtime=time.time(), content_sha256="abc")
+            session.file_tracker["/path/to/file"] = FileStatus(mtime=time.time(), content_sha256="abc")
             session.file_change_summary.record_created("/path/to/created")
             session.file_change_summary.record_edited("/path/to/edited")
             session.file_change_summary.add_diff(added=4, removed=1)
-            session.todos.append(model.TodoItem(content="t1", status="pending"))
+            session.todos.append(TodoItem(content="t1", status="pending"))
             session.append_history(
                 [
                     message.UserMessage(parts=message.text_parts_from_str("Hello")),
@@ -1173,7 +1179,7 @@ class TestGetLlmHistoryDanglingToolCalls:
 
 
 class TestSessionMetaBrief:
-    """Tests for Session.SessionMetaBrief model."""
+    """Tests for Session.SessionMetaBrief"""
 
     def test_create_meta_brief(self):
         meta = Session.SessionMetaBrief(
@@ -1368,7 +1374,7 @@ class TestFindSessionsByPrefix:
             await main_session.wait_for_flush()
 
             sub_session = Session.create(id="abc_sub", work_dir=project_dir)
-            sub_session.sub_agent_state = model.SubAgentState(
+            sub_session.sub_agent_state = SubAgentState(
                 sub_agent_type="Task", sub_agent_desc="test", sub_agent_prompt="test"
             )
             sub_session.append_history([message.AssistantMessage(parts=message.text_parts_from_str("Done"))])
@@ -1449,9 +1455,7 @@ class TestShortestUniquePrefix:
             await main.wait_for_flush()
 
             sub = Session.create(id="abcd2222", work_dir=project_dir)
-            sub.sub_agent_state = model.SubAgentState(
-                sub_agent_type="Task", sub_agent_desc="test", sub_agent_prompt="test"
-            )
+            sub.sub_agent_state = SubAgentState(sub_agent_type="Task", sub_agent_desc="test", sub_agent_prompt="test")
             sub.append_history([message.AssistantMessage(parts=message.text_parts_from_str("Done"))])
             await sub.wait_for_flush()
 

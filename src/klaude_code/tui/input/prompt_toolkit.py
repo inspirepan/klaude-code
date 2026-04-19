@@ -57,7 +57,6 @@ INPUT_PROMPT_STYLE = "ansimagenta bold"
 INPUT_PROMPT_BASH_STYLE = "ansigreen"
 COMPLETION_TRUNCATION_SYMBOL = "…"
 
-
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
 
 

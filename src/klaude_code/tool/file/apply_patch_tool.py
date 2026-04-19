@@ -7,13 +7,24 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code.protocol import llm_param, message, model, tools
-from klaude_code.tool.context import FileTracker, ToolContext
+from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models import (
+    DiffFileDiff,
+    DiffUIExtra,
+    FileChangeSummary,
+    FileStatus,
+    MarkdownDocUIExtra,
+    MultiUIExtra,
+    MultiUIExtraItem,
+    ToolResultUIExtra,
+    ToolStatus,
+)
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.context import FileTracker, ToolContext
+from klaude_code.tool.core.registry import register
 from klaude_code.tool.file import apply_patch as apply_patch_module
 from klaude_code.tool.file._utils import hash_text_sha256
 from klaude_code.tool.file.diff_builder import build_structured_file_diff, build_unified_diff_text
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
 
 
 class ApplyPatchHandler:
@@ -41,9 +52,9 @@ class ApplyPatchHandler:
     def _apply_patch_in_thread(
         patch_text: str,
         file_tracker: FileTracker,
-        file_change_summary: model.FileChangeSummary | None,
+        file_change_summary: FileChangeSummary | None,
         work_dir: Path,
-    ) -> tuple[model.ToolStatus, str, model.ToolResultUIExtra | None]:
+    ) -> tuple[ToolStatus, str, ToolResultUIExtra | None]:
         ap = apply_patch_module
         normalized_start = patch_text.lstrip()
         if not normalized_start.startswith("*** Begin Patch"):
@@ -97,11 +108,11 @@ class ApplyPatchHandler:
                 )
                 file_change_summary.add_diff(added=file_diff.stats_add, removed=file_diff.stats_remove, path=resolved)
 
-        md_items: list[model.MarkdownDocUIExtra] = []
+        md_items: list[MarkdownDocUIExtra] = []
         for change_path, change in landed_changes:
             if change.type == apply_patch_module.ActionType.ADD and change_path.endswith(".md"):
                 md_items.append(
-                    model.MarkdownDocUIExtra(
+                    MarkdownDocUIExtra(
                         file_path=resolve_path(change_path),
                         content=change.new_content or "",
                     )
@@ -122,7 +133,7 @@ class ApplyPatchHandler:
                 is_mem = existing.is_memory if existing else False
                 is_skill = existing.is_skill if existing else False
                 is_dir = existing.is_directory if existing else False
-                file_tracker[resolved] = model.FileStatus(
+                file_tracker[resolved] = FileStatus(
                     mtime=Path(resolved).stat().st_mtime,
                     content_sha256=hash_text_sha256(content),
                     cached_content=content,
@@ -149,19 +160,19 @@ class ApplyPatchHandler:
         # apply_patch can include multiple operations. If we added markdown files,
         # return a MultiUIExtra so UI can render markdown previews (without showing a diff for those markdown adds).
         if md_items:
-            items: list[model.MultiUIExtraItem] = []
+            items: list[MultiUIExtraItem] = []
             items.extend(md_items)
             if diff_ui.files:
                 items.append(diff_ui)
-            return "success", output_text, model.MultiUIExtra(items=items)
+            return "success", output_text, MultiUIExtra(items=items)
 
         return "success", output_text, diff_ui if diff_ui.files else None
 
     @staticmethod
     def _changes_to_structured_diff(
         changes: list[tuple[str, apply_patch_module.FileChange]],
-    ) -> model.DiffUIExtra:
-        files: list[model.DiffFileDiff] = []
+    ) -> DiffUIExtra:
+        files: list[DiffFileDiff] = []
         raw_chunks: list[str] = []
         for path, change in changes:
             if change.type == apply_patch_module.ActionType.ADD:
@@ -195,7 +206,7 @@ class ApplyPatchHandler:
                     raw_chunks.append(raw)
 
         raw_unified_diff = "\n".join(raw_chunks) if raw_chunks else ""
-        return model.DiffUIExtra(files=files, raw_unified_diff=raw_unified_diff)
+        return DiffUIExtra(files=files, raw_unified_diff=raw_unified_diff)
 
 
 @register(tools.APPLY_PATCH)

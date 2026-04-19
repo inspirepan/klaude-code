@@ -5,7 +5,7 @@ from enum import Enum
 from pathlib import Path
 
 from klaude_code.protocol import llm_param, message
-from klaude_code.tool.context import ToolContext
+from klaude_code.tool.core.context import ToolContext
 
 
 def load_desc(path: Path, substitutions: dict[str, str] | None = None) -> str:

@@ -5,7 +5,8 @@ import io
 
 from rich.console import Console
 
-from klaude_code.protocol import events, message, model, tools
+from klaude_code.protocol import events, message, tools
+from klaude_code.protocol.models import DeveloperUIExtra, SkillActivatedUIItem, SubAgentState
 from klaude_code.tui.commands import (
     FlushOpenBlocks,
     PrintBlankLine,
@@ -108,7 +109,7 @@ def test_developer_messages_stay_grouped_until_turn_boundary() -> None:
                         session_id=session_id,
                         item=message.DeveloperMessage(
                             parts=[],
-                            ui_extra=model.DeveloperUIExtra(items=[model.SkillActivatedUIItem(name="commit")]),
+                            ui_extra=DeveloperUIExtra(items=[SkillActivatedUIItem(name="commit")]),
                         ),
                     )
                 ),
@@ -117,7 +118,7 @@ def test_developer_messages_stay_grouped_until_turn_boundary() -> None:
                         session_id=session_id,
                         item=message.DeveloperMessage(
                             parts=[],
-                            ui_extra=model.DeveloperUIExtra(items=[model.SkillActivatedUIItem(name="submit-pr")]),
+                            ui_extra=DeveloperUIExtra(items=[SkillActivatedUIItem(name="submit-pr")]),
                         ),
                     )
                 ),
@@ -201,7 +202,7 @@ def test_sub_agent_call_prompt_renders_as_markdown() -> None:
 
     renderer.console.print(
         render_sub_agent_call(
-            model.SubAgentState(
+            SubAgentState(
                 sub_agent_type="finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="## Plan\n\n- item",

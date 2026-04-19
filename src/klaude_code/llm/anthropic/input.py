@@ -17,7 +17,6 @@ from anthropic.types.beta.beta_tool_result_block_param import BetaToolResultBloc
 from anthropic.types.beta.beta_tool_use_block_param import BetaToolUseBlockParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
-from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.llm.image import (
     MAX_IMAGE_DIMENSION,
     image_file_to_data_url,
@@ -31,6 +30,7 @@ from klaude_code.llm.input_common import (
     merge_attachment_text,
     split_thinking_parts,
 )
+from klaude_code.prompts.messages import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import model_supports_eager_input_streaming, model_supports_unsigned_thinking
 from klaude_code.protocol.system_prompt import SYSTEM_PROMPT_DYNAMIC_BOUNDARY, split_system_prompt_for_cache
@@ -42,7 +42,6 @@ _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
     "image/gif",
     "image/webp",
 )
-
 
 _MANY_IMAGE_DIMENSION = 2000
 _MANY_IMAGE_THRESHOLD = 2

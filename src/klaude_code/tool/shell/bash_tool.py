@@ -12,11 +12,12 @@ from typing import Any
 from pydantic import BaseModel
 
 from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS, BASH_TERMINATE_TIMEOUT_SEC
-from klaude_code.protocol import llm_param, message, model, tools
-from klaude_code.tool.context import ToolContext
+from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models import FileStatus
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.registry import register
 from klaude_code.tool.shell.command_safety import is_safe_command
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
 
 # Regex to strip ANSI and terminal control sequences from command output
 #
@@ -174,7 +175,7 @@ class BashTool(ToolABC):
                 is_skill = existing.is_skill if existing else False
                 is_dir = existing.is_directory if existing else False
                 with contextlib.suppress(Exception):
-                    file_tracker[abs_path] = model.FileStatus(
+                    file_tracker[abs_path] = FileStatus(
                         mtime=Path(abs_path).stat().st_mtime,
                         content_sha256=sha,
                         is_memory=is_mem,
@@ -208,7 +209,7 @@ class BashTool(ToolABC):
                 if sha is None:
                     continue
                 with contextlib.suppress(Exception):
-                    file_tracker[abs_new] = model.FileStatus(
+                    file_tracker[abs_new] = FileStatus(
                         mtime=Path(abs_new).stat().st_mtime,
                         content_sha256=sha,
                         is_memory=is_mem,

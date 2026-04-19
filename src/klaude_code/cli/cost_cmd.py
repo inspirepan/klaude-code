@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.table import Table
 
 from klaude_code.agent.session_stats import format_cost, format_tokens
-from klaude_code.protocol import model
+from klaude_code.protocol.models import TaskMetadata, TaskMetadataItem, Usage
 from klaude_code.session.codec import decode_jsonl_line
 
 ASCII_HORIZONAL = Box(" -- \n    \n -- \n    \n -- \n -- \n    \n -- \n")
@@ -26,7 +26,7 @@ SPLIT_SUB_PROVIDER = False
 
 @dataclass
 class ModelUsageStats:
-    """Aggregated usage stats for a single model."""
+    """Aggregated usage stats for a single"""
 
     model_name: str
     provider: str = ""
@@ -50,7 +50,7 @@ class ModelUsageStats:
 
         return max(0, self.input_tokens - self.cached_tokens)
 
-    def add_usage(self, usage: model.Usage) -> None:
+    def add_usage(self, usage: Usage) -> None:
         self.input_tokens += usage.input_tokens
         self.output_tokens += usage.output_tokens
         self.cached_tokens += usage.cached_tokens
@@ -177,7 +177,7 @@ class DailyStats:
     date: str
     by_model: dict[ModelKey, ModelUsageStats] = field(default_factory=lambda: dict[ModelKey, ModelUsageStats]())
 
-    def add_task_metadata(self, meta: model.TaskMetadata, date_str: str) -> None:
+    def add_task_metadata(self, meta: TaskMetadata, date_str: str) -> None:
         """Add a TaskMetadata to this day's stats."""
         del date_str  # unused, date is already set
         if not meta.usage or not meta.model_name:
@@ -327,7 +327,7 @@ def iter_all_sessions() -> Iterator[tuple[str, Path]]:
                         yield session_dir.name, events_file
 
 
-def iter_task_metadata_from_events(events_path: Path) -> Iterator[tuple[str, model.TaskMetadataItem]]:
+def iter_task_metadata_from_events(events_path: Path) -> Iterator[tuple[str, TaskMetadataItem]]:
     """Extract TaskMetadataItem entries from events.jsonl with their dates.
 
     Yields (date_str, TaskMetadataItem) tuples.
@@ -342,7 +342,7 @@ def iter_task_metadata_from_events(events_path: Path) -> Iterator[tuple[str, mod
                     item = decode_jsonl_line(line)
                 except pydantic.ValidationError:
                     continue
-                if isinstance(item, model.TaskMetadataItem):
+                if isinstance(item, TaskMetadataItem):
                     date_str = item.created_at.strftime("%Y-%m-%d")
                     yield date_str, item
     except OSError:

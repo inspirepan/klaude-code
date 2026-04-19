@@ -7,16 +7,17 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+from klaude_code.protocol.models import DiffUIExtra
+
 # Ensure imports from src/
 ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from klaude_code.protocol.model import DiffUIExtra  # noqa: E402
 from klaude_code.session.session import Session  # noqa: E402
 from klaude_code.tool import ApplyPatchTool  # noqa: E402
-from klaude_code.tool.context import ToolContext, build_todo_context  # noqa: E402
+from klaude_code.tool.core.context import ToolContext, build_todo_context  # noqa: E402
 
 
 def arun(coro: Any) -> Any:

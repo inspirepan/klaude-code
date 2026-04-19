@@ -2,13 +2,14 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code.protocol import llm_param, message, model, tools
-from klaude_code.tool.context import ToolContext
-from klaude_code.tool.tool_abc import ToolABC, load_desc
-from klaude_code.tool.tool_registry import register
+from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models import TodoItem, TodoListUIExtra, TodoUIExtra, ToolSideEffect, todo_list_str
+from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.registry import register
 
 
-def get_new_completed_todos(old_todos: list[model.TodoItem], new_todos: list[model.TodoItem]) -> list[str]:
+def get_new_completed_todos(old_todos: list[TodoItem], new_todos: list[TodoItem]) -> list[str]:
     """
     Compare old and new todo lists to find newly completed todos.
 
@@ -39,7 +40,7 @@ def get_new_completed_todos(old_todos: list[model.TodoItem], new_todos: list[mod
 
 
 class TodoWriteArguments(BaseModel):
-    todos: list[model.TodoItem]
+    todos: list[TodoItem]
 
 
 @register(tools.TODO_WRITE)
@@ -96,14 +97,14 @@ class TodoWriteTool(ToolABC):
         # Store todos via todo context
         todo_context.set_todos(args.todos)
 
-        ui_extra = model.TodoUIExtra(todos=args.todos, new_completed=new_completed)
+        ui_extra = TodoUIExtra(todos=args.todos, new_completed=new_completed)
 
         response = f"""Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
 
 <system-reminder>
 Your todo list has changed. DO NOT mention this explicitly to the user. Here are the latest contents of your todo list:
 
-{model.todo_list_str(args.todos)}
+{todo_list_str(args.todos)}
 
 Continue on with the tasks at hand if applicable.
 </system-reminder>"""
@@ -111,6 +112,6 @@ Continue on with the tasks at hand if applicable.
         return message.ToolResultMessage(
             status="success",
             output_text=response,
-            ui_extra=model.TodoListUIExtra(todo_list=ui_extra),
-            side_effects=[model.ToolSideEffect.TODO_CHANGE],
+            ui_extra=TodoListUIExtra(todo_list=ui_extra),
+            side_effects=[ToolSideEffect.TODO_CHANGE],
         )

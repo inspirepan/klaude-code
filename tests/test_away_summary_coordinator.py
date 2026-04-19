@@ -5,8 +5,8 @@ from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
 
-from klaude_code.agent.runtime_agent_ops import _has_summary_since_last_user_turn  # pyright: ignore[reportPrivateUsage]
-from klaude_code.agent.runtime_away_summary import AwaySummaryCoordinator
+from klaude_code.agent.runtime.agent_ops import _has_summary_since_last_user_turn  # pyright: ignore[reportPrivateUsage]
+from klaude_code.agent.runtime.away_summary import AwaySummaryCoordinator
 from klaude_code.protocol import events, message, op
 from klaude_code.session.session import Session
 
