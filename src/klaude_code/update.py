@@ -6,9 +6,12 @@ and terminal UI without introducing cross-layer imports.
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -21,6 +24,7 @@ PACKAGE_NAME = "klaude-code"
 PYPI_URL = f"https://pypi.org/pypi/{PACKAGE_NAME}/json"
 CHECK_INTERVAL_SECONDS = 3600  # Check at most once per hour
 UPDATE_STATE_FILE = "update_state.json"
+AUTO_UPGRADE_DONE_ENV = "KLAUDE_AUTO_UPGRADE_DONE"
 
 INSTALL_KIND_UNKNOWN = "unknown"
 INSTALL_KIND_INDEX = "index"
@@ -371,3 +375,171 @@ def get_startup_update_summary() -> StartupUpdateSummary | None:
     if message is None:
         return None
     return StartupUpdateSummary(message=message, level="warn")
+
+
+class AutoUpgradeResult(NamedTuple):
+    performed: bool
+    new_version: str | None
+    message: str | None
+    level: Literal["info", "warn"] = "info"
+
+
+def _invalidate_persisted_update_info() -> None:
+    path = _get_update_state_path()
+    if path.exists():
+        with contextlib.suppress(OSError):
+            path.unlink()
+
+
+AUTO_UPGRADE_PYPI_TIMEOUT = 180  # uv tool upgrade, includes solve+download
+AUTO_UPGRADE_GIT_STATUS_TIMEOUT = 15
+AUTO_UPGRADE_GIT_PULL_TIMEOUT = 60
+AUTO_UPGRADE_UV_INSTALL_TIMEOUT = 180
+
+
+def _auto_upgrade_pypi() -> AutoUpgradeResult:
+    if shutil.which("uv") is None:
+        return AutoUpgradeResult(False, None, "auto-upgrade skipped: `uv` not found in PATH", "warn")
+    try:
+        result = subprocess.run(
+            ["uv", "tool", "upgrade", PACKAGE_NAME],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=AUTO_UPGRADE_PYPI_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return AutoUpgradeResult(
+            False, None, f"auto-upgrade skipped: `uv tool upgrade` timed out after {AUTO_UPGRADE_PYPI_TIMEOUT}s", "warn"
+        )
+    except OSError as err:
+        return AutoUpgradeResult(False, None, f"auto-upgrade failed: {err}", "warn")
+    if result.returncode != 0:
+        return AutoUpgradeResult(
+            False, None, f"auto-upgrade failed (uv tool upgrade exit {result.returncode})", "warn"
+        )
+    return AutoUpgradeResult(True, None, None)
+
+
+def _auto_upgrade_local_git(install_kind: str, source_path: str) -> AutoUpgradeResult:
+    repo_path = Path(source_path).expanduser()
+    if not repo_path.exists() or not repo_path.is_dir():
+        return AutoUpgradeResult(
+            False, None, f"auto-upgrade skipped: local source path unavailable: {source_path}", "warn"
+        )
+    if shutil.which("uv") is None:
+        return AutoUpgradeResult(False, None, "auto-upgrade skipped: `uv` not found in PATH", "warn")
+    if shutil.which("git") is None:
+        return AutoUpgradeResult(False, None, "auto-upgrade skipped: `git` not found in PATH", "warn")
+
+    source_display = str(repo_path)
+    try:
+        status = subprocess.run(
+            ["git", "-C", source_display, "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=AUTO_UPGRADE_GIT_STATUS_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return AutoUpgradeResult(
+            False, None, f"auto-upgrade skipped: `git status` timed out at {source_display}", "warn"
+        )
+    if status.returncode != 0:
+        return AutoUpgradeResult(
+            False, None, f"auto-upgrade skipped: not a git repo at {source_display}", "warn"
+        )
+    if status.stdout.strip():
+        return AutoUpgradeResult(
+            False,
+            None,
+            f"auto-upgrade skipped: local checkout has uncommitted changes at {source_display}",
+            "info",
+        )
+
+    try:
+        pull = subprocess.run(
+            ["git", "-C", source_display, "pull", "--ff-only"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=AUTO_UPGRADE_GIT_PULL_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return AutoUpgradeResult(
+            False, None, f"auto-upgrade skipped: `git pull --ff-only` timed out at {source_display}", "warn"
+        )
+    if pull.returncode != 0:
+        return AutoUpgradeResult(
+            False, None, f"auto-upgrade skipped: `git pull --ff-only` failed at {source_display}", "warn"
+        )
+
+    install_args = ["uv", "tool", "install", "--force"]
+    if install_kind == INSTALL_KIND_EDITABLE:
+        install_args.append("--editable")
+    install_args.append(source_display)
+    try:
+        install = subprocess.run(
+            install_args, capture_output=True, text=True, check=False, timeout=AUTO_UPGRADE_UV_INSTALL_TIMEOUT
+        )
+    except subprocess.TimeoutExpired:
+        return AutoUpgradeResult(
+            False, None, f"auto-upgrade skipped: `uv tool install` timed out after {AUTO_UPGRADE_UV_INSTALL_TIMEOUT}s", "warn"
+        )
+    if install.returncode != 0:
+        return AutoUpgradeResult(
+            False, None, f"auto-upgrade failed: reinstall exit {install.returncode}", "warn"
+        )
+    return AutoUpgradeResult(True, None, None)
+
+
+def perform_auto_upgrade_if_needed() -> AutoUpgradeResult:
+    """Attempt to upgrade the current installation in place.
+
+    The caller should re-exec the process when ``performed`` is True.
+    """
+
+    # Prevent recursion after we re-exec post-upgrade.
+    if os.environ.get(AUTO_UPGRADE_DONE_ENV) == "1":
+        return AutoUpgradeResult(False, None, None)
+
+    persisted = _load_persisted_update_info()
+    if persisted is None or not persisted.update_available or not persisted.latest:
+        return AutoUpgradeResult(False, None, None)
+
+    # Resolve install metadata from the current process, not the cache, so an
+    # out-of-band install-method change does not steer us to the wrong branch.
+    install_info = get_installation_info()
+    current_version = install_info.version
+    if current_version and not _compare_versions(current_version, persisted.latest):
+        return AutoUpgradeResult(False, None, None)
+
+    install_kind = install_info.install_kind
+    if install_kind == INSTALL_KIND_INDEX:
+        result = _auto_upgrade_pypi()
+    elif install_kind in {INSTALL_KIND_LOCAL, INSTALL_KIND_EDITABLE}:
+        source_path = get_install_source_path()
+        if source_path is None:
+            return AutoUpgradeResult(
+                False, None, "auto-upgrade skipped: local install source path unavailable", "warn"
+            )
+        result = _auto_upgrade_local_git(install_kind, source_path)
+    else:
+        # direct_url or unknown: no safe automatic path
+        return AutoUpgradeResult(False, None, None)
+
+    if result.performed:
+        _invalidate_persisted_update_info()
+        return AutoUpgradeResult(True, persisted.latest, f"Auto-upgraded klaude-code to {persisted.latest}.", "info")
+    return result
+
+
+def reexec_after_auto_upgrade() -> None:
+    """Replace the current process with a fresh invocation using the upgraded install.
+
+    Sets ``KLAUDE_AUTO_UPGRADE_DONE=1`` so the new process does not attempt another upgrade.
+    """
+
+    os.environ[AUTO_UPGRADE_DONE_ENV] = "1"
+    executable = shutil.which("klaude") or sys.argv[0]
+    os.execvp(executable, [executable, *sys.argv[1:]])

@@ -246,6 +246,7 @@ class UserConfig(BaseModel):
     compact_model: str | list[str] | None = None
     sub_agent_models: dict[str, ModelPreference] = Field(default_factory=dict)
     theme: str | None = None
+    auto_upgrade: bool | None = None
     provider_list: list[UserProviderConfig] = Field(default_factory=lambda: [])
 
     @model_validator(mode="before")
@@ -280,6 +281,7 @@ class Config(BaseModel):
     compact_model: str | list[str] | None = None
     sub_agent_models: dict[str, ModelPreference] = Field(default_factory=dict)
     theme: str | None = None
+    auto_upgrade: bool = True
     provider_list: list[ProviderConfig] = Field(default_factory=lambda: [])
 
     # Internal: reference to original user config for saving
@@ -504,6 +506,7 @@ class Config(BaseModel):
         user_config.fast_model = self.fast_model if self.fast_model != builtin.fast_model else None
         user_config.compact_model = self.compact_model if self.compact_model != builtin.compact_model else None
         user_config.theme = self.theme if self.theme != builtin.theme else None
+        user_config.auto_upgrade = self.auto_upgrade if self.auto_upgrade != builtin.auto_upgrade else None
 
         # For sub_agent_models, only save entries that differ from builtin
         user_sub_agent_models: dict[str, ModelPreference] = {}
