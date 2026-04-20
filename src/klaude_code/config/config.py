@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from klaude_code.auth.env import get_auth_env
 from klaude_code.config.builtin_config import get_builtin_config
@@ -99,7 +99,7 @@ example_config_path = Path.home() / ".klaude" / "klaude-config.example.yaml"
 class ModelConfig(llm_param.LLMConfigModelParameter):
     """Model configuration that flattens LLMConfigModelParameter fields."""
 
-    model_name: str
+    model_name: str = ""
 
     @model_validator(mode="before")
     @classmethod
@@ -107,6 +107,13 @@ class ModelConfig(llm_param.LLMConfigModelParameter):
         if not data.get("model_name") and data.get("model_id"):
             data["model_name"] = data["model_id"]
         return data
+
+    @field_validator("model_name")
+    @classmethod
+    def _validate_model_name(cls, v: str) -> str:
+        if not v:
+            raise ValueError("model_name or model_id must be provided")
+        return v
 
 
 class ProviderConfig(llm_param.LLMConfigProviderParameter):

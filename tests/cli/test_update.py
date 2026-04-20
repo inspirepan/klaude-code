@@ -113,9 +113,7 @@ def test_get_startup_update_summary_refreshes_stale_state_in_background(
     assert started["value"] is True
 
 
-def test_perform_auto_upgrade_if_needed_runs_pypi_upgrade(
-    monkeypatch: pytest.MonkeyPatch, isolated_home: Path
-) -> None:
+def test_perform_auto_upgrade_if_needed_runs_pypi_upgrade(monkeypatch: pytest.MonkeyPatch, isolated_home: Path) -> None:
     del isolated_home
 
     monkeypatch.delenv(update.AUTO_UPGRADE_DONE_ENV, raising=False)
@@ -175,9 +173,7 @@ def test_perform_auto_upgrade_if_needed_skips_when_already_current(
     assert result.performed is False
 
 
-def test_perform_auto_upgrade_if_needed_respects_done_env(
-    monkeypatch: pytest.MonkeyPatch, isolated_home: Path
-) -> None:
+def test_perform_auto_upgrade_if_needed_respects_done_env(monkeypatch: pytest.MonkeyPatch, isolated_home: Path) -> None:
     del isolated_home
 
     monkeypatch.setenv(update.AUTO_UPGRADE_DONE_ENV, "1")

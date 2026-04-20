@@ -415,9 +415,7 @@ def _auto_upgrade_pypi() -> AutoUpgradeResult:
     except OSError as err:
         return AutoUpgradeResult(False, None, f"auto-upgrade failed: {err}", "warn")
     if result.returncode != 0:
-        return AutoUpgradeResult(
-            False, None, f"auto-upgrade failed (uv tool upgrade exit {result.returncode})", "warn"
-        )
+        return AutoUpgradeResult(False, None, f"auto-upgrade failed (uv tool upgrade exit {result.returncode})", "warn")
     return AutoUpgradeResult(True, None, None)
 
 
@@ -446,9 +444,7 @@ def _auto_upgrade_local_git(install_kind: str, source_path: str) -> AutoUpgradeR
             False, None, f"auto-upgrade skipped: `git status` timed out at {source_display}", "warn"
         )
     if status.returncode != 0:
-        return AutoUpgradeResult(
-            False, None, f"auto-upgrade skipped: not a git repo at {source_display}", "warn"
-        )
+        return AutoUpgradeResult(False, None, f"auto-upgrade skipped: not a git repo at {source_display}", "warn")
     if status.stdout.strip():
         return AutoUpgradeResult(
             False,
@@ -484,12 +480,13 @@ def _auto_upgrade_local_git(install_kind: str, source_path: str) -> AutoUpgradeR
         )
     except subprocess.TimeoutExpired:
         return AutoUpgradeResult(
-            False, None, f"auto-upgrade skipped: `uv tool install` timed out after {AUTO_UPGRADE_UV_INSTALL_TIMEOUT}s", "warn"
+            False,
+            None,
+            f"auto-upgrade skipped: `uv tool install` timed out after {AUTO_UPGRADE_UV_INSTALL_TIMEOUT}s",
+            "warn",
         )
     if install.returncode != 0:
-        return AutoUpgradeResult(
-            False, None, f"auto-upgrade failed: reinstall exit {install.returncode}", "warn"
-        )
+        return AutoUpgradeResult(False, None, f"auto-upgrade failed: reinstall exit {install.returncode}", "warn")
     return AutoUpgradeResult(True, None, None)
 
 
@@ -520,9 +517,7 @@ def perform_auto_upgrade_if_needed() -> AutoUpgradeResult:
     elif install_kind in {INSTALL_KIND_LOCAL, INSTALL_KIND_EDITABLE}:
         source_path = get_install_source_path()
         if source_path is None:
-            return AutoUpgradeResult(
-                False, None, "auto-upgrade skipped: local install source path unavailable", "warn"
-            )
+            return AutoUpgradeResult(False, None, "auto-upgrade skipped: local install source path unavailable", "warn")
         result = _auto_upgrade_local_git(install_kind, source_path)
     else:
         # direct_url or unknown: no safe automatic path
