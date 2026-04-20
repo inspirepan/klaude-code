@@ -1,14 +1,11 @@
 """Tests for the config module."""
 
 import asyncio
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
-
-from klaude_code.protocol import llm_param
 
 import klaude_code.config.config as _config_module
 from klaude_code.config.config import (
@@ -22,6 +19,7 @@ from klaude_code.config.config import (
 )
 from klaude_code.config.loader import load_config
 from klaude_code.config.merge import merge_configs
+from klaude_code.protocol import llm_param
 
 
 def _auth_env_none(_key: str) -> str | None:

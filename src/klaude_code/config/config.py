@@ -535,6 +535,3 @@ class Config(BaseModel):
             config_path.write_text(yaml_content or "")
 
         await asyncio.to_thread(_save_config)
-
-
-
