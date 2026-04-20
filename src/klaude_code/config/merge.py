@@ -124,6 +124,9 @@ def merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Con
         compact_model=user_config.compact_model or builtin_config.compact_model,
         sub_agent_models=merged_sub_agent_models,
         theme=user_config.theme or builtin_config.theme,
+        auto_upgrade=(
+            user_config.auto_upgrade if user_config.auto_upgrade is not None else builtin_config.auto_upgrade
+        ),
         provider_list=revalidated_providers,
     )
     # Keep reference to user config for saving

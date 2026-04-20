@@ -106,22 +106,28 @@ def _load_config_cached() -> _schema.Config:
     return _load_config_uncached()
 
 
-def load_config() -> _schema.Config:
-    """Load config from disk (builtin + user merged).
+class _LoadConfig:
+    """Callable wrapper for load_config that exposes cache_clear."""
 
-    Always returns a valid Config. Use
-    ``config.iter_model_entries(only_available=True, include_disabled=False)``
-    to check if any models are actually usable.
-    """
-    try:
-        return _load_config_cached()
-    except ValueError:
+    def __call__(self) -> _schema.Config:
+        """Load config from disk (builtin + user merged).
+
+        Always returns a valid Config. Use
+        ``config.iter_model_entries(only_available=True, include_disabled=False)``
+        to check if any models are actually usable.
+        """
+        try:
+            return _load_config_cached()
+        except ValueError:
+            _load_config_cached.cache_clear()
+            raise
+
+    def cache_clear(self) -> None:
+        """Clear the config cache, forcing a fresh load on next call."""
         _load_config_cached.cache_clear()
-        raise
 
 
-# Expose cache control for tests and callers that need to invalidate the cache.
-load_config.cache_clear = _load_config_cached.cache_clear  # type: ignore[attr-defined]
+load_config = _LoadConfig()
 
 
 def print_no_available_models_hint() -> None:

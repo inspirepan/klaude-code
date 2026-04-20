@@ -143,6 +143,36 @@ def run_web_server_command(*, host: str, port: int, no_open: bool, debug: bool) 
     _run_web_server_command(host=host, port=port, no_open=no_open, debug=debug)
 
 
+def _maybe_auto_upgrade_and_reexec() -> None:
+    """Perform an in-place upgrade before entering the interactive loop.
+
+    Controlled by ``Config.auto_upgrade`` (default True). Only runs when the
+    persisted update state indicates a newer release is available. Re-executes
+    the current process on success so the new version is loaded.
+    """
+
+    try:
+        from klaude_code.config import load_config
+    except Exception:
+        return
+
+    try:
+        cfg = load_config()
+        if not cfg.auto_upgrade:
+            return
+    except Exception:
+        return
+
+    from klaude_code.log import log
+    from klaude_code.update import perform_auto_upgrade_if_needed, reexec_after_auto_upgrade
+
+    result = perform_auto_upgrade_if_needed()
+    if result.message:
+        log((result.message, "yellow" if result.level == "warn" else "cyan"))
+    if result.performed:
+        reexec_after_auto_upgrade()
+
+
 app = typer.Typer(
     cls=_PreprocessingTyperGroup,
     add_completion=False,
@@ -276,6 +306,8 @@ def main_callback(
             log(("Error: interactive mode requires a TTY", "red"))
             log(("Hint: run klaude from an interactive terminal", "yellow"))
             raise typer.Exit(2)
+
+        _maybe_auto_upgrade_and_reexec()
 
         from klaude_code.app.runtime import AppInitConfig
         from klaude_code.tui.command.model_picker import ModelSelectStatus, select_model_interactive

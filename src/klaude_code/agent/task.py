@@ -20,11 +20,13 @@ from klaude_code.agent.rewind import RewindManager
 from klaude_code.agent.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.const import (
     INITIAL_RETRY_DELAY_S,
+    MAX_EMPTY_RESPONSE_RETRIES,
     MAX_FAILED_TURN_RETRIES,
     MAX_RETRY_DELAY_S,
 )
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
+from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT
 from klaude_code.protocol import events, message, tools, user_interaction
 from klaude_code.protocol.models import (
     FileChangeSummary,
@@ -352,6 +354,7 @@ class TaskExecutor:
             self._rewind_manager.register_checkpoint(checkpoint_id, user_msg)
 
         skip_threshold_compaction = False
+        empty_response_retries = 0
 
         while True:
             # Process attachments in parallel with error isolation
@@ -704,15 +707,28 @@ class TaskExecutor:
                         return
 
             if turn is None or turn.task_finished:
-                # Empty result should retry only for sub-agents
-                if turn is not None and not turn.task_result.strip() and ctx.sub_agent_state is not None:
-                    yield events.ErrorEvent(
-                        error_message="Sub-agent returned empty result, retrying…",
-                        can_retry=True,
-                        session_id=session_ctx.session_id,
+                # Empty response (no text, no tool calls): often caused by transient
+                # provider issues returning an empty stream. Inject a continuation
+                # prompt so the model can resume or explicitly signal completion
+                # with `[DONE]`, rather than silently ending the task.
+                if (
+                    turn is not None
+                    and turn.continue_agent
+                    and not turn.task_result.strip()
+                    and empty_response_retries < MAX_EMPTY_RESPONSE_RETRIES
+                ):
+                    empty_response_retries += 1
+                    log_debug(
+                        "[EmptyResponse] injecting continuation prompt",
+                        f"attempt {empty_response_retries}/{MAX_EMPTY_RESPONSE_RETRIES}",
+                        debug_type=DebugType.RESPONSE,
+                    )
+                    session_ctx.append_history(
+                        [message.UserMessage(parts=[message.TextPart(text=EMPTY_RESPONSE_CONTINUATION_PROMPT)])]
                     )
                     continue
                 break
+            empty_response_retries = 0
 
         # Finalize metadata
         task_duration_s = time.perf_counter() - self._started_at

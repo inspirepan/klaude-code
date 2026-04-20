@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from klaude_code.auth.env import get_auth_env
 from klaude_code.config.builtin_config import get_builtin_config
@@ -99,7 +99,7 @@ example_config_path = Path.home() / ".klaude" / "klaude-config.example.yaml"
 class ModelConfig(llm_param.LLMConfigModelParameter):
     """Model configuration that flattens LLMConfigModelParameter fields."""
 
-    model_name: str
+    model_name: str = Field(default="", validate_default=True)
 
     @model_validator(mode="before")
     @classmethod
@@ -107,6 +107,13 @@ class ModelConfig(llm_param.LLMConfigModelParameter):
         if not data.get("model_name") and data.get("model_id"):
             data["model_name"] = data["model_id"]
         return data
+
+    @field_validator("model_name")
+    @classmethod
+    def _validate_model_name(cls, v: str) -> str:
+        if not v:
+            raise ValueError("model_name or model_id must be provided")
+        return v
 
 
 class ProviderConfig(llm_param.LLMConfigProviderParameter):
@@ -246,6 +253,7 @@ class UserConfig(BaseModel):
     compact_model: str | list[str] | None = None
     sub_agent_models: dict[str, ModelPreference] = Field(default_factory=dict)
     theme: str | None = None
+    auto_upgrade: bool | None = None
     provider_list: list[UserProviderConfig] = Field(default_factory=lambda: [])
 
     @model_validator(mode="before")
@@ -280,6 +288,7 @@ class Config(BaseModel):
     compact_model: str | list[str] | None = None
     sub_agent_models: dict[str, ModelPreference] = Field(default_factory=dict)
     theme: str | None = None
+    auto_upgrade: bool = True
     provider_list: list[ProviderConfig] = Field(default_factory=lambda: [])
 
     # Internal: reference to original user config for saving
@@ -504,6 +513,7 @@ class Config(BaseModel):
         user_config.fast_model = self.fast_model if self.fast_model != builtin.fast_model else None
         user_config.compact_model = self.compact_model if self.compact_model != builtin.compact_model else None
         user_config.theme = self.theme if self.theme != builtin.theme else None
+        user_config.auto_upgrade = self.auto_upgrade if self.auto_upgrade != builtin.auto_upgrade else None
 
         # For sub_agent_models, only save entries that differ from builtin
         user_sub_agent_models: dict[str, ModelPreference] = {}
@@ -535,6 +545,3 @@ class Config(BaseModel):
             config_path.write_text(yaml_content or "")
 
         await asyncio.to_thread(_save_config)
-
-
-

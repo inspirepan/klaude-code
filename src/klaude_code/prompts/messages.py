@@ -27,3 +27,12 @@ REWIND_REMINDER_TEMPLATE = (
     "refined via Rewind. Rationale: {rationale}. Summary: {note}. "
     "Please continue.</system-reminder>"
 )
+
+# Empty LLM response recovery
+# Injected as a user message when the model returns an empty turn (no text and no
+# tool calls), usually caused by transient provider availability issues. The empty
+# turn is not persisted to history, so the model has no visible trace of it -- the
+# prompt is phrased as a direct instruction rather than a reference to prior state.
+EMPTY_RESPONSE_CONTINUATION_PROMPT = (
+    "Please continue. If the task is already complete and there is nothing more to do, reply with exactly `[DONE]`."
+)
