@@ -99,7 +99,7 @@ example_config_path = Path.home() / ".klaude" / "klaude-config.example.yaml"
 class ModelConfig(llm_param.LLMConfigModelParameter):
     """Model configuration that flattens LLMConfigModelParameter fields."""
 
-    model_name: str = ""
+    model_name: str = Field(default="", validate_default=True)
 
     @model_validator(mode="before")
     @classmethod

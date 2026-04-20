@@ -158,9 +158,9 @@ def _maybe_auto_upgrade_and_reexec() -> None:
 
     try:
         cfg = load_config()
+        if not cfg.auto_upgrade:
+            return
     except Exception:
-        return
-    if not cfg.auto_upgrade:
         return
 
     from klaude_code.log import log
