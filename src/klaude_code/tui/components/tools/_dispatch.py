@@ -200,8 +200,8 @@ def render_tool_result(
     if e.is_error and e.ui_extra is None:
         if e.tool_name == tools.TODO_WRITE:
             result = e.result if len(e.result.strip()) > 0 else "(no content)"
-            return render_todo_message(result, is_error=True)
-        return wrap(render_fallback_tool_result(e.tool_name, e.result, is_error=True))
+            return render_todo_message(result, status=e.status)
+        return wrap(render_fallback_tool_result(e.tool_name, e.result, status=e.status))
 
     # Render multiple ui blocks if present
     if isinstance(e.ui_extra, MultiUIExtra) and e.ui_extra.items:
@@ -221,7 +221,7 @@ def render_tool_result(
     def _render_fallback() -> TreeQuote:
         if len(e.result.strip()) == 0:
             return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
-        return wrap(render_fallback_tool_result(e.tool_name, e.result, is_error=e.is_error))
+        return wrap(render_fallback_tool_result(e.tool_name, e.result, status=e.status))
 
     match e.tool_name:
         case tools.READ:
@@ -246,19 +246,19 @@ def render_tool_result(
             if isinstance(e.ui_extra, TodoListUIExtra):
                 return render_todo(e)
             result = e.result if len(e.result.strip()) > 0 else "(no content)"
-            return render_todo_message(result, is_error=e.is_error)
+            return render_todo_message(result, status=e.status)
         case tools.BASH:
             return _render_fallback()
         case tools.WEB_FETCH | tools.WEB_SEARCH:
             display_result = extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:
                 return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
-            return wrap(render_fallback_tool_result(e.tool_name, display_result, is_error=e.is_error))
+            return wrap(render_fallback_tool_result(e.tool_name, display_result, status=e.status))
         case tools.ASK_USER_QUESTION:
             if isinstance(e.ui_extra, AskUserQuestionSummaryUIExtra):
                 return render_ask_user_question_summary(e.ui_extra)
             if len(e.result.strip()) == 0:
                 return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
-            return wrap(render_ask_user_question_tool_result(e.result, is_error=e.is_error))
+            return wrap(render_ask_user_question_tool_result(e.result, status=e.status))
         case _:
             return _render_fallback()

@@ -12,7 +12,12 @@ from klaude_code.const import TAB_EXPAND_WIDTH
 from klaude_code.protocol.models import AskUserQuestionSummaryUIExtra
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
-from klaude_code.tui.components.tools._common import MARK_QUESTION, render_tool_call_tree
+from klaude_code.tui.components.tools._common import (
+    MARK_QUESTION,
+    ToolResultStatus,
+    render_tool_call_tree,
+    tool_result_style,
+)
 
 
 def render_ask_user_question_tool_call(arguments: str) -> RenderableType:
@@ -45,9 +50,9 @@ def render_ask_user_question_tool_call(arguments: str) -> RenderableType:
     return render_tool_call_tree(mark=MARK_QUESTION, tool_name=tool_name, details=details)
 
 
-def render_ask_user_question_tool_result(result: str, *, is_error: bool = False) -> RenderableType:
+def render_ask_user_question_tool_result(result: str, *, status: ToolResultStatus = "success") -> RenderableType:
     """Render AskUserQuestion result without truncating the middle content."""
-    style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT_QUESTION
+    style = tool_result_style(status, success_style=ThemeKey.TOOL_RESULT_QUESTION)
     return Text(result.expandtabs(TAB_EXPAND_WIDTH), style=style, overflow="fold")
 
 

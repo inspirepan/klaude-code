@@ -277,20 +277,35 @@ provider_list:
       budget_tokens: 2048
     cost: { input: 2, output: 3, cache_read: 0.2, currency: CNY }
 
-# ######################################## moonshot ########################################
-- provider_name: moonshot
+# ######################################## moonshot-cn ########################################
+- provider_name: moonshot-cn
   protocol: anthropic
   api_key: ${MOONSHOT_API_KEY}
   base_url: https://api.moonshot.cn/anthropic
   model_list:
 
   - model_name: kimi
-    model_id: kimi-k2.5
+    model_id: kimi-k2.6
     context_limit: 262144
     thinking:
       type: enabled
       budget_tokens: 8192
-    cost: { input: 4, output: 21, cache_read: 0.7, currency: CNY }
+    cost: { input: 6.5, output: 27, cache_read: 1.10, currency: CNY }
+
+# ######################################## moonshot-ai ########################################
+- provider_name: moonshot-ai
+  protocol: openai
+  api_key: ${MOONSHOT_API_KEY}
+  base_url: https://api.moonshot.ai/v1
+  model_list:
+
+  - model_name: kimi
+    model_id: kimi-k2.6
+    context_limit: 262144
+    thinking:
+      type: enabled
+      budget_tokens: 8192
+    cost: { input: 0.95, output: 4, cache_read: 0.16 }
 
 # ######################################## minimax ########################################
 - provider_name: minimax
@@ -487,14 +502,14 @@ provider_list:
     cost: { input: 0.25, output: 1.5, cache_read: 0.02 }
 
   - model_name: kimi
-    model_id: moonshotai/kimi-k2.5
+    model_id: moonshotai/kimi-k2.6
     context_limit: 262144
     provider_routing:
       only:
       - fireworks
       - moonshotai/int4
       - novita
-    cost: { input: 0.6, output: 3, cache_read: 0.1 }
+    cost: { input: 0.95, output: 4, cache_read: 0.16 }
 
   - model_name: minimax
     model_id: minimax/minimax-m2.7

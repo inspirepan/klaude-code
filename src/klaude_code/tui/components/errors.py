@@ -17,10 +17,10 @@ def render_error(error_msg: Text, *, can_retry: bool = False) -> RenderableType:
     return grid
 
 
-def render_tool_error(error_msg: Text) -> RenderableType:
+def render_tool_error(error_msg: Text, *, style: str = ThemeKey.ERROR) -> RenderableType:
     """Render error with indent for tool results."""
     grid = create_grid()
-    error_msg.style = ThemeKey.ERROR
+    error_msg.style = style
     error_msg.overflow = "fold"
     grid.add_row(Text(" "), error_msg)
     return grid

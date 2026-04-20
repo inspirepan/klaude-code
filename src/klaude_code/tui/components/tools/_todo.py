@@ -11,7 +11,12 @@ from klaude_code.protocol import events
 from klaude_code.protocol.models import TodoListUIExtra
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
-from klaude_code.tui.components.tools._common import MARK_PLAN, render_tool_call_tree
+from klaude_code.tui.components.tools._common import (
+    MARK_PLAN,
+    ToolResultStatus,
+    render_tool_call_tree,
+    tool_result_style,
+)
 
 # Todo status markers
 MARK_TODO_PENDING = "\u25a2"
@@ -68,8 +73,8 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
     )
 
 
-def render_todo_message(result: str, *, is_error: bool = False) -> RenderableType:
-    style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT
+def render_todo_message(result: str, *, status: ToolResultStatus = "success") -> RenderableType:
+    style = tool_result_style(status)
     return Panel(
         Padding(Text(result.expandtabs(TAB_EXPAND_WIDTH), style=style, overflow="fold"), (0, 0, 0, 1)),
         title=Text("Update To-Dos", style="default bold"),
