@@ -306,7 +306,7 @@ def convert_system_to_input(
     static_system, dynamic_system = split_system_prompt_for_cache(system)
     has_boundary = bool(system and SYSTEM_PROMPT_DYNAMIC_BOUNDARY in system)
     if static_system:
-        append_block(static_system, cache_control=False)
+        append_block(static_system, cache_control=True)
     if dynamic_system:
         append_block(dynamic_system, cache_control=True)
     elif system and not has_boundary:
