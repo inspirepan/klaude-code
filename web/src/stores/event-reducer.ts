@@ -58,6 +58,7 @@ const SKIP_EVENT_TYPES = new Set([
   "session.title.changed",
   "todo.change",
   "cache.hit.rate",
+  "fork.cache.hit.rate",
   "usage.snapshot",
   "end",
 ]);

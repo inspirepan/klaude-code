@@ -843,8 +843,6 @@ class AgentOperationHandler:
             )
             log_debug(f"[Compact:{reason}] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
             agent.session.append_history([result.to_entry()])
-            if result.fork_event is not None:
-                await self._emit_event(result.fork_event)
             await self._emit_event(
                 events.CompactionEndEvent(
                     session_id=session_id,
@@ -857,6 +855,8 @@ class AgentOperationHandler:
                     kept_items_brief=result.kept_items_brief,
                 )
             )
+            if result.fork_event is not None:
+                await self._emit_event(result.fork_event)
         except asyncio.CancelledError:
             cancel_event.set()
             await self._emit_event(

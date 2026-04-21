@@ -183,6 +183,16 @@ class RenderCompactionSummary(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderForkCacheHitRate(RenderCommand):
+    fork_label: str
+    cache_read_tokens: int
+    cache_creation_tokens: int
+    input_tokens: int
+    cache_hit_rate: float
+    fallback_used: bool
+
+
+@dataclass(frozen=True, slots=True)
 class RenderHandoff(RenderCommand):
     summary: str
 

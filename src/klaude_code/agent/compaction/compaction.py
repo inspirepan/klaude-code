@@ -9,7 +9,12 @@ from enum import Enum
 from typing import cast
 
 from klaude_code.agent.agent_profile import AgentProfile
-from klaude_code.agent.cache_safe import CacheSafeParams, build_cache_safe_messages
+from klaude_code.agent.cache_safe import (
+    CacheSafeParams,
+    build_cache_safe_messages,
+    build_fork_cache_event,
+    is_cache_sharable,
+)
 from klaude_code.const import (
     DEFAULT_MAX_TOKENS,
 )
@@ -202,7 +207,7 @@ async def run_compaction(
     if tokens_before is None:
         tokens_before = estimate_history_tokens(history)
 
-    use_fork = main_profile is not None and _is_cache_sharable(main_profile, llm_client)
+    use_fork = main_profile is not None and is_cache_sharable(main_profile, llm_client)
 
     if use_fork:
         assert main_profile is not None
@@ -256,8 +261,9 @@ async def run_compaction(
 
     kept_items_brief = collect_kept_items_brief(history, cut_index)
 
-    fork_event = _build_fork_cache_event(
+    fork_event = build_fork_cache_event(
         session_id=session.id,
+        fork_label="compact",
         usage=fork_usage,
         fallback_used=not use_fork,
     )
@@ -269,49 +275,6 @@ async def run_compaction(
         details=file_ops,
         kept_items_brief=kept_items_brief,
         fork_event=fork_event,
-    )
-
-
-def _is_cache_sharable(main_profile: AgentProfile, compact_client: LLMClientABC) -> bool:
-    """Return True when the compact client's request will hit the main profile's
-    prompt cache.
-
-    Cache key components compared here: model_id, provider_name, thinking config.
-    The remaining components (system prompt, tools, message prefix) are enforced by
-    the fork path itself (it reuses ``main_profile`` and the session's LLM history).
-    """
-    main_cfg = main_profile.llm_client.get_llm_config()
-    compact_cfg = compact_client.get_llm_config()
-    if main_cfg.model_id != compact_cfg.model_id:
-        return False
-    if main_cfg.provider_name != compact_cfg.provider_name:
-        return False
-    return main_cfg.thinking == compact_cfg.thinking
-
-
-def _build_fork_cache_event(
-    *, session_id: str, usage: Usage | None, fallback_used: bool
-) -> events.ForkCacheHitRateEvent:
-    if usage is None:
-        return events.ForkCacheHitRateEvent(
-            session_id=session_id,
-            fork_label="compact",
-            cache_read_tokens=0,
-            cache_creation_tokens=0,
-            input_tokens=0,
-            cache_hit_rate=0.0,
-            fallback_used=fallback_used,
-        )
-    total = usage.cached_tokens + usage.cache_write_tokens + usage.input_tokens
-    hit_rate = usage.cached_tokens / total if total > 0 else 0.0
-    return events.ForkCacheHitRateEvent(
-        session_id=session_id,
-        fork_label="compact",
-        cache_read_tokens=usage.cached_tokens,
-        cache_creation_tokens=usage.cache_write_tokens,
-        input_tokens=usage.input_tokens,
-        cache_hit_rate=hit_rate,
-        fallback_used=fallback_used,
     )
 
 
