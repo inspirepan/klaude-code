@@ -351,6 +351,7 @@ class PromptToolkitInput(InputProviderABC):
         self._session_dir: Path | None = None
         self._clipboard_has_image: bool = False
         self._clipboard_watcher_task: asyncio.Task[None] | None = None
+        self._prompt_suggestion: str | None = None
 
         self._session = self._build_prompt_session(prompt)
         self._session.app.key_processor.before_key_press += self._handle_user_activity
@@ -367,6 +368,27 @@ class PromptToolkitInput(InputProviderABC):
 
     def set_session_dir(self, session_dir: Path | None) -> None:
         self._session_dir = session_dir
+
+    @override
+    def set_prompt_suggestion(self, text: str | None) -> None:
+        """Update the predicted-next-prompt state and repaint the placeholder.
+
+        When ``text`` is set and the buffer is empty, the placeholder shows the
+        suggestion and pressing Enter submits it / Tab fills the buffer for
+        editing (see ``key_bindings.py``).
+        """
+        normalized = text.strip() if isinstance(text, str) else None
+        self._prompt_suggestion = normalized or None
+        with contextlib.suppress(Exception):
+            self._session.app.invalidate()
+
+    def _get_prompt_suggestion(self) -> str | None:
+        return self._prompt_suggestion
+
+    def _consume_prompt_suggestion(self) -> str | None:
+        suggestion = self._prompt_suggestion
+        self._prompt_suggestion = None
+        return suggestion
 
     def _build_prompt_session(self, prompt: str) -> PromptSession[str]:
         """Build the prompt_toolkit PromptSession with key bindings and styles."""
@@ -390,6 +412,8 @@ class PromptToolkitInput(InputProviderABC):
             input_enabled=input_enabled,
             open_model_picker=self._open_model_picker,
             open_thinking_picker=self._open_thinking_picker,
+            get_prompt_suggestion=self._get_prompt_suggestion,
+            consume_prompt_suggestion=self._consume_prompt_suggestion,
         )
 
         completion_selected = COMPLETION_SELECTED_BG
@@ -413,6 +437,7 @@ class PromptToolkitInput(InputProviderABC):
             style=Style.from_dict(
                 {
                     "placeholder": "fg:ansibrightblack italic",
+                    "placeholder-hint": "fg:ansibrightblack",
                     "completion-menu": "bg:default",
                     "completion-menu.border": "bg:default",
                     "scrollbar.background": "bg:default",
@@ -441,9 +466,18 @@ class PromptToolkitInput(InputProviderABC):
     def _build_placeholder(self) -> FormattedText:
         """Build placeholder showing repo/directory name and Git branch.
 
+        When a prompt suggestion is pending, show it with an accept hint instead.
         When an image is detected on the system clipboard, replace the hint
         with a ctrl+v paste reminder instead.
         """
+        if self._prompt_suggestion:
+            return FormattedText(
+                [
+                    ("class:placeholder", f"   {self._prompt_suggestion}"),
+                    ("class:placeholder-hint", "   press enter to send / tab to edit"),
+                ]
+            )
+
         if self._clipboard_has_image:
             return FormattedText([("class:placeholder", "   ctrl+v to paste image")])
 
@@ -803,6 +837,10 @@ class PromptToolkitInput(InputProviderABC):
                     else:
                         line = await self._session.prompt_async(message=self._get_prompt_message, default=default_text)
             finally:
+                # A submission (Enter on non-empty buffer, suggestion acceptance,
+                # or anything else) invalidates the pending suggestion. Runtime
+                # will push a fresh one after the next task finishes.
+                self._prompt_suggestion = None
                 if self._on_prompt_end is not None:
                     with contextlib.suppress(Exception):
                         self._on_prompt_end()

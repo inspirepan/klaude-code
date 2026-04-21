@@ -98,3 +98,79 @@ Be concise. Focus on what's needed to understand the kept suffix."""
 
 COMPACTION_SUMMARY_PREFIX = """The conversation history before this point was compacted into the following summary:
 """
+
+COMPACT_FORK_PROMPT = """Instead of continuing the work above, I need you to stop and produce a structured context summary of this entire conversation. Another LLM (or a fresh instance of yourself) will use this summary to continue the session.
+
+Do NOT call any tools. Do NOT continue the task. ONLY output the structured summary text in the exact format below.
+
+## Goal
+[What is the user trying to accomplish? Can be multiple items if the session covers different tasks.]
+
+## Constraints & Preferences
+- [Any constraints, preferences, or requirements mentioned by user]
+- [Or "(none)" if none were mentioned]
+
+## Progress
+### Done
+- [x] [Completed tasks/changes]
+
+### In Progress
+- [ ] [Current work]
+
+### Blocked
+- [Issues preventing progress, if any]
+
+## Key Decisions
+- **[Decision]**: [Brief rationale]
+
+## Next Steps
+1. [Ordered list of what should happen next]
+
+## Critical Context
+- [Any data, examples, or references needed to continue]
+- [Or "(none)" if not applicable]
+
+IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
+
+Keep each section concise. Preserve exact file paths, function names, and error messages."""
+
+COMPACT_FORK_UPDATE_PROMPT = """Instead of continuing the work above, I need you to stop and update the structured context summary. The first user message in this conversation is the PREVIOUS summary; all messages after it are NEW progress to incorporate. Produce a new summary that merges them.
+
+Do NOT call any tools. Do NOT continue the task. ONLY output the updated structured summary.
+
+RULES:
+- PRESERVE all existing information from the previous summary
+- ADD new progress, decisions, and context from the messages after the previous summary
+- UPDATE the Progress section: move items from "In Progress" to "Done" when completed
+- UPDATE "Next Steps" based on what was accomplished
+- PRESERVE exact file paths, function names, and error messages
+- If something is no longer relevant, you may remove it
+
+Use this EXACT format:
+
+## Goal
+[Preserve existing goals, add new ones if the task expanded]
+
+## Constraints & Preferences
+- [Preserve existing, add new ones discovered]
+
+## Progress
+### Done
+- [x] [Include previously done items AND newly completed items]
+
+### In Progress
+- [ ] [Current work - update based on progress]
+
+### Blocked
+- [Current blockers - remove if resolved]
+
+## Key Decisions
+- **[Decision]**: [Brief rationale] (preserve all previous, add new)
+
+## Next Steps
+1. [Update based on current state]
+
+## Critical Context
+- [Preserve important context, add new if needed]
+
+IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. Keep each section concise. Preserve exact file paths, function names, and error messages."""

@@ -225,7 +225,7 @@ def main_callback(
         None,
         "--model",
         "-m",
-        help="Open model picker; pass a value to prefill search, or use --model with no value to start empty",
+        help="Select model; pass a value to auto-select on unique match or prefill the picker search, or use --model with no value to open the picker",
         rich_help_panel="LLM",
     ),
     continue_: bool = typer.Option(False, "--continue", "-c", help="Resume latest session"),

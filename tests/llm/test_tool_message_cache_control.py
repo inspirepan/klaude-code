@@ -155,7 +155,10 @@ def test_openrouter_claude_splits_system_prompt_cache_boundary() -> None:
     )
 
     assert messages == [
-        {"role": "system", "content": [{"type": "text", "text": "static"}]},
+        {
+            "role": "system",
+            "content": [{"type": "text", "text": "static", "cache_control": {"type": "ephemeral"}}],
+        },
         {
             "role": "system",
             "content": [{"type": "text", "text": "dynamic", "cache_control": {"type": "ephemeral"}}],

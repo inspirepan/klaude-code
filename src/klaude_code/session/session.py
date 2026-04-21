@@ -362,9 +362,15 @@ class Session(BaseModel):
 
         return result
 
-    def get_llm_history(self) -> list[message.HistoryEvent]:
-        """Return the LLM-facing history view with compaction summary injected."""
-        history = self.conversation_history
+    def get_llm_history(self, *, until_index: int | None = None) -> list[message.HistoryEvent]:
+        """Return the LLM-facing history view with compaction summary injected.
+
+        When ``until_index`` is provided, only conversation items before that
+        index are considered. Passing a cut index preserves cache prefix
+        matching: the returned list shares its prefix with the un-cut view up
+        to the same boundary the parent request saw.
+        """
+        history = self.conversation_history if until_index is None else self.conversation_history[:until_index]
 
         def _convert(item: message.HistoryEvent) -> message.HistoryEvent:
             if isinstance(item, message.RewindEntry):
@@ -376,16 +382,25 @@ class Session(BaseModel):
             return item
 
         last_compaction: message.CompactionEntry | None = None
-        for item in reversed(history):
+        last_compaction_idx: int = -1
+        for idx in range(len(history) - 1, -1, -1):
+            item = history[idx]
             if isinstance(item, message.CompactionEntry):
                 last_compaction = item
+                last_compaction_idx = idx
                 break
         if last_compaction is None:
             result = [_convert(it) for it in history if not isinstance(it, message.CompactionEntry)]
             return self._strip_dangling_tool_calls(result)
 
         summary_message = message.UserMessage(parts=[message.TextPart(text=last_compaction.summary)])
-        kept = [it for it in history[last_compaction.first_kept_index :] if not isinstance(it, message.CompactionEntry)]
+        # Respect the slice: if first_kept_index points past ``history`` (e.g.
+        # caller cut right after the CompactionEntry), fall back to items just
+        # after the compaction boundary within the slice.
+        kept_start = last_compaction.first_kept_index
+        if kept_start > len(history):
+            kept_start = last_compaction_idx + 1
+        kept = [it for it in history[kept_start:] if not isinstance(it, message.CompactionEntry)]
 
         # Guard against old/bad persisted compaction boundaries that start with tool results.
         # Tool results must not appear without their corresponding assistant tool call.
@@ -723,6 +738,8 @@ class Session(BaseModel):
                     if had_any_turn:
                         yield from _flush_task_finish(msg_ts)
                     yield events.AwaySummaryEvent(session_id=self.id, text=aw.text, timestamp=msg_ts)
+                case message.PromptSuggestionEntry() as ps:
+                    yield events.PromptSuggestionReadyEvent(session_id=self.id, text=ps.text, timestamp=msg_ts)
                 case message.SpawnSubAgentEntry() as sa:
                     yield from self._iter_sub_agent_history_by_id(sa.session_id, seen_sub_agent_sessions)
                 case message.SystemMessage():

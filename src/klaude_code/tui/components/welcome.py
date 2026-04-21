@@ -105,16 +105,25 @@ def _build_update_tree(update_info: events.WelcomeUpdateInfo) -> Tree:
 
 def _build_shortcuts_tree() -> Tree:
     tree = _RoundedTree(Text("shortcuts", style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
-    items = [
+    prefix_items = [
         ("@", "files"),
         ("/", "commands"),
         ("//", "skills"),
         ("!", "shell"),
+    ]
+    prefix_row = Text()
+    for i, (key, desc) in enumerate(prefix_items):
+        if i > 0:
+            prefix_row.append(" · ", style=ThemeKey.LINES)
+        prefix_row.append(key, style=ThemeKey.WELCOME_SHORTCUT)
+        prefix_row.append(f" {desc}", style=ThemeKey.WELCOME_INFO)
+    tree.add(prefix_row)
+    key_items = [
         ("ctrl-l", "change model (this chat)"),
         ("ctrl-t", "change thinking level"),
         ("ctrl-v", "paste image"),
     ]
-    for key, desc in items:
+    for key, desc in key_items:
         row = Text()
         row.append(key, style=ThemeKey.WELCOME_SHORTCUT)
         row.append(f" {desc}", style=ThemeKey.WELCOME_INFO)

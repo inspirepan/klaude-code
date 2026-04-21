@@ -294,4 +294,6 @@ def apply_config_defaults(param: "LLMCallParameter", config: "LLMConfigParameter
         param.provider_routing = config.provider_routing
     if not param.fast_mode:
         param.fast_mode = config.fast_mode
+    if param.cache_retention is None:
+        param.cache_retention = config.cache_retention
     return param

@@ -17,6 +17,7 @@ from rich.spinner import Spinner
 from rich.style import Style, StyleType
 from rich.text import Text
 
+from klaude_code.config.formatters import format_number
 from klaude_code.const import (
     MARKDOWN_LEFT_MARGIN,
     MARKDOWN_RIGHT_MARGIN,
@@ -43,6 +44,7 @@ from klaude_code.tui.commands import (
     RenderCompactionSummary,
     RenderDeveloperMessage,
     RenderError,
+    RenderForkCacheHitRate,
     RenderHandoff,
     RenderInterrupt,
     RenderNotice,
@@ -814,6 +816,31 @@ class TUICommandRenderer:
 
         self.print()
 
+    def display_fork_cache_hit_rate(
+        self,
+        *,
+        fork_label: str,
+        cache_read_tokens: int,
+        cache_creation_tokens: int,
+        input_tokens: int,
+        cache_hit_rate: float,
+        fallback_used: bool,
+    ) -> None:
+        line = Text()
+        line.append(f"  {fork_label} cache: ", style=ThemeKey.METADATA_DIM)
+        if fallback_used:
+            line.append("not shared (different model)", style=ThemeKey.METADATA_DIM)
+        else:
+            total = cache_read_tokens + cache_creation_tokens + input_tokens
+            hit_pct = round(cache_hit_rate * 100)
+            line.append(f"{hit_pct}% hit ", style=ThemeKey.METADATA)
+            line.append(
+                f"({format_number(cache_read_tokens)} reused / {format_number(total)} total)",
+                style=ThemeKey.METADATA_DIM,
+            )
+        self.print(line)
+        self.print()
+
     def display_handoff(self, summary: str) -> None:
         self.console.print(
             Rule(
@@ -1039,6 +1066,22 @@ class TUICommandRenderer:
                     self.display_error(event)
                 case RenderCompactionSummary(summary=summary, kept_items_brief=kept_items_brief):
                     self.display_compaction_summary(summary, kept_items_brief)
+                case RenderForkCacheHitRate(
+                    fork_label=fork_label,
+                    cache_read_tokens=cache_read_tokens,
+                    cache_creation_tokens=cache_creation_tokens,
+                    input_tokens=input_tokens,
+                    cache_hit_rate=cache_hit_rate,
+                    fallback_used=fallback_used,
+                ):
+                    self.display_fork_cache_hit_rate(
+                        fork_label=fork_label,
+                        cache_read_tokens=cache_read_tokens,
+                        cache_creation_tokens=cache_creation_tokens,
+                        input_tokens=input_tokens,
+                        cache_hit_rate=cache_hit_rate,
+                        fallback_used=fallback_used,
+                    )
                 case RenderHandoff(summary=summary):
                     self.display_handoff(summary)
                 case RenderRewind(

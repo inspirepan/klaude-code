@@ -8,19 +8,28 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import cast
 
+from klaude_code.agent.agent_profile import AgentProfile
+from klaude_code.agent.cache_safe import (
+    CacheSafeParams,
+    build_cache_safe_messages,
+    build_fork_cache_event,
+    is_cache_sharable,
+)
 from klaude_code.const import (
     DEFAULT_MAX_TOKENS,
 )
 from klaude_code.llm import LLMClientABC
 from klaude_code.prompts.compaction import (
+    COMPACT_FORK_PROMPT,
+    COMPACT_FORK_UPDATE_PROMPT,
     COMPACTION_SUMMARY_PREFIX,
     SUMMARIZATION_PROMPT,
     SUMMARIZATION_SYSTEM_PROMPT,
     TASK_PREFIX_SUMMARIZATION_PROMPT,
     UPDATE_SUMMARIZATION_PROMPT,
 )
-from klaude_code.protocol import llm_param, message
-from klaude_code.protocol.models import DiffUIExtra, MarkdownDocUIExtra, MultiUIExtra
+from klaude_code.protocol import events, llm_param, message
+from klaude_code.protocol.models import DiffUIExtra, MarkdownDocUIExtra, MultiUIExtra, Usage
 from klaude_code.session.session import Session
 
 _MAX_TOOL_OUTPUT_CHARS = 4000
@@ -49,6 +58,8 @@ class CompactionResult:
     tokens_before: int | None
     details: message.CompactionDetails | None
     kept_items_brief: list[message.KeptItemBrief]
+    fork_event: events.ForkCacheHitRateEvent | None = None
+    """Emitted by caller when present; reports cache reuse vs fallback for this compaction."""
 
     def to_entry(self) -> message.CompactionEntry:
         """Convert to a CompactionEntry for persisting in session history."""
@@ -61,7 +72,11 @@ class CompactionResult:
         )
 
 
-def _resolve_compaction_config(llm_config: llm_param.LLMConfigParameter) -> CompactionConfig:
+def _resolve_compaction_config(
+    llm_config: llm_param.LLMConfigParameter,
+    *,
+    reason: CompactionReason = CompactionReason.THRESHOLD,
+) -> CompactionConfig:
     default_reserve = 16384
     default_keep = 20000
     context_limit = llm_config.context_limit or 0
@@ -74,6 +89,12 @@ def _resolve_compaction_config(llm_config: llm_param.LLMConfigParameter) -> Comp
         max_keep = max(0, context_limit - reserve)
         if max_keep:
             keep_recent = min(keep_recent, max_keep)
+    # Manual /compact expresses user intent to aggressively free context, not
+    # just bring the session back under the auto threshold. Shrink keep_recent
+    # so roughly the last turn or two stays uncompacted. Guarded by min() so
+    # tiny sessions (where threshold keep is already small) don't inflate back.
+    if reason == CompactionReason.MANUAL:
+        keep_recent = min(keep_recent, max(2048, min(8192, keep_recent // 4)))
     max_summary = max(1024, int(reserve * 0.8))
     return CompactionConfig(reserve_tokens=reserve, keep_recent_tokens=keep_recent, max_summary_tokens=max_summary)
 
@@ -163,12 +184,12 @@ async def run_compaction(
     llm_client: LLMClientABC,
     llm_config: llm_param.LLMConfigParameter,
     cancel: asyncio.Event | None = None,
+    main_profile: AgentProfile | None = None,
 ) -> CompactionResult:
-    del reason
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
 
-    compaction_config = _resolve_compaction_config(llm_config)
+    compaction_config = _resolve_compaction_config(llm_config, reason=reason)
     history = session.conversation_history
     if not history:
         raise ValueError("No conversation history to compact")
@@ -186,29 +207,51 @@ async def run_compaction(
     if tokens_before is None:
         tokens_before = estimate_history_tokens(history)
 
-    split_task = _is_split_task(history, base_start_index, cut_index)
-    task_start_index = _find_task_start_index(history, base_start_index, cut_index) if split_task else -1
+    use_fork = main_profile is not None and is_cache_sharable(main_profile, llm_client)
 
-    messages_to_summarize = collect_messages(history, base_start_index, task_start_index if split_task else cut_index)
-    task_prefix_messages: list[message.Message] = []
-    if split_task and task_start_index >= 0:
-        task_prefix_messages = collect_messages(history, task_start_index, cut_index)
+    if use_fork:
+        assert main_profile is not None
+        summary, fork_usage = await _build_summary_fork(
+            session=session,
+            cut_index=cut_index,
+            main_profile=main_profile,
+            focus=focus,
+            has_previous_summary=previous_summary is not None,
+            max_summary_tokens=compaction_config.max_summary_tokens,
+            cancel=cancel,
+        )
+        # Fork path doesn't split tasks: the LLM sees the real messages up to
+        # cut_index, and ``messages_to_summarize`` is still needed by
+        # ``collect_file_operations`` below.
+        messages_to_summarize = collect_messages(history, base_start_index, cut_index)
+        task_prefix_messages: list[message.Message] = []
+    else:
+        split_task = _is_split_task(history, base_start_index, cut_index)
+        task_start_index = _find_task_start_index(history, base_start_index, cut_index) if split_task else -1
 
-    if not messages_to_summarize and not task_prefix_messages and not previous_summary:
-        raise ValueError("Nothing to compact (no messages to summarize)")
+        messages_to_summarize = collect_messages(
+            history, base_start_index, task_start_index if split_task else cut_index
+        )
+        task_prefix_messages = []
+        if split_task and task_start_index >= 0:
+            task_prefix_messages = collect_messages(history, task_start_index, cut_index)
 
-    if cancel is not None and cancel.is_set():
-        raise asyncio.CancelledError
+        if not messages_to_summarize and not task_prefix_messages and not previous_summary:
+            raise ValueError("Nothing to compact (no messages to summarize)")
 
-    summary = await _build_summary(
-        messages_to_summarize=messages_to_summarize,
-        task_prefix_messages=task_prefix_messages,
-        previous_summary=previous_summary,
-        focus=focus,
-        llm_client=llm_client,
-        config=compaction_config,
-        cancel=cancel,
-    )
+        if cancel is not None and cancel.is_set():
+            raise asyncio.CancelledError
+
+        summary = await _build_summary(
+            messages_to_summarize=messages_to_summarize,
+            task_prefix_messages=task_prefix_messages,
+            previous_summary=previous_summary,
+            focus=focus,
+            llm_client=llm_client,
+            config=compaction_config,
+            cancel=cancel,
+        )
+        fork_usage = None
 
     file_ops = collect_file_operations(
         session=session,
@@ -220,13 +263,82 @@ async def run_compaction(
 
     kept_items_brief = collect_kept_items_brief(history, cut_index)
 
+    fork_event = build_fork_cache_event(
+        session_id=session.id,
+        fork_label="compact",
+        usage=fork_usage,
+        fallback_used=not use_fork,
+    )
+
     return CompactionResult(
         summary=summary,
         first_kept_index=cut_index,
         tokens_before=tokens_before,
         details=file_ops,
         kept_items_brief=kept_items_brief,
+        fork_event=fork_event,
     )
+
+
+async def _build_summary_fork(
+    *,
+    session: Session,
+    cut_index: int,
+    main_profile: AgentProfile,
+    focus: str | None,
+    has_previous_summary: bool,
+    max_summary_tokens: int,
+    cancel: asyncio.Event | None,
+) -> tuple[str, Usage | None]:
+    """Build a summary by asking the main LLM to stop and summarize in-line.
+
+    Only messages before ``cut_index`` are sent; the kept tail is excluded so
+    the summary scope aligns with the fallback path. The wire prefix up to
+    ``cut_index`` still matches what the parent request sent, so the
+    server-side prompt cache is reused up to that point.
+    """
+    if cancel is not None and cancel.is_set():
+        raise asyncio.CancelledError
+
+    prefix_messages = session.get_llm_history(until_index=cut_index)
+    base_prompt = COMPACT_FORK_UPDATE_PROMPT if has_previous_summary else COMPACT_FORK_PROMPT
+    prompt_text = base_prompt
+    if focus:
+        prompt_text = f"{prompt_text}\n\nAdditional focus: {focus}"
+
+    extra: list[message.HistoryEvent] = [message.UserMessage(parts=[message.TextPart(text=prompt_text)])]
+    cache_safe = CacheSafeParams(profile=main_profile, prefix_messages=prefix_messages)
+    wire_messages = build_cache_safe_messages(cache_safe, extra)
+    # Call parameter carries Message-typed input; filter to Messages only.
+    input_messages = [m for m in wire_messages if isinstance(m, message.Message)]
+
+    call_param = llm_param.LLMCallParameter(
+        input=input_messages,
+        system=main_profile.system_prompt,
+        session_id=None,
+    )
+    call_param.tools = main_profile.tools  # Must match parent; tools=[] would break cache.
+    call_param.max_tokens = max_summary_tokens
+
+    stream = await main_profile.llm_client.call(call_param)
+    accumulated: list[str] = []
+    final_message: message.AssistantMessage | None = None
+    async for item in stream:
+        if isinstance(item, message.AssistantTextDelta):
+            accumulated.append(item.content)
+        elif isinstance(item, message.StreamErrorItem):
+            raise RuntimeError(item.error)
+        elif isinstance(item, message.AssistantMessage):
+            final_message = item
+
+    if cancel is not None and cancel.is_set():
+        raise asyncio.CancelledError
+
+    text = message.join_text_parts(final_message.parts) if final_message else "".join(accumulated)
+    if not text.strip():
+        raise ValueError("Summarizer returned empty output")
+    usage = final_message.usage if final_message else None
+    return text.strip(), usage
 
 
 def collect_kept_items_brief(history: list[message.HistoryEvent], cut_index: int) -> list[message.KeptItemBrief]:
@@ -439,19 +551,63 @@ def _adjust_cut_index(history: list[message.HistoryEvent], cut_index: int, start
     if isinstance(history[cut_index], message.DeveloperMessage):
         forward = _find_anchor_index(history, cut_index + 1, forward=True)
         if forward is not None:
-            return forward
-        backward = _find_anchor_index(history, cut_index - 1, forward=False)
-        if backward is not None:
-            return backward
+            cut_index = forward
+        else:
+            backward = _find_anchor_index(history, cut_index - 1, forward=False)
+            if backward is not None:
+                cut_index = backward
 
+    # Final safety: never split an Assistant's tool_calls from their ToolResults.
+    # If the most recent Assistant in compacted has any tool_call without a matching
+    # ToolResult in compacted, move cut back so that Assistant + its results move to
+    # kept together. This protects get_llm_history's _strip_dangling_tool_calls from
+    # fabricating synthetic "interrupted" messages (which also breaks cache prefix
+    # match with the parent request).
+    return _avoid_splitting_tool_turn(history, cut_index, start_index)
+
+
+def _avoid_splitting_tool_turn(history: list[message.HistoryEvent], cut_index: int, start_index: int) -> int:
+    """Walk compacted backwards; if the most recent Assistant has dangling tool_calls,
+    move cut_index to before that Assistant.
+    """
+    if cut_index <= start_index:
+        return cut_index
+
+    answered: set[str] = {it.call_id for it in history[:cut_index] if isinstance(it, message.ToolResultMessage)}
+
+    for idx in range(cut_index - 1, start_index - 1, -1):
+        item = history[idx]
+        if not isinstance(item, message.AssistantMessage):
+            continue
+        call_ids = [p.call_id for p in item.parts if isinstance(p, message.ToolCallPart)]
+        if not call_ids:
+            # Pure text Assistant — cut is safe here.
+            return cut_index
+        if any(cid not in answered for cid in call_ids):
+            # Dangling. Exclude this Assistant from compacted.
+            return idx
+        # All tool_calls for this Assistant are matched in compacted.
+        return cut_index
     return cut_index
 
 
 def _find_anchor_index(history: list[message.HistoryEvent], start: int, *, forward: bool) -> int | None:
+    """Find a safe cut-boundary position (UserMessage or AssistantMessage).
+
+    ToolResultMessage is rejected because cut_index landing on a ToolResult leaves
+    its paired tool_call stranded in compacted (dangling) and strands the real
+    ToolResult at the head of kept where it gets stripped.
+
+    DeveloperMessage is skipped because this search is invoked precisely to escape
+    a DeveloperMessage cut position.
+
+    The final ``_avoid_splitting_tool_turn`` pass catches the remaining unsafe
+    case: cut landing immediately before an Assistant whose tool_calls have
+    results in compacted (rare, only via backward anchor).
+    """
     indices = range(start, len(history)) if forward else range(start, -1, -1)
     for idx in indices:
-        item = history[idx]
-        if isinstance(item, (message.UserMessage, message.ToolResultMessage)):
+        if isinstance(history[idx], (message.UserMessage, message.AssistantMessage)):
             return idx
     return None
 

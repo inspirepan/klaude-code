@@ -39,6 +39,7 @@ from klaude_code.tui.commands import (
     RenderCompactionSummary,
     RenderDeveloperMessage,
     RenderError,
+    RenderForkCacheHitRate,
     RenderHandoff,
     RenderInterrupt,
     RenderNotice,
@@ -865,6 +866,23 @@ class DisplayStateMachine:
                     else:
                         kept_brief = tuple((item.item_type, item.count, item.preview) for item in e.kept_items_brief)
                         cmds.append(RenderCompactionSummary(summary=e.summary, kept_items_brief=kept_brief))
+                return cmds
+
+            case events.ForkCacheHitRateEvent() as e:
+                if s.is_sub_agent:
+                    return []
+                if not self._is_primary(e.session_id):
+                    return []
+                cmds.append(
+                    RenderForkCacheHitRate(
+                        fork_label=e.fork_label,
+                        cache_read_tokens=e.cache_read_tokens,
+                        cache_creation_tokens=e.cache_creation_tokens,
+                        input_tokens=e.input_tokens,
+                        cache_hit_rate=e.cache_hit_rate,
+                        fallback_used=e.fallback_used,
+                    )
+                )
                 return cmds
 
             case events.RewindEvent() as e:

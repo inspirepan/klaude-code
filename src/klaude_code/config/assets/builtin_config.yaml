@@ -27,6 +27,17 @@ provider_list:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
+  - &opus_1h
+    model_name: opus:1h
+    model_id: claude-opus-4-7
+    max_tokens: 64000
+    context_limit: 1000000
+    effort: xhigh
+    cache_retention: long
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 10 }
+
   - model_name: opus:fast
     model_id: claude-opus-4-7
     max_tokens: 64000
@@ -65,6 +76,16 @@ provider_list:
     thinking:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: opus:1h
+    model_id: global.anthropic.claude-opus-4-7
+    max_tokens: 64000
+    context_limit: 1000000
+    effort: xhigh
+    cache_retention: long
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 10 }
 
   - model_name: opus-4-6
     model_id: global.anthropic.claude-opus-4-6-v1
@@ -537,10 +558,6 @@ sub_agent_models:
   - gpt-5.4
   - opus
 
-compact_model:
-- gemini-flash
-- gpt-5.4-mini
-- sonnet
 fast_model:
 - gpt-5.4-nano
 - gemini-flash-lite

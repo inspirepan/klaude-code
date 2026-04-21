@@ -387,6 +387,7 @@ class TaskExecutor:
                         focus=None,
                         llm_client=compact_client,
                         llm_config=compact_client.get_llm_config(),
+                        main_profile=profile,
                     )
                     log_debug("[Compact] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
 
@@ -406,6 +407,8 @@ class TaskExecutor:
                         summary=result.summary,
                         kept_items_brief=result.kept_items_brief,
                     )
+                    if result.fork_event is not None:
+                        yield result.fork_event
                 except asyncio.CancelledError:
                     yield events.CompactionEndEvent(
                         session_id=session_ctx.session_id,
@@ -535,6 +538,7 @@ class TaskExecutor:
                                 focus=None,
                                 llm_client=compact_client,
                                 llm_config=compact_client.get_llm_config(),
+                                main_profile=profile,
                             )
                             log_debug(
                                 "[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE
@@ -555,6 +559,8 @@ class TaskExecutor:
                                 summary=result.summary,
                                 kept_items_brief=result.kept_items_brief,
                             )
+                            if result.fork_event is not None:
+                                yield result.fork_event
                             continue
                         except asyncio.CancelledError:
                             yield events.CompactionEndEvent(
@@ -656,6 +662,7 @@ class TaskExecutor:
                             goal=pending_handoff.goal,
                             llm_client=compact_client,
                             llm_config=compact_client.get_llm_config(),
+                            main_profile=profile,
                         )
                         log_debug("[Handoff] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
                         _reset_attachment_loaded_flags(ctx.session.file_tracker)
@@ -674,6 +681,8 @@ class TaskExecutor:
                             summary=result.summary,
                             kept_items_brief=result.kept_items_brief,
                         )
+                        if result.fork_event is not None:
+                            yield result.fork_event
                         continue
                     except asyncio.CancelledError:
                         yield events.CompactionEndEvent(

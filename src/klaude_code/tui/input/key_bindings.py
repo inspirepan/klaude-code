@@ -61,6 +61,8 @@ def create_key_bindings(
     input_enabled: Filter | None = None,
     open_model_picker: Callable[[], None] | None = None,
     open_thinking_picker: Callable[[], None] | None = None,
+    get_prompt_suggestion: Callable[[], str | None] | None = None,
+    consume_prompt_suggestion: Callable[[], str | None] | None = None,
 ) -> KeyBindings:
     """Create REPL key bindings with injected dependencies.
 
@@ -68,6 +70,10 @@ def create_key_bindings(
         capture_clipboard_tag: Callable to capture clipboard image and return [image ...] marker
         at_token_pattern: Pattern to match @token for completion refresh
         skill_token_pattern: Pattern to match skill tokens for completion refresh
+        get_prompt_suggestion: Returns the currently active predicted-next-prompt,
+            or None when there is nothing to suggest.
+        consume_prompt_suggestion: Returns and clears the suggestion in one step
+            (used when the user accepts it, so it can't be accepted twice).
 
     Returns:
         KeyBindings instance with all REPL handlers configured
@@ -441,6 +447,40 @@ def create_key_bindings(
         """Shift+Enter sequence used by some terminals inserts a newline."""
 
         _insert_newline(event)
+
+    _has_suggestion = Condition(
+        lambda: get_prompt_suggestion is not None
+        and bool(get_prompt_suggestion())
+        and not get_app().current_buffer.text
+    )
+
+    if get_prompt_suggestion is not None and consume_prompt_suggestion is not None:
+
+        @kb.add("enter", filter=enabled & ~is_searching & _has_suggestion, eager=True)
+        def _(event: KeyPressEvent) -> None:
+            """Empty buffer + suggestion: submit the suggestion as-is."""
+            suggestion = consume_prompt_suggestion()
+            if not suggestion:
+                return
+            buf = event.current_buffer
+            with contextlib.suppress(Exception):
+                buf.text = suggestion  # type: ignore[reportUnknownMemberType]
+                buf.cursor_position = len(suggestion)  # type: ignore[reportUnknownMemberType]
+            with contextlib.suppress(Exception):
+                buf.validate_and_handle()  # type: ignore[reportUnknownMemberType]
+
+        @kb.add("tab", filter=enabled & ~has_completions & _has_suggestion, eager=True)
+        def _(event: KeyPressEvent) -> None:
+            """Empty buffer + suggestion: insert suggestion into buffer for editing."""
+            suggestion = consume_prompt_suggestion()
+            if not suggestion:
+                return
+            buf = event.current_buffer
+            with contextlib.suppress(Exception):
+                buf.text = suggestion  # type: ignore[reportUnknownMemberType]
+                buf.cursor_position = len(suggestion)  # type: ignore[reportUnknownMemberType]
+            with contextlib.suppress(Exception):
+                event.app.invalidate()  # type: ignore[reportUnknownMemberType]
 
     @kb.add("enter", filter=enabled & ~is_searching)
     def _(event: KeyPressEvent) -> None:

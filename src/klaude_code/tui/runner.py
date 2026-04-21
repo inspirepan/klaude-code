@@ -157,7 +157,10 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         elif detected is False:
             theme = "dark"
 
-    tui_display = TUIDisplay(theme=theme)
+    tui_display = TUIDisplay(
+        theme=theme,
+        on_prompt_suggestion=lambda text: input_provider.set_prompt_suggestion(text),
+    )
     display: DisplayABC = tui_display
     pause_esc_monitor: Callable[[], Awaitable[None]] | None = None
     resume_esc_monitor: Callable[[], None] | None = None

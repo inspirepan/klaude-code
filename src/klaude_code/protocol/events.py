@@ -38,12 +38,15 @@ __all__ = [
     "ErrorEvent",
     "Event",
     "EventEnvelope",
+    "ForkCacheHitRateEvent",
     "InterruptEvent",
     "ModelChangedEvent",
     "NoticeEvent",
     "OperationAcceptedEvent",
     "OperationFinishedEvent",
     "OperationRejectedEvent",
+    "PromptSuggestionClearedEvent",
+    "PromptSuggestionReadyEvent",
     "ReplayEventUnion",
     "ReplayHistoryEvent",
     "ResponseCompleteEvent",
@@ -114,6 +117,7 @@ DURABLE_EVENT_TYPES = frozenset(
         "compaction.end",
         "task.finish",
         "away.summary",
+        "prompt.suggestion.ready",
     }
 )
 
@@ -177,6 +181,22 @@ class AwaySummaryEndEvent(Event):
     """Fired after a manual away-summary LLM call completes (success or
     empty/error) so the TUI can exit the 'Recapping…' spinner status.
     Ephemeral — UI only."""
+
+    pass
+
+
+class PromptSuggestionReadyEvent(Event):
+    """Predicted-next-user-prompt ready for display. TUI can pre-fill the
+    input placeholder so the user can accept with Enter (empty buffer) or Tab.
+    Durable: persisted via PromptSuggestionEntry so replay restores it.
+    """
+
+    text: str
+
+
+class PromptSuggestionClearedEvent(Event):
+    """Invalidate the currently displayed prompt suggestion (new turn
+    starting, user typed, or explicit reset). Ephemeral — UI only."""
 
     pass
 
@@ -309,6 +329,24 @@ class CacheHitRateEvent(Event):
     prev_turn_input_tokens: int
 
 
+class ForkCacheHitRateEvent(Event):
+    """Emitted after a forked LLM query (compact, handoff, sub-agent fork_context, ...)
+    to surface how much of the parent's prompt cache the fork actually reused.
+
+    Not persisted to history — ephemeral, for TUI display only.
+    """
+
+    fork_label: str
+    """Identifies the fork source: ``compact`` / ``handoff`` / ``sub_agent`` / ..."""
+    cache_read_tokens: int
+    cache_creation_tokens: int
+    input_tokens: int
+    cache_hit_rate: float
+    """``cache_read / (cache_read + cache_creation + input)``; ``0.0`` when fallback_used."""
+    fallback_used: bool = False
+    """True when cache sharing was skipped (e.g. compact_model differs from main)."""
+
+
 class TaskMetadataEvent(Event):
     metadata: TaskMetadataItem
     # True when emitted as a best-effort snapshot (e.g. task cancellation/interrupt).
@@ -413,6 +451,7 @@ type ReplayEventUnion = (
     | BashCommandOutputDeltaEvent
     | BashCommandEndEvent
     | AwaySummaryEvent
+    | PromptSuggestionReadyEvent
 )
 
 

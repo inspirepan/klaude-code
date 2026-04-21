@@ -28,3 +28,25 @@ Do NOT include meta-commentary about the conversation or summarization process."
 
 HANDOFF_SUMMARY_PREFIX = """The conversation history was handed off to this fresh context. The previous context was compressed into the following summary:
 """
+
+HANDOFF_FORK_PROMPT = """Instead of continuing the work above, I am handing off this session to a fresh context. Stop the current task and produce a context summary of everything in this conversation so far, which another LLM (or a fresh instance of yourself) will use to continue.
+
+The goal for the new context is:
+<goal>
+{goal}
+</goal>
+
+Do NOT call any tools. Do NOT continue the task. ONLY output the context summary text.
+
+Write the summary in FIRST PERSON (as if the user is speaking to a new assistant). Include:
+
+1. **What I've done so far** - key completed work, changes made, files modified
+2. **Important decisions and constraints** - architectural choices, user preferences, requirements
+3. **Technical context** - specific file paths, function names, error messages, data structures
+4. **What I need you to do next** - restate the goal with any necessary context
+
+IMPORTANT: Do NOT include any content from <system-reminder> tags. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
+
+Do not drop or weaken details from the goal. Preserve concrete requirements, constraints, acceptance criteria, and requested scope from the goal as faithfully as possible.
+
+Be comprehensive but concise. Preserve exact file paths, function names, and error messages. Do NOT include meta-commentary about the conversation or summarization process."""

@@ -241,19 +241,24 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
     return {"role": "assistant", "content": content}
 
 
-def _add_cache_control(messages: list[BetaMessageParam]) -> None:
+def _add_cache_control(messages: list[BetaMessageParam], *, ttl: Literal["5m", "1h"] = "5m") -> None:
     if len(messages) > 0:
         last_message = messages[-1]
         content_list = list(last_message.get("content", []))
         if content_list:
             last_content_part = content_list[-1]
             if last_content_part.get("type", "") in ["text", "tool_result", "tool_use"]:
-                last_content_part["cache_control"] = {"type": "ephemeral"}  # type: ignore
+                cache_control: dict[str, str] = {"type": "ephemeral"}
+                if ttl == "1h":
+                    cache_control["ttl"] = "1h"
+                last_content_part["cache_control"] = cache_control  # type: ignore
 
 
 def convert_history_to_input(
     history: list[message.Message],
     model_name: str | None,
+    *,
+    cache_ttl: Literal["5m", "1h"] = "5m",
 ) -> list[BetaMessageParam]:
     """Convert a list of messages to beta message params."""
     attached = attach_developer_messages(history)
@@ -285,28 +290,37 @@ def convert_history_to_input(
                 continue
 
     flush_tool_blocks()
-    _add_cache_control(messages)
+    _add_cache_control(messages, ttl=cache_ttl)
     return messages
 
 
 def convert_system_to_input(
-    system: str | None, system_messages: list[message.SystemMessage] | None = None
+    system: str | None,
+    system_messages: list[message.SystemMessage] | None = None,
+    *,
+    cache_ttl: Literal["5m", "1h"] = "5m",
 ) -> list[BetaTextBlockParam]:
     blocks: list[BetaTextBlockParam] = []
     has_explicit_cache_block = False
+
+    def _cache_control() -> dict[str, str]:
+        control: dict[str, str] = {"type": "ephemeral"}
+        if cache_ttl == "1h":
+            control["ttl"] = "1h"
+        return control
 
     def append_block(text: str, *, cache_control: bool) -> None:
         nonlocal has_explicit_cache_block
         block: BetaTextBlockParam = {"type": "text", "text": text}
         if cache_control:
-            block["cache_control"] = {"type": "ephemeral"}
+            block["cache_control"] = _cache_control()  # type: ignore[typeddict-item]
             has_explicit_cache_block = True
         blocks.append(block)
 
     static_system, dynamic_system = split_system_prompt_for_cache(system)
     has_boundary = bool(system and SYSTEM_PROMPT_DYNAMIC_BOUNDARY in system)
     if static_system:
-        append_block(static_system, cache_control=False)
+        append_block(static_system, cache_control=True)
     if dynamic_system:
         append_block(dynamic_system, cache_control=True)
     elif system and not has_boundary:
@@ -321,7 +335,7 @@ def convert_system_to_input(
     if not blocks:
         return []
     if not has_explicit_cache_block:
-        blocks[-1]["cache_control"] = {"type": "ephemeral"}
+        blocks[-1]["cache_control"] = _cache_control()  # type: ignore[typeddict-item]
     return blocks
 
 

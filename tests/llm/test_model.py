@@ -82,7 +82,7 @@ def test_anthropic_system_input_splits_static_and_dynamic_blocks() -> None:
     )
 
     assert blocks == [
-        {"type": "text", "text": "static"},
+        {"type": "text", "text": "static", "cache_control": {"type": "ephemeral"}},
         {"type": "text", "text": "dynamic", "cache_control": {"type": "ephemeral"}},
     ]
 

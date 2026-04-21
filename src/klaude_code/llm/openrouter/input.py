@@ -142,7 +142,7 @@ def convert_history_to_input(
     has_boundary = bool(system and SYSTEM_PROMPT_DYNAMIC_BOUNDARY in system)
     if use_cache_control:
         if static_system:
-            append_system_message(static_system, cache_control=False)
+            append_system_message(static_system, cache_control=True)
         if dynamic_system:
             append_system_message(dynamic_system, cache_control=True)
         elif system and not has_boundary:

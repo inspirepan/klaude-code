@@ -1,6 +1,8 @@
 import io
 
+from pytest import MonkeyPatch
 from rich.console import Console
+from rich.style import Style
 from rich.text import Text
 
 from klaude_code.protocol import events, tools
@@ -30,15 +32,15 @@ def test_render_interrupt_and_aborted_tool_result_use_interrupt_style() -> None:
     assert error.style == ThemeKey.ERROR
 
 
-def test_renderer_uses_interrupt_style_for_aborted_sub_agent_tool_result(monkeypatch) -> None:
+def test_renderer_uses_interrupt_style_for_aborted_sub_agent_tool_result(monkeypatch: MonkeyPatch) -> None:
     renderer = TUICommandRenderer()
     output = io.StringIO()
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
     renderer.console.push_theme(renderer.themes.markdown_theme)
 
-    seen: dict[str, object] = {}
+    seen: dict[str, str | Style] = {}
 
-    def _fake_render_tool_error(error_msg: Text, *, style: object = ThemeKey.ERROR) -> Text:
+    def _fake_render_tool_error(error_msg: Text, *, style: str | Style = ThemeKey.ERROR) -> Text:
         seen["style"] = style
         return Text(error_msg.plain, style=style)
 

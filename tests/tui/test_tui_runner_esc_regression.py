@@ -34,8 +34,9 @@ class _FakeComponents:
 
 
 class _FakeDisplay:
-    def __init__(self, *, theme: str | None = None) -> None:
+    def __init__(self, *, theme: str | None = None, on_prompt_suggestion: Any = None) -> None:
         self.theme = theme
+        self.on_prompt_suggestion = on_prompt_suggestion
 
     def notify_ask_user_question(self, *, question_count: int, headers: list[str] | None = None) -> None:
         del question_count, headers
@@ -385,6 +386,7 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
                     effort=None,
                     verbosity=None,
                     fast_mode=False,
+                    cache_retention=None,
                     provider_routing=None,
                 ),
                 SimpleNamespace(
@@ -396,6 +398,7 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
                     effort=None,
                     verbosity=None,
                     fast_mode=False,
+                    cache_retention=None,
                     provider_routing=None,
                 ),
             ]

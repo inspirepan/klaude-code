@@ -22,6 +22,7 @@ from klaude_code.llm.stream_parts import (
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.model_id import supports_extended_prompt_cache
 from klaude_code.protocol.models import AssistantPhase, StopReason, Usage
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
@@ -65,6 +66,16 @@ def build_payload(
 
     if not is_volces_base_url:
         payload["prompt_cache_key"] = param.session_id or ""
+
+    # Default to extended (24h) cache retention for supported models since OpenAI
+    # prices extended retention identically to in-memory. Users can opt out by
+    # setting cache_retention: short explicitly.
+    if (
+        not is_volces_base_url
+        and param.cache_retention != "short"
+        and (param.cache_retention == "long" or supports_extended_prompt_cache(param.model_id))
+    ):
+        payload["prompt_cache_retention"] = "24h"
 
     if not is_volces_base_url:
         payload["include"] = ["reasoning.encrypted_content"]
