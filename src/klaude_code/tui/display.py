@@ -60,6 +60,7 @@ class TUIDisplay(DisplayABC):
                 await self._renderer.execute(self._machine.end_replay())
             finally:
                 self._renderer.set_replay_mode(False)
+            self._restore_prompt_suggestion_from_replay(event.events)
             return
 
         log_debug(
@@ -80,6 +81,26 @@ class TUIDisplay(DisplayABC):
         commands = self._machine.transition(event)
         if commands:
             await self._renderer.execute(commands)
+
+    def _restore_prompt_suggestion_from_replay(self, replay_events: list[events.ReplayEventUnion]) -> None:
+        """Pre-fill the input placeholder with the last still-valid suggestion.
+
+        A suggestion is invalidated by any later UserMessageEvent in the same
+        replay stream (mirrors the live ``PromptSuggestionClearedEvent`` that
+        fires on a new turn but is not persisted).
+        """
+        if self._on_prompt_suggestion is None:
+            return
+        suggestion: str | None = None
+        for item in replay_events:
+            if isinstance(item, events.PromptSuggestionReadyEvent):
+                suggestion = item.text
+            elif isinstance(item, events.UserMessageEvent):
+                suggestion = None
+        if suggestion is None:
+            return
+        with contextlib.suppress(Exception):
+            self._on_prompt_suggestion(suggestion)
 
     @override
     async def start(self) -> None:
