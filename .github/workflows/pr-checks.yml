@@ -13,6 +13,15 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Detect changed paths
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            web:
+              - 'web/**'
+              - '.github/workflows/pr-checks.yml'
+
       - name: Verify submodule checkout
         run: |
           git submodule status --recursive
@@ -27,30 +36,47 @@ jobs:
         uses: astral-sh/setup-uv@v6
 
       - name: Setup Node.js
+        if: steps.changes.outputs.web == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Setup pnpm
+        if: steps.changes.outputs.web == 'true'
         uses: pnpm/action-setup@v4
         with:
           version: latest
           run_install: false
 
       - name: Install web dependencies
+        if: steps.changes.outputs.web == 'true'
         run: cd web && pnpm install --frozen-lockfile
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: uv sync --frozen --dev
 
-      - name: Lint
-        run: make lint
+      - name: Python lint
+        run: make ruff-check typecheck imports
 
-      - name: Format
-        run: make format
+      - name: Web lint
+        if: steps.changes.outputs.web == 'true'
+        run: make web-lint
+
+      - name: Python format
+        run: |
+          uv run ruff check --fix .
+          uv run ruff format .
+
+      - name: Web format
+        if: steps.changes.outputs.web == 'true'
+        run: make web-format
 
       - name: Verify formatting changes committed
         run: git diff --exit-code
 
-      - name: Test
-        run: make test
+      - name: Python test
+        run: uv run pytest -m "not network"
+
+      - name: Web test
+        if: steps.changes.outputs.web == 'true'
+        run: make web-test
