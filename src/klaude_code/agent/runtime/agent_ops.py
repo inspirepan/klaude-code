@@ -15,6 +15,7 @@ from klaude_code.agent.attachments.memory import get_existing_memory_paths_by_lo
 from klaude_code.agent.away_summary import generate_away_summary
 from klaude_code.agent.bash_mode import run_bash_command
 from klaude_code.agent.compaction import CompactionReason, run_compaction
+from klaude_code.agent.prompt_suggestion import run_prompt_suggestion, should_suggest
 from klaude_code.agent.runtime.llm import LLMClients, clone_llm_clients
 from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
 from klaude_code.agent.session_title import generate_session_title
@@ -96,6 +97,7 @@ class AgentOperationHandler:
         self._request_user_interaction_callback = request_user_interaction
         self._primary_session_id: str | None = None
         self._title_refresh_tasks: dict[str, asyncio.Task[None]] = {}
+        self._prompt_suggestion_tasks: dict[str, asyncio.Task[None]] = {}
 
     async def _request_user_interaction(
         self,
@@ -407,6 +409,88 @@ class AgentOperationHandler:
     def _should_refresh_session_title_during_task(self, session_id: str) -> bool:
         return self.get_session_llm_clients(session_id).fast is not None
 
+    def _cancel_prompt_suggestion(self, session_id: str) -> None:
+        task = self._prompt_suggestion_tasks.pop(session_id, None)
+        if task is not None and not task.done():
+            log_debug(
+                f"[PromptSuggestion] cancel pending session={session_id}",
+                debug_type=DebugType.EXECUTION,
+            )
+            task.cancel()
+
+    def _schedule_prompt_suggestion(self, agent: Agent) -> None:
+        """Fire-and-forget a cache-shared fork to predict the user's next prompt.
+
+        Runs only after a task finishes cleanly (no error/abort). The result is
+        persisted as a PromptSuggestionEntry in the session and emitted as a
+        PromptSuggestionReadyEvent so the TUI can pre-fill the input placeholder.
+        A new turn cancels any pending generation via ``_cancel_prompt_suggestion``.
+        """
+        session_id = agent.session.id
+        # Sub-agent sessions don't surface a prompt to the user; the leader
+        # session is the only one that benefits from a suggestion.
+        if agent.session.sub_agent_state is not None:
+            return
+        suppress = should_suggest(agent.session)
+        if suppress is not None:
+            log_debug(
+                f"[PromptSuggestion] skip session={session_id} reason={suppress}",
+                debug_type=DebugType.EXECUTION,
+            )
+            return
+
+        log_debug(
+            f"[PromptSuggestion] schedule session={session_id}",
+            debug_type=DebugType.EXECUTION,
+        )
+        self._cancel_prompt_suggestion(session_id)
+        task = asyncio.create_task(self._generate_prompt_suggestion(agent))
+        self._prompt_suggestion_tasks[session_id] = task
+
+        def _cleanup(completed: asyncio.Task[None]) -> None:
+            if self._prompt_suggestion_tasks.get(session_id) is completed:
+                self._prompt_suggestion_tasks.pop(session_id, None)
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                _ = completed.exception()
+
+        task.add_done_callback(_cleanup)
+
+    async def _generate_prompt_suggestion(self, agent: Agent) -> None:
+        session = agent.session
+        try:
+            suggestion = await run_prompt_suggestion(
+                session=session,
+                main_profile=agent.profile,
+            )
+        except asyncio.CancelledError:
+            log_debug(
+                f"[PromptSuggestion] cancelled session={session.id}",
+                debug_type=DebugType.EXECUTION,
+            )
+            raise
+        except Exception as exc:
+            log_debug(
+                f"[PromptSuggestion] generation failed session={session.id}: {exc}",
+                debug_type=DebugType.EXECUTION,
+            )
+            return
+        if suggestion is None:
+            log_debug(
+                f"[PromptSuggestion] no suggestion session={session.id} (model returned [DONE] or filtered)",
+                debug_type=DebugType.EXECUTION,
+            )
+            return
+        log_debug(
+            f"[PromptSuggestion] ready session={session.id}",
+            suggestion,
+            debug_type=DebugType.EXECUTION,
+        )
+        entry = message.PromptSuggestionEntry(text=suggestion)
+        session.append_history([entry])
+        await self._emit_event(
+            events.PromptSuggestionReadyEvent(session_id=session.id, text=suggestion),
+        )
+
     def _freeze_user_input_for_history(self, user_input: message.UserInputPayload) -> message.UserInputPayload:
         images = user_input.images
         if not images:
@@ -419,6 +503,9 @@ class AgentOperationHandler:
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
+        # New user turn invalidates any pending suggestion for this session.
+        self._cancel_prompt_suggestion(operation.session_id)
+        await self._emit_event(events.PromptSuggestionClearedEvent(session_id=operation.session_id))
         frozen_input = self._freeze_user_input_for_history(operation.input)
         agent.session.append_history(
             [
@@ -602,6 +689,7 @@ class AgentOperationHandler:
     async def clear_session(self, session_id: str) -> None:
         agent = await self.ensure_agent(session_id)
         old_session_id = agent.session.id
+        self._cancel_prompt_suggestion(old_session_id)
         old_runtime = self._get_session_actor(old_session_id)
         if old_runtime is None:
             raise RuntimeError(f"Missing runtime for session {old_session_id}")
@@ -776,6 +864,10 @@ class AgentOperationHandler:
 
             async for event in agent.run_task(user_input, run_subtask=_runner):
                 await self._emit_event(event)
+
+            # Task completed normally — predict the user's next prompt in the
+            # background. Cancelled implicitly when the next user turn starts.
+            self._schedule_prompt_suggestion(agent)
 
         except asyncio.CancelledError:
             log_debug(

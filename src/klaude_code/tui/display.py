@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 from typing import Any, override
 
 from klaude_code.app.ports import DisplayABC
@@ -17,10 +17,16 @@ from klaude_code.tui.terminal.title import update_terminal_title
 class TUIDisplay(DisplayABC):
     """Interactive terminal display using Rich for rendering."""
 
-    def __init__(self, theme: str | None = None, notifier: TerminalNotifier | None = None):
+    def __init__(
+        self,
+        theme: str | None = None,
+        notifier: TerminalNotifier | None = None,
+        on_prompt_suggestion: Callable[[str | None], None] | None = None,
+    ):
         self._notifier = notifier or TerminalNotifier()
         self._machine = DisplayStateMachine()
         self._renderer = TUICommandRenderer(theme=theme, notifier=self._notifier)
+        self._on_prompt_suggestion = on_prompt_suggestion
 
         self._sigint_toast_clear_handle: asyncio.Handle | None = None
         self._bg_tasks: set[asyncio.Task[None]] = set()
@@ -61,6 +67,16 @@ class TUIDisplay(DisplayABC):
             event.model_dump_json(exclude_none=True),
             debug_type=DebugType.UI_EVENT,
         )
+        if self._on_prompt_suggestion is not None:
+            match event:
+                case events.PromptSuggestionReadyEvent() as e:
+                    with contextlib.suppress(Exception):
+                        self._on_prompt_suggestion(e.text)
+                case events.PromptSuggestionClearedEvent():
+                    with contextlib.suppress(Exception):
+                        self._on_prompt_suggestion(None)
+                case _:
+                    pass
         commands = self._machine.transition(event)
         if commands:
             await self._renderer.execute(commands)

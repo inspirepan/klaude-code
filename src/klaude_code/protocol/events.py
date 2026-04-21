@@ -45,6 +45,8 @@ __all__ = [
     "OperationAcceptedEvent",
     "OperationFinishedEvent",
     "OperationRejectedEvent",
+    "PromptSuggestionClearedEvent",
+    "PromptSuggestionReadyEvent",
     "ReplayEventUnion",
     "ReplayHistoryEvent",
     "ResponseCompleteEvent",
@@ -115,6 +117,7 @@ DURABLE_EVENT_TYPES = frozenset(
         "compaction.end",
         "task.finish",
         "away.summary",
+        "prompt.suggestion.ready",
     }
 )
 
@@ -178,6 +181,22 @@ class AwaySummaryEndEvent(Event):
     """Fired after a manual away-summary LLM call completes (success or
     empty/error) so the TUI can exit the 'Recapping…' spinner status.
     Ephemeral — UI only."""
+
+    pass
+
+
+class PromptSuggestionReadyEvent(Event):
+    """Predicted-next-user-prompt ready for display. TUI can pre-fill the
+    input placeholder so the user can accept with Enter (empty buffer) or Tab.
+    Durable: persisted via PromptSuggestionEntry so replay restores it.
+    """
+
+    text: str
+
+
+class PromptSuggestionClearedEvent(Event):
+    """Invalidate the currently displayed prompt suggestion (new turn
+    starting, user typed, or explicit reset). Ephemeral — UI only."""
 
     pass
 
@@ -432,6 +451,7 @@ type ReplayEventUnion = (
     | BashCommandOutputDeltaEvent
     | BashCommandEndEvent
     | AwaySummaryEvent
+    | PromptSuggestionReadyEvent
 )
 
 

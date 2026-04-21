@@ -111,6 +111,19 @@ class AwaySummaryEntry(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class PromptSuggestionEntry(BaseModel):
+    """Predicted-next-prompt suggestion produced after a task finishes.
+
+    Sidecar event (not a Message) so it never leaks back into LLM context.
+    Persisted so replay can restore the suggestion on session reopen; UI
+    layers decide whether it's still actionable (e.g. latest entry, no new
+    user turn after it).
+    """
+
+    text: str
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class SpawnSubAgentEntry(BaseModel):
     """Recorded in the parent session when a sub-agent is spawned.
 
@@ -263,6 +276,7 @@ HistoryEvent = (
     | CacheHitRateEntry
     | SpawnSubAgentEntry
     | AwaySummaryEntry
+    | PromptSuggestionEntry
 )
 
 StreamItem = AssistantTextDelta | ThinkingTextDelta | ToolCallStartDelta

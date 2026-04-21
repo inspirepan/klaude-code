@@ -740,6 +740,8 @@ class Session(BaseModel):
                     if had_any_turn:
                         yield from _flush_task_finish(msg_ts)
                     yield events.AwaySummaryEvent(session_id=self.id, text=aw.text, timestamp=msg_ts)
+                case message.PromptSuggestionEntry() as ps:
+                    yield events.PromptSuggestionReadyEvent(session_id=self.id, text=ps.text, timestamp=msg_ts)
                 case message.SpawnSubAgentEntry() as sa:
                     yield from self._iter_sub_agent_history_by_id(sa.session_id, seen_sub_agent_sessions)
                 case message.SystemMessage():
