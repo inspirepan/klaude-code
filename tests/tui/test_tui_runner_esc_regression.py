@@ -385,6 +385,7 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
                     effort=None,
                     verbosity=None,
                     fast_mode=False,
+                    cache_retention=None,
                     provider_routing=None,
                 ),
                 SimpleNamespace(
@@ -396,6 +397,7 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
                     effort=None,
                     verbosity=None,
                     fast_mode=False,
+                    cache_retention=None,
                     provider_routing=None,
                 ),
             ]

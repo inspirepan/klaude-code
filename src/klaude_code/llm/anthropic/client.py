@@ -1,7 +1,7 @@
 import json
 import os
 from collections.abc import AsyncGenerator
-from typing import Any, override
+from typing import Any, Literal, override
 
 import anthropic
 import httpx
@@ -172,16 +172,20 @@ class AnthropicStreamStateManager:
 
 def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStreaming:
     """Build Anthropic API request parameters."""
-    messages = convert_history_to_input(param.input, param.model_id)
+    cache_ttl: Literal["5m", "1h"] = "1h" if param.cache_retention == "long" else "5m"
+    messages = convert_history_to_input(param.input, param.model_id, cache_ttl=cache_ttl)
     tools = convert_tool_schema(param.tools, str(param.model_id))
     system_messages = [msg for msg in param.input if isinstance(msg, message.SystemMessage)]
-    system = convert_system_to_input(param.system, system_messages)
+    system = convert_system_to_input(param.system, system_messages, cache_ttl=cache_ttl)
 
     # Add identity block at the beginning of the system prompt
+    identity_cache_control: dict[str, str] = {"type": "ephemeral"}
+    if cache_ttl == "1h":
+        identity_cache_control["ttl"] = "1h"
     identity_block: BetaTextBlockParam = {
         "type": "text",
         "text": CLAUDE_CODE_IDENTITY,
-        "cache_control": {"type": "ephemeral"},
+        "cache_control": identity_cache_control,  # type: ignore[typeddict-item]
     }
     system = [identity_block, *system]
 

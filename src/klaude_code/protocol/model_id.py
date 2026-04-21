@@ -96,6 +96,37 @@ def support_gpt_phase(model_name: str | None) -> bool:
     return "gpt-5.4" in model_lower or "gpt-5.3-codex" in model_lower
 
 
+def supports_extended_prompt_cache(model_name: str | None) -> bool:
+    """Check if the OpenAI model supports prompt_cache_retention="24h".
+
+    Source: https://developers.openai.com/api/docs/guides/prompt-caching
+    Pricing is identical to in-memory, so we default to 24h for supported
+    models to improve cache hit rates.
+    """
+    if not model_name:
+        return False
+    model_lower = model_name.lower()
+    # Normalize openrouter-style prefix like "openai/gpt-5.4".
+    if "/" in model_lower:
+        model_lower = model_lower.rsplit("/", 1)[-1]
+    # Strip klaude's variant suffixes (e.g. "gpt-5.4:xhigh" -> "gpt-5.4").
+    if ":" in model_lower:
+        model_lower = model_lower.split(":", 1)[0]
+    supported = {
+        "gpt-5.4",
+        "gpt-5.2",
+        "gpt-5.1-codex-max",
+        "gpt-5.1",
+        "gpt-5.1-codex",
+        "gpt-5.1-codex-mini",
+        "gpt-5.1-chat-latest",
+        "gpt-5",
+        "gpt-5-codex",
+        "gpt-4.1",
+    }
+    return model_lower in supported
+
+
 # -- Google --------------------------------------------------------------------
 
 

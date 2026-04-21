@@ -146,6 +146,11 @@ class LLMConfigModelParameter(BaseModel):
     # Fast mode: Anthropic speed="fast", OpenAI service_tier="priority"
     fast_mode: bool = False
 
+    # Prompt cache retention window.
+    # - "short" (default): Anthropic cache_control ttl=5m / OpenAI prompt_cache_retention=in-memory
+    # - "long": Anthropic cache_control ttl=1h / OpenAI prompt_cache_retention=24h
+    cache_retention: Literal["short", "long"] | None = None
+
     # Cost configuration (USD per million tokens)
     cost: Cost | None = None
 

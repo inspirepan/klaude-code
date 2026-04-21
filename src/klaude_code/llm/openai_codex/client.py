@@ -26,6 +26,7 @@ from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param
+from klaude_code.protocol.model_id import supports_extended_prompt_cache
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
 
@@ -54,6 +55,13 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
 
     if session_id:
         payload["prompt_cache_key"] = session_id
+
+    # Default to extended (24h) cache retention for supported models (same price
+    # as in-memory per OpenAI docs). Users can opt out via cache_retention=short.
+    if param.cache_retention != "short" and (
+        param.cache_retention == "long" or supports_extended_prompt_cache(param.model_id)
+    ):
+        payload["prompt_cache_retention"] = "24h"
 
     verbosity = "high" if param.verbosity == "max" else (param.verbosity or "medium")
     payload["text"] = {"verbosity": verbosity}  # type: ignore[typeddict-item]

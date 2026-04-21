@@ -42,6 +42,9 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
     if model_params.fast_mode:
         parts.append("fast mode")
 
+    if model_params.cache_retention:
+        parts.append(f"cache retention {model_params.cache_retention}")
+
     if model_params.provider_routing:
         parts.append(f"provider routing {_format_provider_routing(model_params.provider_routing)}")
 

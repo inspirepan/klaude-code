@@ -21,6 +21,7 @@ def test_build_model_select_items_hides_provider_on_each_model_row() -> None:
             effort=None,
             verbosity=None,
             fast_mode=False,
+            cache_retention=None,
             provider_routing=None,
         ),
         SimpleNamespace(
@@ -32,6 +33,7 @@ def test_build_model_select_items_hides_provider_on_each_model_row() -> None:
             effort=None,
             verbosity=None,
             fast_mode=False,
+            cache_retention=None,
             provider_routing=None,
         ),
     ]
