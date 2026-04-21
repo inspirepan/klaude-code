@@ -4,7 +4,7 @@ import sys
 from dataclasses import dataclass
 from typing import Literal
 
-from prompt_toolkit.styles import Style, merge_styles
+from prompt_toolkit.styles import BaseStyle, Style, merge_styles
 
 from klaude_code.protocol import events, message, op
 from klaude_code.session import Session
@@ -13,19 +13,27 @@ from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, SelectItem, 
 from .command_abc import Agent, CommandABC, CommandResult
 from .types import CommandName
 
-FORK_SELECT_STYLE = merge_styles(
-    [
-        DEFAULT_PICKER_STYLE,
-        Style(
-            [
-                ("msg", "fg:default"),
-                ("separator", "fg:ansibrightblack"),
-                ("separator highlighted", "fg:ansigreen"),
-                ("assistant", "fg:ansiblue"),
-            ]
-        ),
-    ]
-)
+
+def _fork_select_style() -> BaseStyle:
+    """Build the fork picker style on demand so the theme palette applies.
+
+    ``DEFAULT_PICKER_STYLE()`` resolves to the active light/dark palette; the
+    extra overrides here opt specific rows out of the default dim color so
+    the fork divider and assistant summary read clearly.
+    """
+
+    return merge_styles(
+        [
+            DEFAULT_PICKER_STYLE(),
+            Style(
+                [
+                    # Keep the fork divider subtle but distinguishable when
+                    # highlighted.
+                    ("msg", "fg:default"),
+                ]
+            ),
+        ]
+    )
 
 
 @dataclass
@@ -270,7 +278,7 @@ def _select_fork_point_sync(fork_points: list[ForkPoint]) -> int | Literal["canc
             message="Select fork point (messages before this point will be included):",
             items=items,
             pointer="→",
-            style=FORK_SELECT_STYLE,
+            style=_fork_select_style(),
             initial_value=last_value,
             highlight_pointed_item=True,
         )

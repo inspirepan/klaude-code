@@ -16,13 +16,15 @@ from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import ConditionalContainer, Float, FloatContainer, HSplit, Layout, VSplit, Window
 from prompt_toolkit.layout.containers import Container, DynamicContainer, ScrollOffsets
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
-from prompt_toolkit.styles import Style, merge_styles
+from prompt_toolkit.output.color_depth import ColorDepth
+from prompt_toolkit.styles import merge_styles
 from prompt_toolkit.styles.base import BaseStyle
 from prompt_toolkit.utils import get_cwidth
 from rich.console import Console
 
 from klaude_code.tui.components.common import format_more_lines_indicator
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
+from klaude_code.tui.input.pt_theme import get_base_style
 from klaude_code.tui.terminal.selector import (
     QuestionPrompt,
     QuestionSelectResult,
@@ -941,19 +943,7 @@ def select_questions[T](
     def _before_render(app: Application[list[QuestionSelectResult[T]] | None]) -> None:
         _sync_focus(app)
 
-    base_style = Style(
-        [
-            ("frame.border", "fg:ansibrightblack"),
-            ("frame.label", "fg:ansibrightblack italic"),
-            ("search_placeholder", "fg:ansibrightblack italic"),
-            ("question_tab_inactive", "reverse fg:ansibrightblack"),
-            ("question_tab_active", "reverse fg:ansigreen bold"),
-            ("warning", "fg:ansiyellow"),
-            ("submit_option", "bold"),
-            ("preview_border", "fg:ansibrightblack"),
-            ("preview_content", ""),
-        ]
-    )
+    base_style = get_base_style()
     merged_style = merge_styles([base_style, style] if style is not None else [base_style])
 
     app: Application[list[QuestionSelectResult[T]] | None] = Application(
@@ -964,6 +954,9 @@ def select_questions[T](
         full_screen=False,
         erase_when_done=True,
         before_render=_before_render,
+        # Force 24-bit color so hex styles render exactly as specified
+        # instead of being snapped to the xterm-256 palette.
+        color_depth=ColorDepth.TRUE_COLOR,
     )
     app.renderer.cpr_not_supported_callback = lambda: None
     return app.run()

@@ -109,7 +109,7 @@ def select_model_interactive(
             use_search_filter=True,
             initial_value=initial_value,
             initial_search_text=initial_search_text,
-            style=DEFAULT_PICKER_STYLE,
+            style=DEFAULT_PICKER_STYLE(),
         )
         if isinstance(selected, str) and selected in names:
             return ModelSelectResult(status=ModelSelectStatus.SELECTED, model=selected)

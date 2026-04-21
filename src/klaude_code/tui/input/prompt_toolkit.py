@@ -24,8 +24,8 @@ from prompt_toolkit.layout.controls import BufferControl, UIContent
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu, MultiColumnCompletionsMenu
 from prompt_toolkit.layout.utils import explode_text_fragments
+from prompt_toolkit.output.color_depth import ColorDepth
 from prompt_toolkit.patch_stdout import patch_stdout
-from prompt_toolkit.styles import Style
 from prompt_toolkit.utils import get_cwidth
 
 from klaude_code.app.ports import InputProviderABC
@@ -49,12 +49,13 @@ from klaude_code.tui.input.images import (
 )
 from klaude_code.tui.input.key_bindings import create_key_bindings
 from klaude_code.tui.input.paste import expand_paste_markers, expand_paste_markers_with_file_save
+from klaude_code.tui.input.pt_theme import get_base_style
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 
-COMPLETION_SELECTED_BG = "ansigreen"
-COMPLETION_MENU = "ansibrightblack"
-INPUT_PROMPT_STYLE = "ansimagenta bold"
-INPUT_PROMPT_BASH_STYLE = "ansigreen"
+# Style class tokens used by the REPL prompt. The concrete colors live in
+# ``pt_theme.py`` so that hex values follow the resolved light/dark palette.
+INPUT_PROMPT_STYLE = "class:prompt"
+INPUT_PROMPT_BASH_STYLE = "class:prompt.bash"
 COMPLETION_TRUNCATION_SYMBOL = "…"
 
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
@@ -195,13 +196,29 @@ def _patch_completion_menu_controls(container: Container) -> None:
 # ---------------------------------------------------------------------------
 
 
+_DIM_FRAGMENT_CLASSES = (
+    "class:meta",
+    "class:skill.project",
+    "class:skill.user",
+    "class:skill.system",
+)
+
+
 def _strip_dim_fg(fragments: StyleAndTextTuples) -> StyleAndTextTuples:
-    """Strip 'ansibrightblack' (dim directory color) so the selection foreground takes effect."""
+    """Strip dim/accent class tokens so the selection foreground takes effect.
+
+    Completion menu rows set their own ``class:completion-menu.completion.current``
+    color. Fragments authored by completers (e.g. directory prefix in dim grey,
+    skill bullets in per-location accent colors) would otherwise override that
+    selection color. We drop those class tokens here for the current row.
+    """
     result: StyleAndTextTuples = []
     for item in fragments:
         style = item[0]
-        if "ansibrightblack" in style:
-            style = style.replace("ansibrightblack", "").strip()
+        for cls in _DIM_FRAGMENT_CLASSES:
+            if cls in style:
+                style = style.replace(cls, "")
+        style = " ".join(style.split())
         result.append((style, item[1], *item[2:]))  # type: ignore[arg-type]
     return result
 
@@ -416,8 +433,6 @@ class PromptToolkitInput(InputProviderABC):
             consume_prompt_suggestion=self._consume_prompt_suggestion,
         )
 
-        completion_selected = COMPLETION_SELECTED_BG
-
         return PromptSession(
             # Use a stable prompt string; we override the style dynamically in prompt_async.
             [(INPUT_PROMPT_STYLE, prompt)],
@@ -434,33 +449,11 @@ class PromptToolkitInput(InputProviderABC):
             prompt_continuation="  ",
             placeholder=self._build_placeholder,
             rprompt=self._get_rprompt_message,
-            style=Style.from_dict(
-                {
-                    "placeholder": "fg:ansibrightblack italic",
-                    "placeholder-hint": "fg:ansibrightblack",
-                    "completion-menu": "bg:default",
-                    "completion-menu.border": "bg:default",
-                    "scrollbar.background": "bg:default",
-                    "scrollbar.button": "bg:default",
-                    "completion-menu.completion": "bg:default fg:default",
-                    "completion-menu.meta.completion": f"bg:default fg:{COMPLETION_MENU}",
-                    "completion-menu.completion.current": f"noreverse bg:default fg:{completion_selected}",
-                    "completion-menu.meta.completion.current": f"bg:default fg:{completion_selected}",
-                    # Embedded selector overlay styles
-                    "pointer": "ansigreen",
-                    "highlighted": "ansigreen",
-                    "text": "ansibrightblack",
-                    "question": "bold",
-                    "msg": "",
-                    "meta": "fg:ansibrightblack",
-                    "frame.border": "fg:ansibrightblack",
-                    "search_prefix": "ansibrightblack",
-                    "search_placeholder": "fg:ansibrightblack italic",
-                    "search_input": "",
-                    "search_success": "noinherit fg:ansigreen",
-                    "search_none": "noinherit fg:ansired",
-                }
-            ),
+            # Force 24-bit color so hex styles render exactly as specified
+            # instead of being snapped to the xterm-256 palette.
+            color_depth=ColorDepth.TRUE_COLOR,
+            # Pull the shared theme so hex colors here match the rich UI.
+            style=get_base_style(),
         )
 
     def _build_placeholder(self) -> FormattedText:
@@ -473,7 +466,7 @@ class PromptToolkitInput(InputProviderABC):
         if self._prompt_suggestion:
             return FormattedText(
                 [
-                    ("class:placeholder", f"   {self._prompt_suggestion}"),
+                    ("class:prompt-suggestion", f"   {self._prompt_suggestion}"),
                     ("class:placeholder-hint", "   [enter send · tab edit]"),
                 ]
             )
