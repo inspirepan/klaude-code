@@ -1,7 +1,7 @@
 """REPL completion handlers for @ file paths, / slash commands, and skills.
 
 This module provides completers for the REPL input:
-- _SlashCommandCompleter: Completes slash commands/skills on the first line
+- _SlashCommandCompleter: Completes slash commands/skills at the effective line start
 - _SkillCompleter: Completes inline skill names with / or // prefixes
 - _AtFilesCompleter: Completes @path segments using fd or ripgrep
 - _ComboCompleter: Combines all completers with priority logic
@@ -138,8 +138,20 @@ class _CmdResult(NamedTuple):
     lines: list[str]
 
 
+def _is_at_effective_line_start(document: Document) -> bool:
+    """Return True when all text before the current line is whitespace.
+
+    This treats a command-style completion context as valid on any row as long
+    as the user has only typed blank/whitespace lines before the current one.
+    """
+    text = document.text_before_cursor
+    last_newline = text.rfind("\n")
+    preceding = "" if last_newline < 0 else text[: last_newline + 1]
+    return preceding.strip() == ""
+
+
 class _SlashCommandCompleter(Completer):
-    """Complete slash commands/skills at the beginning of the first line.
+    """Complete slash commands/skills at the effective start of input.
 
     Behavior:
     - `/...`: shows command + skill completions (command first)
@@ -147,9 +159,13 @@ class _SlashCommandCompleter(Completer):
       - When fragment length > 4, also include command name/summary contains-match after prefix matches
     - `//...`: shows only skill completions
     - Inserts trailing space after completion
+    - Triggers on the first line, or on any later line when all preceding
+      lines are blank/whitespace.
     """
 
-    _SLASH_TOKEN_RE = re.compile(r"^(?P<prefix>//|/)(?P<frag>[^\s/]*)$")
+    # Allows optional leading whitespace on the current line; the completion
+    # replaces the leading whitespace too so the inserted text starts with `/`.
+    _SLASH_TOKEN_RE = re.compile(r"^(?P<lead>\s*)(?P<prefix>//|/)(?P<frag>[^\s/]*)$")
 
     def __init__(self, command_info_provider: Callable[[], list[CommandInfo]] | None = None) -> None:
         self._command_info_provider = command_info_provider
@@ -159,8 +175,8 @@ class _SlashCommandCompleter(Completer):
         document: Document,
         complete_event,  # type: ignore[override]
     ) -> Iterable[Completion]:
-        # Only complete on first line
-        if document.cursor_position_row != 0:
+        # Allow completion when cursor is on a line whose preceding lines are blank
+        if not _is_at_effective_line_start(document):
             return
 
         if self._command_info_provider is None:
@@ -175,8 +191,9 @@ class _SlashCommandCompleter(Completer):
 
         prefix = m.group("prefix")
         frag = m.group("frag")
-        token_start = len(text_before) - len(f"{prefix}{frag}")
-        start_position = token_start - len(text_before)  # negative offset
+        # Replace from the start of the leading whitespace (if any) so the
+        # inserted command/skill token begins at the line start.
+        start_position = -len(text_before)  # negative offset covering lead + prefix + frag
 
         skills = self._get_available_skills()
         frag_lower = frag.lower()
@@ -231,8 +248,8 @@ class _SlashCommandCompleter(Completer):
             )
 
     def is_slash_command_context(self, document: Document) -> bool:
-        """Check if current context is first-line slash completion."""
-        if document.cursor_position_row != 0:
+        """Check if current context is slash completion at effective line start."""
+        if not _is_at_effective_line_start(document):
             return False
         text_before = document.current_line_before_cursor
         return bool(self._SLASH_TOKEN_RE.search(text_before))
@@ -344,8 +361,8 @@ class _ComboCompleter(Completer):
         except Exception:
             pass
 
-        # Try slash command completion first (only on first line)
-        if document.cursor_position_row == 0 and self._slash_completer.is_slash_command_context(document):
+        # Try slash command completion first (first line, or later lines whose preceding content is blank)
+        if self._slash_completer.is_slash_command_context(document):
             yield from self._slash_completer.get_completions(document, complete_event)
             return
 

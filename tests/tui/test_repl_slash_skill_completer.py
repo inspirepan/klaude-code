@@ -136,6 +136,38 @@ def test_legacy_dollar_skill_completion_removed() -> None:
     assert completions == []
 
 
+def test_slash_command_completion_on_later_line_when_preceding_is_blank() -> None:
+    completer = _ComboCompleter(command_info_provider=_command_info_provider)
+    text = "\n  \n/mo"
+    doc = Document(text=text, cursor_position=len(text))
+    completions = list(completer.get_completions(doc, cast(Any, None)))
+    texts = [completion.text for completion in completions]
+
+    assert "/model " in texts
+
+
+def test_slash_command_completion_with_leading_whitespace_on_current_line() -> None:
+    completer = _ComboCompleter(command_info_provider=_command_info_provider)
+    text = "  /mo"
+    doc = Document(text=text, cursor_position=len(text))
+    completions = list(completer.get_completions(doc, cast(Any, None)))
+    model = next(completion for completion in completions if completion.text == "/model ")
+
+    # Replacement must cover leading spaces so the result begins with '/'.
+    assert model.start_position == -len(text)
+
+
+def test_slash_command_completion_suppressed_when_preceding_has_content() -> None:
+    completer = _ComboCompleter(command_info_provider=_command_info_provider)
+    text = "hello\n/mo"
+    doc = Document(text=text, cursor_position=len(text))
+    completions = list(completer.get_completions(doc, cast(Any, None)))
+    texts = [completion.text for completion in completions]
+
+    # Commands should not be suggested; only inline skill completion applies.
+    assert "/model " not in texts
+
+
 def test_double_slash_prefers_name_match_over_description_match(monkeypatch: pytest.MonkeyPatch) -> None:
     skills: list[tuple[str, str, str]] = [
         (
