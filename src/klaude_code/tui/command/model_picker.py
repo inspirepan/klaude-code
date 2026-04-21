@@ -43,6 +43,13 @@ def select_model_interactive(
         initial_search_text = initial_search_text.strip() or None
 
     config = load_config()
+
+    # Fast path: if the prefill uniquely matches a configured model, skip the picker.
+    if initial_search_text and not keywords:
+        prefill_match = match_model_from_config(initial_search_text)
+        if prefill_match.matched_model:
+            return ModelSelectResult(status=ModelSelectStatus.SELECTED, model=prefill_match.matched_model)
+
     result = match_model_from_config(None)
 
     if result.error_message:
