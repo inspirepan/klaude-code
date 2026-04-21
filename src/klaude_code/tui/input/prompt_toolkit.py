@@ -474,7 +474,7 @@ class PromptToolkitInput(InputProviderABC):
             return FormattedText(
                 [
                     ("class:placeholder", f"   {self._prompt_suggestion}"),
-                    ("class:placeholder-hint", "   press enter to send / tab to edit"),
+                    ("class:placeholder-hint", "   [enter send · tab edit]"),
                 ]
             )
 
