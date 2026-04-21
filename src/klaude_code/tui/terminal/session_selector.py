@@ -23,18 +23,20 @@ def select_session_sync(session_ids: list[str] | None = None) -> str | None:
     for idx, opt in enumerate(options, 1):
         display_msgs = format_user_messages_display(opt.user_messages)
         title: list[tuple[str, str]] = []
-        title.append(("fg:ansibrightblack", f"{idx:2}. "))
+        title.append(("class:meta", f"{idx:2}. "))
         if opt.title:
-            title.append(("fg:ansicyan bold", f"{opt.title} "))
+            title.append(("bold class:accent.cyan", f"{opt.title} "))
         title.append(("class:meta", f"{opt.relative_time} · {opt.messages_count} · {opt.model_name}"))
-        title.append(("fg:ansibrightblack", f" · {opt.session_id}\n"))
+        title.append(("class:meta", f" · {opt.session_id}\n"))
         for i, msg in enumerate(display_msgs):
             is_last = i == len(display_msgs) - 1
             if msg == "⋮":
                 title.append(("class:msg", f"    {msg}\n"))
             else:
                 prefix = "╰─" if is_last else "├─"
-                title.append(("fg:ansibrightblack", f"    {prefix} "))
+                # Tree-guide characters use grey3 to match the welcome panel's
+                # ``ThemeKey.LINES`` so structural lines read consistently.
+                title.append(("class:lines", f"    {prefix} "))
                 title.append(("class:msg", f"{msg}\n"))
         title.append(("", "\n"))
 
@@ -52,7 +54,7 @@ def select_session_sync(session_ids: list[str] | None = None) -> str | None:
             message="Select a session to resume:",
             items=items,
             pointer="→",
-            style=DEFAULT_PICKER_STYLE,
+            style=DEFAULT_PICKER_STYLE(),
         )
     except KeyboardInterrupt:
         return None

@@ -33,6 +33,7 @@ from klaude_code.tui.command import (
 from klaude_code.tui.command.command_abc import WebModeRequest
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput
+from klaude_code.tui.input.pt_theme import configure_pt_theme
 from klaude_code.tui.terminal.color import is_light_terminal_background
 from klaude_code.tui.terminal.control import install_sigint_interrupt, start_esc_interrupt_monitor
 from klaude_code.tui.terminal.selector import (
@@ -157,6 +158,10 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         elif detected is False:
             theme = "dark"
 
+    # Propagate the resolved theme to the prompt_toolkit palette so selectors
+    # and the REPL input share hex colors with the rich-rendered UI.
+    configure_pt_theme(theme)
+
     tui_display = TUIDisplay(
         theme=theme,
         on_prompt_suggestion=lambda text: input_provider.set_prompt_suggestion(text),
@@ -248,7 +253,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             pointer="→",
             use_search_filter=True,
             initial_search_text=payload.initial_search_text,
-            style=DEFAULT_PICKER_STYLE,
+            style=DEFAULT_PICKER_STYLE(),
         )
         return selected if isinstance(selected, str) else None
 
@@ -259,7 +264,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             pointer="→",
             use_search_filter=True,
             initial_search_text=payload.initial_search_text,
-            style=DEFAULT_PICKER_STYLE,
+            style=DEFAULT_PICKER_STYLE(),
         )
         return selected if isinstance(selected, str) else None
 
@@ -329,7 +334,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 select_questions,
                 questions=prompts,
                 pointer="→",
-                style=DEFAULT_PICKER_STYLE,
+                style=DEFAULT_PICKER_STYLE(),
             )
         finally:
             if resume_esc_monitor is not None:

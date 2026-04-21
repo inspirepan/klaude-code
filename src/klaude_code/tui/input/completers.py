@@ -74,19 +74,19 @@ SKILL_TOKEN_PATTERN = re.compile(rf"{_INLINE_COMPLETION_BOUNDARY}(?P<prefix>//|/
 _SKILL_PREFIX = "skill:"
 
 _SKILL_LOCATION_STYLE = {
-    "project": "ansimagenta",
-    "user": "ansiblue",
-    "system": "ansiyellow",
+    "project": "class:skill.project",
+    "user": "class:skill.user",
+    "system": "class:skill.system",
 }
 
 
 def _skill_display(name: str, location: str) -> FormattedText:
-    bullet_style = _SKILL_LOCATION_STYLE.get(location, "ansibrightblack")
-    return FormattedText([(bullet_style, "•"), ("ansibrightblack", f" {_SKILL_PREFIX}"), ("", name)])
+    bullet_style = _SKILL_LOCATION_STYLE.get(location, "class:meta")
+    return FormattedText([(bullet_style, "•"), ("class:meta", f" {_SKILL_PREFIX}"), ("", name)])
 
 
 def _command_display(name: str, hint: str) -> FormattedText:
-    return FormattedText([("ansibrightblack", "•"), ("", f" {name}"), ("ansibrightblack", hint)])
+    return FormattedText([("class:meta", "•"), ("", f" {name}"), ("class:meta", hint)])
 
 
 def _skill_match_rank(name: str, desc: str, frag_lower: str) -> tuple[int, int, int, int, int, int, int] | None:
@@ -689,7 +689,7 @@ class _AtFilesCompleter(Completer):
 
         segments: list[tuple[str, str]] = []
         if dir_prefix:
-            segments.append(("ansibrightblack", dir_prefix))
+            segments.append(("class:meta", dir_prefix))
         segments.append(("", basename))
 
         return FormattedText(segments)

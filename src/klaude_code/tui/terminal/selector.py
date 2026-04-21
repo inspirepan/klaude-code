@@ -18,26 +18,32 @@ from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import ConditionalContainer, Float, FloatContainer, HSplit, Layout, VSplit, Window
 from prompt_toolkit.layout.containers import Container, ScrollOffsets
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+from prompt_toolkit.output.color_depth import ColorDepth
 from prompt_toolkit.styles import Style, merge_styles
 from prompt_toolkit.styles.base import BaseStyle
 
 from klaude_code.config.formatters import format_model_params
+from klaude_code.tui.input.pt_theme import get_default_picker_style
 
-DEFAULT_PICKER_STYLE = Style(
-    [
-        ("pointer", "ansigreen"),
-        ("highlighted", "ansigreen"),
-        ("msg", ""),
-        ("meta", "fg:ansibrightblack"),
-        ("text", "ansibrightblack"),
-        ("question", "bold"),
-        ("search_prefix", "ansibrightblack"),
-        # Search filter colors at the bottom (currently unused by selector, but
-        # kept for consistency with picker style defaults).
-        ("search_success", "noinherit fg:ansigreen"),
-        ("search_none", "noinherit fg:ansired"),
-    ]
-)
+
+def _default_picker_style_factory() -> Style:
+    """Backwards-compatible alias kept for call sites.
+
+    Historically this module exported a module-level ``DEFAULT_PICKER_STYLE``
+    constant. Because the theme is resolved at runtime, we expose it as a
+    callable returning the current theme's Style, and keep a convenience
+    module-level alias that callers can still import.
+    """
+
+    return get_default_picker_style()
+
+
+# NOTE: intentionally a *function* object, not a Style instance. Call sites
+# that currently pass it as ``style=DEFAULT_PICKER_STYLE`` must instead call
+# it (``style=DEFAULT_PICKER_STYLE()``). A callable makes the theme-binding
+# explicit: the palette is resolved on each call rather than frozen at
+# module import time.
+DEFAULT_PICKER_STYLE = _default_picker_style_factory
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,9 +117,12 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
         items.append(
             SelectItem(
                 title=[
-                    ("class:meta ansiyellow", group_text + " "),
-                    ("class:meta ansibrightblack", count_text + " "),
-                    ("class:meta ansibrightblack", separator),
+                    ("class:meta class:accent.yellow", group_text + " "),
+                    ("class:meta", count_text + " "),
+                    # Dashes use the faintest grey3 (``class:lines``) so the
+                    # provider header reads as: bright group name, dim count,
+                    # faintest divider -- matching rich's ``ThemeKey.LINES``.
+                    ("class:lines", separator),
                     ("class:meta", "\n"),
                 ],
                 value=None,
@@ -133,7 +142,7 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
                 ("class:meta", f"{model_idx:>{num_width}}. "),
                 ("class:msg", first_line_prefix),
                 ("class:msg", " → "),
-                ("class:msg ansiblue", model_id_str),
+                ("class:msg class:accent.blue", model_id_str),
             ]
 
             if meta_str:
@@ -157,7 +166,7 @@ def _restyle_title(title: list[tuple[str, str]], cls: str) -> list[tuple[str, st
     """Re-apply a style class while keeping existing style tokens.
 
     This is used to highlight the currently-pointed item. We want to:
-    - preserve explicit colors (e.g. `fg:ansibrightblack`) defined by callers
+    - preserve explicit colors (e.g. ``class:meta``) defined by callers
     - preserve existing classes (e.g. `class:msg`, `class:meta`) so their
       non-color attributes remain in effect
     - preserve text attributes like bold/italic/dim
@@ -668,14 +677,7 @@ def select_one[T](
             frame=False,
         )
 
-    base_style = Style(
-        [
-            ("frame.border", "fg:ansibrightblack"),
-            ("frame.label", "fg:ansibrightblack italic"),
-            ("search_prefix", "fg:ansibrightblack"),
-            ("search_placeholder", "fg:ansibrightblack italic"),
-        ]
-    )
+    base_style = get_default_picker_style()
     merged_style = merge_styles([base_style, style] if style is not None else [base_style])
 
     root_children: list[Container] = [top_spacer_window, header_window]
@@ -690,6 +692,9 @@ def select_one[T](
         mouse_support=False,
         full_screen=False,
         erase_when_done=True,
+        # Force 24-bit color so hex styles render exactly as specified
+        # instead of being snapped to the xterm-256 palette.
+        color_depth=ColorDepth.TRUE_COLOR,
     )
     app.renderer.cpr_not_supported_callback = lambda: None
     return app.run()

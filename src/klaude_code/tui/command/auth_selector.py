@@ -47,13 +47,13 @@ def _api_key_source(env_var: str) -> str | None:
 def _oauth_title(label: str, provider_name: str) -> list[tuple[str, str]]:
     title: list[tuple[str, str]] = [
         ("", f"{label} "),
-        ("ansibrightblack", "[OAuth]"),
+        ("class:meta", "[OAuth]"),
     ]
     has_state, is_expired = _get_oauth_auth_state(provider_name)
     if has_state and not is_expired:
-        title.append(("ansigreen", " ✓ logged in"))
+        title.append(("class:accent.green", " ✓ logged in"))
     elif has_state and is_expired:
-        title.append(("ansiyellow", " · token expired (refresh on use)"))
+        title.append(("class:accent.yellow", " · token expired (refresh on use)"))
     title.append(("", "\n"))
     return title
 
@@ -61,13 +61,13 @@ def _oauth_title(label: str, provider_name: str) -> list[tuple[str, str]]:
 def _api_key_title(label: str, env_var: str) -> list[tuple[str, str]]:
     title: list[tuple[str, str]] = [
         ("", f"{label} "),
-        ("ansibrightblack", f"[{env_var}]"),
+        ("class:meta", f"[{env_var}]"),
     ]
     source = _api_key_source(env_var)
     if source == "env":
-        title.append(("ansigreen", " ✓ env"))
+        title.append(("class:accent.green", " ✓ env"))
     elif source == "configured":
-        title.append(("ansigreen", " ✓ configured"))
+        title.append(("class:accent.green", " ✓ configured"))
     title.append(("", "\n"))
     return title
 
@@ -101,13 +101,13 @@ def _aws_bedrock_source() -> str | None:
 def _aws_bedrock_title() -> list[tuple[str, str]]:
     title: list[tuple[str, str]] = [
         ("", "AWS Bedrock "),
-        ("ansibrightblack", "[AWS credentials]"),
+        ("class:meta", "[AWS credentials]"),
     ]
     source = _aws_bedrock_source()
     if source == "env":
-        title.append(("ansigreen", " ✓ env"))
+        title.append(("class:accent.green", " ✓ env"))
     elif source == "configured":
-        title.append(("ansigreen", " ✓ configured"))
+        title.append(("class:accent.green", " ✓ configured"))
     title.append(("", "\n"))
     return title
 
@@ -141,13 +141,13 @@ def _google_vertex_source() -> str | None:
 def _google_vertex_title() -> list[tuple[str, str]]:
     title: list[tuple[str, str]] = [
         ("", "Google Vertex "),
-        ("ansibrightblack", "[Cloud credentials]"),
+        ("class:meta", "[Cloud credentials]"),
     ]
     source = _google_vertex_source()
     if source == "env":
-        title.append(("ansigreen", " ✓ env"))
+        title.append(("class:accent.green", " ✓ env"))
     elif source == "configured":
-        title.append(("ansigreen", " ✓ configured"))
+        title.append(("class:accent.green", " ✓ configured"))
     title.append(("", "\n"))
     return title
 
@@ -219,6 +219,6 @@ def select_provider(
         message=prompt,
         items=items,
         pointer="→",
-        style=DEFAULT_PICKER_STYLE,
+        style=DEFAULT_PICKER_STYLE(),
         use_search_filter=False,
     )
