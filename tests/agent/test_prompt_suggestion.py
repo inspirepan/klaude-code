@@ -45,15 +45,11 @@ class TestShouldSuggest(unittest.TestCase):
         self.assertIsNone(should_suggest(sess))
 
     def test_skips_after_error_stop_reason(self) -> None:
-        sess = self._session(
-            [_user(), _assistant(), _user("again"), _assistant(stop_reason="error")]
-        )
+        sess = self._session([_user(), _assistant(), _user("again"), _assistant(stop_reason="error")])
         self.assertEqual(should_suggest(sess), "last_response_error")
 
     def test_skips_after_aborted_stop_reason(self) -> None:
-        sess = self._session(
-            [_user(), _assistant(), _user("again"), _assistant(stop_reason="aborted")]
-        )
+        sess = self._session([_user(), _assistant(), _user("again"), _assistant(stop_reason="aborted")])
         self.assertEqual(should_suggest(sess), "last_response_error")
 
     def test_hot_cache_allows(self) -> None:

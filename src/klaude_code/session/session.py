@@ -370,9 +370,7 @@ class Session(BaseModel):
         matching: the returned list shares its prefix with the un-cut view up
         to the same boundary the parent request saw.
         """
-        history = (
-            self.conversation_history if until_index is None else self.conversation_history[:until_index]
-        )
+        history = self.conversation_history if until_index is None else self.conversation_history[:until_index]
 
         def _convert(item: message.HistoryEvent) -> message.HistoryEvent:
             if isinstance(item, message.RewindEntry):

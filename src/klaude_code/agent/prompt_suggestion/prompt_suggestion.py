@@ -92,9 +92,7 @@ async def run_prompt_suggestion(
         raise asyncio.CancelledError
 
     prefix = session.get_llm_history()
-    extra: list[message.HistoryEvent] = [
-        message.UserMessage(parts=[message.TextPart(text=PROMPT_SUGGESTION_PROMPT)])
-    ]
+    extra: list[message.HistoryEvent] = [message.UserMessage(parts=[message.TextPart(text=PROMPT_SUGGESTION_PROMPT)])]
     cache_safe = CacheSafeParams(profile=main_profile, prefix_messages=prefix)
     wire = build_cache_safe_messages(cache_safe, extra)
     input_messages = [m for m in wire if isinstance(m, message.Message)]

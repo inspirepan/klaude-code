@@ -229,7 +229,9 @@ async def run_compaction(
         split_task = _is_split_task(history, base_start_index, cut_index)
         task_start_index = _find_task_start_index(history, base_start_index, cut_index) if split_task else -1
 
-        messages_to_summarize = collect_messages(history, base_start_index, task_start_index if split_task else cut_index)
+        messages_to_summarize = collect_messages(
+            history, base_start_index, task_start_index if split_task else cut_index
+        )
         task_prefix_messages = []
         if split_task and task_start_index >= 0:
             task_prefix_messages = collect_messages(history, task_start_index, cut_index)
@@ -304,9 +306,7 @@ async def _build_summary_fork(
     if focus:
         prompt_text = f"{prompt_text}\n\nAdditional focus: {focus}"
 
-    extra: list[message.HistoryEvent] = [
-        message.UserMessage(parts=[message.TextPart(text=prompt_text)])
-    ]
+    extra: list[message.HistoryEvent] = [message.UserMessage(parts=[message.TextPart(text=prompt_text)])]
     cache_safe = CacheSafeParams(profile=main_profile, prefix_messages=prefix_messages)
     wire_messages = build_cache_safe_messages(cache_safe, extra)
     # Call parameter carries Message-typed input; filter to Messages only.
@@ -566,18 +566,14 @@ def _adjust_cut_index(history: list[message.HistoryEvent], cut_index: int, start
     return _avoid_splitting_tool_turn(history, cut_index, start_index)
 
 
-def _avoid_splitting_tool_turn(
-    history: list[message.HistoryEvent], cut_index: int, start_index: int
-) -> int:
+def _avoid_splitting_tool_turn(history: list[message.HistoryEvent], cut_index: int, start_index: int) -> int:
     """Walk compacted backwards; if the most recent Assistant has dangling tool_calls,
     move cut_index to before that Assistant.
     """
     if cut_index <= start_index:
         return cut_index
 
-    answered: set[str] = {
-        it.call_id for it in history[:cut_index] if isinstance(it, message.ToolResultMessage)
-    }
+    answered: set[str] = {it.call_id for it in history[:cut_index] if isinstance(it, message.ToolResultMessage)}
 
     for idx in range(cut_index - 1, start_index - 1, -1):
         item = history[idx]
