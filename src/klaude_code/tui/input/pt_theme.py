@@ -164,6 +164,12 @@ def _build_style_rules(palette: Palette) -> list[tuple[str, str]]:
         ("accent.magenta", f"fg:{palette.magenta}"),
         ("accent.purple", f"fg:{palette.purple}"),
         ("accent.orange", f"fg:{palette.orange}"),
+        # --- Picker suggestion highlight --------------------------------
+        # Applied to recommended rows (e.g. close matches when the current
+        # main_model is invalid). The row keeps its regular fg; only the
+        # background shifts to call attention without hiding other options.
+        ("picker.suggested", f"bg:{palette.yellow_background}"),
+        ("picker.suggested.badge", f"bold fg:{palette.yellow}"),
     ]
 
 

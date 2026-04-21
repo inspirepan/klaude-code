@@ -29,6 +29,8 @@ class ModelSelectResult:
 def select_model_interactive(
     keywords: list[str] | None = None,
     initial_search_text: str | None = None,
+    highlighted_selectors: list[str] | None = None,
+    initial_selector: str | None = None,
 ) -> ModelSelectResult:
     """Interactive single-choice model selector.
 
@@ -38,6 +40,15 @@ def select_model_interactive(
     If keywords is provided, the model list is pre-filtered by model_id.
 
     If initial_search_text is provided, the full model list is shown with the search input pre-filled.
+
+    If highlighted_selectors is provided, those rows are visually emphasized in
+    the picker (yellow background + star badge) without filtering the list.
+    Used to surface recommended alternatives when the configured main_model is
+    unavailable.
+
+    If initial_selector is provided, it overrides the default cursor position
+    (normally the current main_model). Typically the first recommended
+    alternative.
     """
     if initial_search_text is not None:
         initial_search_text = initial_search_text.strip() or None
@@ -81,9 +92,10 @@ def select_model_interactive(
     from klaude_code.tui.terminal.selector import DEFAULT_PICKER_STYLE, build_model_select_items, select_one
 
     names = [m.selector for m in result.filtered_models]
+    highlighted_set = {s for s in (highlighted_selectors or []) if s in names}
 
     try:
-        items = build_model_select_items(result.filtered_models)
+        items = build_model_select_items(result.filtered_models, highlighted_selectors=highlighted_set)
 
         total_count = len(result.filtered_models)
         if result.filter_hint:
@@ -91,7 +103,7 @@ def select_model_interactive(
         else:
             message = f"Select a model ({total_count}):"
 
-        initial_value = config.main_model
+        initial_value = initial_selector if initial_selector else config.main_model
         if isinstance(initial_value, str) and initial_value and "@" not in initial_value:
             try:
                 resolved = config.resolve_model_location_prefer_available(

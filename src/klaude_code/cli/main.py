@@ -346,7 +346,6 @@ def main_callback(
 
             session_meta = Session.load_meta(session_id, work_dir=Path.cwd())
             cfg = load_config()
-            main_model = (cfg.main_model.strip() or None) if cfg.main_model else None
 
             if session_meta.model_config_name:
                 session_model = session_meta.model_config_name.strip()
@@ -378,17 +377,39 @@ def main_callback(
                     if len(matches) == 1:
                         chosen_model = matches[0]
 
-            if chosen_model is None:
-                chosen_model = main_model
+            # If session didn't resolve a model, fall through to the main_model
+            # validation block below so an invalid main_model triggers the same
+            # error + picker flow as when chosen_model starts out None.
 
-        # If still no model, check main_model; if not configured, trigger interactive selection
+        # If still no model, check main_model; if not configured or invalid,
+        # trigger interactive selection.
         if chosen_model is None:
-            from klaude_code.config import load_config
+            from klaude_code.config import ModelAvailability, load_config
 
             cfg = load_config()
             main_model = (cfg.main_model.strip() or None) if cfg.main_model else None
-            if main_model is None:
-                model_result = select_model_interactive()
+
+            picker_highlighted: list[str] | None = None
+            picker_initial: str | None = None
+            needs_picker = main_model is None
+
+            if main_model is not None:
+                diag = cfg.diagnose_model(main_model)
+                if diag.availability != ModelAvailability.AVAILABLE:
+                    from klaude_code.log import log
+
+                    log((f"Error: main_model '{main_model}' is unavailable ({diag.detail})", "red"))
+                    if diag.suggestions:
+                        log(("Did you mean: " + ", ".join(diag.suggestions) + " ?", "yellow"))
+                    picker_highlighted = diag.suggestions or None
+                    picker_initial = diag.suggestions[0] if diag.suggestions else None
+                    needs_picker = True
+
+            if needs_picker:
+                model_result = select_model_interactive(
+                    highlighted_selectors=picker_highlighted,
+                    initial_selector=picker_initial,
+                )
                 if model_result.status != ModelSelectStatus.SELECTED or model_result.model is None:
                     raise typer.Exit(1)
                 chosen_model = model_result.model

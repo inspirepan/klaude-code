@@ -71,7 +71,15 @@ def test_main_callback_starts_web_mode_after_tui_returns_request(monkeypatch: py
         return None
 
     def _load_config() -> SimpleNamespace:
-        return SimpleNamespace(main_model="default-model")
+        from klaude_code.config import ModelAvailability
+
+        def _diagnose_model(name: str) -> SimpleNamespace:
+            return SimpleNamespace(availability=ModelAvailability.AVAILABLE, detail="", suggestions=[])
+
+        return SimpleNamespace(
+            main_model="default-model",
+            diagnose_model=_diagnose_model,
+        )
 
     monkeypatch.setattr(tui_runner, "run_interactive", _run_interactive)
     monkeypatch.setattr(cli_main, "run_web_server_command", _run_web_server_command)

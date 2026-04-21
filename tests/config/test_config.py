@@ -10,6 +10,7 @@ import yaml
 import klaude_code.config.config as _config_module
 from klaude_code.config.config import (
     Config,
+    ModelAvailability,
     ModelConfig,
     ProviderConfig,
     UserConfig,
@@ -492,6 +493,166 @@ class TestConfig:
         }
         config = Config.model_validate(data)
         assert config.sub_agent_models == {}
+
+
+class TestDiagnoseModel:
+    """Tests for Config.diagnose_model()."""
+
+    def _make_provider(
+        self,
+        *,
+        provider_name: str,
+        model_names: list[str],
+        api_key: str | None = "key",
+        disabled: bool = False,
+        disabled_models: set[str] | None = None,
+    ) -> ProviderConfig:
+        disabled_models = disabled_models or set()
+        return ProviderConfig(
+            provider_name=provider_name,
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key=api_key,
+            disabled=disabled,
+            model_list=[
+                ModelConfig(model_name=name, model_id=name, disabled=(name in disabled_models)) for name in model_names
+            ],
+        )
+
+    def test_available_model(self) -> None:
+        config = Config(provider_list=[self._make_provider(provider_name="openai", model_names=["gpt-5.4"])])
+
+        diag = config.diagnose_model("gpt-5.4@openai")
+
+        assert diag.availability == ModelAvailability.AVAILABLE
+        assert diag.is_available is True
+        assert diag.suggestions == []
+
+    def test_unknown_model_suggests_close_match_same_provider(self) -> None:
+        config = Config(
+            provider_list=[
+                self._make_provider(provider_name="openai", model_names=["gpt-5.4"]),
+                self._make_provider(provider_name="openrouter", model_names=["gpt-5.4", "claude-opus"]),
+            ]
+        )
+
+        diag = config.diagnose_model("gpt-5.2@openai")
+
+        assert diag.availability == ModelAvailability.UNKNOWN
+        assert "gpt-5.2@openai" in diag.detail
+        assert diag.suggestions, "should recommend at least one close match"
+        assert diag.suggestions[0] == "gpt-5.4@openai"
+
+    def test_unknown_model_without_provider_suggests_cross_provider(self) -> None:
+        config = Config(
+            provider_list=[
+                self._make_provider(provider_name="openai", model_names=["gpt-5.4"]),
+                self._make_provider(provider_name="openrouter", model_names=["claude-opus"]),
+            ]
+        )
+
+        diag = config.diagnose_model("gpt-5.2")
+
+        assert diag.availability == ModelAvailability.UNKNOWN
+        assert "gpt-5.4@openai" in diag.suggestions
+
+    def test_no_matching_provider(self) -> None:
+        config = Config(
+            provider_list=[self._make_provider(provider_name="openai", model_names=["gpt-5.4"])],
+        )
+
+        diag = config.diagnose_model("gpt-5.4@bogus")
+
+        assert diag.availability == ModelAvailability.NO_MATCHING_PROVIDER
+        assert "bogus" in diag.detail
+        assert diag.suggestions == ["gpt-5.4@openai"]
+
+    def test_provider_disabled(self) -> None:
+        config = Config(
+            provider_list=[
+                self._make_provider(provider_name="openai", model_names=["gpt-5.4"], disabled=True),
+                self._make_provider(provider_name="openrouter", model_names=["claude-opus"]),
+            ]
+        )
+
+        diag = config.diagnose_model("gpt-5.4@openai")
+
+        assert diag.availability == ModelAvailability.PROVIDER_DISABLED
+        assert "disabled" in diag.detail
+        # Only fully-available candidates should be suggested.
+        assert "gpt-5.4@openai" not in diag.suggestions
+
+    def test_missing_credentials(self) -> None:
+        config = Config(
+            provider_list=[self._make_provider(provider_name="openai", model_names=["gpt-5.4"], api_key=None)],
+        )
+
+        diag = config.diagnose_model("gpt-5.4@openai")
+
+        assert diag.availability == ModelAvailability.MISSING_CREDENTIALS
+        assert "credentials" in diag.detail
+        # No available models configured -> no suggestions.
+        assert diag.suggestions == []
+
+    def test_model_disabled(self) -> None:
+        config = Config(
+            provider_list=[
+                self._make_provider(
+                    provider_name="openai",
+                    model_names=["gpt-5.4"],
+                    disabled_models={"gpt-5.4"},
+                ),
+                self._make_provider(provider_name="openrouter", model_names=["gpt-5.4"]),
+            ]
+        )
+
+        diag = config.diagnose_model("gpt-5.4@openai")
+
+        assert diag.availability == ModelAvailability.MODEL_DISABLED
+        assert "disabled" in diag.detail
+        assert "gpt-5.4@openrouter" in diag.suggestions
+
+    def test_available_wins_over_failed_provider(self) -> None:
+        """Unqualified selector: if one provider is usable, return AVAILABLE."""
+
+        config = Config(
+            provider_list=[
+                self._make_provider(provider_name="openai", model_names=["shared-model"], api_key=None),
+                self._make_provider(provider_name="openrouter", model_names=["shared-model"]),
+            ]
+        )
+
+        diag = config.diagnose_model("shared-model")
+
+        assert diag.availability == ModelAvailability.AVAILABLE
+
+    def test_invalid_selector(self) -> None:
+        config = Config(provider_list=[self._make_provider(provider_name="openai", model_names=["gpt-5.4"])])
+
+        diag = config.diagnose_model("@openai")
+
+        assert diag.availability == ModelAvailability.INVALID_SELECTOR
+
+    def test_no_suggestions_when_no_available_models(self) -> None:
+        config = Config(provider_list=[])
+
+        diag = config.diagnose_model("gpt-5.2")
+
+        assert diag.availability == ModelAvailability.UNKNOWN
+        assert diag.suggestions == []
+
+    def test_suggestions_respect_max_limit(self) -> None:
+        config = Config(
+            provider_list=[
+                self._make_provider(
+                    provider_name="openai",
+                    model_names=["gpt-5.1", "gpt-5.2", "gpt-5.3", "gpt-5.4", "gpt-5.5"],
+                )
+            ]
+        )
+
+        diag = config.diagnose_model("gpt-5.x@openai", max_suggestions=2)
+
+        assert len(diag.suggestions) == 2
 
 
 class TestConfigSave:
