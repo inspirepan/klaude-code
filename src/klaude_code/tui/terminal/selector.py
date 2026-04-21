@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import shutil
 import sys
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import ConditionalContainer, Float, FloatContainer, HSplit, Layout, VSplit, Window
 from prompt_toolkit.layout.containers import Container, ScrollOffsets
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.output.color_depth import ColorDepth
 from prompt_toolkit.styles import Style, merge_styles
 from prompt_toolkit.styles.base import BaseStyle
@@ -36,6 +38,20 @@ def _default_picker_style_factory() -> Style:
     """
 
     return get_default_picker_style()
+
+
+# Rows reserved above the list for picker chrome (top spacer, header, search
+# input) plus a small buffer for caller-printed content (errors, hints). Keeps
+# the picker from consuming the full terminal height.
+_LIST_RESERVED_ROWS = 10
+_LIST_MIN_ROWS = 8
+
+
+def _list_max_height() -> Dimension:
+    """Compute the list window's max height based on current terminal size."""
+
+    rows = shutil.get_terminal_size((80, 24)).lines
+    return Dimension(max=max(_LIST_MIN_ROWS, rows - _LIST_RESERVED_ROWS))
 
 
 # NOTE: intentionally a *function* object, not a Style instance. Call sites
@@ -79,11 +95,19 @@ class QuestionPrompt[T]:
 # ---------------------------------------------------------------------------
 
 
-def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
+def build_model_select_items(
+    models: list[Any],
+    *,
+    highlighted_selectors: set[str] | None = None,
+) -> list[SelectItem[str]]:
     """Build SelectItem list from ModelEntry objects.
 
     Args:
         models: List of ModelEntry objects (from config.iter_model_entries).
+        highlighted_selectors: Selectors to visually emphasize (e.g. recommended
+            alternatives when the configured main_model is unavailable). Matching
+            rows get a yellow background plus a star badge but remain in place
+            so users still see the full list.
 
     Returns:
         List of SelectItem[str] with model selector as the value.
@@ -91,6 +115,7 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
     if not models:
         return []
 
+    highlighted = highlighted_selectors or set()
     max_model_name_length = max(len(m.model_name) for m in models)
     num_width = len(str(len(models)))
 
@@ -150,6 +175,22 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
                 title.append(("class:meta", meta_str))
 
             title.append(("class:meta", "\n"))
+
+            if m.selector in highlighted:
+                # Prefix a star badge and tag every fragment with
+                # ``class:picker.suggested`` so prompt_toolkit paints a yellow
+                # background across the whole row. The badge class is styled
+                # independently (bold yellow fg) so it stands out even when the
+                # row becomes the pointer target.
+                title = [("class:picker.suggested class:picker.suggested.badge", "★ ")] + [
+                    (f"{style} class:picker.suggested", text) for style, text in title
+                ]
+            elif highlighted:
+                # When other rows carry a star badge, pad non-highlighted rows
+                # with the same-width gutter so numbering stays vertically
+                # aligned.
+                title = [("class:meta", "  "), *title]
+
             provider = str(getattr(m, "provider", ""))
             search_text = f"{m.selector} {m.model_name} {model_id_str} {provider}"
             items.append(SelectItem(title=title, value=m.selector, search_text=search_text))
@@ -666,6 +707,12 @@ def select_one[T](
         allow_scroll_beyond_bottom=True,
         dont_extend_height=Always(),
         always_hide_cursor=Always(),
+        # Cap the list height so the picker does not consume the whole terminal
+        # and push earlier output (errors, hints) off-screen. Evaluated on each
+        # render so terminal resizes take effect immediately. The reserved rows
+        # cover the picker's own chrome (top spacer, header, optional search
+        # input) plus a small buffer for whatever the caller printed above.
+        height=_list_max_height,
     )
 
     search_container: Container | None = None

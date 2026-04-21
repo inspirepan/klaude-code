@@ -1,6 +1,10 @@
 import asyncio
+import difflib
 import os
 import re
+from dataclasses import dataclass
+from dataclasses import field as dc_field
+from enum import Enum
 from pathlib import Path
 from typing import Any, cast
 
@@ -23,6 +27,39 @@ _PROVIDER_NAME_ALIASES = {
 
 def normalize_provider_name(provider_name: str) -> str:
     return _PROVIDER_NAME_ALIASES.get(provider_name.casefold(), provider_name)
+
+
+_SUGGESTION_MIN_SCORE = 0.4
+_PROVIDER_MATCH_BONUS = 0.3
+
+
+def _normalize_model_key(value: str) -> str:
+    """Casefold and strip non-alphanumerics for loose model name comparison."""
+
+    return "".join(ch for ch in value.casefold() if ch.isalnum())
+
+
+class ModelAvailability(str, Enum):
+    AVAILABLE = "available"
+    UNKNOWN = "unknown"
+    INVALID_SELECTOR = "invalid_selector"
+    NO_MATCHING_PROVIDER = "no_matching_provider"
+    PROVIDER_DISABLED = "provider_disabled"
+    MISSING_CREDENTIALS = "missing_credentials"
+    MODEL_DISABLED = "model_disabled"
+
+
+@dataclass(frozen=True)
+class ModelDiagnosis:
+    """Result of diagnosing whether a model selector is usable."""
+
+    availability: ModelAvailability
+    detail: str
+    suggestions: list[str] = dc_field(default_factory=list[str])
+
+    @property
+    def is_available(self) -> bool:
+        return self.availability == ModelAvailability.AVAILABLE
 
 
 def parse_env_var_syntax(value: str | None) -> tuple[str | None, str | None]:
@@ -378,6 +415,127 @@ class Config(BaseModel):
             return False
 
         return any(any(m.model_name == model_name for m in provider.model_list) for provider in self.provider_list)
+
+    def diagnose_model(self, model_selector: str, *, max_suggestions: int = 3) -> ModelDiagnosis:
+        """Diagnose whether a selector is available and suggest close alternatives.
+
+        Mirrors :meth:`get_model_config`'s acceptance logic, but returns a
+        structured reason and a ranked list of similar available selectors
+        instead of raising. Intended for startup validation and TUI hints.
+        """
+
+        try:
+            requested_model, requested_provider = self._split_model_selector(model_selector)
+        except ValueError as exc:
+            return ModelDiagnosis(
+                availability=ModelAvailability.INVALID_SELECTOR,
+                detail=str(exc),
+                suggestions=self._suggest_models(model_selector, None, max_suggestions=max_suggestions),
+            )
+
+        # Track the most informative failure observed across providers. If any
+        # path yields AVAILABLE we return immediately; otherwise we surface the
+        # recorded failure plus suggestions.
+        best_failure: ModelDiagnosis | None = None
+        provider_matched = False
+
+        for provider in self.provider_list:
+            if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
+                continue
+            provider_matched = True
+            model_present = any(m.model_name == requested_model for m in provider.model_list)
+
+            if provider.disabled:
+                if model_present:
+                    best_failure = ModelDiagnosis(
+                        availability=ModelAvailability.PROVIDER_DISABLED,
+                        detail=f"Provider '{provider.provider_name}' is disabled",
+                    )
+                continue
+
+            if provider.is_api_key_missing():
+                if model_present:
+                    best_failure = ModelDiagnosis(
+                        availability=ModelAvailability.MISSING_CREDENTIALS,
+                        detail=f"Provider '{provider.provider_name}' is missing credentials",
+                    )
+                continue
+
+            for model in provider.model_list:
+                if model.model_name != requested_model:
+                    continue
+                if model.disabled:
+                    best_failure = ModelDiagnosis(
+                        availability=ModelAvailability.MODEL_DISABLED,
+                        detail=f"Model '{requested_model}' is disabled in provider '{provider.provider_name}'",
+                    )
+                    break
+                return ModelDiagnosis(availability=ModelAvailability.AVAILABLE, detail="")
+
+        suggestions = self._suggest_models(requested_model, requested_provider, max_suggestions=max_suggestions)
+
+        if best_failure is not None:
+            return ModelDiagnosis(
+                availability=best_failure.availability,
+                detail=best_failure.detail,
+                suggestions=suggestions,
+            )
+
+        if requested_provider is not None and not provider_matched:
+            return ModelDiagnosis(
+                availability=ModelAvailability.NO_MATCHING_PROVIDER,
+                detail=f"Provider '{requested_provider}' is not configured",
+                suggestions=suggestions,
+            )
+
+        return ModelDiagnosis(
+            availability=ModelAvailability.UNKNOWN,
+            detail=f"Unknown model: {model_selector}",
+            suggestions=suggestions,
+        )
+
+    def _suggest_models(
+        self,
+        requested_model: str,
+        requested_provider: str | None,
+        *,
+        max_suggestions: int = 3,
+    ) -> list[str]:
+        """Return top-N available selectors ranked by model-name similarity.
+
+        Candidates from the same provider as ``requested_provider`` receive a
+        bonus so version drifts like ``gpt-5.2@openai`` -> ``gpt-5.4@openai``
+        are preferred over same-name matches under a different provider.
+        """
+
+        candidates = self.iter_model_entries(only_available=True, include_disabled=False)
+        if not candidates:
+            return []
+
+        requested_norm = _normalize_model_key(requested_model)
+        requested_provider_cf = requested_provider.casefold() if requested_provider else None
+
+        scored: list[tuple[float, str]] = []
+        for cand in candidates:
+            raw_ratio = difflib.SequenceMatcher(None, requested_model, cand.model_name).ratio()
+            norm_ratio = difflib.SequenceMatcher(None, requested_norm, _normalize_model_key(cand.model_name)).ratio()
+            score = max(raw_ratio, norm_ratio)
+            if requested_provider_cf and cand.provider.casefold() == requested_provider_cf:
+                score += _PROVIDER_MATCH_BONUS
+            if score >= _SUGGESTION_MIN_SCORE:
+                scored.append((score, cand.selector))
+
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        seen: set[str] = set()
+        results: list[str] = []
+        for _, selector in scored:
+            if selector in seen:
+                continue
+            seen.add(selector)
+            results.append(selector)
+            if len(results) >= max_suggestions:
+                break
+        return results
 
     def resolve_model_location(self, model_selector: str) -> tuple[str, str] | None:
         """Resolve a selector to (model_name, provider_name), without auth checks.

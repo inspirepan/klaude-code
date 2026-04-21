@@ -1,5 +1,7 @@
 from .config import (
     Config,
+    ModelAvailability,
+    ModelDiagnosis,
     UserConfig,
     config_path,
     example_config_path,
@@ -13,6 +15,8 @@ from .loader import (
 
 __all__ = [
     "Config",
+    "ModelAvailability",
+    "ModelDiagnosis",
     "UserConfig",
     "config_path",
     "create_example_config",

@@ -107,6 +107,12 @@ class TestCliOptionalValues:
                 assert model_name == "opus@anthropic"
                 return None
 
+            def diagnose_model(self, model_name: str) -> SimpleNamespace:
+                from klaude_code.config import ModelAvailability
+
+                assert model_name == "gpt@openai"
+                return SimpleNamespace(availability=ModelAvailability.AVAILABLE, detail="", suggestions=[])
+
         async def _run_interactive(**kwargs: object) -> None:
             captured.update(kwargs)
             return None
