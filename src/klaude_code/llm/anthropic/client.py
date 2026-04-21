@@ -318,6 +318,18 @@ async def parse_anthropic_stream(
                     metadata_tracker.record_token()
                     state.flush_tool_call()
             case BetaRawMessageDeltaEvent() as event:
+                # Some proxies (e.g. Bedrock-backed) send zero usage in message_start
+                # and only populate real token counts in message_delta. Override
+                # state values when delta carries non-None fields.
+                delta_input = getattr(event.usage, "input_tokens", None)
+                if delta_input:
+                    state.input_token = delta_input
+                delta_cached = getattr(event.usage, "cache_read_input_tokens", None)
+                if delta_cached:
+                    state.cached_token = delta_cached
+                delta_cache_write = getattr(event.usage, "cache_creation_input_tokens", None)
+                if delta_cache_write:
+                    state.cache_write_token = delta_cache_write
                 total_input = state.input_token + state.cached_token + state.cache_write_token
                 metadata_tracker.set_usage(
                     Usage(
