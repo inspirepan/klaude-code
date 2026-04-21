@@ -62,9 +62,7 @@ class BedrockStreamError(Exception):
 
 # Per-call session id propagated to the boto3 before-sign handler.
 # ContextVar is automatically copied into the worker thread by asyncio.to_thread.
-_SESSION_ID_CTX: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "_bedrock_session_id", default=None
-)
+_SESSION_ID_CTX: contextvars.ContextVar[str | None] = contextvars.ContextVar("_bedrock_session_id", default=None)
 
 
 def _inject_session_id_header(request: Any, **_: Any) -> None:
