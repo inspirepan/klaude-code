@@ -464,10 +464,20 @@ class PromptToolkitInput(InputProviderABC):
         with a ctrl+v paste reminder instead.
         """
         if self._prompt_suggestion:
+            hint = "[enter send · tab edit]"
+            suggestion = self._prompt_suggestion
+            try:
+                cols = get_app().output.get_size().columns
+            except Exception:
+                cols = 80
+            # Available width for placeholder = terminal width - prompt mark width.
+            prompt_width = get_cwidth(self._prompt_text)
+            used = get_cwidth(suggestion) + get_cwidth(hint)
+            padding = max(1, cols - prompt_width - used)
             return FormattedText(
                 [
-                    ("class:prompt-suggestion", f"   {self._prompt_suggestion}"),
-                    ("class:placeholder-hint", "   [enter send · tab edit]"),
+                    ("class:prompt-suggestion", suggestion),
+                    ("class:placeholder-hint", " " * padding + hint),
                 ]
             )
 
