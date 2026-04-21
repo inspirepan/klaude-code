@@ -93,10 +93,15 @@ class OpenAICompatibleClient(LLMClientABC):
             debug_type=DebugType.LLM_PAYLOAD,
         )
 
+        extra_headers: dict[str, str] = {}
+        if param.session_id:
+            extra_headers["x-session-id"] = param.session_id
+
         try:
             stream = await self.client.chat.completions.create(
                 **payload,
                 extra_body=extra_body,
+                extra_headers=extra_headers,
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
             return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")

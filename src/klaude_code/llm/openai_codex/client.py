@@ -157,6 +157,7 @@ class CodexClient(LLMClientABC):
             # Must send conversation_id/session_id headers to improve ChatGPT backend prompt cache hit rate.
             extra_headers["conversation_id"] = session_id
             extra_headers["session_id"] = session_id
+            extra_headers["x-session-id"] = session_id
 
         log_debug(
             json.dumps(payload, ensure_ascii=False, default=str),

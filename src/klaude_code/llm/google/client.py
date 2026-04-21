@@ -472,6 +472,9 @@ class GoogleClient(LLMClientABC):
         contents = convert_history_to_contents(param.input, model_name=str(param.model_id))
         config = _build_config(param)
 
+        if param.session_id:
+            config.http_options = HttpOptions(headers={"x-session-id": param.session_id})
+
         log_debug(
             debug_json(
                 {

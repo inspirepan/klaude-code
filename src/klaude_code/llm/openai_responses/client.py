@@ -444,10 +444,14 @@ class ResponsesClient(LLMClientABC):
             json.dumps(payload, ensure_ascii=False, default=str),
             debug_type=DebugType.LLM_PAYLOAD,
         )
+        extra_headers: dict[str, str] = {}
+        if param.session_id:
+            extra_headers["x-session-id"] = param.session_id
         try:
             stream = await self.client.responses.create(
                 **payload,
                 stream=True,
+                extra_headers=extra_headers,
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
             error_message = f"{e.__class__.__name__} {e!s}"

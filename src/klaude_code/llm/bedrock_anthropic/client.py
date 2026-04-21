@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import contextvars
 import json
 from collections.abc import AsyncGenerator
 from importlib.util import find_spec
@@ -57,6 +58,19 @@ class BedrockRequestError(Exception):
 
 class BedrockStreamError(Exception):
     pass
+
+
+# Per-call session id propagated to the boto3 before-sign handler.
+# ContextVar is automatically copied into the worker thread by asyncio.to_thread.
+_SESSION_ID_CTX: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "_bedrock_session_id", default=None
+)
+
+
+def _inject_session_id_header(request: Any, **_: Any) -> None:
+    session_id = _SESSION_ID_CTX.get()
+    if session_id:
+        request.headers["x-session-id"] = session_id
 
 
 def _map_bedrock_stop_reason(reason: str | None) -> StopReason | None:
@@ -565,6 +579,7 @@ class BedrockClient(LLMClientABC):
                 read_timeout=LLM_HTTP_TIMEOUT_READ,
             ),
         )
+        self.client.meta.events.register("before-sign.bedrock-runtime", _inject_session_id_header)
 
     @classmethod
     @override
@@ -583,6 +598,7 @@ class BedrockClient(LLMClientABC):
             debug_type=DebugType.LLM_PAYLOAD,
         )
 
+        _SESSION_ID_CTX.set(param.session_id)
         try:
             response = cast(dict[str, Any], await asyncio.to_thread(self.client.converse_stream, **request))
             return BedrockLLMStream(response, param=param, metadata_tracker=metadata_tracker)

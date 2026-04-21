@@ -228,6 +228,8 @@ class CopilotClient(LLMClientABC):
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
         extra_headers = _build_copilot_dynamic_headers(param)
+        if param.session_id:
+            extra_headers["x-session-id"] = param.session_id
 
         if _is_copilot_anthropic_model(param.model_id):
             payload = _build_anthropic_payload(param)

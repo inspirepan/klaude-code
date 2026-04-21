@@ -125,6 +125,9 @@ class OpenRouterClient(LLMClientABC):
         except (ValueError, OSError) as e:
             return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")
 
+        if param.session_id:
+            extra_headers["x-session-id"] = param.session_id
+
         log_debug(
             json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
             debug_type=DebugType.LLM_PAYLOAD,
