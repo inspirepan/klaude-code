@@ -4,7 +4,7 @@ UV ?= uv
 NPM := $(if $(shell command -v pnpm 2>/dev/null),pnpm,npm)
 
 RUFF := $(UV) run ruff
-PYRIGHT := $(UV) run pyright
+TY := $(UV) run ty
 IMPORT_LINT := $(UV) run lint-imports
 PYTEST := $(UV) run pytest
 
@@ -17,7 +17,7 @@ help:
 		"  make install      Install Python package first, then build web frontend" \
 		"  make build        Build web frontend + Python package" \
 		"  make build-web    Build web frontend only" \
-		"  make lint         Run ruff + pyright + import-linter + web eslint" \
+		"  make lint         Run ruff + ty + import-linter + web eslint" \
 		"  make format       Auto-fix with ruff + prettier" \
 		"  make test         Run tests (pytest + vitest)"
 
@@ -54,7 +54,7 @@ format-check:
 	cd web && $(NPM) run format:check
 
 typecheck:
-	$(PYRIGHT)
+	$(TY) check
 
 imports:
 	$(IMPORT_LINT)

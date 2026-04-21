@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import unittest
+from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
 
@@ -33,8 +34,8 @@ from klaude_code.tool.core.context import ToolContext  # noqa: E402
 _TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
 
 
-def arun(coro) -> Any:  # type: ignore
-    return asyncio.run(coro)  # type: ignore
+def arun[T](coro: Coroutine[Any, Any, T]) -> T:
+    return asyncio.run(coro)
 
 
 def _get_at_file_ops(attachment: message.DeveloperMessage) -> list[AtFileOp]:
@@ -191,7 +192,9 @@ class TestReadTool(BaseTempDirTest):
         self.assertEqual(res.status, "success")
         self.assertTrue(res.parts)
         assert res.parts
-        self.assertTrue(res.parts[0].url.startswith("data:image/png;base64,"))
+        part = res.parts[0]
+        assert isinstance(part, message.ImageURLPart)
+        self.assertTrue(part.url.startswith("data:image/png;base64,"))
         self.assertIn("[image] tiny.png", res.output_text or "")
 
     def test_read_image_too_large_error(self):
@@ -282,7 +285,7 @@ class TestAttachments(BaseTempDirTest):
 
         attachment = arun(at_file_reader_attachment(self.session))
         # Now returns a lightweight "already in context" message instead of None
-        self.assertIsNotNone(attachment)
+        assert attachment is not None
         text = message.join_text_parts(attachment.parts)
         self.assertIn("already in context", text)
         self.assertNotIn("hello", text)
@@ -307,7 +310,7 @@ class TestAttachments(BaseTempDirTest):
 
         attachment = arun(at_file_reader_attachment(self.session))
         # File content unchanged (same hash), so lightweight message
-        self.assertIsNotNone(attachment)
+        assert attachment is not None
         text = message.join_text_parts(attachment.parts)
         self.assertIn("already in context", text)
 

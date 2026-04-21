@@ -64,12 +64,11 @@ def test_manual_recap_emits_spinner_events_but_auto_does_not(tmp_path: Path, mon
         async def _fake_generate_away_summary(**_kwargs: Any) -> str:
             return "当前在调试 recap。已经定位到显示链路。下一步是收紧 spinner 行为。"
 
-        handler.ensure_agent = _ensure_agent  # type: ignore[method-assign]
-        handler.get_session_llm_clients = lambda _sid: LLMClients(  # type: ignore[method-assign]
-            main=client,
-            fast=client,
-            compact=client,
-        )
+        def _fake_get_clients(_sid: str) -> LLMClients:
+            return LLMClients(main=client, fast=client, compact=client)
+
+        monkeypatch.setattr(handler, "ensure_agent", _ensure_agent)
+        monkeypatch.setattr(handler, "get_session_llm_clients", _fake_get_clients)
         monkeypatch.setattr(
             "klaude_code.agent.runtime.agent_ops.generate_away_summary",
             _fake_generate_away_summary,

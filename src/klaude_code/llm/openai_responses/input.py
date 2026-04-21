@@ -33,15 +33,15 @@ def _build_user_content_parts(
     for part in user.parts:
         if isinstance(part, message.TextPart):
             parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": part.text}))
-        elif (
-            isinstance(part, (message.ImageURLPart, message.ImageFilePart)) and (url := _image_to_url(part)) is not None
-        ):
-            parts.append(
-                cast(
-                    responses.ResponseInputContentParam,
-                    {"type": "input_image", "detail": "auto", "image_url": url},
+        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
+            url = _image_to_url(part)
+            if url is not None:
+                parts.append(
+                    cast(
+                        responses.ResponseInputContentParam,
+                        {"type": "input_image", "detail": "auto", "image_url": url},
+                    )
                 )
-            )
     if attachment.text:
         parts.append(cast(responses.ResponseInputContentParam, {"type": "input_text", "text": attachment.text}))
     for image in attachment.images:

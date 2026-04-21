@@ -72,9 +72,13 @@ def test_openai_compatible_parts_preserve_text_reasoning_text_order() -> None:
     final = next(item for item in items if isinstance(item, message.AssistantMessage))
 
     assert [type(p) for p in final.parts] == [message.TextPart, message.ThinkingTextPart, message.TextPart]
-    assert final.parts[0].text == "A"  # type: ignore[attr-defined]
-    assert final.parts[1].text == "R"  # type: ignore[attr-defined]
-    assert final.parts[2].text == "B"  # type: ignore[attr-defined]
+    part0, part1, part2 = final.parts[0], final.parts[1], final.parts[2]
+    assert isinstance(part0, message.TextPart)
+    assert isinstance(part1, message.ThinkingTextPart)
+    assert isinstance(part2, message.TextPart)
+    assert part0.text == "A"
+    assert part1.text == "R"
+    assert part2.text == "B"
 
 
 def test_openai_compatible_tool_call_accumulates_args_in_place() -> None:
@@ -170,7 +174,9 @@ def test_anthropic_input_preserves_degraded_thinking_order_in_place() -> None:
     assert len(out) == 1
     msg0 = out[0]
     assert msg0["role"] == "assistant"
-    blocks: list[dict[str, Any]] = list(msg0["content"])  # type: ignore[arg-type]
+    content = msg0["content"]
+    assert not isinstance(content, str)
+    blocks: list[dict[str, Any]] = [cast(dict[str, Any], b) for b in content]
     assert [b.get("type") for b in blocks] == ["thinking", "text", "text", "text"]
     assert blocks[0]["thinking"] == "t1"
     assert blocks[0]["signature"] == "s1"

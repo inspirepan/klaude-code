@@ -1,6 +1,6 @@
 import json
 from collections.abc import AsyncGenerator, AsyncIterable
-from typing import cast, override
+from typing import Literal, cast, override
 
 import httpx
 import openai
@@ -87,7 +87,8 @@ def build_payload(
         }
 
     if param.verbosity:
-        payload["text"] = {"verbosity": param.verbosity}  # type: ignore[typeddict-item]
+        # Our verbosity literal ("max") is wider than the SDK's TypedDict declaration.
+        payload["text"] = {"verbosity": cast(Literal["low", "medium", "high"], param.verbosity)}
 
     if param.fast_mode:
         payload["service_tier"] = "priority"  # type: ignore[typeddict-item]

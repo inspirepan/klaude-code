@@ -398,4 +398,4 @@ class BreathingSpinner(RichSpinner):
 # for the configured spinner name, while preserving default behavior elsewhere.
 # Best-effort patch; if it fails we silently fall back to default spinner.
 with contextlib.suppress(Exception):
-    rich_status.Spinner = BreathingSpinner  # type: ignore[assignment]
+    rich_status.Spinner = BreathingSpinner  # ty: ignore[invalid-assignment]

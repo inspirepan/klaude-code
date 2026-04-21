@@ -3,6 +3,7 @@ import asyncio
 import json
 import threading
 import time
+from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -35,8 +36,8 @@ class _ForkSessionDummyAgent:
         raise NotImplementedError
 
 
-def arun(coro: object) -> object:
-    return asyncio.run(coro)  # type: ignore[arg-type]
+def arun[T](coro: Coroutine[Any, Any, T]) -> T:
+    return asyncio.run(coro)
 
 
 @pytest.fixture(autouse=True)
@@ -1276,7 +1277,7 @@ class TestCliResume:
         def _should_not_run(*_args: object, **_kwargs: object) -> None:
             raise AssertionError("interactive runtime should not start when --resume <id> is invalid")
 
-        _cli_main.asyncio.run = _should_not_run  # type: ignore[assignment]
+        _cli_main.asyncio.run = _should_not_run  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
         try:
             runner = CliRunner()
             result = runner.invoke(app, ["--resume", "missing-session-id"])
@@ -1298,7 +1299,7 @@ class TestCliResume:
         def _should_not_run(*_args: object, **_kwargs: object) -> None:
             raise AssertionError("interactive runtime should not start when flags conflict")
 
-        _cli_main.asyncio.run = _should_not_run  # type: ignore[assignment]
+        _cli_main.asyncio.run = _should_not_run  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
         try:
             runner = CliRunner()
             result = runner.invoke(app, ["--resume", "any", "--continue"])

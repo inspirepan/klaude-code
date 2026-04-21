@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Coroutine
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -19,8 +19,8 @@ from klaude_code.session.store_registry import close_default_store
 from klaude_code.tool.core.context import build_todo_context
 
 
-def arun(coro: object) -> object:
-    return asyncio.run(coro)  # type: ignore[arg-type]
+def arun[T](coro: Coroutine[Any, Any, T]) -> T:
+    return asyncio.run(coro)
 
 
 def _always_compact(**_: Any) -> bool:

@@ -49,6 +49,7 @@ def test_user_interaction_request_event_model() -> None:
     )
 
     assert event.request_id == "req1"
+    assert isinstance(event.payload, AskUserQuestionRequestPayload)
     assert event.payload.kind == "ask_user_question"
     assert event.payload.questions[0].options[0].id == "a"
 
@@ -70,6 +71,7 @@ def test_user_interaction_response_submitted_and_cancelled() -> None:
     )
     assert submitted.status == "submitted"
     assert submitted.payload is not None
+    assert isinstance(submitted.payload, AskUserQuestionResponsePayload)
     assert submitted.payload.kind == "ask_user_question"
     assert submitted.payload.answers[0].question_id == "q1"
     assert submitted.payload.answers[0].annotation is not None
@@ -100,6 +102,7 @@ def test_operation_select_payload_model() -> None:
         source="operation_model",
         payload=payload,
     )
+    assert isinstance(event.payload, OperationSelectRequestPayload)
     assert event.payload.kind == "operation_select"
     assert event.payload.options[0].id == "openai@gpt-5"
     assert event.payload.initial_search_text == "sonnet"
@@ -109,6 +112,7 @@ def test_operation_select_payload_model() -> None:
         payload=OperationSelectResponsePayload(selected_option_id="openai@gpt-5"),
     )
     assert response.payload is not None
+    assert isinstance(response.payload, OperationSelectResponsePayload)
     assert response.payload.kind == "operation_select"
     assert response.payload.selected_option_id == "openai@gpt-5"
 

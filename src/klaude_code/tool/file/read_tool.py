@@ -508,7 +508,7 @@ class ReadTool(ToolABC):
     async def _read_pdf(cls, file_path: str, context: ToolContext) -> message.ToolResultMessage:
         """Read PDF file using pdfplumber if available, otherwise return helpful error."""
         try:
-            import pdfplumber  # type: ignore[import-untyped]
+            import pdfplumber  # type: ignore[import-untyped]  # ty: ignore[unresolved-import]  # optional dependency
         except ImportError:
             return message.ToolResultMessage(
                 status="error",

@@ -24,7 +24,9 @@ def test_response_complete_renders_final_content_when_no_deltas() -> None:
     end_i = next(i for i, c in enumerate(cmds) if isinstance(c, EndAssistantStream))
 
     assert start_i < append_i < end_i
-    assert cmds[append_i].content == "Hello\n\nWorld"  # type: ignore[attr-defined]
+    append_cmd = cmds[append_i]
+    assert isinstance(append_cmd, AppendAssistant)
+    assert append_cmd.content == "Hello\n\nWorld"
 
 
 def test_response_complete_does_not_duplicate_when_streaming_happened() -> None:

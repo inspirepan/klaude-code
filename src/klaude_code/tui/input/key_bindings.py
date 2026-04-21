@@ -326,8 +326,8 @@ def create_key_bindings(
 
         try:
             doc = buf.document  # type: ignore[reportUnknownMemberType]
-            text = cast(str, doc.text)  # type: ignore[reportUnknownMemberType]
-            cursor_pos = cast(int, doc.cursor_position)  # type: ignore[reportUnknownMemberType]
+            text = doc.text
+            cursor_pos = doc.cursor_position
         except Exception:
             return False
 
@@ -487,7 +487,7 @@ def create_key_bindings(
         nonlocal swallow_next_control_j
 
         buf = event.current_buffer
-        doc = buf.document  # type: ignore
+        doc = buf.document
 
         # Normalize a leading full-width exclamation mark to ASCII so that:
         # - UI echo shows `!cmd` consistently
@@ -558,12 +558,12 @@ def create_key_bindings(
                 buf.cursor_position = len(prepared)  # type: ignore[reportUnknownMemberType]
 
         # If the entire buffer is whitespace-only, insert a newline rather than submitting.
-        if len(buf.text.strip()) == 0:  # type: ignore
-            buf.insert_text("\n")  # type: ignore
+        if len(buf.text.strip()) == 0:
+            buf.insert_text("\n")
             return
 
         # No need to persist manifest anymore - iter_inputs will handle image extraction
-        buf.validate_and_handle()  # type: ignore
+        buf.validate_and_handle()
 
     @kb.add("tab", filter=enabled & has_completions)
     def _(event: KeyPressEvent) -> None:
@@ -636,7 +636,7 @@ def create_key_bindings(
             swallow_next_control_j = False
             return
 
-        event.current_buffer.insert_text("\n")  # type: ignore
+        event.current_buffer.insert_text("\n")
 
     # Some IME/terminal combinations occasionally emit spurious forward-delete
     # keypresses (e.g. Ctrl-D) while composing/switching input methods.
@@ -659,7 +659,7 @@ def create_key_bindings(
         We delete the character before cursor (default behavior), then explicitly
         trigger completion refresh if the caret is still within an @… token.
         """
-        buf = event.current_buffer  # type: ignore
+        buf = event.current_buffer
         # Handle selection: cut selection if present, otherwise delete one character
         if buf.selection_state:  # type: ignore[reportUnknownMemberType]
             buf.cut_selection()  # type: ignore[reportUnknownMemberType]
@@ -686,15 +686,15 @@ def create_key_bindings(
     @kb.add("left", filter=enabled)
     def _(event: KeyPressEvent) -> None:
         """Support wrapping to previous line when pressing left at column 0."""
-        buf = event.current_buffer  # type: ignore
+        buf = event.current_buffer
         try:
             doc = buf.document  # type: ignore[reportUnknownMemberType]
-            row = cast(int, doc.cursor_position_row)  # type: ignore[reportUnknownMemberType]
-            col = cast(int, doc.cursor_position_col)  # type: ignore[reportUnknownMemberType]
+            row = doc.cursor_position_row
+            col = doc.cursor_position_col
 
             # At the beginning of a non-first line: jump to previous line end.
             if col == 0 and row > 0:
-                lines = cast(list[str], doc.lines)  # type: ignore[reportUnknownMemberType]
+                lines = doc.lines
                 prev_row = row - 1
                 if 0 <= prev_row < len(lines):
                     prev_line = lines[prev_row]
@@ -711,12 +711,12 @@ def create_key_bindings(
     @kb.add("right", filter=enabled)
     def _(event: KeyPressEvent) -> None:
         """Support wrapping to next line when pressing right at line end."""
-        buf = event.current_buffer  # type: ignore
+        buf = event.current_buffer
         try:
             doc = buf.document  # type: ignore[reportUnknownMemberType]
-            row = cast(int, doc.cursor_position_row)  # type: ignore[reportUnknownMemberType]
-            col = cast(int, doc.cursor_position_col)  # type: ignore[reportUnknownMemberType]
-            lines = cast(list[str], doc.lines)  # type: ignore[reportUnknownMemberType]
+            row = doc.cursor_position_row
+            col = doc.cursor_position_col
+            lines = doc.lines
 
             current_line = lines[row] if 0 <= row < len(lines) else ""
             at_line_end = col >= len(current_line)

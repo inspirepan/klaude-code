@@ -1,12 +1,12 @@
 import json
 import os
 from collections.abc import AsyncGenerator
-from typing import Any, Literal, override
+from typing import Any, Literal, cast, override
 
 import anthropic
 import httpx
 from anthropic import APIError
-from anthropic.types.beta import BetaTextBlockParam
+from anthropic.types.beta import BetaCacheControlEphemeralParam, BetaTextBlockParam
 from anthropic.types.beta.beta_input_json_delta import BetaInputJSONDelta
 from anthropic.types.beta.beta_raw_content_block_delta_event import BetaRawContentBlockDeltaEvent
 from anthropic.types.beta.beta_raw_content_block_start_event import BetaRawContentBlockStartEvent
@@ -179,13 +179,13 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
     system = convert_system_to_input(param.system, system_messages, cache_ttl=cache_ttl)
 
     # Add identity block at the beginning of the system prompt
-    identity_cache_control: dict[str, str] = {"type": "ephemeral"}
+    identity_cache_control: BetaCacheControlEphemeralParam = {"type": "ephemeral"}
     if cache_ttl == "1h":
         identity_cache_control["ttl"] = "1h"
     identity_block: BetaTextBlockParam = {
         "type": "text",
         "text": CLAUDE_CODE_IDENTITY,
-        "cache_control": identity_cache_control,  # type: ignore[typeddict-item]
+        "cache_control": identity_cache_control,
     }
     system = [identity_block, *system]
 
@@ -225,7 +225,8 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
         # Opus 4.7 omits thinking content by default; restore it for UI streaming
         if is_opus47:
             thinking_config["display"] = "summarized"
-        payload["thinking"] = thinking_config  # type: ignore[typeddict-item]
+        # "adaptive" thinking and "display" are beta features not yet in the SDK TypedDict.
+        payload["thinking"] = cast(anthropic.types.ThinkingConfigEnabledParam, thinking_config)
     elif param.thinking and param.thinking.type == "enabled":
         payload["thinking"] = anthropic.types.ThinkingConfigEnabledParam(
             type="enabled",
@@ -239,10 +240,12 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
         betas.append(ANTHROPIC_BETA_CONTEXT_MANAGEMENT)
 
     if param.effort:
-        payload["output_config"] = {"effort": param.effort}  # type: ignore[typeddict-item]
+        # Our effort literal is wider than the SDK's TypedDict (xhigh/max accepted at runtime).
+        payload["output_config"] = {"effort": cast(Literal["low", "medium", "high"], param.effort)}
 
     if param.fast_mode:
-        payload["speed"] = "fast"  # type: ignore[typeddict-item]
+        # "speed" is a beta payload key not yet modeled by the SDK TypedDict.
+        cast(dict[str, Any], payload)["speed"] = "fast"
         betas.append("fast-mode-2026-02-01")
 
     if betas:

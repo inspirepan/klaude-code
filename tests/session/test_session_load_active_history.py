@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Coroutine
 from pathlib import Path
+from typing import Any
 
 from klaude_code.protocol import message
 from klaude_code.session.session import Session
 
 
-def arun(coro: object) -> object:
-    return asyncio.run(coro)  # type: ignore[arg-type]
+def arun[T](coro: Coroutine[Any, Any, T]) -> T:
+    return asyncio.run(coro)
 
 
 def _text(item: message.HistoryEvent) -> str | None:

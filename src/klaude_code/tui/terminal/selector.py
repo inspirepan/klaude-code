@@ -681,7 +681,7 @@ def select_one[T](
     if initial_value is not None:
         try:
             full_index = next(i for i, it in enumerate(items) if it.value == initial_value)
-            indices, _ = _filter_items(items, get_filter_text())  # pyright: ignore[reportAssignmentType]
+            indices, _filtered = _filter_items(items, get_filter_text())
             pointed_at = indices.index(full_index) if full_index in indices else 0
         except StopIteration:
             pointed_at = 0
@@ -887,7 +887,7 @@ class SelectOverlay[T]:
 
             result = self._on_select(value)
             if hasattr(result, "__await__"):
-                event.app.create_background_task(cast(Coroutine[Any, Any, None], result))
+                event.app.create_background_task(result)
 
         @kb.add(Keys.Tab, filter=is_open_filter, eager=True)
         def _(event: KeyPressEvent) -> None:
@@ -908,7 +908,7 @@ class SelectOverlay[T]:
 
             result = self._on_select(value)
             if hasattr(result, "__await__"):
-                event.app.create_background_task(cast(Coroutine[Any, Any, None], result))
+                event.app.create_background_task(result)
 
         @kb.add(Keys.Escape, filter=is_open_filter, eager=True)
         def _(event: KeyPressEvent) -> None:
@@ -935,7 +935,7 @@ class SelectOverlay[T]:
         if self._on_cancel is not None:
             result = self._on_cancel()
             if hasattr(result, "__await__"):
-                event.app.create_background_task(cast(Coroutine[Any, Any, None], result))
+                event.app.create_background_task(result)
 
     def _build_layout(self) -> ConditionalContainer:
         def get_header_tokens() -> list[tuple[str, str]]:

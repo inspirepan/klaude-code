@@ -320,7 +320,7 @@ def _sanitize_debug_value(value: object) -> object:
     if isinstance(value, list):
         return [_sanitize_debug_value(v) for v in cast(list[object], value)]
     if isinstance(value, dict):
-        return _sanitize_debug_dict(value)  # type: ignore[arg-type]
+        return _sanitize_debug_dict(cast(dict[object, object], value))
     return value
 
 

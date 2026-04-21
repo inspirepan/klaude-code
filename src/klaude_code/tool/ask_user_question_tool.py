@@ -204,7 +204,7 @@ class AskUserQuestionTool(ToolABC):
 
         if response.payload is None:
             return message.ToolResultMessage(status="error", output_text="Missing AskUserQuestion response payload")
-        if response.payload.kind != "ask_user_question":
+        if not isinstance(response.payload, user_interaction.AskUserQuestionResponsePayload):
             return message.ToolResultMessage(status="error", output_text="Invalid AskUserQuestion response payload")
 
         output_text, ui_extra = cls._format_submitted_output(interaction_questions, response.payload.answers)

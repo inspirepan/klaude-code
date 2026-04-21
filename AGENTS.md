@@ -23,7 +23,7 @@ Python tests are located in the `tests/` directory. Web frontend tests are in `w
 
 ## Build, Test, and Development Commands
 
-- `make lint`: Run ruff + pyright + import-linter + web eslint
+- `make lint`: Run ruff + ty + import-linter + web eslint
 - `make format`: Auto-fix with ruff check --fix + ruff format + prettier
 - `make test`: Run all tests (vitest + pytest)
 - `make web-test`: Run web frontend tests only (vitest)
@@ -35,7 +35,7 @@ Python tests are located in the `tests/` directory. Web frontend tests are in `w
 
 - Python 3.13+ required
 - Line length: 120 characters (enforced by ruff)
-- Type checking: Strict mode with Pyright
+- Type checking: Strict mode with ty (all rules at error-level; see `[tool.ty]` in `pyproject.toml`)
 - Naming conventions: Follow PEP 8 for Python code
 - Follow existing patterns exactly
 - Public APIs must have concise docstrings

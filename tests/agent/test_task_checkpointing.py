@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Coroutine
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -19,8 +19,8 @@ from klaude_code.tool.core.registry import get_tool_schemas
 from klaude_code.tool.rewind_tool import RewindTool
 
 
-def arun(coro: object) -> object:
-    return asyncio.run(coro)  # type: ignore[arg-type]
+def arun[T](coro: Coroutine[Any, Any, T]) -> T:
+    return asyncio.run(coro)
 
 
 @pytest.fixture(autouse=True)

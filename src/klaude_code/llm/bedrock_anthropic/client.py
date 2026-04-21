@@ -6,12 +6,15 @@ import contextvars
 import json
 from collections.abc import AsyncGenerator
 from importlib.util import find_spec
+from types import ModuleType
 from typing import Any, cast, override
 
 from klaude_code.protocol.models import StopReason, Usage
 
 try:
-    import botocore.exceptions as _botocore_exceptions  # pyright: ignore[reportMissingTypeStubs]
+    import botocore.exceptions as _botocore_exceptions_import  # pyright: ignore[reportMissingTypeStubs]
+
+    _botocore_exceptions: ModuleType | None = _botocore_exceptions_import
 except ModuleNotFoundError:
     _botocore_exceptions = None
 

@@ -61,8 +61,10 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
         if detail.type in ("reasoning.text", "reasoning.summary"):
             self._reasoning_id = detail.id
             # Signature (Anthropic-style) can arrive alongside text/summary.
-            if detail.signature and (signature_part := self._build_signature_part(detail.signature, detail)):
-                items.append(signature_part)
+            if detail.signature:
+                signature_part = self._build_signature_part(detail.signature, detail)
+                if signature_part:
+                    items.append(signature_part)
 
         return items
 

@@ -64,6 +64,7 @@ def test_ask_user_question_success_response() -> None:
         _tool_call_id: str | None,
     ) -> user_interaction.UserInteractionResponse:
         assert source == "tool"
+        assert isinstance(payload, user_interaction.AskUserQuestionRequestPayload)
         assert payload.kind == "ask_user_question"
         assert payload.questions[0].options[0].id == "q1_o1"
         assert payload.questions[0].options[0].markdown is None
@@ -111,6 +112,7 @@ def test_ask_user_question_single_select_annotation_is_included_for_model_only()
         payload: user_interaction.UserInteractionRequestPayload,
         _tool_call_id: str | None,
     ) -> user_interaction.UserInteractionResponse:
+        assert isinstance(payload, user_interaction.AskUserQuestionRequestPayload)
         assert payload.kind == "ask_user_question"
         assert payload.questions[0].options[0].markdown == "# Design A\n\nFast path"
         return user_interaction.UserInteractionResponse(

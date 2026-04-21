@@ -43,12 +43,11 @@ source-include = ["src/klaude_code/web/dist/**"]
 dev = [
     "hypothesis>=6.148.8",
     "import-linter>=2.6",
-    "pyright>=1.1.407",
     "pytest>=8.4.1",
     "pytest-cov>=7.0.0",
     "pytest-timeout>=2.4.0",
     "ruff==0.14.3",
-    "ty>=0.0.8",
+    "ty>=0.0.28",
 ]
 
 
@@ -71,25 +70,6 @@ ignore = ["RUF001", "RUF002", "RUF003", "E501"]
 [tool.ruff.lint.isort]
 known-first-party = ["klaude_code"]
 
-[tool.pyright]
-typeCheckingMode = "strict"
-pythonVersion = "3.13"
-venvPath = "."
-venv = ".venv"
-extraPaths = ["src"]
-reportMissingImports = "warning"
-reportMissingModuleSource = "warning"
-exclude = [
-    ".venv/",
-    ".pnpm-store/",
-    "web/node_modules/",
-    "src/klaude_code/skill/assets/",
-]
-
-[[tool.pyright.executionEnvironments]]
-root = "."
-extraPaths = ["src"]
-
 [tool.ty.environment]
 python-version = "3.13"
 
@@ -98,6 +78,18 @@ include = [
     "src",
     "tests",
 ]
+exclude = [
+    "src/klaude_code/skill/assets",
+]
+
+# Strictest posture: treat every rule as error-level, and fail the run on any
+# warning-level diagnostic too. If a specific rule proves unworkable, downgrade
+# it explicitly below (e.g. `some-rule = "warn"`).
+[tool.ty.rules]
+all = "error"
+
+[tool.ty.terminal]
+error-on-warning = true
 
 [tool.importlinter]
 root_packages = ["klaude_code"]

@@ -128,7 +128,9 @@ def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.Monkey
     assert clients.compact.model_name == "compact-model-id"
 
 
-def test_refresh_session_title_prefers_fast_client(tmp_path: Path, isolated_home: Path) -> None:
+def test_refresh_session_title_prefers_fast_client(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     del isolated_home
 
     async def _test() -> None:
@@ -158,11 +160,11 @@ def test_refresh_session_title_prefers_fast_client(tmp_path: Path, isolated_home
         )
         session = Session(work_dir=tmp_path)
         session.append_history([message.UserMessage(parts=message.text_parts_from_str("继续优化标题生成"))])
-        handler.get_session_llm_clients = lambda _sid: LLMClients(  # type: ignore[method-assign]
-            main=main_client,
-            fast=fast_client,
-            compact=compact_client,
-        )
+
+        def _fake_get_clients(_sid: str) -> LLMClients:
+            return LLMClients(main=main_client, fast=fast_client, compact=compact_client)
+
+        monkeypatch.setattr(handler, "get_session_llm_clients", _fake_get_clients)
 
         await session.wait_for_flush()
         await handler._refresh_session_title(
@@ -180,7 +182,9 @@ def test_refresh_session_title_prefers_fast_client(tmp_path: Path, isolated_home
     asyncio.run(_test())
 
 
-def test_schedule_session_title_refresh_runs_in_background(tmp_path: Path, isolated_home: Path) -> None:
+def test_schedule_session_title_refresh_runs_in_background(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     del isolated_home
 
     async def _test() -> None:
@@ -215,7 +219,7 @@ def test_schedule_session_title_refresh_runs_in_background(tmp_path: Path, isola
             started.set()
             await release.wait()
 
-        handler._refresh_session_title = _fake_refresh  # type: ignore[method-assign]
+        monkeypatch.setattr(handler, "_refresh_session_title", _fake_refresh)
         handler._schedule_session_title_refresh(session)
 
         await asyncio.wait_for(started.wait(), timeout=1)

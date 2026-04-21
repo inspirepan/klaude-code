@@ -99,13 +99,17 @@ def build_chat_content_parts(
             parts.append({"type": "text", "text": part.text})
         elif isinstance(part, message.ImageURLPart):
             parts.append({"type": "image_url", "image_url": {"url": image_url_to_request_url(part)}})
-        elif isinstance(part, message.ImageFilePart) and (url := image_file_to_data_url(part)) is not None:
-            parts.append({"type": "image_url", "image_url": {"url": url}})
+        elif isinstance(part, message.ImageFilePart):
+            url = image_file_to_data_url(part)
+            if url is not None:
+                parts.append({"type": "image_url", "image_url": {"url": url}})
     if attachment.text:
         parts.append({"type": "text", "text": attachment.text})
     for image in attachment.images:
-        if isinstance(image, message.ImageFilePart) and (url := image_file_to_data_url(image)) is not None:
-            parts.append({"type": "image_url", "image_url": {"url": url}})
+        if isinstance(image, message.ImageFilePart):
+            url = image_file_to_data_url(image)
+            if url is not None:
+                parts.append({"type": "image_url", "image_url": {"url": url}})
         elif isinstance(image, message.ImageURLPart):
             parts.append({"type": "image_url", "image_url": {"url": image_url_to_request_url(image)}})
     if not parts:
