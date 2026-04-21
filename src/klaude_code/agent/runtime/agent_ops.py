@@ -839,9 +839,12 @@ class AgentOperationHandler:
                 llm_client=compact_client,
                 llm_config=compact_client.get_llm_config(),
                 cancel=cancel_event,
+                main_profile=agent.profile,
             )
             log_debug(f"[Compact:{reason}] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
             agent.session.append_history([result.to_entry()])
+            if result.fork_event is not None:
+                await self._emit_event(result.fork_event)
             await self._emit_event(
                 events.CompactionEndEvent(
                     session_id=session_id,

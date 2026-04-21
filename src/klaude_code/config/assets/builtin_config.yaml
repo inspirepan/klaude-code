@@ -537,10 +537,6 @@ sub_agent_models:
   - gpt-5.4
   - opus
 
-compact_model:
-- gemini-flash
-- gpt-5.4-mini
-- sonnet
 fast_model:
 - gpt-5.4-nano
 - gemini-flash-lite

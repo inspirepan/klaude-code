@@ -387,6 +387,7 @@ class TaskExecutor:
                         focus=None,
                         llm_client=compact_client,
                         llm_config=compact_client.get_llm_config(),
+                        main_profile=profile,
                     )
                     log_debug("[Compact] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
 
@@ -396,6 +397,8 @@ class TaskExecutor:
                         self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
                         self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
                     metadata_accumulator.cache.notify_compaction()
+                    if result.fork_event is not None:
+                        yield result.fork_event
                     yield events.CompactionEndEvent(
                         session_id=session_ctx.session_id,
                         reason=CompactionReason.THRESHOLD.value,
@@ -535,6 +538,7 @@ class TaskExecutor:
                                 focus=None,
                                 llm_client=compact_client,
                                 llm_config=compact_client.get_llm_config(),
+                                main_profile=profile,
                             )
                             log_debug(
                                 "[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE
@@ -545,6 +549,8 @@ class TaskExecutor:
                                 self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
                                 self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
                             metadata_accumulator.cache.notify_compaction()
+                            if result.fork_event is not None:
+                                yield result.fork_event
                             yield events.CompactionEndEvent(
                                 session_id=session_ctx.session_id,
                                 reason=CompactionReason.OVERFLOW.value,

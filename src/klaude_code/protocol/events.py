@@ -38,6 +38,7 @@ __all__ = [
     "ErrorEvent",
     "Event",
     "EventEnvelope",
+    "ForkCacheHitRateEvent",
     "InterruptEvent",
     "ModelChangedEvent",
     "NoticeEvent",
@@ -307,6 +308,24 @@ class CacheHitRateEvent(Event):
     cache_hit_rate: float
     cached_tokens: int
     prev_turn_input_tokens: int
+
+
+class ForkCacheHitRateEvent(Event):
+    """Emitted after a forked LLM query (compact, handoff, sub-agent fork_context, ...)
+    to surface how much of the parent's prompt cache the fork actually reused.
+
+    Not persisted to history — ephemeral, for TUI display only.
+    """
+
+    fork_label: str
+    """Identifies the fork source: ``compact`` / ``handoff`` / ``sub_agent`` / ..."""
+    cache_read_tokens: int
+    cache_creation_tokens: int
+    input_tokens: int
+    cache_hit_rate: float
+    """``cache_read / (cache_read + cache_creation + input)``; ``0.0`` when fallback_used."""
+    fallback_used: bool = False
+    """True when cache sharing was skipped (e.g. compact_model differs from main)."""
 
 
 class TaskMetadataEvent(Event):
