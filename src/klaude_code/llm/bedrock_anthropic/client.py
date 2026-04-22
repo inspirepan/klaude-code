@@ -154,7 +154,11 @@ def _convert_content_block(block: dict[str, Any], *, model_id: str) -> list[dict
     result: list[dict[str, Any]] = []
 
     if block_type == "text":
-        result.append({"text": block.get("text", "")})
+        text = cast(str, block.get("text") or "")
+        # Bedrock ConverseStream rejects blank text blocks; drop them and
+        # keep the cache boundary only if cache_control was set.
+        if text:
+            result.append({"text": text})
         _append_cache_point(result, block)
         return result
 
@@ -168,6 +172,9 @@ def _convert_content_block(block: dict[str, Any], *, model_id: str) -> list[dict
         tool_content: list[dict[str, Any]] = []
         for item in cast(list[dict[str, Any]], block.get("content", [])):
             tool_content.extend(_convert_content_block(item, model_id=model_id))
+        if not tool_content:
+            # toolResult.content cannot be empty on Bedrock ConverseStream.
+            tool_content = [{"text": " "}]
         result.append(
             {
                 "toolResult": {
@@ -238,7 +245,9 @@ def _convert_messages(param: llm_param.LLMCallParameter) -> list[dict[str, Any]]
         for block in cast(list[dict[str, Any]], msg.get("content", [])):
             content.extend(_convert_content_block(block, model_id=model_id))
         if not content:
-            content = [{"text": ""}]
+            # Bedrock ConverseStream rejects empty or blank-text content; use a
+            # single space as a minimal placeholder to keep turn structure intact.
+            content = [{"text": " "}]
         result.append({"role": msg["role"], "content": content})
 
     return result
@@ -253,7 +262,9 @@ def _convert_system(param: llm_param.LLMCallParameter) -> list[dict[str, Any]]:
     result.append({"cachePoint": {"type": "default"}})
 
     for block in system_blocks:
-        result.append({"text": block["text"]})
+        text = cast(str, block.get("text") or "")
+        if text:
+            result.append({"text": text})
         if block.get("cache_control"):
             result.append({"cachePoint": {"type": "default"}})
 
