@@ -74,5 +74,9 @@ def supports_kitty_graphics() -> bool:
     if "wezterm" in term_program:
         return True
 
+    # Warp supports Kitty graphics protocol since v0.2025.03.26
+    if "warp" in term_program:
+        return True
+
     # Konsole (KDE) supports Kitty graphics protocol
     return bool(os.environ.get("KONSOLE_VERSION"))
