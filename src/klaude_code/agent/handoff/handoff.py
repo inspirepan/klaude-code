@@ -93,6 +93,7 @@ async def run_handoff(
             goal=goal,
             llm_client=llm_client,
             cancel=cancel,
+            session_id=session.id,
         )
         fork_usage = None
 
@@ -159,7 +160,7 @@ async def _build_handoff_fork(
     call_param = llm_param.LLMCallParameter(
         input=input_messages,
         system=main_profile.system_prompt,
-        session_id=None,
+        session_id=session.id,
     )
     call_param.tools = main_profile.tools  # Must match parent; tools=[] would break cache.
 
@@ -190,6 +191,7 @@ async def _extract_context(
     goal: str,
     llm_client: LLMClientABC,
     cancel: asyncio.Event | None,
+    session_id: str,
 ) -> str:
     prompt_text = HANDOFF_EXTRACTION_PROMPT.format(goal=goal)
     input_messages: list[message.Message] = [
@@ -204,6 +206,7 @@ async def _extract_context(
         input=input_messages,
         llm_client=llm_client,
         cancel=cancel,
+        session_id=session_id,
     )
 
 
@@ -212,6 +215,7 @@ async def _call_extractor(
     input: list[message.Message],
     llm_client: LLMClientABC,
     cancel: asyncio.Event | None,
+    session_id: str,
 ) -> str:
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
@@ -222,6 +226,7 @@ async def _call_extractor(
                 input=input,
                 llm_client=llm_client,
                 cancel=cancel,
+                session_id=session_id,
             )
         except asyncio.CancelledError:
             raise
@@ -246,6 +251,7 @@ async def _call_extractor_once(
     input: list[message.Message],
     llm_client: LLMClientABC,
     cancel: asyncio.Event | None,
+    session_id: str,
 ) -> str:
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
@@ -253,7 +259,7 @@ async def _call_extractor_once(
     call_param = llm_param.LLMCallParameter(
         input=input,
         system=HANDOFF_SYSTEM_PROMPT,
-        session_id=None,
+        session_id=session_id,
     )
     call_param.tools = None
 

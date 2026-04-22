@@ -241,6 +241,7 @@ def test_call_summarizer_fails_fast_on_stream_error() -> None:
                 llm_client=client,
                 max_tokens=256,
                 cancel=None,
+                session_id="test-session",
             )
 
     arun(_test())
