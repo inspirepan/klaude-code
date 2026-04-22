@@ -618,9 +618,7 @@ class BedrockClient(LLMClientABC):
             aws_session_token=config.aws_session_token,
             aws_region=config.aws_region,
             aws_profile=config.aws_profile,
-            timeout=httpx.Timeout(
-                LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
-            ),
+            timeout=httpx.Timeout(LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ),
         )
 
     @classmethod
