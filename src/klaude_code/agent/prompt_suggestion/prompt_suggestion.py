@@ -100,7 +100,7 @@ async def run_prompt_suggestion(
     call_param = llm_param.LLMCallParameter(
         input=input_messages,
         system=main_profile.system_prompt,
-        session_id=None,
+        session_id=session.id,
     )
     # tools must match parent; tools=[] would bust cache (0% hit).
     call_param.tools = main_profile.tools

@@ -250,6 +250,7 @@ async def run_compaction(
             llm_client=llm_client,
             config=compaction_config,
             cancel=cancel,
+            session_id=session.id,
         )
         fork_usage = None
 
@@ -315,7 +316,7 @@ async def _build_summary_fork(
     call_param = llm_param.LLMCallParameter(
         input=input_messages,
         system=main_profile.system_prompt,
-        session_id=None,
+        session_id=session.id,
     )
     call_param.tools = main_profile.tools  # Must match parent; tools=[] would break cache.
     call_param.max_tokens = max_summary_tokens
@@ -647,6 +648,7 @@ async def _build_summary(
     llm_client: LLMClientABC,
     config: CompactionConfig,
     cancel: asyncio.Event | None,
+    session_id: str,
 ) -> str:
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
@@ -660,11 +662,12 @@ async def _build_summary(
                 focus,
                 previous_summary,
                 cancel,
+                session_id,
             )
             if messages_to_summarize
             else asyncio.sleep(0, result=previous_summary or "")
         )
-        prefix_task = _generate_task_prefix_summary(task_prefix_messages, llm_client, config, cancel)
+        prefix_task = _generate_task_prefix_summary(task_prefix_messages, llm_client, config, cancel, session_id)
         history_summary, task_prefix_summary = await asyncio.gather(history_task, prefix_task)
         return f"{COMPACTION_SUMMARY_PREFIX}\n\n<summary>{history_summary}\n\n---\n\n**Task Context (current task):**\n\n{task_prefix_summary}\n\n</summary>"
 
@@ -675,6 +678,7 @@ async def _build_summary(
         focus,
         previous_summary,
         cancel,
+        session_id,
     )
 
 
@@ -685,6 +689,7 @@ async def _generate_summary(
     focus: str | None,
     previous_summary: str | None,
     cancel: asyncio.Event | None,
+    session_id: str,
 ) -> str:
     serialized = serialize_conversation(messages_to_summarize)
     parts: list[message.Part] = [
@@ -709,6 +714,7 @@ async def _generate_summary(
         llm_client=llm_client,
         max_tokens=config.max_summary_tokens,
         cancel=cancel,
+        session_id=session_id,
     )
 
 
@@ -717,6 +723,7 @@ async def _generate_task_prefix_summary(
     llm_client: LLMClientABC,
     config: CompactionConfig,
     cancel: asyncio.Event | None,
+    session_id: str,
 ) -> str:
     serialized = serialize_conversation(messages)
     return await _call_summarizer(
@@ -731,6 +738,7 @@ async def _generate_task_prefix_summary(
         llm_client=llm_client,
         max_tokens=config.max_summary_tokens,
         cancel=cancel,
+        session_id=session_id,
     )
 
 
@@ -740,6 +748,7 @@ async def _call_summarizer(
     llm_client: LLMClientABC,
     max_tokens: int,
     cancel: asyncio.Event | None,
+    session_id: str,
 ) -> str:
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
@@ -748,6 +757,7 @@ async def _call_summarizer(
         llm_client=llm_client,
         max_tokens=max_tokens,
         cancel=cancel,
+        session_id=session_id,
     )
 
 
@@ -757,6 +767,7 @@ async def _call_summarizer_once(
     llm_client: LLMClientABC,
     max_tokens: int,
     cancel: asyncio.Event | None,
+    session_id: str,
 ) -> str:
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
@@ -764,7 +775,7 @@ async def _call_summarizer_once(
     call_param = llm_param.LLMCallParameter(
         input=input,
         system=SUMMARIZATION_SYSTEM_PROMPT,
-        session_id=None,
+        session_id=session_id,
     )
     call_param.max_tokens = max_tokens
     call_param.tools = None
