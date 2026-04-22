@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.26.0] - 2026-04-22
+
+### Added
+
+- propagate session_id to fork LLM calls ([#300](https://github.com/inspirepan/klaude-code/pull/300))
+- validate main_model at startup + prompt suggestion UX polish ([#298](https://github.com/inspirepan/klaude-code/pull/298))
+- unified theme palette and x-session-id header for all LLM clients ([#297](https://github.com/inspirepan/klaude-code/pull/297))
+- prompt cache sharing, next-prompt prediction, and model UX improvements ([#296](https://github.com/inspirepan/klaude-code/pull/296))
+- add moonshot-ai provider and style aborted tool results with interrupt theme ([#295](https://github.com/inspirepan/klaude-code/pull/295))
+- auto-upgrade on startup, empty-response recovery, and pyright fixes ([#294](https://github.com/inspirepan/klaude-code/pull/294))
+- add azure responses provider and improve TUI context UX ([#291](https://github.com/inspirepan/klaude-code/pull/291))
+- bedrock ConverseStream, config cleanups, cost default 7d, CJK @-path fix ([#290](https://github.com/inspirepan/klaude-code/pull/290))
+- improve model search and various TUI/config fixes ([#289](https://github.com/inspirepan/klaude-code/pull/289))
+- add away-summary recaps and streamline turn handling ([#288](https://github.com/inspirepan/klaude-code/pull/288))
+- upgrade to Claude Opus 4.7 with effort/verbosity split ([#285](https://github.com/inspirepan/klaude-code/pull/285))
+- improve tool gating and bash mode UX ([#284](https://github.com/inspirepan/klaude-code/pull/284))
+- add /export-session command with premium HTML export ([#283](https://github.com/inspirepan/klaude-code/pull/283))
+- refine user input and streamed output rendering ([#279](https://github.com/inspirepan/klaude-code/pull/279))
+- prefill search and upgrade glm 5.1 ([#271](https://github.com/inspirepan/klaude-code/pull/271))
+- add AWS Bedrock provider and expand logout support ([#268](https://github.com/inspirepan/klaude-code/pull/268))
+- merge welcome context and skills ([#266](https://github.com/inspirepan/klaude-code/pull/266))
+- hot reload newly added skills ([#265](https://github.com/inspirepan/klaude-code/pull/265))
+- attach available skill listings to developer messages ([#262](https://github.com/inspirepan/klaude-code/pull/262))
+
+### Changed
+
+- migrate type checker to ty and optimize CI ([#299](https://github.com/inspirepan/klaude-code/pull/299))
+- reorganize flat tests/ into domain sub-packages (`80e7b7dc0`)
+- split config.py and reorganize config package (`17c1a9c0e`)
+- reorganize module layout ([#293](https://github.com/inspirepan/klaude-code/pull/293))
+- polish message cards and truncation behavior ([#292](https://github.com/inspirepan/klaude-code/pull/292))
+- mark Opus 4.7 workarounds as TODO (`a83aa6d32`)
+- drop null fields when serializing session state ([#287](https://github.com/inspirepan/klaude-code/pull/287))
+- delay PR browser open and drop todo nudge attachment ([#286](https://github.com/inspirepan/klaude-code/pull/286))
+- remove stack splitting guidance ([#270](https://github.com/inspirepan/klaude-code/pull/270))
+- split install into Python and web targets ([#269](https://github.com/inspirepan/klaude-code/pull/269))
+- use monospace font for model ID in TaskMetadata ([#263](https://github.com/inspirepan/klaude-code/pull/263))
+- make JSON copy buttons visible + feat(prompts): add verbosity controls ([#259](https://github.com/inspirepan/klaude-code/pull/259))
+
+### Fixed
+
+- enable Kitty graphics for Warp terminal ([#301](https://github.com/inspirepan/klaude-code/pull/301))
+- refine tool result rendering ([#280](https://github.com/inspirepan/klaude-code/pull/280))
+- stabilize image history and tui fallbacks ([#277](https://github.com/inspirepan/klaude-code/pull/277))
+- isolate apply_patch failures per file ([#276](https://github.com/inspirepan/klaude-code/pull/276))
+- align dynamic headers ([#275](https://github.com/inspirepan/klaude-code/pull/275))
+- fix builtin model list entries ([#274](https://github.com/inspirepan/klaude-code/pull/274))
+- handle malformed finish reasons ([#273](https://github.com/inspirepan/klaude-code/pull/273))
+- preserve picker order and interrupt behavior ([#272](https://github.com/inspirepan/klaude-code/pull/272))
+- various tui and compaction fixes ([#264](https://github.com/inspirepan/klaude-code/pull/264))
+- move blank lines to content boundaries ([#261](https://github.com/inspirepan/klaude-code/pull/261))
+- detect stale web dependencies ([#260](https://github.com/inspirepan/klaude-code/pull/260))
+
+### Other
+
+- bump submodule to sync code-reviewer/code-simplifier rename (`e0978c351`)
+- Merge pull request #282 from inspirepan/feat/bash-tool-descriptions ([#282](https://github.com/inspirepan/klaude-code/pull/282))
+- Revert "fix(tui): add gap above bash live region" ([#281](https://github.com/inspirepan/klaude-code/pull/281))
+- Merge pull request #278 from inspirepan/refactor/tui-prompt-caching ([#278](https://github.com/inspirepan/klaude-code/pull/278))
+
 ## [2.25.0] - 2026-04-06
 
 ### Added
@@ -2220,7 +2280,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.25.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.26.0...HEAD
+[2.26.0]: https://github.com/inspirepan/klaude-code/compare/v2.25.0...v2.26.0
 [2.25.0]: https://github.com/inspirepan/klaude-code/compare/v2.24.0...v2.25.0
 [2.24.0]: https://github.com/inspirepan/klaude-code/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/inspirepan/klaude-code/compare/v2.22.0...v2.23.0
