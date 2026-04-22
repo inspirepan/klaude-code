@@ -45,6 +45,11 @@ LLM_HTTP_TIMEOUT_READ = 285.0  # HTTP read timeout (seconds)
 ANTHROPIC_BETA_INTERLEAVED_THINKING = "interleaved-thinking-2025-05-14"  # Anthropic API beta flag
 ANTHROPIC_BETA_CONTEXT_MANAGEMENT = "context-management-2025-06-27"  # Anthropic API beta flag for context editing
 
+# Bedrock transport selector (internal). True uses native ConverseStream via boto3;
+# False routes through `anthropic.AsyncAnthropicBedrock` and reuses the Anthropic
+# messages streaming path.
+BEDROCK_USE_CONVERSE_STREAM = False
+
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"  # OpenRouter API base URL
 
 CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"  # Codex API base URL

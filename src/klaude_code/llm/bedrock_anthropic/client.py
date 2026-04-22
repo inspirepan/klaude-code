@@ -23,13 +23,15 @@ import httpx
 from klaude_code.const import (
     ANTHROPIC_BETA_CONTEXT_MANAGEMENT,
     ANTHROPIC_BETA_INTERLEAVED_THINKING,
+    BEDROCK_USE_CONVERSE_STREAM,
     DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
     LLM_HTTP_TIMEOUT_CONNECT,
     LLM_HTTP_TIMEOUT_READ,
+    LLM_HTTP_TIMEOUT_TOTAL,
 )
-from klaude_code.llm.anthropic.client import AnthropicStreamStateManager
+from klaude_code.llm.anthropic.client import AnthropicLLMStream, AnthropicStreamStateManager, build_payload
 from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.image import detect_mime_type_from_bytes, parse_data_url
@@ -154,7 +156,11 @@ def _convert_content_block(block: dict[str, Any], *, model_id: str) -> list[dict
     result: list[dict[str, Any]] = []
 
     if block_type == "text":
-        result.append({"text": block.get("text", "")})
+        text = cast(str, block.get("text") or "")
+        # Bedrock ConverseStream rejects blank text blocks; drop them and
+        # keep the cache boundary only if cache_control was set.
+        if text:
+            result.append({"text": text})
         _append_cache_point(result, block)
         return result
 
@@ -168,6 +174,9 @@ def _convert_content_block(block: dict[str, Any], *, model_id: str) -> list[dict
         tool_content: list[dict[str, Any]] = []
         for item in cast(list[dict[str, Any]], block.get("content", [])):
             tool_content.extend(_convert_content_block(item, model_id=model_id))
+        if not tool_content:
+            # toolResult.content cannot be empty on Bedrock ConverseStream.
+            tool_content = [{"text": " "}]
         result.append(
             {
                 "toolResult": {
@@ -238,7 +247,9 @@ def _convert_messages(param: llm_param.LLMCallParameter) -> list[dict[str, Any]]
         for block in cast(list[dict[str, Any]], msg.get("content", [])):
             content.extend(_convert_content_block(block, model_id=model_id))
         if not content:
-            content = [{"text": ""}]
+            # Bedrock ConverseStream rejects empty or blank-text content; use a
+            # single space as a minimal placeholder to keep turn structure intact.
+            content = [{"text": " "}]
         result.append({"role": msg["role"], "content": content})
 
     return result
@@ -253,7 +264,9 @@ def _convert_system(param: llm_param.LLMCallParameter) -> list[dict[str, Any]]:
     result.append({"cachePoint": {"type": "default"}})
 
     for block in system_blocks:
-        result.append({"text": block["text"]})
+        text = cast(str, block.get("text") or "")
+        if text:
+            result.append({"text": text})
         if block.get("cache_control"):
             result.append({"cachePoint": {"type": "default"}})
 
@@ -544,10 +557,24 @@ class BedrockLLMStream(LLMStreamABC):
 
 @register(llm_param.LLMClientProtocol.BEDROCK)
 class BedrockClient(LLMClientABC):
-    """LLM client for AWS Bedrock using native ConverseStream."""
+    """LLM client for AWS Bedrock.
+
+    Defaults to native ConverseStream via boto3. When `BEDROCK_USE_CONVERSE_STREAM`
+    is False, routes through `anthropic.AsyncAnthropicBedrock` and reuses the
+    Anthropic messages streaming parser.
+    """
 
     def __init__(self, config: llm_param.LLMConfigParameter):
         super().__init__(config)
+
+        if BEDROCK_USE_CONVERSE_STREAM:
+            self._messages_client: Any = None
+            self._init_converse_client(config)
+        else:
+            self.client: Any = None
+            self._init_messages_client(config)
+
+    def _init_converse_client(self, config: llm_param.LLMConfigParameter) -> None:
         missing = [name for name in ("boto3", "botocore") if find_spec(name) is None]
         if missing:
             missing_names = ", ".join(missing)
@@ -572,7 +599,7 @@ class BedrockClient(LLMClientABC):
             session_kwargs["profile_name"] = config.aws_profile
 
         session: Any = boto3.Session(**session_kwargs)
-        self.client: Any = session.client(
+        self.client = session.client(
             "bedrock-runtime",
             region_name=config.aws_region,
             config=Config(
@@ -582,6 +609,18 @@ class BedrockClient(LLMClientABC):
         )
         self.client.meta.events.register("before-sign.bedrock-runtime", _inject_session_id_header)
 
+    def _init_messages_client(self, config: llm_param.LLMConfigParameter) -> None:
+        import anthropic
+
+        self._messages_client = anthropic.AsyncAnthropicBedrock(
+            aws_access_key=config.aws_access_key,
+            aws_secret_key=config.aws_secret_key,
+            aws_session_token=config.aws_session_token,
+            aws_region=config.aws_region,
+            aws_profile=config.aws_profile,
+            timeout=httpx.Timeout(LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ),
+        )
+
     @classmethod
     @override
     def create(cls, config: llm_param.LLMConfigParameter) -> "LLMClientABC":
@@ -590,8 +629,11 @@ class BedrockClient(LLMClientABC):
     @override
     async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
         param = apply_config_defaults(param, self.get_llm_config())
-
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
+
+        if not BEDROCK_USE_CONVERSE_STREAM:
+            return await self._call_messages(param, metadata_tracker)
+
         request = await asyncio.to_thread(build_bedrock_request, param, region=self.get_llm_config().aws_region)
 
         log_debug(
@@ -610,5 +652,32 @@ class BedrockClient(LLMClientABC):
             _BotocoreEventStreamErrorType,
             httpx.HTTPError,
         ) as e:
+            error_message = f"{e.__class__.__name__} {e!s}"
+            return error_llm_stream(metadata_tracker, error=error_message)
+
+    async def _call_messages(
+        self,
+        param: llm_param.LLMCallParameter,
+        metadata_tracker: MetadataTracker,
+    ) -> LLMStreamABC:
+        import anthropic
+
+        payload = build_payload(param)
+        log_debug(
+            json.dumps(payload, ensure_ascii=False, default=str),
+            debug_type=DebugType.LLM_PAYLOAD,
+        )
+
+        extra_headers: dict[str, str] = {}
+        if param.session_id:
+            extra_headers["x-session-id"] = param.session_id
+
+        try:
+            stream = self._messages_client.beta.messages.create(
+                **payload,
+                extra_headers=extra_headers,
+            )
+            return AnthropicLLMStream(stream, param=param, metadata_tracker=metadata_tracker)
+        except (anthropic.APIError, httpx.HTTPError) as e:
             error_message = f"{e.__class__.__name__} {e!s}"
             return error_llm_stream(metadata_tracker, error=error_message)

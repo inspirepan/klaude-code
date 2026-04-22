@@ -12,6 +12,9 @@ from klaude_code.protocol import llm_param, message
 def test_bedrock_client_reports_missing_optional_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     import klaude_code.llm.bedrock_anthropic.client as bedrock_client_module
 
+    # Missing boto3/botocore only matters for the ConverseStream transport.
+    monkeypatch.setattr(bedrock_client_module, "BEDROCK_USE_CONVERSE_STREAM", True)
+
     real_find_spec = bedrock_client_module.find_spec
 
     def _find_spec(name: str):
